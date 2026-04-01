@@ -19,25 +19,27 @@ import (
 )
 
 const (
-	coderHomeInstructionDir  = ".coder"
-	coderHomeInstructionFile = "AGENTS.md"
-	maxInstructionFileBytes  = 64 * 1024
+	maxInstructionFileBytes = 64 * 1024
 )
 
 var markdownCommentPattern = regexp.MustCompile(`<!--[\s\S]*?-->`)
 
-// readHomeInstructionFile reads the ~/.coder/AGENTS.md file from the
-// workspace agent's home directory.
+// readHomeInstructionFile reads an instruction file from the
+// agent's home directory using home-relative path resolution.
+// This is the fallback for older agents that don't support
+// the context-config endpoint.
 func readHomeInstructionFile(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	homeDir string,
+	fileName string,
 ) (content string, sourcePath string, truncated bool, err error) {
 	if conn == nil {
 		return "", "", false, nil
 	}
 
-	coderDir, err := conn.LS(ctx, "", workspacesdk.LSRequest{
-		Path:       []string{coderHomeInstructionDir},
+	dirListing, err := conn.LS(ctx, "", workspacesdk.LSRequest{
+		Path:       []string{homeDir},
 		Relativity: workspacesdk.LSRelativityHome,
 	})
 	if err != nil {
@@ -48,11 +50,52 @@ func readHomeInstructionFile(
 	}
 
 	var filePath string
-	for _, entry := range coderDir.Contents {
+	for _, entry := range dirListing.Contents {
 		if entry.IsDir {
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(entry.Name), coderHomeInstructionFile) {
+		if strings.EqualFold(strings.TrimSpace(entry.Name), fileName) {
+			filePath = strings.TrimSpace(entry.AbsolutePathString)
+			break
+		}
+	}
+	if filePath == "" {
+		return "", "", false, nil
+	}
+
+	return readInstructionFile(ctx, conn, filePath)
+}
+
+// readInstructionDirFile reads an instruction file from the given
+// absolute directory path. The directory is listed and scanned
+// for a file matching fileName (case-insensitive).
+func readInstructionDirFile(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	absDir string,
+	fileName string,
+) (content string, sourcePath string, truncated bool, err error) {
+	if conn == nil {
+		return "", "", false, nil
+	}
+
+	dirListing, err := conn.LS(ctx, "", workspacesdk.LSRequest{
+		Path:       []string{absDir},
+		Relativity: workspacesdk.LSRelativityRoot,
+	})
+	if err != nil {
+		if isCodersdkStatusCode(err, http.StatusNotFound) {
+			return "", "", false, nil
+		}
+		return "", "", false, xerrors.Errorf("list instruction directory: %w", err)
+	}
+
+	var filePath string
+	for _, entry := range dirListing.Contents {
+		if entry.IsDir {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(entry.Name), fileName) {
 			filePath = strings.TrimSpace(entry.AbsolutePathString)
 			break
 		}
@@ -234,13 +277,43 @@ func skillsFromParts(
 	return skills
 }
 
-// pwdInstructionFilePath returns the absolute path to the AGENTS.md
-// file in the given working directory, or empty if directory is empty.
-func pwdInstructionFilePath(directory string) string {
-	if directory == "" {
+// pwdInstructionFilePath returns the absolute path to the
+// instruction file in the given working directory, or empty if
+// directory is empty.
+func pwdInstructionFilePath(directory, fileName string) string {
+	if directory == "" || fileName == "" {
 		return ""
 	}
-	return path.Join(directory, coderHomeInstructionFile)
+	return path.Join(directory, fileName)
+}
+
+// skillMetaFileFromParts scans persisted context-file parts for
+// the stored skill meta file name. Uses last-wins semantics to
+// match contextFileAgentID, so after an agent change the newest
+// agent's value is returned.
+func skillMetaFileFromParts(
+	messages []database.ChatMessage,
+) string {
+	var result string
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile {
+				continue
+			}
+			if part.ContextFileSkillMetaFile != "" {
+				result = part.ContextFileSkillMetaFile
+			}
+		}
+	}
+	return result
 }
 
 func isCodersdkStatusCode(err error, statusCode int) bool {

@@ -1747,6 +1747,10 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 		SetExtraHeaders(gomock.Any()).
 		AnyTimes()
 	mockConn.EXPECT().
+		ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).
+		AnyTimes()
+	mockConn.EXPECT().
 		ListMCPTools(gomock.Any()).
 		Return(workspacesdk.ListMCPToolsResponse{}, nil).
 		AnyTimes()
@@ -3577,6 +3581,10 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		SetExtraHeaders(gomock.Any()).
 		AnyTimes()
 	mockConn.EXPECT().
+		ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).
+		AnyTimes()
+	mockConn.EXPECT().
 		LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{}, xerrors.New("not found")).
 		AnyTimes()
@@ -4009,6 +4017,8 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
 	mockConn.EXPECT().ListMCPTools(gomock.Any()).
 		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -4024,11 +4034,10 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:       user.ID,
-		Title:         "mcp-tool-test",
-		ModelConfigID: model.ID,
-		WorkspaceID:   uuid.NullUUID{UUID: ws.ID, Valid: true},
-		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
+		OwnerID: user.ID,
+		Title:   "mcp-tool-test", ModelConfigID: model.ID,
+		WorkspaceID:  uuid.NullUUID{UUID: ws.ID, Valid: true},
+		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("Echo something via MCP."),
 		},
@@ -4252,13 +4261,14 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
 	mockConn.EXPECT().ListMCPTools(gomock.Any()).
 		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
