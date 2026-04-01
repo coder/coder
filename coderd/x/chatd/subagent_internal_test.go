@@ -1034,10 +1034,19 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		tickTrap.MustWait(ctx).MustRelease(ctx)
 		tickTrap.Close()
 
-		// Transition child and publish. The pubsub notification
-		// wakes the function without needing a clock advance.
+		// Transition the child first, then publish once the
+		// durable completion state is observable. Pubsub only
+		// wakes the waiter; it does not guarantee the report is
+		// visible in the same instant as the notification.
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "pubsub result")
+		require.Eventually(t, func() bool {
+			chat, report, done, err := server.checkSubagentCompletion(ctx, child.ID)
+			if err != nil {
+				return false
+			}
+			return done && chat.ID == child.ID && report == "pubsub result"
+		}, testutil.WaitMedium, testutil.IntervalFast)
 		_ = ps.Publish(
 			coderdpubsub.ChatStreamNotifyChannel(child.ID),
 			[]byte("done"),
@@ -1047,6 +1056,30 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		require.NoError(t, result.err)
 		assert.Equal(t, child.ID, result.chat.ID)
 		assert.Equal(t, "pubsub result", result.report)
+	})
+
+	t.Run("AlreadyWaitingNoReport", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		mClock := quartz.NewMock(t)
+		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+		ctx := chatdTestContext(t)
+		user, model := seedInternalChatDeps(ctx, t, db)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// signalWake from CreateChat may trigger immediate processing.
+		// Wait for it to settle, then set the terminal state we need.
+		server.inflight.Wait()
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+		gotChat, report, err := server.awaitSubagentCompletion(
+			ctx, parent.ID, child.ID, 5*time.Second,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, child.ID, gotChat.ID)
+		assert.Empty(t, report)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
