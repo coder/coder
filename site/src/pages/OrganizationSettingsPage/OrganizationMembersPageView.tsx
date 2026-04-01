@@ -1,6 +1,6 @@
 import { EllipsisVertical, TriangleAlert } from "lucide-react";
 import { type ComponentProps, type FC, useState } from "react";
-import { keepPreviousData, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { users } from "#/api/queries/users";
 import type {
