@@ -103,7 +103,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 						</div>
 						{!isEmpty && (
 							<Logs
-								className="!border-b-border"
+								className="border-b-border"
 								hideTimestamps={hideTimestamps}
 								lines={lines}
 							/>
