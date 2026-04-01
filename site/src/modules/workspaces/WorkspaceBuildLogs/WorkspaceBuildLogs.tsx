@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
-import { Logs } from "#/components/Logs/Logs";
+import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
 import { cn } from "#/utils/cn";
 
 type Stage = ProvisionerJobLog["stage"];
@@ -91,8 +91,11 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 								"logs-header",
 								"flex items-center border-solid border-0 border-b border-border font-sans",
 								"bg-surface-primary text-xs font-semibold leading-none",
-								"py-3 px-[var(--log-line-side-padding)] first-of-type:pt-4",
+								"first-of-type:pt-4",
 							)}
+							style={{
+								padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
+							}}
 						>
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
