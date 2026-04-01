@@ -333,6 +333,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "Requirements:")
 			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
+			require.Contains(t, prompt, "Do not read, visit, or summarize URLs")
 			require.Contains(t, prompt, "stay close to the user's wording")
 
 			if tt.wantConversationSample {
@@ -360,6 +361,7 @@ func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.Contains(t, titleGenerationPrompt, "Do not attempt to read, visit, or summarize any URLs")
 	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
