@@ -738,6 +738,62 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatDebugLoggingKey = [...chatsKey, "config", "debug-logging"] as const;
+
+export const chatDebugLogging = () => ({
+	queryKey: chatDebugLoggingKey,
+	queryFn: () => API.experimental.getChatDebugLogging(),
+});
+
+export const updateChatDebugLogging = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatDebugLogging,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDebugLoggingKey,
+		});
+	},
+});
+
+const chatUserDebugLoggingKey = [
+	...chatsKey,
+	"config",
+	"user-debug-logging",
+] as const;
+
+export const chatUserDebugLogging = () => ({
+	queryKey: chatUserDebugLoggingKey,
+	queryFn: () => API.experimental.getChatUserDebugLogging(),
+});
+
+export const updateChatUserDebugLogging = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatUserDebugLogging,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUserDebugLoggingKey,
+		});
+	},
+});
+
+export const chatDebugRunsKey = (chatId: string) =>
+	["chats", chatId, "debug-runs"] as const;
+
+export const chatDebugRuns = (chatId: string) => ({
+	queryKey: chatDebugRunsKey(chatId),
+	queryFn: () => API.experimental.getChatDebugRuns(chatId),
+	refetchInterval: 5_000,
+	refetchIntervalInBackground: false,
+});
+
+const chatDebugRunKey = (chatId: string, runId: string) =>
+	["chats", chatId, "debug-runs", runId] as const;
+
+export const chatDebugRun = (chatId: string, runId: string) => ({
+	queryKey: chatDebugRunKey(chatId, runId),
+	queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
+	refetchInterval: 5_000,
+	refetchIntervalInBackground: false,
+});
+
 const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
 
 export const chatDesktopEnabled = () => ({

@@ -2,7 +2,11 @@
 	"$schema": "https://unpkg.com/knip@5/schema.json",
 	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
 	"project": ["./src/**/*.ts", "./src/**/*.tsx", "./e2e/**/*.ts"],
-	"ignore": ["**/*Generated.ts", "src/api/chatModelOptions.ts"],
+	"ignore": [
+		"**/*Generated.ts",
+		"src/api/chatModelOptions.ts",
+		"src/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils.ts"
+	],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",

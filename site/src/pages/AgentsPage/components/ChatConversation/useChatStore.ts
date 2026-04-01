@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
+import {
+	chatDebugRunsKey,
+	chatMessagesKey,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
@@ -343,6 +347,11 @@ export const useChatStore = (
 
 		// Capture chatID as a narrowed string for use in closures.
 		const activeChatID = chatID;
+		const invalidateDebugRuns = () => {
+			void queryClient.invalidateQueries({
+				queryKey: chatDebugRunsKey(activeChatID),
+			});
+		};
 		// Local disposed flag so the message handler (which lives
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
@@ -432,6 +441,7 @@ export const useChatStore = (
 			// instead of N copies and N sorts.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
 			let needsStreamReset = false;
+			let shouldInvalidateDebugRuns = false;
 
 			// Wrap all store mutations in a batch so subscribers
 			// are notified exactly once at the end, not per event.
@@ -512,6 +522,7 @@ export const useChatStore = (
 							}
 
 							wsStatusReceivedRef.current = true;
+							shouldInvalidateDebugRuns = true;
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
@@ -601,6 +612,9 @@ export const useChatStore = (
 					}
 				}
 			});
+			if (shouldInvalidateDebugRuns) {
+				invalidateDebugRuns();
+			}
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
@@ -634,6 +648,7 @@ export const useChatStore = (
 				if (shouldSurfaceReconnectState(snapshot)) {
 					store.setReconnectState(reconnectState);
 				}
+				invalidateDebugRuns();
 			},
 		});
 
