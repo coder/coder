@@ -302,7 +302,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							severity="info"
 							className="py-2"
 							actions={
-								<Button asChild variant="subtle" size="sm">
+								<Button asChild size="sm">
 									<Link to="/agents/analytics">View Usage</Link>
 								</Button>
 							}
