@@ -143,13 +143,11 @@ describe("AuditPage", () => {
 
 	describe("Filtering", () => {
 		it("filters by URL", async () => {
-			const getAuditLogsSpy = vi
-				.spyOn(API, "getAuditLogs")
-				.mockResolvedValue({
-					audit_logs: [MockAuditLog],
-					count: 1,
-					count_cap: 0,
-				});
+			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+				audit_logs: [MockAuditLog],
+				count: 1,
+				count_cap: 0,
+			});
 
 			const query = "resource_type:workspace action:create";
 			await renderPage({ filter: query });
