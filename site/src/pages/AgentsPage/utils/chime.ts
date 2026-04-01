@@ -81,6 +81,12 @@ export const KYLEOSOPHY_SOUNDS: readonly string[] = [
 let chimeAudio: HTMLAudioElement | null = null;
 let lastSoundUrl: string | null = null;
 
+/** @internal Reset cached Audio state between tests. */
+export function _resetForTesting(): void {
+	chimeAudio = null;
+	lastSoundUrl = null;
+}
+
 function playChimeAudio(soundUrl = "/chime.mp3"): void {
 	try {
 		if (!chimeAudio || soundUrl !== lastSoundUrl) {
@@ -161,7 +167,7 @@ function playChime(chatID: string, soundUrl?: string): void {
 /**
  * Check whether a chat status transition should trigger a chime
  * and play it if so. A chime fires when a chat reaches a
- * terminal state ("waiting" or "error") from a non-terminal
+ * terminal state ("waiting" or "pending") from a non-terminal
  * state, meaning the agent just finished work. The previous
  * status may be "running" (seen via the per-chat WebSocket) or
  * "pending" (when only the watchChats WebSocket is active and

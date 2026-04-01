@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	_resetForTesting,
 	getChimeEnabled,
 	getKylesophyEnabled,
 	isKylesophyForced,
@@ -118,6 +119,7 @@ describe("maybePlayChime", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		localStorage.clear();
+		_resetForTesting();
 		// Explicitly enable the chime — the default is now disabled.
 		setChimeEnabled(true);
 
@@ -299,10 +301,7 @@ describe("maybePlayChime", () => {
 		setKylesophyEnabled(false);
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 
-		// Force a fresh Audio element by spying on the constructor
-		// before any call in this test. The previous test left
-		// lastSoundUrl pointing at a kyleosophy URL, so switching
-		// back to /chime.mp3 will always trigger a new Audio().
+
 		const audioSpy = vi.spyOn(globalThis, "Audio" as never);
 
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
