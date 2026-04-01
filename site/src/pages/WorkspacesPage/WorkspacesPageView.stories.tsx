@@ -172,6 +172,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 		templatesFetchStatus: "success",
 		count: 13,
 		page: 1,
+		canCancelAllBuilds: true,
 	},
 	parameters: {
 		queries: [
