@@ -1,8 +1,8 @@
 # Agents Frontend — Architecture & State of the Code
 
 > **Status**: Early Access (formerly experimental).
-> ~31,300 lines of TypeScript/TSX in `site/src/pages/AgentsPage/`,
-> ~6,800 lines in shared `ai-elements` and `ChatMessageInput` components,
+> ~31,800 lines of TypeScript/TSX in `site/src/pages/AgentsPage/`,
+> ~940 lines in the shared `ChatMessageInput` component,
 > ~950 lines in the API query layer.
 
 ## Overview
@@ -57,7 +57,7 @@ AgentsPage (layout: sidebar + outlet)
        │    └─ SidebarTabView (Sidebar/SidebarTabView.tsx)
        └─ <Outlet>
             ├─ AgentCreatePage (AgentCreateForm.tsx)
-            ├─ AgentChatPage (was AgentDetail)
+            ├─ AgentChatPage → AgentChatPageView (main chat view, ~1,295 lines)
             │    ├─ ChatTopBar.tsx (model selector, interrupt, archive, title regen)
             │    ├─ ChatConversation/ (was ConversationTimeline)
             │    │    ├─ ConversationTimeline.tsx (message rendering, scroll)
@@ -70,7 +70,8 @@ AgentsPage (layout: sidebar + outlet)
             │    │    └─ tools/ (per-tool renderers: Tool.tsx dispatches)
             │    ├─ QueuedMessagesList.tsx
             │    ├─ AgentChatInput.tsx (Lexical rich text + ArrowUp edit)
-            │    └─ RightPanel/ (desktop VNC, git panel, diff viewer)
+            │    ├─ RightPanel/ (desktop VNC, git panel, diff viewer)
+            │    └─ ChatAccessDeniedAlert.tsx (shown when user lacks agents-access role)
             ├─ AgentSettingsBehaviorPage (personal prompt, system prompt, desktop, TTL)
             ├─ AgentSettingsProvidersPage (provider CRUD)
             ├─ AgentSettingsModelsPage (model config CRUD)
@@ -93,7 +94,7 @@ AgentEmbedPage (iframe wrapper with theme sync + navigation blocking)
 
 - **AgentsPage** owns: chat list (infinite query), model list, sidebar state,
   archive mutations, global `watchChats` WebSocket subscription.
-- **AgentDetail** owns: individual chat query, paginated messages (infinite
+- **AgentChatPage** owns: individual chat query, paginated messages (infinite
   scroll), workspace query, streaming state (`useChatStore`), model selection,
   send/edit/interrupt mutations.
 - State flows **down** via props and `AgentsOutletContext`.
@@ -117,7 +118,7 @@ Primary real-time connections:
 1. **`watchChats()`** — global, owned by `AgentsPage`. Receives status, title,
    and diff_status changes for all chats. Updates the sidebar in real time.
 2. **`watchChat(chatId)`** — per-chat, owned by `useChatStore` inside
-   `AgentDetail`. Receives `message_part`, `message`, `status`, `error`,
+   `AgentChatPage`. Receives `message_part`, `message`, `status`, `error`,
    `retry`, and `queue_update` events.
 3. **`watchChatGit(chatId)`** — chat-scoped Git WebSocket used by the right
    panel / diff flows.
@@ -125,8 +126,8 @@ Primary real-time connections:
    embedded VNC/desktop experience.
 
 There is also an ancillary `watchWorkspace()` subscription for workspace agent
-status that isn't part of `/api/experimental/chats` but is part of the Agent
-Detail experience.
+status that isn't part of `/api/experimental/chats` but is part of the
+AgentChatPage experience.
 
 The chat streams use `createReconnectingWebSocket` for automatic reconnection.
 
@@ -341,7 +342,7 @@ The UI stores and submits `model_config_id`, but the runtime model selector is
 built from provider/model tuples. `utils/modelOptions.ts` bridges that gap by
 building lookup maps in both directions (`provider:model` ↔ `model_config_id`).
 
-This is why both `AgentCreatePage` and `AgentDetail` query `chatModels()` and
+This is why both `AgentCreatePage` and `AgentChatPage` query `chatModels()` and
 `chatModelConfigs()` together. The last chosen model config is also cached in
 `localStorage` under `agents.last-model-config-id`.
 

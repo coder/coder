@@ -174,6 +174,8 @@ surfaces and assumes the backend is the source of truth.
   - `coderd/exp_chats.go`
   - `coderd/database/dbauthz/dbauthz.go`
   - `coderd/httpmw/chatparam.go`
+  - `site/src/pages/AgentsPage/components/ChatConversation/ChatAccessDeniedAlert.tsx`
+    (shown when a user lacks the `agents-access` role)
 
 ## Chat/workspace binding and lifecycle
 
@@ -274,7 +276,7 @@ watching for a `create_workspace` tool result and invalidating the chat query.
   - `coderd/x/chatd/chatd.go`
   - `coderd/x/chatd/chattool/createworkspace.go`
   - `coderd/x/chatd/chattool/startworkspace.go`
-  - `site/src/pages/AgentsPage/components/AgentDetail/useWorkspaceCreationWatcher.ts`
+  - `site/src/pages/AgentsPage/components/ChatConversation/useWorkspaceCreationWatcher.ts`
 
 ## Realtime model and delivery semantics
 
@@ -630,7 +632,7 @@ Some of the more visible mismatches include:
   for the ready signal and do not visibly validate origin on the incoming
   bootstrap message.
 
-`AgentDetail` has been renamed to `AgentChatPage`. The settings monolith
+The main chat page component is now `AgentChatPage`. The settings monolith
 (`AgentSettingsPageView`) has been decomposed into separate page-level
 components per section.
 
@@ -676,7 +678,7 @@ read semantics.
   - `Configuration Layers and Ownership`
 - Representative files:
   - `site/src/pages/AgentsPage/AgentEmbedPage.tsx`
-  - `site/src/pages/AgentsPage/AgentDetail.tsx`
+  - `site/src/pages/AgentsPage/AgentChatPage.tsx`
   - `site/src/pages/AgentsPage/components/ChatConversation/chatStore.ts`
   - `coderd/exp_chats.go`
 
@@ -867,7 +869,7 @@ conversations more concrete:
 | Configuration surfaces and ownership            | `coderd/x/chatd/ARCHITECTURE.md` -> `Configuration Layers and Ownership`                           | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Configuration Sources the UI Must Reconcile`                   | `coderd/exp_chats.go`, `coderd/mcp.go`, `site/src/api/queries/chats.ts`, `site/src/pages/AgentsPage/utils/modelOptions.ts`, `coderd/x/chatd/configcache.go`                   |
 | Chat data lifecycle and retention               | `coderd/x/chatd/ARCHITECTURE.md` -> `Chat Data Lifecycle`                                          | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Open Questions`                                                | `coderd/database/migrations/000422_chats.up.sql`, `coderd/database/migrations/000429_chat_files.up.sql`, `coderd/database/queries/chats.sql` |
 | Operational characteristics and testing reality | `coderd/x/chatd/ARCHITECTURE.md` -> `Known Technical Debt`, `Open Questions`                       | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Open Questions`                                                | `coderd/x/chatd/chatd.go`, `coderd/x/chatd/chatd_test.go`, `coderd/x/chatd/chattest/*`                                                       |
-| Frontend/backend contract mismatches            | both appendices                                                                                    | both appendices                                                                                                | `site/src/pages/AgentsPage/AgentEmbedPage.tsx`, `site/src/pages/AgentsPage/AgentDetail.tsx`, `coderd/exp_chats.go`                           |
+| Frontend/backend contract mismatches            | both appendices                                                                                    | both appendices                                                                                                | `site/src/pages/AgentsPage/AgentEmbedPage.tsx`, `site/src/pages/AgentsPage/AgentChatPage.tsx`, `coderd/exp_chats.go`                           |
 
 ## Adjacent public documentation
 

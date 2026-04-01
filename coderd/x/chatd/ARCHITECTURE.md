@@ -2,7 +2,7 @@
 
 > **Status**: Early Access (formerly experimental).
 > Moved from `coderd/chatd/` to `coderd/x/chatd/` in March 2025.
-> ~120 commits in the first month of development, ~18,400 lines of Go (including ~23,100 lines of tests).
+> ~120 commits in the first month of development, ~18,500 lines of Go (including ~23,100 lines of tests).
 
 ## What is chatd?
 
@@ -159,7 +159,7 @@ flowchart TB
 
 ```
 coderd/x/chatd/
-├── chatd.go              # Core Server: polling, acquire, processChat, runChat (~5,400 lines)
+├── chatd.go              # Core Server: polling, acquire, processChat, runChat (~5,500 lines)
 ├── configcache.go        # Process-wide config cache (providers, model configs, user prompts)
 │                         # 10s/5s TTLs, negative caching, pubsub invalidation
 ├── dialvalidation.go     # Dial-with-lazy-validation: dial cached agent, validate against
@@ -181,7 +181,7 @@ coderd/x/chatd/
 │
 ├── chatprovider/         # LLM provider abstraction (model catalog, API key management)
 │   ├── chatprovider.go   # ModelCatalog, ProviderAPIKeys, supported providers
-│   └── useragent.go      # User-agent + Coder identity headers for LLM API calls
+│   └── useragent.go      # User-agent string builder for LLM API calls
 │
 ├── chattool/             # Tool implementations
 │   ├── chattool.go       # Shared helpers (toolResponse, truncateRunes)
@@ -208,6 +208,11 @@ coderd/x/chatd/
 │   ├── payload.go        # Projectors for ChatStreamError / ChatStreamRetry payloads
 │   ├── provider_error.go # Unwrap fantasy.ProviderError, parse Retry-After headers
 │   └── signals.go        # Extract structured signals from error text
+│
+├── internal/
+│   └── agentselect/
+│       └── agentselect.go  # FindChatAgent: suffix-based agent selection (*-coderd-chat preferred),
+│                           # display-order + name sorting fallback, multi-match error
 │
 ├── chatretry/            # Retry logic for transient LLM errors
 │   └── chatretry.go      # IsRetryable, Retry with exponential backoff
@@ -504,7 +509,7 @@ significant gap that needs addressing before scale becomes a concern.
 | Data | Soft-delete? | Hard-delete? | Retention policy? |
 |---|---|---|---|
 | `chats` | Yes (`archived = true`) | No | None |
-| `chat_messages` | Yes (`deleted = true`, for edits) | No | None |
+| `chat_messages` | Yes (`hidden = true`, for edits) | No | None |
 | `chat_files` | No | No | None |
 | `chat_queued_messages` | N/A (deleted on consume) | Yes (on consume) | N/A |
 | `chat_diff_statuses` | No | `ON DELETE CASCADE` from chats | None |
@@ -715,8 +720,10 @@ reload path to keep bumping workspace activity while a turn is active.
 
 ### Semantics that are easy to miss
 
-- Agent choice is effectively **"first agent in latest build"**, not a stable
-  agent ID. Multi-agent workspaces therefore have a fuzzy contract today.
+- Agent choice uses `agentselect.FindChatAgent()`, which prefers root agents
+  with a `-coderd-chat` name suffix, then falls back to deterministic sort
+  order (`DisplayOrder ASC`, `Name ASC`, `ID ASC`). If multiple agents match
+  the suffix, an error is returned. This is not simply "first agent".
   This resolution only applies to the initial binding and the
   repair/re-resolve path. On the hot path, the bound agent is loaded by ID
   directly.
@@ -824,7 +831,7 @@ one response.
 
 ## Known Technical Debt
 
-1. **`chatd.go` needs decomposition.** At ~5,400 lines, this single file contains
+1. **`chatd.go` needs decomposition.** At ~5,500 lines, this single file contains
    the Server struct, all HTTP-facing methods (Create/Send/Edit/Archive/Delete/
    Promote/Interrupt/RefreshStatus/Subscribe), the background processing loop,
    the full `runChat` orchestration, stream management, push notifications,
