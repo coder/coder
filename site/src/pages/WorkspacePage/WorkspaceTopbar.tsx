@@ -259,18 +259,18 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 	ownerAvatarUrl,
 }) => {
 	return (
-		<HelpPopover>
-			<HelpPopoverTrigger asChild>
+		<Tooltip>
+			<TooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
-			</HelpPopoverTrigger>
-
-			<HelpPopoverContent align="center">
-				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
-			</HelpPopoverContent>
-		</HelpPopover>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">
+				<span className="font-semibold">{ownerName}</span>
+				<span className="block text-content-tertiary">Owner</span>
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
