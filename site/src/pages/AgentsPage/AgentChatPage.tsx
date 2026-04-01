@@ -1,4 +1,5 @@
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -61,6 +62,7 @@ import {
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
@@ -81,6 +83,22 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
+/**
+ * Read the persisted plain-text draft for a given chat ID.
+ * Returns the text portion of the draft (stripping Lexical JSON
+ * wrapper if present) for backward compatibility.
+ */
+export function getPersistedDraftInputValue(
+	chatID: string | undefined,
+): string {
+	if (typeof window === "undefined" || !chatID) {
+		return "";
+	}
+	return parseStoredDraft(
+		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
+	).text;
+}
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
@@ -98,12 +116,21 @@ export function useConversationEditingState(deps: {
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
-	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (typeof window === "undefined" || !draftStorageKey) {
-			return "";
-		}
-		return localStorage.getItem(draftStorageKey) ?? "";
-	});
+	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
+		() => {
+			if (typeof window === "undefined" || !draftStorageKey) {
+				return { editorInitialValue: "", initialEditorState: undefined };
+			}
+			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
+			return {
+				editorInitialValue: draft.text,
+				initialEditorState: draft.editorState,
+			};
+		},
+	);
+
+	// Monotonic counter to force LexicalComposer remount.
+	const [remountKey, setRemountKey] = useState(0);
 
 	// Sync the ref with the initial draft value so callers that
 	// read inputValueRef.current see the persisted draft. Uses a
@@ -119,9 +146,8 @@ export function useConversationEditingState(deps: {
 
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
-	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
-		string | null
-	>(null);
+	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
+		useState<ParsedDraft | null>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
@@ -131,52 +157,82 @@ export function useConversationEditingState(deps: {
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 	) => {
-		setDraftBeforeHistoryEdit((prev) =>
-			editingMessageId !== null ? prev : inputValueRef.current,
-		);
+		if (editingMessageId === null) {
+			// Read the current serialized editor state from localStorage
+			// (kept up-to-date by handleContentChange) rather than from
+			// the stale initialEditorState React state.
+			const currentEditorState = draftStorageKey
+				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
+				: undefined;
+			setDraftBeforeHistoryEdit({
+				text: inputValueRef.current,
+				editorState: currentEditorState,
+			});
+		}
 		setEditingMessageId(messageId);
-		setEditorInitialValue(text);
+		setDraftState({
+			editorInitialValue: text,
+			initialEditorState: undefined,
+		});
+		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
 	const handleCancelHistoryEdit = () => {
-		setEditorInitialValue(draftBeforeHistoryEdit ?? "");
-		inputValueRef.current = draftBeforeHistoryEdit ?? "";
+		const savedText = draftBeforeHistoryEdit?.text ?? "";
+		const savedState = draftBeforeHistoryEdit?.editorState;
+		setDraftState({
+			editorInitialValue: savedText,
+			initialEditorState: savedState,
+		});
+		setRemountKey((k) => k + 1);
+		inputValueRef.current = savedText;
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
-		chatInputRef.current?.clear();
-		if (draftBeforeHistoryEdit) {
-			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
-		}
 	};
 
 	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
 		number | null
 	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-		string | null
-	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
+		useState<ParsedDraft | null>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
 		text: string,
 		fileBlocks: readonly ChatMessagePart[],
 	) => {
-		setDraftBeforeQueueEdit((prev) =>
-			editingQueuedMessageID === null ? inputValueRef.current : prev,
-		);
+		if (editingQueuedMessageID === null) {
+			const currentEditorState = draftStorageKey
+				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
+				: undefined;
+			setDraftBeforeQueueEdit({
+				text: inputValueRef.current,
+				editorState: currentEditorState,
+			});
+		}
 		setEditingQueuedMessageID(id);
-		setEditorInitialValue(text);
+		setDraftState({
+			editorInitialValue: text,
+			initialEditorState: undefined,
+		});
+		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks);
 	};
 
 	const handleCancelQueueEdit = () => {
-		setEditorInitialValue(draftBeforeQueueEdit ?? "");
-		inputValueRef.current = draftBeforeQueueEdit ?? "";
+		const savedText = draftBeforeQueueEdit?.text ?? "";
+		const savedState = draftBeforeQueueEdit?.editorState;
+		setDraftState({
+			editorInitialValue: savedText,
+			initialEditorState: savedState,
+		});
+		setRemountKey((k) => k + 1);
+		inputValueRef.current = savedText;
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
 		setEditingFileBlocks([]);
@@ -212,11 +268,29 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
-	const handleContentChange = (content: string) => {
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
 		inputValueRef.current = content;
+
+		// Don't overwrite the persisted draft while editing a
+		// history or queued message — the original draft (possibly
+		// containing file-reference chips) is saved in React state
+		// and should survive a cancel.
+		if (editingMessageId !== null || editingQueuedMessageID !== null) {
+			return;
+		}
+
 		if (draftStorageKey) {
-			if (content) {
-				localStorage.setItem(draftStorageKey, content);
+			const shouldPersist = content.trim() || hasFileReferences;
+			if (shouldPersist) {
+				try {
+					localStorage.setItem(draftStorageKey, serializedEditorState);
+				} catch {
+					// QuotaExceededError — silently discard the draft.
+				}
 			} else {
 				localStorage.removeItem(draftStorageKey);
 			}
@@ -227,6 +301,8 @@ export function useConversationEditingState(deps: {
 		inputValueRef,
 		chatInputRef,
 		editorInitialValue,
+		initialEditorState,
+		remountKey,
 		editingMessageId,
 		editingFileBlocks,
 		handleEditUserMessage,
@@ -359,7 +435,9 @@ const AgentChatPage: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
-			? (localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`) ?? "")
+			? parseStoredDraft(
+					localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`),
+				).text
 			: "",
 	);
 
@@ -752,6 +830,7 @@ const AgentChatPage: FC = () => {
 					req: request,
 				});
 				store.clearStreamState();
+				store.setChatStatus("running");
 				setPendingEditMessageId(null);
 			} catch (error) {
 				setPendingEditMessageId(null);
@@ -790,6 +869,15 @@ const AgentChatPage: FC = () => {
 		// WebSocket stream.
 		if (!response.queued) {
 			store.clearStreamState();
+			// Optimistically set status to "running" so the
+			// "Thinking..." indicator appears immediately.
+			// The server accepted the message (not queued),
+			// so it will start processing. The WebSocket
+			// status:running event no-ops via the
+			// setChatStatus guard. If the server transitions
+			// to error/pending instead, the WebSocket event
+			// overrides this optimistic value.
+			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
 			}

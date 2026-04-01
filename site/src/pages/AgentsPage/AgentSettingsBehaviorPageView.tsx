@@ -13,6 +13,11 @@ import { DurationField } from "./components/DurationField/DurationField";
 import { SectionHeader } from "./components/SectionHeader";
 import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
+import {
+	getKylesophyEnabled,
+	isKylesophyForced,
+	setKylesophyEnabled,
+} from "./utils/chime";
 
 const textareaMaxHeight = 240;
 const textareaBaseClassName =
@@ -124,6 +129,8 @@ export const AgentSettingsBehaviorPageView: FC<
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
+	const kylesophyForced = isKylesophyForced();
+	const [kylesophyEnabled, setLocalKylesophy] = useState(getKylesophyEnabled);
 
 	// ── Derived state ──
 	const hasLoadedSystemPrompt = systemPromptData !== undefined;
@@ -242,7 +249,7 @@ export const AgentSettingsBehaviorPageView: FC<
 		<>
 			<SectionHeader
 				label="Behavior"
-				description="Custom instructions that shape how the agent responds in your chats."
+				description="Custom instructions that shape how the agent responds in your conversations."
 			/>
 			{/* ── Personal prompt (always visible) ── */}
 			<form
@@ -253,7 +260,7 @@ export const AgentSettingsBehaviorPageView: FC<
 					Personal Instructions
 				</h3>
 				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Applied to all your chats. Only visible to you.
+					Applied to all your conversations. Only visible to you.
 				</p>
 				<TextareaAutosize
 					className={cn(
@@ -455,8 +462,8 @@ export const AgentSettingsBehaviorPageView: FC<
 							<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
 								Set a default autostop for agent-created workspaces that don't
 								have one defined in their template. Template-defined autostop
-								rules always take precedence. Active chats will extend the stop
-								time.
+								rules always take precedence. Active conversations will extend
+								the stop time.
 							</p>
 							<Switch
 								checked={isAutostopEnabled}
@@ -510,6 +517,32 @@ export const AgentSettingsBehaviorPageView: FC<
 					</form>
 				</>
 			)}
+			<hr className="my-5 border-0 border-t border-solid border-border" />
+			{/* ── Kyleosophy toggle (always visible) ── */}
+			<div className="space-y-2">
+				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+					Kyleosophy
+				</h3>
+				<div className="flex items-center justify-between gap-4">
+					<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+						Replace the standard completion chime. IYKYK.
+						{kylesophyForced && (
+							<span className="ml-1 font-semibold">
+								Kyleosophy is mandatory on <code>dev.coder.com</code>.
+							</span>
+						)}
+					</p>
+					<Switch
+						checked={kylesophyEnabled}
+						onCheckedChange={(checked) => {
+							setKylesophyEnabled(checked);
+							setLocalKylesophy(checked);
+						}}
+						aria-label="Enable Kyleosophy"
+						disabled={kylesophyForced}
+					/>
+				</div>
+			</div>
 			{showDefaultPromptPreview && (
 				<TextPreviewDialog
 					content={defaultSystemPrompt}

@@ -654,4 +654,25 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		// we should not be in a "starting" state.
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
+
+	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
+		const store = createChatStore();
+		// Simulate a completed previous turn: assistant replied,
+		// then server transitioned to "pending".
+		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
+		store.setChatStatus("pending");
+
+		// Verify baseline: not awaiting during pending.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+
+		// Simulate handleSend after POST returns (non-queued).
+		// This is the exact sequence from AgentChatPage.tsx.
+		store.clearStreamState();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
+
+		// "Thinking..." should appear immediately.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
 });

@@ -1204,7 +1204,7 @@
 					"children": [
 						{
 							"title": "Getting Started",
-							"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
 							"path": "./ai-coder/agents/getting-started.md",
 							"state": ["early access"]
 						},

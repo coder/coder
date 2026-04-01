@@ -1221,7 +1221,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							asChild
 							variant="subtle"
 							size="icon"
-							aria-label="Back to chats"
+							aria-label="Back to Agents"
 							className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
 						>
 							<Link

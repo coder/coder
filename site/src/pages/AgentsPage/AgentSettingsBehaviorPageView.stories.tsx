@@ -460,3 +460,33 @@ export const NoWarningForCleanPrompt: Story = {
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 	},
 };
+
+// ── Kyleosophy ─────────────────────────────────────────────────
+
+export const KylesophyToggle: Story = {
+	play: async ({ canvasElement }) => {
+		localStorage.removeItem("agents.kyleosophy");
+		const canvas = within(canvasElement);
+		await canvas.findByText("Kyleosophy");
+		await canvas.findByText(/Replace the standard completion chime/i);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable Kyleosophy",
+		});
+		expect(toggle).not.toBeChecked();
+	},
+};
+
+export const TogglesKyleosophy: Story = {
+	play: async ({ canvasElement }) => {
+		localStorage.removeItem("agents.kyleosophy");
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable Kyleosophy",
+		});
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(localStorage.getItem("agents.kyleosophy")).toBe("true");
+		});
+	},
+};

@@ -4,7 +4,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	archiveChat,
-	cancelChatListQueries,
+	cancelChatListRefetches,
 	chatCostSummary,
 	chatCostSummaryKey,
 	chatCostUsers,
@@ -1080,7 +1080,7 @@ describe("sidebar title race condition", () => {
 		expect(readTitle(queryClient, chatId)).toBe("fallback title");
 	});
 
-	it("cancelChatListQueries before the update prevents the overwrite (the fix)", async () => {
+	it("cancelChatListRefetches before the update prevents the overwrite (the fix)", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
@@ -1104,7 +1104,7 @@ describe("sidebar title race condition", () => {
 		});
 
 		// Cancel, then write. Matches the new WebSocket handler code.
-		await cancelChatListQueries(queryClient);
+		await cancelChatListRefetches(queryClient);
 
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((c) =>
@@ -1116,5 +1116,197 @@ describe("sidebar title race condition", () => {
 
 		await fetchDone;
 		expect(readTitle(queryClient, chatId)).toBe("generated title");
+	});
+});
+
+describe("cancelChatListRefetches", () => {
+	it("cancels a regular refetch", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		seedInfiniteChats(queryClient, [makeChat(chatId, { title: "original" })]);
+
+		// Start an in-flight refetch (no fetchMeta — simulates a
+		// regular invalidation or window-focus refetch).
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "stale" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		// The refetch was cancelled and reverted, so the original
+		// data is preserved.
+		const title = readInfiniteChats(queryClient)?.find(
+			(c) => c.id === chatId,
+		)?.title;
+		expect(title).toBe("original");
+	});
+
+	it("does not cancel a fetchNextPage fetch", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		seedInfiniteChats(queryClient, [makeChat(chatId, { title: "original" })]);
+
+		// Start an in-flight fetch.
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "page-2-data" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		// Simulate fetchNextPage via the public setState API.
+		// In react-query v5, fetchNextPage dispatches a fetch
+		// action with meta: { fetchMore: { direction: "forward" } }
+		// which is stored in query.state.fetchMeta.
+		const query = queryClient
+			.getQueryCache()
+			.find({ queryKey: infiniteChatsTestKey });
+		expect(query).toBeDefined();
+		query!.setState({ fetchMeta: { fetchMore: { direction: "forward" } } });
+
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		// The fetch was NOT cancelled — the new data landed.
+		const title = readInfiniteChats(queryClient)?.find(
+			(c) => c.id === chatId,
+		)?.title;
+		expect(title).toBe("page-2-data");
+	});
+
+	it("does not cancel a fetchPreviousPage fetch", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		seedInfiniteChats(queryClient, [makeChat(chatId, { title: "original" })]);
+
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "prev-page" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		const query = queryClient
+			.getQueryCache()
+			.find({ queryKey: infiniteChatsTestKey });
+		expect(query).toBeDefined();
+		query!.setState({ fetchMeta: { fetchMore: { direction: "backward" } } });
+
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		const title = readInfiniteChats(queryClient)?.find(
+			(c) => c.id === chatId,
+		)?.title;
+		expect(title).toBe("prev-page");
+	});
+
+	it("does not cancel the initial load when no data is cached yet", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		// Do NOT seed the cache — simulate the very first fetch
+		// where no data exists yet.
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "first-load" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		// A WebSocket event arrives while the initial fetch is
+		// in-flight. Without the data guard, this would cancel
+		// the fetch and leave the query stuck in pending/idle.
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		const title = readInfiniteChats(queryClient)?.find(
+			(c) => c.id === chatId,
+		)?.title;
+		expect(title).toBe("first-load");
+	});
+});
+
+describe("mutation onMutate cancels pagination fetches", () => {
+	it("archiveChat onMutate cancels a pagination fetch to protect optimistic updates", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: false })]);
+
+		// Start a fetch and mark it as a fetchNextPage via
+		// fetchMeta so we can verify the broad predicate in
+		// mutation onMutate still cancels it (unlike the
+		// narrow cancelChatListRefetches used by the WS
+		// handler).
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { archived: false })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		const query = queryClient
+			.getQueryCache()
+			.find({ queryKey: infiniteChatsTestKey });
+		expect(query).toBeDefined();
+		query!.setState({ fetchMeta: { fetchMore: { direction: "forward" } } });
+
+		const mutation = archiveChat(queryClient);
+		await mutation.onMutate(chatId);
+		await fetchDone;
+
+		// The optimistic archive survives because onMutate
+		// cancelled the pagination fetch before it could
+		// overwrite the cache with stale oldPages.
+		const chat = readInfiniteChats(queryClient)?.find((c) => c.id === chatId);
+		expect(chat?.archived).toBe(true);
 	});
 });

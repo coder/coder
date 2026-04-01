@@ -1,7 +1,7 @@
 # Getting Started
 
 This guide walks platform teams and administrators through enabling Coder
-Agents, preparing your deployment, and running your first chat.
+Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
 > Coder Agents is in [Early Access](./early-access.md). Deploy to a
@@ -24,7 +24,7 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for enabling the experiment and
   configuring providers.
-- **Coder Agents User role** assigned to each user who needs to create or use chats.
+- **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
   Owners can assign this from **Admin** > **Users**. See
   [Grant Coder Agents User](#step-3-grant-coder-agents-user) below.
 
@@ -74,7 +74,7 @@ Detailed instructions for each provider and model option are in the
 
 ## Step 3: Grant Coder Agents User
 
-The **Coder Agents User** role controls which users can create and use chats.
+The **Coder Agents User** role controls which users can interact with Coder Agents.
 Members do not have Coder Agents User by default.
 
 1. Go to **Admin** > **Users** in the Coder dashboard.
@@ -85,10 +85,10 @@ Repeat for each user who needs access. Owners always have full access
 and do not need the role.
 
 > [!NOTE]
-> Users who created chats before this role was introduced are
+> Users who created conversations before this role was introduced are
 > automatically granted the role during upgrade.
 
-## Step 4: Start your first chat
+## Step 4: Start your first Coder Agent
 
 1. Go to the **Agents** page in the Coder dashboard.
 1. Select a model from the dropdown (your default will be pre-selected).
@@ -144,7 +144,7 @@ set of expectations and limitations.
 
 ### Set a deployment-wide system prompt
 
-Administrators can set a system prompt that applies to all chats across the
+Administrators can set a system prompt that applies to all Coder Agents across the
 deployment. Use this to encode organizational conventions:
 
 - Coding standards and style guidelines.
@@ -177,7 +177,7 @@ with tighter network policies.
 
 ### Plan for LLM costs
 
-Every chat turn sends tokens to your LLM provider. Long-running tasks,
+Every conversation turn sends tokens to your LLM provider. Long-running tasks,
 sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
@@ -207,12 +207,12 @@ multiplier, not a replacement for developer judgment.
 The [Chats API](./chats-api.md) enables programmatic access to Coder Agents.
 This is useful for building automations such as:
 
-- Triggering chats from CI/CD pipelines when builds fail.
-- Creating chats from GitHub webhooks on new issues or PRs.
+- Triggering Coder Agents from CI/CD pipelines when builds fail.
+- Creating Coder Agents from GitHub webhooks on new issues or PRs.
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.
 
-**Quick example — create a chat via the API:**
+**Quick example — create a Coder Agent via the API:**
 
 ```sh
 curl -X POST https://coder.example.com/api/experimental/chats \
@@ -245,7 +245,7 @@ narrowly scoped.
 Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
 the workspace agent's working directory to provide persistent context to the
 agent. This file is automatically read and included in the system prompt
-for every chat that uses that workspace.
+for every conversation with a Coder Agent that uses that workspace.
 
 Use it for:
 
@@ -275,7 +275,7 @@ Good feedback includes:
 - **What you tried** — the prompt, the template, and the model.
 - **What happened** — the agent's behavior, any errors, unexpected results.
 - **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, chat IDs, or links to the Agents page help
+- **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
 Your input directly influences product direction during Early Access.

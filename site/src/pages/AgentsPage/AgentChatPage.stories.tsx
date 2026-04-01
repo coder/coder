@@ -19,11 +19,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAgent,
-} from "#/testHelpers/entities";
+import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -76,14 +72,6 @@ const AgentChatPageLayout: FC = () => {
 const CHAT_ID = "chat-1";
 const MODEL_CONFIG_ID = "model-config-1";
 
-const mockWorkspaceAgent: TypesGen.WorkspaceAgent = {
-	...MockWorkspaceAgent,
-	id: "workspace-agent-1",
-	name: "workspace-agent",
-	expanded_directory: "/workspace/project",
-	apps: [],
-};
-
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "workspace-1",
@@ -94,7 +82,7 @@ const mockWorkspace: TypesGen.Workspace = {
 		resources: [
 			{
 				...MockWorkspace.latest_build.resources[0],
-				agents: [mockWorkspaceAgent],
+				agents: [],
 			},
 		],
 	},

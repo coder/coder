@@ -123,11 +123,17 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	isModelCatalogLoading?: boolean;
-	// Controlled input value and editing state, owned by the
-	// conversation component.
+	// Imperative editor handle plus the one-time initial draft,
+	// owned by the conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	initialValue?: string;
-	onContentChange?: (content: string) => void;
+	initialEditorState?: string;
+	remountKey?: number;
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	editingQueuedMessageID: number | null;
 	onStartQueueEdit: (
 		id: number,
@@ -171,6 +177,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
+	initialEditorState,
+	remountKey,
 	onContentChange,
 	editingQueuedMessageID,
 	onStartQueueEdit,
@@ -316,6 +324,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			inputRef={inputRef}
 			initialValue={initialValue}
+			initialEditorState={initialEditorState}
+			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}

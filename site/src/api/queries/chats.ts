@@ -145,16 +145,55 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 };
 
 /**
- * Cancel in-flight refetches for sidebar chat-list queries.
- * Call this before writing WebSocket-driven cache updates so a
- * concurrent refetch (e.g. from createChat.onSuccess or the
- * watchChats onOpen handler) cannot overwrite the update with
- * stale server data that predates async title generation.
+ * Predicate that matches chat-list queries performing a regular
+ * refetch (window-focus, invalidation, mount) but not a
+ * fetchNextPage or fetchPreviousPage. During pagination fetches
+ * react-query sets fetchMeta.fetchMore.direction to "forward"
+ * or "backward"; regular refetches leave fetchMeta null.
+ *
+ * Also excludes queries that have never loaded data. Cancelling
+ * a first-ever fetch with revert:true leaves the query stuck in
+ * { status: 'pending', fetchStatus: 'idle', data: undefined }
+ * with no automatic recovery, so the sidebar shows skeletons
+ * forever until the user refocuses the window.
  */
-export const cancelChatListQueries = (queryClient: QueryClient) => {
+const isChatListRefetch = (query: {
+	queryKey: readonly unknown[];
+	state: { data: unknown; fetchMeta: unknown };
+}): boolean => {
+	if (!isChatListQuery(query)) return false;
+	// Never cancel the initial load. Reverting a first-ever
+	// fetch produces a stuck pending/idle state that react-query
+	// does not automatically recover from.
+	if (query.state.data === undefined) return false;
+	const meta = query.state.fetchMeta as {
+		fetchMore?: { direction?: string };
+	} | null;
+	if (meta?.fetchMore?.direction) return false;
+	return true;
+};
+
+/**
+ * Cancel in-flight background refetches for sidebar chat-list
+ * queries, but leave fetchNextPage / fetchPreviousPage fetches
+ * alone. Call this before writing WebSocket-driven cache
+ * updates so a concurrent refetch cannot overwrite the update
+ * with stale server data.
+ *
+ * Pagination fetches are intentionally excluded because
+ * cancelling them would prevent the sidebar from loading
+ * additional pages when WebSocket events arrive frequently.
+ *
+ * Mutation onMutate handlers should keep the broad
+ * isChatListQuery predicate instead: mutations are infrequent
+ * and must cancel pagination fetches to protect optimistic
+ * updates from being overwritten by the oldPages snapshot
+ * that fetchNextPage captured before the mutation.
+ */
+export const cancelChatListRefetches = (queryClient: QueryClient) => {
 	return queryClient.cancelQueries({
 		queryKey: chatsKey,
-		predicate: isChatListQuery,
+		predicate: isChatListRefetch,
 	});
 };
 

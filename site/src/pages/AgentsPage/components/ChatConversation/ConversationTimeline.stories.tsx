@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -568,5 +568,268 @@ export const StickyUserMessageStructure: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("First prompt")).toBeVisible();
 		expect(canvas.getByText("Second prompt")).toBeVisible();
+	},
+};
+
+/** Copy + edit toolbar appears below user messages on hover. */
+export const UserMessageCopyButton: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Can you fix this bug?" }],
+			},
+		]),
+		onEditUserMessage: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Force the hover-reveal toolbar visible for the screenshot.
+		for (const el of canvasElement.querySelectorAll("[class]")) {
+			if (
+				el instanceof HTMLElement &&
+				el.className.includes("group-hover/msg:opacity-100")
+			) {
+				el.style.opacity = "1";
+			}
+		}
+		const copyButton = canvas.getByRole("button", {
+			name: "Copy message",
+		});
+		expect(copyButton).toBeInTheDocument();
+		const editButton = canvas.getByRole("button", {
+			name: "Edit message",
+		});
+		expect(editButton).toBeInTheDocument();
+
+		// Behavioral: clicking edit fires onEditUserMessage with the
+		// correct message ID and text.
+		await userEvent.click(editButton);
+		expect(args.onEditUserMessage).toHaveBeenCalledWith(
+			1,
+			"Can you fix this bug?",
+			undefined,
+		);
+
+		// Behavioral: clicking copy writes the raw markdown to the
+		// clipboard.
+		const originalClipboard = navigator.clipboard;
+		const writeText = fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", {
+			value: { writeText },
+			writable: true,
+			configurable: true,
+		});
+		try {
+			await userEvent.click(copyButton);
+			expect(writeText).toHaveBeenCalledWith("Can you fix this bug?");
+		} finally {
+			Object.defineProperty(navigator, "clipboard", {
+				value: originalClipboard,
+				writable: true,
+				configurable: true,
+			});
+		}
+	},
+};
+
+/** Copy button is present on assistant messages below the response. */
+export const AssistantMessageCopyButton: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Explain this code" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "This function handles **authentication** by checking the JWT token.\n\n```go\nfunc auth(r *http.Request) error {\n\treturn nil\n}\n```",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The assistant copy button is always visible below
+		// the response content.
+		const wrapper = canvas.getByTestId("assistant-copy-button");
+		const copyBtn = within(wrapper).getByRole("button", {
+			name: "Copy message",
+		});
+		expect(copyBtn).toBeInTheDocument();
+	},
+};
+
+/** No copy button when assistant message has no markdown content. */
+export const AssistantMessageNoCopyWhenToolOnly: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Run the tests" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "execute",
+						args: { command: "go test ./..." },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						result: { output: "PASS" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Tool-only assistant message should not have a copy button.
+		expect(
+			canvas.queryByTestId("assistant-copy-button"),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Copy button calls clipboard API with the raw markdown text. */
+export const CopyButtonWritesToClipboard: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "What is the answer?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "Here is the **answer**." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const originalClipboard = navigator.clipboard;
+		const writeText = fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", {
+			value: { writeText },
+			writable: true,
+			configurable: true,
+		});
+
+		try {
+			const canvas = within(canvasElement);
+			// Find the always-visible assistant copy button.
+			const wrapper = canvas.getByTestId("assistant-copy-button");
+			const copyBtn = within(wrapper).getByRole("button", {
+				name: "Copy message",
+			});
+			await userEvent.click(copyBtn);
+			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
+		} finally {
+			Object.defineProperty(navigator, "clipboard", {
+				value: originalClipboard,
+				writable: true,
+				configurable: true,
+			});
+		}
+	},
+};
+
+/**
+ * Regression: copy button appears only on the last assistant message
+ * in a turn that includes tool calls. The isLastAssistantMessage
+ * computation must skip tool-role messages when finding turn
+ * boundaries.
+ */
+export const MultiAssistantTurnCopyButton: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Help me refactor" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Let me check the code first." },
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "read_file",
+						args: { path: "main.go" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						result: { output: "package main" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here is the **refactored** version." },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Only the last assistant message in the turn should have the
+		// copy button. The first assistant message (id=2) has text but
+		// should not show the button because a later assistant message
+		// (id=4) continues the turn.
+		const wrappers = canvas.getAllByTestId("assistant-copy-button");
+		expect(wrappers).toHaveLength(1);
+
+		const copyBtn = within(wrappers[0]).getByRole("button", {
+			name: "Copy message",
+		});
+		expect(copyBtn).toBeInTheDocument();
 	},
 };
