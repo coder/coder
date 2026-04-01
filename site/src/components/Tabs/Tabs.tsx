@@ -1,4 +1,7 @@
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { cva, type VariantProps } from "class-variance-authority";
 import {
+	type ComponentProps,
 	createContext,
 	type FC,
 	type HTMLAttributes,
@@ -11,20 +14,101 @@ import {
 import { Link, type LinkProps } from "react-router";
 import { cn } from "#/utils/cn";
 
-// Keeping this for now because of a workaround in WorkspaceBUildPageView
+// --- Radix tabs (stateful panels) ---
+
+type TabsProps = ComponentProps<typeof TabsPrimitive.Root>;
+
+export const Tabs: FC<TabsProps> = ({ ...props }) => {
+	return <TabsPrimitive.Root {...props} />;
+};
+
+const tabsListVariants = cva("flex flex-wrap items-center", {
+	variants: {
+		variant: {
+			insideBox: cn(
+				"border-solid border-x-0 border-y",
+				"[&_button[data-state=active]]:bg-surface-secondary",
+				"[&_button]:border-x [&_button]:border-y-0 [&_button]:border-solid",
+				"[&_button]:border-x-transparent [&_button[data-state=active]]:border-x-border",
+				"[&_button]:px-4",
+				"[&_button]:text-content-secondary",
+				"[&_button[data-state=active]]:text-content-primary",
+			),
+			outsideBox: cn(
+				"border-solid border-0 border-b gap-6",
+				"[&_button]:text-content-secondary [&_button[data-state=active]]:text-content-primary",
+				"[&_button]:border-0 [&_button]:border-y [&_button]:border-solid",
+				"[&_button]:border-transparent [&_button[data-state=active]]:border-b-white",
+				"[&_button]:hover:text-content-primary",
+				"[&_button]:px-1",
+			),
+		},
+	},
+	defaultVariants: {
+		variant: "outsideBox",
+	},
+});
+type TabsListProps = ComponentProps<typeof TabsPrimitive.List> &
+	VariantProps<typeof tabsListVariants>;
+
+export const TabsList: FC<TabsListProps> = ({
+	className,
+	variant,
+	...props
+}) => {
+	return (
+		<TabsPrimitive.List
+			className={cn(tabsListVariants({ variant }), className)}
+			{...props}
+		/>
+	);
+};
+
+type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
+
+export const TabsTrigger: FC<TabsTriggerProps> = ({ ...props }) => {
+	return (
+		<TabsPrimitive.Trigger
+			className={cn(
+				"border-none py-3 bg-transparent",
+				"text-inherit font-normal text-sm",
+				"inline-flex gap-2 items-center",
+				"cursor-pointer",
+				"transition-colors duration-150 ease-linear",
+			)}
+			{...props}
+		/>
+	);
+};
+
+type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
+
+export const TabsContent: FC<TabsContentProps> = ({ ...props }) => {
+	return <TabsPrimitive.Content {...props} />;
+};
+
+// --- Router link tabs (URL-driven navigation) ---
+
+// Keeping this for now because of a workaround in WorkspaceBuildPageView.
 export const TAB_PADDING_X = 16;
 
-type TabsContextValue = {
+type LinkTabsContextValue = {
 	active: string;
 };
 
-const TabsContext = createContext<TabsContextValue | undefined>(undefined);
+const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
+	undefined,
+);
 
-type TabsProps = HTMLAttributes<HTMLDivElement> & TabsContextValue;
+type LinkTabsProps = HTMLAttributes<HTMLDivElement> & LinkTabsContextValue;
 
-export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
+export const LinkTabs: FC<LinkTabsProps> = ({
+	className,
+	active,
+	...htmlProps
+}) => {
 	return (
-		<TabsContext.Provider value={{ active }}>
+		<LinkTabsContext.Provider value={{ active }}>
 			<div
 				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
 				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
@@ -34,14 +118,17 @@ export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
 				)}
 				{...htmlProps}
 			/>
-		</TabsContext.Provider>
+		</LinkTabsContext.Provider>
 	);
 };
 
-type TabsListProps = HTMLAttributes<HTMLDivElement>;
+type LinkTabsListProps = HTMLAttributes<HTMLDivElement>;
 
-export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
-	const tabsContext = useContext(TabsContext);
+export const LinkTabsList: FC<LinkTabsListProps> = ({
+	className,
+	...props
+}) => {
+	const tabsContext = useContext(LinkTabsContext);
 	const listRef = useRef<HTMLDivElement>(null);
 	const indicatorRef = useRef<HTMLDivElement>(null);
 	const hasInitialized = useRef(false);
@@ -114,9 +201,9 @@ export const TabLink: FC<TabLinkProps> = ({
 	className,
 	...linkProps
 }) => {
-	const tabsContext = useContext(TabsContext);
+	const tabsContext = useContext(LinkTabsContext);
 	if (!tabsContext) {
-		throw new Error("Tab only can be used inside of Tabs");
+		throw new Error("TabLink must be used inside LinkTabs");
 	}
 
 	const isActive = tabsContext.active === value;
