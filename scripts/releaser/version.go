@@ -73,8 +73,11 @@ func (v version) GreaterThan(b version) bool {
 	if v.Pre != "" && b.Pre == "" {
 		return false
 	}
-	// Both have prerelease: compare lexicographically. This works
-	// for "rc.0" < "rc.1" etc.
+	// Both have prerelease: compare numerically for RC versions.
+	if v.IsRC() && b.IsRC() {
+		return v.rcNumber() > b.rcNumber()
+	}
+	// Fallback for non-RC prerelease strings.
 	return v.Pre > b.Pre
 }
 

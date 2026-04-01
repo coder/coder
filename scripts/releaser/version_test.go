@@ -125,6 +125,8 @@ func TestVersionGreaterThan(t *testing.T) {
 		// RC ordering.
 		{version{2, 32, 0, "rc.1"}, version{2, 32, 0, "rc.0"}, true},
 		{version{2, 32, 0, "rc.0"}, version{2, 32, 0, "rc.1"}, false},
+		{version{2, 32, 0, "rc.10"}, version{2, 32, 0, "rc.9"}, true},
+		{version{2, 32, 0, "rc.9"}, version{2, 32, 0, "rc.10"}, false},
 
 		// Equal.
 		{version{2, 32, 0, ""}, version{2, 32, 0, ""}, false},
