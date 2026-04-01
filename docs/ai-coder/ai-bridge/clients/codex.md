@@ -64,6 +64,9 @@ requires_openai_auth = true
 env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_SESSION_TOKEN" }
 ```
 
+> [!NOTE]
+> The `base_url` uses `/aibridge/chatgpt/v1` instead of `/aibridge/openai/v1` to route requests through the ChatGPT provider.
+
 Set your Coder session token and ensure `OPENAI_API_KEY` is not set:
 
 ```bash
