@@ -329,7 +329,6 @@ func (b *DBBatcher) flush(ctx context.Context) {
 	authCtx := dbauthz.AsConnectionLogger(context.Background())
 	err := b.store.BatchUpsertConnectionLogs(authCtx, params)
 	if err == nil {
-		b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
 		return
 	}
 
@@ -430,7 +429,6 @@ func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsPa
 		return b.store.BatchUpsertConnectionLogs(authCtx, params)
 	}, bkoff)
 	if err == nil {
-		b.log.Debug(b.ctx, "connection log batch flush complete", slog.F("count", count))
 		return
 	}
 
@@ -438,7 +436,6 @@ func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsPa
 	if b.ctx.Err() != nil {
 		finalErr := b.store.BatchUpsertConnectionLogs(authCtx, params)
 		if finalErr == nil {
-			b.log.Info(b.ctx, "final retry on shutdown succeeded", slog.F("count", count))
 			return
 		}
 		b.log.Error(b.ctx, "final retry on shutdown failed, dropping batch",
