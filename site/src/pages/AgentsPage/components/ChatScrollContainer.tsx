@@ -5,12 +5,15 @@ import {
 	type RefObject,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { Button } from "#/components/Button/Button";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { cn } from "#/utils/cn";
+import { useStickyScrollHandler } from "./ChatConversation/useStickyScrollHandler";
+import { StickyScrollContext } from "./StickyScrollContext";
 
 // ===========================================================================
 // useStickToBottom — scroll-lock hook
@@ -616,6 +619,13 @@ const ChatScrollContainer: FC<{
 		capturePrependSnapshot,
 	} = useStickToBottom();
 
+	// Track the scroller element in state so useStickyScrollHandler
+	// can read it during render without accessing a ref (which the
+	// React Compiler forbids during render).
+	const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(
+		null,
+	);
+
 	// Merge our callback ref with the external RefObject so both
 	// point at the same DOM node, and expose scrollToBottom to the
 	// parent via its imperative ref.
@@ -623,6 +633,7 @@ const ChatScrollContainer: FC<{
 		scrollRef(el);
 		scrollContainerRef.current = el;
 		scrollToBottomRef.current = el ? () => scrollToBottom("instant") : null;
+		setScrollerElement(el);
 	});
 
 	// -------------------------------------------------------------------
@@ -708,6 +719,15 @@ const ChatScrollContainer: FC<{
 
 	const showButton = !isAtBottom;
 
+	const stickyHandler = useStickyScrollHandler(scrollerElement);
+	const stickyCtx = useMemo(
+		() => ({
+			register: stickyHandler.register,
+			unregister: stickyHandler.unregister,
+		}),
+		[stickyHandler.register, stickyHandler.unregister],
+	);
+
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
 			<div
@@ -719,7 +739,9 @@ const ChatScrollContainer: FC<{
 					{hasMoreMessages && (
 						<div ref={sentinelRef} className="h-px shrink-0" />
 					)}
-					{children}
+					<StickyScrollContext.Provider value={stickyCtx}>
+						{children}
+					</StickyScrollContext.Provider>
 				</div>
 			</div>
 			<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">

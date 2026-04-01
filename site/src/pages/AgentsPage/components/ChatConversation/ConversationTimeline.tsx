@@ -35,6 +35,7 @@ import {
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
 import { ImageLightbox } from "../ImageLightbox";
+import { useStickyScrollContext } from "../StickyScrollContext";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -724,15 +725,16 @@ const StickyUserMessage = memo<{
 		const [isTooTall, setIsTooTall] = useState(false);
 		const sentinelRef = useRef<HTMLDivElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
-		const updateFnRef = useRef<(() => void) | null>(null);
+		const { register, unregister } = useStickyScrollContext();
 
-		// useLayoutEffect so isStuck and --clip-h are both resolved
-		// before the browser paints, avoiding a flash on load.
+		// IntersectionObserver for isStuck detection.
+		// This is browser-batched and does not cause layout
+		// thrashing -- safe to keep per-instance.
 		useLayoutEffect(() => {
 			const sentinel = sentinelRef.current;
 			if (!sentinel) return;
-			// Immediate check so the first paint is correct when the
-			// sentinel is already scrolled out of view.
+			// Immediate check so the first paint is correct when
+			// the sentinel is already scrolled out of view.
 			const scroller = sentinel.closest(".overflow-y-auto");
 			if (scroller) {
 				const stuck =
@@ -751,137 +753,28 @@ const StickyUserMessage = memo<{
 			return () => observer.disconnect();
 		}, []);
 
-		// Sets a single CSS custom property (--clip-h) on the sticky
-		// container. All visual behaviour (max-height, mask fade) is
-		// driven by CSS using this variable.
+		// Register with the shared scroll handler for batched
+		// --clip-h and isTooTall computation. useLayoutEffect so
+		// --overlay-ready and --clip-h are resolved before the
+		// browser paints, avoiding a flash on initial mount.
 		useLayoutEffect(() => {
 			const sentinel = sentinelRef.current;
 			const container = containerRef.current;
 			if (!sentinel || !container) return;
-			const scroller = sentinel.closest(
-				".overflow-y-auto",
-			) as HTMLElement | null;
-			if (!scroller) return;
-
-			const MIN_HEIGHT = 72;
-			let scrollerTop = scroller.getBoundingClientRect().top;
-			let scrollerHeight = scroller.clientHeight;
-
-			const update = () => {
-				const fullHeight = container.offsetHeight;
-
-				// Skip sticky behavior for messages that take up
-				// most of the visible area — accounting for the
-				// chat input and some breathing room.
-				const tooTall = fullHeight > scrollerHeight * 0.75;
-				setIsTooTall(tooTall);
-				if (tooTall) {
-					container.style.setProperty("--clip-h", `${fullHeight}px`);
-					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = "0px";
-					return;
-				}
-				const sentinelTop = sentinel.getBoundingClientRect().top;
-				const scrolledPast = scrollerTop - sentinelTop;
-
-				if (scrolledPast <= 0) {
-					// Always set a valid value so the overlay has the
-					// correct height immediately when isStuck flips.
-					container.style.setProperty("--clip-h", `${fullHeight}px`);
-					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = "0px";
-					return;
-				}
-				const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
-				container.style.setProperty("--clip-h", `${visible}px`);
-				// Only show the fade gradient once enough content is
-				// clipped to be visually meaningful.
-				container.style.setProperty(
-					"--fade-opacity",
-					visible < fullHeight - 8 ? "1" : "0",
-				);
-
-				// Push-up effect: when the next user message's sentinel
-				// approaches the bottom of this sticky container, shift
-				// this container upward so it slides out of view — the
-				// same visual as the old section-boundary behavior.
-				let nextSentinel: Element | null = sentinel.nextElementSibling;
-				while (nextSentinel) {
-					if (nextSentinel.hasAttribute("data-user-sentinel")) {
-						break;
-					}
-					nextSentinel = nextSentinel.nextElementSibling;
-				}
-				if (nextSentinel) {
-					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
-					container.style.top = `${Math.min(0, nextY - visible)}px`;
-				} else {
-					container.style.top = "0px";
-				}
+			const entry = {
+				sentinel,
+				container,
+				onTooTallChange: setIsTooTall,
 			};
-			updateFnRef.current = update;
-
-			const onResize = () => {
-				scrollerTop = scroller.getBoundingClientRect().top;
-				scrollerHeight = scroller.clientHeight;
-				update();
-			};
-
-			// Throttle to one update per animation frame so we don't
-			// do redundant work on high-refresh-rate displays.
-			let rafId: number | null = null;
-			const onScroll = () => {
-				if (rafId !== null) return;
-				rafId = requestAnimationFrame(() => {
-					rafId = null;
-					update();
-				});
-			};
-
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
-			const contentEl = scroller.firstElementChild as HTMLElement | null;
-			let contentRafId: number | null = null;
-			const contentObserver = contentEl
-				? new ResizeObserver(() => {
-						if (contentRafId !== null) return;
-						contentRafId = requestAnimationFrame(() => {
-							contentRafId = null;
-							update();
-						});
-					})
-				: null;
-			contentObserver?.observe(contentEl!);
-
-			scroller.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", onResize);
-			update();
-			// Set immediately — both --clip-h and --overlay-ready are
-			// applied before the browser paints since we're in a
-			// useLayoutEffect.
+			register(entry);
+			// Set immediately so the overlay crossfade is gated
+			// on the first shared-handler update.
 			container.style.setProperty("--overlay-ready", "1");
 			return () => {
-				scroller.removeEventListener("scroll", onScroll);
-				window.removeEventListener("resize", onResize);
-				contentObserver?.disconnect();
+				unregister(entry);
 				container.style.removeProperty("--overlay-ready");
-				if (rafId !== null) cancelAnimationFrame(rafId);
-				if (contentRafId !== null) cancelAnimationFrame(contentRafId);
 			};
-		}, []);
-
-		// Re-run the height calculation synchronously whenever
-		// isStuck changes so --clip-h is correct on the same frame
-		// the overlay appears. Without this, the async
-		// IntersectionObserver + RAF-throttled scroll handler can
-		// leave a stale --clip-h for one paint.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: isStuck is an intentional trigger
-		useLayoutEffect(() => {
-			updateFnRef.current?.();
-		}, [isStuck]);
+		}, [register, unregister]);
 
 		const handleEditUserMessage = onEditUserMessage
 			? (
@@ -1038,31 +931,68 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
+		// Group messages into turns. Each turn starts with a
+		// user message and includes all following non-user
+		// messages. Section wrappers act as containing blocks
+		// for CSS sticky, producing the push-up effect.
+		// Messages before the first user message (e.g. from
+		// pagination loading a mid-turn boundary) are kept
+		// as orphans and rendered above the turn list.
+		const orphans: ParsedMessageEntry[] = [];
+		const turns: Array<{
+			user: ParsedMessageEntry;
+			responses: ParsedMessageEntry[];
+		}> = [];
+		for (const entry of parsedMessages) {
+			if (entry.message.role === "user") {
+				turns.push({ user: entry, responses: [] });
+			} else if (turns.length > 0) {
+				turns[turns.length - 1].responses.push(entry);
+			} else {
+				orphans.push(entry);
+			}
+		}
+
+		const lastAssistantPerTurnIds = new Set<number>();
+		for (const turn of turns) {
+			const lastAsst = turn.responses.findLast(
+				(e) => e.message.role === "assistant",
+			);
+			if (lastAsst) {
+				lastAssistantPerTurnIds.add(lastAsst.message.id);
+			}
+		}
+
 		return (
 			<div className="flex flex-col gap-3">
-				{(() => {
-					const lastAssistantPerTurnIds = new Set<number>();
-					let lastAsstId: number | null = null;
-					for (const { message: m } of parsedMessages) {
-						if (m.role === "assistant") lastAsstId = m.id;
-						else if (m.role === "user" && lastAsstId != null) {
-							lastAssistantPerTurnIds.add(lastAsstId);
-							lastAsstId = null;
-						}
-					}
-					if (lastAsstId != null) lastAssistantPerTurnIds.add(lastAsstId);
-					return parsedMessages.map(({ message, parsed }) =>
-						message.role === "user" ? (
-							<StickyUserMessage
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						) : (
+				{orphans.map(({ message, parsed }) => (
+					<ChatMessageItem
+						key={message.id}
+						message={message}
+						parsed={parsed}
+						savingMessageId={savingMessageId}
+						urlTransform={urlTransform}
+						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+						isLastAssistantMessage={lastAssistantPerTurnIds.has(message.id)}
+						mcpServers={mcpServers}
+						subagentTitles={subagentTitles}
+						computerUseSubagentIds={computerUseSubagentIds}
+						showDesktopPreviews={showDesktopPreviews}
+					/>
+				))}
+				{turns.map((turn) => (
+					<div key={turn.user.message.id} className="flex flex-col gap-3">
+						<StickyUserMessage
+							message={turn.user.message}
+							parsed={turn.user.parsed}
+							onEditUserMessage={onEditUserMessage}
+							editingMessageId={editingMessageId}
+							savingMessageId={savingMessageId}
+							isAfterEditingMessage={afterEditingMessageIds.has(
+								turn.user.message.id,
+							)}
+						/>
+						{turn.responses.map(({ message, parsed }) => (
 							<ChatMessageItem
 								key={message.id}
 								message={message}
@@ -1076,9 +1006,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								computerUseSubagentIds={computerUseSubagentIds}
 								showDesktopPreviews={showDesktopPreviews}
 							/>
-						),
-					);
-				})()}
+						))}
+					</div>
+				))}
 			</div>
 		);
 	},

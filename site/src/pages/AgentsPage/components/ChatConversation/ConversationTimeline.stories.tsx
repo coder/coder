@@ -499,13 +499,12 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 
 /**
  * Verifies the structural requirements for sticky user messages
- * in the flat (section-less) message list:
- * - Each user message renders a data-user-sentinel marker so
- *   the push-up logic can find the next user message via DOM
- *   traversal.
+ * with section-wrapped turns:
+ * - Each user message renders a data-user-sentinel marker.
  * - The user message container gets position:sticky.
- * - Sentinels appear in the correct order (matching user
- *   message order).
+ * - Each turn is wrapped in a section div that acts as the
+ *   containing block for CSS sticky push-up.
+ * - Sentinels appear in the correct order.
  */
 export const StickyUserMessageStructure: Story = {
 	args: {
@@ -539,7 +538,7 @@ export const StickyUserMessageStructure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		// Each user message should produce a data-user-sentinel
-		// marker that the push-up scroll logic relies on.
+		// marker for IntersectionObserver stuck detection.
 		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
 		expect(sentinels.length).toBe(2);
 
@@ -552,16 +551,27 @@ export const StickyUserMessageStructure: Story = {
 			expect(style.position).toBe("sticky");
 		}
 
-		// Sentinels must appear in DOM order matching the message
-		// order so nextElementSibling traversal finds the correct
-		// next user message.
+		// Each turn should be wrapped in a section div that
+		// acts as the containing block for CSS sticky push-up.
+		// The outer container has gap-3, and each section also
+		// has gap-3 for internal spacing.
+		for (const sentinel of sentinels) {
+			const section = sentinel.closest(".flex.flex-col.gap-3");
+			expect(section).not.toBeNull();
+			// The section should not be the outermost container
+			// (it should be a nested turn wrapper).
+			const parent = section!.parentElement;
+			expect(parent).not.toBeNull();
+			expect(parent!.classList.contains("flex")).toBe(true);
+		}
+
+		// Sentinels should be in ascending DOM order.
 		const allElements = Array.from(
 			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
 		);
 		const sentinelIndices = Array.from(sentinels).map((s) =>
 			allElements.indexOf(s),
 		);
-		// Sentinels should be in ascending DOM order.
 		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
 
 		// Both user messages should be visible.
