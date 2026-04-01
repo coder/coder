@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"net/http/httptest"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -22,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -194,10 +192,15 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		// Use a member with agents-access instead of the owner to
+		// verify least-privilege access.
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -208,19 +211,18 @@ func TestPostChats(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotEqual(t, uuid.Nil, chat.ID)
-		require.Equal(t, user.UserID, chat.OwnerID)
+		require.Equal(t, member.ID, chat.OwnerID)
 		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 		require.Equal(t, "hello from chats route tests", chat.Title)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 		require.NotZero(t, chat.CreatedAt)
 		require.NotZero(t, chat.UpdatedAt)
 		require.Nil(t, chat.WorkspaceID)
 		require.NotNil(t, chat.RootChatID)
 		require.Equal(t, chat.ID, *chat.RootChatID)
 
-		chatResult, err := client.GetChat(ctx, chat.ID)
+		chatResult, err := memberClient.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		messagesResult, err := memberClient.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, chatResult.ID)
 
@@ -238,6 +240,29 @@ func TestPostChats(t *testing.T) {
 			}
 		}
 		require.True(t, foundUserMessage)
+	})
+
+	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Member without agents-access should be denied.
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "this should fail",
+				},
+			},
+		})
+		requireSDKError(t, err, http.StatusForbidden)
 	})
 
 	t.Run("HidesSystemPromptMessages", func(t *testing.T) {
@@ -271,7 +296,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -307,6 +332,7 @@ func TestPostChats(t *testing.T) {
 			adminClient.Client,
 			firstUser.OrganizationID,
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+			rbac.RoleAgentsAccess(),
 		)
 		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
 
@@ -518,7 +544,7 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		memberDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           member.ID,
@@ -539,7 +565,16 @@ func TestListChats(t *testing.T) {
 
 			require.Equal(t, firstUser.UserID, chat.OwnerID)
 			require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
-			require.Equal(t, codersdk.ChatStatusPending, chat.Status)
+			// The chat may have been picked up by the background
+			// processor (via signalWake) before we list, so
+			// accept any active status.
+			require.Contains(t, []codersdk.ChatStatus{
+				codersdk.ChatStatusPending,
+				codersdk.ChatStatusRunning,
+				codersdk.ChatStatusError,
+				codersdk.ChatStatusWaiting,
+				codersdk.ChatStatusCompleted,
+			}, chat.Status, "unexpected chat status: %s", chat.Status)
 			require.NotZero(t, chat.CreatedAt)
 			require.NotZero(t, chat.UpdatedAt)
 			require.Nil(t, chat.ParentChatID)
@@ -549,7 +584,6 @@ func TestListChats(t *testing.T) {
 			require.NotNil(t, chat.DiffStatus)
 			require.Equal(t, chat.ID, chat.DiffStatus.ChatID)
 		}
-
 		require.Contains(t, chatsByID, firstChatA.ID)
 		require.Contains(t, chatsByID, firstChatB.ID)
 		require.NotContains(t, chatsByID, memberDBChat.ID)
@@ -559,12 +593,12 @@ func TestListChats(t *testing.T) {
 		for i := 1; i < len(chats); i++ {
 			require.False(t, chats[i-1].UpdatedAt.Before(chats[i].UpdatedAt))
 		}
-		if firstChatA.UpdatedAt.After(firstChatB.UpdatedAt) {
-			require.Less(t, chatIndexes[firstChatA.ID], chatIndexes[firstChatB.ID])
-		}
-		if firstChatB.UpdatedAt.After(firstChatA.UpdatedAt) {
-			require.Less(t, chatIndexes[firstChatB.ID], chatIndexes[firstChatA.ID])
-		}
+		// The list is already verified as sorted by UpdatedAt
+		// descending (loop above). We intentionally do NOT
+		// compare positions using the creation-time UpdatedAt
+		// values because signalWake() may trigger background
+		// processing that mutates UpdatedAt between CreateChat
+		// and ListChats.
 
 		memberChats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
@@ -576,6 +610,32 @@ func TestListChats(t *testing.T) {
 		require.Equal(t, memberChats[0].ID, *memberChats[0].RootChatID)
 		require.NotNil(t, memberChats[0].DiffStatus)
 		require.Equal(t, memberChats[0].ID, memberChats[0].DiffStatus.ChatID)
+	})
+
+	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a member without agents-access and insert a chat
+		// owned by them via system context. This verifies the
+		// RBAC filter actually excludes results rather than
+		// returning empty because no chats exist.
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           member.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "member chat",
+		})
+		require.NoError(t, err)
+
+		chats, err := memberClient.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Empty(t, chats)
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
@@ -611,6 +671,23 @@ func TestListChats(t *testing.T) {
 			})
 			require.NoError(t, err)
 			createdChats = append(createdChats, chat)
+		}
+
+		// Wait for all chats to reach a terminal status so
+		// updated_at is stable before paginating.
+		for _, c := range createdChats {
+			require.Eventually(t, func() bool {
+				all, listErr := client.ListChats(ctx, nil)
+				if listErr != nil {
+					return false
+				}
+				for _, ch := range all {
+					if ch.ID == c.ID {
+						return ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning
+					}
+				}
+				return false
+			}, testutil.WaitShort, testutil.IntervalFast)
 		}
 
 		// Fetch first page with limit=2.
@@ -970,6 +1047,102 @@ func TestWatchChats(t *testing.T) {
 			require.EqualValues(t, 5, ds.ChangedFiles)
 			break
 		}
+	})
+
+	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "watch root chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		childOne, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "watch child 1",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		childTwo, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "watch child 2",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
+
+		var ping watchEvent
+		err = wsjson.Read(ctx, conn, &ping)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, ping.Type)
+
+		collectLifecycleEvents := func(expectedKind coderdpubsub.ChatEventKind) map[uuid.UUID]coderdpubsub.ChatEvent {
+			t.Helper()
+
+			events := make(map[uuid.UUID]coderdpubsub.ChatEvent, 3)
+			for len(events) < 3 {
+				var update watchEvent
+				err = wsjson.Read(ctx, conn, &update)
+				require.NoError(t, err)
+				if update.Type == codersdk.ServerSentEventTypePing {
+					continue
+				}
+				require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
+
+				var payload coderdpubsub.ChatEvent
+				err = json.Unmarshal(update.Data, &payload)
+				require.NoError(t, err)
+				if payload.Kind != expectedKind {
+					continue
+				}
+				events[payload.Chat.ID] = payload
+			}
+			return events
+		}
+
+		assertLifecycleEvents := func(events map[uuid.UUID]coderdpubsub.ChatEvent, archived bool) {
+			t.Helper()
+
+			require.Len(t, events, 3)
+			for _, chatID := range []uuid.UUID{parentChat.ID, childOne.ID, childTwo.ID} {
+				payload, ok := events[chatID]
+				require.True(t, ok, "missing event for chat %s", chatID)
+				require.Equal(t, archived, payload.Chat.Archived)
+			}
+		}
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+		deletedEvents := collectLifecycleEvents(coderdpubsub.ChatEventKindDeleted)
+		assertLifecycleEvents(deletedEvents, true)
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		require.NoError(t, err)
+		createdEvents := collectLifecycleEvents(coderdpubsub.ChatEventKindCreated)
+		assertLifecycleEvents(createdEvents, false)
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
@@ -1933,7 +2106,7 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -2128,6 +2301,96 @@ func TestUnarchiveChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, archivedChats)
+	})
+
+	t.Run("UnarchivesChildren", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child 1",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child 2",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		require.NoError(t, err)
+
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:false",
+		})
+		require.NoError(t, err)
+
+		var foundParent bool
+		var foundChild1 bool
+		var foundChild2 bool
+		for _, chat := range activeChats {
+			switch chat.ID {
+			case parentChat.ID:
+				foundParent = true
+				require.False(t, chat.Archived)
+			case child1.ID:
+				foundChild1 = true
+				require.False(t, chat.Archived)
+			case child2.ID:
+				foundChild2 = true
+				require.False(t, chat.Archived)
+			}
+		}
+		require.True(t, foundParent, "parent should be listed as active")
+		require.True(t, foundChild1, "child1 should be listed as active")
+		require.True(t, foundChild2, "child2 should be listed as active")
+
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:true",
+		})
+		require.NoError(t, err)
+		for _, chat := range archivedChats {
+			require.NotEqual(t, parentChat.ID, chat.ID, "parent should not remain archived")
+			require.NotEqual(t, child1.ID, chat.ID, "child1 should not remain archived")
+			require.NotEqual(t, child2.ID, chat.ID, "child2 should not remain archived")
+		}
+
+		dbParent, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), parentChat.ID)
+		require.NoError(t, err)
+		require.False(t, dbParent.Archived, "parent should be unarchived")
+
+		dbChild1, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child1.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild1.Archived, "child1 should be unarchived")
+
+		dbChild2, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child2.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild2.Archived, "child2 should be unarchived")
 	})
 
 	t.Run("NotArchived", func(t *testing.T) {
@@ -3505,7 +3768,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.RegenerateChatTitle(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -3652,11 +3915,12 @@ func TestRegenerateChatTitle(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusConflict, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		var resp codersdk.Response
+		var resp codersdk.Chat
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
-		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
+		require.Equal(t, chat.ID, resp.ID)
+		require.Equal(t, "pending chat without worker", resp.Title)
 
 		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -3682,6 +3946,17 @@ func TestRegenerateChatTitle(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+
+		// Wait for background processing triggered by signalWake
+		// to finish before setting the status, otherwise the
+		// processor may update updated_at concurrently.
+		require.Eventually(t, func() bool {
+			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			if getErr != nil {
+				return false
+			}
+			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
@@ -3818,137 +4093,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	// Integration test: exercises the full GetChat handler refresh
-	// path with a real DB, dbauthz, a mock GitHub API, and an
-	// external-auth-linked user. Verifies that a stale chat diff
-	// status is refreshed end-to-end via the gitsync worker's
-	// Refresh pipeline (provider resolution, token acquisition
-	// through external auth, and PR status fetch).
-	t.Run("RefreshesStaleStatusWithExternalAuth", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Mock GitHub API over TLS so the git provider's URL patterns
-		// (which require https://) match our PR URLs.
-		ghAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			switch {
-			// PR status: GET /repos/{owner}/{repo}/pulls/{number}
-			case r.URL.Path == "/repos/testorg/testrepo/pulls/42" && r.URL.Query().Get("per_page") == "":
-				_, _ = w.Write([]byte(`{
-					"state": "open",
-					"merged": false,
-					"draft": false,
-					"additions": 25,
-					"deletions": 7,
-					"changed_files": 4,
-					"head": {"sha": "abc123"}
-				}`))
-			// PR reviews: GET /repos/{owner}/{repo}/pulls/{number}/reviews
-			case strings.HasSuffix(r.URL.Path, "/reviews"):
-				_, _ = w.Write([]byte(`[]`))
-			default:
-				http.NotFound(w, r)
-			}
-		}))
-		t.Cleanup(ghAPI.Close)
-
-		// The git provider derives webBaseURL from apiBaseURL.
-		// For a TLS server at https://127.0.0.1:PORT, webBaseURL
-		// is the same, and PR URL patterns match
-		// https://127.0.0.1:PORT/{owner}/{repo}/pull/{number}.
-		ghWebHost := strings.TrimPrefix(ghAPI.URL, "https://")
-		prURL := fmt.Sprintf("https://%s/testorg/testrepo/pull/42", ghWebHost)
-		remoteOrigin := fmt.Sprintf("https://%s/testorg/testrepo.git", ghWebHost)
-
-		// Set up a fake OIDC IDP for external auth login.
-		const providerID = "test-github"
-		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
-
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			DeploymentValues: chatDeploymentValues(t),
-			ExternalAuthConfigs: []*externalauth.Config{
-				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
-					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
-					// Point the git provider at our mock API server.
-					cfg.APIBaseURL = ghAPI.URL
-					// Match the remote origin (127.0.0.1 host).
-					cfg.Regex = regexp.MustCompile(regexp.QuoteMeta(ghWebHost))
-				}),
-			},
-		})
-		client := codersdk.NewExperimentalClient(rawClient)
-		db := api.Database
-
-		// Use the TLS mock server's HTTP client (which trusts its
-		// self-signed cert) for git provider API calls.
-		api.HTTPClient = ghAPI.Client()
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-
-		// Log in to the external auth provider so the user has an
-		// ExternalAuthLink row in the DB. This is what
-		// resolveChatGitAccessToken reads via GetExternalAuthLink.
-		fake.ExternalLogin(t, client.Client)
-
-		// Insert a chat owned by the user.
-		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "rbac integration test",
-		})
-		require.NoError(t, err)
-
-		// Store a pre-resolved PR URL so the refresh path uses
-		// ParsePullRequestURL directly (skipping branch-to-PR
-		// resolution, which isn't what we're testing). The status
-		// is stale (stale_at in the past) so the handler triggers
-		// a full refresh through RefreshChat.
-		_, err = db.UpsertChatDiffStatusReference(
-			dbauthz.AsSystemRestricted(ctx),
-			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:          chat.ID,
-				Url:             sql.NullString{String: prURL, Valid: true},
-				GitBranch:       "feature/rbac-fix",
-				GitRemoteOrigin: remoteOrigin,
-				StaleAt:         time.Now().Add(-time.Minute),
-			},
-		)
-		require.NoError(t, err)
-
-		// Call GetChat which now resolves diff status inline.
-		// This exercises the full code path:
-		// resolveChatDiffStatus -> RefreshChat (with
-		// AsSystemRestricted) -> Refresher.Refresh ->
-		// resolveChatGitAccessToken (GetExternalAuthLink with
-		// AsSystemRestricted) -> FetchPullRequestStatus (mock).
-		//
-		// Without the AsSystemRestricted fix, GetExternalAuthLink
-		// would fail under the chatd RBAC context (missing
-		// ActionReadPersonal), causing ErrNoTokenAvailable and a
-		// refresh failure that silently returns stale data.
-		result, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotNil(t, result.DiffStatus)
-		status := result.DiffStatus
-
-		// The mock GitHub API returned PR #42 with 25 additions,
-		// 7 deletions, 4 changed files, state "open".
-		require.NotNil(t, status.RefreshedAt, "status should have been refreshed")
-		require.NotNil(t, status.PullRequestState)
-		require.Equal(t, "open", *status.PullRequestState)
-		require.EqualValues(t, 25, status.Additions)
-		require.EqualValues(t, 7, status.Deletions)
-		require.EqualValues(t, 4, status.ChangedFiles)
-		require.NotNil(t, status.URL)
-		require.Contains(t, *status.URL, "pull/42")
 	})
 }
 
@@ -4051,7 +4199,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChatDiffContents(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -4847,7 +4995,7 @@ func TestGetChatFile(t *testing.T) {
 		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)

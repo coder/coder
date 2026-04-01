@@ -1,5 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import { useAuthenticated } from "hooks";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
@@ -21,6 +20,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { useDebouncedValue } from "#/hooks/debounce";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { cn } from "#/utils/cn";
 
 type UserOption = {

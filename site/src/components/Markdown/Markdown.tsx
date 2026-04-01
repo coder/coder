@@ -2,6 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import isEqual from "lodash/isEqual";
 import {
+	createElement,
 	type FC,
 	type HTMLProps,
 	isValidElement,
@@ -256,8 +257,9 @@ function parseChildrenAsAlertContent(
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
 		// content that can be turned into HTML. If there aren't any, you
-		// just get one big string
-		parentChildren = parentChildren.split("\n");
+		// just get one big string. Wrap it rather than splitting so that
+		// embedded newlines are preserved for line-break conversion later.
+		parentChildren = [parentChildren];
 	}
 	if (!Array.isArray(parentChildren)) {
 		return null;
@@ -304,7 +306,17 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const alertType = firstEl
+	// The alert marker (e.g., "[!IMPORTANT]") may share a string node
+	// with subsequent content when inline formatting follows on the
+	// next blockquote line. Split on the first newline so we only
+	// test the marker portion.
+	const firstNewline = firstEl.indexOf("\n");
+	const alertCandidate =
+		firstNewline === -1 ? firstEl : firstEl.substring(0, firstNewline);
+	const trailingContent =
+		firstNewline === -1 ? null : firstEl.substring(firstNewline + 1);
+
+	const alertType = alertCandidate
 		.trim()
 		.toLowerCase()
 		.replace("!", "")
@@ -314,15 +326,40 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
+	if (trailingContent) {
+		remainingChildren.unshift(trailingContent);
+	}
+
 	const hasLeadingLinebreak =
 		isValidElement(remainingChildren[0]) && remainingChildren[0].type === "br";
 	if (hasLeadingLinebreak) {
 		remainingChildren.shift();
 	}
 
+	// GitHub's GFM alerts preserve line breaks within alert content,
+	// but the markdown parser treats them as soft wraps (spaces).
+	// Convert embedded newlines in text nodes to <br/> elements to
+	// match GitHub's rendering behavior.
+	const withLineBreaks: ReactNode[] = remainingChildren.flatMap((child, i) => {
+		if (typeof child !== "string" || !child.includes("\n")) {
+			return [child];
+		}
+		const parts = child.split("\n");
+		const result: ReactNode[] = [];
+		for (let j = 0; j < parts.length; j++) {
+			if (j > 0) {
+				result.push(createElement("br", { key: `alert-br-${i}-${j}` }));
+			}
+			if (parts[j]) {
+				result.push(parts[j]);
+			}
+		}
+		return result;
+	});
+
 	return {
 		type: alertType,
-		children: remainingChildren,
+		children: withLineBreaks,
 	};
 }
 

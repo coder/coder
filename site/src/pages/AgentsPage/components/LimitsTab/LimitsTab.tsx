@@ -1,17 +1,15 @@
 import { ShieldIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+
 import { getErrorMessage } from "#/api/errors";
-import {
-	chatUsageLimitConfig,
-	deleteChatUsageLimitGroupOverride,
-	deleteChatUsageLimitOverride,
-	updateChatUsageLimitConfig,
-	upsertChatUsageLimitGroupOverride,
-	upsertChatUsageLimitOverride,
-} from "#/api/queries/chats";
-import { groups } from "#/api/queries/groups";
-import type { ChatUsageLimitPeriod, Group, User } from "#/api/typesGenerated";
+import type {
+	ChatUsageLimitConfigResponse,
+	ChatUsageLimitPeriod,
+	Group,
+	UpsertChatUsageLimitGroupOverrideRequest,
+	UpsertChatUsageLimitOverrideRequest,
+	User,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -101,26 +99,74 @@ const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
 	});
 };
 
-export const LimitsTab: FC = () => {
-	const queryClient = useQueryClient();
-	const configQuery = useQuery(chatUsageLimitConfig());
-	const updateConfigMutation = useMutation(
-		updateChatUsageLimitConfig(queryClient),
-	);
-	const upsertOverrideMutation = useMutation(
-		upsertChatUsageLimitOverride(queryClient),
-	);
-	const deleteOverrideMutation = useMutation(
-		deleteChatUsageLimitOverride(queryClient),
-	);
-	const groupsQuery = useQuery(groups());
-	const upsertGroupOverrideMutation = useMutation(
-		upsertChatUsageLimitGroupOverride(queryClient),
-	);
-	const deleteGroupOverrideMutation = useMutation(
-		deleteChatUsageLimitGroupOverride(queryClient),
-	);
+interface LimitsTabProps {
+	// Config query data.
+	configData: ChatUsageLimitConfigResponse | undefined;
+	isLoadingConfig: boolean;
+	configError: Error | null;
+	refetchConfig: () => void;
+	// Groups query data.
+	groupsData: Group[] | undefined;
+	isLoadingGroups: boolean;
+	groupsError: Error | null;
+	// Update config mutation.
+	onUpdateConfig: (
+		req: import("#/api/typesGenerated").ChatUsageLimitConfig,
+	) => Promise<unknown>;
+	isUpdatingConfig: boolean;
+	updateConfigError: Error | null;
+	isUpdateConfigSuccess: boolean;
+	resetUpdateConfig: () => void;
+	// Upsert user override mutation.
+	onUpsertOverride: (args: {
+		userID: string;
+		req: UpsertChatUsageLimitOverrideRequest;
+	}) => Promise<unknown>;
+	isUpsertingOverride: boolean;
+	upsertOverrideError: Error | null;
+	// Delete user override mutation.
+	onDeleteOverride: (userID: string) => Promise<unknown>;
+	isDeletingOverride: boolean;
+	deleteOverrideError: Error | null;
+	// Upsert group override mutation.
+	onUpsertGroupOverride: (args: {
+		groupID: string;
+		req: UpsertChatUsageLimitGroupOverrideRequest;
+	}) => Promise<unknown>;
+	isUpsertingGroupOverride: boolean;
+	upsertGroupOverrideError: Error | null;
+	// Delete group override mutation.
+	onDeleteGroupOverride: (groupID: string) => Promise<unknown>;
+	isDeletingGroupOverride: boolean;
+	deleteGroupOverrideError: Error | null;
+}
 
+export const LimitsTab: FC<LimitsTabProps> = ({
+	configData,
+	isLoadingConfig,
+	configError,
+	refetchConfig,
+	groupsData,
+	isLoadingGroups,
+	groupsError,
+	onUpdateConfig,
+	isUpdatingConfig,
+	updateConfigError,
+	isUpdateConfigSuccess,
+	resetUpdateConfig,
+	onUpsertOverride,
+	isUpsertingOverride,
+	upsertOverrideError,
+	onDeleteOverride,
+	isDeletingOverride,
+	deleteOverrideError,
+	onUpsertGroupOverride,
+	isUpsertingGroupOverride,
+	upsertGroupOverrideError,
+	onDeleteGroupOverride,
+	isDeletingGroupOverride,
+	deleteGroupOverrideError,
+}) => {
 	const [showGroupForm, setShowGroupForm] = useState(false);
 	const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
 	const [groupAmount, setGroupAmount] = useState("");
@@ -142,12 +188,12 @@ export const LimitsTab: FC = () => {
 	} | null>(null);
 
 	const defaultLimitValues: DefaultLimitFormValues = (() => {
-		const spendLimitMicros = configQuery.data?.spend_limit_micros;
+		const spendLimitMicros = configData?.spend_limit_micros;
 		const enabled = spendLimitMicros !== null && spendLimitMicros !== undefined;
 
 		return {
 			enabled,
-			period: normalizeChatUsageLimitPeriod(configQuery.data?.period),
+			period: normalizeChatUsageLimitPeriod(configData?.period),
 			amountDollars:
 				enabled && spendLimitMicros !== null && spendLimitMicros !== undefined
 					? microsToDollars(spendLimitMicros).toString()
@@ -155,32 +201,32 @@ export const LimitsTab: FC = () => {
 		};
 	})();
 	const defaultLimitKey = JSON.stringify({
-		spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
+		spend_limit_micros: configData?.spend_limit_micros ?? null,
 		period: defaultLimitValues.period,
 	});
 	const existingGroupIds = new Set(
-		(configQuery.data?.group_overrides ?? []).map((g) => g.group_id),
+		(configData?.group_overrides ?? []).map((g) => g.group_id),
 	);
 	const existingUserIds = new Set(
-		(configQuery.data?.overrides ?? []).map((o) => o.user_id),
+		(configData?.overrides ?? []).map((o) => o.user_id),
 	);
-	const availableGroups = (groupsQuery.data ?? []).filter(
+	const availableGroups = (groupsData ?? []).filter(
 		(g) => !existingGroupIds.has(g.id),
 	);
 	const selectedUserAlreadyOverridden = selectedUser
 		? existingUserIds.has(selectedUser.id)
 		: false;
-	const groupAutocompleteNoOptionsText = groupsQuery.isLoading
+	const groupAutocompleteNoOptionsText = isLoadingGroups
 		? "Loading groups..."
-		: (groupsQuery.data?.length ?? 0) === 0
+		: (groupsData?.length ?? 0) === 0
 			? "No groups configured"
 			: availableGroups.length === 0
 				? "All groups already have overrides"
 				: "No groups available";
 
-	const resetUpdateConfigMutation = () => {
-		if (!updateConfigMutation.isPending) {
-			updateConfigMutation.reset();
+	const handleResetUpdateConfig = () => {
+		if (!isUpdatingConfig) {
+			resetUpdateConfig();
 		}
 	};
 
@@ -255,7 +301,7 @@ export const LimitsTab: FC = () => {
 	}: DefaultLimitFormValues) => {
 		const spendLimitMicros = enabled ? dollarsToMicros(amountDollars) : null;
 		try {
-			await updateConfigMutation.mutateAsync({
+			await onUpdateConfig({
 				spend_limit_micros: spendLimitMicros,
 				period,
 				updated_at: new Date().toISOString(),
@@ -272,7 +318,7 @@ export const LimitsTab: FC = () => {
 			return;
 		}
 		try {
-			await upsertOverrideMutation.mutateAsync({
+			await onUpsertOverride({
 				userID: targetUserID,
 				req: { spend_limit_micros: dollarsToMicros(userOverrideAmount) },
 			});
@@ -292,7 +338,7 @@ export const LimitsTab: FC = () => {
 			return;
 		}
 		try {
-			await upsertGroupOverrideMutation.mutateAsync({
+			await onUpsertGroupOverride({
 				groupID: targetGroupID,
 				req: { spend_limit_micros: dollarsToMicros(groupAmount) },
 			});
@@ -307,7 +353,7 @@ export const LimitsTab: FC = () => {
 
 	const handleDeleteGroupOverride = async (groupID: string) => {
 		try {
-			await deleteGroupOverrideMutation.mutateAsync(groupID);
+			await onDeleteGroupOverride(groupID);
 		} catch {
 			// Keep the current UI state so the inline mutation error is visible.
 		}
@@ -315,13 +361,13 @@ export const LimitsTab: FC = () => {
 
 	const handleDeleteOverride = async (userID: string) => {
 		try {
-			await deleteOverrideMutation.mutateAsync(userID);
+			await onDeleteOverride(userID);
 		} catch {
 			// Keep the current UI state so the inline mutation error is visible.
 		}
 	};
 
-	if (configQuery.isLoading) {
+	if (isLoadingConfig) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				<div className="flex flex-1 items-center justify-center px-6 py-5">
@@ -331,14 +377,14 @@ export const LimitsTab: FC = () => {
 		);
 	}
 
-	if (configQuery.isError) {
+	if (configError) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				<div className="flex flex-1 items-center justify-center px-6 py-5">
 					<div className="space-y-4 py-4 text-center">
 						<p className="text-sm text-content-secondary">
 							{getErrorMessage(
-								configQuery.error,
+								configError,
 								"Failed to load spend limit settings.",
 							)}
 						</p>
@@ -346,7 +392,7 @@ export const LimitsTab: FC = () => {
 							variant="outline"
 							size="sm"
 							type="button"
-							onClick={() => void configQuery.refetch()}
+							onClick={() => void refetchConfig()}
 						>
 							Retry
 						</Button>
@@ -356,9 +402,9 @@ export const LimitsTab: FC = () => {
 		);
 	}
 
-	const groupOverrides = configQuery.data?.group_overrides ?? [];
-	const overrides = configQuery.data?.overrides ?? [];
-	const unpricedModelCount = configQuery.data?.unpriced_model_count ?? 0;
+	const groupOverrides = configData?.group_overrides ?? [];
+	const overrides = configData?.overrides ?? [];
+	const unpricedModelCount = configData?.unpriced_model_count ?? 0;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -384,17 +430,17 @@ export const LimitsTab: FC = () => {
 									adminBadge={<AdminBadge />}
 									enabled={enabled}
 									onEnabledChange={(nextEnabled) => {
-										resetUpdateConfigMutation();
+										handleResetUpdateConfig();
 										onEnabledChange(nextEnabled);
 									}}
 									period={period}
 									onPeriodChange={(nextPeriod) => {
-										resetUpdateConfigMutation();
+										handleResetUpdateConfig();
 										onPeriodChange(nextPeriod);
 									}}
 									amountDollars={amountDollars}
 									onAmountDollarsChange={(nextAmountDollars) => {
-										resetUpdateConfigMutation();
+										handleResetUpdateConfig();
 										onAmountDollarsChange(nextAmountDollars);
 									}}
 									unpricedModelCount={unpricedModelCount}
@@ -411,24 +457,16 @@ export const LimitsTab: FC = () => {
 									groupAutocompleteNoOptionsText={
 										groupAutocompleteNoOptionsText
 									}
-									groupsLoading={groupsQuery.isLoading}
+									groupsLoading={isLoadingGroups}
 									editingGroupOverride={editingGroupOverride}
 									onEditGroupOverride={handleEditGroupOverride}
 									onAddGroupOverride={handleAddGroupOverride}
 									onDeleteGroupOverride={handleDeleteGroupOverride}
-									upsertPending={upsertGroupOverrideMutation.isPending}
-									upsertError={
-										upsertGroupOverrideMutation.isError
-											? upsertGroupOverrideMutation.error
-											: null
-									}
-									deletePending={deleteGroupOverrideMutation.isPending}
-									deleteError={
-										deleteGroupOverrideMutation.isError
-											? deleteGroupOverrideMutation.error
-											: null
-									}
-									groupsError={groupsQuery.isError ? groupsQuery.error : null}
+									upsertPending={isUpsertingGroupOverride}
+									upsertError={upsertGroupOverrideError}
+									deletePending={isDeletingGroupOverride}
+									deleteError={deleteGroupOverrideError}
+									groupsError={groupsError}
 								/>
 								<UserOverridesSection
 									overrides={overrides}
@@ -445,33 +483,24 @@ export const LimitsTab: FC = () => {
 									onEditUserOverride={handleEditUserOverride}
 									onAddOverride={handleAddOverride}
 									onDeleteOverride={handleDeleteOverride}
-									upsertPending={upsertOverrideMutation.isPending}
-									upsertError={
-										upsertOverrideMutation.isError
-											? upsertOverrideMutation.error
-											: null
-									}
-									deletePending={deleteOverrideMutation.isPending}
-									deleteError={
-										deleteOverrideMutation.isError
-											? deleteOverrideMutation.error
-											: null
-									}
+									upsertPending={isUpsertingOverride}
+									upsertError={upsertOverrideError}
+									deletePending={isDeletingOverride}
+									deleteError={deleteOverrideError}
 								/>
 							</div>
 						</div>
-
 						<div className="sticky bottom-0 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary py-3 sm:flex-row sm:items-center sm:justify-between">
 							<div className="min-h-4 text-xs">
-								{updateConfigMutation.isError && (
+								{updateConfigError && (
 									<p className="m-0 text-content-destructive">
 										{getErrorMessage(
-											updateConfigMutation.error,
+											updateConfigError,
 											"Failed to save the default spend limit.",
 										)}
 									</p>
 								)}
-								{updateConfigMutation.isSuccess && (
+								{isUpdateConfigSuccess && (
 									<p className="m-0 text-content-success">Saved!</p>
 								)}
 							</div>
@@ -479,14 +508,14 @@ export const LimitsTab: FC = () => {
 								size="sm"
 								type="button"
 								onClick={() => void saveDefault()}
-								disabled={updateConfigMutation.isPending || !isAmountValid}
+								disabled={isUpdatingConfig || !isAmountValid}
 							>
-								{updateConfigMutation.isPending ? (
+								{isUpdatingConfig ? (
 									<Spinner loading className="h-4 w-4" />
 								) : null}
 								Save default limit
 							</Button>
-						</div>
+						</div>{" "}
 					</>
 				)}
 			</DefaultLimitController>

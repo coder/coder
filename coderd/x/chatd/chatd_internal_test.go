@@ -24,6 +24,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -47,6 +48,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	ownerID := uuid.New()
 	chatID := uuid.New()
 	modelConfigID := uuid.New()
+	workerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
 	wantTitle := "Review PR 23633"
 
@@ -54,7 +56,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		ID:                chatID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
-		Status:            database.ChatStatusCompleted,
+		Status:            database.ChatStatusRunning,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
 		Title:             fallbackChatTitle(userPrompt),
 	}
 	modelConfig := database.ChatModelConfig{
@@ -154,16 +157,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	)
 
 	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
-		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
-			require.Equal(t, chatID, arg.ID)
-			require.Equal(t, chat.Status, arg.Status)
-			require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
-			require.True(t, arg.StartedAt.Valid)
-			require.True(t, arg.HeartbeatAt.Valid)
-			return chat, nil
-		},
-	)
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
 	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
@@ -180,18 +173,195 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		Title: wantTitle,
 	}).Return(updatedChat, nil)
 
-	lockedChatWithMarker := updatedChat
-	lockedChatWithMarker.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
-	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChatWithMarker, nil)
-	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
-		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
-			require.Equal(t, chatID, arg.ID)
-			require.False(t, arg.WorkerID.Valid)
-			require.False(t, arg.StartedAt.Valid)
-			require.False(t, arg.HeartbeatAt.Valid)
-			return updatedChat, nil
+	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
+
+	gotChat, err := server.RegenerateChatTitle(ctx, chat)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, gotChat)
+
+	select {
+	case event := <-messageEvents:
+		require.NoError(t, event.err)
+		require.Equal(t, coderdpubsub.ChatEventKindTitleChange, event.payload.Kind)
+		require.Equal(t, chatID, event.payload.Chat.ID)
+		require.Equal(t, wantTitle, event.payload.Chat.Title)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for title change pubsub event")
+	}
+}
+
+func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	lockTx := dbmock.NewMockStore(ctrl)
+	usageTx := dbmock.NewMockStore(ctrl)
+	unlockTx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	pubsub := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	ownerID := uuid.New()
+	chatID := uuid.New()
+	modelConfigID := uuid.New()
+	userPrompt := "review pull request 23633 and fix review threads"
+	wantTitle := "Review PR 23633"
+
+	chat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusCompleted,
+		Title:             fallbackChatTitle(userPrompt),
+	}
+	lockedChat := chat
+	lockedChat.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
+	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	modelConfig := database.ChatModelConfig{
+		ID:           modelConfigID,
+		Provider:     "anthropic",
+		Model:        "claude-haiku-4-5",
+		ContextLimit: 8192,
+	}
+	updatedChat := lockedChat
+	updatedChat.Title = wantTitle
+	unlockedChat := updatedChat
+	unlockedChat.WorkerID = uuid.NullUUID{}
+	unlockedChat.StartedAt = sql.NullTime{}
+
+	messageEvents := make(chan struct {
+		payload coderdpubsub.ChatEvent
+		err     error
+	}, 1)
+	cancelSub, err := pubsub.SubscribeWithErr(
+		coderdpubsub.ChatEventChannel(ownerID),
+		coderdpubsub.HandleChatEvent(func(_ context.Context, payload coderdpubsub.ChatEvent, err error) {
+			messageEvents <- struct {
+				payload coderdpubsub.ChatEvent
+				err     error
+			}{payload: payload, err: err}
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelSub()
+
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		require.Equal(t, "claude-haiku-4-5", req.Model)
+		return chattest.AnthropicNonStreamingResponse(wantTitle)
+	})
+
+	server := &Server{
+		db:          db,
+		logger:      logger,
+		pubsub:      pubsub,
+		configCache: newChatConfigCache(context.Background(), db, clock),
+	}
+
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+		BaseUrl:  serverURL,
+	}}, nil)
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
+	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
+		gomock.Any(),
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chatID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return([]database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText(userPrompt),
+		),
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleAssistant,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("checking the diff now"),
+		),
+	}, nil)
+	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
+		gomock.Any(),
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chatID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+
+	gomock.InOrder(
+		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Equal(t, "chat_title_regenerate_lock", opts.TxIdentifier)
+				return fn(lockTx)
+			},
+		),
+		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Nil(t, opts)
+				return fn(usageTx)
+			},
+		),
+		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Equal(t, "chat_title_regenerate_unlock", opts.TxIdentifier)
+				return fn(unlockTx)
+			},
+		),
+	)
+
+	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
+	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{}),
+	).DoAndReturn(func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
+		require.Equal(t, chat.ID, arg.ID)
+		require.Equal(t, chat.Status, arg.Status)
+		require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
+		require.True(t, arg.StartedAt.Valid)
+		require.WithinDuration(t, time.Now(), arg.StartedAt.Time, time.Second)
+		require.False(t, arg.HeartbeatAt.Valid)
+		require.Equal(t, chat.LastError, arg.LastError)
+		require.Equal(t, chat.UpdatedAt, arg.UpdatedAt)
+		return lockedChat, nil
+	})
+
+	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
+			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
+			require.Equal(t, []string{"[]"}, arg.Content)
+			return []database.ChatMessage{{ID: 91}}, nil
 		},
 	)
+	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
+	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+		ID:    chatID,
+		Title: wantTitle,
+	}).Return(updatedChat, nil)
+
+	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
+	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
+		gomock.Any(),
+		database.UpdateChatStatusPreserveUpdatedAtParams{
+			ID:          updatedChat.ID,
+			Status:      updatedChat.Status,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   updatedChat.LastError,
+			UpdatedAt:   updatedChat.UpdatedAt,
+		},
+	).Return(unlockedChat, nil)
 
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)
@@ -314,15 +484,40 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
+			if !ok || arg.ID != chat.ID {
+				return false
+			}
+			if !arg.LastInjectedContext.Valid {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
+				return false
+			}
+			// Expect at least one context-file part for the
+			// working-directory AGENTS.md, with internal fields
+			// stripped (no content, OS, or directory).
+			for _, p := range parts {
+				if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFilePath != "" {
+					return p.ContextFileContent == "" &&
+						p.ContextFileOS == "" &&
+						p.ContextFileDirectory == ""
+				}
+			}
+			return false
+		}),
+	).Return(database.Chat{}, nil).Times(1)
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 		workspacesdk.LSResponse{},
 		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).Times(1)
-	conn.EXPECT().ReadFile(
-		gomock.Any(),
+	).AnyTimes()
+	conn.EXPECT().ReadFile(gomock.Any(),
 		"/home/coder/project/AGENTS.md",
 		int64(0),
 		int64(maxInstructionFileBytes+1),
@@ -351,7 +546,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, err := server.persistInstructionFiles(
+	instruction, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -382,7 +577,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	}
 
-	instruction, err := server.persistInstructionFiles(
+	instruction, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -398,6 +593,247 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 	)
 	require.NoError(t, err)
 	require.Empty(t, instruction)
+}
+
+func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	workspaceAgent := database.WorkspaceAgent{
+		ID:                agentID,
+		OperatingSystem:   "linux",
+		Directory:         "/home/coder/project",
+		ExpandedDirectory: "/home/coder/project",
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(
+		gomock.Any(),
+		agentID,
+	).Return(workspaceAgent, nil).Times(1)
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
+			if !ok || arg.ID != chat.ID {
+				return false
+			}
+			if !arg.LastInjectedContext.Valid {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
+				return false
+			}
+			// The sentinel path should persist only skill parts
+			// with ContextFileAgentID set.
+			for _, p := range parts {
+				if p.Type == codersdk.ChatMessagePartTypeSkill &&
+					p.SkillName == "my-skill" &&
+					p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) {
+					return true
+				}
+			}
+			return false
+		}),
+	).Return(database.Chat{}, nil).Times(1)
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	// Home LS (.coder directory): return 404 so no home
+	// instruction file is found.
+	conn.EXPECT().LS(gomock.Any(), "",
+		gomock.Cond(func(x any) bool {
+			req, ok := x.(workspacesdk.LSRequest)
+			return ok && req.Relativity == workspacesdk.LSRelativityHome
+		}),
+	).Return(
+		workspacesdk.LSResponse{},
+		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
+	).Times(1)
+
+	// Pwd AGENTS.md: return 404 so no working-directory
+	// instruction file is found either.
+	conn.EXPECT().ReadFile(gomock.Any(),
+		"/home/coder/project/AGENTS.md",
+		int64(0),
+		int64(maxInstructionFileBytes+1),
+	).Return(
+		nil, "",
+		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
+	).Times(1)
+
+	// Skills LS (.agents/skills directory): return one skill
+	// directory so DiscoverSkills finds it.
+	conn.EXPECT().LS(gomock.Any(), "",
+		gomock.Cond(func(x any) bool {
+			req, ok := x.(workspacesdk.LSRequest)
+			return ok && req.Relativity == workspacesdk.LSRelativityRoot
+		}),
+	).Return(workspacesdk.LSResponse{
+		Contents: []workspacesdk.LSFile{{
+			Name:               "my-skill",
+			AbsolutePathString: "/home/coder/project/.agents/skills/my-skill",
+			IsDir:              true,
+		}},
+	}, nil).Times(1)
+
+	// Skills SKILL.md ReadFile: return valid frontmatter.
+	skillContent := "---\nname: my-skill\ndescription: A test skill\n---\nSkill body"
+	conn.EXPECT().ReadFile(gomock.Any(),
+		"/home/coder/project/.agents/skills/my-skill/SKILL.md",
+		int64(0),
+		int64(64*1024+1),
+	).Return(
+		io.NopCloser(strings.NewReader(skillContent)),
+		"",
+		nil,
+	).Times(1)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := &Server{
+		db:     db,
+		logger: logger,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	instruction, skills, err := server.persistInstructionFiles(
+		ctx,
+		chat,
+		uuid.New(),
+		workspaceCtx.getWorkspaceAgent,
+		workspaceCtx.getWorkspaceConn,
+	)
+	require.NoError(t, err)
+	// Sentinel path returns empty instruction string.
+	require.Empty(t, instruction)
+	// Skills are still discovered and returned.
+	require.Len(t, skills, 1)
+	require.Equal(t, "my-skill", skills[0].Name)
+}
+
+func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	workspaceAgent := database.WorkspaceAgent{
+		ID:                agentID,
+		OperatingSystem:   "linux",
+		Directory:         "/home/coder/project",
+		ExpandedDirectory: "/home/coder/project",
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(
+		gomock.Any(),
+		agentID,
+	).Return(workspaceAgent, nil).Times(1)
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
+			if !ok || arg.ID != chat.ID {
+				return false
+			}
+			// No skills discovered, so the column should be
+			// cleared to NULL.
+			return !arg.LastInjectedContext.Valid
+		}),
+	).Return(database.Chat{}, nil).Times(1)
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	// All LS calls return 404: no home .coder directory and no
+	// .agents/skills directory.
+	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
+		workspacesdk.LSResponse{},
+		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
+	).AnyTimes()
+
+	// Pwd AGENTS.md: return 404.
+	conn.EXPECT().ReadFile(gomock.Any(),
+		"/home/coder/project/AGENTS.md",
+		int64(0),
+		int64(maxInstructionFileBytes+1),
+	).Return(
+		nil, "",
+		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
+	).Times(1)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := &Server{
+		db:     db,
+		logger: logger,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	instruction, skills, err := server.persistInstructionFiles(
+		ctx,
+		chat,
+		uuid.New(),
+		workspaceCtx.getWorkspaceAgent,
+		workspaceCtx.getWorkspaceConn,
+	)
+	require.NoError(t, err)
+	// Sentinel path: empty instruction, no skills.
+	require.Empty(t, instruction)
+	require.Empty(t, skills)
 }
 
 func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
@@ -1346,6 +1782,156 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 	t.Fatalf("field %q not found in log entry", name)
 }
 
+func TestSkillsFromParts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		got := skillsFromParts(nil)
+		require.Empty(t, got)
+	})
+
+	t.Run("NoSkillParts", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Empty(t, got)
+	})
+
+	t.Run("SingleSkill", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:             codersdk.ChatMessagePartTypeSkill,
+					SkillName:        "deep-review",
+					SkillDescription: "Multi-reviewer code review",
+					SkillDir:         "/home/coder/.agents/skills/deep-review",
+				},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 1)
+		require.Equal(t, "deep-review", got[0].Name)
+		require.Equal(t, "Multi-reviewer code review", got[0].Description)
+		require.Equal(t, "/home/coder/.agents/skills/deep-review", got[0].Dir)
+	})
+
+	t.Run("MultipleSkillsAcrossMessages", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "pull-requests",
+					SkillDir:  "/home/coder/.agents/skills/pull-requests",
+				},
+			}),
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "deep-review",
+					SkillDir:  "/home/coder/.agents/skills/deep-review",
+				},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 2)
+		require.Equal(t, "pull-requests", got[0].Name)
+		require.Equal(t, "deep-review", got[1].Name)
+	})
+
+	t.Run("MixedPartTypes", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:            codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath: "/home/coder/.coder/AGENTS.md",
+				},
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "refine-plan",
+					SkillDir:  "/home/coder/.agents/skills/refine-plan",
+				},
+			}),
+			// A text-only message should be skipped entirely.
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "user turn"},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 1)
+		require.Equal(t, "refine-plan", got[0].Name)
+		require.Equal(t, "/home/coder/.agents/skills/refine-plan", got[0].Dir)
+	})
+
+	t.Run("OptionalDescriptionOmitted", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "refine-plan",
+					SkillDir:  "/home/coder/.agents/skills/refine-plan",
+				},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 1)
+		require.Equal(t, "refine-plan", got[0].Name)
+		require.Empty(t, got[0].Description)
+	})
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			{
+				Content: pqtype.NullRawMessage{
+					RawMessage: []byte(`not valid json with "skill" in it`),
+					Valid:      true,
+				},
+			},
+		}
+		got := skillsFromParts(msgs)
+		require.Empty(t, got)
+	})
+
+	t.Run("RoundTrip", func(t *testing.T) {
+		// Simulate persist -> reconstruct cycle: marshal skill
+		// parts the same way persistInstructionFiles does, then
+		// verify skillsFromParts recovers the metadata.
+		t.Parallel()
+		want := []chattool.SkillMeta{
+			{Name: "deep-review", Description: "Multi-reviewer review", Dir: "/skills/deep-review"},
+			{Name: "pull-requests", Description: "", Dir: "/skills/pull-requests"},
+		}
+		agentID := uuid.New()
+		var parts []codersdk.ChatMessagePart
+		for _, s := range want {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          s.Name,
+				SkillDescription:   s.Description,
+				SkillDir:           s.Dir,
+				ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+			})
+		}
+		msgs := []database.ChatMessage{chatMessageWithParts(parts)}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, len(want))
+		for i, w := range want {
+			require.Equal(t, w.Name, got[i].Name)
+			require.Equal(t, w.Description, got[i].Description)
+			require.Equal(t, w.Dir, got[i].Dir)
+		}
+	})
+}
+
 func TestContextFileAgentID(t *testing.T) {
 	t.Parallel()
 
@@ -1431,4 +2017,96 @@ func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage
 	return database.ChatMessage{
 		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
 	}
+}
+
+// TestProcessChat_IgnoresStaleControlNotification verifies that
+// processChat is not interrupted by a "pending" notification
+// published before processing begins. This is the race that caused
+// TestOpenAIReasoningWithWebSearchRoundTripStoreFalse to flake:
+// SendMessage publishes "pending" via PostgreSQL NOTIFY, and due
+// to async delivery the notification can arrive at the control
+// subscriber after it registers but before the processor publishes
+// "running".
+func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewMock(t)
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		pubsub:                ps,
+		clock:                 clock,
+		workerID:              workerID,
+		chatHeartbeatInterval: time.Minute,
+		configCache:           newChatConfigCache(ctx, db, clock),
+	}
+
+	// Publish a stale "pending" notification on the control channel
+	// BEFORE processChat subscribes. In production this is the
+	// notification from SendMessage that triggered the processing.
+	staleNotify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusPending),
+	})
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), staleNotify)
+	require.NoError(t, err)
+
+	// Track which status processChat writes during cleanup.
+	var finalStatus database.ChatStatus
+	cleanupDone := make(chan struct{})
+
+	// The deferred cleanup in processChat runs a transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	)
+	db.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusRunning, WorkerID: uuid.NullUUID{UUID: workerID, Valid: true}}, nil,
+	)
+	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
+			finalStatus = params.Status
+			close(cleanupDone)
+			return database.Chat{ID: chatID, Status: params.Status}, nil
+		},
+	)
+
+	// resolveChatModel fails immediately — that's fine, we only
+	// need processChat to get past initialization without being
+	// interrupted by the stale notification.
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
+		database.ChatModelConfig{}, xerrors.New("no model configured"),
+	).AnyTimes()
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
+		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
+	).AnyTimes()
+	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
+	go server.processChat(ctx, chat)
+
+	select {
+	case <-cleanupDone:
+	case <-ctx.Done():
+		t.Fatal("processChat did not complete")
+	}
+
+	// If the stale notification interrupted us, status would be
+	// "waiting" (the ErrInterrupted path). Since the gate blocked
+	// it, processChat reached runChat, which failed on model
+	// resolution → status is "error".
+	require.Equal(t, database.ChatStatusError, finalStatus,
+		"processChat should have reached runChat (error), not been interrupted (waiting)")
 }

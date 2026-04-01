@@ -160,12 +160,12 @@ func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
-	r0 := m.s.ArchiveChatByID(ctx, id)
+	r0, r1 := m.s.ArchiveChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("ArchiveChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ArchiveChatByID").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
@@ -3752,6 +3752,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeClients(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeClients").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeClients").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeInterceptions(ctx, arg)
@@ -4016,12 +4024,12 @@ func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXact
 	return r0, r1
 }
 
-func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
-	r0 := m.s.UnarchiveChatByID(ctx, id)
+	r0, r1 := m.s.UnarchiveChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UnarchiveChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnarchiveChatByID").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
@@ -4101,6 +4109,14 @@ func (m queryMetricsStore) UpdateChatLabelsByID(ctx context.Context, arg databas
 	r0, r1 := m.s.UpdateChatLabelsByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatLabelsByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatLabelsByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatLastInjectedContext(ctx context.Context, arg database.UpdateChatLastInjectedContextParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatLastInjectedContext(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatLastInjectedContext").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatLastInjectedContext").Inc()
 	return r0, r1
 }
 
@@ -5293,6 +5309,14 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg
 	r0, r1 := m.s.ListAuthorizedAIBridgeModels(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeModels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeModels").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAuthorizedAIBridgeClients(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeClients").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeClients").Inc()
 	return r0, r1
 }
 

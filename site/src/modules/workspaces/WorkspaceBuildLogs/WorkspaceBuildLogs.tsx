@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -10,12 +9,7 @@ import {
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
-import { BODY_FONT_FAMILY } from "#/theme/constants";
 import { cn } from "#/utils/cn";
-
-const Language = {
-	seconds: "seconds",
-};
 
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
@@ -93,13 +87,22 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 				return (
 					<Fragment key={stage}>
 						<div
-							css={[styles.header, sticky && styles.sticky]}
-							className="logs-header"
+							className={cn(
+								"logs-header text-sm font-semibold font-sans leading-none",
+								"border-solid border-0 border-b bg-surface-primary",
+								"flex items-center",
+								"[&:last-child]:border-b-0 [&:last-child]:rounded-b-lg",
+								"[&:first-of-type]:rounded-t-lg",
+								sticky && "sticky top-0",
+							)}
+							style={{
+								padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
+							}}
 						>
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
-								<div css={styles.duration}>
-									{duration} {Language.seconds}
+								<div className="ml-auto text-content-secondary text-xs">
+									{duration} seconds
 								</div>
 							)}
 						</div>
@@ -110,37 +113,3 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	header: (theme) => ({
-		fontSize: 13,
-		fontWeight: 600,
-		padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
-		display: "flex",
-		alignItems: "center",
-		fontFamily: BODY_FONT_FAMILY,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		background: theme.palette.background.default,
-		lineHeight: "1",
-
-		"&:last-child": {
-			borderBottom: 0,
-			borderRadius: "0 0 8px 8px",
-		},
-
-		"&:first-of-type": {
-			borderRadius: "8px 8px 0 0",
-		},
-	}),
-
-	sticky: {
-		position: "sticky",
-		top: 0,
-	},
-
-	duration: (theme) => ({
-		marginLeft: "auto",
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

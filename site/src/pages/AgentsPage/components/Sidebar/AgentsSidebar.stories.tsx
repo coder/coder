@@ -3,12 +3,12 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import type { ModelSelectorOption } from "../ChatElements";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -78,8 +78,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onRegenerateTitle: fn(),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
-		isRegeneratingTitle: false,
-		regeneratingTitleChatId: null,
+		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 	},
@@ -324,6 +323,64 @@ export const ActiveChatAncestryExpanded: Story = {
 // Use a fixed offset so the value always falls in the "Today" bucket
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
+
+export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "regenerating-chat",
+				title: "Regenerating agent",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-chat",
+				title: "Idle agent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		regeneratingTitleChatIds: ["regenerating-chat"],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
+			"aria-busy",
+			"true",
+		);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Regenerating agent",
+			}),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Generate new title" }),
+		).toHaveAttribute("data-disabled");
+
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitem", { name: "Generate new title" }),
+			).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Idle agent",
+			}),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Generate new title" }),
+		).not.toHaveAttribute("data-disabled");
+	},
+};
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {

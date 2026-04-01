@@ -5,11 +5,6 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import {
-	DateRangePicker as DailyPicker,
-	type DateRangeValue,
-} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import {
 	type FC,
 	Fragment,
 	type HTMLAttributes,
@@ -40,12 +35,16 @@ import {
 } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/components/DateRangePicker/DateRangePicker";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { Stack } from "#/components/Stack/Stack";
@@ -56,6 +55,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+
 import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
@@ -317,15 +318,15 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is latency calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								The median round trip time of user connections to workspaces.
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -372,16 +373,16 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is activity calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								When a connection is initiated to a user&apos;s workspace they
 								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>

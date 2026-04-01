@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fn,
@@ -14,8 +15,8 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	MockNoPermissions,
 	MockPermissions,
@@ -27,8 +28,11 @@ import {
 } from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
 import AgentSettingsPage from "./AgentSettingsPage";
+import { AgentSettingsUsagePageView } from "./AgentSettingsUsagePageView";
 import { AgentsPageView } from "./AgentsPageView";
+import type { ModelSelectorOption } from "./components/ChatElements";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -139,16 +143,133 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 // across timezones.
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
+// Renders the real PageView components with mock data so the
+// visual snapshots match the actual UI.
+const BehaviorRouteElement = () => {
+	const { permissions } = useAuthenticated();
+	return (
+		<AgentSettingsBehaviorPageView
+			canSetSystemPrompt={permissions.editDeploymentConfig}
+			systemPromptData={{
+				system_prompt: "",
+				include_default_system_prompt: true,
+				default_system_prompt: "You are Coder, an AI coding assistant...",
+			}}
+			userPromptData={{ custom_prompt: "" }}
+			desktopEnabledData={{ enable_desktop: false }}
+			workspaceTTLData={{ workspace_ttl_ms: 0 }}
+			isWorkspaceTTLLoading={false}
+			isWorkspaceTTLLoadError={false}
+			modelConfigsData={[]}
+			modelConfigsError={undefined}
+			isLoadingModelConfigs={false}
+			thresholds={[]}
+			isThresholdsLoading={false}
+			thresholdsError={undefined}
+			onSaveSystemPrompt={fn()}
+			isSavingSystemPrompt={false}
+			isSaveSystemPromptError={false}
+			onSaveUserPrompt={fn()}
+			isSavingUserPrompt={false}
+			isSaveUserPromptError={false}
+			onSaveDesktopEnabled={fn()}
+			isSavingDesktopEnabled={false}
+			isSaveDesktopEnabledError={false}
+			onSaveWorkspaceTTL={fn()}
+			isSavingWorkspaceTTL={false}
+			isSaveWorkspaceTTLError={false}
+			onSaveThreshold={fn(async () => undefined)}
+			onResetThreshold={fn(async () => undefined)}
+		/>
+	);
+};
+
+const UsageRouteElement = () => (
+	<AgentSettingsUsagePageView
+		dateRange={{
+			startDate: new Date("2026-02-10"),
+			endDate: new Date("2026-03-12"),
+		}}
+		hasExplicitDateRange={false}
+		onDateRangeChange={fn()}
+		searchFilter=""
+		onSearchFilterChange={fn()}
+		page={1}
+		onPageChange={fn()}
+		pageSize={25}
+		offset={0}
+		usersData={mockUsageUsers}
+		isUsersLoading={false}
+		isUsersFetching={false}
+		usersError={null}
+		onUsersRetry={fn()}
+		selectedUserId={null}
+		selectedUser={null}
+		isSelectedUserLoading={false}
+		isSelectedUserError={false}
+		selectedUserError={null}
+		onSelectedUserRetry={fn()}
+		onClearSelectedUser={fn()}
+		onSelectUser={fn()}
+		summaryData={undefined}
+		isSummaryLoading={false}
+		summaryError={null}
+		onSummaryRetry={fn()}
+	/>
+);
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
 	children: [
-		{ path: "settings", element: <AgentSettingsPage /> },
-		{ path: "settings/:section", element: <AgentSettingsPage /> },
+		{
+			path: "settings",
+			element: <AgentSettingsPage />,
+			children: [
+				{ index: true, element: <Navigate to="behavior" replace /> },
+				{ path: "behavior", element: <BehaviorRouteElement /> },
+				{ path: "usage", element: <UsageRouteElement /> },
+			],
+		},
 		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const defaultArgs: ComponentProps<typeof AgentsPageView> = {
+	agentId: undefined,
+	chatList: [],
+	catalogModelOptions: defaultModelOptions,
+	modelConfigs: defaultModelConfigs,
+	logoUrl: "",
+	handleNewAgent: fn(),
+	isCreating: false,
+	isArchiving: false,
+	archivingChatId: undefined,
+	isChatsLoading: false,
+	chatsLoadError: null,
+	onRetryChatsLoad: fn(),
+	onCollapseSidebar: fn(),
+	isSidebarCollapsed: false,
+	onExpandSidebar: fn(),
+	chatErrorReasons: {},
+	setChatErrorReason: fn(),
+	clearChatErrorReason: fn(),
+	requestArchiveAgent: fn(),
+	requestUnarchiveAgent: fn(),
+	requestArchiveAndDeleteWorkspace: fn(),
+	requestPinAgent: fn(),
+	requestUnpinAgent: fn(),
+	onRegenerateTitle: fn(),
+	regeneratingTitleChatIds: [],
+	onToggleSidebarCollapsed: fn(),
+	isAgentsAdmin: false,
+	archivedFilter: "active",
+	onArchivedFilterChange: fn(),
+	hasNextPage: false,
+	onLoadMore: fn(),
+	isFetchingNextPage: false,
 };
 
 const meta: Meta<typeof AgentsPageView> = {
@@ -164,36 +285,7 @@ const meta: Meta<typeof AgentsPageView> = {
 			routing: agentsRouting,
 		}),
 	},
-	args: {
-		agentId: undefined,
-		chatList: [],
-		catalogModelOptions: defaultModelOptions,
-		modelConfigs: defaultModelConfigs,
-		logoUrl: "",
-		handleNewAgent: fn(),
-		isCreating: false,
-		isArchiving: false,
-		archivingChatId: undefined,
-		isChatsLoading: false,
-		chatsLoadError: null,
-		onRetryChatsLoad: fn(),
-		onCollapseSidebar: fn(),
-		isSidebarCollapsed: false,
-		onExpandSidebar: fn(),
-		chatErrorReasons: {},
-		setChatErrorReason: fn(),
-		clearChatErrorReason: fn(),
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
-		onToggleSidebarCollapsed: fn(),
-		isAgentsAdmin: false,
-		archivedFilter: "active" as const,
-		onArchivedFilterChange: fn(),
-		hasNextPage: false,
-		onLoadMore: fn(),
-		isFetchingNextPage: false,
-	},
+	args: defaultArgs,
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],

@@ -1572,6 +1572,17 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if c.LastInjectedContext.Valid {
+		var parts []codersdk.ChatMessagePart
+		// Internal fields are stripped at write time in
+		// chatd.updateLastInjectedContext, so no
+		// StripInternal call is needed here. Unmarshal
+		// errors are suppressed — the column is written by
+		// us with a known schema.
+		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
+			chat.LastInjectedContext = parts
+		}
+	}
 	return chat
 }
 

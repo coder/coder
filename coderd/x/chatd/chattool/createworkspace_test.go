@@ -3,6 +3,7 @@ package chattool //nolint:testpackage // Uses internal symbols.
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -116,6 +117,180 @@ func TestWaitForAgentReady(t *testing.T) {
 		result := waitForAgentReady(context.Background(), nil, uuid.New(), connFn)
 		require.Empty(t, result)
 	})
+}
+
+func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	fallbackAgentID := uuid.New()
+	chatAgentID := uuid.New()
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetChatWorkspaceTTL(gomock.Any()).
+		Return("0s", nil)
+
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusSucceeded,
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{
+			{ID: fallbackAgentID, Name: "dev", DisplayOrder: 0},
+			{ID: chatAgentID, Name: "dev-coderd-chat", DisplayOrder: 1},
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentLifecycleStateByID(gomock.Any(), chatAgentID).
+		Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}, nil)
+
+	var connectedAgentID uuid.UUID
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:        workspaceID,
+			Name:      req.Name,
+			OwnerName: "testuser",
+		}, nil
+	}
+	agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		connectedAgentID = agentID
+		return nil, func() {}, nil
+	}
+
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:          db,
+		OwnerID:     ownerID,
+		CreateFn:    createFn,
+		AgentConnFn: agentConnFn,
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-chat-agent"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Content)
+	require.Equal(t, chatAgentID, connectedAgentID)
+}
+
+func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	chatID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{ID: chatID}, nil)
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+	db.EXPECT().
+		GetChatWorkspaceTTL(gomock.Any()).
+		Return("0s", nil)
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusSucceeded,
+		}, nil)
+	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:     uuid.NullUUID{},
+			AgentID:     uuid.NullUUID{},
+		}).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{
+			{ID: uuid.New(), Name: "alpha-coderd-chat", DisplayOrder: 0},
+			{ID: uuid.New(), Name: "beta-coderd-chat", DisplayOrder: 1},
+		}, nil)
+
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:      db,
+		OwnerID: ownerID,
+		ChatID:  chatID,
+		CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			return codersdk.Workspace{
+				ID:        workspaceID,
+				Name:      req.Name,
+				OwnerName: "testuser",
+			}, nil
+		},
+		AgentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			t.Fatal("AgentConnFn should not be called when agent selection fails")
+			return nil, nil, xerrors.New("unexpected agent dial")
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-selection-error"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, true, result["created"])
+	require.Equal(t, "testuser/test-selection-error", result["workspace_name"])
+	require.Equal(t, "selection_error", result["agent_status"])
+	require.Contains(t, result["agent_error"], "multiple agents match the chat suffix")
 }
 
 func TestCreateWorkspace_GlobalTTL(t *testing.T) {
@@ -253,6 +428,7 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{{
 			ID:               agentID,
+			Name:             "dev",
 			CreatedAt:        now.Add(-time.Minute),
 			FirstConnectedAt: validNullTime(now.Add(-45 * time.Second)),
 			LastConnectedAt:  validNullTime(now.Add(-5 * time.Second)),
@@ -302,6 +478,7 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{{
 			ID:                       agentID,
+			Name:                     "dev",
 			CreatedAt:                now,
 			ConnectionTimeoutSeconds: 60,
 		}}, nil)
@@ -336,6 +513,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 			name: "Disconnected",
 			agent: database.WorkspaceAgent{
 				ID:               uuid.New(),
+				Name:             "disconnected",
 				CreatedAt:        time.Now().UTC().Add(-2 * time.Minute),
 				FirstConnectedAt: validNullTime(time.Now().UTC().Add(-2 * time.Minute)),
 				LastConnectedAt:  validNullTime(time.Now().UTC().Add(-time.Minute)),
@@ -345,6 +523,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 			name: "TimedOut",
 			agent: database.WorkspaceAgent{
 				ID:                       uuid.New(),
+				Name:                     "timed-out",
 				CreatedAt:                time.Now().UTC().Add(-2 * time.Second),
 				ConnectionTimeoutSeconds: 1,
 			},

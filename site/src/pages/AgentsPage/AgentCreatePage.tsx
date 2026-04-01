@@ -7,7 +7,9 @@ import {
 	createChat,
 	mcpServerConfigs,
 } from "#/api/queries/chats";
+import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -23,10 +25,12 @@ const nilUUID = "00000000-0000-0000-0000-000000000000";
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const { permissions } = useAuthenticated();
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 
 	const catalogModelOptions = getModelOptionsFromConfigs(
@@ -77,6 +81,7 @@ const AgentCreatePage: FC = () => {
 				onCreateChat={handleCreateChat}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
+				canCreateChat={permissions.createChat}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
@@ -84,7 +89,11 @@ const AgentCreatePage: FC = () => {
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-			/>
+				workspaceCount={workspacesQuery.data?.count}
+				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+				workspacesError={workspacesQuery.error}
+				isWorkspacesLoading={workspacesQuery.isLoading}
+			/>{" "}
 		</>
 	);
 };

@@ -79,7 +79,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
 	return (
 		<>
 			{totalPrebuilds > 0 && (
-				<Alert severity="warning" css={{ marginBottom: 16 }}>
+				<Alert severity="warning" className="mb-4">
 					This template has prebuilds configured. Duplicating this template will
 					automatically cause {totalPrebuilds}{" "}
 					{totalPrebuilds === 1 ? "prebuild" : "prebuilds"} to be created.

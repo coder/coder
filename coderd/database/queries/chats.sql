@@ -1,9 +1,24 @@
--- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
-WHERE id = @id OR root_chat_id = @id;
+-- name: ArchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+)
+SELECT *
+FROM chats
+ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
--- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
+-- name: UnarchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = false, updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+)
+SELECT *
+FROM chats
+ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
 -- name: PinChatByID :exec
 WITH target_chat AS (
@@ -524,6 +539,17 @@ UPDATE chats SET
     build_id = sqlc.narg('build_id')::uuid,
     agent_id = sqlc.narg('agent_id')::uuid,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING *;
+
+-- name: UpdateChatLastInjectedContext :one
+-- Updates the cached injected context parts (AGENTS.md +
+-- skills) on the chat row. Called only when context changes
+-- (first workspace attach or agent change). updated_at is
+-- intentionally not touched to avoid reordering the chat list.
+UPDATE chats SET
+    last_injected_context = sqlc.narg('last_injected_context')::jsonb
 WHERE
     id = @id::uuid
 RETURNING *;

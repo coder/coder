@@ -2,7 +2,6 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
 import { useQuery } from "react-query";
 import { ValidationError } from "yup";
@@ -16,6 +15,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { nameValidator } from "#/utils/formUtils";
 import { pageTitle } from "#/utils/page";
 import { getInitialRichParameterValues } from "#/utils/richParameters";
@@ -174,9 +174,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							</div>
 
 							{templateParameters.length > 0 && (
-								<div
-									css={{ display: "flex", flexDirection: "column", gap: 36 }}
-								>
+								<div className="flex flex-col gap-9">
 									{templateParameters.map((parameter) => {
 										const parameterValue =
 											buttonValues[`param.${parameter.name}`] ?? "";
@@ -218,17 +216,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 						})}
 					>
 						<img src="/open-in-coder.svg" alt="Open in Coder button" />
-						<div
-							css={{
-								padding: "48px 16px",
-								position: "absolute",
-								bottom: 0,
-								left: 0,
-								display: "flex",
-								justifyContent: "center",
-								width: "100%",
-							}}
-						>
+						<div className="px-4 py-12 absolute bottom-0 left-0 flex justify-center w-full">
 							<Button
 								className="rounded-full"
 								disabled={clipboard.showCopiedSuccess}

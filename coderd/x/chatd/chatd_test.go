@@ -297,6 +297,180 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	require.False(t, fromDB.WorkerID.Valid)
 }
 
+func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "archive-pending",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	err = replica.ArchiveChat(ctx, chat)
+	require.NoError(t, err)
+
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
+	require.False(t, fromDB.WorkerID.Valid)
+	require.False(t, fromDB.StartedAt.Valid)
+	require.False(t, fromDB.HeartbeatAt.Valid)
+	require.True(t, fromDB.Archived)
+	require.Zero(t, fromDB.PinOrder)
+}
+
+func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	streamStarted := make(chan struct{})
+	streamCanceled := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			chunks <- chattest.OpenAITextChunks("partial")[0]
+			select {
+			case <-streamStarted:
+			default:
+				close(streamStarted)
+			}
+			<-req.Context().Done()
+			select {
+			case <-streamCanceled:
+			default:
+				close(streamCanceled)
+			}
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+
+	server := newActiveTestServer(t, db, ps)
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "archive-interrupt",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.IntervalFast)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.NotNil(t, queuedResult.QueuedMessage)
+
+	err = server.ArchiveChat(ctx, chat)
+	require.NoError(t, err)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case <-streamCanceled:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	gotWaitingStatus := false
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		for {
+			select {
+			case ev := <-events:
+				if ev.Type == codersdk.ChatStreamEventTypeStatus &&
+					ev.Status != nil &&
+					ev.Status.Status == codersdk.ChatStatusWaiting {
+					gotWaitingStatus = true
+					return true
+				}
+			default:
+				return gotWaitingStatus
+			}
+		}
+	}, testutil.IntervalFast)
+	require.True(t, gotWaitingStatus, "expected a waiting status event after archive")
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Archived &&
+			fromDB.Status == database.ChatStatusWaiting &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.StartedAt.Valid &&
+			!fromDB.HeartbeatAt.Valid
+	}, testutil.IntervalFast)
+
+	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queuedMessages, 1)
+	require.Equal(t, queuedResult.QueuedMessage.ID, queuedMessages[0].ID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	userMessages := 0
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleUser {
+			userMessages++
+		}
+	}
+	require.Equal(t, 1, userMessages, "expected queued message to stay queued after archive")
+}
+
 func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 	t.Parallel()
 
@@ -473,6 +647,11 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// CreateChat calls signalWake which triggers processOnce in
+	// the background. Wait for that processing to finish so it
+	// doesn't race with the manual status update below.
+	waitForChatProcessed(ctx, t, db, chat.ID, replica)
+
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
@@ -603,9 +782,21 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 0)
 
-	chatFromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chatFromDB.Status)
+	// The wake channel may trigger immediate processing after EditMessage,
+	// transitioning the chat from pending to running then error before we
+	// read the DB. Wait for any in-flight processing to settle.
+	// Note: WaitUntilIdleForTest must be called from the test goroutine
+	// (not inside require.Eventually) to avoid a WaitGroup Add/Wait race.
+	chatd.WaitUntilIdleForTest(replica)
+	var chatFromDB database.Chat
+	require.Eventually(t, func() bool {
+		c, e := db.GetChatByID(ctx, chat.ID)
+		if e != nil {
+			return false
+		}
+		chatFromDB = c
+		return chatFromDB.Status != database.ChatStatusRunning
+	}, testutil.WaitShort, testutil.IntervalFast)
 	require.False(t, chatFromDB.WorkerID.Valid)
 }
 
@@ -805,6 +996,11 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 
+	// CreateChat calls signalWake which triggers processOnce in
+	// the background. Wait for that processing to finish so it
+	// doesn't race with the manual status update below.
+	waitForChatProcessed(ctx, t, db, chat.ID, replica)
+
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
@@ -866,10 +1062,6 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
-
-	chat, err = db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chat.Status)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -1490,10 +1682,12 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// The first event in the snapshot must be a status event.
+	// The exact status depends on timing: CreateChat sets
+	// pending, but the wake signal may trigger processing
+	// before Subscribe is called.
 	require.NotEmpty(t, snapshot)
 	require.Equal(t, codersdk.ChatStreamEventTypeStatus, snapshot[0].Type)
 	require.NotNil(t, snapshot[0].Status)
-	require.Equal(t, codersdk.ChatStatusPending, snapshot[0].Status.Status)
 }
 
 func TestPersistToolResultWithBinaryData(t *testing.T) {
@@ -1690,6 +1884,14 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
+
+	// Wait for any wake-triggered processing to settle before
+	// subscribing, so the snapshot captures the final state.
+	// The wake signal may trigger processOnce which will fail
+	// (no LLM configured) and set the chat to error status.
+	// Poll until the chat reaches a terminal state (not pending
+	// and not running), then wait for the goroutine to finish.
+	waitForChatProcessed(ctx, t, db, chat.ID, replica)
 
 	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -2204,6 +2406,20 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 	})
 	require.NoError(t, err)
 
+	// Close the inactive server so its wake-triggered processing
+	// stops and releases the chat. Then reset to pending so the
+	// active server (created below) can acquire it cleanly.
+	require.NoError(t, inactive.Close())
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
 	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
 	require.NoError(t, err)
 	chat, err = db.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{
@@ -2556,6 +2772,39 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 	testutil.RequireSend(ctx, t, usageTickCh, time.Now())
 	count := testutil.RequireReceive(ctx, t, flushCh)
 	require.Equal(t, 0, count, "expected no workspaces to be flushed when chat has no workspace")
+}
+
+// waitForChatProcessed waits for a wake-triggered processOnce to
+// fully complete for the given chat. It polls until the chat leaves
+// both pending and running states (meaning processChat has finished
+// its cleanup and updated the DB), then calls WaitUntilIdleForTest.
+//
+// Waiting for a terminal state (not just "not pending") avoids a
+// WaitGroup Add/Wait race: AcquireChats changes the DB status to
+// running before processOnce calls inflight.Add(1). If we only
+// waited for status != pending, we could call Wait() while Add(1)
+// hasn't happened yet.
+func waitForChatProcessed(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	server *chatd.Server,
+) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		c, err := db.GetChatByID(ctx, chatID)
+		if err != nil {
+			return false
+		}
+		// Wait until the chat reaches a terminal state — neither
+		// pending (waiting to be acquired) nor running (being
+		// processed). This guarantees that inflight.Add(1) has
+		// already been called by processOnce.
+		return c.Status != database.ChatStatusPending &&
+			c.Status != database.ChatStatusRunning
+	}, testutil.WaitShort, testutil.IntervalFast)
+	chatd.WaitUntilIdleForTest(server)
 }
 
 func newTestServer(
@@ -4282,4 +4531,134 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		"allowed template should appear in list_templates result")
 	require.NotContains(t, toolResult, tplBlocked.ID.String(),
 		"blocked template should NOT appear in list_templates result")
+}
+
+// TestSignalWakeImmediateAcquisition verifies that CreateChat triggers
+// immediate processing via signalWake without waiting for the polling
+// ticker to fire. The ticker interval is set to an hour so it never
+// fires during the test — any processing must come from the wake
+// channel.
+func TestSignalWakeImmediateAcquisition(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	processed := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		// Signal that the LLM was reached — this proves the chat
+		// was acquired and processing started.
+		select {
+		case <-processed:
+		default:
+			close(processed)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("hello from the model")...,
+		)
+	})
+
+	// Use a 1-hour acquire interval so the ticker never fires.
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.PendingChatAcquireInterval = time.Hour
+		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	// CreateChat sets status=pending and calls signalWake().
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "wake-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// The chat should be processed immediately — the LLM handler
+	// closes the `processed` channel when it receives a streaming
+	// request. Without signalWake this would hang forever because
+	// the 1-hour ticker never fires.
+	testutil.TryReceive(ctx, t, processed)
+
+	chatd.WaitUntilIdleForTest(server)
+
+	// Verify the chat was fully processed.
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, fromDB.Status,
+		"chat should be in waiting status after processing completes")
+}
+
+// TestSignalWakeSendMessage verifies that SendMessage on an idle chat
+// triggers immediate processing via signalWake.
+func TestSignalWakeSendMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	firstProcessed := make(chan struct{})
+	var requestCount atomic.Int32
+	secondProcessed := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		switch requestCount.Add(1) {
+		case 1:
+			select {
+			case <-firstProcessed:
+			default:
+				close(firstProcessed)
+			}
+		case 2:
+			close(secondProcessed)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("response")...,
+		)
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.PendingChatAcquireInterval = time.Hour
+		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	// CreateChat triggers wake -> processes first turn.
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "wake-send-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+	})
+	require.NoError(t, err)
+
+	// Wait for the first turn to actually reach the LLM, then
+	// wait for the processing goroutine to finish so the chat
+	// transitions to "waiting" status.
+	testutil.TryReceive(ctx, t, firstProcessed)
+	chatd.WaitUntilIdleForTest(server)
+
+	// Now send a follow-up message — this should also be
+	// processed immediately via signalWake.
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("second")},
+	})
+	require.NoError(t, err)
+
+	testutil.TryReceive(ctx, t, secondProcessed)
+	chatd.WaitUntilIdleForTest(server)
+
+	// Both turns processed — verify second request reached the LLM.
+	require.GreaterOrEqual(t, requestCount.Load(), int32(2),
+		"LLM should have received at least 2 streaming requests")
 }

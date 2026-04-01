@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { API } from "#/api/api";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
@@ -16,6 +15,25 @@ const modelOptions = [
 	},
 ] as const;
 
+const mock403Error = Object.assign(
+	new Error("Request failed with status code 403"),
+	{
+		isAxiosError: true,
+		response: {
+			status: 403,
+			statusText: "Forbidden",
+			data: {
+				message: "Forbidden.",
+				detail: "Insufficient permissions to create chat.",
+			},
+			headers: {},
+			config: {},
+		},
+		config: {},
+		toJSON: () => ({}),
+	},
+);
+
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
@@ -24,18 +42,19 @@ const meta: Meta<typeof AgentCreateForm> = {
 		onCreateChat: fn(),
 		isCreating: false,
 		createError: undefined,
+		canCreateChat: true,
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
+		workspaceCount: 0,
+		workspaceOptions: [],
+		workspacesError: undefined,
+		isWorkspacesLoading: false,
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: [],
-			count: 0,
-		});
 	},
 };
 
@@ -71,12 +90,12 @@ const mockWorkspaces = [
 ];
 
 export const WithWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -97,12 +116,12 @@ export const WithWorkspaces: Story = {
 };
 
 export const SearchWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -133,12 +152,12 @@ export const SearchWorkspaces: Story = {
 };
 
 export const SelectWorkspaceViaSearch: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -210,10 +229,6 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 				},
 			]),
 		);
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: [],
-			count: 0,
-		});
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -271,5 +286,48 @@ export const UsageLimitExceeded: Story = {
 				toJSON: () => ({}),
 			},
 		),
+	},
+};
+
+export const ForbiddenErrorWithRole: Story = {
+	args: {
+		...defaultArgs,
+		canCreateChat: true,
+		createError: mock403Error,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The friendly "role required" alert must NOT appear because the
+		// user has the agents-access role.
+		await expect(
+			canvas.queryByText("Permission required"),
+		).not.toBeInTheDocument();
+		// The generic ErrorAlert should surface the real backend message.
+		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
+		// The textbox should remain enabled since the user has the role.
+		const textbox = canvas.getByRole("textbox");
+		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const ForbiddenNoAgentsRole: Story = {
+	args: {
+		...defaultArgs,
+		canCreateChat: false,
+		createError: mock403Error,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /View Docs/ }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("heading", { name: "Forbidden." }),
+		).not.toBeInTheDocument();
+		// The textarea should be disabled so the user cannot
+		// accidentally trigger the generic error.
+		const textbox = canvas.getByRole("textbox");
+		await expect(textbox).toHaveAttribute("aria-disabled", "true");
 	},
 };

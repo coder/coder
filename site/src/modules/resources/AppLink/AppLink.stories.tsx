@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { expect, screen, spyOn, userEvent, within } from "storybook/test";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockWorkspace,

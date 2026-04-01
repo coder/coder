@@ -1377,7 +1377,7 @@ func TestProxy_MITM(t *testing.T) {
 				receivedPath = r.URL.Path
 				receivedAuthz = r.Header.Get("Authorization")
 				receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
-				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
+				receivedRequestID = r.Header.Get(agplaibridge.HeaderCoderRequestID)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
 			}))
@@ -2103,6 +2103,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 		allowedCIDRs     []string
 		coderAccessURLFn func(targetHostname, port string) string
 		expectBlocked    bool
+		expectDialFail   bool
 	}{
 		{
 			// Direct IP: by default, all private/reserved IPs are blocked.
@@ -2162,6 +2163,14 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 			},
 			expectBlocked: false,
 		},
+		{
+			// A domain reserved by RFC 2606 that never resolves causes a plain dial
+			// failure (not a blocked IP). The proxy should return 502 Bad Gateway,
+			// not 403, to confirm the two error paths are distinguished correctly.
+			name:           "DialFailureReturns502",
+			targetHostname: "host.invalid",
+			expectDialFail: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2203,16 +2212,27 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 
 			srv := newTestProxy(t, opts...)
 
-			if tt.expectBlocked {
-				// Use a raw CONNECT to observe the 502 returned when ConnectDial fails.
-				// Go's HTTP client does not expose the response for non-2xx CONNECT results.
+			switch {
+			case tt.expectBlocked:
+				// Use a raw CONNECT to observe the 403 returned when ConnectDial blocks
+				// a private/reserved IP. Go's HTTP client does not expose the response
+				// for non-2xx CONNECT results.
+				resp := sendConnect(t, srv.Addr(), connectTarget, makeProxyAuthHeader("test-token"))
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusForbidden, resp.StatusCode)
+				require.Equal(t, "Forbidden", string(body), "error details should not be leaked to the client")
+			case tt.expectDialFail:
+				// Use a raw CONNECT to observe the 502 returned when ConnectDial fails
+				// for a reason other than a blocked IP (e.g. unresolvable hostname).
 				resp := sendConnect(t, srv.Addr(), connectTarget, makeProxyAuthHeader("test-token"))
 				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				require.Equal(t, http.StatusBadGateway, resp.StatusCode)
-				require.Equal(t, "Bad Gateway", string(body), "error details should not be leaked to the client")
-			} else {
+				require.Equal(t, "Bad Gateway", string(body))
+			default:
 				certPool := x509.NewCertPool()
 				certPool.AddCert(targetServer.Certificate())
 				// InsecureSkipVerify is needed for "localhost": by default the cert SAN is 127.0.0.1.

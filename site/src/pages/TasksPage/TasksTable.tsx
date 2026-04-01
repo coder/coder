@@ -1,4 +1,3 @@
-import { useClickableTableRow } from "hooks";
 import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -31,6 +30,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { TaskActionButton } from "#/modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "#/modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "#/modules/tasks/TaskStatus/TaskStatus";

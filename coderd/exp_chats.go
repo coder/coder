@@ -56,7 +56,6 @@ import (
 )
 
 const (
-	chatDiffStatusTTL   = gitsync.DiffStatusTTL
 	chatStreamBatchSize = 256
 
 	chatContextLimitModelConfigKey                = "context_limit"
@@ -67,11 +66,12 @@ const (
 	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
-// chatGitRef holds the branch and remote origin reported by the
-// workspace agent during a git operation.
+// chatGitRef holds the branch, remote origin, and optional chat
+// ID reported by the workspace agent during a git operation.
 type chatGitRef struct {
 	Branch       string
 	RemoteOrigin string
+	ChatID       uuid.UUID
 }
 
 type chatRepositoryRef struct {
@@ -393,6 +393,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var req codersdk.CreateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -496,6 +501,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 				Message: "Invalid model config ID.",
 				Detail:  err.Error(),
 			})
+			return
+		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -616,6 +625,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -626,6 +639,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -636,6 +653,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -1222,10 +1243,18 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	diffStatus, err := api.resolveChatDiffStatus(ctx, chat)
-	if err != nil {
-		// Log but don't fail - diff status is supplementary.
-		api.Logger.Error(ctx, "failed to resolve chat diff status",
+	// Use the cached diff status from the database rather than
+	// resolving it inline. Inline resolution calls out to the
+	// git provider API (e.g. GitHub) on every request which
+	// blocks the response for 200-800ms. The background gitsync
+	// worker keeps the cached status fresh.
+	var diffStatus *database.ChatDiffStatus
+	status, err := api.Database.GetChatDiffStatusByChatID(ctx, chat.ID)
+	switch {
+	case err == nil:
+		diffStatus = &status
+	case !xerrors.Is(err, sql.ErrNoRows):
+		api.Logger.Error(ctx, "failed to get cached chat diff status",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
@@ -1620,20 +1649,20 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		// Use chatDaemon when available so it can notify active
-		// subscribers. Fall back to direct DB for the simple
-		// archive flag — no streaming state is involved.
+		// Use chatDaemon when available so it can interrupt active
+		// processing before broadcasting archive state. Fall back to
+		// direct DB when no daemon is running.
 		if archived {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.ArchiveChat(ctx, chat)
 			} else {
-				err = api.Database.ArchiveChatByID(ctx, chat.ID)
+				_, err = api.Database.ArchiveChatByID(ctx, chat.ID)
 			}
 		} else {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.UnarchiveChat(ctx, chat)
 			} else {
-				err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+				_, err = api.Database.UnarchiveChatByID(ctx, chat.ID)
 			}
 		}
 		if err != nil {
@@ -2337,68 +2366,6 @@ func chatWorkspaceAuditStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
-func (api *API) resolveChatDiffStatus(
-	ctx context.Context,
-	chat database.Chat,
-) (*database.ChatDiffStatus, error) {
-	status, found, err := api.getCachedChatDiffStatus(ctx, chat.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-
-	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
-	if err != nil {
-		return nil, err
-	}
-	if reference.PullRequestURL != "" {
-		if !found || !strings.EqualFold(strings.TrimSpace(status.Url.String), reference.PullRequestURL) {
-			status, err = api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(-time.Second))
-			if err != nil {
-				return nil, err
-			}
-			found = true
-		}
-	}
-
-	if !found {
-		return nil, nil //nolint:nilnil // Callers handle nil status explicitly.
-	}
-	if !chatDiffStatusIsStale(status, now) {
-		return &status, nil
-	}
-
-	// Use the same refresh pipeline as the background worker
-	// so both paths share identical provider/token resolution.
-	refreshed, err := api.gitSyncWorker.RefreshChat(
-		ctx, status, chat.OwnerID,
-	)
-	if err == nil && refreshed != nil {
-		return refreshed, nil
-	}
-	if err == nil {
-		// No PR exists yet; return what we have.
-		return &status, nil
-	}
-
-	api.Logger.Warn(ctx, "failed to refresh chat diff status",
-		slog.F("chat_id", chat.ID),
-		slog.Error(err),
-	)
-
-	backoffStatus, backoffErr := api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(chatDiffStatusTTL))
-	if backoffErr != nil {
-		api.Logger.Warn(ctx, "failed to extend chat diff status stale timestamp",
-			slog.F("chat_id", chat.ID),
-			slog.Error(backoffErr),
-		)
-		return &status, nil
-	}
-
-	return &backoffStatus, nil
-}
-
 func (api *API) resolveChatDiffContents(
 	ctx context.Context,
 	chat database.Chat,
@@ -2663,13 +2630,6 @@ func (api *API) resolveExternalAuth(origin string) (providerType string, gp gitp
 func (api *API) resolveGitProvider(origin string) gitprovider.Provider {
 	_, gp := api.resolveExternalAuth(origin)
 	return gp
-}
-
-func chatDiffStatusIsStale(status database.ChatDiffStatus, now time.Time) bool {
-	if !status.RefreshedAt.Valid {
-		return true
-	}
-	return !status.StaleAt.After(now)
 }
 
 func (api *API) resolveChatGitAccessToken(

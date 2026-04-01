@@ -1,6 +1,4 @@
-import { useAuthenticated } from "hooks";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
@@ -18,11 +16,13 @@ import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClipboard } from "#/hooks/useClipboard";
 import {
 	Diagnostics,
 	DynamicParameter,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "#/utils/page";
 
 type ButtonValues = Record<string, string>;

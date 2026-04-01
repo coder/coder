@@ -1570,13 +1570,13 @@ func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UU
 	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
-func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.ArchiveChatByID(ctx, id)
 }
@@ -2811,7 +2811,15 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	// Any user who can read chat resources can read the default
+	// model config, since model resolution is required to create
+	// a chat. This avoids gating on ResourceDeploymentConfig
+	// which regular members lack.
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.ChatModelConfig{}, ErrNoActor
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(act.ID)); err != nil {
 		return database.ChatModelConfig{}, err
 	}
 	return q.db.GetDefaultChatModelConfig(ctx)
@@ -5356,6 +5364,14 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeClients(ctx, arg, prep)
+}
+
 func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -5633,13 +5649,13 @@ func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
 
-func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.UnarchiveChatByID(ctx, id)
 }
@@ -5742,6 +5758,17 @@ func (q *querier) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateC
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatLabelsByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatLastInjectedContext(ctx context.Context, arg database.UpdateChatLastInjectedContextParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatLastInjectedContext(ctx, arg)
 }
 
 func (q *querier) UpdateChatLastModelConfigByID(ctx context.Context, arg database.UpdateChatLastModelConfigByIDParams) (database.Chat, error) {
@@ -7300,6 +7327,14 @@ func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeModels(ctx, arg)
+}
+
+func (q *querier) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, _ rbac.PreparedAuthorized) ([]string, error) {
+	// TODO: Delete this function, all ListAIBridgeClients should be
+	// authorized. For now just call ListAIBridgeClients on the authz
+	// querier. This cannot be deleted for now because it's included in
+	// the database.Store interface, so dbauthz needs to implement it.
+	return q.ListAIBridgeClients(ctx, arg)
 }
 
 func (q *querier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg database.ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionsRow, error) {

@@ -1,11 +1,11 @@
 import { act, render } from "@testing-library/react";
-import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
 	MockAppearanceConfig,
@@ -37,10 +37,8 @@ class MockIntersectionObserver {
 
 // ---- Auth mock ----
 
-vi.mock("hooks", async () => {
-	const actual = await vi.importActual("hooks");
+vi.mock("#/hooks/useAuthenticated", async () => {
 	return {
-		...actual,
 		useAuthenticated: () => ({
 			user: MockUserOwner,
 			permissions: {},
@@ -110,8 +108,7 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
 	onRegenerateTitle: vi.fn(),
-	isRegeneratingTitle: false,
-	regeneratingTitleChatId: null,
+	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,

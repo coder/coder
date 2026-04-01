@@ -6,8 +6,6 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { useProxy } from "contexts/ProxyContext";
-import { ThemeOverride } from "contexts/ThemeProvider";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -25,6 +23,8 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "#/api/queries/workspaces";
+import { useProxy } from "#/contexts/ProxyContext";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes from "#/theme";
@@ -35,12 +35,6 @@ import { terminalWebsocketUrl } from "#/utils/terminal";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
-
-export const Language = {
-	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
-	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
-	websocketErrorMessagePrefix: "WebSocket failed: ",
-};
 
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
@@ -271,16 +265,14 @@ const TerminalPage: FC = () => {
 		}
 
 		if (workspace.error instanceof Error) {
-			terminal.writeln(
-				Language.workspaceErrorMessagePrefix + workspace.error.message,
-			);
+			terminal.writeln(`Unable to fetch workspace: ${workspace.error.message}`);
 			setConnectionStatus("disconnected");
 			return;
 		}
 
 		if (!workspaceAgent) {
 			terminal.writeln(
-				`${Language.workspaceAgentErrorMessagePrefix}no agent found with ID, is the workspace started?`,
+				"Unable to fetch workspace agent: no agent found with ID, is the workspace started?",
 			);
 			setConnectionStatus("disconnected");
 			return;
@@ -418,10 +410,7 @@ const TerminalPage: FC = () => {
 				</title>
 			)}
 
-			<div
-				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
-				data-status={connectionStatus}
-			>
+			<div className="flex flex-col h-screen" data-status={connectionStatus}>
 				<TerminalAlerts
 					agent={workspaceAgent}
 					status={connectionStatus}
