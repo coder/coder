@@ -62,8 +62,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
-		Provider:     "anthropic",
-		Model:        "claude-haiku-4-5",
+		Provider:     "openai",
+		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
 	}
 	updatedChat := chat
@@ -85,9 +85,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		require.Equal(t, "claude-haiku-4-5", req.Model)
-		return chattest.AnthropicNonStreamingResponse(wantTitle)
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		require.Equal(t, "gpt-4o-mini", req.Model)
+		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
 	})
 
 	server := &Server{
@@ -99,7 +99,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "anthropic",
+		Provider: "openai",
 		APIKey:   "test-key",
 		BaseUrl:  serverURL,
 	}}, nil)
@@ -221,8 +221,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
-		Provider:     "anthropic",
-		Model:        "claude-haiku-4-5",
+		Provider:     "openai",
+		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
 	}
 	updatedChat := lockedChat
@@ -247,9 +247,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		require.Equal(t, "claude-haiku-4-5", req.Model)
-		return chattest.AnthropicNonStreamingResponse(wantTitle)
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		require.Equal(t, "gpt-4o-mini", req.Model)
+		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
 	})
 
 	server := &Server{
@@ -261,7 +261,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "anthropic",
+		Provider: "openai",
 		APIKey:   "test-key",
 		BaseUrl:  serverURL,
 	}}, nil)
