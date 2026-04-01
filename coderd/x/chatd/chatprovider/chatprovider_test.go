@@ -458,10 +458,6 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 	}
 
 	catalog := chatprovider.NewModelCatalog()
-	configuredProviders := []chatprovider.ConfiguredProvider{
-		{Provider: fantasyanthropic.Name},
-		{Provider: fantasyopenai.Name},
-	}
 	tests := []struct {
 		name                   string
 		availabilityByProvider map[string]chatprovider.ProviderAvailability
@@ -523,7 +519,6 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 			t.Parallel()
 
 			got := catalog.ListConfiguredProviderAvailability(
-				configuredProviders,
 				tt.availabilityByProvider,
 				tt.enabledProviders,
 			)

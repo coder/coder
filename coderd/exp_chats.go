@@ -615,7 +615,6 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		response = configured
 	} else {
 		response = catalog.ListConfiguredProviderAvailability(
-			configuredProviders,
 			providerAvailability,
 			enabledProviderNames,
 		)

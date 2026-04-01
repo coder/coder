@@ -423,11 +423,9 @@ func (*ModelCatalog) ListConfiguredModels(
 // ListConfiguredProviderAvailability returns provider availability derived from
 // the policy-aware availability map for enabled providers.
 func (*ModelCatalog) ListConfiguredProviderAvailability(
-	configuredProviders []ConfiguredProvider,
 	availabilityByProvider map[string]ProviderAvailability,
 	enabledProviders map[string]struct{},
 ) codersdk.ChatModelsResponse {
-	_ = configuredProviders
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
