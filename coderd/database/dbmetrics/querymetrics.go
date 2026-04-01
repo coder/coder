@@ -2536,14 +2536,6 @@ func (m queryMetricsStore) GetUserChatCustomPrompt(ctx context.Context, userID u
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserChatProviderKeyByProviderID(ctx context.Context, arg database.GetUserChatProviderKeyByProviderIDParams) (database.UserChatProviderKey, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserChatProviderKeyByProviderID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserChatProviderKeyByProviderID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatProviderKeyByProviderID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserChatProviderKeys(ctx, userID)
@@ -3605,14 +3597,6 @@ func (m queryMetricsStore) InsertUser(ctx context.Context, arg database.InsertUs
 	r0, r1 := m.s.InsertUser(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUser").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUser").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertUserChatProviderKey(ctx context.Context, arg database.InsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertUserChatProviderKey(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertUserChatProviderKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserChatProviderKey").Inc()
 	return r0, r1
 }
 

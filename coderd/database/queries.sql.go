@@ -22670,30 +22670,6 @@ func (q *sqlQuerier) DeleteUserChatProviderKey(ctx context.Context, arg DeleteUs
 	return err
 }
 
-const getUserChatProviderKeyByProviderID = `-- name: GetUserChatProviderKeyByProviderID :one
-SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 AND chat_provider_id = $2
-`
-
-type GetUserChatProviderKeyByProviderIDParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID `db:"chat_provider_id" json:"chat_provider_id"`
-}
-
-func (q *sqlQuerier) GetUserChatProviderKeyByProviderID(ctx context.Context, arg GetUserChatProviderKeyByProviderIDParams) (UserChatProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatProviderKeyByProviderID, arg.UserID, arg.ChatProviderID)
-	var i UserChatProviderKey
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ChatProviderID,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getUserChatProviderKeys = `-- name: GetUserChatProviderKeys :many
 SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 ORDER BY created_at ASC
 `
@@ -22727,39 +22703,6 @@ func (q *sqlQuerier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UU
 		return nil, err
 	}
 	return items, nil
-}
-
-const insertUserChatProviderKey = `-- name: InsertUserChatProviderKey :one
-INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)
-VALUES ($1, $2, $3, $4::text)
-RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
-`
-
-type InsertUserChatProviderKeyParams struct {
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-}
-
-func (q *sqlQuerier) InsertUserChatProviderKey(ctx context.Context, arg InsertUserChatProviderKeyParams) (UserChatProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, insertUserChatProviderKey,
-		arg.UserID,
-		arg.ChatProviderID,
-		arg.APIKey,
-		arg.ApiKeyKeyID,
-	)
-	var i UserChatProviderKey
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ChatProviderID,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const updateUserChatProviderKey = `-- name: UpdateUserChatProviderKey :one

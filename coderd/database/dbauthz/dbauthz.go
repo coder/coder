@@ -4035,17 +4035,6 @@ func (q *querier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID)
 	return q.db.GetUserChatCustomPrompt(ctx, userID)
 }
 
-func (q *querier) GetUserChatProviderKeyByProviderID(ctx context.Context, arg database.GetUserChatProviderKeyByProviderIDParams) (database.UserChatProviderKey, error) {
-	u, err := q.db.GetUserByID(ctx, arg.UserID)
-	if err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	return q.db.GetUserChatProviderKeyByProviderID(ctx, arg)
-}
-
 func (q *querier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -5176,17 +5165,6 @@ func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams)
 	}
 	obj := rbac.ResourceUser
 	return insert(q.log, q.auth, obj, q.db.InsertUser)(ctx, arg)
-}
-
-func (q *querier) InsertUserChatProviderKey(ctx context.Context, arg database.InsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
-	u, err := q.db.GetUserByID(ctx, arg.UserID)
-	if err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	return q.db.InsertUserChatProviderKey(ctx, arg)
 }
 
 func (q *querier) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {

@@ -4743,21 +4743,6 @@ func (mr *MockStoreMockRecorder) GetUserChatCustomPrompt(ctx, userID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatCustomPrompt", reflect.TypeOf((*MockStore)(nil).GetUserChatCustomPrompt), ctx, userID)
 }
 
-// GetUserChatProviderKeyByProviderID mocks base method.
-func (m *MockStore) GetUserChatProviderKeyByProviderID(ctx context.Context, arg database.GetUserChatProviderKeyByProviderIDParams) (database.UserChatProviderKey, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserChatProviderKeyByProviderID", ctx, arg)
-	ret0, _ := ret[0].(database.UserChatProviderKey)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserChatProviderKeyByProviderID indicates an expected call of GetUserChatProviderKeyByProviderID.
-func (mr *MockStoreMockRecorder) GetUserChatProviderKeyByProviderID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatProviderKeyByProviderID", reflect.TypeOf((*MockStore)(nil).GetUserChatProviderKeyByProviderID), ctx, arg)
-}
-
 // GetUserChatProviderKeys mocks base method.
 func (m *MockStore) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -6755,21 +6740,6 @@ func (m *MockStore) InsertUser(ctx context.Context, arg database.InsertUserParam
 func (mr *MockStoreMockRecorder) InsertUser(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUser", reflect.TypeOf((*MockStore)(nil).InsertUser), ctx, arg)
-}
-
-// InsertUserChatProviderKey mocks base method.
-func (m *MockStore) InsertUserChatProviderKey(ctx context.Context, arg database.InsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertUserChatProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserChatProviderKey)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertUserChatProviderKey indicates an expected call of InsertUserChatProviderKey.
-func (mr *MockStoreMockRecorder) InsertUserChatProviderKey(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserChatProviderKey", reflect.TypeOf((*MockStore)(nil).InsertUserChatProviderKey), ctx, arg)
 }
 
 // InsertUserGroupsByID mocks base method.

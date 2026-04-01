@@ -1205,7 +1205,7 @@ func TestUserChatProviderKeys(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		key, err := crypt.InsertUserChatProviderKey(ctx, database.InsertUserChatProviderKeyParams{
+		key, err := crypt.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
 			UserID:         user.ID,
 			ChatProviderID: provider.ID,
 			APIKey:         initialAPIKey,
@@ -1216,25 +1216,29 @@ func TestUserChatProviderKeys(t *testing.T) {
 		return provider, key
 	}
 
-	t.Run("InsertUserChatProviderKey", func(t *testing.T) {
+	getUserChatProviderKey := func(t *testing.T, store interface {
+		GetUserChatProviderKeys(context.Context, uuid.UUID) ([]database.UserChatProviderKey, error)
+	}, userID uuid.UUID, providerID uuid.UUID,
+	) database.UserChatProviderKey {
+		t.Helper()
+		keys, err := store.GetUserChatProviderKeys(ctx, userID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, providerID, keys[0].ChatProviderID)
+		return keys[0]
+	}
+
+	t.Run("UpsertUserChatProviderKeyCreatesValue", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		provider, key := insertProviderAndKey(t, crypt, ciphers)
 
-		got, err := crypt.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
-			UserID:         key.UserID,
-			ChatProviderID: provider.ID,
-		})
-		require.NoError(t, err)
+		got := getUserChatProviderKey(t, crypt, key.UserID, provider.ID)
 		require.Equal(t, key.ID, got.ID)
 		require.Equal(t, initialAPIKey, got.APIKey)
 		require.Equal(t, ciphers[0].HexDigest(), got.ApiKeyKeyID.String)
 
-		rawKey, err := db.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
-			UserID:         key.UserID,
-			ChatProviderID: provider.ID,
-		})
-		require.NoError(t, err)
+		rawKey := getUserChatProviderKey(t, db, key.UserID, provider.ID)
 		require.NotEqual(t, initialAPIKey, rawKey.APIKey)
 		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, initialAPIKey)
 	})
@@ -1269,11 +1273,7 @@ func TestUserChatProviderKeys(t *testing.T) {
 		require.Equal(t, updatedAPIKey, updated.APIKey)
 		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
 
-		got, err := crypt.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
-			UserID:         key.UserID,
-			ChatProviderID: provider.ID,
-		})
-		require.NoError(t, err)
+		got := getUserChatProviderKey(t, crypt, key.UserID, provider.ID)
 		require.Equal(t, updatedAPIKey, got.APIKey)
 		require.Equal(t, ciphers[0].HexDigest(), got.ApiKeyKeyID.String)
 
@@ -1282,11 +1282,7 @@ func TestUserChatProviderKeys(t *testing.T) {
 		require.Len(t, keys, 1)
 		require.Equal(t, updatedAPIKey, keys[0].APIKey)
 
-		rawKey, err := db.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
-			UserID:         key.UserID,
-			ChatProviderID: provider.ID,
-		})
-		require.NoError(t, err)
+		rawKey := getUserChatProviderKey(t, db, key.UserID, provider.ID)
 		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
 		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
 	})
