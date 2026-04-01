@@ -88,7 +88,7 @@ and do not need the role.
 > Users who created conversations before this role was introduced are
 > automatically granted the role during upgrade.
 
-## Step 4: Start your first chat
+## Step 4: Start your first conversation
 
 1. Go to the **Agents** page in the Coder dashboard.
 1. Select a model from the dropdown (your default will be pre-selected).
@@ -177,7 +177,7 @@ with tighter network policies.
 
 ### Plan for LLM costs
 
-Every chat turn sends tokens to your LLM provider. Long-running tasks,
+Every conversation turn sends tokens to your LLM provider. Long-running tasks,
 sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
@@ -212,7 +212,7 @@ This is useful for building automations such as:
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.
 
-**Quick example — create a chat via the API:**
+**Quick example — create a conversation via the API:**
 
 ```sh
 curl -X POST https://coder.example.com/api/experimental/chats \
@@ -245,7 +245,7 @@ narrowly scoped.
 Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
 the workspace agent's working directory to provide persistent context to the
 agent. This file is automatically read and included in the system prompt
-for every chat that uses that workspace.
+for every conversation that uses that workspace.
 
 Use it for:
 
@@ -275,7 +275,7 @@ Good feedback includes:
 - **What you tried** — the prompt, the template, and the model.
 - **What happened** — the agent's behavior, any errors, unexpected results.
 - **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, chat IDs, or links to the Agents page help
+- **Context** — screenshots, conversation IDs, or links to the Agents page help
   the team investigate quickly.
 
 Your input directly influences product direction during Early Access.

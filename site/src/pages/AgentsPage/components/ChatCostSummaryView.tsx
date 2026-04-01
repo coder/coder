@@ -304,7 +304,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 						>
 							<TableHeader>
 								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Chat</TableHead>
+									<TableHead className="px-4 py-3">Conversation</TableHead>
 									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
 									<TableHead className="px-4 py-3 text-right">
 										Messages
@@ -328,7 +328,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										<TableCell className="px-4 py-3">
 											{chat.chat_title || (
 												<span className="italic text-content-secondary">
-													Untitled chat
+													Untitled conversation
 												</span>
 											)}
 										</TableCell>
