@@ -182,6 +182,12 @@ const BehaviorRouteElement = () => {
 			onSaveWorkspaceTTL={fn()}
 			isSavingWorkspaceTTL={false}
 			isSaveWorkspaceTTLError={false}
+			retentionDaysData={{ retention_days: 30 }}
+			isRetentionDaysLoading={false}
+			isRetentionDaysLoadError={false}
+			onSaveRetentionDays={fn()}
+			isSavingRetentionDays={false}
+			isSaveRetentionDaysError={false}
 			onSaveThreshold={fn(async () => undefined)}
 			onResetThreshold={fn(async () => undefined)}
 		/>
