@@ -11,6 +11,7 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -62,6 +63,7 @@ type SkillContent struct {
 // occurrence wins.
 func DiscoverSkills(
 	ctx context.Context,
+	logger slog.Logger,
 	conn workspacesdk.AgentConn,
 	skillsDirs []string,
 	metaFile string,
@@ -92,14 +94,21 @@ func DiscoverSkills(
 				ctx, metaPath, 0, maxSkillMetaBytes+1,
 			)
 			if err != nil {
+				// The directory may have been removed between
+				// the LS and this read, or it simply lacks the
+				// meta file. Any error is non-fatal.
 				continue
 			}
 			raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
 			reader.Close()
 			if err != nil {
+				logger.Debug(ctx, "failed to read skill meta file",
+					slog.F("path", metaPath), slog.Error(err))
 				continue
 			}
 
+			// Silently truncate oversized metadata files so
+			// a single large file cannot exhaust memory.
 			if int64(len(raw)) > maxSkillMetaBytes {
 				raw = raw[:maxSkillMetaBytes]
 			}
@@ -108,13 +117,21 @@ func DiscoverSkills(
 				string(raw),
 			)
 			if err != nil {
+				logger.Debug(ctx, "failed to parse skill frontmatter",
+					slog.F("path", metaPath), slog.Error(err))
 				continue
 			}
 
+			// The directory name must match the declared name
+			// so skill references are unambiguous.
 			if name != entry.Name {
+				logger.Debug(ctx, "skill name does not match directory",
+					slog.F("dir", entry.Name), slog.F("declared_name", name))
 				continue
 			}
 			if !skillNamePattern.MatchString(name) {
+				logger.Debug(ctx, "skill name does not match pattern",
+					slog.F("name", name))
 				continue
 			}
 

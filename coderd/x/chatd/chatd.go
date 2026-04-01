@@ -5018,14 +5018,14 @@ func (p *Server) persistInstructionFiles(
 	}
 
 	// Discover skills from each configured skills directory.
-	// Errors are non-fatal — a chat without skills still works,
+	// Errors are non-fatal. A chat without skills still works,
 	// it just won't list them in the prompt.
 	var discoveredSkills []chattool.SkillMeta
 	if workspaceConnOK && len(agentCfg.SkillsDirs) > 0 {
 		conn, connErr := getWorkspaceConn(ctx)
 		if connErr == nil {
 			var discoverErr error
-			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, conn, agentCfg.SkillsDirs, agentCfg.SkillMetaFile)
+			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, p.logger, conn, agentCfg.SkillsDirs, agentCfg.SkillMetaFile)
 			if discoverErr != nil {
 				p.logger.Debug(ctx, "failed to discover skills",
 					slog.F("chat_id", chat.ID),
