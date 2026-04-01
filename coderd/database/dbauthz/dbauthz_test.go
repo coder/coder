@@ -614,8 +614,8 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args().Asserts()
 	}))
 	s.Run("UpsertChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatRetentionDays(gomock.Any(), "30").Return(nil).AnyTimes()
-		check.Args("30").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		dbm.EXPECT().UpsertChatRetentionDays(gomock.Any(), int32(30)).Return(nil).AnyTimes()
+		check.Args(int32(30)).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("GetChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

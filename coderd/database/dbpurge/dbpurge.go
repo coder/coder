@@ -227,7 +227,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		var purgedChatFiles int64
 		chatRetentionDays, err := tx.GetChatRetentionDays(ctx)
 		if err != nil {
-			return xerrors.Errorf("get chat retention config: %w", err)
+			i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
+			chatRetentionDays = 0
 		}
 		if chatRetentionDays > 0 {
 			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour

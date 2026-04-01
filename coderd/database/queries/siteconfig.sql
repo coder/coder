@@ -250,6 +250,6 @@ SELECT COALESCE(
 
 -- name: UpsertChatRetentionDays :exec
 INSERT INTO site_configs (key, value)
-VALUES ('agents_chat_retention_days', @retention_days::text)
-ON CONFLICT (key) DO UPDATE SET value = @retention_days::text
+VALUES ('agents_chat_retention_days', CAST(@retention_days AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST(@retention_days AS integer)::text
 WHERE site_configs.key = 'agents_chat_retention_days';

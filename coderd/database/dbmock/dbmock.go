@@ -9387,7 +9387,7 @@ func (mr *MockStoreMockRecorder) UpsertChatIncludeDefaultSystemPrompt(ctx, inclu
 }
 
 // UpsertChatRetentionDays mocks base method.
-func (m *MockStore) UpsertChatRetentionDays(ctx context.Context, retentionDays string) error {
+func (m *MockStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertChatRetentionDays", ctx, retentionDays)
 	ret0, _ := ret[0].(error)

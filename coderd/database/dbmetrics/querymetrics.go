@@ -4992,7 +4992,7 @@ func (m queryMetricsStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Cont
 	return r0
 }
 
-func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentionDays string) error {
+func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatRetentionDays(ctx, retentionDays)
 	m.queryLatencies.WithLabelValues("UpsertChatRetentionDays").Observe(time.Since(start).Seconds())
