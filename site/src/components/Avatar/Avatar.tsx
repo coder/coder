@@ -11,8 +11,8 @@
  */
 
 import { useTheme } from "@emotion/react";
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Avatar as AvatarPrimitive } from "radix-ui";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
 

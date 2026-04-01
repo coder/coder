@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/collapsible}
  */
 
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
+import { Collapsible as CollapsiblePrimitive } from "radix-ui";
 
 const Collapsible = CollapsiblePrimitive.Root;
 
