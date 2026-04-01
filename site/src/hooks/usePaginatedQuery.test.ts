@@ -293,6 +293,16 @@ describe(usePaginatedQuery.name, () => {
 			expect(result.current.hasNextPage).toBe(true);
 		});
 
+		it("hasPreviousPage is true when count is capped and page is beyond cap", async () => {
+			const { result } = await render(
+				{ queryKey: mockQueryKey, queryFn: mockCappedQueryFn },
+				"/?page=83",
+			);
+
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			expect(result.current.hasPreviousPage).toBe(true);
+		});
+
 		it("Does not redirect to last page when count is capped and page is valid", async () => {
 			const { result } = await render(
 				{ queryKey: mockQueryKey, queryFn: mockCappedQueryFn },

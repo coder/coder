@@ -22,8 +22,8 @@ const PAGE_NUMBER_PARAMS_KEY = "page";
 /**
  * Some count queries (audit logs, connection logs) use LIMIT 2001
  * in SQL to avoid slow sequential scans on large tables. When the
- * response count exceeds this cap, the true total is unknown and
- * the UI displays "2,000+".
+ * response count exceeds this cap, we assume the true total is
+ * unknown and the UI displays "2,000+".
  */
 const COUNT_CAP = 2000;
 
@@ -152,32 +152,42 @@ export function usePaginatedQuery<
 		placeholderData: keepPreviousData,
 	});
 
-	// Audit and connection log count queries return at most 2001
-	// (COUNT_CAP + 1). A value above COUNT_CAP means the true
-	// total is unknown, so we clamp to COUNT_CAP for display.
-	const rawCount = query.data?.count;
-	const countIsCapped = rawCount !== undefined && rawCount > COUNT_CAP;
-	const totalRecords = countIsCapped ? COUNT_CAP : rawCount;
-	// When the count is capped, ensure totalPages is at least
-	// currentPage so the pagination widget stays visible as the
-	// user navigates beyond the known range.
-	const totalPages =
-		totalRecords !== undefined
-			? Math.max(
-					Math.ceil(totalRecords / limit),
-					countIsCapped ? currentPage : 0,
-				)
-			: undefined;
+	const count = query.data?.count;
+	const countIsCapped = count !== undefined && count > COUNT_CAP;
+	const totalRecords = countIsCapped ? COUNT_CAP : count;
+	let totalPages = totalRecords !== undefined
+		? Math.max(
+			Math.ceil(totalRecords / limit),
+			// True count is not known; let them navigate forward
+			// until they hit an empty page (checked below).
+			countIsCapped ? currentPage : 0,
+		)
+		: undefined;
 
-	// When the count is capped, we don't know the true total so there
-	// is always potentially a next page.
+	// When the true count is unknown, the user can navigate past
+	// all actual data. If that happens, we need to redirect (via
+	// updatePageIfInvalid) to the last page guaranteed to be not
+	// empty.
+	const pageIsEmpty =
+		query.data !== undefined &&
+		!Object.values(query.data).some(
+			(v) => Array.isArray(v) && v.length > 0,
+		);
+	if (pageIsEmpty) {
+		totalPages = count !== undefined
+			? Math.ceil(count / limit)
+			: 1;
+	}
+
 	const hasNextPage =
 		totalRecords !== undefined &&
-		(countIsCapped || limit + currentPageOffset < totalRecords);
+		((countIsCapped && !pageIsEmpty) ||
+			limit + currentPageOffset < totalRecords);
 	const hasPreviousPage =
 		totalRecords !== undefined &&
 		currentPage > 1 &&
-		(countIsCapped || currentPageOffset - limit < totalRecords);
+		((countIsCapped && !pageIsEmpty) ||
+			currentPageOffset - limit < totalRecords);
 
 	const queryClient = useQueryClient();
 	const prefetchPage = useEffectEvent((newPage: number) => {
@@ -248,48 +258,10 @@ export function usePaginatedQuery<
 	});
 
 	useEffect(() => {
-		// When the count is capped we don't know the true total, so
-		// skip the page-validity check to allow navigating beyond the
-		// capped page range.
-		if (!countIsCapped && !query.isFetching && totalPages !== undefined) {
+		if (!query.isFetching && totalPages !== undefined && currentPage > totalPages) {
 			void updatePageIfInvalid(totalPages);
 		}
-	}, [updatePageIfInvalid, query.isFetching, totalPages, countIsCapped]);
-
-	// When the count is capped and the user navigates to a page
-	// beyond the actual data, the response contains zero items.
-	// Redirect to the last page guaranteed to have data, which
-	// is page 81 for rawCount 2001.
-	const lastKnownPage =
-		rawCount !== undefined ? Math.ceil(rawCount / limit) : 1;
-	useEffect(() => {
-		if (
-			!countIsCapped ||
-			query.isFetching ||
-			!query.isSuccess ||
-			!query.data ||
-			currentPage <= 1
-		) {
-			return;
-		}
-		const hasItems = Object.values(query.data).some(
-			(v) => Array.isArray(v) && v.length > 0,
-		);
-		if (!hasItems) {
-			const updated = getParamsWithoutPage(searchParams);
-			updated.set(PAGE_NUMBER_PARAMS_KEY, String(lastKnownPage));
-			setSearchParams(updated);
-		}
-	}, [
-		countIsCapped,
-		query.isFetching,
-		query.isSuccess,
-		query.data,
-		currentPage,
-		lastKnownPage,
-		searchParams,
-		setSearchParams,
-	]);
+	}, [updatePageIfInvalid, query.isFetching, totalPages, currentPage]);
 
 	const onPageChange = (newPage: number) => {
 		// Page 1 is the only page that can be safely navigated to without knowing
@@ -298,8 +270,8 @@ export function usePaginatedQuery<
 			return;
 		}
 
-		// When the count is capped we allow navigating beyond the known
-		// page range, so only enforce a lower bound of 1.
+		// If the true count is unknown, we allow navigating past the
+		// known page range.
 		const upperBound = countIsCapped
 			? Number.MAX_SAFE_INTEGER
 			: (totalPages ?? 1);
