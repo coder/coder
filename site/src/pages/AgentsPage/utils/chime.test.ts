@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getChimeEnabled,
+	getKylesophyEnabled,
+	KYLEOSOPHY_SOUNDS,
 	LOCK_HOLD_MS,
 	maybePlayChime,
 	setChimeEnabled,
+	setKylesophyEnabled,
 } from "./chime";
 
 // ---------------------------------------------------------------------------
@@ -66,6 +69,40 @@ describe("getChimeEnabled / setChimeEnabled", () => {
 		setChimeEnabled(true);
 		expect(localStorage.getItem("agents.chime-on-completion")).toBe("true");
 		expect(getChimeEnabled()).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Kyleosophy preference helpers
+// ---------------------------------------------------------------------------
+
+describe("getKylesophyEnabled / setKylesophyEnabled", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	it("defaults to false when nothing is stored", () => {
+		expect(getKylesophyEnabled()).toBe(false);
+	});
+
+	it("returns true when stored as 'true'", () => {
+		localStorage.setItem("agents.kyleosophy", "true");
+		expect(getKylesophyEnabled()).toBe(true);
+	});
+
+	it("returns false when stored as 'false'", () => {
+		localStorage.setItem("agents.kyleosophy", "false");
+		expect(getKylesophyEnabled()).toBe(false);
+	});
+
+	it("setKylesophyEnabled persists the value", () => {
+		setKylesophyEnabled(false);
+		expect(localStorage.getItem("agents.kyleosophy")).toBe("false");
+		expect(getKylesophyEnabled()).toBe(false);
+
+		setKylesophyEnabled(true);
+		expect(localStorage.getItem("agents.kyleosophy")).toBe("true");
+		expect(getKylesophyEnabled()).toBe(true);
 	});
 });
 
@@ -234,5 +271,45 @@ describe("maybePlayChime", () => {
 		maybePlayChime("running", "waiting", "chat-1", "chat-2");
 		// Should play immediately without needing to advance timers.
 		expect(playSpy).toHaveBeenCalledTimes(1);
+	});
+
+	// -- Kyleosophy sound selection --
+
+	it("uses a kyleosophy sound when kyleosophy is enabled", async () => {
+		setKylesophyEnabled(true);
+		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+		// Pin the random selection so the test is deterministic.
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+		const audioSpy = vi.spyOn(globalThis, "Audio" as never);
+
+		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
+		expect(playSpy).toHaveBeenCalledTimes(1);
+		expect(audioSpy).toHaveBeenCalledTimes(1);
+
+		const url = (audioSpy as unknown as ReturnType<typeof vi.fn>).mock
+			.calls[0][0] as string;
+		// Math.floor(0.5 * 8) = 4 → "/chime_5.mp3"
+		expect(url).toBe("/chime_5.mp3");
+		expect(KYLEOSOPHY_SOUNDS).toContain(url);
+	});
+
+	it("uses default chime.mp3 when kyleosophy is disabled", async () => {
+		setKylesophyEnabled(false);
+		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+
+		// Force a fresh Audio element by spying on the constructor
+		// before any call in this test. The previous test left
+		// lastSoundUrl pointing at a kyleosophy URL, so switching
+		// back to /chime.mp3 will always trigger a new Audio().
+		const audioSpy = vi.spyOn(globalThis, "Audio" as never);
+
+		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
+		expect(playSpy).toHaveBeenCalledTimes(1);
+		expect(audioSpy).toHaveBeenCalledTimes(1);
+
+		const url = (audioSpy as unknown as ReturnType<typeof vi.fn>).mock
+			.calls[0][0] as string;
+		expect(url).toBe("/chime.mp3");
 	});
 });

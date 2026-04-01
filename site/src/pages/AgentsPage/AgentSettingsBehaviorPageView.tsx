@@ -13,6 +13,7 @@ import { DurationField } from "./components/DurationField/DurationField";
 import { SectionHeader } from "./components/SectionHeader";
 import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
+import { getKylesophyEnabled, setKylesophyEnabled } from "./utils/chime";
 
 const textareaMaxHeight = 240;
 const textareaBaseClassName =
@@ -124,6 +125,7 @@ export const AgentSettingsBehaviorPageView: FC<
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
+	const [kylesophyEnabled, setKylesophyLocal] = useState(getKylesophyEnabled);
 
 	// ── Derived state ──
 	const hasLoadedSystemPrompt = systemPromptData !== undefined;
@@ -510,6 +512,26 @@ export const AgentSettingsBehaviorPageView: FC<
 					</form>
 				</>
 			)}
+			<hr className="my-5 border-0 border-t border-solid border-border" />
+			{/* ── Kyleosophy toggle (always visible) ── */}
+			<div className="space-y-2">
+				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+					Kyleosophy
+				</h3>
+				<div className="flex items-center justify-between gap-4">
+					<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+						Replace the standard completion chime. IYKYK.
+					</p>
+					<Switch
+						checked={kylesophyEnabled}
+						onCheckedChange={(checked) => {
+							setKylesophyEnabled(checked);
+							setKylesophyLocal(checked);
+						}}
+						aria-label="Enable Kyleosophy"
+					/>
+				</div>
+			</div>
 			{showDefaultPromptPreview && (
 				<TextPreviewDialog
 					content={defaultSystemPrompt}
