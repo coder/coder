@@ -533,7 +533,7 @@ export const AgentSettingsBehaviorPageView: FC<
 						)}
 					</p>
 					<Switch
-						checked={kylesophyEnabled || kylesophyForced}
+						checked={kylesophyEnabled}
 						onCheckedChange={(checked) => {
 							setKylesophyEnabled(checked);
 							setKylesophyLocal(checked);
