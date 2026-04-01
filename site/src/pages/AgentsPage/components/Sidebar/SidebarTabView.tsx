@@ -4,12 +4,14 @@ import {
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
+	SmartphoneIcon,
 	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
+import type { UseDesktopModeResult } from "../../hooks/useDesktopMode";
 import { DesktopPanel } from "../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
@@ -42,6 +44,8 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
+	/** Desktop landscape mode state from useDesktopMode. */
+	desktopMode?: UseDesktopModeResult;
 	/** The currently active tab ID (controlled by the parent). */
 	activeTabId: string | null;
 	/** Called when the user switches tabs. */
@@ -111,6 +115,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
+	desktopMode,
 	activeTabId,
 	onActiveTabChange,
 }) => {
@@ -146,6 +151,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				<DesktopPanel
 					chatId={desktopChatId}
 					isVisible={effectiveTabId === "desktop"}
+					desktopMode={desktopMode}
 				/>
 			),
 		});
@@ -307,7 +313,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					</div>
 				)}
-				{/* Right side: close (mobile) / expand (desktop) */}
+				{/* Right side: close (mobile) / landscape (mobile desktop tab) / expand (desktop) */}
 				{onClose && (
 					<Button
 						variant="subtle"
@@ -319,6 +325,22 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<XIcon />
 					</Button>
 				)}
+				{/* Landscape toggle — mobile only, when the Desktop
+					   tab is active. Tapping unlocks orientation so the
+					   VNC view fills the screen in landscape. */}
+				{desktopMode?.isSupported &&
+					effectiveTabId === "desktop" &&
+					desktopMode.isLandscape && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={desktopMode.exitLandscape}
+							aria-label="Exit landscape"
+							className="h-7 w-7 shrink-0 text-content-primary md:hidden"
+						>
+							<SmartphoneIcon />
+						</Button>
+					)}
 				<Button
 					variant="subtle"
 					size="icon"

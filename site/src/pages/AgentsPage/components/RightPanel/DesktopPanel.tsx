@@ -1,8 +1,10 @@
+import { FullscreenIcon } from "lucide-react";
 import type { FC } from "react";
 import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
+import type { UseDesktopModeResult } from "../../hooks/useDesktopMode";
 
 type DesktopConnectionStatus =
 	| "idle"
@@ -15,15 +17,22 @@ interface DesktopPanelProps {
 	chatId: string;
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
+	/** Desktop landscape mode state from useDesktopMode. */
+	desktopMode?: UseDesktopModeResult;
 }
 
 export interface DesktopPanelViewProps {
 	status: DesktopConnectionStatus;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
+	desktopMode?: UseDesktopModeResult;
 }
 
-export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
+export const DesktopPanel: FC<DesktopPanelProps> = ({
+	chatId,
+	isVisible,
+	desktopMode,
+}) => {
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
 	// switched away — mirrors the terminal panel pattern from PR #23231.
@@ -37,7 +46,12 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		activated,
 	});
 	return (
-		<DesktopPanelView status={status} reconnect={reconnect} attach={attach} />
+		<DesktopPanelView
+			status={status}
+			reconnect={reconnect}
+			attach={attach}
+			desktopMode={desktopMode}
+		/>
 	);
 };
 
@@ -45,6 +59,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,
 	reconnect,
 	attach,
+	desktopMode,
 }) => {
 	if (status === "connecting") {
 		return (
@@ -89,11 +104,27 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 
 	// status === "connected"
 	return (
-		<div
-			ref={(el) => {
-				if (el) attach(el);
-			}}
-			className="h-full w-full"
-		/>
+		<div className="relative h-full w-full">
+			<div
+				ref={(el) => {
+					if (el) attach(el);
+				}}
+				className="h-full w-full"
+			/>
+			{/* Landscape button — mobile only, overlaid on the VNC
+			   canvas. Tapping rotates the device to landscape so
+			   the desktop view fills the screen. */}
+			{desktopMode?.isSupported && !desktopMode.isLandscape && (
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={desktopMode.enterLandscape}
+					aria-label="Enter landscape mode"
+					className="absolute bottom-3 right-3 z-10 gap-1.5 bg-surface-primary/90 backdrop-blur-sm shadow-md md:hidden"
+				>
+					<FullscreenIcon className="h-3.5 w-3.5" /> Landscape
+				</Button>
+			)}
+		</div>
 	);
 };

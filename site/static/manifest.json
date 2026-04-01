@@ -5,6 +5,7 @@
 	"start_url": "/agents",
 	"scope": "/",
 	"display": "standalone",
+	"orientation": "portrait",
 	"background_color": "#17172E",
 	"theme_color": "#17172E",
 	"icons": [
