@@ -24,9 +24,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	values: {
 		status: "active",
 	},
-	menus: {
-		status: MockMenu,
-	},
+	menus: {},
 });
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
