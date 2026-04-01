@@ -13,8 +13,8 @@
 
 This document sits above the two detailed appendix-style architecture docs:
 
-- [Backend appendix: `coderd/x/chatd/ARCHITECTURE.md`](./coderd/x/chatd/ARCHITECTURE.md)
-- [Frontend appendix: `site/src/pages/AgentsPage/ARCHITECTURE.md`](./site/src/pages/AgentsPage/ARCHITECTURE.md)
+- [Backend appendix: `coderd/x/chatd/ARCHITECTURE.md`](https://github.com/coder/coder/blob/3758b02595afaee55fe8683ae8742fcbd4de164b/coderd/x/chatd/ARCHITECTURE.md)
+- [Frontend appendix: `site/src/pages/AgentsPage/ARCHITECTURE.md`](https://github.com/coder/coder/blob/3758b02595afaee55fe8683ae8742fcbd4de164b/site/src/pages/AgentsPage/ARCHITECTURE.md)
 
 Those files describe the codebase as it exists in each implementation surface.
 This document instead follows the seams that cut across both of them:
@@ -876,9 +876,9 @@ conversations more concrete:
 The repository already contains public-facing Agents docs that describe the
 control-plane architecture and the early-access status of the feature:
 
-- [`docs/ai-coder/agents/index.md`](./docs/ai-coder/agents/index.md)
-- [`docs/ai-coder/agents/architecture.md`](./docs/ai-coder/agents/architecture.md)
-- [`docs/ai-coder/agents/early-access.md`](./docs/ai-coder/agents/early-access.md)
+- [`docs/ai-coder/agents/index.md`](https://github.com/coder/coder/blob/3758b02595afaee55fe8683ae8742fcbd4de164b/docs/ai-coder/agents/index.md)
+- [`docs/ai-coder/agents/architecture.md`](https://github.com/coder/coder/blob/3758b02595afaee55fe8683ae8742fcbd4de164b/docs/ai-coder/agents/architecture.md)
+- [`docs/ai-coder/agents/early-access.md`](https://github.com/coder/coder/blob/3758b02595afaee55fe8683ae8742fcbd4de164b/docs/ai-coder/agents/early-access.md)
 
 Those pages describe the product and deployment model. This document is a
 separate internal-style snapshot of how the current implementation behaves
