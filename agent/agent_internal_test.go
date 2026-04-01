@@ -8,7 +8,9 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/proto"
+	agentsdk "github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -41,4 +43,31 @@ func TestReportConnectionEmpty(t *testing.T) {
 	require.Equal(t, connID[:], req1.GetConnection().GetId())
 	require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
 	require.Equal(t, "because", req1.GetConnection().GetReason())
+}
+
+func TestContextConfigAPI_InitOnce(t *testing.T) {
+	t.Parallel()
+
+	// After the fix, contextConfigAPI is set once in init() and
+	// never reassigned. Config() evaluates lazily via the
+	// manifest, so there is no concurrent write to race with.
+	a := &agent{}
+	a.manifest.Store(&agentsdk.Manifest{Directory: "/dir1"})
+	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	})
+
+	cfg1 := a.contextConfigAPI.Config()
+	require.NotEmpty(t, cfg1.MCPConfigFiles)
+	require.Contains(t, cfg1.MCPConfigFiles[0], "/dir1")
+
+	// Simulate manifest update on reconnection — no field
+	// reassignment needed, the lazy closure picks it up.
+	a.manifest.Store(&agentsdk.Manifest{Directory: "/dir2"})
+	cfg2 := a.contextConfigAPI.Config()
+	require.NotEmpty(t, cfg2.MCPConfigFiles)
+	require.Contains(t, cfg2.MCPConfigFiles[0], "/dir2")
 }
