@@ -13,11 +13,6 @@ import { DurationField } from "./components/DurationField/DurationField";
 import { SectionHeader } from "./components/SectionHeader";
 import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
-import {
-	getKylesophyEnabled,
-	isKylesophyForced,
-	setKylesophyEnabled,
-} from "./utils/chime";
 
 const textareaMaxHeight = 240;
 const textareaBaseClassName =
@@ -36,6 +31,8 @@ interface AgentSettingsBehaviorPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
+	debugLoggingData: TypesGen.ChatDebugSettings | undefined;
+	userDebugLoggingData: TypesGen.ChatDebugSettings | undefined;
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
 	isWorkspaceTTLLoading: boolean;
 	isWorkspaceTTLLoadError: boolean;
@@ -75,6 +72,20 @@ interface AgentSettingsBehaviorPageViewProps {
 	isSavingDesktopEnabled: boolean;
 	isSaveDesktopEnabledError: boolean;
 
+	onSaveDebugLogging: (
+		req: TypesGen.UpdateChatDebugLoggingRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingDebugLogging: boolean;
+	isSaveDebugLoggingError: boolean;
+
+	onSaveUserDebugLogging: (
+		req: TypesGen.UpdateChatDebugLoggingRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingUserDebugLogging: boolean;
+	isSaveUserDebugLoggingError: boolean;
+
 	onSaveWorkspaceTTL: (
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 		options?: MutationCallbacks,
@@ -90,6 +101,8 @@ export const AgentSettingsBehaviorPageView: FC<
 	systemPromptData,
 	userPromptData,
 	desktopEnabledData,
+	debugLoggingData,
+	userDebugLoggingData,
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
 	isWorkspaceTTLLoadError,
@@ -110,6 +123,12 @@ export const AgentSettingsBehaviorPageView: FC<
 	onSaveDesktopEnabled,
 	isSavingDesktopEnabled,
 	isSaveDesktopEnabledError,
+	onSaveDebugLogging,
+	isSavingDebugLogging,
+	isSaveDebugLoggingError,
+	onSaveUserDebugLogging,
+	isSavingUserDebugLogging,
+	isSaveUserDebugLoggingError,
 	onSaveWorkspaceTTL,
 	isSavingWorkspaceTTL,
 	isSaveWorkspaceTTLError,
@@ -129,8 +148,6 @@ export const AgentSettingsBehaviorPageView: FC<
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
-	const kylesophyForced = isKylesophyForced();
-	const [kylesophyEnabled, setKylesophyLocal] = useState(getKylesophyEnabled);
 
 	// ── Derived state ──
 	const hasLoadedSystemPrompt = systemPromptData !== undefined;
@@ -163,6 +180,10 @@ export const AgentSettingsBehaviorPageView: FC<
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledData?.enable_desktop ?? false;
+	const deploymentDebugLoggingEnabled =
+		debugLoggingData?.debug_logging_enabled ?? false;
+	const userDebugLoggingEnabled =
+		userDebugLoggingData?.debug_logging_enabled ?? false;
 	const serverTTLMs = workspaceTTLData?.workspace_ttl_ms ?? 0;
 	const ttlMs = localTTLMs ?? serverTTLMs;
 	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
@@ -518,30 +539,65 @@ export const AgentSettingsBehaviorPageView: FC<
 				</>
 			)}
 			<hr className="my-5 border-0 border-t border-solid border-border" />
-			{/* ── Kyleosophy toggle (always visible) ── */}
+			<SectionHeader
+				label="Debug Logging"
+				description="Control default debug logging for deployment-wide and personal chats."
+			/>
+			{canSetSystemPrompt && (
+				<>
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+								Debug Logging Admin Override
+							</h3>
+							<AdminBadge />
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+								Force debug logging on for all users. Users can still disable it
+								in their personal settings.
+							</p>
+							<Switch
+								checked={deploymentDebugLoggingEnabled}
+								onCheckedChange={(checked) =>
+									onSaveDebugLogging({ debug_logging_enabled: checked })
+								}
+								aria-label="Debug Logging Admin Override"
+								disabled={isSavingDebugLogging}
+							/>
+						</div>
+						{isSaveDebugLoggingError && (
+							<p className="m-0 text-xs text-content-destructive">
+								Failed to save deployment debug logging setting.
+							</p>
+						)}
+					</div>
+					<hr className="my-5 border-0 border-t border-solid border-border" />
+				</>
+			)}
 			<div className="space-y-2">
 				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Kyleosophy
+					Debug Logging
 				</h3>
 				<div className="flex items-center justify-between gap-4">
 					<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
-						Replace the standard completion chime. IYKYK.
-						{kylesophyForced && (
-							<span className="ml-1 font-semibold">
-								Kyleosophy is mandatory on <code>dev.coder.com</code>.
-							</span>
-						)}
+						Enable debug logging for your chats. When enabled, API requests and
+						responses are recorded for inspection in the Debug panel.
 					</p>
 					<Switch
-						checked={kylesophyEnabled}
-						onCheckedChange={(checked) => {
-							setKylesophyEnabled(checked);
-							setKylesophyLocal(checked);
-						}}
-						aria-label="Enable Kyleosophy"
-						disabled={kylesophyForced}
+						checked={userDebugLoggingEnabled}
+						onCheckedChange={(checked) =>
+							onSaveUserDebugLogging({ debug_logging_enabled: checked })
+						}
+						aria-label="Debug Logging"
+						disabled={isSavingUserDebugLogging}
 					/>
 				</div>
+				{isSaveUserDebugLoggingError && (
+					<p className="m-0 text-xs text-content-destructive">
+						Failed to save personal debug logging setting.
+					</p>
+				)}
 			</div>
 			{showDefaultPromptPreview && (
 				<TextPreviewDialog

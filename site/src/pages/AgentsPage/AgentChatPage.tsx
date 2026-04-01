@@ -12,10 +12,12 @@ import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import {
 	chat,
+	chatDebugLogging,
 	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
+	chatUserDebugLogging,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -409,8 +411,17 @@ const AgentChatPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const deploymentDebugLoggingQuery = useQuery(chatDebugLogging());
+	const userDebugLoggingQuery = useQuery(chatUserDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+
+	// Debug logging is enabled when the user setting (or deployment
+	// fallback) is on.  The tab is hidden entirely when disabled.
+	const debugLoggingEnabled =
+		userDebugLoggingQuery.data?.debug_logging_enabled ??
+		deploymentDebugLoggingQuery.data?.debug_logging_enabled ??
+		false;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1029,6 +1040,7 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			chatId={chatQuery.data.id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			persistedError={persistedError}
@@ -1054,6 +1066,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
+			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			canOpenEditors={canOpenEditors}
 			canOpenWorkspace={canOpenWorkspace}
