@@ -460,8 +460,8 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 	//nolint:gocritic // System-level batch operation for connection logs.
 	authCtx := dbauthz.AsConnectionLogger(context.Background())
 	for attempt := range maxRetries {
-		// If shutting down, skip the delay and do one final write.
-		if b.draining.Load() {
+		// If shutting down, do one final attempt and exit.
+		if b.draining.Load() || b.ctx.Err() != nil {
 			b.writeBatch(params)
 			return
 		}
