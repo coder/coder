@@ -24,7 +24,7 @@ const mock403Error = Object.assign(
 			statusText: "Forbidden",
 			data: {
 				message: "Forbidden.",
-				detail: "Insufficient permissions to create chat.",
+				detail: "Insufficient permissions to use Coder Agents.",
 			},
 			headers: {},
 			config: {},
