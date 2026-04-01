@@ -405,12 +405,7 @@ func TestSessionCookieMaxAge(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	dc := coderdtest.DeploymentValues(t)
-	dc.Sessions.DefaultDuration = serpent.Duration(time.Hour * 12)
-
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: dc,
-	})
+	client := coderdtest.New(t, nil)
 
 	// Create the first user (password-based login).
 	req := codersdk.CreateFirstUserRequest{
@@ -433,13 +428,15 @@ func TestSessionCookieMaxAge(t *testing.T) {
 	defer res.Body.Close()
 	require.Equal(t, http.StatusCreated, res.StatusCode)
 
+	oneYear := int((365 * 24 * time.Hour).Seconds())
 	var found bool
 	for _, cookie := range res.Cookies() {
 		if cookie.Name == codersdk.SessionTokenCookie {
-			// MaxAge should match the configured session duration so the
-			// browser persists the cookie to disk.
-			require.Equal(t, int(dc.Sessions.DefaultDuration.Value().Seconds()), cookie.MaxAge,
-				"Session cookie MaxAge should match the configured session duration")
+			// MaxAge should be set to a long value so the browser
+			// persists the cookie to disk. The server handles real
+			// expiry via the API key's ExpiresAt field.
+			require.Equal(t, oneYear, cookie.MaxAge,
+				"Session cookie MaxAge should be set to 1 year for disk persistence")
 			found = true
 		}
 	}
