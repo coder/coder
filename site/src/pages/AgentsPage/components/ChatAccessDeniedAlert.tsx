@@ -14,12 +14,10 @@ export const ChatAccessDeniedAlert: FC = () => {
 			severity="info"
 			className="py-2"
 			actions={
-				<Button
-					variant="subtle"
-					size="sm"
-					onClick={() => window.location.reload()}
-				>
-					Refresh
+					<Button
+						size="sm"
+						onClick={() => window.location.reload()}
+					>					Refresh
 				</Button>
 			}
 		>
