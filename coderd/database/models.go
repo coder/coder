@@ -4157,29 +4157,68 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
+	ID                       uuid.UUID             `db:"id" json:"id"`
+	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title                    string                `db:"title" json:"title"`
+	Status                   ChatStatus            `db:"status" json:"status"`
+	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt                sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt              sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived                 bool                  `db:"archived" json:"archived"`
+	LastError                sql.NullString        `db:"last_error" json:"last_error"`
+	Mode                     NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   StringMap             `db:"labels" json:"labels"`
+	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext      pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DebugLogsEnabledOverride sql.NullBool          `db:"debug_logs_enabled_override" json:"debug_logs_enabled_override"`
+}
+
+type ChatDebugRun struct {
+	ID                  uuid.UUID       `db:"id" json:"id"`
+	ChatID              uuid.UUID       `db:"chat_id" json:"chat_id"`
+	RootChatID          uuid.NullUUID   `db:"root_chat_id" json:"root_chat_id"`
+	ParentChatID        uuid.NullUUID   `db:"parent_chat_id" json:"parent_chat_id"`
+	ModelConfigID       uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	TriggerMessageID    sql.NullInt64   `db:"trigger_message_id" json:"trigger_message_id"`
+	HistoryTipMessageID sql.NullInt64   `db:"history_tip_message_id" json:"history_tip_message_id"`
+	Kind                string          `db:"kind" json:"kind"`
+	Status              string          `db:"status" json:"status"`
+	Provider            sql.NullString  `db:"provider" json:"provider"`
+	Model               sql.NullString  `db:"model" json:"model"`
+	Summary             json.RawMessage `db:"summary" json:"summary"`
+	StartedAt           time.Time       `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime    `db:"finished_at" json:"finished_at"`
+}
+
+type ChatDebugStep struct {
 	ID                  uuid.UUID             `db:"id" json:"id"`
-	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title               string                `db:"title" json:"title"`
-	Status              ChatStatus            `db:"status" json:"status"`
-	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	RunID               uuid.UUID             `db:"run_id" json:"run_id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	StepNumber          int32                 `db:"step_number" json:"step_number"`
+	Operation           string                `db:"operation" json:"operation"`
+	Status              string                `db:"status" json:"status"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	AssistantMessageID  sql.NullInt64         `db:"assistant_message_id" json:"assistant_message_id"`
+	NormalizedRequest   json.RawMessage       `db:"normalized_request" json:"normalized_request"`
+	NormalizedResponse  pqtype.NullRawMessage `db:"normalized_response" json:"normalized_response"`
+	Usage               pqtype.NullRawMessage `db:"usage" json:"usage"`
+	Attempts            json.RawMessage       `db:"attempts" json:"attempts"`
+	Error               pqtype.NullRawMessage `db:"error" json:"error"`
+	Metadata            json.RawMessage       `db:"metadata" json:"metadata"`
+	StartedAt           time.Time             `db:"started_at" json:"started_at"`
 	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           sql.NullString        `db:"last_error" json:"last_error"`
-	Mode                NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels              StringMap             `db:"labels" json:"labels"`
-	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
 }
 
 type ChatDiffStatus struct {
