@@ -1052,6 +1052,102 @@ func TestWatchChats(t *testing.T) {
 		}
 	})
 
+	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "watch root chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		childOne, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "watch child 1",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		childTwo, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "watch child 2",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
+
+		var ping watchEvent
+		err = wsjson.Read(ctx, conn, &ping)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, ping.Type)
+
+		collectLifecycleEvents := func(expectedKind coderdpubsub.ChatEventKind) map[uuid.UUID]coderdpubsub.ChatEvent {
+			t.Helper()
+
+			events := make(map[uuid.UUID]coderdpubsub.ChatEvent, 3)
+			for len(events) < 3 {
+				var update watchEvent
+				err = wsjson.Read(ctx, conn, &update)
+				require.NoError(t, err)
+				if update.Type == codersdk.ServerSentEventTypePing {
+					continue
+				}
+				require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
+
+				var payload coderdpubsub.ChatEvent
+				err = json.Unmarshal(update.Data, &payload)
+				require.NoError(t, err)
+				if payload.Kind != expectedKind {
+					continue
+				}
+				events[payload.Chat.ID] = payload
+			}
+			return events
+		}
+
+		assertLifecycleEvents := func(events map[uuid.UUID]coderdpubsub.ChatEvent, archived bool) {
+			t.Helper()
+
+			require.Len(t, events, 3)
+			for _, chatID := range []uuid.UUID{parentChat.ID, childOne.ID, childTwo.ID} {
+				payload, ok := events[chatID]
+				require.True(t, ok, "missing event for chat %s", chatID)
+				require.Equal(t, archived, payload.Chat.Archived)
+			}
+		}
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+		deletedEvents := collectLifecycleEvents(coderdpubsub.ChatEventKindDeleted)
+		assertLifecycleEvents(deletedEvents, true)
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		require.NoError(t, err)
+		createdEvents := collectLifecycleEvents(coderdpubsub.ChatEventKindCreated)
+		assertLifecycleEvents(createdEvents, false)
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 
@@ -2208,6 +2304,96 @@ func TestUnarchiveChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, archivedChats)
+	})
+
+	t.Run("UnarchivesChildren", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child 1",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child 2",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		require.NoError(t, err)
+
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:false",
+		})
+		require.NoError(t, err)
+
+		var foundParent bool
+		var foundChild1 bool
+		var foundChild2 bool
+		for _, chat := range activeChats {
+			switch chat.ID {
+			case parentChat.ID:
+				foundParent = true
+				require.False(t, chat.Archived)
+			case child1.ID:
+				foundChild1 = true
+				require.False(t, chat.Archived)
+			case child2.ID:
+				foundChild2 = true
+				require.False(t, chat.Archived)
+			}
+		}
+		require.True(t, foundParent, "parent should be listed as active")
+		require.True(t, foundChild1, "child1 should be listed as active")
+		require.True(t, foundChild2, "child2 should be listed as active")
+
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:true",
+		})
+		require.NoError(t, err)
+		for _, chat := range archivedChats {
+			require.NotEqual(t, parentChat.ID, chat.ID, "parent should not remain archived")
+			require.NotEqual(t, child1.ID, chat.ID, "child1 should not remain archived")
+			require.NotEqual(t, child2.ID, chat.ID, "child2 should not remain archived")
+		}
+
+		dbParent, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), parentChat.ID)
+		require.NoError(t, err)
+		require.False(t, dbParent.Archived, "parent should be unarchived")
+
+		dbChild1, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child1.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild1.Archived, "child1 should be unarchived")
+
+		dbChild2, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child2.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild2.Archived, "child2 should be unarchived")
 	})
 
 	t.Run("NotArchived", func(t *testing.T) {

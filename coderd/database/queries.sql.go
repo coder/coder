@@ -4241,14 +4241,63 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 	return items, nil
 }
 
-const archiveChatByID = `-- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
-WHERE id = $1 OR root_chat_id = $1
+const archiveChatByID = `-- name: ArchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    WHERE id = $1::uuid OR root_chat_id = $1::uuid
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+FROM chats
+ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
 
-func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, archiveChatByID, id)
-	return err
+func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, archiveChatByID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.LastInjectedContext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
@@ -6168,13 +6217,63 @@ func (q *sqlQuerier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg Soft
 	return err
 }
 
-const unarchiveChatByID = `-- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = $1::uuid
+const unarchiveChatByID = `-- name: UnarchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = false, updated_at = NOW()
+    WHERE id = $1::uuid OR root_chat_id = $1::uuid
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+FROM chats
+ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
 
-func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, unarchiveChatByID, id)
-	return err
+func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, unarchiveChatByID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.LastInjectedContext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const unpinChatByID = `-- name: UnpinChatByID :exec
