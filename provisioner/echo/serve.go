@@ -651,10 +651,11 @@ func ParameterTerraform(param *proto.RichParameter) (string, error) {
 			return string(s)
 		},
 		"hasDefault": func(v *proto.RichParameter) bool {
-			// Emit default when the value is explicitly non-empty,
-			// or when the parameter is ephemeral (ephemeral params
-			// always need a default, even if it's an empty string).
-			return v.DefaultValue != "" || v.Ephemeral
+			// Emit default when the parameter is not required (it has
+			// an explicit default, possibly the empty string), or when
+			// the parameter is ephemeral (ephemeral params always need
+			// a default, even if it's an empty string).
+			return !v.Required || v.Ephemeral
 		},
 	}).Parse(`
 data "coder_parameter" "{{ .Name }}" {
