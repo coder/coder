@@ -315,6 +315,20 @@ function useStickToBottom(): StickToBottomInstance {
 		// user's finger.
 		if (s.activeTouchCount > 0) {
 			// No auto-pin during active touch.
+		} else if (s.pendingPrepend) {
+			// Prepend restoration: older messages were just added
+			// to the DOM. Adjust scrollTop by the height delta so
+			// the user's visual position stays the same.
+			const delta =
+				s.scrollElement.scrollHeight - s.pendingPrepend.scrollHeight;
+			if (delta > 0) {
+				const prev = s.scrollElement.scrollTop;
+				s.scrollElement.scrollTop = prev + delta;
+				if (s.scrollElement.scrollTop !== prev) {
+					s.programmaticScrollCount++;
+				}
+			}
+			s.pendingPrepend = null;
 		} else if (s.suppressNextResize) {
 			s.suppressNextResize = false;
 		} else if (difference >= 0) {
