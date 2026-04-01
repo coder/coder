@@ -25,10 +25,6 @@ import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "#/components/ChatMessageInput/ChatMessageInput";
-import {
 	Command,
 	CommandEmpty,
 	CommandGroup,
@@ -55,17 +51,21 @@ import { formatProviderLabel } from "../utils/modelOptions";
 import type { UploadState } from "./AttachmentPreview";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "./ChatMessageInput/ChatMessageInput";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
-export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 export {
 	ImageThumbnail,
 	type UploadState,
 } from "./AttachmentPreview";
+export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
@@ -77,8 +77,17 @@ interface AgentChatInputProps {
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
 	initialValue?: string;
-	// Called on every text change inside the editor.
-	onContentChange?: (content: string) => void;
+	// Serialized Lexical editor state for restoring drafts with
+	// file-reference chips. Takes precedence over initialValue.
+	initialEditorState?: string;
+	// Monotonic counter to force editor remount.
+	remountKey?: number;
+	// Called on every content change inside the editor.
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	// Model selector.
 	selectedModel: string;
 	onModelChange: (value: string) => void;
@@ -201,6 +210,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	isLoading,
 	inputRef,
 	initialValue,
+	initialEditorState,
+	remountKey,
 	onContentChange,
 	selectedModel,
 	onModelChange,
@@ -428,11 +439,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		countInvisibleCharacters(initialValue ?? ""),
 	);
 
-	const handleContentChange = (content: string, hasRefs: boolean) => {
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasRefs: boolean,
+	) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content);
+		onContentChange?.(content, serializedEditorState, hasRefs);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -648,6 +663,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
+					initialEditorState={initialEditorState}
+					remountKey={remountKey}
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}

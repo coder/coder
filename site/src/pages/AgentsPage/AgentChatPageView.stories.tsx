@@ -59,6 +59,9 @@ const buildEditing = (
 	overrides: Partial<ComponentProps<typeof AgentChatPageView>["editing"]> = {},
 ) => ({
 	chatInputRef: { current: null },
+	editorInitialValue: "",
+	initialEditorState: undefined,
+	remountKey: 0,
 	editingMessageId: null as number | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
@@ -112,7 +115,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		hasWorkspace: true,
 		store: createChatStore(),
 		pendingEditMessageId: null as number | null,
-		initialInputValue: "",
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -434,8 +436,8 @@ export const EditingMessage: Story = {
 			store={buildStoreWithMessages(editingMessages)}
 			editing={{
 				editingMessageId: 3,
+				editorInitialValue: "Now tell me a joke",
 			}}
-			initialInputValue="Now tell me a joke"
 		/>
 	),
 };
@@ -448,8 +450,8 @@ export const EditingSaving: Story = {
 			store={buildStoreWithMessages(editingMessages)}
 			editing={{
 				editingMessageId: 3,
+				editorInitialValue: "Now tell me a better joke",
 			}}
-			initialInputValue="Now tell me a better joke"
 			pendingEditMessageId={3}
 			isSubmissionPending
 		/>
