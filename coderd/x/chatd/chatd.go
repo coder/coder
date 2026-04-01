@@ -3974,9 +3974,10 @@ func (p *Server) runChat(
 			return nil
 		})
 	} else if hasContextFiles {
-		// On subsequent turns, extract the instruction text from
-		// the persisted context-file parts so it can be re-injected
-		// via InsertSystem after compaction drops those messages.
+		// On subsequent turns, extract the instruction text and
+		// skill index from persisted parts so they can be
+		// re-injected via InsertSystem after compaction drops
+		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
 		skills = skillsFromParts(messages)
 		if restored := skillMetaFileFromParts(messages); restored != "" {
@@ -4084,6 +4085,9 @@ func (p *Server) runChat(
 
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
+	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
 	if resolvedUserPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
@@ -4566,6 +4570,9 @@ func (p *Server) runChat(
 			}
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
 			if reloadUserPrompt != "" {
@@ -5099,14 +5106,23 @@ func (p *Server) persistInstructionFiles(
 		if !workspaceConnOK {
 			return "", nil, agentCfg.SkillMetaFile, nil
 		}
-		// Persist a sentinel so subsequent turns skip the
-		// workspace agent dial.
+		// Persist a sentinel (plus any discovered skill parts)
+		// so subsequent turns skip the workspace agent dial.
 		parts := []codersdk.ChatMessagePart{{
 			Type:                     codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:          "",
 			ContextFileAgentID:       uuid.NullUUID{UUID: agent.ID, Valid: true},
 			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
 		}}
+		for _, s := range discoveredSkills {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          s.Name,
+				SkillDescription:   s.Description,
+				SkillDir:           s.Dir,
+				ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+			})
+		}
 		content, err := chatprompt.MarshalParts(parts)
 		if err != nil {
 			return "", nil, agentCfg.SkillMetaFile, nil
@@ -5141,9 +5157,9 @@ func (p *Server) persistInstructionFiles(
 		}
 		return "", discoveredSkills, agentCfg.SkillMetaFile, nil
 	}
-
-	// Build context-file parts, one per instruction file.
-	parts := make([]codersdk.ChatMessagePart, 0, len(sections))
+	// Build context-file parts (one per instruction file) and
+	// skill parts (one per discovered skill).
+	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
 	for _, s := range sections {
 		parts = append(parts, codersdk.ChatMessagePart{
 			Type:                     codersdk.ChatMessagePartTypeContextFile,
@@ -5154,6 +5170,15 @@ func (p *Server) persistInstructionFiles(
 			ContextFileOS:            agent.OperatingSystem,
 			ContextFileDirectory:     directory,
 			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
+		})
+	}
+	for _, s := range discoveredSkills {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:               codersdk.ChatMessagePartTypeSkill,
+			SkillName:          s.Name,
+			SkillDescription:   s.Description,
+			SkillDir:           s.Dir,
+			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
 		})
 	}
 

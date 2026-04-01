@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -602,7 +603,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 		workspacesdk.LSResponse{},
 		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).Times(1)
+	).AnyTimes()
 	conn.EXPECT().ReadFile(
 		gomock.Any(),
 		"/home/coder/project/AGENTS.md",
@@ -832,7 +833,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 	require.Empty(t, instruction)
 }
 
-func TestPersistInstructionFilesSentinelIgnoresSkills(t *testing.T) {
+func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -870,9 +871,23 @@ func TestPersistInstructionFilesSentinelIgnoresSkills(t *testing.T) {
 			if !ok || arg.ID != chat.ID {
 				return false
 			}
-			// The sentinel path clears the cache column when no
-			// instruction files were found.
-			return !arg.LastInjectedContext.Valid
+			if !arg.LastInjectedContext.Valid {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
+				return false
+			}
+			// The sentinel path should persist only skill parts
+			// with ContextFileAgentID set.
+			for _, p := range parts {
+				if p.Type == codersdk.ChatMessagePartTypeSkill &&
+					p.SkillName == "my-skill" &&
+					p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) {
+					return true
+				}
+			}
+			return false
 		}),
 	).Return(database.Chat{}, nil).Times(1)
 
@@ -964,7 +979,11 @@ func TestPersistInstructionFilesSentinelIgnoresSkills(t *testing.T) {
 		workspaceCtx.getWorkspaceConn,
 	)
 	require.NoError(t, err)
+	// Sentinel path returns empty instruction string.
 	require.Empty(t, instruction)
+	// Skills are still discovered and returned.
+	require.Len(t, skills, 1)
+	require.Equal(t, "my-skill", skills[0].Name)
 }
 
 func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
@@ -2011,6 +2030,156 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 		}
 	}
 	t.Fatalf("field %q not found in log entry", name)
+}
+
+func TestSkillsFromParts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		got := skillsFromParts(nil)
+		require.Empty(t, got)
+	})
+
+	t.Run("NoSkillParts", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Empty(t, got)
+	})
+
+	t.Run("SingleSkill", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:             codersdk.ChatMessagePartTypeSkill,
+					SkillName:        "deep-review",
+					SkillDescription: "Multi-reviewer code review",
+					SkillDir:         "/home/coder/.agents/skills/deep-review",
+				},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 1)
+		require.Equal(t, "deep-review", got[0].Name)
+		require.Equal(t, "Multi-reviewer code review", got[0].Description)
+		require.Equal(t, "/home/coder/.agents/skills/deep-review", got[0].Dir)
+	})
+
+	t.Run("MultipleSkillsAcrossMessages", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "pull-requests",
+					SkillDir:  "/home/coder/.agents/skills/pull-requests",
+				},
+			}),
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "deep-review",
+					SkillDir:  "/home/coder/.agents/skills/deep-review",
+				},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 2)
+		require.Equal(t, "pull-requests", got[0].Name)
+		require.Equal(t, "deep-review", got[1].Name)
+	})
+
+	t.Run("MixedPartTypes", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:            codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath: "/home/coder/.coder/AGENTS.md",
+				},
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "refine-plan",
+					SkillDir:  "/home/coder/.agents/skills/refine-plan",
+				},
+			}),
+			// A text-only message should be skipped entirely.
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "user turn"},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 1)
+		require.Equal(t, "refine-plan", got[0].Name)
+		require.Equal(t, "/home/coder/.agents/skills/refine-plan", got[0].Dir)
+	})
+
+	t.Run("OptionalDescriptionOmitted", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:      codersdk.ChatMessagePartTypeSkill,
+					SkillName: "refine-plan",
+					SkillDir:  "/home/coder/.agents/skills/refine-plan",
+				},
+			}),
+		}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, 1)
+		require.Equal(t, "refine-plan", got[0].Name)
+		require.Empty(t, got[0].Description)
+	})
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			{
+				Content: pqtype.NullRawMessage{
+					RawMessage: []byte(`not valid json with "skill" in it`),
+					Valid:      true,
+				},
+			},
+		}
+		got := skillsFromParts(msgs)
+		require.Empty(t, got)
+	})
+
+	t.Run("RoundTrip", func(t *testing.T) {
+		// Simulate persist -> reconstruct cycle: marshal skill
+		// parts the same way persistInstructionFiles does, then
+		// verify skillsFromParts recovers the metadata.
+		t.Parallel()
+		want := []chattool.SkillMeta{
+			{Name: "deep-review", Description: "Multi-reviewer review", Dir: "/skills/deep-review"},
+			{Name: "pull-requests", Description: "", Dir: "/skills/pull-requests"},
+		}
+		agentID := uuid.New()
+		var parts []codersdk.ChatMessagePart
+		for _, s := range want {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          s.Name,
+				SkillDescription:   s.Description,
+				SkillDir:           s.Dir,
+				ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+			})
+		}
+		msgs := []database.ChatMessage{chatMessageWithParts(parts)}
+		got := skillsFromParts(msgs)
+		require.Len(t, got, len(want))
+		for i, w := range want {
+			require.Equal(t, w.Name, got[i].Name)
+			require.Equal(t, w.Description, got[i].Description)
+			require.Equal(t, w.Dir, got[i].Dir)
+		}
+	})
 }
 
 func TestContextFileAgentID(t *testing.T) {
