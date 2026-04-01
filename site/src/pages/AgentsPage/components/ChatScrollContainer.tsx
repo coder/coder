@@ -621,21 +621,41 @@ const ChatScrollContainer: FC<{
 				pendingPrependRef.current = {
 					scrollHeight: container.scrollHeight,
 				};
+				// biome-ignore lint/suspicious/noConsole: temporary debug
+				console.debug("[STB] snapshot", {
+					scrollHeight: container.scrollHeight,
+				});
 			}
 		} else if (wasFetching && !isFetchingMoreMessages) {
-			// true -> false: fetch completed, new messages in DOM.
-			// Adjust scrollTop by the height delta to maintain the
-			// user's visual position.
 			const pending = pendingPrependRef.current;
 			const container = scrollContainerRef.current;
 			if (pending && container) {
 				const delta = container.scrollHeight - pending.scrollHeight;
+				// biome-ignore lint/suspicious/noConsole: temporary debug
+				console.debug("[STB] restore", {
+					delta,
+					snapshotH: pending.scrollHeight,
+					currentH: container.scrollHeight,
+					scrollTop: container.scrollTop,
+				});
 				if (delta > 0) {
 					suppressNextResize();
 					container.scrollTop += delta;
 				}
+			} else {
+				// biome-ignore lint/suspicious/noConsole: temporary debug
+				console.debug("[STB] restore SKIPPED", {
+					pending: !!pending,
+					container: !!container,
+				});
 			}
 			pendingPrependRef.current = null;
+		} else {
+			// biome-ignore lint/suspicious/noConsole: temporary debug
+			console.debug("[STB] transition", {
+				wasFetching,
+				isFetchingMoreMessages,
+			});
 		}
 	}, [isFetchingMoreMessages, scrollContainerRef, suppressNextResize]);
 
