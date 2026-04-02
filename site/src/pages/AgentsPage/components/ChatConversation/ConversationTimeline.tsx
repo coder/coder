@@ -626,9 +626,8 @@ const ChatMessageItem = memo<{
 							<MessageContent className="whitespace-normal">
 								<div
 									className={cn(
-										"relative space-y-3 pl-4",
-										"before:content-[''] before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
-										(copyHovered || showCopiedSuccess) && isLastAssistantMessage && hasCopyableContent && "before:opacity-100",
+"relative space-y-3 overflow-visible",
+											"before:content-[''] before:pointer-events-none before:absolute before:-left-4 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",										(copyHovered || showCopiedSuccess) && isLastAssistantMessage && hasCopyableContent && "before:opacity-100",
 									)}
 								>
 									<BlockList
