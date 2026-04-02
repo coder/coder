@@ -132,18 +132,18 @@ coder server
 Each provider instance gets a unique route based on its `NAME`. Clients send
 requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 
-| Instance name      | Route                                                |
-| ------------------ | ---------------------------------------------------- |
-| `anthropic-corp`   | `/api/v2/aibridge/anthropic-corp/v1/messages`        |
-| `anthropic-direct` | `/api/v2/aibridge/anthropic-direct/v1/messages`      |
-| `azure-openai`     | `/api/v2/aibridge/azure-openai/v1/chat/completions`  |
+| Instance name      | Route                                               |
+|--------------------|-----------------------------------------------------|
+| `anthropic-corp`   | `/api/v2/aibridge/anthropic-corp/v1/messages`       |
+| `anthropic-direct` | `/api/v2/aibridge/anthropic-direct/v1/messages`     |
+| `azure-openai`     | `/api/v2/aibridge/azure-openai/v1/chat/completions` |
 
 **Supported keys per provider:**
 
 | Key        | Required | Description                                          |
-| ---------- | -------- | ---------------------------------------------------- |
+|------------|----------|------------------------------------------------------|
 | `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`   |
-| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE`  |
+| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE` |
 | `KEY`      | No       | API key for upstream authentication                  |
 | `BASE_URL` | No       | Base URL of the upstream API                         |
 
