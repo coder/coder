@@ -2666,6 +2666,9 @@ func New(cfg Config) *Server {
 		workerID = uuid.New()
 	}
 
+	debugSvc := chatdebug.NewService(cfg.Database, cfg.Logger.Named("chatdebug"), cfg.Pubsub)
+	debugSvc.SetStaleAfter(inFlightChatStaleAfter)
+
 	p := &Server{
 		cancel:                         cancel,
 		closed:                         make(chan struct{}),
@@ -2681,7 +2684,7 @@ func New(cfg Config) *Server {
 		pubsub:                         cfg.Pubsub,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
-		debugSvc:                       chatdebug.NewService(cfg.Database, cfg.Logger.Named("chatdebug"), cfg.Pubsub),
+		debugSvc:                       debugSvc,
 		pendingChatAcquireInterval:     pendingChatAcquireInterval,
 		maxChatsPerAcquire:             maxChatsPerAcquire,
 		inFlightChatStaleAfter:         inFlightChatStaleAfter,
