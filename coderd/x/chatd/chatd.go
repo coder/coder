@@ -1400,20 +1400,23 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 		return err
 	}
 
+	if interrupted {
+		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
+		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.waitForActiveChatStop(ctx, chat.ID, 5*time.Second)
+	}
+
 	if p.debugSvc != nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cleanupCancel()
 		for _, archivedChat := range archivedChats {
-			if _, err := p.debugSvc.DeleteByChatID(ctx, archivedChat.ID); err != nil {
+			if _, err := p.debugSvc.DeleteByChatID(cleanupCtx, archivedChat.ID); err != nil {
 				p.logger.Warn(ctx, "failed to delete chat debug rows after archive",
 					slog.F("chat_id", archivedChat.ID),
 					slog.Error(err),
 				)
 			}
 		}
-	}
-
-	if interrupted {
-		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
-		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
 	}
 
 	p.publishChatPubsubEvents(archivedChats, coderdpubsub.ChatEventKindDeleted)
