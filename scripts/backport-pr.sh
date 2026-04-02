@@ -96,7 +96,7 @@ git checkout -b "$backport_branch" "origin/${release_branch}"
 
 # Cherry-pick the merge commit.
 log "Cherry-picking ${merge_commit}..."
-if ! git cherry-pick "$merge_commit"; then
+if ! git cherry-pick -x "$merge_commit"; then
 	log ""
 	log "Cherry-pick failed due to conflicts."
 	log "Resolve the conflicts, then run:"
