@@ -27,6 +27,24 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
+type scriptedReadCloser struct {
+	chunks [][]byte
+	index  int
+}
+
+func (r *scriptedReadCloser) Read(p []byte) (int, error) {
+	if r.index >= len(r.chunks) {
+		return 0, io.EOF
+	}
+	chunk := r.chunks[r.index]
+	r.index++
+	return copy(p, chunk), nil
+}
+
+func (*scriptedReadCloser) Close() error {
+	return nil
+}
+
 func TestRecordingTransport_NoSink(t *testing.T) {
 	t.Parallel()
 
@@ -366,24 +384,24 @@ func TestRecordingTransport_CloseAfterDecoderConsumesContentLengthSucceeds(t *te
 	require.Empty(t, attempts[0].Error)
 }
 
-func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthSucceeds(t *testing.T) {
+func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthMarksFailed(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		flusher, ok := rw.(http.Flusher)
-		require.True(t, ok)
-		rw.Header().Set("Content-Type", "application/json")
-		_, _ = rw.Write([]byte(`{"token":"response-secret",`))
-		flusher.Flush()
-		_, _ = rw.Write([]byte(`"safe":"ok"}`))
-		flusher.Flush()
-	}))
-	defer server.Close()
-
 	ctx, sink := newTestSinkContext(t)
-	client := &http.Client{Transport: &RecordingTransport{Base: server.Client().Transport}}
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test response exercises unknown-length close semantics.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"application/json"}},
+					Body:          &scriptedReadCloser{chunks: [][]byte{[]byte(`{"token":"response-secret","safe":"ok"}`)}},
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
 	require.NoError(t, err)
 
 	resp, err := client.Do(req)
@@ -396,8 +414,8 @@ func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthSucceeds(t *te
 
 	attempts := sink.snapshot()
 	require.Len(t, attempts, 1)
-	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
-	require.Empty(t, attempts[0].Error)
+	require.Equal(t, attemptStatusFailed, attempts[0].Status)
+	require.Equal(t, io.ErrUnexpectedEOF.Error(), attempts[0].Error)
 }
 
 func TestRecordingTransport_PrematureCloseMarksFailed(t *testing.T) {

@@ -157,20 +157,25 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 
 type recordingBody struct {
 	inner         io.ReadCloser
-	buf           bytes.Buffer
-	truncated     bool
-	sawEOF        bool
-	bytesRead     int64
 	contentLength int64
 	sink          *attemptSink
 	base          Attempt
 	startedAt     time.Time
-	recordOnce    sync.Once
-	closeOnce     sync.Once
+
+	mu        sync.Mutex
+	buf       bytes.Buffer
+	truncated bool
+	sawEOF    bool
+	bytesRead int64
+
+	recordOnce sync.Once
+	closeOnce  sync.Once
 }
 
 func (r *recordingBody) Read(p []byte) (int, error) {
 	n, err := r.inner.Read(p)
+
+	r.mu.Lock()
 	r.bytesRead += int64(n)
 	if n > 0 && !r.truncated {
 		remaining := maxRecordedResponseBodyBytes - r.buf.Len()
@@ -188,6 +193,8 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 	if errors.Is(err, io.EOF) {
 		r.sawEOF = true
 	}
+	r.mu.Unlock()
+
 	if err != nil {
 		r.record(err)
 	}
@@ -204,12 +211,16 @@ func (r *recordingBody) Close() error {
 		return closeErr
 	}
 
+	r.mu.Lock()
+	sawEOF := r.sawEOF
+	bytesRead := r.bytesRead
+	contentLength := r.contentLength
+	r.mu.Unlock()
+
 	switch {
-	case r.sawEOF:
+	case sawEOF:
 		r.record(io.EOF)
-	case r.contentLength >= 0 && r.bytesRead >= r.contentLength:
-		r.record(nil)
-	case r.contentLength < 0:
+	case contentLength >= 0 && bytesRead >= contentLength:
 		r.record(nil)
 	default:
 		r.record(io.ErrUnexpectedEOF)
@@ -220,21 +231,29 @@ func (r *recordingBody) Close() error {
 func (r *recordingBody) record(err error) {
 	r.recordOnce.Do(func() {
 		finishedAt := time.Now()
-		if r.truncated {
-			r.base.ResponseBody = []byte("[TRUNCATED]")
+
+		r.mu.Lock()
+		truncated := r.truncated
+		responseBody := append([]byte(nil), r.buf.Bytes()...)
+		base := r.base
+		startedAt := r.startedAt
+		r.mu.Unlock()
+
+		if truncated {
+			base.ResponseBody = []byte("[TRUNCATED]")
 		} else {
-			r.base.ResponseBody = RedactJSONSecrets(r.buf.Bytes())
+			base.ResponseBody = RedactJSONSecrets(responseBody)
 		}
-		r.base.StartedAt = r.startedAt.UTC().Format(time.RFC3339Nano)
-		r.base.FinishedAt = finishedAt.UTC().Format(time.RFC3339Nano)
+		base.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
+		base.FinishedAt = finishedAt.UTC().Format(time.RFC3339Nano)
 		// Recompute duration to include body read time.
-		r.base.DurationMs = finishedAt.Sub(r.startedAt).Milliseconds()
+		base.DurationMs = finishedAt.Sub(startedAt).Milliseconds()
 		if err != nil && !errors.Is(err, io.EOF) {
-			r.base.Error = err.Error()
-			r.base.Status = attemptStatusFailed
+			base.Error = err.Error()
+			base.Status = attemptStatusFailed
 		} else {
-			r.base.Status = attemptStatusCompleted
+			base.Status = attemptStatusCompleted
 		}
-		r.sink.record(r.base)
+		r.sink.record(base)
 	})
 }
