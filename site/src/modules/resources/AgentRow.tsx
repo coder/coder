@@ -6,15 +6,7 @@ import {
 	PlayIcon,
 	SquareCheckBigIcon,
 } from "lucide-react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
@@ -162,7 +154,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
 	// This makes it feel similar to a terminal that auto-scrolls downwards!
-	const handleLogScroll = useCallback((props: ListOnScrollProps) => {
+	const handleLogScroll = (props: ListOnScrollProps) => {
 		if (
 			props.scrollOffset === 0 ||
 			props.scrollUpdateWasRequested ||
@@ -179,7 +171,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			logListDivRef.current.scrollHeight -
 			(props.scrollOffset + parent.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
-	}, []);
+	};
 
 	const devcontainers = useAgentContainers(agent);
 
@@ -211,47 +203,43 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const logTabs = useMemo(
-		() =>
-			[
-				{
-					title: "All Logs",
-					value: "all",
-				},
-				...agent.log_sources
-					.filter((logSource) => {
-						return agentLogs.some(
-							(log) =>
-								log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-						);
-					})
-					.map((logSource) => ({
-						startIcon: logSource.icon ? (
-							<ExternalImage
-								src={logSource.icon}
-								alt=""
-								className="size-icon-xs shrink-0"
-							/>
-						) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-							<PlayIcon className="size-icon-xs shrink-0" />
-						) : null,
-						title: logSource.display_name,
-						value: logSource.id,
-					}))
-					.sort((a, b) => {
-						// Ensure that "Startup Script" is always the first tab.
-						const startupPriorityDiff =
-							Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
-							Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
-						return startupPriorityDiff || a.title.localeCompare(b.title);
-					}),
-			] as {
-				startIcon?: React.ReactNode;
-				title: string;
-				value: string;
-			}[],
-		[agent.log_sources, agentLogs],
-	);
+	const logTabs: {
+		startIcon?: React.ReactNode;
+		title: string;
+		value: string;
+	}[] = [
+		{
+			title: "All Logs",
+			value: "all",
+		},
+		...agent.log_sources
+			.filter((logSource) => {
+				return agentLogs.some(
+					(log) =>
+						log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+				);
+			})
+			.map((logSource) => ({
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+			}))
+			.sort((a, b) => {
+				// Ensure that "Startup Script" is always the first tab.
+				const startupPriorityDiff =
+					Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
+					Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
+				return startupPriorityDiff || a.title.localeCompare(b.title);
+			}),
+	];
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
@@ -277,16 +265,29 @@ export const AgentRow: FC<AgentRowProps> = ({
 		level: log.level,
 		sourceId: log.source_id,
 	}));
+	const allLogsText = agentLogs.map((log) => log.output).join("\n");
 	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
 	const hasSelectedLogs = selectedLogs.length > 0;
+	const hasAnyLogs = agentLogs.length > 0;
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
-	const selectedLogTabTitle =
-		logTabs.find((tab) => tab.value === selectedLogTab)?.title ?? "Logs";
-	const sanitizedTabTitle = selectedLogTabTitle
-		.toLowerCase()
-		.replaceAll(/[^a-z0-9]+/g, "-")
-		.replaceAll(/(^-|-$)/g, "");
-	const logFilenameSuffix = sanitizedTabTitle || "logs";
+	const downloadableLogSets = logTabs
+		.filter((tab) => tab.value !== "all")
+		.map((tab) => {
+			const logsText = agentLogs
+				.filter((log) => log.source_id === tab.value)
+				.map((log) => log.output)
+				.join("\n");
+			const filenameSuffix = tab.title
+				.toLowerCase()
+				.replaceAll(/[^a-z0-9]+/g, "-")
+				.replaceAll(/(^-|-$)/g, "");
+			return {
+				label: tab.title,
+				filenameSuffix: filenameSuffix || tab.value,
+				logsText,
+				startIcon: tab.startIcon,
+			};
+		});
 
 	return (
 		<div
@@ -544,9 +545,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 											</Button>
 											<DownloadSelectedAgentLogsButton
 												agentName={agent.name}
-												filenameSuffix={logFilenameSuffix}
-												logsText={selectedLogsText}
-												disabled={!hasSelectedLogs}
+												logSets={downloadableLogSets}
+												allLogsText={allLogsText}
+												disabled={!hasAnyLogs}
 											/>
 										</div>
 									</div>
