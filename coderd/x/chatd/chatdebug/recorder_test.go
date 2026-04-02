@@ -9,49 +9,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
-
-type stubModel struct {
-	provider string
-	model    string
-}
-
-func (*stubModel) Generate(
-	ctx context.Context,
-	call fantasy.Call,
-) (*fantasy.Response, error) {
-	return &fantasy.Response{}, nil
-}
-
-func (*stubModel) Stream(
-	ctx context.Context,
-	call fantasy.Call,
-) (fantasy.StreamResponse, error) {
-	return fantasy.StreamResponse(func(func(fantasy.StreamPart) bool) {}), nil
-}
-
-func (*stubModel) GenerateObject(
-	ctx context.Context,
-	call fantasy.ObjectCall,
-) (*fantasy.ObjectResponse, error) {
-	return &fantasy.ObjectResponse{}, nil
-}
-
-func (*stubModel) StreamObject(
-	ctx context.Context,
-	call fantasy.ObjectCall,
-) (fantasy.ObjectStreamResponse, error) {
-	return nil, xerrors.New("not implemented")
-}
-
-func (s *stubModel) Provider() string {
-	return s.provider
-}
-
-func (s *stubModel) Model() string {
-	return s.model
-}
 
 func TestAttemptSink_ThreadSafe(t *testing.T) {
 	t.Parallel()

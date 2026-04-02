@@ -63,15 +63,6 @@ func TestBeginStep_SkipsNilRunID(t *testing.T) {
 	require.Equal(t, ctx, enriched)
 }
 
-func TestNewStepHandle_SkipsNilRunID(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	handle, enriched := newStepHandle(ctx, &RunContext{ChatID: uuid.New()}, RecorderOptions{ChatID: uuid.New()}, OperationGenerate)
-	require.Nil(t, handle)
-	require.Equal(t, ctx, enriched)
-}
-
 func TestTruncateLabel(t *testing.T) {
 	t.Parallel()
 
