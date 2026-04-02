@@ -1,11 +1,5 @@
 import { useFormik } from "formik";
-import {
-	ChevronDownIcon,
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, InfoIcon, PencilIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -41,6 +35,13 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
+import {
+	CollapsibleSection,
+	CollapsibleSectionContent,
+	CollapsibleSectionDescription,
+	CollapsibleSectionHeader,
+	CollapsibleSectionTitle,
+} from "../CollapsibleSection";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
@@ -116,9 +117,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 }) => {
 	const isEditing = Boolean(editingModel);
 	const isDefaultModel = isEditing && editingModel?.is_default === true;
-	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [showPricing, setShowPricing] = useState(false);
-	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
@@ -488,29 +486,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 					</div>
 
 					{/* Usage Tracking */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowPricing((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Cost Tracking{" "}
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Set per-token pricing so Coder can track costs and enforce
-									spending limits.
-								</p>
-							</div>
-							{showPricing ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showPricing && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
+					<CollapsibleSection variant="inline" defaultOpen={false}>
+						<CollapsibleSectionHeader>
+							<CollapsibleSectionTitle as="h3">
+								Cost Tracking
+							</CollapsibleSectionTitle>
+							<CollapsibleSectionDescription>
+								Set per-token pricing so Coder can track costs and enforce
+								spending limits.
+							</CollapsibleSectionDescription>
+						</CollapsibleSectionHeader>
+						<CollapsibleSectionContent>
+							<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 								<PricingModelConfigFields
 									provider={selectedProviderState.provider}
 									form={form}
@@ -518,33 +505,21 @@ export const ModelForm: FC<ModelFormProps> = ({
 									disabled={isSaving}
 								/>
 							</div>
-						)}
-					</div>
-
+						</CollapsibleSectionContent>
+					</CollapsibleSection>
 					{/* Provider Configuration */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowProviderConfig((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
+					<CollapsibleSection variant="inline" defaultOpen={false}>
+						<CollapsibleSectionHeader>
+							<CollapsibleSectionTitle as="h3">
+								Provider Configuration
+							</CollapsibleSectionTitle>
+							<CollapsibleSectionDescription>
+								Tune provider-specific behavior like reasoning, tool calling,
+								and web search.
+							</CollapsibleSectionDescription>
+						</CollapsibleSectionHeader>
+						<CollapsibleSectionContent>
 							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Provider Configuration
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Tune provider-specific behavior like reasoning, tool calling,
-									and web search.
-								</p>
-							</div>
-							{showProviderConfig ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showProviderConfig && (
-							<div className="pt-3">
 								<ModelConfigFields
 									provider={selectedProviderState.provider}
 									form={form}
@@ -552,33 +527,21 @@ export const ModelForm: FC<ModelFormProps> = ({
 									disabled={isSaving}
 								/>
 							</div>
-						)}
-					</div>
-
+						</CollapsibleSectionContent>
+					</CollapsibleSection>
 					{/* Advanced */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowAdvanced((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Advanced
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Low-level parameters like temperature and penalties. Rarely
-									need changing.
-								</p>
-							</div>
-							{showAdvanced ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showAdvanced && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
+					<CollapsibleSection variant="inline" defaultOpen={false}>
+						<CollapsibleSectionHeader>
+							<CollapsibleSectionTitle as="h3">
+								Advanced
+							</CollapsibleSectionTitle>
+							<CollapsibleSectionDescription>
+								Low-level parameters like temperature and penalties. Rarely need
+								changing.
+							</CollapsibleSectionDescription>
+						</CollapsibleSectionHeader>
+						<CollapsibleSectionContent>
+							<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
 								<GeneralModelConfigFields
 									provider={selectedProviderState.provider}
 									form={form}
@@ -629,10 +592,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 									)}
 								</div>
 							</div>
-						)}
-					</div>
+						</CollapsibleSectionContent>
+					</CollapsibleSection>
 				</div>
 				<div className="mt-auto py-6">
+					{" "}
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">
 						{isEditing && editingModel && onDeleteModel ? (
