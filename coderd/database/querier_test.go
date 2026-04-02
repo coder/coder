@@ -11201,10 +11201,11 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	modelName := "debug-model-" + uuid.NewString()
 
 	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    providerName,
-		DisplayName: "Debug Provider",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
