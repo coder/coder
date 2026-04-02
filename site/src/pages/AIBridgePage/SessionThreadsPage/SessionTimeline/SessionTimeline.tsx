@@ -331,7 +331,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent
-											className="max-w-72 text-sm font-normal"
+											className="max-w-96 text-sm font-normal"
 											align="start"
 											side="top"
 										>
