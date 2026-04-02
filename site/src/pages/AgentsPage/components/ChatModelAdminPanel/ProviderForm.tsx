@@ -300,7 +300,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								<Input
 									id={apiKeyInputId}
 									name="provider_api_token"
-									type="text"
+									type="password"
 									autoComplete="off"
 									data-1p-ignore
 									data-lpignore="true"
