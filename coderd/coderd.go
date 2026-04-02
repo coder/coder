@@ -159,7 +159,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ChatPubsub allows chatd to use a dedicated publish path without changing
+	// the shared pubsub used by the rest of coderd.
+	ChatPubsub    pubsub.Pubsub
+	RuntimeConfig *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -776,6 +779,11 @@ func New(options *Options) *API {
 			maxChatsPerAcquire = math.MinInt32
 		}
 
+		chatPubsub := options.ChatPubsub
+		if chatPubsub == nil {
+			chatPubsub = options.Pubsub
+		}
+
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
@@ -787,7 +795,7 @@ func New(options *Options) *API {
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
-			Pubsub:                         options.Pubsub,
+			Pubsub:                         chatPubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 		})

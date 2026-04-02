@@ -768,10 +768,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
 			options.Pubsub = ps
+			options.ChatPubsub = ps
 			if options.DeploymentValues.Prometheus.Enable {
 				options.PrometheusRegistry.MustRegister(ps)
 			}
 			defer options.Pubsub.Close()
+			if options.DeploymentValues.AI.Chat.PubsubBatchEnabled.Value() {
+				chatPubsub, err := pubsub.NewBatching(
+					ctx,
+					logger.Named("chatd").Named("pubsub_batch"),
+					ps,
+					sqlDB,
+					dbURL,
+					pubsub.BatchingConfig{
+						FlushInterval: options.DeploymentValues.AI.Chat.PubsubFlushInterval.Value(),
+						BatchSize:     int(options.DeploymentValues.AI.Chat.PubsubBatchSize.Value()),
+						QueueSize:     int(options.DeploymentValues.AI.Chat.PubsubQueueSize.Value()),
+					},
+				)
+				if err != nil {
+					return xerrors.Errorf("create chat pubsub batcher: %w", err)
+				}
+				options.ChatPubsub = chatPubsub
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(chatPubsub)
+				}
+				defer options.ChatPubsub.Close()
+			}
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
 			pubsubWatchdogTimeout = psWatchdog.Timeout()
 			defer psWatchdog.Close()
