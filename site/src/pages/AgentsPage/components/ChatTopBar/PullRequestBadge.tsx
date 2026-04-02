@@ -13,22 +13,20 @@ export const PullRequestBadge: FC<PullRequestBadgeProps> = ({
 	diffStatusData,
 	hiddenWhenPanelOpen,
 }) => {
-	const prUrl = diffStatusData.url;
-	const prState = diffStatusData.pull_request_state;
-	const prDraft = diffStatusData.pull_request_draft;
-	const prTitle = diffStatusData.pull_request_title;
-	const parsedPr = parsePullRequestUrl(prUrl);
-	const prNumberMatch =
-		diffStatusData.pr_number?.toString() ?? parsedPr?.number;
-	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+	const { url, pull_request_state, pull_request_draft, pull_request_title } =
+		diffStatusData;
+	const prNumber =
+		diffStatusData.pr_number?.toString() ?? parsePullRequestUrl(url)?.number;
 
-	if (!prUrl || !hasPR) {
+	if (!url || !(pull_request_state || prNumber)) {
 		return null;
 	}
 
+	const label = pull_request_title || (prNumber ? `#${prNumber}` : "PR");
+
 	return (
 		<a
-			href={prUrl}
+			href={url}
 			target="_blank"
 			rel="noreferrer"
 			className={cn(
@@ -37,14 +35,12 @@ export const PullRequestBadge: FC<PullRequestBadgeProps> = ({
 			)}
 		>
 			<PrStateIcon
-				state={prState}
-				draft={prDraft}
+				state={pull_request_state}
+				draft={pull_request_draft}
 				className="!size-3.5 shrink-0"
 			/>
-			<span className="truncate max-w-[120px] hidden md:inline">
-				{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-			</span>
-			<span className="md:hidden">{prNumberMatch ? prNumberMatch : "PR"}</span>
+			<span className="truncate max-w-[120px] hidden md:inline">{label}</span>
+			<span className="md:hidden">{prNumber || "PR"}</span>
 		</a>
 	);
 };
