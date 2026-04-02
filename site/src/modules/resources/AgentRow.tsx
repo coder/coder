@@ -224,10 +224,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 				value: logSource.id,
 			}))
 			.sort((a, b) => {
-				if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
-					return -1;
-				}
-				return a.title.localeCompare(b.title);
+				// Ensure that "Startup Script" is always the first tab.
+				const startupPriorityDiff =
+					Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
+					Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
+				return startupPriorityDiff || a.title.localeCompare(b.title);
 			}),
 	];
 	const selectedLogs =
