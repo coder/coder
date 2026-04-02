@@ -38,8 +38,8 @@ func TestBatchingPubsubDedicatedSenderConnection(t *testing.T) {
 
 	listenerConn := testutil.TryReceive(ctx, t, trackedDriver.Connections)
 	batched, err := pubsub.NewBatching(ctx, logger.Named("batched"), base, trackedDB, connectionURL, pubsub.BatchingConfig{
-		FlushInterval: time.Hour,
-		BatchSize:     1,
+		FlushInterval: 10 * time.Millisecond,
+		
 		QueueSize:     8,
 	})
 	require.NoError(t, err)
@@ -82,8 +82,8 @@ func TestBatchingPubsubReconnectsAfterSenderDisconnect(t *testing.T) {
 
 	_ = testutil.TryReceive(ctx, t, trackedDriver.Connections) // listener connection
 	batched, err := pubsub.NewBatching(ctx, logger.Named("batched"), base, trackedDB, connectionURL, pubsub.BatchingConfig{
-		FlushInterval: time.Hour,
-		BatchSize:     1,
+		FlushInterval: 10 * time.Millisecond,
+		
 		QueueSize:     8,
 	})
 	require.NoError(t, err)

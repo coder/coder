@@ -3635,39 +3635,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "pubsubBatchEnabled",
 			Hidden:      true,
 		},
-		{
-			Name:        "Chat: Pubsub Flush Interval",
-			Description: "The maximum time accepted chatd pubsub publishes wait for a scheduled flush when capacity does not trigger an immediate send.",
-			Flag:        "chat-pubsub-flush-interval",
-			Env:         "CODER_CHAT_PUBSUB_FLUSH_INTERVAL",
-			Value:       &c.AI.Chat.PubsubFlushInterval,
-			Default:     "10ms",
-			Group:       &deploymentGroupChat,
-			YAML:        "pubsubFlushInterval",
-			Hidden:      true,
-		},
-		{
-			Name:        "Chat: Pubsub Batch Size",
-			Description: "How many chatd pubsub publishes to accumulate before an immediate PostgreSQL flush. The default of 1 keeps the dedicated sender path effectively unbatched to minimize added latency.",
-			Flag:        "chat-pubsub-batch-size",
-			Env:         "CODER_CHAT_PUBSUB_BATCH_SIZE",
-			Value:       &c.AI.Chat.PubsubBatchSize,
-			Default:     "1",
-			Group:       &deploymentGroupChat,
-			YAML:        "pubsubBatchSize",
-			Hidden:      true,
-		},
-		{
-			Name:        "Chat: Pubsub Queue Size",
-			Description: "How many chatd pubsub publishes can wait in memory for the dedicated sender path when PostgreSQL falls behind.",
-			Flag:        "chat-pubsub-queue-size",
-			Env:         "CODER_CHAT_PUBSUB_QUEUE_SIZE",
-			Value:       &c.AI.Chat.PubsubQueueSize,
-			Default:     "1024",
-			Group:       &deploymentGroupChat,
-			YAML:        "pubsubQueueSize",
-			Hidden:      true,
-		},
+
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4134,11 +4102,8 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	PubsubBatchEnabled  serpent.Bool     `json:"pubsub_batch_enabled" typescript:",notnull"`
-	PubsubFlushInterval serpent.Duration `json:"pubsub_flush_interval" typescript:",notnull"`
-	PubsubBatchSize     serpent.Int64    `json:"pubsub_batch_size" typescript:",notnull"`
-	PubsubQueueSize     serpent.Int64    `json:"pubsub_queue_size" typescript:",notnull"`
+	AcquireBatchSize   serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	PubsubBatchEnabled serpent.Bool  `json:"pubsub_batch_enabled" typescript:",notnull"`
 }
 
 type AIConfig struct {

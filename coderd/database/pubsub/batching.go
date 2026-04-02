@@ -23,19 +23,14 @@ const (
 	// publishes wait before a scheduled flush when capacity does not trigger an
 	// immediate send.
 	DefaultBatchingFlushInterval = 10 * time.Millisecond
-	// DefaultBatchingBatchSize keeps the dedicated sender path effectively
-	// unbatched by default so chatd avoids shared-pool starvation without adding
-	// intentional queue dwell in the common path.
-	DefaultBatchingBatchSize = 1
 	// DefaultBatchingQueueSize is the default number of buffered chatd publish
 	// requests waiting to be flushed.
-	DefaultBatchingQueueSize = 1024
+	DefaultBatchingQueueSize = 8192
 
 	defaultBatchingPressureWait    = 10 * time.Millisecond
 	defaultBatchingFinalFlushLimit = 15 * time.Second
 	batchingWarnInterval           = 10 * time.Second
 
-	batchFlushCapacity  = "capacity"
 	batchFlushScheduled = "scheduled"
 	batchFlushPressure  = "pressure"
 	batchFlushShutdown  = "shutdown"
@@ -67,9 +62,12 @@ var (
 )
 
 // BatchingConfig controls the chatd-specific PostgreSQL pubsub batching path.
+// Flush timing is automatic: the run loop wakes every FlushInterval (or on
+// backpressure) and drains everything currently queued into a single
+// transaction. There is no fixed batch-size knob — the batch size is simply
+// whatever accumulated since the last flush, which naturally adapts to load.
 type BatchingConfig struct {
 	FlushInterval     time.Duration
-	BatchSize         int
 	QueueSize         int
 	PressureWait      time.Duration
 	FinalFlushTimeout time.Duration
@@ -121,7 +119,6 @@ type BatchingPubsub struct {
 	warnTicker *quartz.Ticker
 
 	flushInterval     time.Duration
-	batchSize         int
 	pressureWait      time.Duration
 	finalFlushTimeout time.Duration
 
@@ -152,6 +149,7 @@ type batchingMetrics struct {
 	FlushAttemptsTotal       *prometheus.CounterVec
 	FlushFailuresTotal       *prometheus.CounterVec
 	PublishRejectionsTotal   *prometheus.CounterVec
+	DelegateFallbacksTotal   *prometheus.CounterVec
 	FlushInflight            prometheus.Gauge
 }
 
@@ -244,6 +242,12 @@ func newBatchingMetrics() batchingMetrics {
 			Name:      "batch_publish_rejections_total",
 			Help:      "The number of chatd publishes rejected by the batching queue.",
 		}, []string{"reason"}),
+		DelegateFallbacksTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "pubsub",
+			Name:      "batch_delegate_fallbacks_total",
+			Help:      "The number of chatd publishes that fell back to the shared pubsub pool because the batching queue was full.",
+		}, []string{"channel_class"}),
 		FlushInflight: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "pubsub",
@@ -268,6 +272,7 @@ func (m batchingMetrics) Describe(descs chan<- *prometheus.Desc) {
 	m.FlushAttemptsTotal.Describe(descs)
 	m.FlushFailuresTotal.Describe(descs)
 	m.PublishRejectionsTotal.Describe(descs)
+	m.DelegateFallbacksTotal.Describe(descs)
 	m.FlushInflight.Describe(descs)
 }
 
@@ -286,6 +291,7 @@ func (m batchingMetrics) Collect(metrics chan<- prometheus.Metric) {
 	m.FlushAttemptsTotal.Collect(metrics)
 	m.FlushFailuresTotal.Collect(metrics)
 	m.PublishRejectionsTotal.Collect(metrics)
+	m.DelegateFallbacksTotal.Collect(metrics)
 	m.FlushInflight.Collect(metrics)
 }
 
@@ -343,14 +349,6 @@ func newBatchingPubsub(
 		return nil, xerrors.New("flush interval must be positive")
 	}
 
-	batchSize := cfg.BatchSize
-	if batchSize == 0 {
-		batchSize = DefaultBatchingBatchSize
-	}
-	if batchSize < 0 {
-		return nil, xerrors.New("batch size must be positive")
-	}
-
 	queueSize := cfg.QueueSize
 	if queueSize == 0 {
 		queueSize = DefaultBatchingQueueSize
@@ -393,7 +391,6 @@ func newBatchingPubsub(
 		spaceSignal:       make(chan struct{}),
 		warnTicker:        clock.NewTicker(batchingWarnInterval, "pubsubBatcher", "warn"),
 		flushInterval:     flushInterval,
-		batchSize:         batchSize,
 		pressureWait:      pressureWait,
 		finalFlushTimeout: finalFlushTimeout,
 		runCtx:            runCtx,
@@ -473,9 +470,13 @@ func (p *BatchingPubsub) Publish(event string, message []byte) error {
 				p.observeAcceptedPublish(req)
 				return nil
 			}
-			p.observeRejectedPublish(channelClass, "queue_full")
+			// The batching queue is still full after a pressure
+			// flush and brief wait. Fall back to the shared
+			// pubsub pool so the notification is still delivered
+			// rather than dropped.
+			p.metrics.DelegateFallbacksTotal.WithLabelValues(channelClass).Inc()
 			p.logPublishRejection(event)
-			return ErrBatchingPubsubQueueFull
+			return p.delegate.Publish(event, message)
 		case <-p.doneCh:
 			p.observeRejectedPublish(channelClass, "closed")
 			return ErrBatchingPubsubClosed
@@ -606,54 +607,37 @@ func (p *BatchingPubsub) run() {
 	defer close(p.doneCh)
 	defer p.warnTicker.Stop("pubsubBatcher", "warn")
 
-	batch := make([]queuedPublish, 0, p.batchSize)
+	batch := make([]queuedPublish, 0, 64)
 	timer := p.clock.NewTimer(p.flushInterval, "pubsubBatcher", "scheduledFlush")
 	defer timer.Stop("pubsubBatcher", "scheduledFlush")
+
+	flush := func(reason string) {
+		batch = p.drainIntoBatch(batch)
+		count := len(batch)
+		var err error
+		batch, err = p.flushBatch(p.runCtx, batch, reason)
+		if err != nil {
+			p.logger.Error(context.Background(), "failed to flush batched pubsub messages",
+				slog.F("reason", reason),
+				slog.F("count", count),
+				slog.Error(err),
+			)
+		}
+		timer.Reset(p.flushInterval, "pubsubBatcher", reason+"Flush")
+	}
 
 	for {
 		select {
 		case item := <-p.publishCh:
+			// An item arrived before the timer fired. Append it and
+			// let the timer or pressure signal trigger the actual
+			// flush so that nearby publishes coalesce naturally.
 			batch = append(batch, item)
 			p.notifySpaceAvailable()
-			if len(batch) >= p.batchSize {
-				count := len(batch)
-				var err error
-				batch, err = p.flushBatch(p.runCtx, batch, batchFlushCapacity)
-				if err != nil {
-					p.logger.Error(context.Background(), "failed to flush batched pubsub messages",
-						slog.F("reason", batchFlushCapacity),
-						slog.F("count", count),
-						slog.Error(err),
-					)
-				}
-				timer.Reset(p.flushInterval, "pubsubBatcher", "capacityFlush")
-			}
 		case <-timer.C:
-			batch = p.drainIntoBatch(batch)
-			count := len(batch)
-			var err error
-			batch, err = p.flushBatch(p.runCtx, batch, batchFlushScheduled)
-			if err != nil {
-				p.logger.Error(context.Background(), "failed to flush batched pubsub messages",
-					slog.F("reason", batchFlushScheduled),
-					slog.F("count", count),
-					slog.Error(err),
-				)
-			}
-			timer.Reset(p.flushInterval, "pubsubBatcher", "scheduledFlush")
+			flush(batchFlushScheduled)
 		case <-p.flushCh:
-			batch = p.drainIntoBatch(batch)
-			count := len(batch)
-			var err error
-			batch, err = p.flushBatch(p.runCtx, batch, batchFlushPressure)
-			if err != nil {
-				p.logger.Error(context.Background(), "failed to flush batched pubsub messages",
-					slog.F("reason", batchFlushPressure),
-					slog.F("count", count),
-					slog.Error(err),
-				)
-			}
-			timer.Reset(p.flushInterval, "pubsubBatcher", "pressureFlush")
+			flush(batchFlushPressure)
 		case <-p.closeCh:
 			p.runErr = errors.Join(p.drain(batch), p.sender.Close())
 			return
@@ -663,7 +647,7 @@ func (p *BatchingPubsub) run() {
 
 func (p *BatchingPubsub) drainIntoBatch(batch []queuedPublish) []queuedPublish {
 	drained := false
-	for len(batch) < p.batchSize {
+	for {
 		select {
 		case item := <-p.publishCh:
 			batch = append(batch, item)
@@ -675,10 +659,6 @@ func (p *BatchingPubsub) drainIntoBatch(batch []queuedPublish) []queuedPublish {
 			return batch
 		}
 	}
-	if drained {
-		p.notifySpaceAvailable()
-	}
-	return batch
 }
 
 func (p *BatchingPubsub) flushBatch(

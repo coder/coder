@@ -154,10 +154,12 @@ func TestDeploymentValues_ChatPubsubBatchDefaults(t *testing.T) {
 
 	set := (&codersdk.DeploymentValues{}).Options()
 	want := map[string]string{
-		"chat-pubsub-batch-enabled":  "true",
-		"chat-pubsub-flush-interval": "10ms",
-		"chat-pubsub-batch-size":     "1",
-		"chat-pubsub-queue-size":     "1024",
+		"chat-pubsub-batch-enabled": "true",
+	}
+	removed := []string{
+		"chat-pubsub-flush-interval",
+		"chat-pubsub-batch-size",
+		"chat-pubsub-queue-size",
 	}
 
 	for flag, defaultValue := range want {
@@ -172,6 +174,12 @@ func TestDeploymentValues_ChatPubsubBatchDefaults(t *testing.T) {
 			break
 		}
 		require.Truef(t, found, "%s option not found", flag)
+	}
+
+	for _, flag := range removed {
+		for _, opt := range set {
+			require.NotEqualf(t, flag, opt.Flag, "%s should have been removed", flag)
+		}
 	}
 }
 

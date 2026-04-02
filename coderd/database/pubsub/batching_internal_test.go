@@ -3,10 +3,12 @@ package pubsub
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"sync"
 	"testing"
 	"time"
 
+	_ "github.com/lib/pq"
 	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -31,7 +33,6 @@ func TestBatchingPubsubScheduledFlush(t *testing.T) {
 	ps, _ := newTestBatchingPubsub(t, sender, BatchingConfig{
 		Clock:         clock,
 		FlushInterval: 10 * time.Millisecond,
-		BatchSize:     8,
 		QueueSize:     8,
 	})
 
@@ -77,7 +78,6 @@ func TestBatchingPubsubDefaultConfigUsesDedicatedSenderFirstDefaults(t *testing.
 	ps, _ := newTestBatchingPubsub(t, sender, BatchingConfig{Clock: clock})
 
 	require.Equal(t, DefaultBatchingFlushInterval, ps.flushInterval)
-	require.Equal(t, DefaultBatchingBatchSize, ps.batchSize)
 	require.Equal(t, DefaultBatchingQueueSize, cap(ps.publishCh))
 	require.Equal(t, defaultBatchingPressureWait, ps.pressureWait)
 	require.Equal(t, defaultBatchingFinalFlushLimit, ps.finalFlushTimeout)
@@ -107,53 +107,56 @@ func TestBatchChannelClass(t *testing.T) {
 	}
 }
 
-func TestBatchingPubsubCapacityFlush(t *testing.T) {
+func TestBatchingPubsubTimerFlushDrainsAll(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	newTimerTrap := clock.Trap().NewTimer("pubsubBatcher", "scheduledFlush")
 	defer newTimerTrap.Close()
-	resetTrap := clock.Trap().TimerReset("pubsubBatcher", "capacityFlush")
+	resetTrap := clock.Trap().TimerReset("pubsubBatcher", "scheduledFlush")
 	defer resetTrap.Close()
 
 	sender := newFakeBatchSender()
 	ps, _ := newTestBatchingPubsub(t, sender, BatchingConfig{
 		Clock:         clock,
-		FlushInterval: time.Hour,
-		BatchSize:     3,
-		QueueSize:     8,
+		FlushInterval: 10 * time.Millisecond,
+		QueueSize:     64,
 	})
 
 	call, err := newTimerTrap.Wait(ctx)
 	require.NoError(t, err)
 	call.MustRelease(ctx)
 
-	require.NoError(t, ps.Publish("chat:stream:a", []byte("one")))
-	require.NoError(t, ps.Publish("chat:stream:a", []byte("two")))
-	require.NoError(t, ps.Publish("chat:stream:a", []byte("three")))
+	// Enqueue many messages before the timer fires — all should be
+	// drained and flushed in a single batch.
+	for _, msg := range []string{"one", "two", "three", "four", "five"} {
+		require.NoError(t, ps.Publish("chat:stream:a", []byte(msg)))
+	}
+	require.Empty(t, sender.Batches())
 
+	clock.Advance(10 * time.Millisecond).MustWait(ctx)
 	resetCall, err := resetTrap.Wait(ctx)
 	require.NoError(t, err)
 	resetCall.MustRelease(ctx)
 
 	batch := testutil.TryReceive(ctx, t, sender.flushes)
-	require.Len(t, batch, 3)
+	require.Len(t, batch, 5)
 	require.Equal(t, []byte("one"), batch[0].message)
-	require.Equal(t, []byte("two"), batch[1].message)
-	require.Equal(t, []byte("three"), batch[2].message)
-	require.Equal(t, float64(3), prom_testutil.ToFloat64(ps.metrics.QueueDepthHighWatermark))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushesTotal.WithLabelValues(batchFlushCapacity)))
+	require.Equal(t, []byte("five"), batch[4].message)
+	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushesTotal.WithLabelValues(batchFlushScheduled)))
 	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.QueueDepth))
 }
 
-func TestBatchingPubsubQueueCapFailure(t *testing.T) {
+func TestBatchingPubsubQueueFullFallsBackToDelegate(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	newTimerTrap := clock.Trap().NewTimer("pubsubBatcher", "scheduledFlush")
 	defer newTimerTrap.Close()
+	resetTrap := clock.Trap().TimerReset("pubsubBatcher", "scheduledFlush")
+	defer resetTrap.Close()
 	pressureTrap := clock.Trap().NewTimer("pubsubBatcher", "pressureWait")
 	defer pressureTrap.Close()
 
@@ -161,8 +164,7 @@ func TestBatchingPubsubQueueCapFailure(t *testing.T) {
 	sender.blockCh = make(chan struct{})
 	ps, _ := newTestBatchingPubsub(t, sender, BatchingConfig{
 		Clock:         clock,
-		FlushInterval: time.Hour,
-		BatchSize:     1,
+		FlushInterval: 10 * time.Millisecond,
 		QueueSize:     1,
 		PressureWait:  10 * time.Millisecond,
 	})
@@ -171,10 +173,21 @@ func TestBatchingPubsubQueueCapFailure(t *testing.T) {
 	require.NoError(t, err)
 	call.MustRelease(ctx)
 
+	// Fill the queue (capacity 1).
 	require.NoError(t, ps.Publish("chat:stream:a", []byte("one")))
+
+	// Fire the timer so the run loop starts flushing "one" — the
+	// sender blocks on blockCh so the flush stays in-flight.
+	clock.Advance(10 * time.Millisecond).MustWait(ctx)
 	<-sender.started
+
+	// The run loop is blocked in flushBatch. Fill the queue again.
 	require.NoError(t, ps.Publish("chat:stream:a", []byte("two")))
 
+	// A third publish should fall back to the delegate (which has a
+	// nil db, so the delegate Publish itself will error — but we
+	// verify the fallback metric was incremented, not
+	// ErrBatchingPubsubQueueFull).
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- ps.Publish("chat:stream:a", []byte("three"))
@@ -186,14 +199,17 @@ func TestBatchingPubsubQueueCapFailure(t *testing.T) {
 	clock.Advance(10 * time.Millisecond).MustWait(ctx)
 
 	err = testutil.TryReceive(ctx, t, errCh)
-	require.ErrorIs(t, err, ErrBatchingPubsubQueueFull)
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(ps.metrics.LogicalPublishesTotal.WithLabelValues(batchChannelClassStreamNotify, batchResultAccepted)))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.LogicalPublishesTotal.WithLabelValues(batchChannelClassStreamNotify, batchResultRejected)))
-	require.Equal(t, float64(6), prom_testutil.ToFloat64(ps.metrics.LogicalPublishBytesTotal.WithLabelValues(batchChannelClassStreamNotify)))
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(ps.metrics.QueueDepthHighWatermark))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.PublishRejectionsTotal.WithLabelValues("queue_full")))
+	// The delegate has a nil db so it returns an error, but it must
+	// NOT be ErrBatchingPubsubQueueFull — that sentinel is gone.
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrBatchingPubsubQueueFull)
+	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.DelegateFallbacksTotal.WithLabelValues(batchChannelClassStreamNotify)))
 
 	close(sender.blockCh)
+	// Let the run loop finish the blocked flush and process "two".
+	resetCall, err := resetTrap.Wait(ctx)
+	require.NoError(t, err)
+	resetCall.MustRelease(ctx)
 	require.NoError(t, ps.Close())
 }
 
@@ -209,7 +225,6 @@ func TestBatchingPubsubCloseDrainsQueue(t *testing.T) {
 	ps, _ := newTestBatchingPubsub(t, sender, BatchingConfig{
 		Clock:         clock,
 		FlushInterval: time.Hour,
-		BatchSize:     8,
 		QueueSize:     8,
 	})
 
@@ -246,7 +261,6 @@ func TestBatchingPubsubPreservesOrder(t *testing.T) {
 	ps, _ := newTestBatchingPubsub(t, sender, BatchingConfig{
 		Clock:         clock,
 		FlushInterval: time.Hour,
-		BatchSize:     2,
 		QueueSize:     8,
 	})
 
@@ -278,7 +292,7 @@ func TestBatchingPubsubFlushFailureMetrics(t *testing.T) {
 	clock := quartz.NewMock(t)
 	newTimerTrap := clock.Trap().NewTimer("pubsubBatcher", "scheduledFlush")
 	defer newTimerTrap.Close()
-	resetTrap := clock.Trap().TimerReset("pubsubBatcher", "capacityFlush")
+	resetTrap := clock.Trap().TimerReset("pubsubBatcher", "scheduledFlush")
 	defer resetTrap.Close()
 
 	sender := newFakeBatchSender()
@@ -286,8 +300,7 @@ func TestBatchingPubsubFlushFailureMetrics(t *testing.T) {
 	sender.errStage = batchFlushStageExec
 	ps, delegate := newTestBatchingPubsub(t, sender, BatchingConfig{
 		Clock:         clock,
-		FlushInterval: time.Hour,
-		BatchSize:     1,
+		FlushInterval: 10 * time.Millisecond,
 		QueueSize:     8,
 	})
 
@@ -296,11 +309,13 @@ func TestBatchingPubsubFlushFailureMetrics(t *testing.T) {
 	call.MustRelease(ctx)
 
 	require.NoError(t, ps.Publish("chat:stream:a", []byte("one")))
+
+	clock.Advance(10 * time.Millisecond).MustWait(ctx)
 	resetCall, err := resetTrap.Wait(ctx)
 	require.NoError(t, err)
 	resetCall.MustRelease(ctx)
 
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushFailuresTotal.WithLabelValues(batchFlushCapacity)))
+	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushFailuresTotal.WithLabelValues(batchFlushScheduled)))
 	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageBegin, batchResultSuccess)))
 	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageExec, batchResultError)))
 	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageCommit, batchResultSuccess)))
@@ -312,13 +327,27 @@ func TestBatchingPubsubFlushFailureMetrics(t *testing.T) {
 func newTestBatchingPubsub(t *testing.T, sender batchSender, cfg BatchingConfig) (*BatchingPubsub, *PGPubsub) {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	delegate := newWithoutListener(logger.Named("delegate"), nil)
+	// Use a closed *sql.DB so that delegate.Publish returns a real
+	// error instead of panicking on a nil pointer when the batching
+	// queue falls back to the shared pool under pressure.
+	closedDB := newClosedDB(t)
+	delegate := newWithoutListener(logger.Named("delegate"), closedDB)
 	ps, err := newBatchingPubsub(logger.Named("batcher"), delegate, sender, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
 	})
 	return ps, delegate
+}
+
+// newClosedDB returns an *sql.DB whose connections have been closed,
+// so any ExecContext call returns an error rather than panicking.
+func newClosedDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("postgres", "host=localhost dbname=closed_db_stub sslmode=disable connect_timeout=1")
+	require.NoError(t, err)
+	db.SetMaxOpenConns(0)
+	return db
 }
 
 type fakeBatchSender struct {

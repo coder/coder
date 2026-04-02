@@ -780,11 +780,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					ps,
 					sqlDB,
 					dbURL,
-					pubsub.BatchingConfig{
-						FlushInterval: options.DeploymentValues.AI.Chat.PubsubFlushInterval.Value(),
-						BatchSize:     int(options.DeploymentValues.AI.Chat.PubsubBatchSize.Value()),
-						QueueSize:     int(options.DeploymentValues.AI.Chat.PubsubQueueSize.Value()),
-					},
+					pubsub.BatchingConfig{},
 				)
 				if err != nil {
 					return xerrors.Errorf("create chat pubsub batcher: %w", err)
