@@ -628,7 +628,7 @@ const ChatMessageItem = memo<{
 									"pb-5",
 							)}
 						>
-							<MessageContent className="whitespace-normal pl-1">
+							<MessageContent className="whitespace-normal">
 								<div
 									className={cn(
 										"relative space-y-3 overflow-visible",
@@ -653,7 +653,7 @@ const ChatMessageItem = memo<{
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
-													className="flex !mt-0 -ml-2"
+													className="flex !mt-0 -ml-2.5"
 													data-testid="assistant-copy-button"
 												>
 													<Tooltip
