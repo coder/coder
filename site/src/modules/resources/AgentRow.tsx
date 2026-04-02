@@ -1,11 +1,6 @@
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import {
-	CopyIcon,
-	EllipsisIcon,
-	PlayIcon,
-	SquareCheckBigIcon,
-} from "lucide-react";
+import { PlayIcon, SquareCheckBigIcon } from "lucide-react";
 import {
 	type FC,
 	useCallback,
@@ -224,6 +219,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 						alt=""
 						className="size-icon-xs shrink-0"
 					/>
+				) : logSource.display_name === "Startup Script" ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
 				) : null,
 				title: logSource.display_name,
 				value: logSource.id,
