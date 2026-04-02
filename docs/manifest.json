@@ -137,9 +137,9 @@
 					"icon_path": "./images/icons/cloud.svg",
 					"children": [
 						{
-							"title": "AWS EC2",
-							"description": "Install Coder on AWS EC2",
-							"path": "./install/cloud/ec2.md"
+							"title": "AWS Marketplace",
+							"description": "Install Coder via AWS Marketplace",
+							"path": "./install/cloud/aws-marketplace.md"
 						},
 						{
 							"title": "GCP Compute Engine",
@@ -293,6 +293,11 @@
 							"title": "Windsurf",
 							"description": "Access your workspace with Windsurf",
 							"path": "./user-guides/workspace-access/windsurf.md"
+						},
+						{
+							"title": "Antigravity",
+							"description": "Access your workspace with Antigravity",
+							"path": "./user-guides/workspace-access/antigravity.md"
 						}
 					]
 				},
@@ -319,8 +324,7 @@
 					"title": "Workspace Sharing",
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
-					"icon_path": "./images/icons/generic.svg",
-					"state": ["early access"]
+					"icon_path": "./images/icons/generic.svg"
 				},
 				{
 					"title": "Workspace Scheduling",
@@ -625,6 +629,11 @@
 									"path": "./admin/templates/extending-templates/resource-persistence.md"
 								},
 								{
+									"title": "Environment Variables",
+									"description": "Inject environment variables into workspaces using coder_env",
+									"path": "./admin/templates/extending-templates/environment-variables.md"
+								},
+								{
 									"title": "Terraform Variables",
 									"description": "Use variables to manage template state",
 									"path": "./admin/templates/extending-templates/variables.md"
@@ -668,6 +677,11 @@
 									"title": "Dev Containers",
 									"description": "Extend templates with containerized dev environments",
 									"path": "./admin/templates/extending-templates/devcontainers.md"
+								},
+								{
+									"title": "Improving Agent Resiliency",
+									"description": "Manage agent child process CPU and OOM priority",
+									"path": "./admin/templates/extending-templates/process-priority.md"
 								},
 								{
 									"title": "Process Logging",
@@ -977,6 +991,16 @@
 							"path": "./ai-coder/custom-agents.md"
 						},
 						{
+							"title": "Task Lifecycle",
+							"description": "How tasks pause and resume, and what gets preserved",
+							"path": "./ai-coder/tasks-lifecycle.md"
+						},
+						{
+							"title": "Agent Compatibility",
+							"description": "Which AI agents support session persistence across workspace restarts",
+							"path": "./ai-coder/agent-compatibility.md"
+						},
+						{
 							"title": "Tasks Migration Guide",
 							"description": "Changes to Coder Tasks made in v2.28",
 							"path": "./ai-coder/tasks-migration.md"
@@ -1008,7 +1032,24 @@
 								{
 									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
-									"path": "./ai-coder/agent-boundaries/nsjail.md"
+									"path": "./ai-coder/agent-boundaries/nsjail/index.md",
+									"children": [
+										{
+											"title": "NS Jail on Docker",
+											"description": "Runtime and permission requirements for running NS Jail on Docker",
+											"path": "./ai-coder/agent-boundaries/nsjail/docker.md"
+										},
+										{
+											"title": "NS Jail on Kubernetes",
+											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
+											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
+										},
+										{
+											"title": "NS Jail on ECS",
+											"description": "Runtime and permission requirements for running NS Jail on ECS",
+											"path": "./ai-coder/agent-boundaries/nsjail/ecs.md"
+										}
+									]
 								},
 								{
 									"title": "LandJail",
@@ -1126,6 +1167,11 @@
 									]
 								},
 								{
+									"title": "Auditing AI Sessions",
+									"description": "How to audit AI sessions",
+									"path": "./ai-coder/ai-bridge/audit.md"
+								},
+								{
 									"title": "Monitoring",
 									"description": "How to monitor AI Bridge",
 									"path": "./ai-coder/ai-bridge/monitoring.md"
@@ -1149,6 +1195,76 @@
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
+				},
+				{
+					"title": "Coder Agents",
+					"description": "Self-hosted agent by Coder",
+					"path": "./ai-coder/agents/index.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "Getting Started",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
+							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Early Access",
+							"description": "About the Coder Agents Early Access program",
+							"path": "./ai-coder/agents/early-access.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents/architecture.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Models",
+							"description": "Configure LLM providers and models for Coder Agents",
+							"path": "./ai-coder/agents/models.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Platform Controls",
+							"description": "How platform teams control agent behavior, models, and policies",
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Template Optimization",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "MCP Servers",
+									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
+									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Usage \u0026 Analytics",
+									"description": "Spend limits and cost tracking for Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
+									"state": ["early access"]
+								}
+							]
+						},
+						{
+							"title": "Extending Agents",
+							"description": "Add custom skills and MCP tools to agent workspaces",
+							"path": "./ai-coder/agents/extending-agents.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
+							"state": ["early access"]
+						}
+					]
 				}
 			]
 		},
@@ -1192,6 +1308,11 @@
 					"title": "JFrog Artifactory Integration",
 					"description": "Integrate Coder with JFrog Artifactory",
 					"path": "./admin/integrations/jfrog-artifactory.md"
+				},
+				{
+					"title": "Mirror Coder Registry with Artifactory",
+					"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
+					"path": "./install/registry-mirror-artifactory.md"
 				},
 				{
 					"title": "Istio Integration",
@@ -1335,10 +1456,6 @@
 						{
 							"title": "Builds",
 							"path": "./reference/api/builds.md"
-						},
-						{
-							"title": "Changelog",
-							"path": "./reference/api/changelog.md"
 						},
 						{
 							"title": "Chats",
@@ -2018,6 +2135,16 @@
 							"path": "reference/cli/task_logs.md"
 						},
 						{
+							"title": "task pause",
+							"description": "Pause a task",
+							"path": "reference/cli/task_pause.md"
+						},
+						{
+							"title": "task resume",
+							"description": "Resume a task",
+							"path": "reference/cli/task_resume.md"
+						},
+						{
 							"title": "task send",
 							"description": "Send input to a task",
 							"path": "reference/cli/task_send.md"
@@ -2124,7 +2251,7 @@
 						},
 						{
 							"title": "tokens remove",
-							"description": "Delete a token",
+							"description": "Expire or delete a token",
 							"path": "reference/cli/tokens_remove.md"
 						},
 						{
@@ -2211,12 +2338,6 @@
 					]
 				}
 			]
-		},
-		{
-			"title": "Coder Research",
-			"description": "Open source research projects exploring AI-assisted development",
-			"path": "./coder-research.md",
-			"icon_path": "./images/icons/wand.svg"
 		}
 	]
 }
