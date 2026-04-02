@@ -1417,15 +1417,6 @@ type mapping struct {
 	kind        proto.CoordinateResponse_PeerUpdate_Kind
 }
 
-// querierWorkKey describes two kinds of work the querier needs to do.  If peerUpdate
-// is not uuid.Nil, then the querier needs to find all tunnel peers of the given peer and
-// mark them for a mapping query.  If mappingQuery is not uuid.Nil, then the querier has to
-// query the mappings of the tunnel peers of the given peer.
-type querierWorkKey struct {
-	peerUpdate   uuid.UUID
-	mappingQuery mKey
-}
-
 type queueKey interface {
 	bKey | tKey | uuid.UUID | mKey
 }
