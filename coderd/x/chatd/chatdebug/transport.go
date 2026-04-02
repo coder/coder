@@ -205,15 +205,6 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 }
 
 func (r *recordingBody) Close() error {
-	var closeErr error
-	r.closeOnce.Do(func() {
-		closeErr = r.inner.Close()
-	})
-	if closeErr != nil {
-		r.record(closeErr)
-		return closeErr
-	}
-
 	r.mu.Lock()
 	sawEOF := r.sawEOF
 	bytesRead := r.bytesRead
@@ -223,7 +214,41 @@ func (r *recordingBody) Close() error {
 	r.mu.Unlock()
 
 	contentType := r.base.ResponseHeaders["Content-Type"]
+	shouldDrainUnknownLengthJSON := contentLength < 0 &&
+		!sawEOF &&
+		bytesRead > 0 &&
+		!truncated &&
+		isCompleteUnknownLengthJSONBody(contentType, responseBody)
+
+	var drainErr error
+	if shouldDrainUnknownLengthJSON {
+		drainErr = r.drainToEOF()
+	}
+
+	var closeErr error
+	r.closeOnce.Do(func() {
+		closeErr = r.inner.Close()
+	})
+	if closeErr != nil {
+		r.record(closeErr)
+		return closeErr
+	}
+	if drainErr != nil {
+		r.record(drainErr)
+		return nil
+	}
+
+	r.mu.Lock()
+	sawEOF = r.sawEOF
+	bytesRead = r.bytesRead
+	contentLength = r.contentLength
+	truncated = r.truncated
+	responseBody = append([]byte(nil), r.buf.Bytes()...)
+	r.mu.Unlock()
+
 	switch {
+	case sawEOF && contentLength < 0 && isJSONLikeContentType(contentType) && !isCompleteUnknownLengthJSONBody(contentType, responseBody):
+		r.record(io.ErrUnexpectedEOF)
 	case sawEOF:
 		r.record(io.EOF)
 	case responseHasNoBody(r.base.Method, r.base.ResponseStatus):
@@ -247,12 +272,50 @@ func responseHasNoBody(method string, statusCode int) bool {
 		(statusCode >= 100 && statusCode < 200)
 }
 
-func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
+func isJSONLikeContentType(contentType string) bool {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		mediaType = strings.TrimSpace(strings.Split(contentType, ";")[0])
 	}
-	if mediaType != "application/json" && !strings.HasSuffix(mediaType, "+json") {
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+}
+
+func (r *recordingBody) drainToEOF() error {
+	buf := make([]byte, 4*1024)
+	for {
+		n, err := r.inner.Read(buf)
+
+		r.mu.Lock()
+		r.bytesRead += int64(n)
+		if n > 0 && !r.truncated {
+			remaining := maxRecordedResponseBodyBytes - r.buf.Len()
+			if remaining > 0 {
+				toWrite := n
+				if toWrite > remaining {
+					toWrite = remaining
+					r.truncated = true
+				}
+				_, _ = r.buf.Write(buf[:toWrite])
+			} else {
+				r.truncated = true
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			r.sawEOF = true
+		}
+		r.mu.Unlock()
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
+	if !isJSONLikeContentType(contentType) {
 		return false
 	}
 
