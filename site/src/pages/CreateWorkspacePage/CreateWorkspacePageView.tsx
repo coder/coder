@@ -241,7 +241,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 			sendMessage(formInputs, ownerId);
 		},
-		500,
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			_ownerId?: string,
+		) => {
+			// Return a debounce for string fields (those that involve typing) and
+			// zero debounce for all others (so the UI can react immediately).
+			return parameters.some(
+				({ parameter }) =>
+					parameter.form_type === "input" || parameter.form_type === "textarea",
+			)
+				? 500
+				: 0;
+		},
 	);
 
 	useEffect(() => {

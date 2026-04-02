@@ -11,7 +11,7 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
 	const sorted = workspaceIds.toSorted();

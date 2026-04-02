@@ -782,7 +782,7 @@ func New(options *Options) *API {
 			ReplicaID:                      api.ID,
 			SubscribeFn:                    options.ChatSubscribeFn,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			CreateWorkspace:                api.chatCreateWorkspace,
@@ -1219,6 +1219,13 @@ func New(options *Options) *API {
 				r.Route("/group-overrides/{group}", func(r chi.Router) {
 					r.Put("/", api.upsertChatUsageLimitGroupOverride)
 					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
+				})
+			})
+			r.Route("/user-provider-configs", func(r chi.Router) {
+				r.Get("/", api.listUserChatProviderConfigs)
+				r.Route("/{providerConfig}", func(r chi.Router) {
+					r.Put("/", api.upsertUserChatProviderKey)
+					r.Delete("/", api.deleteUserChatProviderKey)
 				})
 			})
 			r.Route("/{chat}", func(r chi.Router) {

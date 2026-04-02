@@ -1792,10 +1792,11 @@ export interface ChatModelProviderOptions {
 // From codersdk/chats.go
 export type ChatModelProviderUnavailableReason =
 	| "fetch_failed"
-	| "missing_api_key";
+	| "missing_api_key"
+	| "user_api_key_required";
 
 export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableReason[] =
-	["fetch_failed", "missing_api_key"];
+	["fetch_failed", "missing_api_key", "user_api_key_required"];
 
 // From codersdk/chats.go
 /**
@@ -1852,6 +1853,9 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
+	readonly central_api_key_enabled: boolean;
+	readonly allow_user_api_key: boolean;
+	readonly allow_central_api_key_fallback: boolean;
 	readonly base_url?: string;
 	readonly source: ChatProviderConfigSource;
 	readonly created_at?: string;
@@ -2379,6 +2383,9 @@ export interface CreateChatProviderConfigRequest {
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
+	readonly central_api_key_enabled?: boolean;
+	readonly allow_user_api_key?: boolean;
+	readonly allow_central_api_key_fallback?: boolean;
 }
 
 // From codersdk/chats.go
@@ -2658,6 +2665,15 @@ export interface CreateTokenRequest {
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly allow_list?: readonly APIAllowListTarget[];
+}
+
+// From codersdk/chats.go
+/**
+ * CreateUserChatProviderKeyRequest creates or replaces a user's API key
+ * for a provider.
+ */
+export interface CreateUserChatProviderKeyRequest {
+	readonly api_key: string;
 }
 
 // From codersdk/users.go
@@ -7187,6 +7203,9 @@ export interface UpdateChatProviderConfigRequest {
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
+	readonly central_api_key_enabled?: boolean;
+	readonly allow_user_api_key?: boolean;
+	readonly allow_central_api_key_fallback?: boolean;
 }
 
 // From codersdk/chats.go
@@ -7729,6 +7748,19 @@ export interface UserChatCompactionThresholds {
  */
 export interface UserChatCustomPrompt {
 	readonly custom_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatProviderConfig is a summary of a provider that allows
+ * user-supplied keys, as seen from the current user's perspective.
+ */
+export interface UserChatProviderConfig {
+	readonly provider_id: string;
+	readonly provider: string;
+	readonly display_name: string;
+	readonly has_user_api_key: boolean;
+	readonly has_central_api_key_fallback: boolean;
 }
 
 // From codersdk/insights.go
