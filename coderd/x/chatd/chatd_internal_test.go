@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"io"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -598,29 +596,17 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
-		InstructionsDirs: []string{"/home/coder/.coder"},
-		InstructionsFile: "AGENTS.md",
-		SkillsDirs:       []string{"/home/coder/project/.agents/skills"},
-		SkillMetaFile:    "SKILL.md",
+		Parts: []codersdk.ChatMessagePart{{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/home/coder/project/AGENTS.md",
+			ContextFileContent: "# Project instructions",
+		}},
 	}, nil).AnyTimes()
-	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-		workspacesdk.LSResponse{},
-		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).AnyTimes()
-	conn.EXPECT().ReadFile(
-		gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1)).Return(
-		io.NopCloser(strings.NewReader("# Project instructions")),
-		"",
-		nil,
-	).Times(1)
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:     db,
-		logger: logger,
+		db:                       db,
+		logger:                   logger,
+		instructionLookupTimeout: 5 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -636,7 +622,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, _, _, err := server.persistInstructionFiles(
+	instruction, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -646,157 +632,6 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, instruction, "Operating System: linux")
 	require.Contains(t, instruction, "Working Directory: /home/coder/project")
-}
-
-func TestPersistInstructionFilesFallbackOnOlderAgent(t *testing.T) {
-	t.Parallel()
-
-	// When the agent doesn't support the context-config endpoint
-	// (returns an error), the fallback path should:
-	// 1. Read instruction files from ~/.coder using LSRelativityHome
-	// 2. Discover skills from the working directory
-	// 3. Return the default skill meta file name
-
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-
-	workspaceID := uuid.New()
-	agentID := uuid.New()
-	chat := database.Chat{
-		ID: uuid.New(),
-		WorkspaceID: uuid.NullUUID{
-			UUID:  workspaceID,
-			Valid: true,
-		},
-		AgentID: uuid.NullUUID{
-			UUID:  agentID,
-			Valid: true,
-		},
-	}
-	workspaceAgent := database.WorkspaceAgent{
-		ID:                agentID,
-		OperatingSystem:   "linux",
-		Directory:         "/home/coder/project",
-		ExpandedDirectory: "/home/coder/project",
-	}
-
-	db.EXPECT().GetWorkspaceAgentByID(
-		gomock.Any(),
-		agentID,
-	).Return(workspaceAgent, nil).Times(1)
-	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(), gomock.Any()).Return(database.Chat{}, nil).AnyTimes()
-
-	conn := agentconnmock.NewMockAgentConn(ctrl)
-	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
-
-	// ContextConfig returns error — simulating an older agent.
-	conn.EXPECT().ContextConfig(gomock.Any()).Return(
-		workspacesdk.ContextConfigResponse{},
-		codersdk.NewTestError(404, "GET", "/api/v0/context-config"),
-	).Times(1)
-
-	// Fallback: readHomeInstructionFile uses LSRelativityHome
-	// to read from ~/.coder directory.
-	conn.EXPECT().LS(gomock.Any(), "",
-		gomock.Cond(func(x any) bool {
-			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityHome &&
-				len(req.Path) == 1 && req.Path[0] == ".coder"
-		}),
-	).Return(workspacesdk.LSResponse{
-		Contents: []workspacesdk.LSFile{{
-			Name:               "AGENTS.md",
-			AbsolutePathString: "/home/user/.coder/AGENTS.md",
-			IsDir:              false,
-		}},
-	}, nil).Times(1)
-
-	// ReadFile for the home instruction file.
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/user/.coder/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		io.NopCloser(strings.NewReader("# Home instructions")),
-		"",
-		nil,
-	).Times(1)
-
-	// Working directory instruction file: 404.
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		nil, "",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
-	).Times(1)
-
-	// Skills directory: fallback constructs path from working dir.
-	conn.EXPECT().LS(gomock.Any(), "",
-		gomock.Cond(func(x any) bool {
-			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityRoot &&
-				len(req.Path) == 1 && req.Path[0] == "/home/coder/project/.agents/skills"
-		}),
-	).Return(workspacesdk.LSResponse{
-		Contents: []workspacesdk.LSFile{{
-			Name:               "fallback-skill",
-			AbsolutePathString: "/home/coder/project/.agents/skills/fallback-skill",
-			IsDir:              true,
-		}},
-	}, nil).Times(1)
-
-	skillContent := "---\nname: fallback-skill\ndescription: Discovered via fallback\n---\nBody"
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/.agents/skills/fallback-skill/SKILL.md",
-		int64(0),
-		int64(64*1024+1),
-	).Return(
-		io.NopCloser(strings.NewReader(skillContent)),
-		"",
-		nil,
-	).Times(1)
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{
-		db:     db,
-		logger: logger,
-		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			return conn, func() {}, nil
-		},
-	}
-
-	chatStateMu := &sync.Mutex{}
-	currentChat := chat
-	workspaceCtx := turnWorkspaceContext{
-		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
-		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
-	}
-	t.Cleanup(workspaceCtx.close)
-
-	instruction, skills, skillMeta, err := server.persistInstructionFiles(
-		ctx,
-		chat,
-		uuid.New(),
-		workspaceCtx.getWorkspaceAgent,
-		workspaceCtx.getWorkspaceConn,
-	)
-	require.NoError(t, err)
-	// Instruction should contain the home instruction file content.
-	require.Contains(t, instruction, "Home instructions")
-	// OS and directory metadata should be present.
-	require.Contains(t, instruction, "Operating System: linux")
-	require.Contains(t, instruction, "Working Directory: /home/coder/project")
-	// Skills should be discovered from the working directory.
-	require.Len(t, skills, 1)
-	require.Equal(t, "fallback-skill", skills[0].Name)
-	// Skill meta file should be the default.
-	require.Equal(t, workspacesdk.DefaultSkillMetaFile, skillMeta)
 }
 
 func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing.T) {
@@ -818,7 +653,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	}
 
-	instruction, _, _, err := server.persistInstructionFiles(
+	instruction, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -897,68 +732,20 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
-		InstructionsDirs: []string{"/home/coder/.coder"},
-		InstructionsFile: "AGENTS.md",
-		SkillsDirs:       []string{"/home/coder/project/.agents/skills"},
-		SkillMetaFile:    "SKILL.md",
-	}, nil).AnyTimes()
-
-	// Instruction dir LS (.coder directory): return 404 so no
-	// instruction file is found from the configured dir.
-	conn.EXPECT().LS(gomock.Any(), "",
-		gomock.Cond(func(x any) bool {
-			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityRoot &&
-				len(req.Path) == 1 && req.Path[0] == "/home/coder/.coder"
-		}),
-	).Return(
-		workspacesdk.LSResponse{},
-		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).Times(1)
-
-	// Pwd AGENTS.md: return 404 so no working-directory
-	// instruction file is found either.
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		nil, "",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
-	).Times(1)
-
-	// Skills LS (.agents/skills directory): return one skill
-	// directory so DiscoverSkills finds it.
-	conn.EXPECT().LS(gomock.Any(), "",
-		gomock.Cond(func(x any) bool {
-			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityRoot &&
-				len(req.Path) == 1 && req.Path[0] == "/home/coder/project/.agents/skills"
-		}),
-	).Return(workspacesdk.LSResponse{
-		Contents: []workspacesdk.LSFile{{
-			Name:               "my-skill",
-			AbsolutePathString: "/home/coder/project/.agents/skills/my-skill",
-			IsDir:              true,
+		// Agent returns pre-read content: no instruction files
+		// found but one skill discovered.
+		Parts: []codersdk.ChatMessagePart{{
+			Type:             codersdk.ChatMessagePartTypeSkill,
+			SkillName:        "my-skill",
+			SkillDescription: "A test skill",
+			SkillDir:         "/home/coder/project/.agents/skills/my-skill",
 		}},
-	}, nil).Times(1)
-
-	// Skills SKILL.md ReadFile: return valid frontmatter.
-	skillContent := "---\nname: my-skill\ndescription: A test skill\n---\nSkill body"
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/.agents/skills/my-skill/SKILL.md",
-		int64(0),
-		int64(64*1024+1),
-	).Return(
-		io.NopCloser(strings.NewReader(skillContent)),
-		"",
-		nil,
-	).Times(1)
-
+	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:     db,
-		logger: logger,
+		db:                       db,
+		logger:                   logger,
+		instructionLookupTimeout: 5 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -974,7 +761,7 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, skills, _, err := server.persistInstructionFiles(
+	instruction, skills, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -1036,33 +823,14 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
-		InstructionsDirs: []string{"/home/coder/.coder"},
-		InstructionsFile: "AGENTS.md",
-		SkillsDirs:       []string{"/home/coder/project/.agents/skills"},
-		SkillMetaFile:    "SKILL.md",
+		// Agent returns pre-read content: no files, no skills.
+		Parts: []codersdk.ChatMessagePart{},
 	}, nil).AnyTimes()
-
-	// All LS calls return 404: no .coder directory and no
-	// .agents/skills directory.
-	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-		workspacesdk.LSResponse{},
-		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).AnyTimes()
-
-	// Pwd AGENTS.md: return 404.
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		nil, "",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
-	).Times(1)
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:     db,
-		logger: logger,
+		db:                       db,
+		logger:                   logger,
+		instructionLookupTimeout: 5 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -1078,7 +846,7 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, skills, _, err := server.persistInstructionFiles(
+	instruction, skills, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
