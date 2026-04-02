@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios";
+
 /**
  * Determines whether a workspace was auto-created by a chat.
  * Workspaces created at or after the chat's creation time are
@@ -10,6 +12,10 @@ export function isWorkspaceAutoCreated(
 	chatCreatedAt: string,
 ): boolean {
 	return new Date(workspaceCreatedAt) >= new Date(chatCreatedAt);
+}
+
+export function isWorkspaceNotFound(error: unknown): boolean {
+	return isAxiosError(error) && error.response?.status === 404;
 }
 
 /**
@@ -45,13 +51,23 @@ export function shouldNavigateAfterArchive(
  *   `created_at`.
  * @param getChatCreatedAt - Returns the chat's `created_at`
  *   timestamp, or `undefined` if the chat is not in the cache.
- * @returns `"proceed"` to skip the dialog, `"confirm"` to show it.
+ * @returns `"proceed"` to skip the dialog, `"archive"` to archive
+ *   without deleting because the workspace is already gone, or
+ *   `"confirm"` to show the dialog.
  */
 export async function resolveArchiveAndDeleteAction(
 	fetchWorkspace: () => Promise<{ created_at: string }>,
 	getChatCreatedAt: () => string | undefined,
-): Promise<"proceed" | "confirm"> {
-	const workspace = await fetchWorkspace();
+): Promise<"proceed" | "confirm" | "archive"> {
+	let workspace: { created_at: string };
+	try {
+		workspace = await fetchWorkspace();
+	} catch (error) {
+		if (isWorkspaceNotFound(error)) {
+			return "archive";
+		}
+		throw error;
+	}
 	const chatCreatedAt = getChatCreatedAt();
 	if (
 		chatCreatedAt &&

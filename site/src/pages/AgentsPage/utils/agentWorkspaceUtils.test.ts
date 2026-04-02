@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	isWorkspaceAutoCreated,
+	isWorkspaceNotFound,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./agentWorkspaceUtils";
@@ -42,6 +43,41 @@ describe("isWorkspaceAutoCreated", () => {
 	});
 });
 
+describe("isWorkspaceNotFound", () => {
+	it("returns true for Axios-style 404 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Workspace not found" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(true);
+	});
+
+	it("returns false for Axios-style non-404 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(false);
+	});
+
+	it("returns false for plain Error objects", () => {
+		expect(isWorkspaceNotFound(new Error("Workspace not found"))).toBe(false);
+	});
+
+	it("returns false for non-error values", () => {
+		expect(isWorkspaceNotFound("nope")).toBe(false);
+		expect(isWorkspaceNotFound(null)).toBe(false);
+	});
+});
+
 describe("resolveArchiveAndDeleteAction", () => {
 	it.each([
 		{
@@ -70,15 +106,42 @@ describe("resolveArchiveAndDeleteAction", () => {
 		expect(result).toBe(expected);
 	});
 
-	it("propagates workspace fetch errors", async () => {
+	it("propagates non-404 workspace fetch errors", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+
 		await expect(
 			resolveArchiveAndDeleteAction(
 				async () => {
-					throw new Error("not found");
+					throw error;
 				},
 				() => "2026-01-01T00:00:00Z",
 			),
-		).rejects.toThrow("not found");
+		).rejects.toBe(error);
+	});
+
+	it("returns archive when the workspace fetch returns 404", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Workspace not found" },
+			},
+		};
+
+		await expect(
+			resolveArchiveAndDeleteAction(
+				async () => {
+					throw error;
+				},
+				() => "2026-01-01T00:00:00Z",
+			),
+		).resolves.toBe("archive");
 	});
 });
 
