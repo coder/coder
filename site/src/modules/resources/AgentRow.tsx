@@ -97,6 +97,8 @@ const getAgentBorderClass = (
 	);
 };
 
+const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
+
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
 	subAgents,
@@ -215,14 +217,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 						alt=""
 						className="size-icon-xs shrink-0"
 					/>
-				) : logSource.display_name === "Startup Script" ? (
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
 					<PlayIcon className="size-icon-xs shrink-0" />
 				) : null,
 				title: logSource.display_name,
 				value: logSource.id,
 			}))
 			.sort((a, b) => {
-				if (a.title === "Startup Script") {
+				if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
 					return -1;
 				}
 				return a.title.localeCompare(b.title);
