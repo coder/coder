@@ -223,6 +223,8 @@ func (r *recordingBody) Close() error {
 	switch {
 	case sawEOF:
 		r.record(io.EOF)
+	case responseHasNoBody(r.base.Method, r.base.ResponseStatus):
+		r.record(nil)
 	case contentLength >= 0 && bytesRead >= contentLength:
 		r.record(nil)
 	case contentLength < 0 && !truncated && isCompleteUnknownLengthBody(responseBody):
@@ -231,6 +233,15 @@ func (r *recordingBody) Close() error {
 		r.record(io.ErrUnexpectedEOF)
 	}
 	return nil
+}
+
+func responseHasNoBody(method string, statusCode int) bool {
+	if method == http.MethodHead {
+		return true
+	}
+	return statusCode == http.StatusNoContent ||
+		statusCode == http.StatusNotModified ||
+		(statusCode >= 100 && statusCode < 200)
 }
 
 func isCompleteUnknownLengthBody(body []byte) bool {

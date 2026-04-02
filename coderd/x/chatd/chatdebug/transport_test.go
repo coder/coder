@@ -418,6 +418,37 @@ func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthSucceeds(t *te
 	require.Empty(t, attempts[0].Error)
 }
 
+func TestRecordingTransport_CloseWithoutReadingHeadResponseSucceeds(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test response exercises no-body close semantics.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"application/json"}},
+					Body:          &scriptedReadCloser{chunks: [][]byte{[]byte(`{"ignored":true}`)}},
+					ContentLength: 13,
+					Request:       req,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+}
+
 func TestRecordingTransport_CloseWithoutReadingUnknownLengthMarksFailed(t *testing.T) {
 	t.Parallel()
 
