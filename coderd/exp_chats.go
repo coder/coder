@@ -1859,6 +1859,10 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 
 	steps, err := api.Database.GetChatDebugStepsByRunID(ctx, run.ID)
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to fetch chat debug steps.",
 			Detail:  err.Error(),

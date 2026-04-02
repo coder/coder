@@ -2023,6 +2023,40 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size` | integer | false    |              |             |
 
+## codersdk.ChatDebugAttempt
+
+```json
+{
+  "attempt_number": 0,
+  "duration_ms": 0,
+  "error": [
+    0
+  ],
+  "finished_at": "2019-08-24T14:15:22Z",
+  "raw_request": [
+    0
+  ],
+  "raw_response": [
+    0
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "string"
+}
+```
+
+### Properties
+
+| Name             | Type             | Required | Restrictions | Description |
+|------------------|------------------|----------|--------------|-------------|
+| `attempt_number` | integer          | false    |              |             |
+| `duration_ms`    | integer          | false    |              |             |
+| `error`          | array of integer | false    |              |             |
+| `finished_at`    | string           | false    |              |             |
+| `raw_request`    | array of integer | false    |              |             |
+| `raw_response`   | array of integer | false    |              |             |
+| `started_at`     | string           | false    |              |             |
+| `status`         | string           | false    |              |             |
+
 ## codersdk.ChatDebugRun
 
 ```json
@@ -2043,7 +2077,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "assistant_message_id": 0,
       "attempts": [
-        0
+        {
+          "attempt_number": 0,
+          "duration_ms": 0,
+          "error": [
+            0
+          ],
+          "finished_at": "2019-08-24T14:15:22Z",
+          "raw_request": [
+            0
+          ],
+          "raw_response": [
+            0
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "string"
+        }
       ],
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "error": [
@@ -2157,7 +2206,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "assistant_message_id": 0,
   "attempts": [
-    0
+    {
+      "attempt_number": 0,
+      "duration_ms": 0,
+      "error": [
+        0
+      ],
+      "finished_at": "2019-08-24T14:15:22Z",
+      "raw_request": [
+        0
+      ],
+      "raw_response": [
+        0
+      ],
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "string"
+    }
   ],
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "error": [
@@ -2189,25 +2253,25 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                     | Type             | Required | Restrictions | Description |
-|--------------------------|------------------|----------|--------------|-------------|
-| `assistant_message_id`   | integer          | false    |              |             |
-| `attempts`               | array of integer | false    |              |             |
-| `chat_id`                | string           | false    |              |             |
-| `error`                  | array of integer | false    |              |             |
-| `finished_at`            | string           | false    |              |             |
-| `history_tip_message_id` | integer          | false    |              |             |
-| `id`                     | string           | false    |              |             |
-| `metadata`               | array of integer | false    |              |             |
-| `normalized_request`     | array of integer | false    |              |             |
-| `normalized_response`    | array of integer | false    |              |             |
-| `operation`              | string           | false    |              |             |
-| `run_id`                 | string           | false    |              |             |
-| `started_at`             | string           | false    |              |             |
-| `status`                 | string           | false    |              |             |
-| `step_number`            | integer          | false    |              |             |
-| `updated_at`             | string           | false    |              |             |
-| `usage`                  | array of integer | false    |              |             |
+| Name                     | Type                                                            | Required | Restrictions | Description |
+|--------------------------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `assistant_message_id`   | integer                                                         | false    |              |             |
+| `attempts`               | array of [codersdk.ChatDebugAttempt](#codersdkchatdebugattempt) | false    |              |             |
+| `chat_id`                | string                                                          | false    |              |             |
+| `error`                  | array of integer                                                | false    |              |             |
+| `finished_at`            | string                                                          | false    |              |             |
+| `history_tip_message_id` | integer                                                         | false    |              |             |
+| `id`                     | string                                                          | false    |              |             |
+| `metadata`               | array of integer                                                | false    |              |             |
+| `normalized_request`     | array of integer                                                | false    |              |             |
+| `normalized_response`    | array of integer                                                | false    |              |             |
+| `operation`              | string                                                          | false    |              |             |
+| `run_id`                 | string                                                          | false    |              |             |
+| `started_at`             | string                                                          | false    |              |             |
+| `status`                 | string                                                          | false    |              |             |
+| `step_number`            | integer                                                         | false    |              |             |
+| `updated_at`             | string                                                          | false    |              |             |
+| `usage`                  | array of integer                                                | false    |              |             |
 
 ## codersdk.ConnectionLatency
 

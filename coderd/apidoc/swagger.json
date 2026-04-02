@@ -13144,6 +13144,46 @@
 				}
 			}
 		},
+		"codersdk.ChatDebugAttempt": {
+			"type": "object",
+			"properties": {
+				"attempt_number": {
+					"type": "integer"
+				},
+				"duration_ms": {
+					"type": "integer"
+				},
+				"error": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"finished_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"raw_request": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"raw_response": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"started_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.ChatDebugRun": {
 			"type": "object",
 			"properties": {
@@ -13274,7 +13314,7 @@
 				"attempts": {
 					"type": "array",
 					"items": {
-						"type": "integer"
+						"$ref": "#/definitions/codersdk.ChatDebugAttempt"
 					}
 				},
 				"chat_id": {
