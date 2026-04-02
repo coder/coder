@@ -20,7 +20,6 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
-	BarChart3Icon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
@@ -40,11 +39,11 @@ import {
 	PinIcon,
 	PinOffIcon,
 	SettingsIcon,
-	ShieldAlertIcon,
 	ShieldIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
+	WalletIcon,
 	WandSparklesIcon,
 } from "lucide-react";
 import {
@@ -1303,24 +1302,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									adminOnly
 								/>
 								<SettingsNavItem
-									icon={ShieldAlertIcon}
-									label="Limits"
-									active={sidebarView.section === "limits"}
-									to="/agents/settings/limits"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={BarChart3Icon}
-									label="Usage"
-									active={sidebarView.section === "usage"}
-									to="/agents/settings/usage"
+									icon={WalletIcon}
+									label="Spend"
+									active={sidebarView.section === "spend"}
+									to="/agents/settings/spend"
 									state={location.state}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={WandSparklesIcon}
-									label="Analytics"
+									label="Insights"
 									active={sidebarView.section === "insights"}
 									to="/agents/settings/insights"
 									state={location.state}

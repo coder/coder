@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { AgentSettingsUsagePageView } from "./AgentSettingsUsagePageView";
+import { AgentSettingsSpendPageView } from "./AgentSettingsSpendPageView";
+
+// ── Mock data ──────────────────────────────────────────────────
 
 const mockUsers: TypesGen.ChatCostUserRollup[] = [
 	{
@@ -41,7 +43,7 @@ const mockUsersResponse: TypesGen.ChatCostUsersResponse = {
 	users: mockUsers,
 };
 
-const mockUserProfile: TypesGen.User = {
+const mockUserProfile = {
 	id: "user-1",
 	username: "alice",
 	name: "Alice Liddell",
@@ -55,9 +57,9 @@ const mockUserProfile: TypesGen.User = {
 	last_seen_at: "2026-03-11T10:00:00Z",
 	login_type: "password",
 	has_ai_seat: false,
-};
+} as TypesGen.User;
 
-const mockCostSummary: TypesGen.ChatCostSummary = {
+const mockCostSummary = {
 	start_date: "2026-02-10T00:00:00Z",
 	end_date: "2026-03-12T00:00:00Z",
 	total_cost_micros: 2_500_000,
@@ -96,14 +98,97 @@ const mockCostSummary: TypesGen.ChatCostSummary = {
 			total_runtime_ms: 0,
 		},
 	],
-};
+} as TypesGen.ChatCostSummary;
+
+const mockConfigData = {
+	spend_limit_micros: 50_000_000,
+	period: "month",
+	updated_at: "2026-03-01T00:00:00Z",
+	unpriced_model_count: 0,
+	overrides: [
+		{
+			user_id: "user-3",
+			username: "dave",
+			name: "Dave Grohl",
+			avatar_url: "",
+			spend_limit_micros: 100_000_000,
+		},
+		{
+			user_id: "user-3",
+			username: "charlie",
+			name: "Charlie Chaplin",
+			avatar_url: "",
+			spend_limit_micros: 25_000_000,
+		},
+	],
+	group_overrides: [
+		{
+			group_id: "group-1",
+			group_name: "engineering",
+			group_display_name: "Engineering",
+			group_avatar_url: "",
+			member_count: 12,
+			spend_limit_micros: 75_000_000,
+		},
+	],
+} as TypesGen.ChatUsageLimitConfigResponse;
+
+const mockGroups = [
+	{
+		id: "group-1",
+		name: "engineering",
+		display_name: "Engineering",
+		organization_id: "org-1",
+		members: [],
+		total_member_count: 12,
+		avatar_url: "",
+		quota_allowance: 0,
+		source: "user",
+		organization_name: "default",
+		organization_display_name: "Default",
+	},
+	{
+		id: "group-2",
+		name: "design",
+		display_name: "Design",
+		organization_id: "org-1",
+		members: [],
+		total_member_count: 5,
+		avatar_url: "",
+		quota_allowance: 0,
+		source: "user",
+		organization_name: "default",
+		organization_display_name: "Default",
+	},
+] as TypesGen.Group[];
 
 const defaultDateRange = {
 	startDate: new Date("2026-02-10T00:00:00Z"),
 	endDate: new Date("2026-03-12T00:00:00Z"),
 };
 
+// Baseline props shared across stories. Only primitives and simple
+// objects here to avoid the composeStory deep-merge hang.
 const baseProps = {
+	// Limits config.
+	configData: undefined as TypesGen.ChatUsageLimitConfigResponse | undefined,
+	isLoadingConfig: false,
+	configError: null as Error | null,
+	groupsData: undefined as TypesGen.Group[] | undefined,
+	isLoadingGroups: false,
+	groupsError: null as Error | null,
+	isUpdatingConfig: false,
+	updateConfigError: null as Error | null,
+	isUpdateConfigSuccess: false,
+	isUpsertingOverride: false,
+	upsertOverrideError: null as Error | null,
+	isDeletingOverride: false,
+	deleteOverrideError: null as Error | null,
+	isUpsertingGroupOverride: false,
+	upsertGroupOverrideError: null as Error | null,
+	isDeletingGroupOverride: false,
+	deleteGroupOverrideError: null as Error | null,
+	// Usage data.
 	dateRange: defaultDateRange,
 	hasExplicitDateRange: false,
 	searchFilter: "",
@@ -124,10 +209,17 @@ const baseProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsUsagePageView",
-	component: AgentSettingsUsagePageView,
+	title: "pages/AgentsPage/AgentSettingsSpendPageView",
+	component: AgentSettingsSpendPageView,
 	args: {
 		...baseProps,
+		refetchConfig: fn(),
+		onUpdateConfig: fn(),
+		resetUpdateConfig: fn(),
+		onUpsertOverride: fn(),
+		onDeleteOverride: fn(),
+		onUpsertGroupOverride: fn(),
+		onDeleteGroupOverride: fn(),
 		onDateRangeChange: fn(),
 		onSearchFilterChange: fn(),
 		onPageChange: fn(),
@@ -137,65 +229,43 @@ const meta = {
 		onSelectUser: fn(),
 		onSummaryRetry: fn(),
 	},
-} satisfies Meta<typeof AgentSettingsUsagePageView>;
+} satisfies Meta<typeof AgentSettingsSpendPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsUsagePageView>;
+type Story = StoryObj<typeof AgentSettingsSpendPageView>;
 
-export const UsageUserList: Story = {
+// ── Stories ────────────────────────────────────────────────────
+
+export const SpendWithLimitsAndUsers: Story = {
 	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
 		usersData: mockUsersResponse,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Usage");
+		// The header and all three collapsible sections should render.
+		await canvas.findByText("Spend management");
+		await expect(canvas.getByText("Default spend limit")).toBeInTheDocument();
+		await expect(canvas.getByText("Group limits")).toBeInTheDocument();
+		await expect(canvas.getByText("Per-user spend")).toBeInTheDocument();
+
+		// User table rows should be visible.
 		await expect(await canvas.findByText("Alice Liddell")).toBeInTheDocument();
 		await expect(canvas.getByText("Bob Builder")).toBeInTheDocument();
+
+		// Search field should be present.
 		await expect(
 			canvas.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
 	},
 };
 
-export const UsageDateFilter: Story = {
+export const SpendUsersEmpty: Story = {
 	args: {
-		usersData: mockUsersResponse,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByText("Usage");
-
-		// The date range picker trigger should be visible.
-		const datePickerTrigger = await canvas.findByRole("button", {
-			name: /Feb.*Mar/,
-		});
-		expect(datePickerTrigger).toBeInTheDocument();
-	},
-};
-
-export const UsageDateFilterRefetchOverlay: Story = {
-	args: {
-		usersData: mockUsersResponse,
-		isUsersFetching: true,
-		isUsersLoading: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// Table data should be visible behind the overlay.
-		await canvas.findByText("Alice Liddell");
-
-		// The refetch overlay spinner should be shown.
-		await expect(
-			await canvas.findByRole("status", { name: "Refreshing usage" }),
-		).toBeInTheDocument();
-	},
-};
-
-export const UsageEmpty: Story = {
-	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
 		usersData: {
 			start_date: "2026-02-10T00:00:00Z",
 			end_date: "2026-03-12T00:00:00Z",
@@ -206,15 +276,17 @@ export const UsageEmpty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Usage");
+		await canvas.findByText("Spend management");
 		await expect(
 			await canvas.findByText("No usage data for this period."),
 		).toBeInTheDocument();
 	},
 };
 
-export const UsageUserDrillIn: Story = {
+export const SpendUserDrillIn: Story = {
 	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
 		selectedUserId: "user-1",
 		selectedUser: mockUserProfile,
 		summaryData: mockCostSummary,
@@ -232,8 +304,10 @@ export const UsageUserDrillIn: Story = {
 	},
 };
 
-export const UsageUserDrillInAndBack: Story = {
+export const SpendUserDrillInAndBack: Story = {
 	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
 		selectedUserId: "user-1",
 		selectedUser: mockUserProfile,
 		summaryData: mockCostSummary,
@@ -248,5 +322,32 @@ export const UsageUserDrillInAndBack: Story = {
 
 		// The onClearSelectedUser callback should have been called.
 		expect(args.onClearSelectedUser).toHaveBeenCalled();
+	},
+};
+
+export const SpendRefetchOverlay: Story = {
+	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
+		usersData: mockUsersResponse,
+		isUsersFetching: true,
+		isUsersLoading: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Table data should be visible behind the overlay.
+		await canvas.findByText("Alice Liddell");
+
+		// The refetch overlay spinner should be shown.
+		await expect(
+			await canvas.findByRole("status", { name: "Refreshing usage" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpendConfigLoading: Story = {
+	args: {
+		isLoadingConfig: true,
 	},
 };

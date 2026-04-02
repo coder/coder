@@ -25,6 +25,7 @@ import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {
+	hideHeader?: boolean;
 	groupOverrides: ReadonlyArray<{
 		group_id: string;
 		group_display_name: string;
@@ -62,6 +63,7 @@ interface GroupLimitsSectionProps {
 }
 
 export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
+	hideHeader,
 	groupOverrides,
 	showGroupForm,
 	onShowGroupFormChange,
@@ -91,10 +93,12 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 
 	return (
 		<section className="space-y-4">
-			<SectionHeader
-				label="Group Limits"
-				description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
-			/>
+			{!hideHeader && (
+				<SectionHeader
+					label="Group Limits"
+					description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
+				/>
+			)}
 			<div className="space-y-4">
 				{groupOverrides.length > 0 ? (
 					<Table>
