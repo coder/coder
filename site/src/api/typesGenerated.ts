@@ -1357,15 +1357,18 @@ export interface ChatCostUsersResponse {
 // From codersdk/chats.go
 /**
  * ChatDebugAttempt is a single LLM attempt within a step.
- * Kept opaque for now — the attempts field on ChatDebugStep
- * is json.RawMessage.
+ * Keep raw payloads untyped so generated clients preserve arbitrary JSON
+ * instead of narrowing them to string-only maps.
  */
 export interface ChatDebugAttempt {
 	readonly attempt_number: number;
 	readonly status: string;
-	readonly raw_request?: Record<string, string>;
-	readonly raw_response?: Record<string, string>;
-	readonly error?: Record<string, string>;
+	// empty interface{} type, falling back to unknown
+	readonly raw_request?: unknown;
+	// empty interface{} type, falling back to unknown
+	readonly raw_response?: unknown;
+	// empty interface{} type, falling back to unknown
+	readonly error?: unknown;
 	readonly duration_ms?: number;
 	readonly started_at: string;
 	readonly finished_at?: string;
@@ -1378,7 +1381,8 @@ export interface ChatDebugAttempt {
  */
 export interface ChatDebugEvent {
 	readonly type: string;
-	readonly data: Record<string, string>;
+	// empty interface{} type, falling back to unknown
+	readonly data: unknown;
 }
 
 // From codersdk/chats.go

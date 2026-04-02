@@ -549,24 +549,24 @@ type ChatDebugStep struct {
 }
 
 // ChatDebugAttempt is a single LLM attempt within a step.
-// Kept opaque for now — the attempts field on ChatDebugStep
-// is json.RawMessage.
+// Keep raw payloads untyped so generated clients preserve arbitrary JSON
+// instead of narrowing them to string-only maps.
 type ChatDebugAttempt struct {
-	AttemptNumber int32            `json:"attempt_number"`
-	Status        string           `json:"status"`
-	RawRequest    *json.RawMessage `json:"raw_request,omitempty"`
-	RawResponse   *json.RawMessage `json:"raw_response,omitempty"`
-	Error         *json.RawMessage `json:"error,omitempty"`
-	DurationMs    *int64           `json:"duration_ms,omitempty"`
-	StartedAt     time.Time        `json:"started_at" format:"date-time"`
-	FinishedAt    *time.Time       `json:"finished_at,omitempty" format:"date-time"`
+	AttemptNumber int32      `json:"attempt_number"`
+	Status        string     `json:"status"`
+	RawRequest    any        `json:"raw_request,omitempty"`
+	RawResponse   any        `json:"raw_response,omitempty"`
+	Error         any        `json:"error,omitempty"`
+	DurationMs    *int64     `json:"duration_ms,omitempty"`
+	StartedAt     time.Time  `json:"started_at" format:"date-time"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty" format:"date-time"`
 }
 
 // ChatDebugEvent is a forward-compatible SSE event type for future
 // live debug streaming. No transport is wired in this phase.
 type ChatDebugEvent struct {
-	Type string          `json:"type"`
-	Data json.RawMessage `json:"data"`
+	Type string `json:"type"`
+	Data any    `json:"data"`
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
