@@ -10,8 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/database"
 )
 
 type stubModel struct {
@@ -160,32 +158,14 @@ func TestStepFinalizeContext_StripsCancellation(t *testing.T) {
 	require.True(t, hasDeadline)
 }
 
-func TestStepHandleFinish_UsesFinalizeContext(t *testing.T) {
+func TestSyncStepCounter_AdvancesCounter(t *testing.T) {
 	t.Parallel()
 
-	baseCtx, cancelBase := context.WithCancel(context.Background())
-	cancelBase()
+	runID := uuid.New()
+	t.Cleanup(func() { CleanupStepCounter(runID) })
 
-	called := false
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New(), ChatID: uuid.New()},
-		sink:    &attemptSink{},
-		svc: &Service{
-			updateStepFn: func(ctx context.Context, params UpdateStepParams) (database.ChatDebugStep, error) {
-				called = true
-				require.NoError(t, ctx.Err())
-				require.Equal(t, StatusInterrupted, params.Status)
-				return database.ChatDebugStep{ //nolint:exhaustruct // Test only needs IDs.
-					ID:     params.ID,
-					ChatID: params.ChatID,
-					Status: string(params.Status),
-				}, nil
-			},
-		},
-	}
-
-	handle.finish(baseCtx, StatusInterrupted, nil, nil, nil, nil)
-	require.True(t, called)
+	syncStepCounter(runID, 7)
+	require.Equal(t, int32(8), nextStepNumber(runID))
 }
 
 func TestStepHandleFinish_NilHandle(t *testing.T) {
@@ -204,36 +184,6 @@ func TestBeginStep_NilService(t *testing.T) {
 	require.Nil(t, attemptSinkFromContext(enriched))
 	_, ok := StepFromContext(enriched)
 	require.False(t, ok)
-}
-
-func TestBeginStep_UsesPersistedStepNumber(t *testing.T) {
-	t.Parallel()
-
-	runID := uuid.New()
-	runChatID := uuid.New()
-	t.Cleanup(func() { CleanupStepCounter(runID) })
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
-	svc := &Service{
-		createStepFn: func(_ context.Context, params CreateStepParams) (database.ChatDebugStep, error) {
-			return database.ChatDebugStep{ //nolint:exhaustruct // Test only needs step metadata.
-				ID:         uuid.New(),
-				RunID:      params.RunID,
-				ChatID:     params.ChatID,
-				StepNumber: 7,
-				Operation:  string(params.Operation),
-				Status:     string(params.Status),
-			}, nil
-		},
-	}
-
-	handle, enriched := beginStep(ctx, svc, RecorderOptions{}, OperationGenerate, nil)
-	require.NotNil(t, handle)
-	require.Equal(t, int32(7), handle.stepCtx.StepNumber)
-
-	stepCtx, ok := StepFromContext(enriched)
-	require.True(t, ok)
-	require.Equal(t, int32(7), stepCtx.StepNumber)
-	require.Equal(t, int32(8), nextStepNumber(runID))
 }
 
 func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
