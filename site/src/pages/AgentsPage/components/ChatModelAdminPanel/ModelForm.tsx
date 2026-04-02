@@ -1,11 +1,5 @@
 import { useFormik } from "formik";
-import {
-	ChevronDownIcon,
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, InfoIcon, PencilIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -41,6 +35,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
+import { CollapsibleSection } from "../CollapsibleSection";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
@@ -116,9 +111,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 }) => {
 	const isEditing = Boolean(editingModel);
 	const isDefaultModel = isEditing && editingModel?.is_default === true;
-	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [showPricing, setShowPricing] = useState(false);
-	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
@@ -488,151 +480,104 @@ export const ModelForm: FC<ModelFormProps> = ({
 					</div>
 
 					{/* Usage Tracking */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowPricing((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Cost Tracking{" "}
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Set per-token pricing so Coder can track costs and enforce
-									spending limits.
-								</p>
-							</div>
-							{showPricing ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showPricing && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
-								<PricingModelConfigFields
-									provider={selectedProviderState.provider}
-									form={form}
-									fieldErrors={modelConfigFormBuildResult.fieldErrors}
-									disabled={isSaving}
-								/>
-							</div>
-						)}
-					</div>
+					<CollapsibleSection
+						variant="inline"
+						title="Cost Tracking"
+						description="Set per-token pricing so Coder can track costs and enforce spending limits."
+						defaultOpen={false}
+					>
+						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+							{" "}
+							<PricingModelConfigFields
+								provider={selectedProviderState.provider}
+								form={form}
+								fieldErrors={modelConfigFormBuildResult.fieldErrors}
+								disabled={isSaving}
+							/>
+						</div>
+					</CollapsibleSection>
 
 					{/* Provider Configuration */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowProviderConfig((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Provider Configuration
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Tune provider-specific behavior like reasoning, tool calling,
-									and web search.
-								</p>
-							</div>
-							{showProviderConfig ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showProviderConfig && (
-							<div className="pt-3">
-								<ModelConfigFields
-									provider={selectedProviderState.provider}
-									form={form}
-									fieldErrors={modelConfigFormBuildResult.fieldErrors}
-									disabled={isSaving}
-								/>
-							</div>
-						)}
-					</div>
+					<CollapsibleSection
+						variant="inline"
+						title="Provider Configuration"
+						description="Tune provider-specific behavior like reasoning, tool calling, and web search."
+						defaultOpen={false}
+					>
+						<div>
+							{" "}
+							<ModelConfigFields
+								provider={selectedProviderState.provider}
+								form={form}
+								fieldErrors={modelConfigFormBuildResult.fieldErrors}
+								disabled={isSaving}
+							/>
+						</div>
+					</CollapsibleSection>
 
 					{/* Advanced */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowAdvanced((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Advanced
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Low-level parameters like temperature and penalties. Rarely
-									need changing.
-								</p>
-							</div>
-							{showAdvanced ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showAdvanced && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
-								<GeneralModelConfigFields
-									provider={selectedProviderState.provider}
-									form={form}
-									fieldErrors={modelConfigFormBuildResult.fieldErrors}
-									disabled={isSaving}
-								/>
-								<div className="flex min-w-0 flex-col gap-1.5">
-									<Label
-										htmlFor={compressionThresholdField.id}
-										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
-									>
-										Compression Threshold
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<InfoIcon className="h-3 w-3 text-content-secondary" />
-											</TooltipTrigger>
-											<TooltipContent side="top" className="max-w-[240px]">
-												Percentage at which context is compressed.
-											</TooltipContent>
-										</Tooltip>
-									</Label>
-									<InputGroup
-										className={cn(
-											"h-9",
-											compressionThresholdField.error &&
-												"border-border-destructive",
-										)}
-									>
-										<InputGroupInput
-											id={compressionThresholdField.id}
-											name={compressionThresholdField.name}
-											className="h-9 text-[13px] placeholder:text-content-disabled"
-											placeholder="70"
-											value={compressionThresholdField.value}
-											onChange={compressionThresholdField.onChange}
-											onBlur={compressionThresholdField.onBlur}
-											disabled={isSaving}
-											aria-invalid={compressionThresholdField.error}
-										/>
-										<InputGroupAddon align="inline-end">
-											<span className="text-xs text-content-disabled">%</span>
-										</InputGroupAddon>
-									</InputGroup>
-									{compressionThresholdField.error && (
-										<p className="m-0 text-xs text-content-destructive">
-											{compressionThresholdField.helperText}
-										</p>
+					<CollapsibleSection
+						variant="inline"
+						title="Advanced"
+						description="Low-level parameters like temperature and penalties. Rarely need changing."
+						defaultOpen={false}
+					>
+						<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+							{" "}
+							<GeneralModelConfigFields
+								provider={selectedProviderState.provider}
+								form={form}
+								fieldErrors={modelConfigFormBuildResult.fieldErrors}
+								disabled={isSaving}
+							/>
+							<div className="flex min-w-0 flex-col gap-1.5">
+								<Label
+									htmlFor={compressionThresholdField.id}
+									className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+								>
+									Compression Threshold
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="h-3 w-3 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-[240px]">
+											Percentage at which context is compressed.
+										</TooltipContent>
+									</Tooltip>
+								</Label>
+								<InputGroup
+									className={cn(
+										"h-9",
+										compressionThresholdField.error &&
+											"border-border-destructive",
 									)}
-								</div>
+								>
+									<InputGroupInput
+										id={compressionThresholdField.id}
+										name={compressionThresholdField.name}
+										className="h-9 text-[13px] placeholder:text-content-disabled"
+										placeholder="70"
+										value={compressionThresholdField.value}
+										onChange={compressionThresholdField.onChange}
+										onBlur={compressionThresholdField.onBlur}
+										disabled={isSaving}
+										aria-invalid={compressionThresholdField.error}
+									/>
+									<InputGroupAddon align="inline-end">
+										<span className="text-xs text-content-disabled">%</span>
+									</InputGroupAddon>
+								</InputGroup>
+								{compressionThresholdField.error && (
+									<p className="m-0 text-xs text-content-destructive">
+										{compressionThresholdField.helperText}
+									</p>
+								)}
 							</div>
-						)}
-					</div>
+						</div>
+					</CollapsibleSection>
 				</div>
 				<div className="mt-auto py-6">
+					{" "}
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">
 						{isEditing && editingModel && onDeleteModel ? (
