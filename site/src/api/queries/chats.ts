@@ -774,6 +774,24 @@ export const updateChatUserDebugLogging = (queryClient: QueryClient) => ({
 	},
 });
 
+const debugRunTerminalStatuses = new Set([
+	"completed",
+	"error",
+	"failed",
+	"interrupted",
+	"cancelled",
+	"canceled",
+]);
+
+const debugRunRefetchInterval = (
+	run: Pick<TypesGen.ChatDebugRun, "status"> | undefined,
+): number | false => {
+	if (run?.status && debugRunTerminalStatuses.has(run.status.toLowerCase())) {
+		return false;
+	}
+	return 5_000;
+};
+
 export const chatDebugRunsKey = (chatId: string) =>
 	["chats", chatId, "debug-runs"] as const;
 
@@ -790,7 +808,8 @@ const chatDebugRunKey = (chatId: string, runId: string) =>
 export const chatDebugRun = (chatId: string, runId: string) => ({
 	queryKey: chatDebugRunKey(chatId, runId),
 	queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
-	refetchInterval: 5_000,
+	refetchInterval: (run: TypesGen.ChatDebugRun | undefined) =>
+		debugRunRefetchInterval(run),
 	refetchIntervalInBackground: false,
 });
 
