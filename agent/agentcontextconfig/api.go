@@ -29,16 +29,17 @@ const (
 // API exposes the resolved context configuration through the
 // agent's HTTP API.
 type API struct {
-	config workspacesdk.ContextConfigResponse
+	workingDir func() string
 }
 
-// NewAPI reads context configuration from environment variables,
-// resolves all paths relative to workingDir, and returns an API
-// handler that serves the result.
-func NewAPI(workingDir string) *API {
-	return &API{
-		config: Config(workingDir),
+// NewAPI accepts a closure that returns the working directory.
+// The directory is evaluated lazily on each call to Config(),
+// so the caller can update it after construction.
+func NewAPI(workingDir func() string) *API {
+	if workingDir == nil {
+		workingDir = func() string { return "" }
 	}
+	return &API{workingDir: workingDir}
 }
 
 // Config reads env vars and resolves paths. Exported for use
@@ -67,7 +68,7 @@ func Config(workingDir string) workspacesdk.ContextConfigResponse {
 // Config returns the resolved config for use by other agent
 // components (e.g. MCP manager).
 func (api *API) Config() workspacesdk.ContextConfigResponse {
-	return api.config
+	return Config(api.workingDir())
 }
 
 // Routes returns the HTTP handler for the context config
@@ -79,5 +80,5 @@ func (api *API) Routes() http.Handler {
 }
 
 func (api *API) handleGet(rw http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), rw, http.StatusOK, api.config)
+	httpapi.Write(r.Context(), rw, http.StatusOK, api.Config())
 }
