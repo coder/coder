@@ -1,9 +1,4 @@
-import {
-	ArchiveIcon,
-	CircleAlertIcon,
-	CircleIcon,
-	LoaderIcon,
-} from "lucide-react";
+import { ArchiveIcon, CircleAlertIcon, LoaderIcon } from "lucide-react";
 import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -255,31 +250,29 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		const effectiveType = workspace.health.healthy ? type : "warning";
 		// Small status icon — shape communicates state so the
 		// indicator doesn't rely on color alone.
-		const iconCls = "size-2.5 shrink-0";
+		const dotCls = "size-1.5 shrink-0 rounded-full";
 		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
-			success: (
-				<CircleIcon
-					className={cn(iconCls, "fill-current text-content-success/60")}
-				/>
-			),
+			success: <span className={cn(dotCls, "bg-content-success/60")} />,
 			active: (
-				<LoaderIcon
-					className={cn(iconCls, "animate-spin text-content-secondary")}
-				/>
+				<LoaderIcon className="size-2.5 shrink-0 animate-spin text-content-secondary" />
 			),
 			inactive: (
-				<CircleIcon className={cn(iconCls, "text-content-secondary/50")} />
+				<span
+					className={cn(
+						dotCls,
+						"border border-current text-content-secondary/50",
+					)}
+				/>
 			),
 			error: (
-				<CircleAlertIcon className={cn(iconCls, "text-content-destructive")} />
+				<CircleAlertIcon className="size-2.5 shrink-0 text-content-destructive" />
 			),
 			danger: (
-				<CircleAlertIcon className={cn(iconCls, "text-content-warning")} />
+				<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
 			),
-			warning: (
-				<CircleAlertIcon className={cn(iconCls, "text-content-warning")} />
-			),
-		};
+				warning: (
+					<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
+				),		};
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
