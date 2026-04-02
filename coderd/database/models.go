@@ -224,6 +224,11 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
+	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
+	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
+	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	ApiKeyScopeChatAutomation                      APIKeyScope = "chat_automation:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +472,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatAutomation:
 		return true
 	}
 	return false
@@ -680,6 +690,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatAutomation,
 	}
 }
 
@@ -1104,6 +1119,198 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonTaskAutoPause,
 		BuildReasonTaskManualPause,
 		BuildReasonTaskResume,
+	}
+}
+
+// Outcome of a chat automation event: filtered, preview, created, continued, rate_limited, or error.
+type ChatAutomationEventStatus string
+
+const (
+	ChatAutomationEventStatusFiltered    ChatAutomationEventStatus = "filtered"
+	ChatAutomationEventStatusPreview     ChatAutomationEventStatus = "preview"
+	ChatAutomationEventStatusCreated     ChatAutomationEventStatus = "created"
+	ChatAutomationEventStatusContinued   ChatAutomationEventStatus = "continued"
+	ChatAutomationEventStatusRateLimited ChatAutomationEventStatus = "rate_limited"
+	ChatAutomationEventStatusError       ChatAutomationEventStatus = "error"
+)
+
+func (e *ChatAutomationEventStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationEventStatus(s)
+	case string:
+		*e = ChatAutomationEventStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationEventStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationEventStatus struct {
+	ChatAutomationEventStatus ChatAutomationEventStatus `json:"chat_automation_event_status"`
+	Valid                     bool                      `json:"valid"` // Valid is true if ChatAutomationEventStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationEventStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationEventStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationEventStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationEventStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationEventStatus), nil
+}
+
+func (e ChatAutomationEventStatus) Valid() bool {
+	switch e {
+	case ChatAutomationEventStatusFiltered,
+		ChatAutomationEventStatusPreview,
+		ChatAutomationEventStatusCreated,
+		ChatAutomationEventStatusContinued,
+		ChatAutomationEventStatusRateLimited,
+		ChatAutomationEventStatusError:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationEventStatusValues() []ChatAutomationEventStatus {
+	return []ChatAutomationEventStatus{
+		ChatAutomationEventStatusFiltered,
+		ChatAutomationEventStatusPreview,
+		ChatAutomationEventStatusCreated,
+		ChatAutomationEventStatusContinued,
+		ChatAutomationEventStatusRateLimited,
+		ChatAutomationEventStatusError,
+	}
+}
+
+// Lifecycle state of a chat automation: disabled, preview, or active.
+type ChatAutomationStatus string
+
+const (
+	ChatAutomationStatusDisabled ChatAutomationStatus = "disabled"
+	ChatAutomationStatusPreview  ChatAutomationStatus = "preview"
+	ChatAutomationStatusActive   ChatAutomationStatus = "active"
+)
+
+func (e *ChatAutomationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationStatus(s)
+	case string:
+		*e = ChatAutomationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationStatus struct {
+	ChatAutomationStatus ChatAutomationStatus `json:"chat_automation_status"`
+	Valid                bool                 `json:"valid"` // Valid is true if ChatAutomationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationStatus), nil
+}
+
+func (e ChatAutomationStatus) Valid() bool {
+	switch e {
+	case ChatAutomationStatusDisabled,
+		ChatAutomationStatusPreview,
+		ChatAutomationStatusActive:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationStatusValues() []ChatAutomationStatus {
+	return []ChatAutomationStatus{
+		ChatAutomationStatusDisabled,
+		ChatAutomationStatusPreview,
+		ChatAutomationStatusActive,
+	}
+}
+
+// Discriminator for chat automation triggers: webhook or cron.
+type ChatAutomationTriggerType string
+
+const (
+	ChatAutomationTriggerTypeWebhook ChatAutomationTriggerType = "webhook"
+	ChatAutomationTriggerTypeCron    ChatAutomationTriggerType = "cron"
+)
+
+func (e *ChatAutomationTriggerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationTriggerType(s)
+	case string:
+		*e = ChatAutomationTriggerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationTriggerType: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationTriggerType struct {
+	ChatAutomationTriggerType ChatAutomationTriggerType `json:"chat_automation_trigger_type"`
+	Valid                     bool                      `json:"valid"` // Valid is true if ChatAutomationTriggerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationTriggerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationTriggerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationTriggerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationTriggerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationTriggerType), nil
+}
+
+func (e ChatAutomationTriggerType) Valid() bool {
+	switch e {
+	case ChatAutomationTriggerTypeWebhook,
+		ChatAutomationTriggerTypeCron:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationTriggerTypeValues() []ChatAutomationTriggerType {
+	return []ChatAutomationTriggerType{
+		ChatAutomationTriggerTypeWebhook,
+		ChatAutomationTriggerTypeCron,
 	}
 }
 
@@ -4178,6 +4385,76 @@ type Chat struct {
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	AutomationID        uuid.NullUUID         `db:"automation_id" json:"automation_id"`
+}
+
+// Chat automations bridge external events (webhooks, cron schedules) to Coder chats. A chat automation defines what to say, which model and tools to use, and how fast it is allowed to create or continue chats.
+type ChatAutomation struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// The user on whose behalf chats are created. All RBAC checks and chat ownership are scoped to this user.
+	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+	// Organization scope for RBAC. Combined with owner_id and name to form a unique constraint so automations are namespaced per user per org.
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	// The user-role message injected into every chat this automation creates. This is the core prompt that tells the LLM what to do.
+	Instructions string `db:"instructions" json:"instructions"`
+	// Optional model configuration override. When NULL the deployment default is used. SET NULL on delete so automations survive config changes gracefully.
+	ModelConfigID uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
+	// MCP servers to attach to chats created by this automation. Stored as an array of UUIDs rather than a join table because the set is small and always read/written atomically.
+	MCPServerIDs []uuid.UUID `db:"mcp_server_ids" json:"mcp_server_ids"`
+	// Tool allowlist. Empty means all tools available to the model config are permitted.
+	AllowedTools []string `db:"allowed_tools" json:"allowed_tools"`
+	// Lifecycle state: disabled — trigger events are silently dropped; preview — events are logged but no chat is created (dry-run); active — events create or continue chats.
+	Status ChatAutomationStatus `db:"status" json:"status"`
+	// Maximum number of new chats this automation may create in a rolling one-hour window. Prevents runaway webhook storms from flooding the system.
+	MaxChatCreatesPerHour int32 `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	// Maximum total messages (creates + continues) this automation may send in a rolling one-hour window. A second, broader throttle that catches high-frequency continuation patterns.
+	MaxMessagesPerHour int32     `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Every trigger invocation produces an event row regardless of outcome. This table is the audit trail and the data source for rate-limit window counts. Rows are append-only and expected to be purged by a background job after a retention period.
+type ChatAutomationEvent struct {
+	ID           uuid.UUID     `db:"id" json:"id"`
+	AutomationID uuid.UUID     `db:"automation_id" json:"automation_id"`
+	TriggerID    uuid.NullUUID `db:"trigger_id" json:"trigger_id"`
+	ReceivedAt   time.Time     `db:"received_at" json:"received_at"`
+	// The raw payload that was evaluated. For webhooks this is the HTTP body; for cron triggers it is a synthetic JSON envelope with schedule metadata.
+	Payload json.RawMessage `db:"payload" json:"payload"`
+	// Whether the trigger filter conditions matched. False means the event was dropped before any chat interaction.
+	FilterMatched bool `db:"filter_matched" json:"filter_matched"`
+	// Labels resolved from the payload via label_paths. Stored so the event log shows exactly which labels were computed.
+	ResolvedLabels pqtype.NullRawMessage `db:"resolved_labels" json:"resolved_labels"`
+	// ID of an existing chat that was found via label matching and continued with a new message.
+	MatchedChatID uuid.NullUUID `db:"matched_chat_id" json:"matched_chat_id"`
+	// ID of a newly created chat (mutually exclusive with matched_chat_id in practice).
+	CreatedChatID uuid.NullUUID `db:"created_chat_id" json:"created_chat_id"`
+	// Outcome of the event: filtered — filter did not match; preview — automation is in preview mode; created — new chat was created; continued — existing chat was continued; rate_limited — rate limit prevented chat action; error — something went wrong.
+	Status ChatAutomationEventStatus `db:"status" json:"status"`
+	Error  sql.NullString            `db:"error" json:"error"`
+}
+
+// Triggers define how an automation is invoked. Each automation can have multiple triggers (e.g. one webhook + one cron schedule). Webhook and cron triggers share the same row shape with type-specific nullable columns to keep the schema simple.
+type ChatAutomationTrigger struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	// Discriminator: webhook or cron. Determines which nullable columns are meaningful.
+	Type ChatAutomationTriggerType `db:"type" json:"type"`
+	// HMAC-SHA256 shared secret for webhook signature verification (X-Hub-Signature-256 header). NULL for cron triggers.
+	WebhookSecret      sql.NullString `db:"webhook_secret" json:"webhook_secret"`
+	WebhookSecretKeyID sql.NullString `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	// Standard 5-field cron expression (minute hour dom month dow), with optional CRON_TZ= prefix. NULL for webhook triggers.
+	CronSchedule sql.NullString `db:"cron_schedule" json:"cron_schedule"`
+	// Timestamp of the last successful cron fire. The scheduler computes next = cron.Next(last_triggered_at) and fires when next <= now. NULL means the trigger has never fired. Not used for webhook triggers.
+	LastTriggeredAt sql.NullTime `db:"last_triggered_at" json:"last_triggered_at"`
+	// gjson path-to-value filter conditions evaluated against the incoming webhook payload. All conditions must match for the trigger to fire. NULL or empty means match everything.
+	Filter pqtype.NullRawMessage `db:"filter" json:"filter"`
+	// Maps chat label keys to gjson paths. When a trigger fires, labels are resolved from the payload and used to find an existing chat to continue (by label match) or set on a newly created chat.
+	LabelPaths pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time             `db:"updated_at" json:"updated_at"`
 }
 
 type ChatDiffStatus struct {

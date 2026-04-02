@@ -220,7 +220,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'chat_automation:create',
+    'chat_automation:read',
+    'chat_automation:update',
+    'chat_automation:delete',
+    'chat_automation:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -269,6 +274,32 @@ CREATE TYPE build_reason AS ENUM (
     'task_manual_pause',
     'task_resume'
 );
+
+CREATE TYPE chat_automation_event_status AS ENUM (
+    'filtered',
+    'preview',
+    'created',
+    'continued',
+    'rate_limited',
+    'error'
+);
+
+COMMENT ON TYPE chat_automation_event_status IS 'Outcome of a chat automation event: filtered, preview, created, continued, rate_limited, or error.';
+
+CREATE TYPE chat_automation_status AS ENUM (
+    'disabled',
+    'preview',
+    'active'
+);
+
+COMMENT ON TYPE chat_automation_status IS 'Lifecycle state of a chat automation: disabled, preview, or active.';
+
+CREATE TYPE chat_automation_trigger_type AS ENUM (
+    'webhook',
+    'cron'
+);
+
+COMMENT ON TYPE chat_automation_trigger_type IS 'Discriminator for chat automation triggers: webhook or cron.';
 
 CREATE TYPE chat_message_role AS ENUM (
     'system',
@@ -1241,6 +1272,104 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_automation_events (
+    id uuid NOT NULL,
+    automation_id uuid NOT NULL,
+    trigger_id uuid,
+    received_at timestamp with time zone NOT NULL,
+    payload jsonb NOT NULL,
+    filter_matched boolean NOT NULL,
+    resolved_labels jsonb,
+    matched_chat_id uuid,
+    created_chat_id uuid,
+    status chat_automation_event_status NOT NULL,
+    error text,
+    CONSTRAINT chat_automation_events_chat_exclusivity CHECK (((matched_chat_id IS NULL) OR (created_chat_id IS NULL)))
+);
+
+COMMENT ON TABLE chat_automation_events IS 'Every trigger invocation produces an event row regardless of outcome. This table is the audit trail and the data source for rate-limit window counts. Rows are append-only and expected to be purged by a background job after a retention period.';
+
+COMMENT ON COLUMN chat_automation_events.payload IS 'The raw payload that was evaluated. For webhooks this is the HTTP body; for cron triggers it is a synthetic JSON envelope with schedule metadata.';
+
+COMMENT ON COLUMN chat_automation_events.filter_matched IS 'Whether the trigger filter conditions matched. False means the event was dropped before any chat interaction.';
+
+COMMENT ON COLUMN chat_automation_events.resolved_labels IS 'Labels resolved from the payload via label_paths. Stored so the event log shows exactly which labels were computed.';
+
+COMMENT ON COLUMN chat_automation_events.matched_chat_id IS 'ID of an existing chat that was found via label matching and continued with a new message.';
+
+COMMENT ON COLUMN chat_automation_events.created_chat_id IS 'ID of a newly created chat (mutually exclusive with matched_chat_id in practice).';
+
+COMMENT ON COLUMN chat_automation_events.status IS 'Outcome of the event: filtered — filter did not match; preview — automation is in preview mode; created — new chat was created; continued — existing chat was continued; rate_limited — rate limit prevented chat action; error — something went wrong.';
+
+CREATE TABLE chat_automation_triggers (
+    id uuid NOT NULL,
+    automation_id uuid NOT NULL,
+    type chat_automation_trigger_type NOT NULL,
+    webhook_secret text,
+    webhook_secret_key_id text,
+    cron_schedule text,
+    last_triggered_at timestamp with time zone,
+    filter jsonb,
+    label_paths jsonb,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT chat_automation_triggers_cron_fields CHECK (((type <> 'cron'::chat_automation_trigger_type) OR ((cron_schedule IS NOT NULL) AND (webhook_secret IS NULL) AND (webhook_secret_key_id IS NULL)))),
+    CONSTRAINT chat_automation_triggers_webhook_fields CHECK (((type <> 'webhook'::chat_automation_trigger_type) OR ((webhook_secret IS NOT NULL) AND (cron_schedule IS NULL) AND (last_triggered_at IS NULL))))
+);
+
+COMMENT ON TABLE chat_automation_triggers IS 'Triggers define how an automation is invoked. Each automation can have multiple triggers (e.g. one webhook + one cron schedule). Webhook and cron triggers share the same row shape with type-specific nullable columns to keep the schema simple.';
+
+COMMENT ON COLUMN chat_automation_triggers.type IS 'Discriminator: webhook or cron. Determines which nullable columns are meaningful.';
+
+COMMENT ON COLUMN chat_automation_triggers.webhook_secret IS 'HMAC-SHA256 shared secret for webhook signature verification (X-Hub-Signature-256 header). NULL for cron triggers.';
+
+COMMENT ON COLUMN chat_automation_triggers.cron_schedule IS 'Standard 5-field cron expression (minute hour dom month dow), with optional CRON_TZ= prefix. NULL for webhook triggers.';
+
+COMMENT ON COLUMN chat_automation_triggers.last_triggered_at IS 'Timestamp of the last successful cron fire. The scheduler computes next = cron.Next(last_triggered_at) and fires when next <= now. NULL means the trigger has never fired. Not used for webhook triggers.';
+
+COMMENT ON COLUMN chat_automation_triggers.filter IS 'gjson path-to-value filter conditions evaluated against the incoming webhook payload. All conditions must match for the trigger to fire. NULL or empty means match everything.';
+
+COMMENT ON COLUMN chat_automation_triggers.label_paths IS 'Maps chat label keys to gjson paths. When a trigger fires, labels are resolved from the payload and used to find an existing chat to continue (by label match) or set on a newly created chat.';
+
+CREATE TABLE chat_automations (
+    id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    instructions text DEFAULT ''::text NOT NULL,
+    model_config_id uuid,
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    allowed_tools text[] DEFAULT '{}'::text[] NOT NULL,
+    status chat_automation_status DEFAULT 'disabled'::chat_automation_status NOT NULL,
+    max_chat_creates_per_hour integer DEFAULT 10 NOT NULL,
+    max_messages_per_hour integer DEFAULT 60 NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT chat_automations_max_chat_creates_per_hour_check CHECK ((max_chat_creates_per_hour > 0)),
+    CONSTRAINT chat_automations_max_messages_per_hour_check CHECK ((max_messages_per_hour > 0))
+);
+
+COMMENT ON TABLE chat_automations IS 'Chat automations bridge external events (webhooks, cron schedules) to Coder chats. A chat automation defines what to say, which model and tools to use, and how fast it is allowed to create or continue chats.';
+
+COMMENT ON COLUMN chat_automations.owner_id IS 'The user on whose behalf chats are created. All RBAC checks and chat ownership are scoped to this user.';
+
+COMMENT ON COLUMN chat_automations.organization_id IS 'Organization scope for RBAC. Combined with owner_id and name to form a unique constraint so automations are namespaced per user per org.';
+
+COMMENT ON COLUMN chat_automations.instructions IS 'The user-role message injected into every chat this automation creates. This is the core prompt that tells the LLM what to do.';
+
+COMMENT ON COLUMN chat_automations.model_config_id IS 'Optional model configuration override. When NULL the deployment default is used. SET NULL on delete so automations survive config changes gracefully.';
+
+COMMENT ON COLUMN chat_automations.mcp_server_ids IS 'MCP servers to attach to chats created by this automation. Stored as an array of UUIDs rather than a join table because the set is small and always read/written atomically.';
+
+COMMENT ON COLUMN chat_automations.allowed_tools IS 'Tool allowlist. Empty means all tools available to the model config are permitted.';
+
+COMMENT ON COLUMN chat_automations.status IS 'Lifecycle state: disabled — trigger events are silently dropped; preview — events are logged but no chat is created (dry-run); active — events create or continue chats.';
+
+COMMENT ON COLUMN chat_automations.max_chat_creates_per_hour IS 'Maximum number of new chats this automation may create in a rolling one-hour window. Prevents runaway webhook storms from flooding the system.';
+
+COMMENT ON COLUMN chat_automations.max_messages_per_hour IS 'Maximum total messages (creates + continues) this automation may send in a rolling one-hour window. A second, broader throttle that catches high-frequency continuation patterns.';
+
 CREATE TABLE chat_diff_statuses (
     chat_id uuid NOT NULL,
     url text,
@@ -1407,7 +1536,8 @@ CREATE TABLE chats (
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
-    last_injected_context jsonb
+    last_injected_context jsonb,
+    automation_id uuid
 );
 
 CREATE TABLE connection_logs (
@@ -3323,6 +3453,15 @@ ALTER TABLE ONLY audit_logs
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_automation_triggers
+    ADD CONSTRAINT chat_automation_triggers_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
@@ -3708,6 +3847,20 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_chat_automation_events_automation_id_received_at ON chat_automation_events USING btree (automation_id, received_at DESC);
+
+CREATE INDEX idx_chat_automation_events_rate_limit ON chat_automation_events USING btree (automation_id, received_at) WHERE (status = ANY (ARRAY['created'::chat_automation_event_status, 'continued'::chat_automation_event_status]));
+
+CREATE INDEX idx_chat_automation_events_received_at ON chat_automation_events USING btree (received_at);
+
+CREATE INDEX idx_chat_automation_triggers_automation_id ON chat_automation_triggers USING btree (automation_id);
+
+CREATE INDEX idx_chat_automations_organization_id ON chat_automations USING btree (organization_id);
+
+CREATE INDEX idx_chat_automations_owner_id ON chat_automations USING btree (owner_id);
+
+CREATE UNIQUE INDEX idx_chat_automations_owner_org_name ON chat_automations USING btree (owner_id, organization_id, name);
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
@@ -3735,6 +3888,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chats_automation_id ON chats USING btree (automation_id);
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
@@ -4009,6 +4164,33 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_created_chat_id_fkey FOREIGN KEY (created_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_matched_chat_id_fkey FOREIGN KEY (matched_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES chat_automation_triggers(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_triggers
+    ADD CONSTRAINT chat_automation_triggers_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_triggers
+    ADD CONSTRAINT chat_automation_triggers_webhook_secret_key_id_fkey FOREIGN KEY (webhook_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4044,6 +4226,9 @@ ALTER TABLE ONLY chat_queued_messages
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;
