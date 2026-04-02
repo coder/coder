@@ -179,6 +179,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
 		InitiatorID:                initID,
 		Provider:                   in.Provider,
+		ProviderName:               in.ProviderName,
 		Model:                      in.Model,
 		Metadata:                   out,
 		StartedAt:                  in.StartedAt.AsTime(),

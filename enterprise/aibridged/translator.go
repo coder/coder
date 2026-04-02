@@ -29,6 +29,7 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 		ApiKeyId:              t.apiKeyID,
 		InitiatorId:           req.InitiatorID,
 		Provider:              req.Provider,
+		ProviderName:          req.ProviderName,
 		Model:                 req.Model,
 		UserAgent:             req.UserAgent,
 		Client:                req.Client,
