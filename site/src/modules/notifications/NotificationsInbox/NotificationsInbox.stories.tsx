@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { ChangelogProvider } from "#/modules/changelog";
 import { MockNotifications, mockApiError } from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
 import { NotificationsInbox } from "./NotificationsInbox";
@@ -9,11 +10,13 @@ const meta: Meta<typeof NotificationsInbox> = {
 	component: NotificationsInbox,
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6 h-[720px]">
-				<header className="flex justify-end">
-					<NotificationsInbox {...args} />
-				</header>
-			</div>
+			<ChangelogProvider>
+				<div className="w-full max-w-screen-xl p-6 h-[720px]">
+					<header className="flex justify-end">
+						<NotificationsInbox {...args} />
+					</header>
+				</div>
+			</ChangelogProvider>
 		);
 	},
 };
