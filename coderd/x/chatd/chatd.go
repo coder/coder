@@ -747,25 +747,32 @@ func (p *Server) waitForActiveChatStop(
 		return
 	}
 
-	value, ok := p.activeChats.Load(chatID)
-	if !ok {
-		return
-	}
-	state, ok := value.(*activeChatRun)
-	if !ok {
-		panic("chatd: invalid active chat state")
-	}
-
 	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 
-	select {
-	case <-state.done:
-	case <-waitCtx.Done():
-		p.logger.Warn(ctx, "timed out waiting for active chat to stop before debug cleanup",
-			slog.F("chat_id", chatID),
-			slog.Error(waitCtx.Err()),
-		)
+	for {
+		value, ok := p.activeChats.Load(chatID)
+		if !ok {
+			return
+		}
+		state, ok := value.(*activeChatRun)
+		if !ok {
+			panic("chatd: invalid active chat state")
+		}
+
+		select {
+		case <-state.done:
+			if current, ok := p.activeChats.Load(chatID); ok && current != state {
+				continue
+			}
+			return
+		case <-waitCtx.Done():
+			p.logger.Warn(ctx, "timed out waiting for active chat to stop before debug cleanup",
+				slog.F("chat_id", chatID),
+				slog.Error(waitCtx.Err()),
+			)
+			return
+		}
 	}
 }
 
@@ -1413,6 +1420,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cleanupCancel()
 		for _, archivedChat := range archivedChats {
+			p.waitForActiveChatStop(ctx, archivedChat.ID, 5*time.Second)
 			if _, err := p.debugSvc.DeleteByChatID(cleanupCtx, archivedChat.ID); err != nil {
 				p.logger.Warn(ctx, "failed to delete chat debug rows after archive",
 					slog.F("chat_id", archivedChat.ID),
