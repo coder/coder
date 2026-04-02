@@ -21,7 +21,9 @@ import {
 } from "#/components/Table/Table";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
+import { AdminBadge } from "./AdminBadge";
 import { PrStateIcon } from "./GitPanel/GitPanel";
+import { SectionHeader } from "./SectionHeader";
 
 dayjs.extend(relativeTime);
 
@@ -295,19 +297,16 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 	const isEmpty = summary.total_prs_created === 0;
 
 	return (
-		<div className="space-y-8">
+		<div className="space-y-6">
 			{/* ── Header ── */}
-			<div className="flex items-end justify-between">
-				<div>
-					<h2 className="m-0 text-xl font-semibold tracking-tight text-content-primary">
-						Pull Request Insights
-					</h2>
-					<p className="m-0 mt-1 text-[13px] text-content-secondary">
-						Code changes detected by Agents.
-					</p>
-				</div>
-				<TimeRangeFilter value={timeRange} onChange={onTimeRangeChange} />
-			</div>
+			<SectionHeader
+				label="Pull Request Insights"
+				description="Code changes detected by Agents."
+				badge={<AdminBadge />}
+				action={
+					<TimeRangeFilter value={timeRange} onChange={onTimeRangeChange} />
+				}
+			/>
 
 			{isEmpty ? (
 				<EmptyState />
@@ -355,7 +354,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 					</section>
 
 					{/* ── Model breakdown + Recent PRs side by side ── */}
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+					<div className="grid grid-cols-1 gap-6">
 						{/* ── Model performance (simplified) ── */}
 						{by_model.length > 0 && (
 							<section>

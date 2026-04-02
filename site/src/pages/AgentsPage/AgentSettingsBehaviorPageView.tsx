@@ -9,6 +9,7 @@ import { Switch } from "#/components/Switch/Switch";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { AdminBadge } from "./components/AdminBadge";
+import { CollapsibleSection } from "./components/CollapsibleSection";
 import { DurationField } from "./components/DurationField/DurationField";
 import { SectionHeader } from "./components/SectionHeader";
 import { TextPreviewDialog } from "./components/TextPreviewDialog";
@@ -246,197 +247,181 @@ export const AgentSettingsBehaviorPageView: FC<
 	};
 
 	return (
-		<>
+		<div className="space-y-6">
 			<SectionHeader
 				label="Behavior"
 				description="Custom instructions that shape how the agent responds in your conversations."
 			/>
-			{/* ── Personal prompt (always visible) ── */}
-			<form
-				className="space-y-2"
-				onSubmit={(event) => void handleSaveUserPrompt(event)}
-			>
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Personal Instructions
-				</h3>
-				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Applied to all your conversations. Only visible to you.
-				</p>
-				<TextareaAutosize
-					className={cn(
-						textareaBaseClassName,
-						isUserPromptOverflowing && textareaOverflowClassName,
-					)}
-					placeholder="Additional behavior, style, and tone preferences"
-					value={userPromptDraft}
-					onChange={(event) => setLocalUserEdit(event.target.value)}
-					onHeightChange={(height) =>
-						setIsUserPromptOverflowing(height >= textareaMaxHeight)
-					}
-					disabled={isPromptSaving}
-					minRows={1}
-				/>
-				{userInvisibleCharCount > 0 && (
-					<Alert severity="warning">
-						<AlertDescription>
-							This text contains {userInvisibleCharCount} invisible Unicode{" "}
-							{userInvisibleCharCount !== 1 ? "characters" : "character"} that
-							could hide content. These will be stripped on save.
-						</AlertDescription>
-					</Alert>
-				)}
-				<div className="flex justify-end gap-2">
-					<Button
-						size="sm"
-						variant="outline"
-						type="button"
-						onClick={() => setLocalUserEdit("")}
-						disabled={isPromptSaving || !userPromptDraft}
-					>
-						Clear
-					</Button>
-					<Button
-						size="sm"
-						type="submit"
-						disabled={isPromptSaving || !isUserPromptDirty}
-					>
-						Save
-					</Button>
-				</div>
-				{isSaveUserPromptError && (
-					<p className="m-0 text-xs text-content-destructive">
-						Failed to save personal instructions.
-					</p>
-				)}
-			</form>
 
-			<hr className="my-5 border-0 border-t border-solid border-border" />
-			<UserCompactionThresholdSettings
-				modelConfigs={modelConfigsData ?? []}
-				modelConfigsError={modelConfigsError}
-				isLoadingModelConfigs={isLoadingModelConfigs}
-				thresholds={thresholds}
-				isThresholdsLoading={isThresholdsLoading}
-				thresholdsError={thresholdsError}
-				onSaveThreshold={onSaveThreshold}
-				onResetThreshold={onResetThreshold}
-			/>
-			{/* ── Admin system prompt (admin only) ── */}
+			{/* Personal prompt (always visible) */}
+			<CollapsibleSection
+				title="Instructions"
+				description="Applied to all your conversations. Only visible to you."
+			>
+				<form
+					className="space-y-2"
+					onSubmit={(event) => void handleSaveUserPrompt(event)}
+				>
+					<TextareaAutosize
+						className={cn(
+							textareaBaseClassName,
+							isUserPromptOverflowing && textareaOverflowClassName,
+						)}
+						placeholder="Additional behavior, style, and tone preferences"
+						value={userPromptDraft}
+						onChange={(event) => setLocalUserEdit(event.target.value)}
+						onHeightChange={(height) =>
+							setIsUserPromptOverflowing(height >= textareaMaxHeight)
+						}
+						disabled={isPromptSaving}
+						minRows={1}
+					/>
+					{userInvisibleCharCount > 0 && (
+						<Alert severity="warning">
+							<AlertDescription>
+								This text contains {userInvisibleCharCount} invisible Unicode{" "}
+								{userInvisibleCharCount !== 1 ? "characters" : "character"} that
+								could hide content. These will be stripped on save.
+							</AlertDescription>
+						</Alert>
+					)}
+					<div className="flex justify-end gap-2">
+						<Button
+							size="sm"
+							variant="outline"
+							type="button"
+							onClick={() => setLocalUserEdit("")}
+							disabled={isPromptSaving || !userPromptDraft}
+						>
+							Clear
+						</Button>
+						<Button
+							size="sm"
+							type="submit"
+							disabled={isPromptSaving || !isUserPromptDirty}
+						>
+							Save
+						</Button>
+					</div>
+					{isSaveUserPromptError && (
+						<p className="m-0 text-xs text-content-destructive">
+							Failed to save personal instructions.
+						</p>
+					)}
+				</form>
+			</CollapsibleSection>
+
+			{/* Context compaction */}
+			<CollapsibleSection
+				title="Context compaction"
+				description="Control when conversation context is automatically summarized for each model. Setting 100% means the conversation will never auto-compact."
+			>
+				<UserCompactionThresholdSettings
+					hideHeader
+					modelConfigs={modelConfigsData ?? []}
+					modelConfigsError={modelConfigsError}
+					isLoadingModelConfigs={isLoadingModelConfigs}
+					thresholds={thresholds}
+					isThresholdsLoading={isThresholdsLoading}
+					thresholdsError={thresholdsError}
+					onSaveThreshold={onSaveThreshold}
+					onResetThreshold={onResetThreshold}
+				/>
+			</CollapsibleSection>
+
+			{/* Admin system prompt (admin only) */}
 			{canSetSystemPrompt && (
 				<>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
-					<form
-						className="space-y-2"
-						onSubmit={(event) => void handleSaveSystemPrompt(event)}
+					<CollapsibleSection
+						title="System Instructions"
+						description={
+							includeDefaultDraft
+								? "The built-in Coder Agents prompt is prepended. Additional instructions below are appended."
+								: "Only the additional instructions below are used. When empty, no deployment-wide system prompt is sent."
+						}
+						badge={<AdminBadge />}
 					>
-						<div className="flex items-center gap-2">
-							<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-								System Instructions
-							</h3>
-							<AdminBadge />
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-content-primary">
-								<span>Include Coder Agents default system prompt</span>
+						<form
+							className="space-y-2"
+							onSubmit={(event) => void handleSaveSystemPrompt(event)}
+						>
+							<div className="flex items-center justify-between gap-4">
+								<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-content-primary">
+									<span>Include Coder Agents default system prompt</span>
+									<Button
+										size="xs"
+										variant="subtle"
+										type="button"
+										onClick={() => setShowDefaultPromptPreview(true)}
+										disabled={!hasLoadedSystemPrompt}
+										className="min-w-0 px-0 text-content-link hover:text-content-link"
+									>
+										Preview
+									</Button>
+								</div>
+								<Switch
+									checked={includeDefaultDraft}
+									onCheckedChange={setLocalIncludeDefault}
+									aria-label="Include Coder Agents default system prompt"
+									disabled={isSystemPromptDisabled}
+								/>
+							</div>
+							<TextareaAutosize
+								className={cn(
+									textareaBaseClassName,
+									isSystemPromptOverflowing && textareaOverflowClassName,
+								)}
+								placeholder="Additional instructions for all users"
+								value={systemPromptDraft}
+								onChange={(event) => setLocalEdit(event.target.value)}
+								onHeightChange={(height) =>
+									setIsSystemPromptOverflowing(height >= textareaMaxHeight)
+								}
+								disabled={isSystemPromptDisabled}
+								minRows={1}
+							/>
+							{systemInvisibleCharCount > 0 && (
+								<Alert severity="warning">
+									<AlertDescription>
+										This text contains {systemInvisibleCharCount} invisible
+										Unicode{" "}
+										{systemInvisibleCharCount !== 1
+											? "characters"
+											: "character"}{" "}
+										that could hide content. These will be stripped on save.
+									</AlertDescription>
+								</Alert>
+							)}
+							<div className="flex justify-end gap-2">
 								<Button
-									size="xs"
-									variant="subtle"
+									size="sm"
+									variant="outline"
 									type="button"
-									onClick={() => setShowDefaultPromptPreview(true)}
-									disabled={!hasLoadedSystemPrompt}
-									className="min-w-0 px-0 text-content-link hover:text-content-link"
+									onClick={() => setLocalEdit("")}
+									disabled={isSystemPromptDisabled || !systemPromptDraft}
 								>
-									Preview
+									Clear
+								</Button>
+								<Button
+									size="sm"
+									type="submit"
+									disabled={isSystemPromptDisabled || !isSystemPromptDirty}
+								>
+									Save
 								</Button>
 							</div>
-							<Switch
-								checked={includeDefaultDraft}
-								onCheckedChange={setLocalIncludeDefault}
-								aria-label="Include Coder Agents default system prompt"
-								disabled={isSystemPromptDisabled}
-							/>
-						</div>
-						<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-							{includeDefaultDraft
-								? "The built-in Coder Agents prompt is prepended. Additional instructions below are appended."
-								: "Only the additional instructions below are used. When empty, no deployment-wide system prompt is sent."}
-						</p>
-						<TextareaAutosize
-							className={cn(
-								textareaBaseClassName,
-								isSystemPromptOverflowing && textareaOverflowClassName,
+							{isSaveSystemPromptError && (
+								<p className="m-0 text-xs text-content-destructive">
+									Failed to save system prompt.
+								</p>
 							)}
-							placeholder="Additional instructions for all users"
-							value={systemPromptDraft}
-							onChange={(event) => setLocalEdit(event.target.value)}
-							onHeightChange={(height) =>
-								setIsSystemPromptOverflowing(height >= textareaMaxHeight)
-							}
-							disabled={isSystemPromptDisabled}
-							minRows={1}
-						/>
-						{systemInvisibleCharCount > 0 && (
-							<Alert severity="warning">
-								<AlertDescription>
-									This text contains {systemInvisibleCharCount} invisible
-									Unicode{" "}
-									{systemInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
-									that could hide content. These will be stripped on save.
-								</AlertDescription>
-							</Alert>
-						)}
-						<div className="flex justify-end gap-2">
-							<Button
-								size="sm"
-								variant="outline"
-								type="button"
-								onClick={() => setLocalEdit("")}
-								disabled={isSystemPromptDisabled || !systemPromptDraft}
-							>
-								Clear
-							</Button>
-							<Button
-								size="sm"
-								type="submit"
-								disabled={isSystemPromptDisabled || !isSystemPromptDirty}
-							>
-								Save
-							</Button>{" "}
-						</div>
-						{isSaveSystemPromptError && (
-							<p className="m-0 text-xs text-content-destructive">
-								Failed to save system prompt.
-							</p>
-						)}
-					</form>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
-					<div className="space-y-2">
-						<div className="flex items-center gap-2">
-							<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-								Virtual Desktop
-							</h3>
-							<AdminBadge />
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
-								<p className="m-0">
-									Allow agents to use a virtual, graphical desktop within
-									workspaces. Requires the{" "}
-									<Link
-										href="https://registry.coder.com/modules/coder/portabledesktop"
-										target="_blank"
-										size="sm"
-									>
-										portabledesktop module
-									</Link>{" "}
-									to be installed in the workspace and the Anthropic provider to
-									be configured.
-								</p>
-								<p className="mt-2 mb-0 font-semibold text-content-secondary">
-									Warning: This is a work-in-progress feature, and you're likely
-									to encounter bugs if you enable it.
-								</p>
-							</div>
+						</form>
+					</CollapsibleSection>
+
+					<CollapsibleSection
+						title="Virtual Desktop"
+						badge={<AdminBadge />}
+						action={
 							<Switch
 								checked={desktopEnabled}
 								onCheckedChange={(checked) =>
@@ -445,98 +430,107 @@ export const AgentSettingsBehaviorPageView: FC<
 								aria-label="Enable"
 								disabled={isSavingDesktopEnabled}
 							/>
+						}
+					>
+						<div className="space-y-2 text-xs text-content-secondary">
+							<p className="m-0">
+								Allow agents to use a virtual, graphical desktop within
+								workspaces. Requires the{" "}
+								<Link
+									href="https://registry.coder.com/modules/coder/portabledesktop"
+									target="_blank"
+									size="sm"
+								>
+									portabledesktop module
+								</Link>{" "}
+								to be installed in the workspace and the Anthropic provider to
+								be configured.
+							</p>
+							<p className="m-0 font-semibold">
+								Warning: This is a work-in-progress feature, and you're likely
+								to encounter bugs if you enable it.
+							</p>
 						</div>
 						{isSaveDesktopEnabledError && (
 							<p className="m-0 text-xs text-content-destructive">
 								Failed to save desktop setting.
 							</p>
 						)}
-					</div>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
-					<form
-						className="space-y-2"
-						onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
-					>
-						<div className="flex items-center gap-2">
-							<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-								Workspace Autostop Fallback
-							</h3>
-							<AdminBadge />
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
-								Set a default autostop for agent-created workspaces that don't
-								have one defined in their template. Template-defined autostop
-								rules always take precedence. Active conversations will extend
-								the stop time.
-							</p>
+					</CollapsibleSection>
+
+					<CollapsibleSection
+						title="Workspace Autostop Fallback"
+						badge={<AdminBadge />}
+						action={
 							<Switch
 								checked={isAutostopEnabled}
 								onCheckedChange={handleToggleAutostop}
 								aria-label="Enable default autostop"
 								disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
-							/>{" "}
-						</div>
-						{isAutostopEnabled && (
-							<DurationField
-								valueMs={ttlMs}
-								onChange={handleTTLChange}
-								label="Autostop Fallback"
-								disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
-								error={isTTLOverMax || isTTLZero}
-								helperText={
-									isTTLZero
-										? "Duration must be greater than zero."
-										: isTTLOverMax
-											? "Must not exceed 30 days (720 hours)."
-											: undefined
-								}
 							/>
-						)}
-						{isAutostopEnabled && (
-							<div className="flex justify-end">
-								<Button
-									size="sm"
-									type="submit"
-									disabled={
-										isSavingWorkspaceTTL ||
-										!isTTLDirty ||
-										isTTLOverMax ||
+						}
+					>
+						<form
+							className="space-y-2"
+							onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
+						>
+							<p className="m-0 text-xs text-content-secondary">
+								Set a default autostop for agent-created workspaces that don't
+								have one defined in their template. Template-defined autostop
+								rules always take precedence. Active conversations will extend
+								the stop time.
+							</p>
+							{isAutostopEnabled && (
+								<DurationField
+									valueMs={ttlMs}
+									onChange={handleTTLChange}
+									label="Autostop Fallback"
+									disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
+									error={isTTLOverMax || isTTLZero}
+									helperText={
 										isTTLZero
+											? "Duration must be greater than zero."
+											: isTTLOverMax
+												? "Must not exceed 30 days (720 hours)."
+												: undefined
 									}
-								>
-									Save
-								</Button>
-							</div>
-						)}
-						{isSaveWorkspaceTTLError && (
-							<p className="m-0 text-xs text-content-destructive">
-								Failed to save autostop setting.
-							</p>
-						)}
-						{isWorkspaceTTLLoadError && (
-							<p className="m-0 text-xs text-content-destructive">
-								Failed to load autostop setting.
-							</p>
-						)}
-					</form>
+								/>
+							)}
+							{isAutostopEnabled && (
+								<div className="flex justify-end">
+									<Button
+										size="sm"
+										type="submit"
+										disabled={
+											isSavingWorkspaceTTL ||
+											!isTTLDirty ||
+											isTTLOverMax ||
+											isTTLZero
+										}
+									>
+										Save
+									</Button>
+								</div>
+							)}
+							{isSaveWorkspaceTTLError && (
+								<p className="m-0 text-xs text-content-destructive">
+									Failed to save autostop setting.
+								</p>
+							)}
+							{isWorkspaceTTLLoadError && (
+								<p className="m-0 text-xs text-content-destructive">
+									Failed to load autostop setting.
+								</p>
+							)}
+						</form>
+					</CollapsibleSection>
 				</>
 			)}
-			<hr className="my-5 border-0 border-t border-solid border-border" />
-			{/* ── Kyleosophy toggle (always visible) ── */}
-			<div className="space-y-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Kyleosophy
-				</h3>
-				<div className="flex items-center justify-between gap-4">
-					<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
-						Replace the standard completion chime. IYKYK.
-						{kylesophyForced && (
-							<span className="ml-1 font-semibold">
-								Kyleosophy is mandatory on <code>dev.coder.com</code>.
-							</span>
-						)}
-					</p>
+
+			{/* Kyleosophy toggle (always visible) */}
+			<CollapsibleSection
+				title="Kyleosophy"
+				action={
 					<Switch
 						checked={kylesophyEnabled}
 						onCheckedChange={(checked) => {
@@ -546,8 +540,18 @@ export const AgentSettingsBehaviorPageView: FC<
 						aria-label="Enable Kyleosophy"
 						disabled={kylesophyForced}
 					/>
-				</div>
-			</div>
+				}
+			>
+				<p className="m-0 text-xs text-content-secondary">
+					Replace the standard completion chime. IYKYK.
+					{kylesophyForced && (
+						<span className="ml-1 font-semibold">
+							Kyleosophy is mandatory on <code>dev.coder.com</code>.
+						</span>
+					)}
+				</p>
+			</CollapsibleSection>
+
 			{showDefaultPromptPreview && (
 				<TextPreviewDialog
 					content={defaultSystemPrompt}
@@ -555,6 +559,6 @@ export const AgentSettingsBehaviorPageView: FC<
 					onClose={() => setShowDefaultPromptPreview(false)}
 				/>
 			)}
-		</>
+		</div>
 	);
 };

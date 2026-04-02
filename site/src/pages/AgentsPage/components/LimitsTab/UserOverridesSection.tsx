@@ -30,6 +30,7 @@ import {
 import { SectionHeader } from "../SectionHeader";
 
 interface UserOverridesSectionProps {
+	hideHeader?: boolean;
 	overrides: ReadonlyArray<{
 		user_id: string;
 		name: string;
@@ -62,6 +63,7 @@ interface UserOverridesSectionProps {
 }
 
 export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
+	hideHeader,
 	overrides,
 	showUserForm,
 	onShowUserFormChange,
@@ -87,10 +89,12 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 
 	return (
 		<section className="space-y-4">
-			<SectionHeader
-				label="Per-User Overrides"
-				description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
-			/>
+			{!hideHeader && (
+				<SectionHeader
+					label="Per-User Overrides"
+					description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
+				/>
+			)}
 			<div className="space-y-4">
 				{overrides.length > 0 ? (
 					<Table>
