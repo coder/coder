@@ -117,6 +117,10 @@ func newStepHandle(
 		chatID = rc.ChatID
 	}
 
+	if rc == nil || rc.RunID == uuid.Nil {
+		return nil, ctx
+	}
+
 	handle := &stepHandle{
 		stepCtx: &StepContext{
 			StepID:              uuid.New(),
