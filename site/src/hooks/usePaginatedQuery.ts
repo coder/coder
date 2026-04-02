@@ -167,7 +167,7 @@ export function usePaginatedQuery<
 	// updatePageIfInvalid) to the last page guaranteed to be not
 	// empty.
 	const pageIsEmpty =
-		query.data !== undefined &&
+		query.data != null &&
 		!Object.values(query.data).some((v) => Array.isArray(v) && v.length > 0);
 	if (pageIsEmpty) {
 		totalPages = count !== undefined ? Math.ceil(count / limit) : 1;
