@@ -1,10 +1,12 @@
 package chatdebug //nolint:testpackage // Uses unexported normalization helpers.
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,7 +58,9 @@ func TestNormalizeCall_PreservesToolSchemasAndMessageToolPayloads(t *testing.T) 
 		string(payload.Tools[0].InputSchema))
 
 	require.Len(t, payload.Messages, 2)
+	require.Equal(t, "tool-call", payload.Messages[0].Parts[0].Type)
 	require.Equal(t, `{"query":"debug panel"}`, payload.Messages[0].Parts[0].Arguments)
+	require.Equal(t, "tool-result", payload.Messages[1].Parts[0].Type)
 	require.Equal(t,
 		`{"matches":["model.go","DebugStepCard.tsx"]}`,
 		payload.Messages[1].Parts[0].Result,
@@ -122,8 +126,8 @@ func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testin
 
 	require.Equal(t, []normalizedContentPart{
 		{Type: "text", Text: "before "},
-		{Type: "tool_call", ToolCallID: "call-1", ToolName: "search_docs", Arguments: `{"query":"debug"}`, InputLength: len(`{"query":"debug"}`)},
-		{Type: "tool_result", ToolCallID: "call-1", ToolName: "search_docs", Result: `{"matches":1}`},
+		{Type: "tool-call", ToolCallID: "call-1", ToolName: "search_docs", Arguments: `{"query":"debug"}`, InputLength: len(`{"query":"debug"}`)},
+		{Type: "tool-result", ToolCallID: "call-1", ToolName: "search_docs", Result: `{"matches":1}`},
 		{Type: "text", Text: "after"},
 	}, content)
 }
@@ -144,8 +148,87 @@ func TestAppendNormalizedStreamContent_GlobalTextCap(t *testing.T) {
 
 	require.Len(t, content, 2)
 	require.Equal(t, strings.Repeat("a", maxStreamDebugTextBytes), content[0].Text)
-	require.Equal(t, "tool_call", content[1].Type)
+	require.Equal(t, "tool-call", content[1].Type)
 	require.Equal(t, maxStreamDebugTextBytes, streamDebugBytes)
+}
+
+func TestWrapStreamSeq_SourceCountExcludesToolResults(t *testing.T) {
+	t.Parallel()
+
+	handle := &stepHandle{
+		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
+		sink:    &attemptSink{},
+	}
+	seq := wrapStreamSeq(context.Background(), handle, partsToSeq([]fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeToolResult, ID: "tool-1", ToolCallName: "search_docs"},
+		{Type: fantasy.StreamPartTypeSource, ID: "source-1", URL: "https://example.com", Title: "docs"},
+		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+	}))
+
+	partCount := 0
+	for range seq {
+		partCount++
+	}
+	require.Equal(t, 3, partCount)
+
+	metadata, ok := handle.metadata.(map[string]any)
+	require.True(t, ok)
+	summary, ok := metadata["stream_summary"].(streamSummary)
+	require.True(t, ok)
+	require.Equal(t, 1, summary.SourceCount)
+}
+
+func TestWrapObjectStreamSeq_UsesStructuredOutputPayload(t *testing.T) {
+	t.Parallel()
+
+	handle := &stepHandle{
+		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
+		sink:    &attemptSink{},
+	}
+	usage := fantasy.Usage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5}
+	seq := wrapObjectStreamSeq(context.Background(), handle, objectPartsToSeq([]fantasy.ObjectStreamPart{
+		{Type: fantasy.ObjectStreamPartTypeTextDelta, Delta: "ob"},
+		{Type: fantasy.ObjectStreamPartTypeTextDelta, Delta: "ject"},
+		{Type: fantasy.ObjectStreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+	}))
+
+	partCount := 0
+	for range seq {
+		partCount++
+	}
+	require.Equal(t, 3, partCount)
+
+	resp, ok := handle.response.(normalizedObjectResponsePayload)
+	require.True(t, ok)
+	require.Equal(t, normalizedObjectResponsePayload{
+		RawTextLength:    len("object"),
+		FinishReason:     string(fantasy.FinishReasonStop),
+		Usage:            normalizeUsage(usage),
+		StructuredOutput: true,
+	}, resp)
+}
+
+func TestNormalizeResponse_UsesCanonicalToolTypes(t *testing.T) {
+	t.Parallel()
+
+	payload := normalizeResponse(&fantasy.Response{
+		Content: fantasy.ResponseContent{
+			fantasy.ToolCallContent{
+				ToolCallID: "call-calc",
+				ToolName:   "calculator",
+				Input:      `{"operation":"add","operands":[2,2]}`,
+			},
+			fantasy.ToolResultContent{
+				ToolCallID: "call-calc",
+				ToolName:   "calculator",
+				Result:     fantasy.ToolResultOutputContentText{Text: `{"sum":4}`},
+			},
+		},
+	})
+
+	require.Len(t, payload.Content, 2)
+	require.Equal(t, "tool-call", payload.Content[0].Type)
+	require.Equal(t, "tool-result", payload.Content[1].Type)
 }
 
 func TestBoundText_RespectsDocumentedRuneLimit(t *testing.T) {

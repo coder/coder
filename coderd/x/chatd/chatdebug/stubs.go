@@ -69,8 +69,13 @@ func CleanupStepCounter(runID uuid.UUID) {
 }
 
 type stepHandle struct {
-	stepCtx *StepContext
-	sink    *attemptSink
+	stepCtx  *StepContext
+	sink     *attemptSink
+	status   Status
+	response any
+	usage    any
+	err      any
+	metadata any
 }
 
 func beginStep(
@@ -139,15 +144,20 @@ func newStepHandle(
 
 func (h *stepHandle) finish(
 	_ context.Context,
-	_ Status,
-	_ any,
-	_ any,
-	_ any,
-	_ any,
+	status Status,
+	response any,
+	usage any,
+	err any,
+	metadata any,
 ) {
 	if h == nil || h.stepCtx == nil {
 		return
 	}
+	h.status = status
+	h.response = response
+	h.usage = usage
+	h.err = err
+	h.metadata = metadata
 }
 
 // whitespaceRun matches one or more consecutive whitespace characters.

@@ -2,6 +2,7 @@ package chatdebug
 
 import (
 	"context"
+	"runtime"
 	"sync"
 
 	"github.com/google/uuid"
@@ -25,12 +26,17 @@ func ContextWithRun(ctx context.Context, rc *RunContext) context.Context {
 
 	enriched := context.WithValue(ctx, runContextKey{}, rc)
 	if rc.RunID != uuid.Nil {
-		// Keep the per-run step counter scoped to the run context so
-		// completed runs do not leave atomic counters behind.
+		// Prefer prompt cleanup when the run context is canceled.
 		runID := rc.RunID
 		context.AfterFunc(enriched, func() {
 			CleanupStepCounter(runID)
 		})
+		// Non-cancelable contexts (for example context.Background in tests)
+		// still need a best-effort cleanup path once the run context becomes
+		// unreachable.
+		runtime.AddCleanup(rc, func(id uuid.UUID) {
+			CleanupStepCounter(id)
+		}, runID)
 	}
 	return enriched
 }
@@ -63,6 +69,9 @@ func StepFromContext(ctx context.Context) (*StepContext, bool) {
 
 // ReuseStep marks ctx so wrapped model calls under it share one debug step.
 func ReuseStep(ctx context.Context) context.Context {
+	if holder, ok := reuseHolderFromContext(ctx); ok {
+		return context.WithValue(ctx, reuseStepKey{}, holder)
+	}
 	return context.WithValue(ctx, reuseStepKey{}, &reuseHolder{})
 }
 

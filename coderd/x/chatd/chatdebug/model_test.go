@@ -382,6 +382,58 @@ func TestDebugModel_StreamObject(t *testing.T) {
 	require.Equal(t, parts, got)
 }
 
+func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	runID := uuid.New()
+	svc := NewService(db, testutil.Logger(t), nil)
+	model := &debugModel{
+		inner: &scriptedModel{
+			streamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				var nilStream fantasy.StreamResponse
+				return nilStream, nil
+			},
+		},
+		svc:  svc,
+		opts: RecorderOptions{ChatID: chatID, OwnerID: uuid.New()},
+	}
+	t.Cleanup(func() { CleanupStepCounter(runID) })
+	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+
+	seq, err := model.Stream(ctx, fantasy.Call{})
+	require.Nil(t, seq)
+	require.EqualError(t, err, "chatdebug: language model returned nil stream response")
+}
+
+func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	runID := uuid.New()
+	svc := NewService(db, testutil.Logger(t), nil)
+	model := &debugModel{
+		inner: &scriptedModel{
+			streamObjFn: func(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+				var nilStream fantasy.ObjectStreamResponse
+				return nilStream, nil
+			},
+		},
+		svc:  svc,
+		opts: RecorderOptions{ChatID: chatID, OwnerID: uuid.New()},
+	}
+	t.Cleanup(func() { CleanupStepCounter(runID) })
+	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+
+	seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
+	require.Nil(t, seq)
+	require.EqualError(t, err, "chatdebug: language model returned nil object stream response")
+}
+
 func TestDebugModel_StreamEarlyStop(t *testing.T) {
 	t.Parallel()
 

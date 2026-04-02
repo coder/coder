@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
-	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -242,6 +241,11 @@ func (d *debugModel) Stream(
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
 	}
+	if seq == nil {
+		err = xerrors.New("chatdebug: language model returned nil stream response")
+		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err), nil)
+		return nil, err
+	}
 
 	return wrapStreamSeq(ctx, handle, seq), nil
 }
@@ -304,6 +308,12 @@ func (d *debugModel) StreamObject(
 			map[string]any{"structured_output": true})
 		return nil, err
 	}
+	if seq == nil {
+		err = xerrors.New("chatdebug: language model returned nil object stream response")
+		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err),
+			map[string]any{"structured_output": true})
+		return nil, err
+	}
 
 	return wrapObjectStreamSeq(ctx, handle, seq), nil
 }
@@ -314,28 +324,6 @@ func (d *debugModel) Provider() string {
 
 func (d *debugModel) Model() string {
 	return d.inner.Model()
-}
-
-func appendStreamDebugText(buf *strings.Builder, text string) {
-	remaining := maxStreamDebugTextBytes - buf.Len()
-	if remaining <= 0 || text == "" {
-		return
-	}
-	if len(text) > remaining {
-		cut := 0
-		for _, r := range text {
-			size := utf8.RuneLen(r)
-			if size < 0 {
-				size = 1
-			}
-			if cut+size > remaining {
-				break
-			}
-			cut += size
-		}
-		text = text[:cut]
-	}
-	_, _ = buf.WriteString(text)
 }
 
 func wrapStreamSeq(
@@ -441,33 +429,26 @@ func wrapObjectStreamSeq(
 ) fantasy.ObjectStreamResponse {
 	return func(yield func(fantasy.ObjectStreamPart) bool) {
 		var (
-			summary      = objectStreamSummary{StructuredOutput: true}
-			latestUsage  fantasy.Usage
-			usageSeen    bool
-			finishReason fantasy.FinishReason
-			textBuf      strings.Builder
-			warnings     []normalizedWarning
-			streamError  any
-			streamStatus = StatusCompleted
-			once         sync.Once
+			summary       = objectStreamSummary{StructuredOutput: true}
+			latestUsage   fantasy.Usage
+			usageSeen     bool
+			finishReason  fantasy.FinishReason
+			rawTextLength int
+			warnings      []normalizedWarning
+			streamError   any
+			streamStatus  = StatusCompleted
+			once          sync.Once
 		)
 
 		finalize := func(status Status) {
 			once.Do(func() {
 				summary.FinishReason = string(finishReason)
 
-				var content []normalizedContentPart
-				if text := textBuf.String(); text != "" {
-					content = append(content, normalizedContentPart{
-						Type: "text",
-						Text: text,
-					})
-				}
-
-				resp := normalizedResponsePayload{
-					Content:      content,
-					FinishReason: string(finishReason),
-					Warnings:     warnings,
+				resp := normalizedObjectResponsePayload{
+					RawTextLength:    rawTextLength,
+					FinishReason:     string(finishReason),
+					Warnings:         warnings,
+					StructuredOutput: true,
 				}
 				if usageSeen {
 					resp.Usage = normalizeUsage(latestUsage)
@@ -497,7 +478,7 @@ func wrapObjectStreamSeq(
 					summary.ObjectPartCount++
 				case fantasy.ObjectStreamPartTypeTextDelta:
 					summary.TextDeltaCount++
-					appendStreamDebugText(&textBuf, part.Delta)
+					rawTextLength += len(part.Delta)
 				case fantasy.ObjectStreamPartTypeFinish:
 					finishReason = part.FinishReason
 					latestUsage = part.Usage
@@ -624,6 +605,17 @@ func appendStreamContentText(
 	return content
 }
 
+func canonicalContentType(partType string) string {
+	switch partType {
+	case string(fantasy.StreamPartTypeToolCall), string(fantasy.ContentTypeToolCall):
+		return string(fantasy.ContentTypeToolCall)
+	case string(fantasy.StreamPartTypeToolResult), string(fantasy.ContentTypeToolResult):
+		return string(fantasy.ContentTypeToolResult)
+	default:
+		return partType
+	}
+}
+
 func appendNormalizedStreamContent(
 	content []normalizedContentPart,
 	part fantasy.StreamPart,
@@ -636,7 +628,7 @@ func appendNormalizedStreamContent(
 		return appendStreamContentText(content, "reasoning", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeToolCall:
 		return append(content, normalizedContentPart{
-			Type:        "tool_call",
+			Type:        canonicalContentType(string(part.Type)),
 			ToolCallID:  part.ID,
 			ToolName:    part.ToolCallName,
 			Arguments:   boundText(part.ToolCallInput),
@@ -644,7 +636,7 @@ func appendNormalizedStreamContent(
 		})
 	case fantasy.StreamPartTypeToolResult:
 		return append(content, normalizedContentPart{
-			Type:       "tool_result",
+			Type:       canonicalContentType(string(part.Type)),
 			ToolCallID: part.ID,
 			ToolName:   part.ToolCallName,
 			Result:     boundText(part.ToolCallInput),
@@ -732,7 +724,7 @@ func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart 
 			continue
 		}
 		np := normalizedMessagePart{
-			Type: string(p.GetType()),
+			Type: canonicalContentType(string(p.GetType())),
 		}
 		switch v := p.(type) {
 		case fantasy.TextPart:
@@ -829,7 +821,7 @@ func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentP
 			continue
 		}
 		np := normalizedContentPart{
-			Type: string(c.GetType()),
+			Type: canonicalContentType(string(c.GetType())),
 		}
 		switch v := c.(type) {
 		case fantasy.TextContent:
