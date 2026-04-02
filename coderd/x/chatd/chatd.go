@@ -138,6 +138,11 @@ type Server struct {
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
+	// activeChats tracks in-flight worker goroutines per chat so
+	// edit/archive cleanup can wait for the current worker to stop
+	// before mutating debug rows that would otherwise race late writes.
+	activeChats sync.Map // uuid.UUID -> *activeChatRun
+
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
 	// keyed by chat ID and invalidated when the agent changes.
@@ -708,6 +713,62 @@ type chatStreamState struct {
 	bufferRetainedAt time.Time
 }
 
+type activeChatRun struct {
+	done chan struct{}
+}
+
+func (p *Server) registerActiveChat(chatID uuid.UUID) *activeChatRun {
+	if chatID == uuid.Nil {
+		panic("chat_id is required")
+	}
+
+	state := &activeChatRun{done: make(chan struct{})}
+	p.activeChats.Store(chatID, state)
+	return state
+}
+
+func (p *Server) finishActiveChat(chatID uuid.UUID, state *activeChatRun) {
+	if state == nil {
+		return
+	}
+
+	if current, ok := p.activeChats.Load(chatID); ok && current == state {
+		p.activeChats.Delete(chatID)
+	}
+	close(state.done)
+}
+
+func (p *Server) waitForActiveChatStop(
+	ctx context.Context,
+	chatID uuid.UUID,
+	timeout time.Duration,
+) {
+	if p == nil || chatID == uuid.Nil {
+		return
+	}
+
+	value, ok := p.activeChats.Load(chatID)
+	if !ok {
+		return
+	}
+	state, ok := value.(*activeChatRun)
+	if !ok {
+		panic("chatd: invalid active chat state")
+	}
+
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+
+	select {
+	case <-state.done:
+	case <-waitCtx.Done():
+		p.logger.Warn(ctx, "timed out waiting for active chat to stop before debug cleanup",
+			slog.F("chat_id", chatID),
+			slog.Error(waitCtx.Err()),
+		)
+	}
+}
+
 // resetDropCounters zeroes the rate-limiting state for both buffer
 // and subscriber drop warnings. The caller must hold s.mu.
 func (s *chatStreamState) resetDropCounters() {
@@ -1267,6 +1328,8 @@ func (p *Server) EditMessage(
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+
+	p.waitForActiveChatStop(ctx, opts.ChatID, 5*time.Second)
 
 	if p.debugSvc != nil {
 		// Tell the active worker to stop before pruning debug rows so it
@@ -3755,6 +3818,9 @@ func (p *Server) trackWorkspaceUsage(
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
+
+	activeChat := p.registerActiveChat(chat.ID)
+	defer p.finishActiveChat(chat.ID, activeChat)
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)

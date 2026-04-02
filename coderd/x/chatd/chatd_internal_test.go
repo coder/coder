@@ -31,6 +31,34 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestWaitForActiveChatStop(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	chatID := uuid.New()
+	active := server.registerActiveChat(chatID)
+
+	waitDone := make(chan struct{})
+	go func() {
+		defer close(waitDone)
+		server.waitForActiveChatStop(context.Background(), chatID, time.Second)
+	}()
+
+	select {
+	case <-waitDone:
+		t.Fatal("wait returned before active chat stopped")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	server.finishActiveChat(chatID, active)
+
+	select {
+	case <-waitDone:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("wait did not return after active chat stopped")
+	}
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
