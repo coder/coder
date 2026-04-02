@@ -266,6 +266,25 @@ func TestDebugModel_GenerateError(t *testing.T) {
 	require.ErrorIs(t, err, wantErr)
 }
 
+func TestStepStatusForError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Canceled", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusInterrupted, stepStatusForError(context.Canceled))
+	})
+
+	t.Run("DeadlineExceeded", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusInterrupted, stepStatusForError(context.DeadlineExceeded))
+	})
+
+	t.Run("OtherError", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusError, stepStatusForError(xerrors.New("boom")))
+	})
+}
+
 func TestDebugModel_Stream(t *testing.T) {
 	t.Parallel()
 

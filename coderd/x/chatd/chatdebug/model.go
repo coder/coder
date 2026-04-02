@@ -206,7 +206,7 @@ func (d *debugModel) Generate(
 
 	resp, err := d.inner.Generate(enrichedCtx, call)
 	if err != nil {
-		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err), nil)
+		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
 	}
 	if resp == nil {
@@ -238,7 +238,7 @@ func (d *debugModel) Stream(
 
 	seq, err := d.inner.Stream(enrichedCtx, call)
 	if err != nil {
-		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err), nil)
+		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
 	}
 
@@ -264,7 +264,7 @@ func (d *debugModel) GenerateObject(
 
 	resp, err := d.inner.GenerateObject(enrichedCtx, call)
 	if err != nil {
-		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err),
+		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
 			map[string]any{"structured_output": true})
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func (d *debugModel) StreamObject(
 
 	seq, err := d.inner.StreamObject(enrichedCtx, call)
 	if err != nil {
-		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err),
+		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
 			map[string]any{"structured_output": true})
 		return nil, err
 	}
@@ -898,6 +898,13 @@ func normalizeObjectResponse(resp *fantasy.ObjectResponse) normalizedObjectRespo
 		Warnings:         normalizeWarnings(resp.Warnings),
 		StructuredOutput: true,
 	}
+}
+
+func stepStatusForError(err error) Status {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return StatusInterrupted
+	}
+	return StatusError
 }
 
 func normalizeError(ctx context.Context, err error) normalizedErrorPayload {
