@@ -440,6 +440,7 @@ const ChatMessageItem = memo<{
 	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	isLastAssistantMessage?: boolean;
+	isLastInConversation?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -458,6 +459,7 @@ const ChatMessageItem = memo<{
 		savingMessageId,
 		isAfterEditingMessage = false,
 		isLastAssistantMessage = false,
+		isLastInConversation = false,
 		fadeFromBottom = false,
 		urlTransform,
 		mcpServers,
@@ -620,7 +622,7 @@ const ChatMessageItem = memo<{
 						<Message
 							className={cn(
 								"w-full",
-								isLastAssistantMessage && hasCopyableContent && "pb-5",
+								isLastAssistantMessage && hasCopyableContent && !isLastInConversation && "pb-5",
 							)}
 						>
 							<MessageContent className="whitespace-normal">
@@ -1096,7 +1098,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					if (lastAsstId != null && !isTurnActive) {
 						lastAssistantPerTurnIds.add(lastAsstId);
 					}
-					return parsedMessages.map(({ message, parsed }) =>
+					return parsedMessages.map(({ message, parsed }, msgIdx) =>
 						message.role === "user" ? (
 							<StickyUserMessage
 								key={message.id}
@@ -1116,6 +1118,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								isLastAssistantMessage={lastAssistantPerTurnIds.has(message.id)}
+									isLastInConversation={msgIdx === parsedMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								computerUseSubagentIds={computerUseSubagentIds}
