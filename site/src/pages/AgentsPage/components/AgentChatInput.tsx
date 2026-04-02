@@ -146,8 +146,6 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	// Attached workspace indicator shown in the badge row for
-	// loaded chats. Non-removable, clickable, shows status.
 	attachedWorkspace?: {
 		name: string;
 		route: string;
