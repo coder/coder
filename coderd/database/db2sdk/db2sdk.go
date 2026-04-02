@@ -2,12 +2,12 @@
 package db2sdk
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -585,14 +585,14 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
-	sort.Slice(dbApps, func(i, j int) bool {
-		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
-			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
+	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
+		if c := cmp.Compare(a.DisplayOrder, b.DisplayOrder); c != 0 {
+			return c
 		}
-		if dbApps[i].DisplayName != dbApps[j].DisplayName {
-			return dbApps[i].DisplayName < dbApps[j].DisplayName
+		if c := cmp.Compare(a.DisplayName, b.DisplayName); c != 0 {
+			return c
 		}
-		return dbApps[i].Slug < dbApps[j].Slug
+		return cmp.Compare(a.Slug, b.Slug)
 	})
 
 	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
@@ -703,8 +703,8 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 	}
 
 	// Ensure stable order for display and for tests
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Name < results[j].Name
+	slices.SortFunc(results, func(a, b codersdk.ProvisionerDaemon) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return results
@@ -984,19 +984,19 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 
 func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
 	sdkTokenUsages := slice.List(tokenUsages, AIBridgeTokenUsage)
-	sort.Slice(sdkTokenUsages, func(i, j int) bool {
+	slices.SortFunc(sdkTokenUsages, func(a, b codersdk.AIBridgeTokenUsage) int {
 		// created_at ASC
-		return sdkTokenUsages[i].CreatedAt.Before(sdkTokenUsages[j].CreatedAt)
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	sdkUserPrompts := slice.List(userPrompts, AIBridgeUserPrompt)
-	sort.Slice(sdkUserPrompts, func(i, j int) bool {
+	slices.SortFunc(sdkUserPrompts, func(a, b codersdk.AIBridgeUserPrompt) int {
 		// created_at ASC
-		return sdkUserPrompts[i].CreatedAt.Before(sdkUserPrompts[j].CreatedAt)
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	sdkToolUsages := slice.List(toolUsages, AIBridgeToolUsage)
-	sort.Slice(sdkToolUsages, func(i, j int) bool {
+	slices.SortFunc(sdkToolUsages, func(a, b codersdk.AIBridgeToolUsage) int {
 		// created_at ASC
-		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	intc := codersdk.AIBridgeInterception{
 		ID:           interception.ID,

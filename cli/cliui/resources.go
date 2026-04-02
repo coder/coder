@@ -1,9 +1,10 @@
 package cliui
 
 import (
+	"cmp"
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -48,8 +49,8 @@ type WorkspaceResourcesOptions struct {
 // └────────────────────────────────────────────────────────────────────────────┘
 func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource, options WorkspaceResourcesOptions) error {
 	// Sort resources by type for consistent output.
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Type < resources[j].Type
+	slices.SortFunc(resources, func(a, b codersdk.WorkspaceResource) int {
+		return cmp.Compare(a.Type, b.Type)
 	})
 
 	tableWriter := table.NewWriter()
@@ -88,8 +89,8 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 		resourceAddress := resource.Type + "." + resource.Name
 
 		// Sort agents by name for consistent output.
-		sort.Slice(resource.Agents, func(i, j int) bool {
-			return resource.Agents[i].Name < resource.Agents[j].Name
+		slices.SortFunc(resource.Agents, func(a, b codersdk.WorkspaceAgent) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 
 		// Display a line for the resource.

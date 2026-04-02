@@ -1,8 +1,8 @@
 package rbac
 
 import (
-	"sort"
-	"strings"
+	"cmp"
+	"slices"
 )
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
@@ -117,6 +117,6 @@ func ExternalScopeNames() []string {
 		names = append(names, string(name))
 	}
 
-	sort.Slice(names, func(i, j int) bool { return strings.Compare(names[i], names[j]) < 0 })
+	slices.SortFunc(names, cmp.Compare)
 	return names
 }

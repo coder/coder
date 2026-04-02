@@ -1,8 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -92,13 +93,13 @@ func commitLog(commitRange string) ([]commitEntry, error) {
 
 	// Sort by conventional commit prefix, then by timestamp
 	// (matching the bash script's sort -k3,3 -k1,1n).
-	sort.SliceStable(entries, func(i, j int) bool {
-		pi := commitSortPrefix(entries[i].Title)
-		pj := commitSortPrefix(entries[j].Title)
-		if pi != pj {
-			return pi < pj
+	slices.SortStableFunc(entries, func(a, b commitEntry) int {
+		pa := commitSortPrefix(a.Title)
+		pb := commitSortPrefix(b.Title)
+		if c := cmp.Compare(pa, pb); c != 0 {
+			return c
 		}
-		return entries[i].Timestamp < entries[j].Timestamp
+		return cmp.Compare(a.Timestamp, b.Timestamp)
 	})
 
 	return entries, nil

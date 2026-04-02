@@ -1,9 +1,10 @@
 package coderd_test
 
 import (
+	"cmp"
 	"context"
 	"net/http"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -614,8 +615,8 @@ func normalizeGroupMembers(group *codersdk.Group) {
 		group.Members[i].CreatedAt = time.Time{}
 		group.Members[i].UpdatedAt = time.Time{}
 	}
-	sort.Slice(group.Members, func(i, j int) bool {
-		return group.Members[i].ID.String() < group.Members[j].ID.String()
+	slices.SortFunc(group.Members, func(a, b codersdk.ReducedUser) int {
+		return cmp.Compare(a.ID.String(), b.ID.String())
 	})
 }
 

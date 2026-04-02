@@ -1,13 +1,13 @@
 package provisionerdserver_test
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -3972,8 +3972,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
 					require.NoError(t, err)
-					sort.Slice(devcontainers, func(i, j int) bool {
-						return devcontainers[i].Name > devcontainers[j].Name
+					slices.SortFunc(devcontainers, func(a, b database.WorkspaceAgentDevcontainer) int {
+						return cmp.Compare(b.Name, a.Name)
 					})
 					require.Len(t, devcontainers, 2)
 					if useProtoIDs {

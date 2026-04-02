@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"flag"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -162,14 +162,14 @@ func writeDocs(sections [][]byte) error {
 
 	// Sort API pages
 	// The "General" section is expected to be always first.
-	sort.Slice(mdFiles, func(i, j int) bool {
-		if mdFiles[i].title == "General" {
-			return true // "General" < ... - sorted
+	slices.SortFunc(mdFiles, func(a, b mdFile) int {
+		if a.title == "General" {
+			return -1 // "General" < ... - sorted
 		}
-		if mdFiles[j].title == "General" {
-			return false // ... < "General" - not sorted
+		if b.title == "General" {
+			return 1 // ... < "General" - not sorted
 		}
-		return slices.IsSorted([]string{mdFiles[i].title, mdFiles[j].title})
+		return cmp.Compare(a.title, b.title)
 	})
 
 	// Update manifest.json

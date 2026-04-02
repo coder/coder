@@ -1,6 +1,7 @@
 package toolsdk_test
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -237,11 +238,11 @@ func TestTools(t *testing.T) {
 		require.Len(t, result, len(expected))
 
 		// Sort the results by name to ensure the order is consistent
-		sort.Slice(expected, func(a, b int) bool {
-			return expected[a].Name < expected[b].Name
+		slices.SortFunc(expected, func(a, b codersdk.Template) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
-		sort.Slice(result, func(a, b int) bool {
-			return result[a].Name < result[b].Name
+		slices.SortFunc(result, func(a, b toolsdk.MinimalTemplate) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
