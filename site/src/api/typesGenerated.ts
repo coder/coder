@@ -1397,7 +1397,8 @@ export interface ChatDebugRun {
 	readonly status: string;
 	readonly provider?: string;
 	readonly model?: string;
-	readonly summary: Record<string, string>;
+	// empty interface{} type, falling back to unknown
+	readonly summary: Record<string, unknown>;
 	readonly started_at: string;
 	readonly updated_at: string;
 	readonly finished_at?: string;
@@ -1415,7 +1416,8 @@ export interface ChatDebugRunSummary {
 	readonly status: string;
 	readonly provider?: string;
 	readonly model?: string;
-	readonly summary: Record<string, string>;
+	// empty interface{} type, falling back to unknown
+	readonly summary: Record<string, unknown>;
 	readonly started_at: string;
 	readonly updated_at: string;
 	readonly finished_at?: string;
@@ -1442,12 +1444,18 @@ export interface ChatDebugStep {
 	readonly status: string;
 	readonly history_tip_message_id?: number;
 	readonly assistant_message_id?: number;
-	readonly normalized_request: Record<string, string>;
-	readonly normalized_response?: Record<string, string>;
-	readonly usage?: Record<string, string>;
-	readonly attempts: readonly ChatDebugAttempt[];
-	readonly error?: Record<string, string>;
-	readonly metadata: Record<string, string>;
+	// empty interface{} type, falling back to unknown
+	readonly normalized_request: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly normalized_response?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly usage?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly attempts: readonly Record<string, unknown>[];
+	// empty interface{} type, falling back to unknown
+	readonly error?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
 	readonly updated_at: string;
 	readonly finished_at?: string;

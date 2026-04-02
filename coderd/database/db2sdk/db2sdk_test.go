@@ -243,11 +243,34 @@ func TestChatDebugStep(t *testing.T) {
 
 	sdk := db2sdk.ChatDebugStep(step)
 	require.Len(t, sdk.Attempts, 1)
-	require.Equal(t, int32(1), sdk.Attempts[0].AttemptNumber)
-	require.Equal(t, "completed", sdk.Attempts[0].Status)
-	require.JSONEq(t, `{"url":"https://example.com"}`, string(*sdk.Attempts[0].RawRequest))
-	require.JSONEq(t, `{"status":"200"}`, string(*sdk.Attempts[0].RawResponse))
-	require.Equal(t, int64(123), *sdk.Attempts[0].DurationMs)
+	require.Equal(t, float64(1), sdk.Attempts[0]["attempt_number"])
+	require.Equal(t, "completed", sdk.Attempts[0]["status"])
+	require.Equal(t, float64(123), sdk.Attempts[0]["duration_ms"])
+	require.Equal(t, map[string]any{"url": "https://example.com"}, sdk.Attempts[0]["raw_request"])
+	require.Equal(t, map[string]any{"status": "200"}, sdk.Attempts[0]["raw_response"])
+}
+
+func TestChatDebugStep_PreservesMalformedAttempts(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          json.RawMessage(`{"bad":true}`),
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, "malformed attempts payload", sdk.Attempts[0]["error"])
+	require.Equal(t, `{"bad":true}`, sdk.Attempts[0]["raw"])
 }
 
 func TestAIBridgeInterception(t *testing.T) {

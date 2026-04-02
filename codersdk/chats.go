@@ -495,16 +495,16 @@ type UpdateChatDebugLoggingRequest struct {
 
 // ChatDebugRunSummary is a lightweight run entry for list endpoints.
 type ChatDebugRunSummary struct {
-	ID         uuid.UUID       `json:"id" format:"uuid"`
-	ChatID     uuid.UUID       `json:"chat_id" format:"uuid"`
-	Kind       string          `json:"kind"`
-	Status     string          `json:"status"`
-	Provider   *string         `json:"provider,omitempty"`
-	Model      *string         `json:"model,omitempty"`
-	Summary    json.RawMessage `json:"summary"`
-	StartedAt  time.Time       `json:"started_at" format:"date-time"`
-	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	FinishedAt *time.Time      `json:"finished_at,omitempty" format:"date-time"`
+	ID         uuid.UUID      `json:"id" format:"uuid"`
+	ChatID     uuid.UUID      `json:"chat_id" format:"uuid"`
+	Kind       string         `json:"kind"`
+	Status     string         `json:"status"`
+	Provider   *string        `json:"provider,omitempty"`
+	Model      *string        `json:"model,omitempty"`
+	Summary    map[string]any `json:"summary"`
+	StartedAt  time.Time      `json:"started_at" format:"date-time"`
+	UpdatedAt  time.Time      `json:"updated_at" format:"date-time"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty" format:"date-time"`
 }
 
 // ChatDebugRun is the detailed run response including steps.
@@ -520,7 +520,7 @@ type ChatDebugRun struct {
 	Status              string          `json:"status"`
 	Provider            *string         `json:"provider,omitempty"`
 	Model               *string         `json:"model,omitempty"`
-	Summary             json.RawMessage `json:"summary"`
+	Summary             map[string]any  `json:"summary"`
 	StartedAt           time.Time       `json:"started_at" format:"date-time"`
 	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
 	FinishedAt          *time.Time      `json:"finished_at,omitempty" format:"date-time"`
@@ -529,23 +529,23 @@ type ChatDebugRun struct {
 
 // ChatDebugStep is a single step within a debug run.
 type ChatDebugStep struct {
-	ID                  uuid.UUID          `json:"id" format:"uuid"`
-	RunID               uuid.UUID          `json:"run_id" format:"uuid"`
-	ChatID              uuid.UUID          `json:"chat_id" format:"uuid"`
-	StepNumber          int32              `json:"step_number"`
-	Operation           string             `json:"operation"`
-	Status              string             `json:"status"`
-	HistoryTipMessageID *int64             `json:"history_tip_message_id,omitempty"`
-	AssistantMessageID  *int64             `json:"assistant_message_id,omitempty"`
-	NormalizedRequest   json.RawMessage    `json:"normalized_request"`
-	NormalizedResponse  *json.RawMessage   `json:"normalized_response,omitempty"`
-	Usage               *json.RawMessage   `json:"usage,omitempty"`
-	Attempts            []ChatDebugAttempt `json:"attempts"`
-	Error               *json.RawMessage   `json:"error,omitempty"`
-	Metadata            json.RawMessage    `json:"metadata"`
-	StartedAt           time.Time          `json:"started_at" format:"date-time"`
-	UpdatedAt           time.Time          `json:"updated_at" format:"date-time"`
-	FinishedAt          *time.Time         `json:"finished_at,omitempty" format:"date-time"`
+	ID                  uuid.UUID        `json:"id" format:"uuid"`
+	RunID               uuid.UUID        `json:"run_id" format:"uuid"`
+	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
+	StepNumber          int32            `json:"step_number"`
+	Operation           string           `json:"operation"`
+	Status              string           `json:"status"`
+	HistoryTipMessageID *int64           `json:"history_tip_message_id,omitempty"`
+	AssistantMessageID  *int64           `json:"assistant_message_id,omitempty"`
+	NormalizedRequest   map[string]any   `json:"normalized_request"`
+	NormalizedResponse  map[string]any   `json:"normalized_response,omitempty"`
+	Usage               map[string]any   `json:"usage,omitempty"`
+	Attempts            []map[string]any `json:"attempts"`
+	Error               map[string]any   `json:"error,omitempty"`
+	Metadata            map[string]any   `json:"metadata"`
+	StartedAt           time.Time        `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time        `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time       `json:"finished_at,omitempty" format:"date-time"`
 }
 
 // ChatDebugAttempt is a single LLM attempt within a step.

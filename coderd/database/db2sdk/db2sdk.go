@@ -1541,14 +1541,6 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 	return &value
 }
 
-func nullRawMessagePtr(v pqtype.NullRawMessage) *json.RawMessage {
-	if !v.Valid {
-		return nil
-	}
-	value := v.RawMessage
-	return &value
-}
-
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1623,20 +1615,45 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	return chat
 }
 
-func chatDebugAttempts(raw json.RawMessage) []codersdk.ChatDebugAttempt {
+func chatDebugAttempts(raw json.RawMessage) []map[string]any {
 	if len(raw) == 0 {
 		return nil
 	}
 
-	var attempts []codersdk.ChatDebugAttempt
+	var attempts []map[string]any
 	if err := json.Unmarshal(raw, &attempts); err != nil {
-		return nil
+		return []map[string]any{{
+			"error": "malformed attempts payload",
+			"raw":   string(raw),
+		}}
 	}
 	return attempts
 }
 
 // ChatDebugRunSummary converts a database.ChatDebugRun to a
 // codersdk.ChatDebugRunSummary.
+func rawJSONObject(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return map[string]any{
+			"error": "malformed debug payload",
+			"raw":   string(raw),
+		}
+	}
+	return object
+}
+
+func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
+	if !raw.Valid {
+		return nil
+	}
+	return rawJSONObject(raw.RawMessage)
+}
+
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
 	return codersdk.ChatDebugRunSummary{
 		ID:         r.ID,
@@ -1645,7 +1662,7 @@ func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
 		Status:     r.Status,
 		Provider:   nullStringPtr(r.Provider),
 		Model:      nullStringPtr(r.Model),
-		Summary:    r.Summary,
+		Summary:    rawJSONObject(r.Summary),
 		StartedAt:  r.StartedAt,
 		UpdatedAt:  r.UpdatedAt,
 		FinishedAt: nullTimePtr(r.FinishedAt),
@@ -1664,12 +1681,12 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 		Status:              s.Status,
 		HistoryTipMessageID: nullInt64Ptr(s.HistoryTipMessageID),
 		AssistantMessageID:  nullInt64Ptr(s.AssistantMessageID),
-		NormalizedRequest:   s.NormalizedRequest,
-		NormalizedResponse:  nullRawMessagePtr(s.NormalizedResponse),
-		Usage:               nullRawMessagePtr(s.Usage),
+		NormalizedRequest:   rawJSONObject(s.NormalizedRequest),
+		NormalizedResponse:  nullRawJSONObject(s.NormalizedResponse),
+		Usage:               nullRawJSONObject(s.Usage),
 		Attempts:            chatDebugAttempts(s.Attempts),
-		Error:               nullRawMessagePtr(s.Error),
-		Metadata:            s.Metadata,
+		Error:               nullRawJSONObject(s.Error),
+		Metadata:            rawJSONObject(s.Metadata),
 		StartedAt:           s.StartedAt,
 		UpdatedAt:           s.UpdatedAt,
 		FinishedAt:          nullTimePtr(s.FinishedAt),
