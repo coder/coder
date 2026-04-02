@@ -1700,7 +1700,7 @@ func ChatDebugRun(r database.ChatDebugRun, steps []database.ChatDebugStep) coder
 		Status:              r.Status,
 		Provider:            nullStringPtr(r.Provider),
 		Model:               nullStringPtr(r.Model),
-		Summary:             r.Summary,
+		Summary:             rawJSONObject(r.Summary),
 		StartedAt:           r.StartedAt,
 		UpdatedAt:           r.UpdatedAt,
 		FinishedAt:          nullTimePtr(r.FinishedAt),
