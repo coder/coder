@@ -1482,6 +1482,7 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             "nul-roundtrip-test",
@@ -1978,6 +1979,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		t.Helper()
 
 		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
 			Title:             "media-roundtrip-" + callID,
