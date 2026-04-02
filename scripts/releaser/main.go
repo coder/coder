@@ -23,7 +23,7 @@ func main() {
 	cmd := &serpent.Command{
 		Use:   "releaser",
 		Short: "Interactive release tagging for coder/coder.",
-		Long:  "Run this from a release branch (release/X.Y). Both regular releases and release candidates use the same branch; the RC-ness is in the tag. The tool detects the branch, infers the next version, and walks you through tagging, pushing, and triggering the release workflow.",
+		Long:  "Tag RCs from main, GA/patch releases from release/X.Y. The tool detects the branch, infers the next version, and walks you through tagging, pushing, and triggering the release workflow.",
 		Options: serpent.OptionSet{
 			{
 				Name:        "dry-run",

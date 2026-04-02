@@ -121,18 +121,22 @@ jobs:
           fi
 
           # Derive the release branch from the version tag.
-          # Both regular and RC releases use the same branch pattern:
-          #   2.10.2      -> release/2.10
-          #   2.32.0-rc.0 -> release/2.32
+          # GA/patch releases must be on a release/X.Y branch.
+          # RC tags are allowed on any branch (typically main).
           version="$(./scripts/version.sh)"
           # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
           base_version="${version%%-*}"
           # Then strip patch to get major.minor (e.g. 2.32.0 -> 2.32)
           release_branch="release/${base_version%.*}"
-          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
-          if [[ -z "${branch_contains_tag}" ]]; then
-            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
-            exit 1
+
+          if [[ "$version" == *-rc.* ]]; then
+            echo "RC release detected — skipping release branch check (RC tags are cut from main)."
+          else
+            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+            if [[ -z "${branch_contains_tag}" ]]; then
+              echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
+              exit 1
+            fi
           fi
 
           if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
