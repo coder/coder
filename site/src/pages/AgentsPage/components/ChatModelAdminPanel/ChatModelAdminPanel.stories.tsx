@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -50,164 +50,6 @@ const createModelConfig = (
 });
 
 type ChatModelAdminPanelStoryProps = ComponentProps<typeof ChatModelAdminPanel>;
-
-const StatefulChatModelAdminPanel: FC<ChatModelAdminPanelStoryProps> = (
-	args,
-) => {
-	const [providerConfigsData, setProviderConfigsData] = useState(
-		args.providerConfigsData,
-	);
-	const [modelConfigsData, setModelConfigsData] = useState(
-		args.modelConfigsData,
-	);
-
-	const handleCreateProvider: ChatModelAdminPanelStoryProps["onCreateProvider"] =
-		async (req) => {
-			const result = await args.onCreateProvider(req);
-			const created = createProviderConfig({
-				id: `provider-${Date.now()}`,
-				provider: req.provider,
-				display_name: req.display_name ?? "",
-				has_api_key: (req.api_key ?? "").trim().length > 0,
-				central_api_key_enabled: req.central_api_key_enabled ?? true,
-				allow_user_api_key: req.allow_user_api_key ?? false,
-				allow_central_api_key_fallback:
-					req.allow_central_api_key_fallback ?? false,
-				base_url: req.base_url ?? "",
-				source: "database",
-			});
-			setProviderConfigsData((current) => [
-				...(current ?? []).filter((p) => p.provider !== req.provider),
-				created,
-			]);
-			return result;
-		};
-
-	const handleUpdateProvider: ChatModelAdminPanelStoryProps["onUpdateProvider"] =
-		async (providerConfigId, req) => {
-			const result = await args.onUpdateProvider(providerConfigId, req);
-			setProviderConfigsData((current) => {
-				if (!current) {
-					return current;
-				}
-				return current.map((providerConfig) =>
-					providerConfig.id === providerConfigId
-						? {
-								...providerConfig,
-								display_name:
-									typeof req.display_name === "string"
-										? req.display_name
-										: providerConfig.display_name,
-								has_api_key:
-									typeof req.api_key === "string"
-										? req.api_key.trim().length > 0
-										: providerConfig.has_api_key,
-								central_api_key_enabled:
-									typeof req.central_api_key_enabled === "boolean"
-										? req.central_api_key_enabled
-										: providerConfig.central_api_key_enabled,
-								allow_user_api_key:
-									typeof req.allow_user_api_key === "boolean"
-										? req.allow_user_api_key
-										: providerConfig.allow_user_api_key,
-								allow_central_api_key_fallback:
-									typeof req.allow_central_api_key_fallback === "boolean"
-										? req.allow_central_api_key_fallback
-										: providerConfig.allow_central_api_key_fallback,
-								base_url:
-									typeof req.base_url === "string"
-										? req.base_url
-										: providerConfig.base_url,
-								updated_at: now,
-							}
-						: providerConfig,
-				);
-			});
-			return result;
-		};
-
-	const handleDeleteProvider: ChatModelAdminPanelStoryProps["onDeleteProvider"] =
-		async (providerConfigId) => {
-			await args.onDeleteProvider(providerConfigId);
-			setProviderConfigsData((current) =>
-				(current ?? []).filter(
-					(providerConfig) => providerConfig.id !== providerConfigId,
-				),
-			);
-		};
-
-	const handleCreateModel: ChatModelAdminPanelStoryProps["onCreateModel"] =
-		async (req) => {
-			const result = await args.onCreateModel(req);
-			const created = createModelConfig({
-				id: `model-${(modelConfigsData ?? []).length + 1}`,
-				provider: req.provider,
-				model: req.model,
-				display_name: req.display_name || req.model,
-				enabled: req.enabled ?? true,
-				context_limit:
-					typeof req.context_limit === "number" &&
-					Number.isFinite(req.context_limit)
-						? req.context_limit
-						: 200000,
-				compression_threshold:
-					typeof req.compression_threshold === "number" &&
-					Number.isFinite(req.compression_threshold)
-						? req.compression_threshold
-						: 70,
-				model_config: req.model_config,
-			});
-			setModelConfigsData((current) => [...(current ?? []), created]);
-			return result;
-		};
-
-	const handleUpdateModel: ChatModelAdminPanelStoryProps["onUpdateModel"] =
-		async (modelConfigId, req) => {
-			const result = await args.onUpdateModel(modelConfigId, req);
-			setModelConfigsData((current) => {
-				if (!current) {
-					return current;
-				}
-				return current.map((modelConfig) =>
-					modelConfig.id === modelConfigId
-						? createModelConfig({
-								...modelConfig,
-								...req,
-								id: modelConfig.id,
-								provider: modelConfig.provider,
-								model: modelConfig.model,
-								updated_at: now,
-							})
-						: modelConfig,
-				);
-			});
-			return result;
-		};
-
-	const handleDeleteModel: ChatModelAdminPanelStoryProps["onDeleteModel"] =
-		async (modelConfigId) => {
-			await args.onDeleteModel(modelConfigId);
-			setModelConfigsData((current) =>
-				(current ?? []).filter(
-					(modelConfig) => modelConfig.id !== modelConfigId,
-				),
-			);
-		};
-
-	return (
-		<ChatModelAdminPanel
-			{...args}
-			providerConfigsData={providerConfigsData}
-			modelConfigsData={modelConfigsData}
-			onCreateProvider={handleCreateProvider}
-			onUpdateProvider={handleUpdateProvider}
-			onDeleteProvider={handleDeleteProvider}
-			onCreateModel={handleCreateModel}
-			onUpdateModel={handleUpdateModel}
-			onDeleteModel={handleDeleteModel}
-		/>
-	);
-};
 
 /**
  * Set up spies for all chat admin API methods. The mutable `state`
@@ -362,18 +204,9 @@ const setupChatSpies = (state: {
 
 // ── Meta ───────────────────────────────────────────────────────
 
-const getStoryStateKey = (args: ChatModelAdminPanelStoryProps): string =>
-	JSON.stringify({
-		providerConfigsData: args.providerConfigsData ?? null,
-		modelConfigsData: args.modelConfigsData ?? null,
-	});
-
 const meta: Meta<typeof ChatModelAdminPanel> = {
 	title: "pages/AgentsPage/ChatModelAdminPanel",
 	component: ChatModelAdminPanel,
-	render: (args) => (
-		<StatefulChatModelAdminPanel key={getStoryStateKey(args)} {...args} />
-	),
 	args: {
 		providerConfigsData: [],
 		modelConfigsData: [],
@@ -495,6 +328,85 @@ export const EnvPresetProviders: Story = {
 };
 
 export const CreateAndUpdateProvider: Story = {
+	render: function CreateAndUpdateProvider(args) {
+		const [providerConfigsData, setProviderConfigsData] = useState(
+			args.providerConfigsData,
+		);
+
+		const handleCreateProvider: ChatModelAdminPanelStoryProps["onCreateProvider"] =
+			async (req) => {
+				const result = await args.onCreateProvider(req);
+				const created = createProviderConfig({
+					id: `provider-${Date.now()}`,
+					provider: req.provider,
+					display_name: req.display_name ?? "",
+					has_api_key: (req.api_key ?? "").trim().length > 0,
+					central_api_key_enabled: req.central_api_key_enabled ?? true,
+					allow_user_api_key: req.allow_user_api_key ?? false,
+					allow_central_api_key_fallback:
+						req.allow_central_api_key_fallback ?? false,
+					base_url: req.base_url ?? "",
+					source: "database",
+				});
+				setProviderConfigsData((current) => [
+					...(current ?? []).filter((p) => p.provider !== req.provider),
+					created,
+				]);
+				return result;
+			};
+
+		const handleUpdateProvider: ChatModelAdminPanelStoryProps["onUpdateProvider"] =
+			async (providerConfigId, req) => {
+				const result = await args.onUpdateProvider(providerConfigId, req);
+				setProviderConfigsData((current) => {
+					if (!current) {
+						return current;
+					}
+					return current.map((providerConfig) =>
+						providerConfig.id === providerConfigId
+							? {
+									...providerConfig,
+									display_name:
+										typeof req.display_name === "string"
+											? req.display_name
+											: providerConfig.display_name,
+									has_api_key:
+										typeof req.api_key === "string"
+											? req.api_key.trim().length > 0
+											: providerConfig.has_api_key,
+									central_api_key_enabled:
+										typeof req.central_api_key_enabled === "boolean"
+											? req.central_api_key_enabled
+											: providerConfig.central_api_key_enabled,
+									allow_user_api_key:
+										typeof req.allow_user_api_key === "boolean"
+											? req.allow_user_api_key
+											: providerConfig.allow_user_api_key,
+									allow_central_api_key_fallback:
+										typeof req.allow_central_api_key_fallback === "boolean"
+											? req.allow_central_api_key_fallback
+											: providerConfig.allow_central_api_key_fallback,
+									base_url:
+										typeof req.base_url === "string"
+											? req.base_url
+											: providerConfig.base_url,
+									updated_at: "2026-02-18T12:00:00.000Z",
+								}
+							: providerConfig,
+					);
+				});
+				return result;
+			};
+
+		return (
+			<ChatModelAdminPanel
+				{...args}
+				providerConfigsData={providerConfigsData}
+				onCreateProvider={handleCreateProvider}
+				onUpdateProvider={handleUpdateProvider}
+			/>
+		);
+	},
 	args: {
 		section: "providers" as ChatModelAdminSection,
 		providerConfigsData: [
