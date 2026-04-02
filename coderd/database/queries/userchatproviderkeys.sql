@@ -1,5 +1,5 @@
 -- name: GetUserChatProviderKeys :many
-SELECT * FROM user_chat_provider_keys WHERE user_id = @user_id ORDER BY created_at ASC;
+SELECT * FROM user_chat_provider_keys WHERE user_id = @user_id ORDER BY created_at ASC, id ASC;
 
 -- name: UpsertUserChatProviderKey :one
 INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)

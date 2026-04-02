@@ -1535,15 +1535,6 @@ var manualTitleLockWorkerID = uuid.MustParse(
 
 const manualTitleLockStaleAfter = time.Minute
 
-func isPendingOrRunningChatStatus(status database.ChatStatus) bool {
-	switch status {
-	case database.ChatStatusPending, database.ChatStatusRunning:
-		return true
-	default:
-		return false
-	}
-}
-
 func isFreshManualTitleLock(chat database.Chat, now time.Time) bool {
 	if !chat.WorkerID.Valid || chat.WorkerID.UUID != manualTitleLockWorkerID {
 		return false
@@ -1586,17 +1577,28 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
 		}
-		if isPendingOrRunningChatStatus(lockedChat.Status) ||
-			isFreshManualTitleLock(lockedChat, now) {
+		if isFreshManualTitleLock(lockedChat, now) {
 			return ErrManualTitleRegenerationInProgress
 		}
+
+		// Only write the lock marker when no real worker owns WorkerID.
+		// When a real worker is running, we skip the DB lock but still
+		// allow regeneration. The frontend prevents same-browser
+		// double-clicks, and concurrent regeneration from different
+		// replicas is harmless, last write wins.
+		hasRealWorker := lockedChat.WorkerID.Valid &&
+			lockedChat.WorkerID.UUID != manualTitleLockWorkerID
+		if hasRealWorker {
+			return nil
+		}
+
 		_, err = updateChatStatusPreserveUpdatedAt(
 			ctx,
 			tx,
 			lockedChat,
 			uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
 			sql.NullTime{Time: now, Valid: true},
-			sql.NullTime{Time: now, Valid: true},
+			sql.NullTime{},
 		)
 		if err != nil {
 			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)

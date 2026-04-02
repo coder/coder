@@ -603,7 +603,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, providerAvailability := chatprovider.ResolveUserProviderKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		configuredProviders,
 		userKeys,
 	)
@@ -3971,7 +3971,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		enabledConfiguredProviders,
 	)
 	effectiveKeys = chatprovider.MergeProviderAPIKeys(
@@ -4352,8 +4352,8 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 	)
 
 	//nolint:gocritic // Non-admin users need to read provider configs to manage their own chat credentials.
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	providers, err := api.Database.GetChatProviders(systemCtx)
+	chatdCtx := dbauthz.AsChatd(ctx)
+	providers, err := api.Database.GetChatProviders(chatdCtx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat providers.",
@@ -4413,9 +4413,9 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 	}
 
 	//nolint:gocritic // Non-admin users need to validate provider availability before storing their own key.
-	provider, err := api.Database.GetChatProviderByID(dbauthz.AsSystemRestricted(ctx), providerID)
+	provider, err := api.Database.GetChatProviderByID(dbauthz.AsChatd(ctx), providerID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -5284,7 +5284,9 @@ func validateChatProviderCentralAPIKey(
 	return nil
 }
 
-func chatProviderAPIKeysFromDeploymentValues(
+// ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
+// provider API keys.
+func ChatProviderAPIKeysFromDeploymentValues(
 	_ *codersdk.DeploymentValues,
 ) chatprovider.ProviderAPIKeys {
 	// AI bridge deployment config is intentionally not reused for chat
@@ -5308,7 +5310,7 @@ func (api *API) hasEffectiveCentralProviderAPIKey(
 	if strings.TrimSpace(provider.APIKey) != "" {
 		return true
 	}
-	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
+	deploymentKeys := ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	if deploymentKeys.APIKey(provider.Provider) != "" {
 		return true
 	}

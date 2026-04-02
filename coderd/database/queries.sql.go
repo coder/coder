@@ -22671,7 +22671,7 @@ func (q *sqlQuerier) DeleteUserChatProviderKey(ctx context.Context, arg DeleteUs
 }
 
 const getUserChatProviderKeys = `-- name: GetUserChatProviderKeys :many
-SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 ORDER BY created_at ASC
+SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 ORDER BY created_at ASC, id ASC
 `
 
 func (q *sqlQuerier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]UserChatProviderKey, error) {
