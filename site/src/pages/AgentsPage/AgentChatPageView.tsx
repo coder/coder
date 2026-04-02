@@ -256,23 +256,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			active: (
 				<LoaderIcon className="size-2.5 shrink-0 animate-spin text-content-secondary" />
 			),
-			inactive: (
-				<span
-					className={cn(
-						dotCls,
-						"border border-current text-content-secondary/50",
-					)}
-				/>
-			),
+			inactive: <span className={cn(dotCls, "bg-content-secondary/40")} />,
 			error: (
 				<CircleAlertIcon className="size-2.5 shrink-0 text-content-destructive" />
 			),
 			danger: (
 				<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
 			),
-				warning: (
-					<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
-				),		};
+			warning: (
+				<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
+			),
+		};
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
