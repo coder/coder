@@ -93,7 +93,7 @@ const (
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
-var errChatHasNoWorkspaceAgent = xerrors.New("chat has no workspace agent")
+var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace may be stopped. Use the start_workspace tool to start it, or create_workspace to create a new one")
 
 // Server handles background processing of pending chats.
 type Server struct {

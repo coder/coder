@@ -2486,7 +2486,7 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		if message.Role != "tool" {
 			continue
 		}
-		if strings.Contains(message.Content, "chat has no workspace agent") {
+		if strings.Contains(message.Content, "workspace has no running agent") {
 			foundUnavailableToolResult = true
 			break
 		}
@@ -2499,8 +2499,8 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		}
 		errMsg, _ := toolResult["error"].(string)
 		outputMsg, _ := toolResult["output"].(string)
-		if strings.Contains(errMsg, "chat has no workspace agent") ||
-			strings.Contains(outputMsg, "chat has no workspace agent") {
+		if strings.Contains(errMsg, "workspace has no running agent") ||
+			strings.Contains(outputMsg, "workspace has no running agent") {
 			foundUnavailableToolResult = true
 			break
 		}
@@ -2533,7 +2533,7 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
 	require.Equal(t, "execute", parts[0].ToolName)
 	require.True(t, parts[0].IsError)
-	require.Contains(t, string(parts[0].Result), "chat has no workspace agent")
+	require.Contains(t, string(parts[0].Result), "workspace has no running agent")
 }
 
 func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
