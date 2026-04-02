@@ -950,8 +950,14 @@ export const coerceStepResponse = (data: unknown): StepResponseViewModel => {
 			}
 			const partType = toOptionalString(part.type) ?? "";
 			const text = toOptionalString(part.text);
+			const toolResult = isToolResultPartType(partType)
+				? (toCodeContent(pickField(part, "result", "output")) ??
+					toCodeContent(part.text))
+				: undefined;
 			if (text) {
 				textFragments.push(text);
+			} else if (toolResult) {
+				textFragments.push(toolResult);
 			}
 			// Extract tool calls from content parts.
 			if (isToolCallPartType(partType)) {
