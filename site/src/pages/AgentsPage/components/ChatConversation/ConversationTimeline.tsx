@@ -646,7 +646,7 @@ const ChatMessageItem = memo<{
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
-													className="flex !mt-0"
+													className="flex !-mt-1"
 													data-testid="assistant-copy-button"
 												>
 														<Tooltip open={copyHovered || showCopiedSuccess || undefined}>
