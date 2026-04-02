@@ -384,8 +384,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onMCPAuthComplete={onMCPAuthComplete}
 							lastInjectedContext={lastInjectedContext}
 							attachedWorkspace={attachedWorkspace}
-						/>{" "}
-					</div>
+							/>					</div>
 				</div>
 				<RightPanel
 					isOpen={shouldShowSidebar}
