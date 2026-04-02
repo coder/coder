@@ -81,31 +81,9 @@ func TestUserEditRoles(t *testing.T) {
 		memberRoles, err := client.UserRoles(ctx, member.Username)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
-	})
 
-	t.Run("AddRoleIdempotent", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
-		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// First, give the member the auditor role via --roles.
-		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--roles=auditor")
-		clitest.SetupConfig(t, userAdmin, root)
-		err := inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-
-		// Verify auditor role was set.
-		memberRoles, err := client.UserRoles(ctx, member.Username)
-		require.NoError(t, err)
-		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
-
-		// Now try adding auditor again; should be a no-op with info
-		// message.
+		// Adding the same role again should be a no-op with an info
+		// message — not an error.
 		var stdout, stderr bytes.Buffer
 		inv, root = clitest.New(t, "users", "edit-roles", member.Username, "--add", "auditor")
 		clitest.SetupConfig(t, userAdmin, root)
@@ -115,13 +93,10 @@ func TestUserEditRoles(t *testing.T) {
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// Roles should remain unchanged.
 		memberRoles, err = client.UserRoles(ctx, member.Username)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
 
-		// The command should have printed an info message about the
-		// role already being present.
 		combinedOutput := stdout.String() + stderr.String()
 		require.Contains(t, combinedOutput, "already")
 	})
@@ -156,31 +131,22 @@ func TestUserEditRoles(t *testing.T) {
 		memberRoles, err = client.UserRoles(ctx, member.Username)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"user-admin"}, memberRoles.Roles)
-	})
 
-	t.Run("RemoveRoleNoOp", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
-		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Member starts with no extra roles (only implied "member").
-		// Try removing a role the user doesn't have.
+		// Removing a role the user doesn't have should be a no-op
+		// with an info message — not an error.
 		var stdout, stderr bytes.Buffer
-		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--remove", "auditor")
+		inv, root = clitest.New(t, "users", "edit-roles", member.Username, "--remove", "auditor")
 		clitest.SetupConfig(t, userAdmin, root)
 		inv.Stdout = &stdout
 		inv.Stderr = &stderr
 
-		err := inv.WithContext(ctx).Run()
+		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// The command should have printed an info message about no
-		// changes being required.
+		memberRoles, err = client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"user-admin"}, memberRoles.Roles)
+
 		combinedOutput := stdout.String() + stderr.String()
 		require.Contains(t, combinedOutput, "already")
 	})
@@ -273,5 +239,26 @@ func TestUserEditRoles(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not valid")
+	})
+
+	t.Run("InsufficientPermissions", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		// memberClient is the caller — a regular member with no
+		// elevated permissions.
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// A regular member should be rejected by the pre-flight
+		// permissions check.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--add", "auditor")
+		clitest.SetupConfig(t, memberClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "do not have permission")
 	})
 }

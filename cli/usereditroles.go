@@ -24,7 +24,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			cliui.SkipPromptOption(),
 			{
 				Name:        "roles",
-				Description: "A list of roles to give to the user. This removes any existing roles the user may have.",
+				Description: "A list of roles to give to the user. This replaces all existing roles. Use --add or --remove to modify roles incrementally.",
 				Flag:        "roles",
 				Value:       serpent.StringArrayOf(&givenRoles),
 			},
