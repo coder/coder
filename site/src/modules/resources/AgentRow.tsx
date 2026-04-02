@@ -206,61 +206,40 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const logTabs = useMemo(
-		() =>
-			[
-				{
-					title: "All Logs",
-					value: "all",
-				},
-				...agent.log_sources
-					.filter((logSource) => {
-						return agentLogs.some(
-							(log) =>
-								log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-						);
-					})
-					.map((logSource) => ({
-						startIcon: logSource.icon ? (
-							<ExternalImage
-								src={logSource.icon}
-								alt=""
-								className="size-icon-xs shrink-0"
-							/>
-						) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-							<PlayIcon className="size-icon-xs shrink-0" />
-						) : null,
-						title: logSource.display_name,
-						value: logSource.id,
-					}))
-					.sort((a, b) => {
-						// Ensure that "Startup Script" is always the first tab.
-						const startupPriorityDiff =
-							Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
-							Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
-						return startupPriorityDiff || a.title.localeCompare(b.title);
-					}),
-			] as {
-				startIcon?: React.ReactNode;
-				title: string;
-				value: string;
-			}[],
-		[agent.log_sources, agentLogs],
-	);
-	const {
-		containerRef: logTabsListContainerRef,
-		visibleTabs: visibleLogTabs,
-		overflowTabs: overflowLogTabs,
-		getTabMeasureProps,
-	} = useTabOverflowKebabMenu({
-		tabs: logTabs,
-		enabled: true,
-		isActive: showLogs,
-		alwaysVisibleTabsCount: 1,
-	});
-	const overflowLogTabValuesSet = new Set(
-		overflowLogTabs.map((tab) => tab.value),
-	);
+	const logTabs: {
+		startIcon?: React.ReactNode;
+		title: string;
+		value: string;
+	}[] = [
+		{
+			title: "All Logs",
+			value: "all",
+		},
+		...agent.log_sources
+			.filter((logSource) => {
+				const log = agentLogs.find((log) => log.source_id === logSource.id);
+				return (log?.output?.length ?? 0) > 0;
+			})
+			.map((logSource) => ({
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+			}))
+			.sort((a, b) => {
+				if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+					return -1;
+				}
+				return a.title.localeCompare(b.title);
+			}),
+	];
 	const selectedLogs =
 		selectedLogTab === "all"
 			? agentLogs
