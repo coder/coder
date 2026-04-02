@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,6 +54,15 @@ func (s *stubModel) Provider() string {
 
 func (s *stubModel) Model() string {
 	return s.model
+}
+
+func TestBeginStep_SkipsNilRunID(t *testing.T) {
+	t.Parallel()
+
+	ctx := ContextWithRun(context.Background(), &RunContext{ChatID: uuid.New()})
+	handle, enriched := beginStep(ctx, &Service{}, RecorderOptions{ChatID: uuid.New()}, OperationGenerate, nil)
+	require.Nil(t, handle)
+	require.Same(t, ctx, enriched)
 }
 
 func TestTruncateLabel(t *testing.T) {

@@ -85,7 +85,7 @@ func beginStep(
 	}
 
 	rc, ok := RunFromContext(ctx)
-	if !ok {
+	if !ok || rc.RunID == uuid.Nil {
 		return nil, ctx
 	}
 
