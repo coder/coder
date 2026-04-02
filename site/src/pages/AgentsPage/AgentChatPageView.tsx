@@ -10,6 +10,7 @@ import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
@@ -268,7 +269,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			name: workspace.name,
 			route: workspaceRoute,
 			statusIcon: statusIconMap[effectiveType],
-				statusLabel: `Workspace ${text.toLowerCase()}`,		};
+			statusLabel: `Workspace ${text.toLowerCase()}`,
+		};
 	})();
 
 	const titleElement = (

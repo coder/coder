@@ -7,6 +7,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
+	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	type UploadState,
 } from "./AgentChatInput";
@@ -162,12 +163,7 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
-	attachedWorkspace?: {
-		name: string;
-		route: string;
-		statusIcon: React.ReactNode;
-		statusLabel: string;
-	};
+	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({

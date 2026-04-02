@@ -147,12 +147,14 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	attachedWorkspace?: {
-		name: string;
-		route: string;
-		statusIcon: React.ReactNode;
-		statusLabel: string;
-	};
+	attachedWorkspace?: AttachedWorkspaceInfo;
+}
+
+export interface AttachedWorkspaceInfo {
+	name: string;
+	route: string;
+	statusIcon: React.ReactNode;
+	statusLabel: string;
 }
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }

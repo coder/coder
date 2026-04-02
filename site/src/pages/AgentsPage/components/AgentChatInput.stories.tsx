@@ -743,7 +743,7 @@ export const AttachedWorkspaceRunning: Story = {
 			name: "my-workspace",
 			route: "/@admin/my-workspace",
 			statusIcon: <MonitorIcon className={iconCls} />,
-			statusLabel: "Running",
+			statusLabel: "Workspace running",
 		},
 	},
 };
@@ -754,7 +754,7 @@ export const AttachedWorkspaceStopped: Story = {
 			name: "my-workspace",
 			route: "/@admin/my-workspace",
 			statusIcon: <MonitorPauseIcon className={iconCls} />,
-			statusLabel: "Stopped",
+			statusLabel: "Workspace stopped",
 		},
 	},
 };
@@ -765,7 +765,7 @@ export const AttachedWorkspaceStarting: Story = {
 			name: "my-workspace",
 			route: "/@admin/my-workspace",
 			statusIcon: <MonitorDotIcon className={iconCls} />,
-			statusLabel: "Starting",
+			statusLabel: "Workspace starting",
 		},
 	},
 };
@@ -776,7 +776,7 @@ export const AttachedWorkspaceError: Story = {
 			name: "my-workspace",
 			route: "/@admin/my-workspace",
 			statusIcon: <MonitorXIcon className={iconCls} />,
-			statusLabel: "Error",
+			statusLabel: "Workspace failed",
 		},
 	},
 };
