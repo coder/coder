@@ -1,4 +1,5 @@
 import type { Workspace } from "#/api/typesGenerated";
+import { CANCELLABLE_BUILD_STATUSES } from "#/modules/workspaces/status";
 
 /**
  * An iterable of all action types supported by the workspace UI
@@ -42,19 +43,44 @@ type ActionPermissions = {
 	isOwner: boolean;
 };
 
+type CancelPermissions = Pick<ActionPermissions, "isOwner">;
+
 type WorkspaceAbilities = {
 	actions: readonly ActionType[];
 	canCancel: boolean;
 	canAcceptJobs: boolean;
 };
 
+// Share the cancellability rules between row and bulk actions so they stay
+// in sync with the backend permission checks.
+export const canCancelWorkspaceBuild = (
+	workspace: Pick<
+		Workspace,
+		"dormant_at" | "latest_build" | "template_allow_user_cancel_workspace_jobs"
+	>,
+	permissions: CancelPermissions,
+): boolean => {
+	if (workspace.dormant_at || workspace.latest_build.has_external_agent) {
+		return false;
+	}
+
+	if (!CANCELLABLE_BUILD_STATUSES.includes(workspace.latest_build.status)) {
+		return false;
+	}
+
+	if (workspace.latest_build.status === "pending") {
+		return true;
+	}
+
+	return (
+		workspace.template_allow_user_cancel_workspace_jobs || permissions.isOwner
+	);
+};
+
 export const abilitiesByWorkspaceStatus = (
 	workspace: Workspace,
 	permissions: ActionPermissions,
 ): WorkspaceAbilities => {
-	const hasPermissionToCancel =
-		workspace.template_allow_user_cancel_workspace_jobs || permissions.isOwner;
-
 	if (workspace.dormant_at) {
 		return {
 			actions: ["activate"],
@@ -72,12 +98,13 @@ export const abilitiesByWorkspaceStatus = (
 	}
 
 	const status = workspace.latest_build.status;
+	const canCancel = canCancelWorkspaceBuild(workspace, permissions);
 
 	switch (status) {
 		case "starting": {
 			return {
 				actions: ["starting"],
-				canCancel: hasPermissionToCancel,
+				canCancel,
 				canAcceptJobs: false,
 			};
 		}
@@ -102,7 +129,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "stopping": {
 			return {
 				actions: ["stopping"],
-				canCancel: hasPermissionToCancel,
+				canCancel,
 				canAcceptJobs: false,
 			};
 		}
@@ -153,7 +180,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "pending": {
 			return {
 				actions: ["pending"],
-				canCancel: true,
+				canCancel,
 				canAcceptJobs: false,
 			};
 		}
@@ -167,7 +194,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "deleting": {
 			return {
 				actions: ["deleting"],
-				canCancel: true,
+				canCancel,
 				canAcceptJobs: false,
 			};
 		}

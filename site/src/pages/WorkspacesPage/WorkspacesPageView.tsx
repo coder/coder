@@ -30,7 +30,7 @@ import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWi
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
-import { CANCELLABLE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { canCancelWorkspaceBuild } from "#/modules/workspaces/actions";
 import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "#/utils/workspace";
 import {
@@ -179,14 +179,10 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={
-										!checkedWorkspaces?.some(
-											(w) =>
-												CANCELLABLE_BUILD_STATUSES.includes(
-													w.latest_build.status,
-												) &&
-												(w.latest_build.status === "pending" ||
-													w.template_allow_user_cancel_workspace_jobs ||
-													canCancelAllBuilds),
+										!checkedWorkspaces?.some((w) =>
+											canCancelWorkspaceBuild(w, {
+												isOwner: canCancelAllBuilds,
+											}),
 										)
 									}
 									onClick={onBatchCancelTransition}

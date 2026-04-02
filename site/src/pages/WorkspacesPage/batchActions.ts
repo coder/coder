@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import type { Response, Workspace, WorkspaceBuild } from "#/api/typesGenerated";
-import { CANCELLABLE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { canCancelWorkspaceBuild } from "#/modules/workspaces/actions";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -65,12 +65,8 @@ export function useBatchActions(
 		mutationFn: (workspaces: readonly Workspace[]) => {
 			return Promise.all(
 				workspaces
-					.filter(
-						(w) =>
-							CANCELLABLE_BUILD_STATUSES.includes(w.latest_build.status) &&
-							(w.latest_build.status === "pending" ||
-								w.template_allow_user_cancel_workspace_jobs ||
-								canCancelAllBuilds),
+					.filter((w) =>
+						canCancelWorkspaceBuild(w, { isOwner: canCancelAllBuilds }),
 					)
 					.map((w) => {
 						const { status } = w.latest_build;
