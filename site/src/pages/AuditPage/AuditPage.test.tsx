@@ -183,7 +183,7 @@ describe("AuditPage", () => {
 		it("shows capped count indicator and navigates to next page with correct offset", async () => {
 			vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 				audit_logs: [MockAuditLog, MockAuditLog2],
-				count: 5000,
+				count: 2001,
 				count_cap: 2000,
 			});
 

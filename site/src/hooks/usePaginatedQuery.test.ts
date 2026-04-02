@@ -266,6 +266,8 @@ describe(usePaginatedQuery.name, () => {
 		const mockCappedQueryFn = vi.fn(({ pageNumber, limit }) => {
 			const totalItems = 2100;
 			const offset = (pageNumber - 1) * limit;
+			// Returns 0 items when the requested page is past the end, simulating
+			// an empty server response.
 			const itemsOnPage = Math.max(0, Math.min(limit, totalItems - offset));
 			return Promise.resolve({
 				data: new Array(itemsOnPage).fill(pageNumber),
