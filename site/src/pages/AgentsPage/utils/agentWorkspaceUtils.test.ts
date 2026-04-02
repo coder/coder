@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+	archiveAndDeleteWorkspace,
 	isWorkspaceAutoCreated,
 	isWorkspaceNotFound,
 	resolveArchiveAndDeleteAction,
@@ -75,6 +76,74 @@ describe("isWorkspaceNotFound", () => {
 	it("returns false for non-error values", () => {
 		expect(isWorkspaceNotFound("nope")).toBe(false);
 		expect(isWorkspaceNotFound(null)).toBe(false);
+	});
+});
+
+describe("archiveAndDeleteWorkspace", () => {
+	it("archives and deletes when both succeed", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => undefined);
+
+		await expect(
+			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doArchive).toHaveBeenCalledWith("chat-1");
+		expect(doDelete).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledWith("workspace-1");
+	});
+
+	it("succeeds when delete returns 404", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => {
+			throw {
+				isAxiosError: true,
+				response: {
+					status: 404,
+					data: { message: "Workspace not found" },
+				},
+			};
+		});
+
+		await expect(
+			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws when delete returns non-404 error", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+		const doDelete = vi.fn(async () => {
+			throw error;
+		});
+
+		await expect(
+			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+		).rejects.toBe(error);
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws when archive fails without attempting delete", async () => {
+		const error = new Error("archive failed");
+		const doArchive = vi.fn(async () => {
+			throw error;
+		});
+		const doDelete = vi.fn(async () => undefined);
+
+		await expect(
+			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+		).rejects.toBe(error);
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).not.toHaveBeenCalled();
 	});
 });
 

@@ -16,6 +16,7 @@ import {
 	chatKey,
 	chatModelConfigs,
 	chatModels,
+	chatsByWorkspaceKeyPrefix,
 	infiniteChats,
 	invalidateChatListQueries,
 	pinChat,
@@ -39,7 +40,7 @@ import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import {
-	isWorkspaceNotFound,
+	archiveAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
@@ -166,29 +167,28 @@ const AgentsPage: FC = () => {
 		},
 	});
 	const archiveAndDeleteMutation = useMutation({
-		mutationFn: async ({
+		mutationFn: ({
 			chatId,
 			workspaceId,
 		}: {
 			chatId: string;
 			workspaceId: string;
-		}) => {
-			await API.experimental.updateChat(chatId, { archived: true });
-			try {
-				await API.deleteWorkspace(workspaceId);
-			} catch (error) {
-				if (!isWorkspaceNotFound(error)) {
-					throw error;
-				}
-			}
-			return { chatId, workspaceId };
-		},
+		}) =>
+			archiveAndDeleteWorkspace(
+				chatId,
+				workspaceId,
+				(id) => API.experimental.updateChat(id, { archived: true }),
+				(id) => API.deleteWorkspace(id),
+			),
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
 				exact: true,
+			});
+			await queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
 			});
 		},
 		onError: (error) => {
@@ -343,7 +343,7 @@ const AgentsPage: FC = () => {
 				);
 			} else if (action === "archive") {
 				archiveAgentMutation.mutate(chatId, {
-					onSettled: () => {
+					onSuccess: () => {
 						navigateAfterArchive(chatId);
 					},
 				});
@@ -362,19 +362,7 @@ const AgentsPage: FC = () => {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
-					const activeChatId = activeChatIDRef.current;
-					if (
-						shouldNavigateAfterArchive(
-							activeChatId,
-							archivedChatId,
-							activeChatId
-								? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
-										?.root_chat_id
-								: undefined,
-						)
-					) {
-						navigate("/agents");
-					}
+					navigateAfterArchive(archivedChatId);
 				},
 			});
 		}

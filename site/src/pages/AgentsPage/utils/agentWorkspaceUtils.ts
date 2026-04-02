@@ -14,8 +14,41 @@ export function isWorkspaceAutoCreated(
 	return new Date(workspaceCreatedAt) >= new Date(chatCreatedAt);
 }
 
+/**
+ * Detects whether an error indicates a missing workspace (HTTP 404).
+ *
+ * The Coder backend returns 404 for both genuinely deleted resources
+ * and unauthorized access to avoid leaking resource existence. In the
+ * archive-and-delete flow this is acceptable: the workspace ID comes
+ * from the chat's own metadata, so if the user can see the chat they
+ * almost certainly had access to the workspace. Treating an auth 404
+ * as "already gone" is a safe degradation because the user cannot
+ * delete a workspace they lack access to anyway.
+ */
 export function isWorkspaceNotFound(error: unknown): boolean {
 	return isAxiosError(error) && error.response?.status === 404;
+}
+
+/**
+ * Archives a chat and then deletes its associated workspace.
+ * If the workspace is already gone (404), the delete step is
+ * treated as a no-op so the archive still succeeds.
+ */
+export async function archiveAndDeleteWorkspace(
+	chatId: string,
+	workspaceId: string,
+	doArchive: (chatId: string) => Promise<unknown>,
+	doDelete: (workspaceId: string) => Promise<unknown>,
+): Promise<{ chatId: string; workspaceId: string }> {
+	await doArchive(chatId);
+	try {
+		await doDelete(workspaceId);
+	} catch (error) {
+		if (!isWorkspaceNotFound(error)) {
+			throw error;
+		}
+	}
+	return { chatId, workspaceId };
 }
 
 /**
