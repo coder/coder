@@ -4466,17 +4466,17 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		case 2:
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("read_template",
-					fmt.Sprintf(`{"template_id":%q}`, tplBlocked.ID)),
+					fmt.Sprintf(`{"template_id":%q}`, tplBlocked.ID.String())),
 			)
 		case 3:
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("read_template",
-					fmt.Sprintf(`{"template_id":%q}`, tplAllowed.ID)),
+					fmt.Sprintf(`{"template_id":%q}`, tplAllowed.ID.String())),
 			)
 		case 4:
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("create_workspace",
-					fmt.Sprintf(`{"template_id":%q}`, tplBlocked.ID)),
+					fmt.Sprintf(`{"template_id":%q}`, tplBlocked.ID.String())),
 			)
 		default:
 			return chattest.OpenAIStreamingResponse(
