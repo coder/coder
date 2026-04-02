@@ -10,13 +10,16 @@ interface PullRequestBadgeProps {
 }
 
 export const PullRequestBadge: FC<PullRequestBadgeProps> = ({
-	diffStatusData,
+	diffStatusData: {
+		url,
+		pull_request_state,
+		pull_request_draft,
+		pull_request_title,
+		pr_number,
+	},
 	hiddenWhenPanelOpen,
 }) => {
-	const { url, pull_request_state, pull_request_draft, pull_request_title } =
-		diffStatusData;
-	const prNumber =
-		diffStatusData.pr_number?.toString() ?? parsePullRequestUrl(url)?.number;
+	const prNumber = pr_number?.toString() ?? parsePullRequestUrl(url)?.number;
 
 	if (!url || !(pull_request_state || prNumber)) {
 		return null;
