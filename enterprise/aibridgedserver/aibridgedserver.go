@@ -184,6 +184,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		StartedAt:                  in.StartedAt.AsTime(),
 		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+		CredentialKind:             in.CredentialKind,
+		CredentialHint:             in.CredentialHint,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)

@@ -4038,6 +4038,10 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 	// Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception's own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.
 	SessionID string `db:"session_id" json:"session_id"`
+	// How the request was authenticated: centralized, personal_api_key, or subscription.
+	CredentialKind string `db:"credential_kind" json:"credential_kind"`
+	// Masked credential identifier for audit (e.g. sk-...abc1).
+	CredentialHint string `db:"credential_hint" json:"credential_hint"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
