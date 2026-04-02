@@ -229,21 +229,24 @@ describe("chat debug queries", () => {
 		const refetchInterval = query.refetchInterval;
 		expect(typeof refetchInterval).toBe("function");
 		if (typeof refetchInterval === "function") {
-			expect(
-				refetchInterval({
-					state: { data: run },
-				} as Parameters<typeof refetchInterval>[0]),
-			).toBe(5_000);
-			expect(
-				refetchInterval({
-					state: {
-						data: {
-							...run,
-							status: "completed",
-						},
+			const activeQueryState: Parameters<typeof refetchInterval>[0] = {
+				state: { data: run, status: "success" },
+			};
+			const completedQueryState: Parameters<typeof refetchInterval>[0] = {
+				state: {
+					data: {
+						...run,
+						status: "completed",
 					},
-				} as Parameters<typeof refetchInterval>[0]),
-			).toBe(false);
+					status: "success",
+				},
+			};
+			const errorQueryState: Parameters<typeof refetchInterval>[0] = {
+				state: { data: run, status: "error" },
+			};
+			expect(refetchInterval(activeQueryState)).toBe(5_000);
+			expect(refetchInterval(completedQueryState)).toBe(false);
+			expect(refetchInterval(errorQueryState)).toBe(false);
 		}
 		await expect(query.queryFn()).resolves.toEqual(run);
 	});

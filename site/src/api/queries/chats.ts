@@ -785,7 +785,11 @@ const debugRunTerminalStatuses = new Set([
 
 const debugRunRefetchInterval = (
 	run: Pick<TypesGen.ChatDebugRun, "status"> | undefined,
+	hasError?: boolean,
 ): number | false => {
+	if (hasError) {
+		return false;
+	}
 	if (run?.status && debugRunTerminalStatuses.has(run.status.toLowerCase())) {
 		return false;
 	}
@@ -811,8 +815,8 @@ export const chatDebugRun = (chatId: string, runId: string) => ({
 	refetchInterval: ({
 		state,
 	}: {
-		state: { data: TypesGen.ChatDebugRun | undefined };
-	}) => debugRunRefetchInterval(state.data),
+		state: { data: TypesGen.ChatDebugRun | undefined; status: string };
+	}) => debugRunRefetchInterval(state.data, state.status === "error"),
 	refetchIntervalInBackground: false,
 });
 
