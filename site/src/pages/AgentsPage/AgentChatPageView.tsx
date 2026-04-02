@@ -3,7 +3,6 @@ import {
 	CircleAlertIcon,
 	CircleIcon,
 	LoaderIcon,
-	SquareIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
@@ -269,7 +268,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				/>
 			),
 			inactive: (
-				<SquareIcon className={cn(iconCls, "text-content-secondary/50")} />
+				<CircleIcon className={cn(iconCls, "text-content-secondary/50")} />
 			),
 			error: (
 				<CircleAlertIcon className={cn(iconCls, "text-content-destructive")} />
