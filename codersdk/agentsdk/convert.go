@@ -307,17 +307,19 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 
 func ServiceBannerFromProto(sbp *proto.ServiceBanner) codersdk.BannerConfig {
 	return codersdk.BannerConfig{
-		Enabled:         sbp.GetEnabled(),
-		Message:         sbp.GetMessage(),
-		BackgroundColor: sbp.GetBackgroundColor(),
+		Enabled:           sbp.GetEnabled(),
+		Message:           sbp.GetMessage(),
+		BackgroundColor:   sbp.GetBackgroundColor(),
+		HideLinkUnderline: sbp.GetHideLinkUnderline(),
 	}
 }
 
 func ProtoFromServiceBanner(sb codersdk.BannerConfig) *proto.ServiceBanner {
 	return &proto.ServiceBanner{
-		Enabled:         sb.Enabled,
-		Message:         sb.Message,
-		BackgroundColor: sb.BackgroundColor,
+		Enabled:           sb.Enabled,
+		Message:           sb.Message,
+		BackgroundColor:   sb.BackgroundColor,
+		HideLinkUnderline: sb.HideLinkUnderline,
 	}
 }
 

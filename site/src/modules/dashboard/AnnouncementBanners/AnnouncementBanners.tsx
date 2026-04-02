@@ -27,6 +27,7 @@ export const AnnouncementBanners: FC = () => {
 						key={banner.message}
 						message={banner.message}
 						backgroundColor={banner.background_color}
+						hideLinkUnderline={banner.hide_link_underline}
 					/>
 				))}
 		</>

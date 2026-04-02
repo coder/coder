@@ -1027,6 +1027,7 @@ export interface BannerConfig {
 	readonly enabled: boolean;
 	readonly message?: string;
 	readonly background_color?: string;
+	readonly hide_link_underline?: boolean;
 }
 
 // From healthsdk/healthsdk.go
@@ -6192,6 +6193,7 @@ export interface ServiceBannerConfig {
 	readonly enabled: boolean;
 	readonly message?: string;
 	readonly background_color?: string;
+	readonly hide_link_underline?: boolean;
 }
 
 // From codersdk/deployment.go
