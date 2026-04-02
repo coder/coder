@@ -547,7 +547,7 @@ export const ProviderWithUserKeysEnabled: Story = {
 		).toBeInTheDocument();
 		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
 		await expect(
-			body.getByRole("switch", { name: "Allow user API keys" }),
+			await body.findByRole("switch", { name: "Allow user API keys" }),
 		).toBeChecked();
 		await expect(
 			await body.findByRole("switch", {
