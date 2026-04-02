@@ -268,8 +268,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			name: workspace.name,
 			route: workspaceRoute,
 			statusIcon: statusIconMap[effectiveType],
-			statusLabel: text,
-		};
+				statusLabel: `Workspace ${text.toLowerCase()}`,		};
 	})();
 
 	const titleElement = (
