@@ -7244,6 +7244,62 @@ func TestChatWorkspaceTTL(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestUserChatDebugLoggingSettings(t *testing.T) {
+	t.Parallel()
+
+	client, _ := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+	t.Run("EmptyByDefault", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		settings, err := client.GetUserChatDebugLoggingEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, settings.DebugLoggingEnabled)
+		require.False(t, settings.DebugLoggingOverrideSet)
+	})
+
+	t.Run("PutGetAndClear", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		require.NoError(t, client.UpdateUserChatDebugLoggingEnabled(ctx, codersdk.UpdateChatDebugLoggingRequest{
+			DebugLoggingEnabled: true,
+		}))
+
+		settings, err := client.GetUserChatDebugLoggingEnabled(ctx)
+		require.NoError(t, err)
+		require.True(t, settings.DebugLoggingEnabled)
+		require.True(t, settings.DebugLoggingOverrideSet)
+
+		overrideSet := false
+		require.NoError(t, client.UpdateUserChatDebugLoggingEnabled(ctx, codersdk.UpdateChatDebugLoggingRequest{
+			DebugLoggingOverrideSet: &overrideSet,
+		}))
+
+		settings, err = client.GetUserChatDebugLoggingEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, settings.DebugLoggingEnabled)
+		require.False(t, settings.DebugLoggingOverrideSet)
+	})
+
+	t.Run("IsolatedPerUser", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		require.NoError(t, client.UpdateUserChatDebugLoggingEnabled(ctx, codersdk.UpdateChatDebugLoggingRequest{
+			DebugLoggingEnabled: true,
+		}))
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		memberSettings, err := memberClient.GetUserChatDebugLoggingEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, memberSettings.DebugLoggingEnabled)
+		require.False(t, memberSettings.DebugLoggingOverrideSet)
+	})
+}
+
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
 

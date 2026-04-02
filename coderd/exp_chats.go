@@ -3500,15 +3500,20 @@ func (api *API) getUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.R
 	enabled, err := api.Database.GetUserChatDebugLoggingEnabled(ctx, userID)
 	overrideSet := true
 	if err != nil {
-		if !httpapi.Is404Error(err) {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			enabled = false
+			overrideSet = false
+		case httpapi.Is404Error(err):
+			httpapi.ResourceNotFound(rw)
+			return
+		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Error reading user chat debug logging setting.",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		enabled = false
-		overrideSet = false
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDebugSettings{
@@ -3540,6 +3545,10 @@ func (api *API) putUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.R
 			UserID: userID,
 			Key:    "chat_debug_logging_enabled",
 		}); err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Error clearing user chat debug logging override.",
 				Detail:  err.Error(),
@@ -3553,6 +3562,10 @@ func (api *API) putUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.R
 		UserID:              userID,
 		DebugLoggingEnabled: req.DebugLoggingEnabled,
 	}); err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error updating user chat debug logging setting.",
 			Detail:  err.Error(),
