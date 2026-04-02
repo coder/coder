@@ -989,7 +989,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	}
 
 	return (
-		<div className="flex min-h-full flex-col space-y-3">
+		<div className="flex min-h-full flex-col space-y-6">
 			{!isFormView ? (
 				<ServerList
 					servers={servers}
