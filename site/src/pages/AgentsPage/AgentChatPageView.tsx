@@ -1,9 +1,11 @@
 import {
 	ArchiveIcon,
-	CircleAlertIcon,
-	LoaderIcon,
-	MoonIcon,
+	MonitorDotIcon,
+	MonitorIcon,
+	MonitorPauseIcon,
+	MonitorXIcon,
 } from "lucide-react";
+
 import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -253,26 +255,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			workspace.latest_build.job,
 		);
 		const effectiveType = workspace.health.healthy ? type : "warning";
-		// Small status icon — shape communicates state so the
-		// indicator doesn't rely on color alone.
-		const dotCls = "size-1.5 shrink-0 rounded-full";
+		const iconCls = "size-3";
 		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
-			success: <span className={cn(dotCls, "bg-content-success/60")} />,
-			active: (
-				<LoaderIcon className="size-2.5 shrink-0 animate-spin text-content-secondary" />
-			),
-			inactive: (
-				<MoonIcon className="size-2.5 shrink-0 text-content-secondary/60" />
-			),
-			error: (
-				<CircleAlertIcon className="size-2.5 shrink-0 text-content-destructive" />
-			),
-			danger: (
-				<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
-			),
-			warning: (
-				<CircleAlertIcon className="size-2.5 shrink-0 text-content-warning" />
-			),
+			success: <MonitorIcon className={iconCls} />,
+			active: <MonitorDotIcon className={iconCls} />,
+			inactive: <MonitorPauseIcon className={iconCls} />,
+			error: <MonitorXIcon className={iconCls} />,
+			danger: <MonitorXIcon className={iconCls} />,
+			warning: <MonitorXIcon className={iconCls} />,
 		};
 		return {
 			name: workspace.name,

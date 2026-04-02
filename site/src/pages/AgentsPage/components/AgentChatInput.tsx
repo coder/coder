@@ -179,9 +179,8 @@ const ToolBadge: FC<{
 					"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 				)}
 			>
-				<MonitorIcon className="size-3" />
-				{badge.name}
 				{badge.statusIcon}
+				{badge.name}
 			</Link>
 		);
 	}
