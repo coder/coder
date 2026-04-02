@@ -77,6 +77,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	if (view.mode === "detail" && detailProvider) {
 		return (
 			<ProviderForm
+				key={
+					detailProvider.providerConfig?.id ?? `new-${detailProvider.provider}`
+				}
 				providerState={detailProvider}
 				providerConfigsUnavailable={providerConfigsUnavailable}
 				isProviderMutationPending={isProviderMutationPending}
