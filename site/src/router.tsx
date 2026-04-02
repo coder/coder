@@ -368,11 +368,8 @@ const AgentSettingsModelsPage = lazy(
 const AgentSettingsMCPServersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
-const AgentSettingsLimitsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLimitsPage"),
-);
-const AgentSettingsUsagePage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsUsagePage"),
+const AgentSettingsSpendPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
 );
 const AgentSettingsInsightsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsInsightsPage"),
@@ -708,12 +705,11 @@ export const router = createBrowserRouter(
 							path="mcp-servers"
 							element={<AgentSettingsMCPServersPage />}
 						/>
-						<Route path="limits" element={<AgentSettingsLimitsPage />} />
-						<Route path="usage" element={<AgentSettingsUsagePage />} />
+						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>
-					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}
+					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route
 						path=":agentId"
 						element={

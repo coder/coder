@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 
 /**
@@ -32,4 +33,23 @@ export function toInclusiveDateRange(
 		};
 	}
 	return dateRange;
+}
+
+/**
+ * Format a date range for display. When `endDateIsExclusive` is true
+ * and the end date is midnight, the formatted label shows the
+ * preceding day.
+ */
+export function formatUsageDateRange(
+	value: DateRangeValue,
+	options?: { endDateIsExclusive?: boolean },
+): string {
+	const displayEndDate =
+		options?.endDateIsExclusive && isMidnight(value.endDate)
+			? dayjs(value.endDate).subtract(1, "day")
+			: dayjs(value.endDate);
+
+	return `${dayjs(value.startDate).format("MMM D")} – ${displayEndDate.format(
+		"MMM D, YYYY",
+	)}`;
 }
