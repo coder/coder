@@ -1,4 +1,5 @@
 const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
+const KYLEOSOPHY_PREFERENCE_KEY = "agents.kyleosophy";
 
 export function getChimeEnabled(): boolean {
 	try {
@@ -20,19 +21,79 @@ export function setChimeEnabled(enabled: boolean): void {
 }
 
 /**
- * Play the completion chime audio file. The file is a short,
- * warm two-tone bell sound shipped as a static asset.
- *
- * A single Audio element is reused across calls so the browser
- * only fetches the file once.
+ * Whether Kyleosophy mode is active. Force-enabled on
+ * dev.coder.com because the people deserve Kyle.
+ */
+export function getKylesophyEnabled(): boolean {
+	if (isKylesophyForced()) {
+		return true;
+	}
+	try {
+		const stored = localStorage.getItem(KYLEOSOPHY_PREFERENCE_KEY);
+		return stored === null ? false : stored === "true";
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Whether the current deployment force-enables Kyleosophy,
+ * bypassing the user preference.
+ */
+export function isKylesophyForced(): boolean {
+	try {
+		return globalThis.location?.hostname === "dev.coder.com";
+	} catch {
+		return false;
+	}
+}
+
+export function setKylesophyEnabled(enabled: boolean): void {
+	try {
+		localStorage.setItem(KYLEOSOPHY_PREFERENCE_KEY, String(enabled));
+	} catch {
+		// Silently ignore storage errors (e.g. private browsing
+		// quota exceeded).
+	}
+}
+
+/**
+ * Alternative completion sounds for Kyleosophy mode. All are
+ * shipped as static assets alongside chime.mp3.
+ */
+export const KYLEOSOPHY_SOUNDS: readonly string[] = [
+	"/chime_1.mp3", // absolutely massive
+	"/chime_2.mp3", // dope
+	"/chime_3.mp3", // great
+	"/chime_4.mp3", // oh god
+	"/chime_5.mp3", // okay
+	"/chime_6.mp3", // open up a pr
+	"/chime_7.mp3", // sweet
+	"/chime_8.mp3", // yep
+];
+
+/**
+ * Play a completion sound. When Kyleosophy is enabled a random
+ * voice clip is selected; otherwise the default bell chime is
+ * used. The Audio element is cached and reused when the sound
+ * URL hasn't changed between calls.
  */
 let chimeAudio: HTMLAudioElement | null = null;
+let lastSoundUrl: string | null = null;
 
-function playChimeAudio(): void {
+/** @internal Reset cached Audio state between tests. */
+export function _resetForTesting(): void {
+	chimeAudio = null;
+	lastSoundUrl = null;
+}
+
+function playChimeAudio(soundUrl = "/chime.mp3"): void {
 	try {
-		if (!chimeAudio) {
-			chimeAudio = new Audio("/chime.mp3");
+		if (!chimeAudio || soundUrl !== lastSoundUrl) {
+			chimeAudio?.pause();
+			chimeAudio = new Audio(soundUrl);
 			chimeAudio.volume = 0.5;
+			lastSoundUrl = soundUrl;
 		}
 		// Reset to the start in case a previous play hasn't
 		// finished yet.
@@ -75,9 +136,9 @@ export const LOCK_HOLD_MS = 2000;
  * Falls back to playing immediately when the Web Locks API is
  * not available (preserving the original single-tab behavior).
  */
-function playChime(chatID: string): void {
+function playChime(chatID: string, soundUrl?: string): void {
 	if (typeof navigator === "undefined" || !navigator.locks) {
-		playChimeAudio();
+		playChimeAudio(soundUrl);
 		return;
 	}
 
@@ -93,7 +154,7 @@ function playChime(chatID: string): void {
 				return;
 			}
 
-			playChimeAudio();
+			playChimeAudio(soundUrl);
 
 			// Hold the lock briefly so that tabs receiving the
 			// WebSocket event a bit later will see the lock as
@@ -105,14 +166,16 @@ function playChime(chatID: string): void {
 
 /**
  * Check whether a chat status transition should trigger a chime
- * and play it if so. A chime fires when a chat reaches a
- * terminal state ("waiting" or "error") from a non-terminal
- * state, meaning the agent just finished work. The previous
- * status may be "running" (seen via the per-chat WebSocket) or
- * "pending" (when only the watchChats WebSocket is active and
- * the intermediate "running" status was never pushed to the
- * chat list). The chime is suppressed when the chat is
- * currently visible to the user.
+ * and play it if so. The chime fires on these transitions:
+ *
+ *   running → waiting   (normal completion via per-chat WS)
+ *   running → pending   (normal completion via per-chat WS)
+ *   pending → waiting   (watchChats WS skipped "running")
+ *
+ * Note that "pending" appears as both a source and a target:
+ * it is an active state when the agent is queued, and a resting
+ * state after the agent finishes. The chime is suppressed when
+ * the chat is currently visible to the user.
  */
 export function maybePlayChime(
 	prevStatus: string | undefined,
@@ -149,5 +212,9 @@ export function maybePlayChime(
 		return;
 	}
 
-	playChime(chatID);
+	const soundUrl = getKylesophyEnabled()
+		? KYLEOSOPHY_SOUNDS[Math.floor(Math.random() * KYLEOSOPHY_SOUNDS.length)]
+		: undefined;
+
+	playChime(chatID, soundUrl);
 }

@@ -1,6 +1,5 @@
-import { Label } from "@radix-ui/react-label";
-import { Slot } from "@radix-ui/react-slot";
 import { TriangleAlert } from "lucide-react";
+import { Label, Slot } from "radix-ui";
 import {
 	type FC,
 	type ForwardedRef,
@@ -201,14 +200,14 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 				<li>Any unsaved data will be lost.</li>
 			</ul>
 
-			<Label className="flex flex-row gap-3 items-center leading-tight pt-6">
+			<Label.Root className="flex flex-row gap-3 items-center leading-tight pt-6">
 				<Checkbox
 					ref={checkboxRef}
 					checked={acceptedRisks}
 					onCheckedChange={onAcceptedRisksChange}
 				/>
 				I acknowledge these risks.
-			</Label>
+			</Label.Root>
 		</div>
 	);
 };
@@ -219,7 +218,7 @@ type ContainerProps = Readonly<{
 }>;
 
 const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
-	const Wrapper = asChild ? Slot : "div";
+	const Wrapper = asChild ? Slot.Root : "div";
 	return (
 		<Wrapper className="max-h-[80vh] flex flex-col flex-nowrap">
 			{children}

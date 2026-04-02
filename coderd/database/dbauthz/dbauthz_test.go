@@ -745,7 +745,9 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(threshold).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chats)
 	}))
 	s.Run("InsertChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.InsertChatParams{})
+		arg := testutil.Fake(s.T(), faker, database.InsertChatParams{
+			Status: database.ChatStatusWaiting,
+		})
 		chat := testutil.Fake(s.T(), faker, database.Chat{OwnerID: arg.OwnerID})
 		dbm.EXPECT().InsertChat(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()), policy.ActionCreate).Returns(chat)

@@ -19,11 +19,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAgent,
-} from "#/testHelpers/entities";
+import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -76,14 +72,6 @@ const AgentChatPageLayout: FC = () => {
 const CHAT_ID = "chat-1";
 const MODEL_CONFIG_ID = "model-config-1";
 
-const mockWorkspaceAgent: TypesGen.WorkspaceAgent = {
-	...MockWorkspaceAgent,
-	id: "workspace-agent-1",
-	name: "workspace-agent",
-	expanded_directory: "/workspace/project",
-	apps: [],
-};
-
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "workspace-1",
@@ -94,7 +82,7 @@ const mockWorkspace: TypesGen.Workspace = {
 		resources: [
 			{
 				...MockWorkspace.latest_build.resources[0],
-				agents: [mockWorkspaceAgent],
+				agents: [],
 			},
 		],
 	},
@@ -363,7 +351,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// -- Turn 3: user follow-up --
+					// -- Turn 3: user follow-up (long message) --
 					{
 						id: 3,
 						chat_id: CHAT_ID,
@@ -372,7 +360,33 @@ export const WithMessageHistory: Story = {
 						content: [
 							{
 								type: "text",
-								text: "Can you show me the token validation code and a comparison of the old vs new approach?",
+								text: [
+									"Can you show me the token validation code and a comparison of the old vs new approach?",
+									"",
+									"I have a lot of context I want to share so you can give me the best possible answer.",
+									"The current token validation is scattered across multiple files and it is really hard",
+									"to follow the flow from HTTP request to database lookup to response. The middleware in",
+									"coderd/httpmw/apikey.go does way too much - it parses the token, validates the signature,",
+									"checks expiration, looks up the user, checks if the user is suspended, and then sets up",
+									"the context. That is at least 6 different responsibilities in a single middleware function.",
+									"",
+									"Here are the specific files I have been looking at:",
+									"- coderd/httpmw/apikey.go (main middleware, ~400 lines)",
+									"- coderd/httpmw/oauth2.go (OAuth2 token handling)",
+									"- coderd/httpmw/session.go (session cookie management)",
+									"- coderd/userauth.go (login/logout handlers)",
+									"- coderd/apikey.go (API key CRUD operations)",
+									"- enterprise/coderd/proxyhealth.go (proxy authentication)",
+									"",
+									"The problem is that ExtractAPIKeyMW is doing too many things at once:",
+									"1. Extracting the token from the request (cookie or header)",
+									"2. Splitting the token into key ID and secret",
+									"3. Looking up the API key in the database",
+									"4. Hashing the secret and comparing it",
+									"5. Checking if the key is expired",
+									"",
+									"Can you incorporate all of this into your comparison of the old vs new approach?",
+								].join("\n"),
 							},
 						],
 					},

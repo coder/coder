@@ -24,7 +24,7 @@ export const AgentAnalyticsPageView: FC<AgentAnalyticsPageViewProps> = ({
 			<div className="mx-auto w-full max-w-3xl">
 				<SectionHeader
 					label="Analytics"
-					description="Review your personal chat usage and cost breakdowns."
+					description="Review your personal Coder Agents usage and cost breakdowns."
 					action={
 						<div className="flex items-center gap-2 text-xs text-content-secondary">
 							<BarChart3Icon className="h-4 w-4" />

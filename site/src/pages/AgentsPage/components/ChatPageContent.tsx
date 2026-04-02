@@ -7,12 +7,14 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
+	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	type UploadState,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectMessagesByID,
@@ -64,6 +66,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const hasStreamState = useChatSelector(store, selectHasStreamState);
+	const isTurnActive = isActiveChatStatus(chatStatus) || hasStreamState;
 
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
@@ -91,6 +96,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={false}
+					isTurnActive={isTurnActive}
 				/>
 				<LiveStreamTail
 					store={store}
@@ -123,11 +129,17 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	isModelCatalogLoading?: boolean;
-	// Controlled input value and editing state, owned by the
-	// conversation component.
+	// Imperative editor handle plus the one-time initial draft,
+	// owned by the conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	initialValue?: string;
-	onContentChange?: (content: string) => void;
+	initialEditorState?: string;
+	remountKey?: number;
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	editingQueuedMessageID: number | null;
 	onStartQueueEdit: (
 		id: number,
@@ -151,6 +163,7 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
@@ -171,6 +184,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
+	initialEditorState,
+	remountKey,
 	onContentChange,
 	editingQueuedMessageID,
 	onStartQueueEdit,
@@ -184,6 +199,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	attachedWorkspace,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -316,6 +332,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			inputRef={inputRef}
 			initialValue={initialValue}
+			initialEditorState={initialEditorState}
+			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
@@ -342,6 +360,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			attachedWorkspace={attachedWorkspace}
 		/>
 	);
 };

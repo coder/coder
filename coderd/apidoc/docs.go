@@ -12894,6 +12894,9 @@ const docTemplate = `{
                 "provider": {
                     "type": "string"
                 },
+                "provider_name": {
+                    "type": "string"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"

@@ -111,8 +111,8 @@ Tier 2 file filters:
 
 - **Modernization Reviewer**: one instance per language present in the diff. Filter by extension:
   - Go: `*.go` — reference `.claude/docs/GO.md` before reviewing.
-  - TypeScript: `*.ts` `*.tsx`
-  - React: `*.tsx` `*.jsx`
+  - TypeScript: `*.ts` `*.tsx`: reference `.agents/skills/deep-review/references/typescript.md` before reviewing.
+  - React: `*.tsx` `*.jsx`: reference `.agents/skills/deep-review/references/react.md` before reviewing.
 
   `.tsx` files match both TypeScript and React filters. Spawn both instances when the diff contains `.tsx` changes — TS covers language-level patterns; React covers component and hooks patterns. Before spawning, verify each instance's filter produces a non-empty diff. Skip instances whose filtered diff is empty.
 
@@ -155,9 +155,11 @@ File scope: {filter from step 2}.
 Output file: {REVIEW_DIR}/{role-name}.md
 ```
 
-For the Modernization Reviewer (Go), add after the methodology line:
+For Modernization Reviewer instances, add the language reference after the methodology line:
 
-> Read `.claude/docs/GO.md` as your Go language reference before reviewing.
+- **Go:** `Read .claude/docs/GO.md as your Go language reference before reviewing.`
+- **TypeScript:** `Read .agents/skills/deep-review/references/typescript.md as your TypeScript language reference before reviewing.`
+- **React:** `Read .agents/skills/deep-review/references/react.md as your React language reference before reviewing.`
 
 For re-reviews, append to both Tier 1 and Tier 2 prompts:
 

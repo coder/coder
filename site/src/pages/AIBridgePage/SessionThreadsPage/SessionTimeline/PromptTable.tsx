@@ -43,7 +43,7 @@ export const PromptTable: FC<PromptTableProps> = ({
 				className="text-right flex items-center justify-end"
 				title={formatDate(timestamp)}
 			>
-				<span className="block font-mono whitespace-nowrap truncate">
+				<span className="block font-mono text-xs whitespace-nowrap truncate">
 					{formatDate(timestamp)}
 				</span>
 			</dd>

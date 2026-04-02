@@ -2,8 +2,8 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/badge}
  */
-import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Slot } from "radix-ui";
 import { cn } from "#/utils/cn";
 
 const badgeVariants = cva(
@@ -78,7 +78,7 @@ export const Badge: React.FC<BadgeProps> = ({
 	asChild = false,
 	...props
 }) => {
-	const Comp = asChild ? Slot : "div";
+	const Comp = asChild ? Slot.Root : "div";
 
 	return (
 		<Comp

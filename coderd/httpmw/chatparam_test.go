@@ -62,6 +62,7 @@ func TestChatParam(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			WorkspaceID:       uuid.NullUUID{},
 			ParentChatID:      uuid.NullUUID{},

@@ -21,7 +21,10 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			if (!part.text) {
+			// Skip empty and whitespace-only deltas so they don't
+			// create a non-null StreamState with empty blocks, which
+			// would prematurely end the "starting" phase.
+			if (!part.text?.trim()) {
 				return prev;
 			}
 			return {
@@ -30,7 +33,7 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "reasoning": {
-			if (!part.text) {
+			if (!part.text?.trim()) {
 				return prev;
 			}
 			return {

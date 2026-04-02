@@ -3007,7 +3007,7 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
@@ -3020,7 +3020,8 @@ func TestAgent_Reconnect(t *testing.T) {
 		logger,
 		agentID,
 		agentsdk.Manifest{
-			DERPMap: derpMap,
+			DERPMap:   derpMap,
+			Directory: "/test/workspace",
 		},
 		statsCh,
 		fCoordinator,
@@ -3033,13 +3034,19 @@ func TestAgent_Reconnect(t *testing.T) {
 	})
 	defer closer.Close()
 
-	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
-	require.Equal(t, client.GetNumRefreshTokenCalls(), 1)
-	close(call1.Resps) // hang up
-	// expect reconnect
+	// Each iteration forces the agent to reconnect by closing
+	// the current coordinate call while the tracked HTTP server
+	// goroutine (from connection 1's createTailnet) is still
+	// alive, widening the race window.
+	const reconnections = 5
+	for i := range reconnections {
+		call := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+		require.Equal(t, i+1, client.GetNumRefreshTokenCalls())
+		close(call.Resps) // hang up — triggers reconnect
+	}
+	// Verify final reconnect succeeds.
 	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
-	// Check that the agent refreshes the token when it reconnects.
-	require.Equal(t, client.GetNumRefreshTokenCalls(), 2)
+	require.Equal(t, reconnections+1, client.GetNumRefreshTokenCalls())
 	closer.Close()
 }
 

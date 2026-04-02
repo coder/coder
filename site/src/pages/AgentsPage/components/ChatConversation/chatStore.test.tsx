@@ -37,6 +37,8 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
+	selectIsAwaitingFirstStreamChunk,
+	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	selectReconnectState,
@@ -2953,6 +2955,249 @@ describe("useChatStore", () => {
 	});
 });
 
+describe("thinking indicator event ordering", () => {
+	it("shows starting phase when message_part arrives before status:running in same batch", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-parts-before-status";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					isAwaiting: useChatSelector(store, selectIsAwaitingFirstStreamChunk),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends message_part BEFORE status:running in the same
+		// WebSocket frame. This is the event ordering that previously
+		// caused the "Thinking..." indicator to be skipped.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "reasoning", text: "Let me think..." },
+					},
+				},
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "running" },
+				},
+			]);
+		});
+
+		// After the batch, the status should be "running" but stream
+		// parts should NOT have been applied yet (deferred to
+		// setTimeout). This is the window where "Thinking..." shows.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.isAwaiting).toBe(true);
+		});
+
+		// Let the deferred parts flush fire (setTimeout 0).
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		// Now stream state should be populated.
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.isAwaiting).toBe(false);
+		});
+	});
+
+	it("shows starting phase when status:running arrives before message_part in same batch", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-status-before-parts";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					isAwaiting: useChatSelector(store, selectIsAwaitingFirstStreamChunk),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends status:running BEFORE message_part (the "good" order).
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "running" },
+				},
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "text", text: "Hello" },
+					},
+				},
+			]);
+		});
+
+		// Same contract: status set, parts deferred.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.isAwaiting).toBe(true);
+		});
+
+		// Let the deferred parts flush fire.
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.isAwaiting).toBe(false);
+		});
+	});
+
+	it("discards buffered parts when status transitions to pending", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-discard-pending";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends message_part then immediately transitions to pending.
+		// The buffered parts must be discarded (not applied) because
+		// pending status clears stream state.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "text", text: "partial response" },
+					},
+				},
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "pending" },
+				},
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("pending");
+			expect(result.current.streamState).toBeNull();
+		});
+
+		// Even after timers fire, parts should not re-appear.
+		await act(async () => {
+			vi.advanceTimersByTime(50);
+		});
+
+		expect(result.current.streamState).toBeNull();
+	});
+});
+
 describe("updateSidebarChat via stream events", () => {
 	it("updates sidebar chat status on status stream event", async () => {
 		immediateAnimationFrame();
@@ -3430,6 +3675,290 @@ describe("updateSidebarChat via stream events", () => {
 			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.[0].status).toBe("error");
 			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
+		});
+	});
+});
+
+describe("stream-to-durable transition (Bug 1)", () => {
+	it("does not render both stream state and durable message after assistant message commits", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-b1-overlap";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Build up streaming content.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "response" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "response" },
+			]);
+		});
+
+		// Commit the assistant message as durable. With the old
+		// code, streamState stayed non-null here because
+		// clearStreamState was deferred to a rAF. Both the
+		// durable message and the stream content coexisted,
+		// causing duplicate rendering.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: makeMessage(chatID, 2, "assistant", "response"),
+			});
+		});
+
+		// The durable message must be present AND streamState
+		// must be null in the same snapshot.
+		await waitFor(() => {
+			expect(result.current.orderedIDs).toContain(2);
+			expect(result.current.messagesByID.get(2)?.role).toBe("assistant");
+			expect(result.current.streamState).toBeNull();
+		});
+	});
+
+	it("no snapshot ever has both durable assistant and stream state", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-b1-atomic";
+		const userMsg = makeMessage(chatID, 1, "user", "hi");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		// Track every snapshot emitted to subscribers.
+		const snapshots: Array<{
+			hasStream: boolean;
+			hasDurableAssistant: boolean;
+		}> = [];
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				const streamState = useChatSelector(store, selectStreamState);
+				const messagesByID = useChatSelector(store, selectMessagesByID);
+				const hasDurableAssistant = Array.from(messagesByID.values()).some(
+					(m) => m.role === "assistant",
+				);
+
+				snapshots.push({
+					hasStream: streamState !== null,
+					hasDurableAssistant,
+				});
+
+				return { streamState, messagesByID };
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "hello" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+		});
+
+		// Clear snapshot history before the critical transition.
+		snapshots.length = 0;
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: makeMessage(chatID, 2, "assistant", "hello"),
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.messagesByID.has(2)).toBe(true);
+		});
+
+		// No snapshot should ever have BOTH a durable assistant
+		// message AND non-null stream state.
+		const overlapping = snapshots.filter(
+			(s) => s.hasStream && s.hasDurableAssistant,
+		);
+		expect(overlapping).toEqual([]);
+	});
+});
+
+describe("partsBuf cleanup on reconnect (Bug 2)", () => {
+	it("discards stale buffered parts when the socket reconnects", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-b2-reconnect";
+		const userMsg = makeMessage(chatID, 1, "user", "test");
+		const mockSocket1 = createMockSocket();
+		mockWatchChatReturnOnce(mockSocket1);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Stream a message_part on the first socket.
+		act(() => {
+			mockSocket1.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "stale content" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "stale content" },
+			]);
+		});
+
+		// Disconnect. The reconnecting websocket utility
+		// schedules a reconnect after a 1s delay.
+		act(() => {
+			mockSocket1.emitError();
+		});
+
+		// Prepare the second socket and wait for the reconnect
+		// timer to fire (real timers, ~1s).
+		const mockSocket2 = createMockSocket();
+		mockWatchChatReturnOnce(mockSocket2);
+
+		await waitFor(
+			() => {
+				expect(watchChat).toHaveBeenCalledTimes(2);
+			},
+			{ timeout: 3_000 },
+		);
+
+		// Open the new socket. This should clear stale state
+		// including any buffered parts from socket1.
+		act(() => {
+			mockSocket2.emitOpen();
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+		});
+
+		// Stream fresh content on the new socket.
+		act(() => {
+			mockSocket2.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "fresh content" },
+				},
+			});
+		});
+
+		// The stream should show only the new content, not a
+		// mix of stale + fresh. With the old code, stale parts
+		// from socket1 could leak into the new stream.
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "fresh content" },
+			]);
 		});
 	});
 });

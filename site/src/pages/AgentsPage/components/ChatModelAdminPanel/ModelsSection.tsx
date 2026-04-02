@@ -341,8 +341,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										{!modelConfig.enabled
 											? "Cannot set a disabled model as default"
 											: modelConfig.is_default
-												? "Pinned as default for new chats"
-												: "Pin as default for new chats"}
+												? "Pinned as default for new conversations"
+												: "Pin as default for new conversations"}
 									</TooltipContent>
 								</Tooltip>
 								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />

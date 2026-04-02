@@ -39,7 +39,7 @@ export const ToolCallTable: FC<ToolCallTableProps> = ({
 			<div className="flex items-center justify-between">
 				<span className="pr-4">Started at</span>
 				<span
-					className="font-mono whitespace-nowrap truncate"
+					className="font-mono text-xs whitespace-nowrap truncate"
 					title={formatDate(timestamp)}
 				>
 					{formatDate(timestamp)}

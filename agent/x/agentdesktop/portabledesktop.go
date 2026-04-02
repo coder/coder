@@ -3,6 +3,7 @@ package agentdesktop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -18,6 +20,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 // portableDesktopOutput is the JSON output from
@@ -49,32 +52,65 @@ type screenshotOutput struct {
 	Data string `json:"data"`
 }
 
+// recordingProcess tracks a single desktop recording subprocess.
+type recordingProcess struct {
+	cmd        *exec.Cmd
+	filePath   string
+	stopped    bool
+	killed     bool          // true when the process was SIGKILLed
+	done       chan struct{} // closed when cmd.Wait() returns
+	waitErr    error         // set before done is closed
+	stopOnce   sync.Once
+	idleCancel context.CancelFunc // cancels the per-recording idle goroutine
+	idleDone   chan struct{}      // closed when idle goroutine exits
+}
+
+// maxConcurrentRecordings is the maximum number of active (non-stopped)
+// recordings allowed at once. This prevents resource exhaustion.
+const maxConcurrentRecordings = 5
+
+// idleTimeout is the duration of desktop inactivity after which all
+// active recordings are automatically stopped.
+const idleTimeout = 10 * time.Minute
+
 // portableDesktop implements Desktop by shelling out to the
 // portabledesktop CLI via agentexec.Execer.
 type portableDesktop struct {
 	logger       slog.Logger
 	execer       agentexec.Execer
 	scriptBinDir string // coder script bin directory
+	clock        quartz.Clock
 
-	mu      sync.Mutex
-	session *desktopSession // nil until started
-	binPath string          // resolved path to binary, cached
-	closed  bool
+	mu                  sync.Mutex
+	session             *desktopSession // nil until started
+	binPath             string          // resolved path to binary, cached
+	closed              bool
+	recordings          map[string]*recordingProcess // guarded by mu
+	lastDesktopActionAt atomic.Int64
 }
 
 // NewPortableDesktop creates a Desktop backed by the portabledesktop
 // CLI binary, using execer to spawn child processes. scriptBinDir is
-// the coder script bin directory checked for the binary.
+// the coder script bin directory checked for the binary. If clk is
+// nil, a real clock is used.
 func NewPortableDesktop(
 	logger slog.Logger,
 	execer agentexec.Execer,
 	scriptBinDir string,
+	clk quartz.Clock,
 ) Desktop {
-	return &portableDesktop{
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+	pd := &portableDesktop{
 		logger:       logger,
 		execer:       execer,
 		scriptBinDir: scriptBinDir,
+		clock:        clk,
+		recordings:   make(map[string]*recordingProcess),
 	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+	return pd
 }
 
 // Start launches the desktop session (idempotent).
@@ -83,7 +119,7 @@ func (p *portableDesktop) Start(ctx context.Context) (DisplayConfig, error) {
 	defer p.mu.Unlock()
 
 	if p.closed {
-		return DisplayConfig{}, xerrors.New("desktop is closed")
+		return DisplayConfig{}, ErrDesktopClosed
 	}
 
 	if err := p.ensureBinary(ctx); err != nil {
@@ -313,21 +349,326 @@ func (p *portableDesktop) CursorPosition(ctx context.Context) (x int, y int, err
 	return result.X, result.Y, nil
 }
 
-// Close shuts down the desktop session and cleans up resources.
-func (p *portableDesktop) Close() error {
+// StartRecording begins recording the desktop to an MP4 file.
+// Three-state idempotency: active recordings are no-ops,
+// completed recordings are discarded and restarted.
+func (p *portableDesktop) StartRecording(ctx context.Context, recordingID string) error {
+	// Ensure the desktop session is running before acquiring the
+	// recording lock. Start is independently locked and idempotent.
+	if _, err := p.Start(ctx); err != nil {
+		return xerrors.Errorf("ensure desktop session: %w", err)
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.closed {
+		return ErrDesktopClosed
+	}
+
+	// Three-state idempotency:
+	// - Active recording → no-op, continue recording.
+	// - Completed recording → discard old file, start fresh.
+	// - Unknown ID → fall through to start a new recording.
+	if rec, ok := p.recordings[recordingID]; ok {
+		if !rec.stopped {
+			select {
+			case <-rec.done:
+				// Process exited unexpectedly; treat as completed
+				// so we fall through to discard the old file and
+				// restart.
+			default:
+				// Active recording - no-op, continue recording.
+				return nil
+			}
+		}
+		// Completed recording - discard old file, start fresh.
+		if err := os.Remove(rec.filePath); err != nil && !os.IsNotExist(err) {
+			p.logger.Warn(ctx, "failed to remove old recording file",
+				slog.F("recording_id", recordingID),
+				slog.F("file_path", rec.filePath),
+				slog.Error(err),
+			)
+		}
+		delete(p.recordings, recordingID)
+	}
+
+	// Check concurrent recording limit.
+	if p.lockedActiveRecordingCount() >= maxConcurrentRecordings {
+		return xerrors.Errorf("too many concurrent recordings (max %d)", maxConcurrentRecordings)
+	}
+
+	// GC sweep: remove stopped recordings with stale files.
+	p.lockedCleanStaleRecordings(ctx)
+
+	if err := p.ensureBinary(ctx); err != nil {
+		return xerrors.Errorf("ensure portabledesktop binary: %w", err)
+	}
+
+	filePath := filepath.Join(os.TempDir(), "coder-recording-"+recordingID+".mp4")
+
+	// Use a background context so the process outlives the HTTP
+	// request that triggered it.
+	procCtx, procCancel := context.WithCancel(context.Background())
+
+	//nolint:gosec // portabledesktop is a trusted binary resolved via ensureBinary.
+	cmd := p.execer.CommandContext(procCtx, p.binPath, "record",
+		// The following options are used to speed up the recording when the desktop is idle.
+		// They were taken out of an example in the portabledesktop repo.
+		// There's likely room for improvement to optimize the values.
+		"--idle-speedup", "20",
+		"--idle-min-duration", "0.35",
+		"--idle-noise-tolerance", "-38dB",
+		filePath)
+
+	if err := cmd.Start(); err != nil {
+		procCancel()
+		return xerrors.Errorf("start recording process: %w", err)
+	}
+
+	rec := &recordingProcess{
+		cmd:      cmd,
+		filePath: filePath,
+		done:     make(chan struct{}),
+	}
+	go func() {
+		rec.waitErr = cmd.Wait()
+		close(rec.done)
+		// avoid a context resource leak by canceling the context
+		procCancel()
+	}()
+
+	p.recordings[recordingID] = rec
+
+	p.logger.Info(ctx, "started desktop recording",
+		slog.F("recording_id", recordingID),
+		slog.F("file_path", filePath),
+		slog.F("pid", cmd.Process.Pid),
+	)
+
+	// Record activity so a recording started on an already-idle
+	// desktop does not stop immediately.
+	p.lastDesktopActionAt.Store(p.clock.Now().UnixNano())
+
+	// Spawn a per-recording idle goroutine.
+	idleCtx, idleCancel := context.WithCancel(context.Background())
+	rec.idleCancel = idleCancel
+	rec.idleDone = make(chan struct{})
+	go func() {
+		defer close(rec.idleDone)
+		p.monitorRecordingIdle(idleCtx, rec)
+	}()
+
+	return nil
+}
+
+// StopRecording finalizes the recording. Idempotent - safe to call
+// on an already-stopped recording. Returns a RecordingArtifact
+// that the caller can stream. The caller must close the Reader
+// on the returned artifact to avoid leaking file descriptors.
+func (p *portableDesktop) StopRecording(ctx context.Context, recordingID string) (*RecordingArtifact, error) {
+	p.mu.Lock()
+	rec, ok := p.recordings[recordingID]
+	if !ok {
+		p.mu.Unlock()
+		return nil, ErrUnknownRecording
+	}
+
+	p.lockedStopRecordingProcess(ctx, rec, false)
+	killed := rec.killed
+	p.mu.Unlock()
+
+	p.logger.Info(ctx, "stopped desktop recording",
+		slog.F("recording_id", recordingID),
+		slog.F("file_path", rec.filePath),
+	)
+
+	if killed {
+		return nil, ErrRecordingCorrupted
+	}
+
+	// Open the file and return an artifact. Each call opens a fresh
+	// file descriptor so the caller is insulated from restarts and
+	// desktop close.
+	f, err := os.Open(rec.filePath)
+	if err != nil {
+		return nil, xerrors.Errorf("open recording artifact: %w", err)
+	}
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, xerrors.Errorf("stat recording artifact: %w", err)
+	}
+	return &RecordingArtifact{
+		Reader: f,
+		Size:   info.Size(),
+	}, nil
+}
+
+// lockedStopRecordingProcess stops a single recording via stopOnce.
+// It sends SIGINT, waits up to 15 seconds for graceful exit, then
+// SIGKILLs. When force is true the process is SIGKILLed immediately
+// without attempting a graceful shutdown. Must be called while p.mu
+// is held; the lock is held for the full duration so that no
+// concurrent StopRecording caller can read rec.stopped = true
+// before the process has finished writing the MP4 file.
+//
+//nolint:revive // force flag keeps shared stopOnce/cleanup logic in one place.
+func (p *portableDesktop) lockedStopRecordingProcess(ctx context.Context, rec *recordingProcess, force bool) {
+	rec.stopOnce.Do(func() {
+		if force {
+			_ = rec.cmd.Process.Kill()
+			rec.killed = true
+		} else {
+			_ = interruptRecordingProcess(rec.cmd.Process)
+			timer := p.clock.NewTimer(15*time.Second, "agentdesktop", "stop_timeout")
+			defer timer.Stop()
+			select {
+			case <-rec.done:
+			case <-ctx.Done():
+				_ = rec.cmd.Process.Kill()
+				rec.killed = true
+			case <-timer.C:
+				_ = rec.cmd.Process.Kill()
+				rec.killed = true
+			}
+		}
+		rec.stopped = true
+		if rec.idleCancel != nil {
+			rec.idleCancel()
+		}
+	})
+	// NOTE: We intentionally do not wait on rec.done here.
+	// If goleak is added to this package's tests, this may
+	// need revisiting to avoid flakes.
+}
+
+// lockedActiveRecordingCount returns the number of recordings that
+// are still actively running. Must be called while p.mu is held.
+// The max concurrency is low (maxConcurrentRecordings = 5), so a
+// full scan is cheap and avoids maintaining a separate counter.
+func (p *portableDesktop) lockedActiveRecordingCount() int {
+	active := 0
+	for _, rec := range p.recordings {
+		if rec.stopped {
+			continue
+		}
+		select {
+		case <-rec.done:
+		default:
+			active++
+		}
+	}
+	return active
+}
+
+// lockedCleanStaleRecordings removes stopped recordings whose temp
+// files are older than one hour. Must be called while p.mu is held.
+func (p *portableDesktop) lockedCleanStaleRecordings(ctx context.Context) {
+	for id, rec := range p.recordings {
+		if !rec.stopped {
+			continue
+		}
+		info, err := os.Stat(rec.filePath)
+		if err != nil {
+			// File already removed or inaccessible; drop entry.
+			delete(p.recordings, id)
+			continue
+		}
+		if p.clock.Since(info.ModTime()) > time.Hour {
+			if err := os.Remove(rec.filePath); err != nil && !os.IsNotExist(err) {
+				p.logger.Warn(ctx, "failed to remove stale recording file",
+					slog.F("recording_id", id),
+					slog.F("file_path", rec.filePath),
+					slog.Error(err),
+				)
+			}
+			delete(p.recordings, id)
+		}
+	}
+}
+
+// Close shuts down the desktop session and cleans up resources.
+func (p *portableDesktop) Close() error {
+	p.mu.Lock()
 	p.closed = true
-	if p.session != nil {
-		p.session.cancel()
-		// Xvnc is a child process — killing it cleans up the X
-		// session.
-		_ = p.session.cmd.Process.Kill()
-		_ = p.session.cmd.Wait()
-		p.session = nil
+
+	// Force-kill all active recordings. The stopOnce inside
+	// lockedStopRecordingProcess makes this safe for
+	// already-stopped recordings.
+	for _, rec := range p.recordings {
+		p.lockedStopRecordingProcess(context.Background(), rec, true)
+	}
+
+	// Snapshot recording file paths and idle goroutine channels
+	// for cleanup, then clear the map.
+	type recEntry struct {
+		id       string
+		filePath string
+		idleDone chan struct{}
+	}
+	var allRecs []recEntry
+	for id, rec := range p.recordings {
+		allRecs = append(allRecs, recEntry{id: id, filePath: rec.filePath, idleDone: rec.idleDone})
+		delete(p.recordings, id)
+	}
+	session := p.session
+	p.session = nil
+	p.mu.Unlock()
+
+	// Wait for all per-recording idle goroutines to exit.
+	for _, entry := range allRecs {
+		if entry.idleDone != nil {
+			<-entry.idleDone
+		}
+	}
+
+	// Remove all recording files and wait for the session to
+	// exit with a timeout so a slow filesystem or hung process
+	// cannot block agent shutdown indefinitely.
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		for _, entry := range allRecs {
+			if err := os.Remove(entry.filePath); err != nil && !os.IsNotExist(err) {
+				p.logger.Warn(context.Background(), "failed to remove recording file on close",
+					slog.F("recording_id", entry.id),
+					slog.F("file_path", entry.filePath),
+					slog.Error(err),
+				)
+			}
+		}
+		if session != nil {
+			session.cancel()
+			if err := session.cmd.Process.Kill(); err != nil {
+				p.logger.Warn(context.Background(), "failed to kill portabledesktop process",
+					slog.Error(err),
+				)
+			}
+			if err := session.cmd.Wait(); err != nil {
+				var exitErr *exec.ExitError
+				if !errors.As(err, &exitErr) {
+					p.logger.Warn(context.Background(), "portabledesktop process exited with error",
+						slog.Error(err),
+					)
+				}
+			}
+		}
+	}()
+	timer := p.clock.NewTimer(15*time.Second, "agentdesktop", "close_cleanup_timeout")
+	defer timer.Stop()
+	select {
+	case <-cleanupDone:
+	case <-timer.C:
+		p.logger.Warn(context.Background(), "timed out waiting for close cleanup")
 	}
 	return nil
+}
+
+// RecordActivity marks the desktop as having received user
+// interaction, resetting the idle-recording timer.
+func (p *portableDesktop) RecordActivity() {
+	p.lastDesktopActionAt.Store(p.clock.Now().UnixNano())
 }
 
 // runCmd executes a portabledesktop subcommand and returns combined
@@ -396,4 +737,32 @@ func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 	}
 
 	return xerrors.New("portabledesktop binary not found in PATH or script bin directory")
+}
+
+// monitorRecordingIdle watches for desktop inactivity and stops the
+// given recording when the idle timeout is reached.
+func (p *portableDesktop) monitorRecordingIdle(ctx context.Context, rec *recordingProcess) {
+	timer := p.clock.NewTimer(idleTimeout, "agentdesktop", "recording_idle")
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			lastNano := p.lastDesktopActionAt.Load()
+			lastAction := time.Unix(0, lastNano)
+			elapsed := p.clock.Since(lastAction)
+			if elapsed >= idleTimeout {
+				p.mu.Lock()
+				p.lockedStopRecordingProcess(context.Background(), rec, false)
+				p.mu.Unlock()
+				return
+			}
+			// Activity happened; reset with remaining budget.
+			timer.Reset(idleTimeout-elapsed, "agentdesktop", "recording_idle")
+		case <-rec.done:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
 }

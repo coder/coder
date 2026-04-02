@@ -5,6 +5,7 @@ import {
 	buildLiveStatus,
 	buildReconnectState,
 	buildRetryState,
+	buildStreamRenderState,
 	FIXTURE_NOW,
 } from "./storyFixtures";
 
@@ -95,7 +96,6 @@ export const RetryWithVisibleReason: Story = {
 		expect(
 			canvas.getByText(/anthropic returned an unexpected error/i),
 		).toBeVisible();
-		expect(canvas.getByText("Unexpected error")).toBeVisible();
 		expect(canvas.getByText(/attempt 1/i)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
@@ -125,7 +125,6 @@ export const RetryRateLimited: Story = {
 		expect(
 			canvas.getByText(/anthropic is rate limiting requests/i),
 		).toBeVisible();
-		expect(canvas.getByText("Rate limit")).toBeVisible();
 		await waitFor(() => {
 			expect(canvasElement.textContent).toMatch(/retrying in \d+s/i);
 		});
@@ -160,7 +159,6 @@ export const RetryInvalidTimestamp: Story = {
 		expect(
 			canvas.getByText(/anthropic is rate limiting requests/i),
 		).toBeVisible();
-		expect(canvas.getByText("Rate limit")).toBeVisible();
 		expect(canvas.getByText(/attempt 3/i)).toBeVisible();
 		await waitFor(() => {
 			expect(canvas.queryByText(/retrying in nan/i)).not.toBeInTheDocument();
@@ -192,7 +190,6 @@ export const RetryOverloaded: Story = {
 		expect(
 			canvas.getByText(/anthropic is temporarily overloaded/i),
 		).toBeVisible();
-		expect(canvas.getByText("Overloaded")).toBeVisible();
 		const statusLink = screen.getByRole("link", { name: /status/i });
 		expect(statusLink).toBeVisible();
 		expect(statusLink).toHaveAttribute("href", "https://status.anthropic.com");
@@ -221,7 +218,6 @@ export const RetryTimeout: Story = {
 		expect(
 			canvas.getByText(/anthropic is temporarily unavailable/i),
 		).toBeVisible();
-		expect(canvas.getByText("Timeout")).toBeVisible();
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();
@@ -250,11 +246,35 @@ export const RetryStartupTimeout: Story = {
 		expect(
 			canvas.getByText(/anthropic did not start responding in time/i),
 		).toBeVisible();
-		expect(canvas.getByText("Startup timeout")).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * During streaming, if only tool-call blocks have arrived (no text
+ * or reasoning), the "Thinking..." indicator should still be visible
+ * alongside the tool cards.
+ */
+export const ThinkingDuringStreamingWithToolCalls: Story = {
+	args: {
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "tc-1",
+				args: { command: "ls -la" },
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// "Thinking..." should still be visible during streaming
+		// when only tool-call blocks have arrived.
+		const matches = canvas.getAllByText("Thinking...");
+		expect(matches.length).toBeGreaterThanOrEqual(1);
 	},
 };

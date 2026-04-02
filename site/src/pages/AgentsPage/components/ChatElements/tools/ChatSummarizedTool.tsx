@@ -39,7 +39,7 @@ export const ChatSummarizedTool: React.FC<{
 								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
-								{errorMessage || "Failed to summarize chat"}
+								{errorMessage || "Failed to summarize conversation"}
 							</TooltipContent>
 						</Tooltip>
 					)}

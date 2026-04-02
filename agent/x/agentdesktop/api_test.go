@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -19,6 +24,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
+)
+
+// Test recording UUIDs used across tests.
+const (
+	testRecIDDefault         = "870e1f02-8118-4300-a37e-4adb0117baf3"
+	testRecIDStartIdempotent = "250a2ffb-a5e5-4c94-9754-4d6a4ab7ba20"
+	testRecIDStopIdempotent  = "38f8a378-f98f-4758-a4ae-950b44cf989a"
+	testRecIDConcurrentA     = "8dc173eb-23c6-4601-a485-b6dfb2a42c3a"
+	testRecIDConcurrentB     = "fea490d4-70f0-4798-a181-29d65ce25ae1"
+	testRecIDRestart         = "75173a0d-b018-4e2e-a771-defa3fc6af69"
 )
 
 // Ensure fakeDesktop satisfies the Desktop interface at compile time.
@@ -43,6 +58,14 @@ type fakeDesktop struct {
 	lastTyped   string
 	lastKeyDown string
 	lastKeyUp   string
+
+	// Recording tracking (guarded by recMu).
+	recMu         sync.Mutex
+	recordings    map[string]string // ID → file path
+	stopCalls     []string          // recording IDs passed to StopRecording
+	recStopCh     chan string       // optional: signaled when StopRecording is called
+	startCount    int               // incremented on each new recording start
+	activityCount int               // incremented by RecordActivity
 }
 
 func (f *fakeDesktop) Start(context.Context) (agentdesktop.DisplayConfig, error) {
@@ -107,9 +130,138 @@ func (f *fakeDesktop) CursorPosition(context.Context) (x int, y int, err error) 
 	return f.cursorPos[0], f.cursorPos[1], nil
 }
 
+func (f *fakeDesktop) StartRecording(_ context.Context, recordingID string) error {
+	f.recMu.Lock()
+	defer f.recMu.Unlock()
+	if f.recordings == nil {
+		f.recordings = make(map[string]string)
+	}
+	if path, ok := f.recordings[recordingID]; ok {
+		// Check if already stopped (file still exists but stop was
+		// called). For the fake, a stopped recording means its ID
+		// appears in stopCalls. In that case, remove the old file
+		// and start fresh.
+		stopped := slices.Contains(f.stopCalls, recordingID)
+		if !stopped {
+			// Active recording - no-op.
+			return nil
+		}
+		// Completed recording - discard old file, start fresh.
+		_ = os.Remove(path)
+		delete(f.recordings, recordingID)
+	}
+	f.startCount++
+	tmpFile, err := os.CreateTemp("", "fake-recording-*.mp4")
+	if err != nil {
+		return err
+	}
+	_, _ = tmpFile.Write([]byte(fmt.Sprintf("fake-mp4-data-%s-%d", recordingID, f.startCount)))
+	_ = tmpFile.Close()
+	f.recordings[recordingID] = tmpFile.Name()
+	return nil
+}
+
+func (f *fakeDesktop) StopRecording(_ context.Context, recordingID string) (*agentdesktop.RecordingArtifact, error) {
+	f.recMu.Lock()
+	defer f.recMu.Unlock()
+	if f.recordings == nil {
+		return nil, agentdesktop.ErrUnknownRecording
+	}
+	path, ok := f.recordings[recordingID]
+	if !ok {
+		return nil, agentdesktop.ErrUnknownRecording
+	}
+	f.stopCalls = append(f.stopCalls, recordingID)
+	if f.recStopCh != nil {
+		select {
+		case f.recStopCh <- recordingID:
+		default:
+		}
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return &agentdesktop.RecordingArtifact{
+		Reader: file,
+		Size:   info.Size(),
+	}, nil
+}
+
+func (f *fakeDesktop) RecordActivity() {
+	f.recMu.Lock()
+	f.activityCount++
+	f.recMu.Unlock()
+}
+
 func (f *fakeDesktop) Close() error {
 	f.closed = true
+	f.recMu.Lock()
+	defer f.recMu.Unlock()
+	for _, path := range f.recordings {
+		_ = os.Remove(path)
+	}
 	return nil
+}
+
+// failStartRecordingDesktop wraps fakeDesktop and overrides
+// StartRecording to always return an error.
+type failStartRecordingDesktop struct {
+	fakeDesktop
+	startRecordingErr error
+}
+
+func (f *failStartRecordingDesktop) StartRecording(_ context.Context, _ string) error {
+	return f.startRecordingErr
+}
+
+// corruptedStopDesktop wraps fakeDesktop and overrides
+// StopRecording to always return ErrRecordingCorrupted.
+type corruptedStopDesktop struct {
+	fakeDesktop
+}
+
+func (*corruptedStopDesktop) StopRecording(_ context.Context, _ string) (*agentdesktop.RecordingArtifact, error) {
+	return nil, agentdesktop.ErrRecordingCorrupted
+}
+
+// oversizedFakeDesktop wraps fakeDesktop and expands recording files
+// beyond MaxRecordingSize when StopRecording is called.
+type oversizedFakeDesktop struct {
+	fakeDesktop
+}
+
+func (f *oversizedFakeDesktop) StopRecording(ctx context.Context, recordingID string) (*agentdesktop.RecordingArtifact, error) {
+	artifact, err := f.fakeDesktop.StopRecording(ctx, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	// Close the original reader since we're going to re-open after truncation.
+	artifact.Reader.Close()
+
+	// Look up the path from the fakeDesktop recordings.
+	f.fakeDesktop.recMu.Lock()
+	path := f.fakeDesktop.recordings[recordingID]
+	f.fakeDesktop.recMu.Unlock()
+
+	// Expand the file to exceed the maximum recording size.
+	if err := os.Truncate(path, workspacesdk.MaxRecordingSize+1); err != nil {
+		return nil, err
+	}
+	// Re-open the truncated file.
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return &agentdesktop.RecordingArtifact{
+		Reader: file,
+		Size:   workspacesdk.MaxRecordingSize + 1,
+	}, nil
 }
 
 func TestHandleDesktopVNC_StartError(t *testing.T) {
@@ -132,6 +284,37 @@ func TestHandleDesktopVNC_StartError(t *testing.T) {
 	err := json.NewDecoder(rr.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Failed to start desktop session.", resp.Message)
+}
+
+func TestHandleAction_CallsRecordActivity(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	body := agentdesktop.DesktopAction{
+		Action:     "left_click",
+		Coordinate: &[2]int{100, 200},
+	}
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	handler := api.Routes()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	fake.recMu.Lock()
+	count := fake.activityCount
+	fake.recMu.Unlock()
+	assert.Equal(t, 1, count, "handleAction should call RecordActivity exactly once")
 }
 
 func TestHandleAction_Screenshot(t *testing.T) {
@@ -573,4 +756,482 @@ func TestHandleAction_CursorPositionReturnsDeclaredCoordinates(t *testing.T) {
 	require.NoError(t, err)
 	// Native (960,540) in 1920x1080 should map to declared space in 1280x720.
 	assert.Equal(t, "x=640,y=360", resp.Output)
+}
+
+func TestRecordingStartStop(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start recording.
+	startBody, err := json.Marshal(map[string]string{"recording_id": testRecIDDefault})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop recording.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": testRecIDDefault})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
+	assert.Equal(t, []byte("fake-mp4-data-"+testRecIDDefault+"-1"), rr.Body.Bytes())
+}
+
+func TestRecordingStartFails(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &failStartRecordingDesktop{
+		fakeDesktop: fakeDesktop{
+			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		},
+		startRecordingErr: xerrors.New("start recording error"),
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	body, err := json.Marshal(map[string]string{"recording_id": uuid.New().String()})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	var resp codersdk.Response
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "Failed to start recording.", resp.Message)
+}
+
+func TestRecordingStartIdempotent(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start same recording twice - both should succeed.
+	for range 2 {
+		body, err := json.Marshal(map[string]string{"recording_id": testRecIDStartIdempotent})
+		require.NoError(t, err)
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(body))
+		handler.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	// Stop once, verify normal response.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": testRecIDStartIdempotent})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
+	assert.Equal(t, []byte("fake-mp4-data-"+testRecIDStartIdempotent+"-1"), rr.Body.Bytes())
+}
+
+func TestRecordingStopIdempotent(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start recording.
+	startBody, err := json.Marshal(map[string]string{"recording_id": testRecIDStopIdempotent})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop twice - both should succeed with identical data.
+	var bodies [2][]byte
+	for i := range 2 {
+		body, err := json.Marshal(map[string]string{"recording_id": testRecIDStopIdempotent})
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
+		handler.ServeHTTP(recorder, request)
+		require.Equal(t, http.StatusOK, recorder.Code)
+		assert.Equal(t, "video/mp4", recorder.Header().Get("Content-Type"))
+		bodies[i] = recorder.Body.Bytes()
+	}
+	assert.Equal(t, bodies[0], bodies[1])
+}
+
+func TestRecordingStopInvalidIDFormat(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	body, err := json.Marshal(map[string]string{"recording_id": "not-a-uuid"})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestRecordingStopUnknownRecording(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Send a valid UUID that was never started - should reach
+	// StopRecording, get ErrUnknownRecording, and return 404.
+	body, err := json.Marshal(map[string]string{"recording_id": uuid.New().String()})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+
+	var resp codersdk.Response
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "Recording not found.", resp.Message)
+}
+
+func TestRecordingStopOversizedFile(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &oversizedFakeDesktop{
+		fakeDesktop: fakeDesktop{
+			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start recording.
+	recID := uuid.New().String()
+	startBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop recording - file exceeds max size, expect 413.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+
+	var resp codersdk.Response
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "Recording file exceeds maximum allowed size.", resp.Message)
+}
+
+func TestRecordingMultipleSimultaneous(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start two recordings with different IDs.
+	for _, id := range []string{testRecIDConcurrentA, testRecIDConcurrentB} {
+		body, err := json.Marshal(map[string]string{"recording_id": id})
+		require.NoError(t, err)
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(body))
+		handler.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	// Stop both and verify each returns its own data.
+	expected := map[string][]byte{
+		testRecIDConcurrentA: []byte("fake-mp4-data-" + testRecIDConcurrentA + "-1"),
+		testRecIDConcurrentB: []byte("fake-mp4-data-" + testRecIDConcurrentB + "-2"),
+	}
+	for _, id := range []string{testRecIDConcurrentA, testRecIDConcurrentB} {
+		body, err := json.Marshal(map[string]string{"recording_id": id})
+		require.NoError(t, err)
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
+		handler.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
+		assert.Equal(t, expected[id], rr.Body.Bytes())
+	}
+}
+
+func TestRecordingStartMalformedBody(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader([]byte("not json")))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestRecordingStartEmptyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	body, err := json.Marshal(map[string]string{"recording_id": ""})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestRecordingStopEmptyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	body, err := json.Marshal(map[string]string{"recording_id": ""})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestRecordingStopMalformedBody(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader([]byte("not json")))
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestRecordingStartAfterCompleted(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Step 1: Start recording.
+	startBody, err := json.Marshal(map[string]string{"recording_id": testRecIDRestart})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Step 2: Stop recording (gets first MP4 data).
+	stopBody, err := json.Marshal(map[string]string{"recording_id": testRecIDRestart})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
+	firstData := rr.Body.Bytes()
+	require.NotEmpty(t, firstData)
+
+	// Step 3: Start again with the same ID - should succeed
+	// (old file discarded, new recording started).
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Step 4: Stop again - should return NEW MP4 data.
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
+	secondData := rr.Body.Bytes()
+	require.NotEmpty(t, secondData)
+
+	// The two recordings should have different data because the
+	// fake increments a counter on each fresh start.
+	assert.NotEqual(t, firstData, secondData,
+		"restarted recording should produce different data")
+}
+
+func TestRecordingStartAfterClose(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+
+	handler := api.Routes()
+
+	// Close the API before sending the request.
+	api.Close()
+
+	body, err := json.Marshal(map[string]string{"recording_id": uuid.New().String()})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+
+	var resp codersdk.Response
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "Desktop API is shutting down.", resp.Message)
+}
+
+func TestRecordingStartDesktopClosed(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	// StartRecording returns ErrDesktopClosed to simulate a race
+	// where the desktop is closed between the API-level check and
+	// the desktop-level StartRecording call.
+	fake := &failStartRecordingDesktop{
+		fakeDesktop: fakeDesktop{
+			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		},
+		startRecordingErr: agentdesktop.ErrDesktopClosed,
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	body, err := json.Marshal(map[string]string{"recording_id": uuid.New().String()})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(body))
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+
+	var resp codersdk.Response
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.Equal(t, "Desktop API is shutting down.", resp.Message)
+}
+
+func TestRecordingStopCorrupted(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &corruptedStopDesktop{
+		fakeDesktop: fakeDesktop{
+			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start a recording so the stop has something to find.
+	recID := uuid.New().String()
+	startBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop returns ErrRecordingCorrupted.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	var respStop codersdk.Response
+	err = json.NewDecoder(rr.Body).Decode(&respStop)
+	require.NoError(t, err)
+	assert.Equal(t, "Recording is corrupted.", respStop.Message)
 }

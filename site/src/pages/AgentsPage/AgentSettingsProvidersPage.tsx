@@ -45,7 +45,7 @@ const AgentSettingsProvidersPage: FC = () => {
 			<ChatModelAdminPanel
 				section="providers"
 				sectionLabel="Providers"
-				sectionDescription="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
+				sectionDescription="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their conversations."
 				sectionBadge={<AdminBadge />}
 				providerConfigsData={providerConfigsQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
