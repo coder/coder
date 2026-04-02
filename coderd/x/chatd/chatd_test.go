@@ -4443,21 +4443,46 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 
-	// Set up a mock OpenAI server. The first streaming call triggers
-	// list_templates; subsequent calls respond with text.
+	// Declare templates before the handler so the closure can
+	// reference their IDs when building tool-call arguments.
+	var tplAllowed, tplBlocked database.Template
+
+	// Set up a mock OpenAI server that chains tool calls:
+	//  1. list_templates
+	//  2. read_template  (blocked template — should fail)
+	//  3. read_template  (allowed template — should succeed)
+	//  4. create_workspace (blocked template — should fail)
+	//  5. text response
 	var callCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		if callCount.Add(1) == 1 {
+		switch callCount.Add(1) {
+		case 1:
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("list_templates", `{}`),
 			)
+		case 2:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("read_template",
+					fmt.Sprintf(`{"template_id":%q}`, tplBlocked.ID.String())),
+			)
+		case 3:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("read_template",
+					fmt.Sprintf(`{"template_id":%q}`, tplAllowed.ID.String())),
+			)
+		case 4:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace",
+					fmt.Sprintf(`{"template_id":%q}`, tplBlocked.ID.String())),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("Done testing.")...,
+			)
 		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Here are the templates.")...,
-		)
 	})
 
 	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
@@ -4468,12 +4493,12 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	tplAllowed := dbgen.Template(t, db, database.Template{
+	tplAllowed = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "allowed-template",
 	})
-	tplBlocked := dbgen.Template(t, db, database.Template{
+	tplBlocked = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "blocked-template",
@@ -4485,14 +4510,27 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
 	require.NoError(t, err)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		// Provide a CreateWorkspace function so the tool reaches
+		// the allowlist check instead of bailing with "not
+		// configured". If the allowlist is enforced correctly
+		// this function will never be called.
+		cfg.CreateWorkspace = func(
+			_ context.Context,
+			_ uuid.UUID,
+			_ codersdk.CreateWorkspaceRequest,
+		) (codersdk.Workspace, error) {
+			t.Error("CreateWorkspace should not be called for a blocked template")
+			return codersdk.Workspace{}, xerrors.New("unexpected call")
+		}
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:       user.ID,
 		Title:         "allowlist-test",
 		ModelConfigID: model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("List templates"),
+			codersdk.ChatMessageText("Test allowlist enforcement"),
 		},
 	})
 	require.NoError(t, err)
@@ -4512,9 +4550,11 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
 	}
 
-	// Find the list_templates tool result in the persisted messages.
-	var toolResult string
+	// Collect all tool results keyed by tool name. Each tool may
+	// have been called more than once, so we store a slice.
+	var toolResults map[string][]string
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		toolResults = map[string][]string{}
 		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
@@ -4531,23 +4571,33 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 				continue
 			}
 			for _, part := range parts {
-				if part.Type == codersdk.ChatMessagePartTypeToolResult &&
-					part.ToolName == "list_templates" {
-					toolResult = string(part.Result)
-					return true
+				if part.Type == codersdk.ChatMessagePartTypeToolResult {
+					toolResults[part.ToolName] = append(
+						toolResults[part.ToolName], string(part.Result))
 				}
 			}
 		}
-		return false
+		// We expect results from all four tool calls.
+		return len(toolResults["list_templates"]) >= 1 &&
+			len(toolResults["read_template"]) >= 2 &&
+			len(toolResults["create_workspace"]) >= 1
 	}, testutil.IntervalFast)
 
-	require.NotEmpty(t, toolResult, "list_templates tool result should be persisted")
-
-	// The result should contain only the allowed template.
-	require.Contains(t, toolResult, tplAllowed.ID.String(),
+	// list_templates: only the allowed template should appear.
+	require.Contains(t, toolResults["list_templates"][0], tplAllowed.ID.String(),
 		"allowed template should appear in list_templates result")
-	require.NotContains(t, toolResult, tplBlocked.ID.String(),
+	require.NotContains(t, toolResults["list_templates"][0], tplBlocked.ID.String(),
 		"blocked template should NOT appear in list_templates result")
+
+	// read_template: blocked ID → error, allowed ID → success.
+	require.Contains(t, toolResults["read_template"][0], "not found",
+		"read_template for blocked template should return not-found error")
+	require.Contains(t, toolResults["read_template"][1], tplAllowed.ID.String(),
+		"read_template for allowed template should return template details")
+
+	// create_workspace: blocked ID → rejected.
+	require.Contains(t, toolResults["create_workspace"][0], "not available",
+		"create_workspace for blocked template should be rejected")
 }
 
 // TestSignalWakeImmediateAcquisition verifies that CreateChat triggers
