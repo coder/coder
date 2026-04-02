@@ -1885,6 +1885,14 @@ export interface ChatReasoningPart {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatRetentionDaysResponse contains the current chat retention setting.
+ */
+export interface ChatRetentionDaysResponse {
+	readonly retention_days: number;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -7209,6 +7217,15 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatRetentionDaysRequest is a request to update the chat
+ * retention period.
+ */
+export interface UpdateChatRetentionDaysRequest {
+	readonly retention_days: number;
 }
 
 // From codersdk/chats.go

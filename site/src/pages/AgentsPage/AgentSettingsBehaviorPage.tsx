@@ -3,11 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatDesktopEnabled,
 	chatModelConfigs,
+	chatRetentionDays,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
 	chatWorkspaceTTL,
 	deleteUserCompactionThreshold,
 	updateChatDesktopEnabled,
+	updateChatRetentionDays,
 	updateChatSystemPrompt,
 	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
@@ -42,6 +44,11 @@ const AgentSettingsBehaviorPage: FC = () => {
 	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
 	const saveWorkspaceTTLMutation = useMutation(
 		updateChatWorkspaceTTL(queryClient),
+	);
+
+	const retentionDaysQuery = useQuery(chatRetentionDays());
+	const saveRetentionDaysMutation = useMutation(
+		updateChatRetentionDays(queryClient),
 	);
 
 	const modelConfigsQuery = useQuery(chatModelConfigs());
@@ -95,6 +102,12 @@ const AgentSettingsBehaviorPage: FC = () => {
 			onSaveWorkspaceTTL={saveWorkspaceTTLMutation.mutate}
 			isSavingWorkspaceTTL={saveWorkspaceTTLMutation.isPending}
 			isSaveWorkspaceTTLError={saveWorkspaceTTLMutation.isError}
+			retentionDaysData={retentionDaysQuery.data}
+			isRetentionDaysLoading={retentionDaysQuery.isLoading}
+			isRetentionDaysLoadError={retentionDaysQuery.isError}
+			onSaveRetentionDays={saveRetentionDaysMutation.mutate}
+			isSavingRetentionDays={saveRetentionDaysMutation.isPending}
+			isSaveRetentionDaysError={saveRetentionDaysMutation.isError}
 		/>
 	);
 };

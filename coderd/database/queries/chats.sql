@@ -10,9 +10,14 @@ FROM chats
 ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
 -- name: UnarchiveChatByID :many
+-- Unarchives a chat (and its children). Stale file references are
+-- handled automatically by FK cascades on chat_file_links: when
+-- dbpurge deletes a chat_files row, the corresponding
+-- chat_file_links rows are cascade-deleted by PostgreSQL.
 WITH chats AS (
-    UPDATE chats
-    SET archived = false, updated_at = NOW()
+    UPDATE chats SET
+        archived = false,
+        updated_at = NOW()
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
 )
@@ -1211,3 +1216,22 @@ LIMIT 1;
 UPDATE chats
 SET last_read_message_id = @last_read_message_id::bigint
 WHERE id = @id::uuid;
+
+-- name: DeleteOldChats :execrows
+-- Deletes chats that have been archived for longer than the given
+-- threshold. Active (non-archived) chats are never deleted.
+-- Related chat_messages, chat_diff_statuses, and
+-- chat_queued_messages are removed via ON DELETE CASCADE.
+-- Parent/root references on child chats are SET NULL.
+WITH deletable AS (
+    SELECT id
+    FROM chats
+    WHERE archived = true
+      AND updated_at < @before_time::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT @limit_count
+)
+DELETE FROM chats
+USING deletable
+WHERE chats.id = deletable.id
+  AND chats.archived = true;

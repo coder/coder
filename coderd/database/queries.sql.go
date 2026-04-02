@@ -2865,6 +2865,54 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteOldChatFiles = `-- name: DeleteOldChatFiles :execrows
+WITH kept_file_ids AS (
+    -- NOTE: This uses updated_at as a proxy for archive time
+    -- because there is no archived_at column. Correctness
+    -- requires that updated_at is never backdated on archived
+    -- chats. See ArchiveChatByID.
+    SELECT DISTINCT cfl.file_id
+    FROM chat_file_links cfl
+    JOIN chats c ON c.id = cfl.chat_id
+    WHERE c.archived = false
+       OR c.updated_at >= $1::timestamptz
+),
+deletable AS (
+    SELECT cf.id
+    FROM chat_files cf
+    LEFT JOIN kept_file_ids k ON cf.id = k.file_id
+    WHERE cf.created_at < $1::timestamptz
+      AND k.file_id IS NULL
+    ORDER BY cf.created_at ASC
+    LIMIT $2
+)
+DELETE FROM chat_files
+USING deletable
+WHERE chat_files.id = deletable.id
+`
+
+type DeleteOldChatFilesParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// TODO(cian): Add indexes on chats(archived, updated_at) and
+// chat_files(created_at) for purge query performance.
+// See: https://github.com/coder/internal/issues/1438
+// Deletes chat files that are older than the given threshold and are
+// not referenced by any chat that is still active or was archived
+// within the same threshold window. This covers two cases:
+//  1. Orphaned files not linked to any chat.
+//  2. Files whose every referencing chat has been archived for longer
+//     than the retention period.
+func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getChatFileByID = `-- name: GetChatFileByID :one
 SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = $1::uuid
 `
@@ -4444,6 +4492,39 @@ UPDATE users SET chat_spend_limit_micros = NULL WHERE id = $1::uuid
 func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteChatUsageLimitUserOverride, userID)
 	return err
+}
+
+const deleteOldChats = `-- name: DeleteOldChats :execrows
+WITH deletable AS (
+    SELECT id
+    FROM chats
+    WHERE archived = true
+      AND updated_at < $1::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT $2
+)
+DELETE FROM chats
+USING deletable
+WHERE chats.id = deletable.id
+  AND chats.archived = true
+`
+
+type DeleteOldChatsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes chats that have been archived for longer than the given
+// threshold. Active (non-archived) chats are never deleted.
+// Related chat_messages, chat_diff_statuses, and
+// chat_queued_messages are removed via ON DELETE CASCADE.
+// Parent/root references on child chats are SET NULL.
+func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getChatByID = `-- name: GetChatByID :one
@@ -6332,8 +6413,9 @@ func (q *sqlQuerier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg Soft
 
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many
 WITH chats AS (
-    UPDATE chats
-    SET archived = false, updated_at = NOW()
+    UPDATE chats SET
+        archived = false,
+        updated_at = NOW()
     WHERE id = $1::uuid OR root_chat_id = $1::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
 )
@@ -6342,6 +6424,10 @@ FROM chats
 ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
 
+// Unarchives a chat (and its children). Stale file references are
+// handled automatically by FK cascades on chat_file_links: when
+// dbpurge deletes a chat_files row, the corresponding
+// chat_file_links rows are cascade-deleted by PostgreSQL.
 func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, unarchiveChatByID, id)
 	if err != nil {
@@ -18675,6 +18761,25 @@ func (q *sqlQuerier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (boo
 	return include_default_system_prompt, err
 }
 
+const getChatRetentionDays = `-- name: GetChatRetentionDays :one
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_retention_days'),
+    30
+) :: integer AS retention_days
+`
+
+// Returns the chat retention period in days. Chats archived longer
+// than this and orphaned chat files older than this are purged by
+// dbpurge. Returns 30 (days) when no value has been configured.
+// A value of 0 disables chat purging entirely.
+func (q *sqlQuerier) GetChatRetentionDays(ctx context.Context) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getChatRetentionDays)
+	var retention_days int32
+	err := row.Scan(&retention_days)
+	return retention_days, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
@@ -18972,6 +19077,18 @@ WHERE site_configs.key = 'agents_chat_include_default_system_prompt'
 
 func (q *sqlQuerier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatIncludeDefaultSystemPrompt, includeDefaultSystemPrompt)
+	return err
+}
+
+const upsertChatRetentionDays = `-- name: UpsertChatRetentionDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_retention_days', CAST($1 AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST($1 AS integer)::text
+WHERE site_configs.key = 'agents_chat_retention_days'
+`
+
+func (q *sqlQuerier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
+	_, err := q.db.ExecContext(ctx, upsertChatRetentionDays, retentionDays)
 	return err
 }
 
