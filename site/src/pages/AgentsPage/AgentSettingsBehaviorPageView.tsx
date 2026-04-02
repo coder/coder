@@ -196,6 +196,9 @@ export const AgentSettingsBehaviorPageView: FC<
 	const isRetentionDaysDirty =
 		localRetentionDays !== null && localRetentionDays !== serverRetentionDays;
 	const isRetentionDaysNegative = retentionDays < 0;
+	// Keep in sync with retentionDaysMaximum in coderd/exp_chats.go.
+	const retentionDaysMaximum = 3650;
+	const isRetentionDaysOverMax = retentionDays > retentionDaysMaximum;
 
 	// ── Event handlers ──
 	const handleSaveSystemPrompt = (event: FormEvent) => {
@@ -573,6 +576,7 @@ export const AgentSettingsBehaviorPageView: FC<
 						<input
 							type="number"
 							min={0}
+							max={3650}
 							step={1}
 							aria-label="Chat retention period in days"
 							value={retentionDays}
@@ -589,6 +593,11 @@ export const AgentSettingsBehaviorPageView: FC<
 								Retention days cannot be negative.
 							</p>
 						)}
+						{isRetentionDaysOverMax && (
+							<p className="m-0 text-xs text-content-destructive">
+								Must not exceed {retentionDaysMaximum} days (~10 years).
+							</p>
+						)}
 						<div className="flex justify-end">
 							<Button
 								size="sm"
@@ -596,7 +605,8 @@ export const AgentSettingsBehaviorPageView: FC<
 								disabled={
 									isSavingRetentionDays ||
 									!isRetentionDaysDirty ||
-									isRetentionDaysNegative
+									isRetentionDaysNegative ||
+									isRetentionDaysOverMax
 								}
 							>
 								Save

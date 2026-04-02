@@ -2065,7 +2065,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				deps := setupChatDeps(ctx, t, db)
 
 				// Create 3 deletable orphaned files (all 31 days old).
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				}
 
@@ -2094,7 +2094,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				deps := setupChatDeps(ctx, t, db)
 
 				// Create 3 deletable old archived chats.
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				}
 

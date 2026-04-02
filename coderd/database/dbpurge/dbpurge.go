@@ -34,8 +34,9 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Batch sizes for chat purging. Chat files use a smaller batch
-	// than other record types because they contain bytea blob data.
+	// Batch sizes for chat purging. Both use 1000, which is smaller
+	// than audit/connection log batches (10000), because chat_files
+	// rows contain bytea blob data that make large batches heavier.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
 )
