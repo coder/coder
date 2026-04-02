@@ -82,6 +82,51 @@ coder_derp_server_unknown_frames_total 0
 # HELP coder_derp_server_watchers Current watchers.
 # TYPE coder_derp_server_watchers gauge
 coder_derp_server_watchers 0
+# HELP coder_pubsub_batch_flush_attempts_total The number of chatd sender flush stages by stage and result.
+# TYPE coder_pubsub_batch_flush_attempts_total counter
+coder_pubsub_batch_flush_attempts_total{stage="",result=""} 0
+# HELP coder_pubsub_batch_flush_duration_seconds The time spent flushing one chatd batch to PostgreSQL.
+# TYPE coder_pubsub_batch_flush_duration_seconds histogram
+coder_pubsub_batch_flush_duration_seconds{reason=""} 0
+# HELP coder_pubsub_batch_flush_failures_total The number of failed chatd batch flushes by reason.
+# TYPE coder_pubsub_batch_flush_failures_total counter
+coder_pubsub_batch_flush_failures_total{reason=""} 0
+# HELP coder_pubsub_batch_flush_inflight Whether a chatd batch flush is currently executing against the dedicated sender connection.
+# TYPE coder_pubsub_batch_flush_inflight gauge
+coder_pubsub_batch_flush_inflight 0
+# HELP coder_pubsub_batch_flushed_bytes_total The number of chatd payload bytes removed from the batching queue for flush attempts by reason.
+# TYPE coder_pubsub_batch_flushed_bytes_total counter
+coder_pubsub_batch_flushed_bytes_total{reason=""} 0
+# HELP coder_pubsub_batch_flushed_notifications_total The number of logical chatd notifications removed from the batching queue for flush attempts by reason.
+# TYPE coder_pubsub_batch_flushed_notifications_total counter
+coder_pubsub_batch_flushed_notifications_total{reason=""} 0
+# HELP coder_pubsub_batch_flushes_total The number of chatd batch flush attempts by reason.
+# TYPE coder_pubsub_batch_flushes_total counter
+coder_pubsub_batch_flushes_total{reason=""} 0
+# HELP coder_pubsub_batch_logical_publish_bytes_total The number of accepted chatd payload bytes enqueued into the batching wrapper by channel class.
+# TYPE coder_pubsub_batch_logical_publish_bytes_total counter
+coder_pubsub_batch_logical_publish_bytes_total{channel_class=""} 0
+# HELP coder_pubsub_batch_logical_publishes_total The number of logical chatd publishes seen by the batching wrapper by channel class and result.
+# TYPE coder_pubsub_batch_logical_publishes_total counter
+coder_pubsub_batch_logical_publishes_total{channel_class="",result=""} 0
+# HELP coder_pubsub_batch_publish_rejections_total The number of chatd publishes rejected by the batching queue.
+# TYPE coder_pubsub_batch_publish_rejections_total counter
+coder_pubsub_batch_publish_rejections_total{reason=""} 0
+# HELP coder_pubsub_batch_queue_capacity The configured capacity of the chatd batching queue.
+# TYPE coder_pubsub_batch_queue_capacity gauge
+coder_pubsub_batch_queue_capacity 0
+# HELP coder_pubsub_batch_queue_depth The number of chatd notifications waiting in the batching queue.
+# TYPE coder_pubsub_batch_queue_depth gauge
+coder_pubsub_batch_queue_depth 0
+# HELP coder_pubsub_batch_queue_depth_high_watermark The highest chatd batching queue depth observed since process start.
+# TYPE coder_pubsub_batch_queue_depth_high_watermark gauge
+coder_pubsub_batch_queue_depth_high_watermark 0
+# HELP coder_pubsub_batch_queue_wait_seconds The time accepted chatd publishes spent waiting in the batching queue before a flush attempt started.
+# TYPE coder_pubsub_batch_queue_wait_seconds histogram
+coder_pubsub_batch_queue_wait_seconds{channel_class=""} 0
+# HELP coder_pubsub_batch_size The number of logical notifications sent in each chatd batch flush.
+# TYPE coder_pubsub_batch_size histogram
+coder_pubsub_batch_size 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0

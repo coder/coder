@@ -757,6 +757,24 @@ chat:
   # How many pending chats a worker should acquire per polling cycle.
   # (default: 10, type: int)
   acquireBatchSize: 10
+  # Whether chatd should route PostgreSQL pubsub publishes through a dedicated
+  # sender connection. The default keeps batching enabled so chatd avoids
+  # shared-pool starvation without changing global pubsub wiring.
+  # (default: true, type: bool)
+  pubsubBatchEnabled: true
+  # The maximum time accepted chatd pubsub publishes wait for a scheduled flush when
+  # capacity does not trigger an immediate send.
+  # (default: 10ms, type: duration)
+  pubsubFlushInterval: 10ms
+  # How many chatd pubsub publishes to accumulate before an immediate PostgreSQL
+  # flush. The default of 1 keeps the dedicated sender path effectively unbatched to
+  # minimize added latency.
+  # (default: 1, type: int)
+  pubsubBatchSize: 1
+  # How many chatd pubsub publishes can wait in memory for the dedicated sender path
+  # when PostgreSQL falls behind.
+  # (default: 1024, type: int)
+  pubsubQueueSize: 1024
 aibridge:
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
