@@ -451,6 +451,27 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 	require.Equal(t, stepKeep.ID, steps[0].ID)
 }
 
+func TestService_FinalizeStale_UsesConfiguredThreshold(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+	svc.SetStaleAfter(42 * time.Second)
+
+	db.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, staleBefore time.Time) (database.FinalizeStaleChatDebugRowsRow, error) {
+			require.WithinDuration(t, time.Now().Add(-42*time.Second), staleBefore, 2*time.Second)
+			return database.FinalizeStaleChatDebugRowsRow{}, nil
+		},
+	)
+
+	result, err := svc.FinalizeStale(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, result.RunsFinalized)
+	require.Zero(t, result.StepsFinalized)
+}
+
 func TestService_FinalizeStale(t *testing.T) {
 	t.Parallel()
 

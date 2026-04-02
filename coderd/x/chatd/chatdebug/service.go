@@ -23,9 +23,10 @@ const StaleThreshold = 5 * time.Minute
 
 // Service persists chat debug rows and fans out lightweight change events.
 type Service struct {
-	db     database.Store
-	log    slog.Logger
-	pubsub pubsub.Pubsub
+	db         database.Store
+	log        slog.Logger
+	pubsub     pubsub.Pubsub
+	staleAfter time.Duration
 }
 
 // CreateRunParams contains friendly inputs for creating a debug run.
@@ -84,10 +85,21 @@ func NewService(db database.Store, log slog.Logger, ps pubsub.Pubsub) *Service {
 	}
 
 	return &Service{
-		db:     db,
-		log:    log,
-		pubsub: ps,
+		db:         db,
+		log:        log,
+		pubsub:     ps,
+		staleAfter: StaleThreshold,
 	}
+}
+
+// SetStaleAfter overrides the in-flight stale threshold used when
+// finalizing abandoned debug rows. Zero or negative durations keep the
+// default threshold.
+func (s *Service) SetStaleAfter(staleAfter time.Duration) {
+	if s == nil || staleAfter <= 0 {
+		return
+	}
+	s.staleAfter = staleAfter
 }
 
 func chatdContext(ctx context.Context) context.Context {
@@ -326,9 +338,14 @@ func (s *Service) DeleteAfterMessageID(
 func (s *Service) FinalizeStale(
 	ctx context.Context,
 ) (database.FinalizeStaleChatDebugRowsRow, error) {
+	staleAfter := s.staleAfter
+	if staleAfter <= 0 {
+		staleAfter = StaleThreshold
+	}
+
 	result, err := s.db.FinalizeStaleChatDebugRows(
 		chatdContext(ctx),
-		time.Now().Add(-StaleThreshold),
+		time.Now().Add(-staleAfter),
 	)
 	if err != nil {
 		return database.FinalizeStaleChatDebugRowsRow{}, err
