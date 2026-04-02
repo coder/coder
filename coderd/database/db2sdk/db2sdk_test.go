@@ -210,6 +210,46 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
 }
 
+func TestChatDebugStep(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(2 * time.Second)
+	attempts := json.RawMessage(`[
+		{
+			"attempt_number": 1,
+			"status": "completed",
+			"raw_request": {"url": "https://example.com"},
+			"raw_response": {"status": "200"},
+			"duration_ms": 123,
+			"started_at": "2026-03-01T10:00:01Z",
+			"finished_at": "2026-03-01T10:00:02Z"
+		}
+	]`)
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          attempts,
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         startedAt,
+		UpdatedAt:         finishedAt,
+		FinishedAt:        sql.NullTime{Time: finishedAt, Valid: true},
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, int32(1), sdk.Attempts[0].AttemptNumber)
+	require.Equal(t, "completed", sdk.Attempts[0].Status)
+	require.JSONEq(t, `{"url":"https://example.com"}`, string(*sdk.Attempts[0].RawRequest))
+	require.JSONEq(t, `{"status":"200"}`, string(*sdk.Attempts[0].RawResponse))
+	require.Equal(t, int64(123), *sdk.Attempts[0].DurationMs)
+}
+
 func TestAIBridgeInterception(t *testing.T) {
 	t.Parallel()
 

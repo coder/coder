@@ -1623,6 +1623,18 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	return chat
 }
 
+func chatDebugAttempts(raw json.RawMessage) []codersdk.ChatDebugAttempt {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var attempts []codersdk.ChatDebugAttempt
+	if err := json.Unmarshal(raw, &attempts); err != nil {
+		return nil
+	}
+	return attempts
+}
+
 // ChatDebugRunSummary converts a database.ChatDebugRun to a
 // codersdk.ChatDebugRunSummary.
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
@@ -1655,7 +1667,7 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 		NormalizedRequest:   s.NormalizedRequest,
 		NormalizedResponse:  nullRawMessagePtr(s.NormalizedResponse),
 		Usage:               nullRawMessagePtr(s.Usage),
-		Attempts:            s.Attempts,
+		Attempts:            chatDebugAttempts(s.Attempts),
 		Error:               nullRawMessagePtr(s.Error),
 		Metadata:            s.Metadata,
 		StartedAt:           s.StartedAt,

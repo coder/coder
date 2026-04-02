@@ -1445,7 +1445,7 @@ export interface ChatDebugStep {
 	readonly normalized_request: Record<string, string>;
 	readonly normalized_response?: Record<string, string>;
 	readonly usage?: Record<string, string>;
-	readonly attempts: Record<string, string>;
+	readonly attempts: readonly ChatDebugAttempt[];
 	readonly error?: Record<string, string>;
 	readonly metadata: Record<string, string>;
 	readonly started_at: string;
