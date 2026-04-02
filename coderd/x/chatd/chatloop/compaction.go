@@ -335,6 +335,16 @@ func startCompactionDebugRun(
 			5*time.Second,
 		)
 		defer finalizeCancel()
+
+		finalSummary := map[string]any(nil)
+		if aggregated, aggErr := options.DebugSvc.AggregateRunSummary(
+			finalizeCtx,
+			run.ID,
+			nil,
+		); aggErr == nil {
+			finalSummary = aggregated
+		}
+
 		// Debug instrumentation must not surface as a compaction failure.
 		_, _ = options.DebugSvc.UpdateRun(
 			finalizeCtx,
@@ -342,6 +352,7 @@ func startCompactionDebugRun(
 				ID:         run.ID,
 				ChatID:     options.ChatID,
 				Status:     status,
+				Summary:    finalSummary,
 				FinishedAt: time.Now(),
 			},
 		)

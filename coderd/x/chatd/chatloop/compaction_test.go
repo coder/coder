@@ -2,11 +2,13 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -67,6 +69,59 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("FinalizeRunAggregatesSummary", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+		chatID := uuid.New()
+		runID := uuid.New()
+		usageJSON, err := json.Marshal(fantasy.Usage{InputTokens: 7, OutputTokens: 3})
+		require.NoError(t, err)
+		attemptsJSON, err := json.Marshal([]chatdebug.Attempt{{
+			Status: "completed",
+			Method: "POST",
+			Path:   "/v1/messages",
+		}})
+		require.NoError(t, err)
+
+		db.EXPECT().InsertChatDebugRun(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
+		).Return(database.ChatDebugRun{ //nolint:exhaustruct // Test only needs IDs.
+			ID:     runID,
+			ChatID: chatID,
+		}, nil)
+		db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return([]database.ChatDebugStep{{
+			ID:       uuid.New(),
+			RunID:    runID,
+			ChatID:   chatID,
+			Status:   string(chatdebug.StatusCompleted),
+			Usage:    pqtype.NullRawMessage{RawMessage: usageJSON, Valid: true},
+			Attempts: attemptsJSON,
+		}}, nil)
+		db.EXPECT().UpdateChatDebugRun(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(database.UpdateChatDebugRunParams{}),
+		).DoAndReturn(func(_ context.Context, params database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.Equal(t, chatID, params.ChatID)
+			require.Equal(t, runID, params.ID)
+			require.True(t, params.Summary.Valid)
+			require.JSONEq(t, `{"endpoint_label":"POST /v1/messages","step_count":1,"total_input_tokens":7,"total_output_tokens":3}`,
+				string(params.Summary.RawMessage))
+			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+		})
+
+		ctx := newParentContext(chatID)
+		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
+			DebugSvc: svc,
+			ChatID:   chatID,
+		})
+		require.NotSame(t, ctx, compactionCtx)
+		finish(nil)
+	})
+
 	t.Run("FinalizeRun", func(t *testing.T) {
 		t.Parallel()
 
@@ -84,6 +139,7 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 			ID:     runID,
 			ChatID: chatID,
 		}, nil)
+		db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, xerrors.New("aggregate compaction debug run"))
 		db.EXPECT().UpdateChatDebugRun(
 			gomock.Any(),
 			gomock.AssignableToTypeOf(database.UpdateChatDebugRunParams{}),
