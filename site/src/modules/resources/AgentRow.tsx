@@ -21,6 +21,14 @@ import type {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import type { Line } from "#/components/Logs/LogLine";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "#/components/Tabs/Tabs";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
@@ -185,11 +193,56 @@ export const AgentRow: FC<AgentRowProps> = ({
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
 
+	const [selectedLogTab, setSelectedLogTab] = useState("all");
+	const logTabs: {
+		startIcon?: React.ReactNode;
+		title: string;
+		value: string;
+	}[] = [
+		{
+			title: "All Logs",
+			value: "all",
+		},
+		...agent.log_sources
+			.filter((logSource) => {
+				const log = agentLogs.find((log) => log.source_id === logSource.id);
+				return (log?.output?.length ?? 0) > 0;
+			})
+			.map((logSource) => ({
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+			}))
+			.sort((a, b) => {
+				if (a.title === "Startup Script") {
+					return -1;
+				}
+				return a.title.localeCompare(b.title);
+			}),
+	];
+	const selectedLogs =
+		selectedLogTab === "all"
+			? agentLogs
+			: agentLogs.filter((log) => log.source_id === selectedLogTab);
+	const selectedLogLines: readonly Line[] = selectedLogs.map((log) => ({
+		id: log.id,
+		output: log.output,
+		time: log.created_at,
+		level: log.level,
+		sourceId: log.source_id,
+	}));
+
 	return (
 		<div
 			key={agent.id}
 			className={cn(
-				"flex max-w-full flex-col rounded-lg border border-solid bg-surface-primary text-sm shadow-md",
+				"flex max-w-full flex-col rounded-lg border border-solid bg-surface-primary text-sm shadow-md overflow-clip",
 				borderClass,
 			)}
 		>
@@ -347,30 +400,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 			{hasStartupFeatures && (
 				<section className="border-0 border-t border-solid border-border">
-					<Collapse in={showLogs}>
-						<AutoSizer disableHeight>
-							{({ width }) => (
-								<AgentLogs
-									ref={logListRef}
-									innerRef={logListDivRef}
-									height={256}
-									width={width}
-									className="max-h-[420px] border-0 border-b border-solid border-border"
-									onScroll={handleLogScroll}
-									overflowed={agent.logs_overflowed}
-									logs={agentLogs.map((l) => ({
-										id: l.id,
-										level: l.level,
-										output: l.output,
-										sourceId: l.source_id,
-										time: l.created_at,
-									}))}
-									sources={agent.log_sources}
-								/>
-							)}
-						</AutoSizer>
-					</Collapse>
-
 					<div className="flex flex-row gap-2 px-4 py-3">
 						<Button
 							size="sm"
@@ -383,6 +412,47 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<Divider orientation="vertical" variant="middle" flexItem />
 						<DownloadAgentLogsButton agent={agent} />
 					</div>
+					<Collapse in={showLogs}>
+						<div className="px-4 pb-4">
+							<div className="border border-solid rounded-md overflow-clip">
+								<Tabs
+									className="-mx-px -mt-px"
+									value={selectedLogTab}
+									onValueChange={setSelectedLogTab}
+								>
+									<TabsList variant="insideBox">
+										{logTabs.map((tab) => (
+											<TabsTrigger key={tab.value} value={tab.value}>
+												{tab.startIcon}
+												<span>{tab.title}</span>
+											</TabsTrigger>
+										))}
+									</TabsList>
+									{/*
+										Using a singular TabsContent is necessary to avoid scrolling
+										issues when the selected log tab changes.
+									*/}
+									<TabsContent value={selectedLogTab}>
+										<AutoSizer disableHeight>
+											{({ width }) => (
+												<AgentLogs
+													ref={logListRef}
+													innerRef={logListDivRef}
+													height={256}
+													width={width}
+													onScroll={handleLogScroll}
+													logs={selectedLogLines}
+													sources={agent.log_sources}
+													overflowed={agent.logs_overflowed}
+													className="bg-transparent"
+												/>
+											)}
+										</AutoSizer>
+									</TabsContent>
+								</Tabs>
+							</div>
+						</div>
+					</Collapse>
 				</section>
 			)}
 		</div>
