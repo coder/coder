@@ -1618,8 +1618,8 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		ProviderResponseID:    takeFirst(seed.ProviderResponseID, "provider_response_id"),
 		InputTokens:           takeFirst(seed.InputTokens, 100),
 		OutputTokens:          takeFirst(seed.OutputTokens, 100),
-		CacheReadInputTokens:  takeFirst(seed.CacheReadInputTokens, 0),
-		CacheWriteInputTokens: takeFirst(seed.CacheWriteInputTokens, 0),
+		CacheReadInputTokens:  seed.CacheReadInputTokens,
+		CacheWriteInputTokens: seed.CacheWriteInputTokens,
 		Metadata:              takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		CreatedAt:             takeFirst(seed.CreatedAt, dbtime.Now()),
 	})
