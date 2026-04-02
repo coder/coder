@@ -2,7 +2,7 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/textarea}
  */
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 export const Textarea: React.FC<React.ComponentPropsWithRef<"textarea">> = ({
 	className,

@@ -4036,6 +4036,10 @@ type AIBridgeInterception struct {
 	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
 	// The session ID supplied by the client (optional and not universally supported).
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception's own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.
+	SessionID string `db:"session_id" json:"session_id"`
+	// The provider instance name which may differ from provider when multiple instances of the same provider type exist.
+	ProviderName string `db:"provider_name" json:"provider_name"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4151,23 +4155,29 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
-	Title             string         `db:"title" json:"title"`
-	Status            ChatStatus     `db:"status" json:"status"`
-	WorkerID          uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt         sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt       sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived          bool           `db:"archived" json:"archived"`
-	LastError         sql.NullString `db:"last_error" json:"last_error"`
-	Mode              NullChatMode   `db:"mode" json:"mode"`
-	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title               string                `db:"title" json:"title"`
+	Status              ChatStatus            `db:"status" json:"status"`
+	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived            bool                  `db:"archived" json:"archived"`
+	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	Mode                NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels              StringMap             `db:"labels" json:"labels"`
+	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 }
 
 type ChatDiffStatus struct {
@@ -4227,6 +4237,7 @@ type ChatMessage struct {
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 }
 
 type ChatModelConfig struct {
@@ -4394,7 +4405,6 @@ type Group struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
-// Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
 type GroupMember struct {
 	UserID                 uuid.UUID     `db:"user_id" json:"user_id"`
 	UserEmail              string        `db:"user_email" json:"user_email"`
@@ -4412,6 +4422,7 @@ type GroupMember struct {
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
 	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
+	UserIsServiceAccount   bool          `db:"user_is_service_account" json:"user_is_service_account"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
@@ -4481,6 +4492,7 @@ type MCPServerConfig struct {
 	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
+	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 }
 
 type MCPServerUserToken struct {

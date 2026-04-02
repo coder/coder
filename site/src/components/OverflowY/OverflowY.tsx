@@ -27,12 +27,10 @@ export const OverflowY: FC<OverflowYProps> = ({
 
 	return (
 		<div
-			css={{
-				width: "100%",
+			className="w-full overflow-y-auto shrink"
+			style={{
 				height: computedHeight,
 				maxHeight: computedMaxHeight,
-				overflowY: "auto",
-				flexShrink: 1,
 			}}
 			{...attrs}
 		>

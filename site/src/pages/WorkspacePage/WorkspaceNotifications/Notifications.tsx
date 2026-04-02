@@ -1,15 +1,15 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { AlertProps } from "components/Alert/Alert";
-import { Button, type ButtonProps } from "components/Button/Button";
-import { Pill } from "components/Pill/Pill";
+import { type FC, type ReactNode, useState } from "react";
+import type { AlertProps } from "#/components/Alert/Alert";
+import { Button, type ButtonProps } from "#/components/Button/Button";
+import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { type FC, type ReactNode, useState } from "react";
-import type { ThemeRole } from "theme/roles";
+} from "#/components/Tooltip/Tooltip";
+import type { ThemeRole } from "#/theme/roles";
 
 export type NotificationItem = {
 	title: string;
@@ -95,7 +95,7 @@ interface NotificationItemProps {
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (
 		<article css={styles.notificationItem}>
-			<h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
+			<h4 className="m-0 font-medium">{notification.title}</h4>
 			{notification.detail && (
 				<p css={styles.notificationDetail}>{notification.detail}</p>
 			)}

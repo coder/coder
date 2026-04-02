@@ -14,16 +14,16 @@
  * users like that, though, know that it will be painful
  */
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { LoginType, SlimRole } from "api/typesGenerated";
-import { Pill } from "components/Pill/Pill";
-import { TableCell } from "components/Table/Table";
+import type { FC } from "react";
+import type { LoginType, SlimRole } from "#/api/typesGenerated";
+import { Pill } from "#/components/Pill/Pill";
+import { TableCell } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {
@@ -177,6 +177,7 @@ const roleNamesByAccessLevel: readonly string[] = [
 	"organization-template-admin",
 	"auditor",
 	"organization-auditor",
+	"agents-access",
 ];
 
 function sortRolesByAccessLevel<T extends SlimRole>(

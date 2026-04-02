@@ -177,16 +177,6 @@ Dependabot PRs are auto-generated - don't try to match their verbose style for m
 Changes from https://github.com/upstream/repo/pull/XXX/
 ```
 
-## Attribution Footer
-
-For AI-generated PRs, end with:
-
-```markdown
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-```
-
 ## Creating PRs as Draft
 
 **IMPORTANT**: Unless explicitly told otherwise, always create PRs as drafts using the `--draft` flag:
@@ -197,11 +187,12 @@ gh pr create --draft --title "..." --body "..."
 
 After creating the PR, encourage the user to review it before marking as ready:
 
-```
+```text
 I've created draft PR #XXXX. Please review the changes and mark it as ready for review when you're satisfied.
 ```
 
 This allows the user to:
+
 - Review the code changes before requesting reviews from maintainers
 - Make additional adjustments if needed
 - Ensure CI passes before notifying reviewers

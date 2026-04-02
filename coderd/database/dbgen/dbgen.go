@@ -1591,6 +1591,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		APIKeyID:                   seed.APIKeyID,
 		InitiatorID:                takeFirst(seed.InitiatorID, uuid.New()),
 		Provider:                   takeFirst(seed.Provider, "provider"),
+		ProviderName:               takeFirst(seed.ProviderName, "provider-name"),
 		Model:                      takeFirst(seed.Model, "model"),
 		Metadata:                   takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),
@@ -1661,6 +1662,17 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 	})
 	require.NoError(t, err, "insert aibridge tool usage")
 	return toolUsage
+}
+
+func AIBridgeModelThought(t testing.TB, db database.Store, seed database.InsertAIBridgeModelThoughtParams) database.AIBridgeModelThought {
+	thought, err := db.InsertAIBridgeModelThought(genCtx, database.InsertAIBridgeModelThoughtParams{
+		InterceptionID: takeFirst(seed.InterceptionID, uuid.New()),
+		Content:        takeFirst(seed.Content, ""),
+		Metadata:       takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert aibridge model thought")
+	return thought
 }
 
 func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Task {

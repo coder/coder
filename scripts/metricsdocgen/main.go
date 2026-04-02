@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
@@ -176,7 +177,7 @@ func updatePrometheusDoc(doc []byte, metricFamilies []*dto.MetricFamily) ([]byte
 		}
 
 		if len(labels) > 0 {
-			_, _ = buffer.WriteString(strings.Join(sortedKeys(labels), " "))
+			_, _ = buffer.WriteString(strings.Join(maps.SortedKeys(labels), " "))
 		}
 
 		_, _ = buffer.WriteString(" |\n")
@@ -189,13 +190,4 @@ func updatePrometheusDoc(doc []byte, metricFamilies []*dto.MetricFamily) ([]byte
 
 func writePrometheusDoc(doc []byte) error {
 	return atomicwrite.File(prometheusDocFile, doc)
-}
-
-func sortedKeys(m map[string]struct{}) []string {
-	var keys []string
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }

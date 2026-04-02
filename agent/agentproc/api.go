@@ -181,7 +181,9 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		// WriteTimeout does not kill the connection while
 		// we block.
 		rc := http.NewResponseController(rw)
-		if err := rc.SetWriteDeadline(time.Now().Add(maxWaitDuration)); err != nil {
+		// Add headroom beyond the wait timeout so there's time to
+		// write the response after the blocking wait completes.
+		if err := rc.SetWriteDeadline(time.Now().Add(maxWaitDuration + 30*time.Second)); err != nil {
 			api.logger.Error(ctx, "extend write deadline for blocking process output",
 				slog.Error(err),
 			)

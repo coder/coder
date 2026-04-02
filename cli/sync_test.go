@@ -165,6 +165,37 @@ func TestSyncCommands_Golden(t *testing.T) {
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/want_success", outBuf.Bytes(), nil)
 	})
 
+	t.Run("want_multiple_deps", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "want", "test-unit", "dep-1", "dep-2", "dep-3", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify all dependencies were registered by checking status.
+		outBuf.Reset()
+		inv, _ = clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path, "--output", "json")
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// The output should mention all three dependencies.
+		output := outBuf.String()
+		require.Contains(t, output, "dep-1")
+		require.Contains(t, output, "dep-2")
+		require.Contains(t, output, "dep-3")
+	})
+
 	t.Run("complete", func(t *testing.T) {
 		t.Parallel()
 		path, cleanup := setupSocketServer(t)

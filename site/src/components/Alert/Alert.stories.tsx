@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "components/Button/Button";
+import { Button } from "#/components/Button/Button";
 import { Alert } from "./Alert";
 
 const meta: Meta<typeof Alert> = {
@@ -11,7 +11,7 @@ export default meta;
 type Story = StoryObj<typeof Alert>;
 
 const ExampleAction = (
-	<Button onClick={() => null} size="sm" variant="subtle">
+	<Button onClick={() => null} size="sm">
 		Button
 	</Button>
 );

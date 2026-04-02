@@ -84,6 +84,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/aibridge/clients": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge clients",
+                "operationId": "list-ai-bridge-clients",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/aibridge/interceptions": {
             "get": {
                 "produces": [
@@ -153,6 +181,109 @@ const docTemplate = `{
                             "items": {
                                 "type": "string"
                             }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/aibridge/sessions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge sessions",
+                "operationId": "list-ai-bridge-sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, model, client, session_id, started_after, started_before.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor pagination after session ID (cannot be used with offset)",
+                        "name": "after_session_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset pagination (cannot be used with after_session_id)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/aibridge/sessions/{session_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "Get AI Bridge session threads",
+                "operationId": "get-ai-bridge-session-threads",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID (client_session_id or interception UUID)",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Thread pagination cursor (forward/older)",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Thread pagination cursor (backward/newer)",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of threads per page (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
                         }
                     }
                 },
@@ -1520,6 +1651,12 @@ const docTemplate = `{
                         "name": "group",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Exclude members from the response",
+                        "name": "exclude_members",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1603,6 +1740,65 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/groups/{group}/members": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members by group ID",
+                "operationId": "get-group-members-by-group-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group id",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupMembersResponse"
                         }
                     }
                 },
@@ -3388,6 +3584,73 @@ const docTemplate = `{
                 ]
             }
         },
+        "/organizations/{organization}/groups/{groupName}/members": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members by organization and group name",
+                "operationId": "get-group-members-by-organization-and-group-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "groupName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupMembersResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/organizations/{organization}/members": {
             "get": {
                 "produces": [
@@ -3949,6 +4212,19 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -7824,29 +8100,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
-            }
-        },
-        "/users/me/session/token-to-cookie": {
-            "post": {
-                "description": "Converts the current session token into a Set-Cookie response.\nThis is used by embedded iframes (e.g. VS Code chat) that\nreceive a session token out-of-band via postMessage but need\ncookie-based auth for WebSocket connections.",
-                "tags": [
-                    "Authorization"
-                ],
-                "summary": "Set session token cookie",
-                "operationId": "set-session-token-cookie",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
             }
         },
         "/users/oauth2/github/callback": {
@@ -12502,6 +12755,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeAgenticAction": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "thinking": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeModelThought"
+                    }
+                },
+                "token_usage": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
+                },
+                "tool_calls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeToolCall"
+                    }
+                }
+            }
+        },
         "codersdk.AIBridgeAnthropicConfig": {
             "type": "object",
             "properties": {
@@ -12618,6 +12894,9 @@ const docTemplate = `{
                 "provider": {
                     "type": "string"
                 },
+                "provider_name": {
+                    "type": "string"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
@@ -12653,6 +12932,28 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeInterception"
                     }
+                }
+            }
+        },
+        "codersdk.AIBridgeListSessionsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSession"
+                    }
+                }
+            }
+        },
+        "codersdk.AIBridgeModelThought": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
                 }
             }
         },
@@ -12708,6 +13009,169 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeSession": {
+            "type": "object",
+            "properties": {
+                "client": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "last_prompt": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "threads": {
+                    "type": "integer"
+                },
+                "token_usage_summary": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionThreadsResponse": {
+            "type": "object",
+            "properties": {
+                "client": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "page_ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "page_started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "threads": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeThread"
+                    }
+                },
+                "token_usage_summary": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionThreadsTokenUsage": {
+            "type": "object",
+            "properties": {
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionTokenUsageSummary": {
+            "type": "object",
+            "properties": {
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIBridgeThread": {
+            "type": "object",
+            "properties": {
+                "agentic_actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
+                    }
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "token_usage": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
+                }
+            }
+        },
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
@@ -12734,6 +13198,42 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "provider_response_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeToolCall": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "injected": {
+                    "type": "boolean"
+                },
+                "input": {
+                    "type": "string"
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider_response_id": {
+                    "type": "string"
+                },
+                "server_url": {
+                    "type": "string"
+                },
+                "tool": {
                     "type": "string"
                 }
             }
@@ -15749,6 +16249,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GroupMembersResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                }
+            }
+        },
         "codersdk.GroupSource": {
             "type": "string",
             "enum": [
@@ -17167,6 +17681,20 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
+                "is_service_account": {
+                    "type": "boolean"
+                },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -17180,13 +17708,32 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "status": {
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
                 "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_created_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "user_updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "username": {
                     "type": "string"
@@ -19934,6 +20481,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -20782,6 +21333,10 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "format": "email"
+                },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",

@@ -21,6 +21,7 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	agentsAccess  string = "agents-access"
 	// customSiteRole is a placeholder for all custom site roles.
 	// This is used for what roles can assign other roles.
 	// TODO: Make this more dynamic to allow other roles to grant.
@@ -142,6 +143,7 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
+func RoleAgentsAccess() RoleIdentifier  { return RoleIdentifier{Name: agentsAccess} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -316,13 +318,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception, ResourceChat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				// Members can create and update AI Bridge interceptions but
+				// cannot read them back.
+				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 			})...,
 		),
 		ByOrgID: map[string]OrgPermissions{},
@@ -345,7 +350,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			// Allow auditors to query aibridge interceptions.
+			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 		}),
 		User:    []Permission{},
@@ -399,6 +404,21 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
+	agentsAccessRole := Role{
+		Identifier:  RoleAgentsAccess(),
+		DisplayName: "Coder Agents User",
+		Site:        []Permission{},
+		User: Permissions(map[string][]policy.Action{
+			ResourceChat.Type: {
+				policy.ActionCreate,
+				policy.ActionRead,
+				policy.ActionUpdate,
+				policy.ActionDelete,
+			},
+		}),
+		ByOrgID: map[string]OrgPermissions{},
+	}.withCachedRegoValue()
+
 	builtInRoles = map[string]func(orgID uuid.UUID) Role{
 		// admin grants all actions to all resources.
 		owner: func(_ uuid.UUID) Role {
@@ -423,6 +443,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
+		},
+
+		// agentsAccess grants all actions on chat resources owned
+		// by the user. Without this role, members cannot create
+		// or interact with chats.
+		agentsAccess: func(_ uuid.UUID) Role {
+			return agentsAccessRole
 		},
 
 		// orgAdmin returns a role with all actions allows in a given
@@ -597,6 +624,7 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
+		agentsAccess:            true,
 	},
 	owner: {
 		owner:                   true,
@@ -612,10 +640,12 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
+		agentsAccess:            true,
 	},
 	userAdmin: {
-		member:    true,
-		orgMember: true,
+		member:       true,
+		orgMember:    true,
+		agentsAccess: true,
 	},
 	orgAdmin: {
 		orgAdmin:                true,
@@ -851,11 +881,18 @@ func SiteBuiltInRoles() []Role {
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
-		if !role.Identifier.IsOrgRole() {
+		if !role.Identifier.IsOrgRole() && role.Identifier != RoleAgentsAccess() {
 			roles = append(roles, role)
 		}
 	}
 	return roles
+}
+
+// AgentsAccessRole returns the agents-access role for use by callers
+// that need to include it conditionally (e.g. when the agents
+// experiment is enabled).
+func AgentsAccessRole() Role {
+	return builtInRoles[agentsAccess](uuid.Nil)
 }
 
 // ChangeRoleSet is a helper function that finds the difference of 2 sets of
@@ -998,6 +1035,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
+			ResourceAibridgeInterception,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1015,6 +1053,12 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			// Can read their own organization member record.
 			ResourceOrganizationMember.Type: {
 				policy.ActionRead,
+			},
+			// Members can create and update AI Bridge interceptions but
+			// cannot read them back.
+			ResourceAibridgeInterception.Type: {
+				policy.ActionCreate,
+				policy.ActionUpdate,
 			},
 		})...,
 	)
@@ -1073,6 +1117,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
+			ResourceAibridgeInterception,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1090,6 +1135,12 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			// Can read their own organization member record.
 			ResourceOrganizationMember.Type: {
 				policy.ActionRead,
+			},
+			// Service accounts can create and update AI Bridge
+			// interceptions but cannot read them back.
+			ResourceAibridgeInterception.Type: {
+				policy.ActionCreate,
+				policy.ActionUpdate,
 			},
 		})...,
 	)

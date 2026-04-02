@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 03/05/2025
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
 import { useCallback, useRef } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {

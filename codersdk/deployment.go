@@ -88,7 +88,7 @@ var (
 func (a Addon) Features() []FeatureName {
 	switch a {
 	case AddonAIGovernance:
-		// Return all AI governance features.
+		// Return all AI Governance features.
 		var features []FeatureName
 		for _, featureName := range FeatureNames {
 			if featureName.IsAIGovernanceAddon() {
@@ -306,7 +306,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+// IsAIGovernanceAddon returns true if the feature is an AI Governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
 }
@@ -1251,7 +1251,11 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 }
 
 func removeTrailingVersionInfo(v string) string {
-	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+	// Strip build metadata (everything after '+').
+	v, _, _ = strings.Cut(v, "+")
+	// Strip '-devel' suffix if present.
+	v = strings.TrimSuffix(v, "-devel")
+	return v
 }
 
 func DefaultDocsURL() string {
@@ -3923,15 +3927,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "key_file",
 		},
 		{
-			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
-			Flag:        "aibridge-proxy-domain-allowlist",
-			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
-			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
-			Hidden:      true,
-			Group:       &deploymentGroupAIBridgeProxy,
-			YAML:        "domain_allowlist",
+			Name: "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. " +
+				"Requests to other domains will be tunneled directly without decryption. " +
+				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.",
+			Flag:    "aibridge-proxy-domain-allowlist",
+			Env:     "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:   &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridgeProxy,
+			YAML:    "domain_allowlist",
 		},
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",

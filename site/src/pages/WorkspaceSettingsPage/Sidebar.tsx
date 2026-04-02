@@ -1,17 +1,16 @@
-import { Avatar } from "components/Avatar/Avatar";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import {
-	Sidebar as BaseSidebar,
-	SidebarHeader,
-	SidebarNavItem,
-} from "components/Sidebar/Sidebar";
 import {
 	SettingsIcon as GeneralIcon,
 	CodeIcon as ParameterIcon,
 	TimerIcon as ScheduleIcon,
 	Users as SharingIcon,
 } from "lucide-react";
-import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	Sidebar as BaseSidebar,
+	SidebarHeader,
+	SidebarNavItem,
+} from "#/components/Sidebar/Sidebar";
+import { useWorkspaceSettings } from "./useWorkspaceSettings";
 
 export const Sidebar: React.FC = () => {
 	const { owner, workspace, permissions } = useWorkspaceSettings();
@@ -43,7 +42,6 @@ export const Sidebar: React.FC = () => {
 			{permissions?.shareWorkspace && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
-					<FeatureStageBadge contentType="beta" size="sm" />
 				</SidebarNavItem>
 			)}
 		</BaseSidebar>

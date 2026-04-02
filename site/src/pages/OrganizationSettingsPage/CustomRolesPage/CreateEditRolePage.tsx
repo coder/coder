@@ -1,19 +1,19 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	createOrganizationRole,
-	organizationRoles,
-	updateOrganizationRole,
-} from "api/queries/roles";
-import type { CustomRoleRequest } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	createOrganizationRole,
+	organizationRoles,
+	updateOrganizationRole,
+} from "#/api/queries/roles";
+import type { CustomRoleRequest } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
 const CreateEditRolePage: FC = () => {

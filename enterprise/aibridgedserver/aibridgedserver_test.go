@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -379,13 +380,14 @@ func TestRecordInterception(t *testing.T) {
 			{
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
-					Id:          uuid.NewString(),
-					ApiKeyId:    uuid.NewString(),
-					InitiatorId: uuid.NewString(),
-					Provider:    "anthropic",
-					Model:       "claude-4-opus",
-					Metadata:    metadataProto,
-					StartedAt:   timestamppb.Now(),
+					Id:           uuid.NewString(),
+					ApiKeyId:     uuid.NewString(),
+					InitiatorId:  uuid.NewString(),
+					Provider:     "anthropic",
+					ProviderName: "anthropic",
+					Model:        "claude-4-opus",
+					Metadata:     metadataProto,
+					StartedAt:    timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -394,20 +396,22 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse interception initiator UUID")
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						Metadata:    json.RawMessage(metadataJSON),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     req.GetProvider(),
+						ProviderName: req.GetProviderName(),
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage(metadataJSON),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
 					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     req.GetProvider(),
+						ProviderName: req.GetProviderName(),
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
 					}, nil)
 				},
 			},
@@ -421,7 +425,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: strPtr("session-abc-123"),
+					ClientSessionId: ptr.Ref("session-abc-123"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -434,6 +438,7 @@ func TestRecordInterception(t *testing.T) {
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:     initiatorID,
 						Provider:        req.GetProvider(),
+						ProviderName:    req.GetProvider(),
 						Model:           req.GetModel(),
 						Metadata:        json.RawMessage(metadataJSON),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
@@ -443,6 +448,7 @@ func TestRecordInterception(t *testing.T) {
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:     initiatorID,
 						Provider:        req.GetProvider(),
+						ProviderName:    req.GetProvider(),
 						Model:           req.GetModel(),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
 						ClientSessionID: sql.NullString{String: "session-abc-123", Valid: true},
@@ -459,7 +465,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: strPtr(""),
+					ClientSessionId: ptr.Ref(""),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -472,17 +478,19 @@ func TestRecordInterception(t *testing.T) {
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:     initiatorID,
 						Provider:        req.GetProvider(),
+						ProviderName:    req.GetProvider(),
 						Model:           req.GetModel(),
 						Metadata:        json.RawMessage(metadataJSON),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
 						ClientSessionID: sql.NullString{},
 					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     req.GetProvider(),
+						ProviderName: req.GetProvider(),
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
 					}, nil)
 				},
 			},
@@ -523,6 +531,113 @@ func TestRecordInterception(t *testing.T) {
 				expectedErr: "empty API key ID",
 			},
 			{
+				name: "provider name differs from provider type",
+				request: &proto.RecordInterceptionRequest{
+					Id:           uuid.NewString(),
+					ApiKeyId:     uuid.NewString(),
+					InitiatorId:  uuid.NewString(),
+					Provider:     "copilot",
+					ProviderName: "copilot-business",
+					Model:        "gpt-4o",
+					StartedAt:    timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot-business",
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage("{}"),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:           interceptionID,
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot-business",
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "empty provider name defaults to provider",
+				request: &proto.RecordInterceptionRequest{
+					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
+					InitiatorId: uuid.NewString(),
+					Provider:    "copilot",
+					Model:       "gpt-4o",
+					StartedAt:   timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage("{}"),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:           interceptionID,
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "whitespace provider name defaults to provider",
+				request: &proto.RecordInterceptionRequest{
+					Id:           uuid.NewString(),
+					ApiKeyId:     uuid.NewString(),
+					InitiatorId:  uuid.NewString(),
+					Provider:     "copilot",
+					ProviderName: "   ",
+					Model:        "gpt-4o",
+					StartedAt:    timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage("{}"),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:           interceptionID,
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
 				name: "database error",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
@@ -546,7 +661,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_abc"),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -580,7 +695,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_abc"),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -609,7 +724,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_abc"),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -641,7 +756,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_orphan"),
+					CorrelatingToolCallId: ptr.Ref("call_orphan"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -901,11 +1016,11 @@ func TestRecordToolUsage(t *testing.T) {
 					InterceptionId:  uuid.NewString(),
 					MsgId:           "msg_123",
 					ToolCallId:      "call_xyz",
-					ServerUrl:       strPtr("https://api.example.com"),
+					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        false,
-					InvocationError: strPtr("permission denied"),
+					InvocationError: ptr.Ref("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				},
@@ -1107,10 +1222,6 @@ func mustMarshalAny(t *testing.T, msg protobufproto.Message) *anypb.Any {
 	return v
 }
 
-func strPtr(s string) *string {
-	return &s
-}
-
 // logLine represents a parsed JSON log entry.
 type logLine struct {
 	Msg    string         `json:"msg"`
@@ -1192,8 +1303,8 @@ func TestStructuredLogging(t *testing.T) {
 					Model:                 "claude-4-opus",
 					Metadata:              metadataProto,
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr(toolCallID),
-					ClientSessionId:       strPtr(sessionID),
+					CorrelatingToolCallId: ptr.Ref(toolCallID),
+					ClientSessionId:       ptr.Ref(sessionID),
 				})
 
 				return err
@@ -1344,11 +1455,11 @@ func TestStructuredLogging(t *testing.T) {
 				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 					InterceptionId:  intcID.String(),
 					MsgId:           "msg_123",
-					ServerUrl:       strPtr("https://api.example.com"),
+					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        true,
-					InvocationError: strPtr("permission denied"),
+					InvocationError: ptr.Ref("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				})
@@ -1487,7 +1598,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: strPtr("call_a"),
+		CorrelatingToolCallId: ptr.Ref("call_a"),
 	})
 	require.NoError(t, err)
 
@@ -1515,7 +1626,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: strPtr("call_b"),
+		CorrelatingToolCallId: ptr.Ref("call_b"),
 	})
 	require.NoError(t, err)
 

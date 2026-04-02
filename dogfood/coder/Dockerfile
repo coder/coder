@@ -3,7 +3,7 @@
 # ========================================
 
 # 1.93.1
-FROM rust:slim@sha256:7d3701660d2aa7101811ba0c54920021452aa60e5bae073b79c2b137a432b2f4 AS rust-utils
+FROM rust:slim@sha256:1d0000a49fb62f4fde24455f49d59c6c088af46202d65d8f455b722f7263e8f8 AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -12,11 +12,11 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751 AS go
+FROM ubuntu:jammy@sha256:5e5b128eb4ff35ee52687c20d081dcc15b8cb55e113247683f435224fc58b956 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.25.7
-ARG GO_CHECKSUM="12e6d6a191091ae27dc31f6efc630e3a3b8ba409baf3573d955b196fdf086005"
+ARG GO_VERSION=1.25.8
+ARG GO_CHECKSUM="ceb5e041bbc3893846bd1614d76cb4681c91dadee579426cf21a63f2d7e03be6"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -65,7 +65,7 @@ RUN apt-get update && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0 && \
 	# nfpm is used with `make build` to make release packages
 	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
-	# yq v4 is used to process yaml files in coder v2.
+	# yq v4 for processing YAML files (renamed to yq4 for scripts/lib.sh).
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
@@ -90,7 +90,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 # ========================================
 # base: build and test essentials
 # ========================================
-FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751 AS base
+FROM ubuntu:jammy@sha256:5e5b128eb4ff35ee52687c20d081dcc15b8cb55e113247683f435224fc58b956 AS base
 
 SHELL ["/bin/bash", "-c"]
 
@@ -236,7 +236,8 @@ RUN systemctl enable \
 ARG GOLANGCI_LINT_VERSION=1.64.8 \
 	HELM_VERSION=3.12.0 \
 	SYFT_VERSION=1.20.0 \
-	COSIGN_VERSION=2.4.3
+	COSIGN_VERSION=2.4.3 \
+	BUN_VERSION=1.2.15
 
 # golangci-lint performs static code analysis for our Go code
 RUN curl --silent --show-error --location --fail "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
@@ -249,7 +250,14 @@ RUN curl --silent --show-error --location --fail "https://github.com/golangci/go
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
 	curl --silent --show-error --location --fail --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
-	chmod a=rx /usr/local/bin/cosign
+	chmod a=rx /usr/local/bin/cosign && \
+	# Install Bun JavaScript runtime to /usr/local/bin
+	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
+	unzip -q /tmp/bun.zip -d /tmp && \
+	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
+	chmod a=rx /usr/local/bin/bun && \
+	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Add coder user and allow use of docker/sudo
 RUN useradd coder \

@@ -1,10 +1,10 @@
-import { Margins } from "components/Margins/Margins";
+import type { FC, ReactNode } from "react";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import type { FC, ReactNode } from "react";
+} from "#/components/PageHeader/PageHeader";
 export interface FullPageFormProps {
 	title: string;
 	detail?: ReactNode;

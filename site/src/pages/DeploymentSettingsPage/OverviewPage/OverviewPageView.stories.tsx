@@ -1,5 +1,5 @@
-import { MockDeploymentDAUResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockDeploymentDAUResponse } from "#/testHelpers/entities";
 import { OverviewPageView } from "./OverviewPageView";
 
 const meta: Meta<typeof OverviewPageView> = {

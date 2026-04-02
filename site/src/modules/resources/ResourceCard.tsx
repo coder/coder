@@ -1,16 +1,16 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
-import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { Stack } from "components/Stack/Stack";
+import { Children, type FC, type JSX, useState } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { Children, type FC, type JSX, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 
@@ -114,12 +114,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 				</Stack>
 
 				<div
-					css={{
-						flexGrow: 2,
-						display: "grid",
+					className="grow-[2] grid gap-x-10 gap-y-6"
+					style={{
 						gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-						gap: 40,
-						rowGap: 24,
 					}}
 				>
 					{resource.daily_cost > 0 && (

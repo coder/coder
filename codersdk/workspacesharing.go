@@ -38,7 +38,7 @@ type UpdateWorkspaceSharingSettingsRequest struct {
 	// SharingDisabled is deprecated and left for backward compatibility
 	// purposes.
 	// Deprecated: use `ShareableWorkspaceOwners` instead
-	SharingDisabled bool `json:"sharing_disabled"`
+	SharingDisabled bool `json:"sharing_disabled,omitempty"`
 	// ShareableWorkspaceOwners controls whose workspaces can be shared
 	// within the organization.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners,omitempty" enums:"none,everyone,service_accounts"`

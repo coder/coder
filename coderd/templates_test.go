@@ -1802,6 +1802,67 @@ func TestDeleteTemplate(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 
+	t.Run("OnlyPrebuilds", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		tpl := dbfake.TemplateVersion(t, db).
+			Seed(database.TemplateVersion{
+				CreatedBy:      owner.UserID,
+				OrganizationID: owner.OrganizationID,
+			}).Do()
+
+		// Create a workspace owned by the prebuilds system user.
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        database.PrebuildsSystemUserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     tpl.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tpl.TemplateVersion.ID,
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := client.DeleteTemplate(ctx, tpl.Template.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("PrebuildsAndHumanWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		tpl := dbfake.TemplateVersion(t, db).
+			Seed(database.TemplateVersion{
+				CreatedBy:      owner.UserID,
+				OrganizationID: owner.OrganizationID,
+			}).Do()
+
+		// Create a prebuild workspace.
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        database.PrebuildsSystemUserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     tpl.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tpl.TemplateVersion.ID,
+		}).Do()
+
+		// Create a human-owned workspace.
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     tpl.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tpl.TemplateVersion.ID,
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := client.DeleteTemplate(ctx, tpl.Template.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
 	t.Run("DeletedIsSet", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

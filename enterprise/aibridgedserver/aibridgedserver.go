@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -172,6 +173,11 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
 	}
 
+	providerName := strings.TrimSpace(in.ProviderName)
+	if providerName == "" {
+		providerName = in.Provider
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:                         intcID,
 		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
@@ -179,6 +185,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
 		InitiatorID:                initID,
 		Provider:                   in.Provider,
+		ProviderName:               providerName,
 		Model:                      in.Model,
 		Metadata:                   out,
 		StartedAt:                  in.StartedAt.AsTime(),

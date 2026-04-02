@@ -1272,10 +1272,14 @@ func TestTemplateVersionsByTemplate(t *testing.T) {
 
 func TestTemplateVersionByName(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all sub-tests. Each sub-test
+	// creates its own template version and template with unique
+	// IDs so parallel execution is safe.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1290,8 +1294,6 @@ func TestTemplateVersionByName(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1935,10 +1937,12 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 
 func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 	t.Parallel()
+
+	// Shared instance — see TestTemplateVersionByName for rationale.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1953,8 +1957,6 @@ func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -2204,10 +2206,14 @@ func TestTemplateVersionVariables(t *testing.T) {
 
 func TestTemplateVersionPatch(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all 9 sub-tests. Each sub-test
+	// creates its own template version(s) and template(s) with
+	// unique IDs so parallel execution is safe.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("Update the name", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -2226,8 +2232,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Update the message", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.Message = "Example message"
 		})
@@ -2247,8 +2251,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Remove the message", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.Message = "Example message"
 		})
@@ -2268,8 +2270,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Keep the message", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		wantMessage := "Example message"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.Message = wantMessage
@@ -2291,8 +2291,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -2306,9 +2304,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use the same name for two different templates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -2334,8 +2329,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use the same name for two versions for the same templates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.Name = "v1"
 		})
@@ -2356,8 +2349,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Rename the unassigned template", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -2373,8 +2364,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use incorrect template version name", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
