@@ -75,14 +75,13 @@ export const TabsList: FC<TabsListProps> = ({
 type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
 
 export const TabsTrigger: FC<TabsTriggerProps> = ({
-	type: triggerType = "button",
+	type: triggerType,
 	...props
 }) => {
-	const type = props.asChild ? undefined : triggerType;
+	const type = props.asChild ? undefined : (triggerType ?? "button");
 
 	return (
 		<TabsPrimitive.Trigger
-			data-slot="tabs-trigger"
 			type={type}
 			className={cn(
 				"border-none py-3 bg-transparent",
