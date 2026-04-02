@@ -444,15 +444,11 @@ func wrapStreamSeq(
 
 				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
-					partStatus := StatusError
 					if part.Error != nil {
 						summary.LastError = part.Error.Error()
 						streamError = normalizeError(ctx, part.Error)
-						partStatus = stepStatusForError(part.Error)
 					}
-					if streamStatus != StatusError {
-						streamStatus = partStatus
-					}
+					streamStatus = streamErrorStatus(streamStatus, part.Error)
 				}
 
 				if !yield(part) {
@@ -547,15 +543,11 @@ func wrapObjectStreamSeq(
 
 				if part.Type == fantasy.ObjectStreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
-					partStatus := StatusError
 					if part.Error != nil {
 						summary.LastError = part.Error.Error()
 						streamError = normalizeError(ctx, part.Error)
-						partStatus = stepStatusForError(part.Error)
 					}
-					if streamStatus != StatusError {
-						streamStatus = partStatus
-					}
+					streamStatus = streamErrorStatus(streamStatus, part.Error)
 				}
 
 				if !yield(part) {
@@ -930,6 +922,16 @@ func normalizeObjectResponse(resp *fantasy.ObjectResponse) normalizedObjectRespo
 		Warnings:         normalizeWarnings(resp.Warnings),
 		StructuredOutput: true,
 	}
+}
+
+func streamErrorStatus(current Status, err error) Status {
+	if current == StatusError {
+		return current
+	}
+	if err == nil {
+		return StatusError
+	}
+	return stepStatusForError(err)
 }
 
 func stepStatusForError(err error) Status {

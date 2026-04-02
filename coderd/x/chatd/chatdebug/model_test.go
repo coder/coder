@@ -420,52 +420,28 @@ func TestDebugModel_StreamEarlyStop(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
-func TestWrapStreamSeq_CancellationErrorMarksInterrupted(t *testing.T) {
+func TestStreamErrorStatus(t *testing.T) {
 	t.Parallel()
 
-	var gotStatus Status
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New()},
-		sink:    &attemptSink{},
-		finishFn: func(_ context.Context, status Status, _ any, _ any, _ any, _ any) {
-			gotStatus = status
-		},
-	}
+	t.Run("CancellationBecomesInterrupted", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusInterrupted, streamErrorStatus(StatusCompleted, context.Canceled))
+	})
 
-	seq := wrapStreamSeq(context.Background(), handle, partsToSeq([]fantasy.StreamPart{
-		{Type: fantasy.StreamPartTypeError, Error: context.Canceled},
-	}))
-	count := 0
-	for range seq {
-		count++
-	}
+	t.Run("DeadlineExceededBecomesInterrupted", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusInterrupted, streamErrorStatus(StatusCompleted, context.DeadlineExceeded))
+	})
 
-	require.Equal(t, 1, count)
-	require.Equal(t, StatusInterrupted, gotStatus)
-}
+	t.Run("NilErrorBecomesError", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusError, streamErrorStatus(StatusCompleted, nil))
+	})
 
-func TestWrapObjectStreamSeq_CancellationErrorMarksInterrupted(t *testing.T) {
-	t.Parallel()
-
-	var gotStatus Status
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New()},
-		sink:    &attemptSink{},
-		finishFn: func(_ context.Context, status Status, _ any, _ any, _ any, _ any) {
-			gotStatus = status
-		},
-	}
-
-	seq := wrapObjectStreamSeq(context.Background(), handle, objectPartsToSeq([]fantasy.ObjectStreamPart{
-		{Type: fantasy.ObjectStreamPartTypeError, Error: context.Canceled},
-	}))
-	count := 0
-	for range seq {
-		count++
-	}
-
-	require.Equal(t, 1, count)
-	require.Equal(t, StatusInterrupted, gotStatus)
+	t.Run("ExistingErrorWins", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, StatusError, streamErrorStatus(StatusError, context.Canceled))
+	})
 }
 
 func objectPartsToSeq(parts []fantasy.ObjectStreamPart) fantasy.ObjectStreamResponse {
