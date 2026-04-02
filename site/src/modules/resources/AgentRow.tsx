@@ -1,6 +1,11 @@
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import { EllipsisIcon, PlayIcon, SquareCheckBigIcon } from "lucide-react";
+import {
+	CopyIcon,
+	EllipsisIcon,
+	PlayIcon,
+	SquareCheckBigIcon,
+} from "lucide-react";
 import {
 	type FC,
 	useCallback,
@@ -252,6 +257,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 		level: log.level,
 		sourceId: log.source_id,
 	}));
+	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
+	const hasSelectedLogs = selectedLogs.length > 0;
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const selectedLogTabTitle =
+		logTabs.find((tab) => tab.value === selectedLogTab)?.title ?? "Logs";
+	const sanitizedTabTitle = selectedLogTabTitle
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/g, "-")
+		.replaceAll(/(^-|-$)/g, "");
+	const logFilenameSuffix = sanitizedTabTitle || "logs";
 
 	return (
 		<div
@@ -415,7 +430,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 			{hasStartupFeatures && (
 				<section className="border-0 border-t border-solid border-border">
-					<div className="flex flex-row gap-2 px-4 py-3">
+					<div className="px-4 py-2 relative">
 						<Button
 							variant="subtle"
 							onClick={() => setShowLogs((v) => !v)}
@@ -433,58 +448,87 @@ export const AgentRow: FC<AgentRowProps> = ({
 									value={selectedLogTab}
 									onValueChange={setSelectedLogTab}
 								>
-									<div ref={logTabsListContainerRef}>
-										<TabsList variant="insideBox" overflowKebabMenu>
-											{visibleLogTabs.map((tab) => (
-												<TabsTrigger
-													key={tab.value}
-													value={tab.value}
-													{...getTabMeasureProps(tab.value)}
-												>
-													{tab.startIcon}
-													<span className="whitespace-nowrap">{tab.title}</span>
-												</TabsTrigger>
-											))}
-											{overflowLogTabs.length > 0 && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<button
-															type="button"
-															data-log-overflow-trigger
-															data-state={
-																overflowLogTabValuesSet.has(selectedLogTab)
-																	? "active"
-																	: "inactive"
-															}
-															aria-label="More log tabs"
-															className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
-														>
-															<EllipsisIcon className="size-icon-sm" />
-															<span className="sr-only">More log tabs</span>
-														</button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuRadioGroup
-															value={selectedLogTab}
-															onValueChange={setSelectedLogTab}
-														>
-															{overflowLogTabs.map((tab) => (
-																<DropdownMenuRadioItem
-																	key={tab.value}
-																	value={tab.value}
-																	className="gap-2"
-																>
-																	{tab.startIcon}
-																	<span className="whitespace-nowrap">
-																		{tab.title}
-																	</span>
-																</DropdownMenuRadioItem>
-															))}
-														</DropdownMenuRadioGroup>
-													</DropdownMenuContent>
-												</DropdownMenu>
+									<div className="flex items-stretch">
+										<div
+											ref={logTabsListContainerRef}
+											className="min-w-0 flex-1"
+										>
+											<TabsList variant="insideBox" overflowKebabMenu>
+												{visibleLogTabs.map((tab) => (
+													<TabsTrigger
+														key={tab.value}
+														value={tab.value}
+														{...getTabMeasureProps(tab.value)}
+													>
+														{tab.startIcon}
+														<span className="whitespace-nowrap">
+															{tab.title}
+														</span>
+													</TabsTrigger>
+												))}
+												{overflowLogTabs.length > 0 && (
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<button
+																type="button"
+																data-log-overflow-trigger
+																data-state={
+																	overflowLogTabValuesSet.has(selectedLogTab)
+																		? "active"
+																		: "inactive"
+																}
+																aria-label="More log tabs"
+																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+															>
+																<EllipsisIcon className="size-icon-sm" />
+																<span className="sr-only">More log tabs</span>
+															</button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuRadioGroup
+																value={selectedLogTab}
+																onValueChange={setSelectedLogTab}
+															>
+																{overflowLogTabs.map((tab) => (
+																	<DropdownMenuRadioItem
+																		key={tab.value}
+																		value={tab.value}
+																		className="gap-2"
+																	>
+																		{tab.startIcon}
+																		<span className="whitespace-nowrap">
+																			{tab.title}
+																		</span>
+																	</DropdownMenuRadioItem>
+																))}
+															</DropdownMenuRadioGroup>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												)}
+											</TabsList>
+										</div>
+										<div
+											className={cn(
+												"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
+												"border-solid border-0 border-b",
 											)}
-										</TabsList>
+										>
+											<Button
+												variant="subtle"
+												size="sm"
+												disabled={!hasSelectedLogs}
+												onClick={() => copyToClipboard(selectedLogsText)}
+											>
+												{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+												<span>Copy logs</span>
+											</Button>
+											<DownloadSelectedAgentLogsButton
+												agentName={agent.name}
+												filenameSuffix={logFilenameSuffix}
+												logsText={selectedLogsText}
+												disabled={!hasSelectedLogs}
+											/>
+										</div>
 									</div>
 									{/*
 										Using a singular TabsContent is necessary to avoid scrolling
