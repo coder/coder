@@ -30,13 +30,13 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			},
 			{
 				Name:        "add",
-				Description: "A list of roles to add to the user's existing roles.",
+				Description: "A list of roles to add to the user's existing roles. Cannot be used together with --roles.",
 				Flag:        "add",
 				Value:       serpent.StringArrayOf(&addRoles),
 			},
 			{
 				Name:        "remove",
-				Description: "A list of roles to remove from the user's existing roles.",
+				Description: "A list of roles to remove from the user's existing roles. Cannot be used together with --roles.",
 				Flag:        "remove",
 				Value:       serpent.StringArrayOf(&removeRoles),
 			},
@@ -63,6 +63,25 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			user, err := client.User(ctx, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch user: %w", err)
+			}
+
+			// Pre-flight check: verify the caller has permission to
+			// assign site roles before we do any further work.
+			authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{
+				Checks: map[string]codersdk.AuthorizationCheck{
+					"assignRole": {
+						Object: codersdk.AuthorizationObject{
+							ResourceType: codersdk.ResourceAssignRole,
+						},
+						Action: codersdk.ActionAssign,
+					},
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("check permissions: %w", err)
+			}
+			if !authResp["assignRole"] {
+				return xerrors.Errorf("you do not have permission to edit user roles")
 			}
 
 			userRoles, err := client.UserRoles(ctx, user.Username)
