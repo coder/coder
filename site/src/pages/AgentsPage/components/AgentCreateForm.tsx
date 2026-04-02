@@ -13,6 +13,7 @@ import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
@@ -188,14 +189,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
-	const hasUserFixableModelProviders =
-		modelCatalog?.providers?.some(
-			(provider) => provider.unavailable_reason === "user_api_key_required",
-		) ?? false;
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
+		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
 		isModelCatalogLoading,

@@ -68,6 +68,7 @@ import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
@@ -733,14 +734,12 @@ const AgentChatPage: FC = () => {
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
-	const hasUserFixableModelProviders =
-		modelCatalog?.providers?.some(
-			(provider) => provider.unavailable_reason === "user_api_key_required",
-		) ?? false;
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
+		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
 		isModelCatalogLoading,

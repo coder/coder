@@ -293,83 +293,89 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
+	const inputElement = (
+		<AgentChatInput
+			onSend={(message) => {
+				void (async () => {
+					// Collect file IDs from already-uploaded attachments.
+					// Skip files in error state (e.g. too large).
+					const fileIds: string[] = [];
+					let skippedErrors = 0;
+					for (const file of attachments) {
+						const state = uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedErrors++;
+							continue;
+						}
+						if (state?.status === "uploaded" && state.fileId) {
+							fileIds.push(state.fileId);
+						}
+					}
+					if (skippedErrors > 0) {
+						toast.warning(
+							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+					const fileArg = fileIds.length > 0 ? fileIds : undefined;
+					try {
+						await onSend(message, fileArg);
+					} catch {
+						// Attachments preserved for retry on failure.
+						return;
+					}
+					resetAttachments();
+				})();
+			}}
+			attachments={attachments}
+			onAttach={handleAttach}
+			onRemoveAttachment={handleRemoveAttachment}
+			uploadStates={uploadStates}
+			previewUrls={previewUrls}
+			textContents={textContents}
+			inputRef={inputRef}
+			initialValue={initialValue}
+			initialEditorState={initialEditorState}
+			remountKey={remountKey}
+			onContentChange={onContentChange}
+			queuedMessages={queuedMessages}
+			onDeleteQueuedMessage={onDeleteQueuedMessage}
+			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			editingQueuedMessageID={editingQueuedMessageID}
+			onStartQueueEdit={onStartQueueEdit}
+			onCancelQueueEdit={onCancelQueueEdit}
+			isEditingHistoryMessage={isEditingHistoryMessage}
+			onCancelHistoryEdit={onCancelHistoryEdit}
+			onEditLastUserMessage={handleEditLastUserMessage}
+			isDisabled={isInputDisabled}
+			isLoading={isSendPending}
+			isStreaming={isStreaming}
+			onInterrupt={onInterrupt}
+			isInterruptPending={isInterruptPending}
+			contextUsage={latestContextUsage}
+			hasModelOptions={hasModelOptions}
+			selectedModel={selectedModel}
+			onModelChange={onModelChange}
+			modelOptions={modelOptions}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			isModelCatalogLoading={isModelCatalogLoading}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={selectedMCPServerIds}
+			onMCPSelectionChange={onMCPSelectionChange}
+			onMCPAuthComplete={onMCPAuthComplete}
+			attachedWorkspace={attachedWorkspace}
+		/>
+	);
+
+	if (!modelSelectorHelp) {
+		return inputElement;
+	}
+
 	return (
 		<div>
-			<AgentChatInput
-				onSend={(message) => {
-					void (async () => {
-						// Collect file IDs from already-uploaded attachments.
-						// Skip files in error state (e.g. too large).
-						const fileIds: string[] = [];
-						let skippedErrors = 0;
-						for (const file of attachments) {
-							const state = uploadStates.get(file);
-							if (state?.status === "error") {
-								skippedErrors++;
-								continue;
-							}
-							if (state?.status === "uploaded" && state.fileId) {
-								fileIds.push(state.fileId);
-							}
-						}
-						if (skippedErrors > 0) {
-							toast.warning(
-								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-							);
-						}
-						const fileArg = fileIds.length > 0 ? fileIds : undefined;
-						try {
-							await onSend(message, fileArg);
-						} catch {
-							// Attachments preserved for retry on failure.
-							return;
-						}
-						resetAttachments();
-					})();
-				}}
-				attachments={attachments}
-				onAttach={handleAttach}
-				onRemoveAttachment={handleRemoveAttachment}
-				uploadStates={uploadStates}
-				previewUrls={previewUrls}
-				textContents={textContents}
-				inputRef={inputRef}
-				initialValue={initialValue}
-				initialEditorState={initialEditorState}
-				remountKey={remountKey}
-				onContentChange={onContentChange}
-				queuedMessages={queuedMessages}
-				onDeleteQueuedMessage={onDeleteQueuedMessage}
-				onPromoteQueuedMessage={onPromoteQueuedMessage}
-				editingQueuedMessageID={editingQueuedMessageID}
-				onStartQueueEdit={onStartQueueEdit}
-				onCancelQueueEdit={onCancelQueueEdit}
-				isEditingHistoryMessage={isEditingHistoryMessage}
-				onCancelHistoryEdit={onCancelHistoryEdit}
-				onEditLastUserMessage={handleEditLastUserMessage}
-				isDisabled={isInputDisabled}
-				isLoading={isSendPending}
-				isStreaming={isStreaming}
-				onInterrupt={onInterrupt}
-				isInterruptPending={isInterruptPending}
-				contextUsage={latestContextUsage}
-				hasModelOptions={hasModelOptions}
-				selectedModel={selectedModel}
-				onModelChange={onModelChange}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder={modelSelectorPlaceholder}
-				isModelCatalogLoading={isModelCatalogLoading}
-				mcpServers={mcpServers}
-				selectedMCPServerIds={selectedMCPServerIds}
-				onMCPSelectionChange={onMCPSelectionChange}
-				onMCPAuthComplete={onMCPAuthComplete}
-				attachedWorkspace={attachedWorkspace}
-			/>
-			{modelSelectorHelp ? (
-				<div className="px-3 pt-1 text-2xs text-content-secondary">
-					{modelSelectorHelp}
-				</div>
-			) : null}
+			{inputElement}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
 		</div>
 	);
 };

@@ -1,25 +1,9 @@
-import {
-	deleteUserChatProviderKey,
-	upsertUserChatProviderKey,
-	userChatProviderConfigs,
-	userChatProviderConfigsKey,
-} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../components/ChatElements";
 import {
 	asNumber,
 	asString,
 } from "../components/ChatElements/runtimeTypeUtils";
-
-// Keep the provider-key-policy queries reachable until the remaining UI
-// replay lands. This avoids hook-only unused-export failures while the
-// replay is split across tasks.
-void [
-	deleteUserChatProviderKey,
-	upsertUserChatProviderKey,
-	userChatProviderConfigs,
-	userChatProviderConfigsKey,
-];
 
 type RuntimeModelRef = {
 	readonly provider?: unknown;
