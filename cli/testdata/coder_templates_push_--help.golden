@@ -16,8 +16,20 @@ OPTIONS:
           Always prompt all parameters. Does not pull parameter values from
           active template version.
 
+      --description string
+          Set the description of the template. Overrides any value from
+          README.md frontmatter.
+
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
+
+      --display-name string
+          Set the display name of the template. Overrides any value from
+          README.md frontmatter.
+
+      --icon string
+          Set the icon of the template. Overrides any value from README.md
+          frontmatter.
 
       --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
