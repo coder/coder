@@ -49,16 +49,23 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 	},
 });
 type TabsListProps = ComponentProps<typeof TabsPrimitive.List> &
-	VariantProps<typeof tabsListVariants>;
+	VariantProps<typeof tabsListVariants> & {
+		overflowKebabMenu?: boolean;
+	};
 
 export const TabsList: FC<TabsListProps> = ({
 	className,
 	variant,
+	overflowKebabMenu = false,
 	...props
 }) => {
 	return (
 		<TabsPrimitive.List
-			className={cn(tabsListVariants({ variant }), className)}
+			className={cn(
+				tabsListVariants({ variant }),
+				overflowKebabMenu && "flex-nowrap",
+				className,
+			)}
 			{...props}
 		/>
 	);

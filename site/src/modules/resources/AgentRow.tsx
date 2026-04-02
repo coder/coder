@@ -1,12 +1,13 @@
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { PlayIcon, SquareCheckBigIcon } from "lucide-react";
+import { EllipsisIcon, PlayIcon, SquareCheckBigIcon } from "lucide-react";
 import {
 	type FC,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -21,6 +22,13 @@ import type {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import {
@@ -29,6 +37,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
+import { useTabOverflowKebabMenu } from "#/components/Tabs/utils";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
@@ -196,43 +205,61 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const logTabs: {
-		startIcon?: React.ReactNode;
-		title: string;
-		value: string;
-	}[] = [
-		{
-			title: "All Logs",
-			value: "all",
-		},
-		...agent.log_sources
-			.filter((logSource) => {
-				return agentLogs.some(
-					(log) =>
-						log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-				);
-			})
-			.map((logSource) => ({
-				startIcon: logSource.icon ? (
-					<ExternalImage
-						src={logSource.icon}
-						alt=""
-						className="size-icon-xs shrink-0"
-					/>
-				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-					<PlayIcon className="size-icon-xs shrink-0" />
-				) : null,
-				title: logSource.display_name,
-				value: logSource.id,
-			}))
-			.sort((a, b) => {
-				// Ensure that "Startup Script" is always the first tab.
-				const startupPriorityDiff =
-					Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
-					Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
-				return startupPriorityDiff || a.title.localeCompare(b.title);
-			}),
-	];
+	const logTabs = useMemo(
+		() =>
+			[
+				{
+					title: "All Logs",
+					value: "all",
+				},
+				...agent.log_sources
+					.filter((logSource) => {
+						return agentLogs.some(
+							(log) =>
+								log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+						);
+					})
+					.map((logSource) => ({
+						startIcon: logSource.icon ? (
+							<ExternalImage
+								src={logSource.icon}
+								alt=""
+								className="size-icon-xs shrink-0"
+							/>
+						) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+							<PlayIcon className="size-icon-xs shrink-0" />
+						) : null,
+						title: logSource.display_name,
+						value: logSource.id,
+					}))
+					.sort((a, b) => {
+						// Ensure that "Startup Script" is always the first tab.
+						const startupPriorityDiff =
+							Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
+							Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
+						return startupPriorityDiff || a.title.localeCompare(b.title);
+					}),
+			] as {
+				startIcon?: React.ReactNode;
+				title: string;
+				value: string;
+			}[],
+		[agent.log_sources, agentLogs],
+	);
+	const {
+		containerRef: logTabsListContainerRef,
+		visibleTabs: visibleLogTabs,
+		overflowTabs: overflowLogTabs,
+		getTabMeasureProps,
+	} = useTabOverflowKebabMenu({
+		tabs: logTabs,
+		enabled: true,
+		isActive: showLogs,
+		alwaysVisibleTabsCount: 1,
+	});
+	const overflowLogTabValuesSet = new Set(
+		overflowLogTabs.map((tab) => tab.value),
+	);
 	const selectedLogs =
 		selectedLogTab === "all"
 			? agentLogs
@@ -427,14 +454,58 @@ export const AgentRow: FC<AgentRowProps> = ({
 									value={selectedLogTab}
 									onValueChange={setSelectedLogTab}
 								>
-									<TabsList variant="insideBox">
-										{logTabs.map((tab) => (
-											<TabsTrigger key={tab.value} value={tab.value}>
-												{tab.startIcon}
-												<span>{tab.title}</span>
-											</TabsTrigger>
-										))}
-									</TabsList>
+									<div ref={logTabsListContainerRef}>
+										<TabsList variant="insideBox" overflowKebabMenu>
+											{visibleLogTabs.map((tab) => (
+												<TabsTrigger
+													key={tab.value}
+													value={tab.value}
+													{...getTabMeasureProps(tab.value)}
+												>
+													{tab.startIcon}
+													<span className="whitespace-nowrap">{tab.title}</span>
+												</TabsTrigger>
+											))}
+											{overflowLogTabs.length > 0 && (
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<button
+															type="button"
+															data-log-overflow-trigger
+															data-state={
+																overflowLogTabValuesSet.has(selectedLogTab)
+																	? "active"
+																	: "inactive"
+															}
+															aria-label="More log tabs"
+															className="border-none py-3 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+														>
+															<EllipsisIcon className="size-icon-sm" />
+															<span className="sr-only">More log tabs</span>
+														</button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuRadioGroup
+															value={selectedLogTab}
+															onValueChange={setSelectedLogTab}
+														>
+															{overflowLogTabs.map((tab) => (
+																<DropdownMenuRadioItem
+																	key={tab.value}
+																	value={tab.value}
+																>
+																	{tab.startIcon}
+																	<span className="whitespace-nowrap">
+																		{tab.title}
+																	</span>
+																</DropdownMenuRadioItem>
+															))}
+														</DropdownMenuRadioGroup>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											)}
+										</TabsList>
+									</div>
 									{/*
 										Using a singular TabsContent is necessary to avoid scrolling
 										issues when the selected log tab changes.
