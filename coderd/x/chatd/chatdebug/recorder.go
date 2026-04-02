@@ -122,10 +122,15 @@ func syncStepCounter(runID uuid.UUID, stepNumber int32) {
 }
 
 type stepHandle struct {
-	stepCtx *StepContext
-	sink    *attemptSink
-	svc     *Service
-	opts    RecorderOptions
+	stepCtx  *StepContext
+	sink     *attemptSink
+	svc      *Service
+	opts     RecorderOptions
+	status   Status
+	response any
+	usage    any
+	err      any
+	metadata any
 }
 
 // beginStep validates preconditions, creates a debug step, and returns a
@@ -223,6 +228,11 @@ func (h *stepHandle) finish(
 		return
 	}
 
+	h.status = status
+	h.response = response
+	h.usage = usage
+	h.err = errPayload
+	h.metadata = metadata
 	if h.svc == nil {
 		return
 	}
