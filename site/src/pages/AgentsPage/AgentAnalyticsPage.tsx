@@ -1,19 +1,22 @@
 import dayjs, { type Dayjs } from "dayjs";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { useSearchParams } from "react-router";
 import { chatCostSummary } from "#/api/queries/chats";
+import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { AgentAnalyticsPageView } from "./AgentAnalyticsPageView";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 
-const createDateRange = (now?: Dayjs) => {
+const startDateSearchParam = "startDate";
+const endDateSearchParam = "endDate";
+
+const getDefaultDateRange = (now?: Dayjs): DateRangeValue => {
 	const end = now ?? dayjs();
-	const start = end.subtract(30, "day");
 	return {
-		startDate: start.toISOString(),
-		endDate: end.toISOString(),
-		rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
+		startDate: end.subtract(30, "day").toDate(),
+		endDate: end.toDate(),
 	};
 };
 
@@ -24,13 +27,44 @@ interface AgentAnalyticsPageProps {
 
 const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	const { user } = useAuthContext();
-	const [anchor] = useState<Dayjs>(() => dayjs());
-	const dateRange = createDateRange(now ?? anchor);
+
+	const [searchParams, setSearchParams] = useSearchParams();
+	const startDateParam = searchParams.get(startDateSearchParam)?.trim() ?? "";
+	const endDateParam = searchParams.get(endDateSearchParam)?.trim() ?? "";
+	const [defaultDateRange] = useState(() => getDefaultDateRange(now));
+	let dateRange = defaultDateRange;
+	let hasExplicitDateRange = false;
+
+	if (startDateParam && endDateParam) {
+		const parsedStartDate = new Date(startDateParam);
+		const parsedEndDate = new Date(endDateParam);
+
+		if (
+			!Number.isNaN(parsedStartDate.getTime()) &&
+			!Number.isNaN(parsedEndDate.getTime()) &&
+			parsedStartDate.getTime() <= parsedEndDate.getTime()
+		) {
+			dateRange = {
+				startDate: parsedStartDate,
+				endDate: parsedEndDate,
+			};
+			hasExplicitDateRange = true;
+		}
+	}
+
+	const onDateRangeChange = (value: DateRangeValue) => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.set(startDateSearchParam, value.startDate.toISOString());
+			next.set(endDateSearchParam, value.endDate.toISOString());
+			return next;
+		});
+	};
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {
-			start_date: dateRange.startDate,
-			end_date: dateRange.endDate,
+			start_date: dateRange.startDate.toISOString(),
+			end_date: dateRange.endDate.toISOString(),
 		}),
 		enabled: Boolean(user?.id),
 	});
@@ -43,7 +77,9 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 				isLoading={summaryQuery.isLoading}
 				error={summaryQuery.error}
 				onRetry={() => void summaryQuery.refetch()}
-				rangeLabel={dateRange.rangeLabel}
+				dateRange={dateRange}
+				onDateRangeChange={onDateRangeChange}
+				hasExplicitDateRange={hasExplicitDateRange}
 			/>
 		</ScrollArea>
 	);
