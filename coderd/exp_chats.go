@@ -520,7 +520,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
 
 	// Re-read the chat so the response reflects the authoritative
-	// database state (including SQL DISTINCT dedup of file_ids).
+	// database state (file links are deduped in the join table).
 	chat, err = api.Database.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

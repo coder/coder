@@ -2152,7 +2152,8 @@ func TestGetChat(t *testing.T) {
 
 	// ToolCreatedFilesLinked exercises the DB path that chatd uses
 	// when a tool (e.g. propose_plan) creates a file: InsertChatFile
-	// then LinkChatFiles. This is a DB-level test because driving	// the full chatd tool-call pipeline requires an LLM mock.
+	// then LinkChatFiles. This is a DB-level test because driving
+	// the full chatd tool-call pipeline requires an LLM mock.
 	t.Run("ToolCreatedFilesLinked", func(t *testing.T) {
 		t.Parallel()
 
@@ -2171,7 +2172,8 @@ func TestGetChat(t *testing.T) {
 
 		// Mimic what chatd's StoreFile closure does:
 		// 1. InsertChatFile
-		// 2. LinkChatFiles		//nolint:gocritic // Using AsChatd to mimic the chatd background worker.
+		// 2. LinkChatFiles
+		//nolint:gocritic // Using AsChatd to mimic the chatd background worker.
 		chatdCtx := dbauthz.AsChatd(ctx)
 		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 			OwnerID:        firstUser.UserID,

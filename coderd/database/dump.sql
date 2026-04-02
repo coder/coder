@@ -1264,6 +1264,11 @@ CREATE TABLE chat_diff_statuses (
     head_branch text
 );
 
+CREATE TABLE chat_file_links (
+    chat_id uuid NOT NULL,
+    file_id uuid NOT NULL
+);
+
 CREATE TABLE chat_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -1272,11 +1277,6 @@ CREATE TABLE chat_files (
     name text DEFAULT ''::text NOT NULL,
     mimetype text NOT NULL,
     data bytea NOT NULL
-);
-
-CREATE TABLE chat_file_links (
-    chat_id uuid NOT NULL,
-    file_id uuid NOT NULL
 );
 
 CREATE TABLE chat_messages (
@@ -4019,17 +4019,17 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY chat_files
-    ADD CONSTRAINT chat_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chat_files
-    ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_file_id_fkey FOREIGN KEY (file_id) REFERENCES chat_files(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_files
+    ADD CONSTRAINT chat_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_files
+    ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
