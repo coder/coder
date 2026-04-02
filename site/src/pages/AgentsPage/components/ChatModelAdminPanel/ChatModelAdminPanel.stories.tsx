@@ -20,6 +20,10 @@ const createProviderConfig = (
 	display_name: overrides.display_name ?? "",
 	enabled: overrides.enabled ?? true,
 	has_api_key: overrides.has_api_key ?? false,
+	central_api_key_enabled: overrides.central_api_key_enabled ?? true,
+	allow_user_api_key: overrides.allow_user_api_key ?? false,
+	allow_central_api_key_fallback:
+		overrides.allow_central_api_key_fallback ?? false,
 	base_url: overrides.base_url ?? "",
 	source: overrides.source ?? "database",
 	created_at: overrides.created_at ?? now,

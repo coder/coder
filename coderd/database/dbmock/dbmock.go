@@ -1171,6 +1171,20 @@ func (mr *MockStoreMockRecorder) DeleteUserChatCompactionThreshold(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatCompactionThreshold", reflect.TypeOf((*MockStore)(nil).DeleteUserChatCompactionThreshold), ctx, arg)
 }
 
+// DeleteUserChatProviderKey mocks base method.
+func (m *MockStore) DeleteUserChatProviderKey(ctx context.Context, arg database.DeleteUserChatProviderKeyParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserChatProviderKey", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserChatProviderKey indicates an expected call of DeleteUserChatProviderKey.
+func (mr *MockStoreMockRecorder) DeleteUserChatProviderKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatProviderKey", reflect.TypeOf((*MockStore)(nil).DeleteUserChatProviderKey), ctx, arg)
+}
+
 // DeleteUserSecret mocks base method.
 func (m *MockStore) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -4727,6 +4741,21 @@ func (m *MockStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUI
 func (mr *MockStoreMockRecorder) GetUserChatCustomPrompt(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatCustomPrompt", reflect.TypeOf((*MockStore)(nil).GetUserChatCustomPrompt), ctx, userID)
+}
+
+// GetUserChatProviderKeys mocks base method.
+func (m *MockStore) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserChatProviderKeys", ctx, userID)
+	ret0, _ := ret[0].([]database.UserChatProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserChatProviderKeys indicates an expected call of GetUserChatProviderKeys.
+func (mr *MockStoreMockRecorder) GetUserChatProviderKeys(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatProviderKeys", reflect.TypeOf((*MockStore)(nil).GetUserChatProviderKeys), ctx, userID)
 }
 
 // GetUserChatSpendInPeriod mocks base method.
@@ -8605,6 +8634,21 @@ func (mr *MockStoreMockRecorder) UpdateUserChatCustomPrompt(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserChatCustomPrompt", reflect.TypeOf((*MockStore)(nil).UpdateUserChatCustomPrompt), ctx, arg)
 }
 
+// UpdateUserChatProviderKey mocks base method.
+func (m *MockStore) UpdateUserChatProviderKey(ctx context.Context, arg database.UpdateUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserChatProviderKey", ctx, arg)
+	ret0, _ := ret[0].(database.UserChatProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserChatProviderKey indicates an expected call of UpdateUserChatProviderKey.
+func (mr *MockStoreMockRecorder) UpdateUserChatProviderKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserChatProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateUserChatProviderKey), ctx, arg)
+}
+
 // UpdateUserDeletedByID mocks base method.
 func (m *MockStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -9669,6 +9713,21 @@ func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+}
+
+// UpsertUserChatProviderKey mocks base method.
+func (m *MockStore) UpsertUserChatProviderKey(ctx context.Context, arg database.UpsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertUserChatProviderKey", ctx, arg)
+	ret0, _ := ret[0].(database.UserChatProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertUserChatProviderKey indicates an expected call of UpsertUserChatProviderKey.
+func (mr *MockStoreMockRecorder) UpsertUserChatProviderKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatProviderKey", reflect.TypeOf((*MockStore)(nil).UpsertUserChatProviderKey), ctx, arg)
 }
 
 // UpsertWebpushVAPIDKeys mocks base method.

@@ -150,6 +150,7 @@ type sqlcQuerier interface {
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
 	DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error
+	DeleteUserChatProviderKey(ctx context.Context, arg DeleteUserChatProviderKeyParams) error
 	DeleteUserSecret(ctx context.Context, id uuid.UUID) error
 	DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error
 	DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error
@@ -577,6 +578,7 @@ type sqlcQuerier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error)
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]UserChatProviderKey, error)
 	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the minimum (most restrictive) group limit for a user.
@@ -927,6 +929,7 @@ type sqlcQuerier interface {
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error)
 	UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error)
+	UpdateUserChatProviderKey(ctx context.Context, arg UpdateUserChatProviderKeyParams) (UserChatProviderKey, error)
 	UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
 	UpdateUserGithubComUserID(ctx context.Context, arg UpdateUserGithubComUserIDParams) error
 	UpdateUserHashedOneTimePasscode(ctx context.Context, arg UpdateUserHashedOneTimePasscodeParams) error
@@ -1015,6 +1018,7 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
+	UpsertUserChatProviderKey(ctx context.Context, arg UpsertUserChatProviderKeyParams) (UserChatProviderKey, error)
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error)

@@ -3799,7 +3799,7 @@ func (q *sqlQuerier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) e
 
 const getChatProviderByID = `-- name: GetChatProviderByID :one
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 WHERE
@@ -3820,13 +3820,16 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
 
 const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 WHERE
@@ -3847,13 +3850,16 @@ func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider str
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
 
 const getChatProviders = `-- name: GetChatProviders :many
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 ORDER BY
@@ -3880,6 +3886,9 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BaseUrl,
+			&i.CentralApiKeyEnabled,
+			&i.AllowUserApiKey,
+			&i.AllowCentralApiKeyFallback,
 		); err != nil {
 			return nil, err
 		}
@@ -3896,7 +3905,7 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 
 const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 WHERE
@@ -3925,6 +3934,9 @@ func (q *sqlQuerier) GetEnabledChatProviders(ctx context.Context) ([]ChatProvide
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BaseUrl,
+			&i.CentralApiKeyEnabled,
+			&i.AllowUserApiKey,
+			&i.AllowCentralApiKeyFallback,
 		); err != nil {
 			return nil, err
 		}
@@ -3947,7 +3959,10 @@ INSERT INTO chat_providers (
     base_url,
     api_key_key_id,
     created_by,
-    enabled
+    enabled,
+    central_api_key_enabled,
+    allow_user_api_key,
+    allow_central_api_key_fallback
 ) VALUES (
     $1::text,
     $2::text,
@@ -3955,20 +3970,26 @@ INSERT INTO chat_providers (
     $4::text,
     $5::text,
     $6::uuid,
-    $7::boolean
+    $7::boolean,
+    $8::boolean,
+    $9::boolean,
+    $10::boolean
 )
 RETURNING
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 `
 
 type InsertChatProviderParams struct {
-	Provider    string         `db:"provider" json:"provider"`
-	DisplayName string         `db:"display_name" json:"display_name"`
-	APIKey      string         `db:"api_key" json:"api_key"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
+	Provider                   string         `db:"provider" json:"provider"`
+	DisplayName                string         `db:"display_name" json:"display_name"`
+	APIKey                     string         `db:"api_key" json:"api_key"`
+	BaseUrl                    string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled                    bool           `db:"enabled" json:"enabled"`
+	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
+	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
+	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
 }
 
 func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error) {
@@ -3980,6 +4001,9 @@ func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProvi
 		arg.ApiKeyKeyID,
 		arg.CreatedBy,
 		arg.Enabled,
+		arg.CentralApiKeyEnabled,
+		arg.AllowUserApiKey,
+		arg.AllowCentralApiKeyFallback,
 	)
 	var i ChatProvider
 	err := row.Scan(
@@ -3993,6 +4017,9 @@ func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProvi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
@@ -4006,20 +4033,26 @@ SET
     base_url = $3::text,
     api_key_key_id = $4::text,
     enabled = $5::boolean,
+    central_api_key_enabled = $6::boolean,
+    allow_user_api_key = $7::boolean,
+    allow_central_api_key_fallback = $8::boolean,
     updated_at = NOW()
 WHERE
-    id = $6::uuid
+    id = $9::uuid
 RETURNING
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 `
 
 type UpdateChatProviderParams struct {
-	DisplayName string         `db:"display_name" json:"display_name"`
-	APIKey      string         `db:"api_key" json:"api_key"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	DisplayName                string         `db:"display_name" json:"display_name"`
+	APIKey                     string         `db:"api_key" json:"api_key"`
+	BaseUrl                    string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	Enabled                    bool           `db:"enabled" json:"enabled"`
+	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
+	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
+	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
+	ID                         uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error) {
@@ -4029,6 +4062,9 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 		arg.BaseUrl,
 		arg.ApiKeyKeyID,
 		arg.Enabled,
+		arg.CentralApiKeyEnabled,
+		arg.AllowUserApiKey,
+		arg.AllowCentralApiKeyFallback,
 		arg.ID,
 	)
 	var i ChatProvider
@@ -4043,6 +4079,9 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
@@ -22611,6 +22650,126 @@ func (q *sqlQuerier) UpdateUserSecret(ctx context.Context, arg UpdateUserSecretP
 		&i.Value,
 		&i.EnvName,
 		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteUserChatProviderKey = `-- name: DeleteUserChatProviderKey :exec
+DELETE FROM user_chat_provider_keys WHERE user_id = $1 AND chat_provider_id = $2
+`
+
+type DeleteUserChatProviderKeyParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID `db:"chat_provider_id" json:"chat_provider_id"`
+}
+
+func (q *sqlQuerier) DeleteUserChatProviderKey(ctx context.Context, arg DeleteUserChatProviderKeyParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserChatProviderKey, arg.UserID, arg.ChatProviderID)
+	return err
+}
+
+const getUserChatProviderKeys = `-- name: GetUserChatProviderKeys :many
+SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 ORDER BY created_at ASC, id ASC
+`
+
+func (q *sqlQuerier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]UserChatProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getUserChatProviderKeys, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserChatProviderKey
+	for rows.Next() {
+		var i UserChatProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ChatProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserChatProviderKey = `-- name: UpdateUserChatProviderKey :one
+UPDATE user_chat_provider_keys
+SET api_key = $1, api_key_key_id = $2::text, updated_at = NOW()
+WHERE user_id = $3 AND chat_provider_id = $4
+RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpdateUserChatProviderKeyParams struct {
+	APIKey         string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
+}
+
+func (q *sqlQuerier) UpdateUserChatProviderKey(ctx context.Context, arg UpdateUserChatProviderKeyParams) (UserChatProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, updateUserChatProviderKey,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.UserID,
+		arg.ChatProviderID,
+	)
+	var i UserChatProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ChatProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertUserChatProviderKey = `-- name: UpsertUserChatProviderKey :one
+INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)
+VALUES ($1, $2, $3, $4::text)
+ON CONFLICT (user_id, chat_provider_id) DO UPDATE SET
+    api_key = $3,
+    api_key_key_id = $4::text,
+    updated_at = NOW()
+RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpsertUserChatProviderKeyParams struct {
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
+	APIKey         string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+}
+
+func (q *sqlQuerier) UpsertUserChatProviderKey(ctx context.Context, arg UpsertUserChatProviderKeyParams) (UserChatProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserChatProviderKey,
+		arg.UserID,
+		arg.ChatProviderID,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+	)
+	var i UserChatProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ChatProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

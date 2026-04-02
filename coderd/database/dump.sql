@@ -1341,7 +1341,11 @@ CREATE TABLE chat_providers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     base_url text DEFAULT ''::text NOT NULL,
-    CONSTRAINT chat_providers_provider_check CHECK ((provider = ANY (ARRAY['anthropic'::text, 'azure'::text, 'bedrock'::text, 'google'::text, 'openai'::text, 'openai-compat'::text, 'openrouter'::text, 'vercel'::text])))
+    central_api_key_enabled boolean DEFAULT true NOT NULL,
+    allow_user_api_key boolean DEFAULT false NOT NULL,
+    allow_central_api_key_fallback boolean DEFAULT false NOT NULL,
+    CONSTRAINT chat_providers_provider_check CHECK ((provider = ANY (ARRAY['anthropic'::text, 'azure'::text, 'bedrock'::text, 'google'::text, 'openai'::text, 'openai-compat'::text, 'openrouter'::text, 'vercel'::text]))),
+    CONSTRAINT valid_credential_policy CHECK (((central_api_key_enabled OR allow_user_api_key) AND ((NOT allow_central_api_key_fallback) OR (central_api_key_enabled AND allow_user_api_key))))
 );
 
 COMMENT ON COLUMN chat_providers.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted';
@@ -2752,6 +2756,17 @@ COMMENT ON TABLE usage_events_daily IS 'usage_events_daily is a daily rollup of 
 
 COMMENT ON COLUMN usage_events_daily.day IS 'The date of the summed usage events, always in UTC.';
 
+CREATE TABLE user_chat_provider_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    chat_provider_id uuid NOT NULL,
+    api_key text NOT NULL,
+    api_key_key_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_chat_provider_keys_api_key_check CHECK ((api_key <> ''::text))
+);
+
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
     key character varying(256) NOT NULL,
@@ -3548,6 +3563,12 @@ ALTER TABLE ONLY usage_events_daily
 ALTER TABLE ONLY usage_events
     ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_chat_provider_keys
+    ADD CONSTRAINT user_chat_provider_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY user_chat_provider_keys
+    ADD CONSTRAINT user_chat_provider_keys_user_id_chat_provider_id_key UNIQUE (user_id, chat_provider_id);
+
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
 
@@ -4257,6 +4278,15 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_chat_provider_keys
+    ADD CONSTRAINT user_chat_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_chat_provider_keys
+    ADD CONSTRAINT user_chat_provider_keys_chat_provider_id_fkey FOREIGN KEY (chat_provider_id) REFERENCES chat_providers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_chat_provider_keys
+    ADD CONSTRAINT user_chat_provider_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
