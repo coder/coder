@@ -105,6 +105,27 @@ func TestNormalizers_SkipTypedNilInterfaceValues(t *testing.T) {
 	})
 }
 
+func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testing.T) {
+	t.Parallel()
+
+	var content []normalizedContentPart
+	for _, part := range []fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "before "},
+		{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{"query":"debug"}`},
+		{Type: fantasy.StreamPartTypeToolResult, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{"matches":1}`},
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "after"},
+	} {
+		content = appendNormalizedStreamContent(content, part)
+	}
+
+	require.Equal(t, []normalizedContentPart{
+		{Type: "text", Text: "before "},
+		{Type: "tool_call", ToolCallID: "call-1", ToolName: "search_docs", Arguments: `{"query":"debug"}`, InputLength: len(`{"query":"debug"}`)},
+		{Type: "tool_result", ToolCallID: "call-1", ToolName: "search_docs", Result: `{"matches":1}`},
+		{Type: "text", Text: "after"},
+	}, content)
+}
+
 func TestNormalizeResponse_PreservesToolCallArguments(t *testing.T) {
 	t.Parallel()
 

@@ -349,10 +349,7 @@ func wrapStreamSeq(
 			latestUsage  fantasy.Usage
 			usageSeen    bool
 			finishReason fantasy.FinishReason
-			textBuf      strings.Builder
-			reasoningBuf strings.Builder
-			toolCalls    []normalizedContentPart
-			sources      []normalizedContentPart
+			content      []normalizedContentPart
 			warnings     []normalizedWarning
 			streamError  any
 			streamStatus = StatusCompleted
@@ -362,22 +359,6 @@ func wrapStreamSeq(
 		finalize := func(status Status) {
 			once.Do(func() {
 				summary.FinishReason = string(finishReason)
-
-				var content []normalizedContentPart
-				if text := textBuf.String(); text != "" {
-					content = append(content, normalizedContentPart{
-						Type: "text",
-						Text: text,
-					})
-				}
-				if reasoning := reasoningBuf.String(); reasoning != "" {
-					content = append(content, normalizedContentPart{
-						Type: "reasoning",
-						Text: reasoning,
-					})
-				}
-				content = append(content, toolCalls...)
-				content = append(content, sources...)
 
 				resp := normalizedResponsePayload{
 					Content:      content,
@@ -409,38 +390,19 @@ func wrapStreamSeq(
 				switch part.Type {
 				case fantasy.StreamPartTypeTextDelta:
 					summary.TextDeltaCount++
-					appendStreamDebugText(&textBuf, part.Delta)
 				case fantasy.StreamPartTypeReasoningDelta:
-					appendStreamDebugText(&reasoningBuf, part.Delta)
 				case fantasy.StreamPartTypeToolCall:
 					summary.ToolCallCount++
-					toolCalls = append(toolCalls, normalizedContentPart{
-						Type:        "tool-call",
-						ToolCallID:  part.ID,
-						ToolName:    part.ToolCallName,
-						Arguments:   boundText(part.ToolCallInput),
-						InputLength: len(part.ToolCallInput),
-					})
 				case fantasy.StreamPartTypeToolResult:
-					toolCalls = append(toolCalls, normalizedContentPart{
-						Type:       "tool-result",
-						ToolCallID: part.ID,
-						ToolName:   part.ToolCallName,
-						Result:     boundText(part.ToolCallInput),
-					})
 				case fantasy.StreamPartTypeSource:
 					summary.SourceCount++
-					sources = append(sources, normalizedContentPart{
-						Type:       string(part.Type),
-						SourceType: string(part.SourceType),
-						Title:      part.Title,
-						URL:        part.URL,
-					})
 				case fantasy.StreamPartTypeFinish:
 					finishReason = part.FinishReason
 					latestUsage = part.Usage
 					usageSeen = true
 				}
+
+				content = appendNormalizedStreamContent(content, part)
 
 				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
@@ -607,6 +569,61 @@ func mustMarshalJSON(label string, value any) json.RawMessage {
 		return json.RawMessage(`{"error":"chatdebug: failed to marshal value"}`)
 	}
 	return append(json.RawMessage(nil), data...)
+}
+
+func appendStreamContentText(
+	content []normalizedContentPart,
+	partType string,
+	delta string,
+) []normalizedContentPart {
+	if delta == "" {
+		return content
+	}
+	if len(content) == 0 || content[len(content)-1].Type != partType {
+		content = append(content, normalizedContentPart{Type: partType})
+	}
+	last := &content[len(content)-1]
+	var builder strings.Builder
+	_, _ = builder.WriteString(last.Text)
+	appendStreamDebugText(&builder, delta)
+	last.Text = builder.String()
+	return content
+}
+
+func appendNormalizedStreamContent(
+	content []normalizedContentPart,
+	part fantasy.StreamPart,
+) []normalizedContentPart {
+	switch part.Type {
+	case fantasy.StreamPartTypeTextDelta:
+		return appendStreamContentText(content, "text", part.Delta)
+	case fantasy.StreamPartTypeReasoningDelta:
+		return appendStreamContentText(content, "reasoning", part.Delta)
+	case fantasy.StreamPartTypeToolCall:
+		return append(content, normalizedContentPart{
+			Type:        "tool_call",
+			ToolCallID:  part.ID,
+			ToolName:    part.ToolCallName,
+			Arguments:   boundText(part.ToolCallInput),
+			InputLength: len(part.ToolCallInput),
+		})
+	case fantasy.StreamPartTypeToolResult:
+		return append(content, normalizedContentPart{
+			Type:       "tool_result",
+			ToolCallID: part.ID,
+			ToolName:   part.ToolCallName,
+			Result:     boundText(part.ToolCallInput),
+		})
+	case fantasy.StreamPartTypeSource:
+		return append(content, normalizedContentPart{
+			Type:       string(part.Type),
+			SourceType: string(part.SourceType),
+			Title:      part.Title,
+			URL:        part.URL,
+		})
+	default:
+		return content
+	}
 }
 
 func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
