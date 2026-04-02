@@ -373,11 +373,12 @@ const WorkspaceBadge: FC<WorkspaceBadgeProps> = ({ workspace, route }) => {
 					target="_blank"
 					className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
 				>
-					<StatusIndicatorDot variant={variant} size="sm" />
+					<MonitorIcon className="size-3.5 shrink-0" />
 					<span className="truncate max-w-[120px]">{workspace.name}</span>
+					<StatusIndicatorDot variant={variant} size="sm" />
 				</Link>
 			</TooltipTrigger>
-			<TooltipContent>{text}</TooltipContent>
+			<TooltipContent>Workspace: {text}</TooltipContent>
 		</Tooltip>
 	);
 };
