@@ -256,6 +256,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			workspace.latest_build.job,
 		);
 		const effectiveType = workspace.health.healthy ? type : "warning";
+		const statusLabel = workspace.health.healthy
+			? `Workspace ${text.toLowerCase()}`
+			: `Workspace ${text.toLowerCase()} (unhealthy)`;
 		const iconCls = "size-3";
 		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
 			success: <MonitorIcon className={iconCls} />,
@@ -269,7 +272,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			name: workspace.name,
 			route: workspaceRoute,
 			statusIcon: statusIconMap[effectiveType],
-			statusLabel: `Workspace ${text.toLowerCase()}`,
+			statusLabel,
 		};
 	})();
 

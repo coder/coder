@@ -158,13 +158,7 @@ export interface AttachedWorkspaceInfo {
 }
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
-	| {
-			kind: "attached-workspace";
-			name: string;
-			route: string;
-			statusIcon: React.ReactNode;
-			statusLabel: string;
-	  }
+	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
 const ToolBadge: FC<{
@@ -185,6 +179,7 @@ const ToolBadge: FC<{
 					<Link
 						to={badge.route}
 						target="_blank"
+						rel="noreferrer"
 						className={cn(
 							badgeCls,
 							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",

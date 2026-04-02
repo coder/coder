@@ -537,6 +537,7 @@ const AgentChatPage: FC = () => {
 								if (
 									prev &&
 									prev.latest_build.status === next.latest_build.status &&
+									prev.health.healthy === next.health.healthy &&
 									prev.name === next.name &&
 									prev.owner_name === next.owner_name &&
 									prevAgent?.id === nextAgent?.id &&
