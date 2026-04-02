@@ -6,11 +6,106 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
+	t.Parallel()
+
+	newParentContext := func(chatID uuid.UUID) context.Context {
+		return chatdebug.ContextWithRun(context.Background(), &chatdebug.RunContext{
+			RunID:               uuid.New(),
+			ChatID:              chatID,
+			RootChatID:          uuid.New(),
+			ParentChatID:        uuid.New(),
+			ModelConfigID:       uuid.New(),
+			TriggerMessageID:    41,
+			HistoryTipMessageID: 42,
+			Kind:                chatdebug.KindChatTurn,
+			Provider:            "fake-provider",
+			Model:               "fake-model",
+		})
+	}
+
+	t.Run("CreateRun", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+		chatID := uuid.New()
+		reportedErr := make(chan error, 1)
+
+		db.EXPECT().InsertChatDebugRun(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
+		).Return(database.ChatDebugRun{}, xerrors.New("insert compaction debug run"))
+
+		ctx := newParentContext(chatID)
+		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
+			DebugSvc: svc,
+			ChatID:   chatID,
+			OnError: func(err error) {
+				reportedErr <- err
+			},
+		})
+		require.Same(t, ctx, compactionCtx)
+		finish(nil)
+		select {
+		case err := <-reportedErr:
+			t.Fatalf("unexpected OnError callback: %v", err)
+		default:
+		}
+	})
+
+	t.Run("FinalizeRun", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+		chatID := uuid.New()
+		reportedErr := make(chan error, 1)
+		runID := uuid.New()
+
+		db.EXPECT().InsertChatDebugRun(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
+		).Return(database.ChatDebugRun{ //nolint:exhaustruct // Test only needs IDs.
+			ID:     runID,
+			ChatID: chatID,
+		}, nil)
+		db.EXPECT().UpdateChatDebugRun(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(database.UpdateChatDebugRunParams{}),
+		).Return(database.ChatDebugRun{}, xerrors.New("finalize compaction debug run"))
+
+		ctx := newParentContext(chatID)
+		compactionCtx, finish := startCompactionDebugRun(ctx, CompactionOptions{
+			DebugSvc: svc,
+			ChatID:   chatID,
+			OnError: func(err error) {
+				reportedErr <- err
+			},
+		})
+		require.NotSame(t, ctx, compactionCtx)
+		finish(nil)
+		select {
+		case err := <-reportedErr:
+			t.Fatalf("unexpected OnError callback: %v", err)
+		default:
+		}
+	})
+}
 
 func TestRun_Compaction(t *testing.T) {
 	t.Parallel()

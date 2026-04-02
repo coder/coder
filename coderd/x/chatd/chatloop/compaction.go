@@ -305,9 +305,7 @@ func startCompactionDebugRun(
 		Model:               parentRun.Model,
 	})
 	if err != nil {
-		if options.OnError != nil {
-			options.OnError(xerrors.Errorf("create compaction debug run: %w", err))
-		}
+		// Debug instrumentation must not surface as a compaction failure.
 		return ctx, func(error) {}
 	}
 
@@ -337,7 +335,8 @@ func startCompactionDebugRun(
 			5*time.Second,
 		)
 		defer finalizeCancel()
-		if _, updateErr := options.DebugSvc.UpdateRun(
+		// Debug instrumentation must not surface as a compaction failure.
+		_, _ = options.DebugSvc.UpdateRun(
 			finalizeCtx,
 			chatdebug.UpdateRunParams{
 				ID:         run.ID,
@@ -345,12 +344,7 @@ func startCompactionDebugRun(
 				Status:     status,
 				FinishedAt: time.Now(),
 			},
-		); updateErr != nil && options.OnError != nil {
-			options.OnError(xerrors.Errorf(
-				"finalize compaction debug run: %w",
-				updateErr,
-			))
-		}
+		)
 		chatdebug.CleanupStepCounter(run.ID)
 	}
 }

@@ -1257,7 +1257,20 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, txErr
 	}
 
+	p.publishEditedMessage(opts.ChatID, result.Message)
+	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
+		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+		QueuedMessages: []codersdk.ChatQueuedMessage{},
+	})
+	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
+	})
+	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
+	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+
 	if p.debugSvc != nil {
+		// Tell the active worker to stop before pruning debug rows so it
+		// cannot race the edit cleanup by writing new post-edit traces.
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cleanupCancel()
 		if _, err := p.debugSvc.DeleteAfterMessageID(
@@ -1273,16 +1286,6 @@ func (p *Server) EditMessage(
 		}
 	}
 
-	p.publishEditedMessage(opts.ChatID, result.Message)
-	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
-		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-		QueuedMessages: []codersdk.ChatQueuedMessage{},
-	})
-	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
-		QueueUpdate: true,
-	})
-	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
