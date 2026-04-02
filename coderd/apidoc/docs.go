@@ -14625,46 +14625,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatDebugAttempt": {
-            "type": "object",
-            "properties": {
-                "attempt_number": {
-                    "type": "integer"
-                },
-                "duration_ms": {
-                    "type": "integer"
-                },
-                "error": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "finished_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "raw_request": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "raw_response": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.ChatDebugRun": {
             "type": "object",
             "properties": {
@@ -14718,10 +14678,8 @@ const docTemplate = `{
                     }
                 },
                 "summary": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "trigger_message_id": {
                     "type": "integer"
@@ -14764,10 +14722,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "summary": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "updated_at": {
                     "type": "string",
@@ -14795,7 +14751,8 @@ const docTemplate = `{
                 "attempts": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.ChatDebugAttempt"
+                        "type": "object",
+                        "additionalProperties": {}
                     }
                 },
                 "chat_id": {
@@ -14803,10 +14760,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "error": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "finished_at": {
                     "type": "string",
@@ -14820,22 +14775,16 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "metadata": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "normalized_request": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "normalized_response": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "operation": {
                     "type": "string"
@@ -14859,10 +14808,8 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "usage": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 }
             }
         },

@@ -13144,46 +13144,6 @@
 				}
 			}
 		},
-		"codersdk.ChatDebugAttempt": {
-			"type": "object",
-			"properties": {
-				"attempt_number": {
-					"type": "integer"
-				},
-				"duration_ms": {
-					"type": "integer"
-				},
-				"error": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
-				},
-				"finished_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"raw_request": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
-				},
-				"raw_response": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
-				},
-				"started_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"status": {
-					"type": "string"
-				}
-			}
-		},
 		"codersdk.ChatDebugRun": {
 			"type": "object",
 			"properties": {
@@ -13237,10 +13197,8 @@
 					}
 				},
 				"summary": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				},
 				"trigger_message_id": {
 					"type": "integer"
@@ -13283,10 +13241,8 @@
 					"type": "string"
 				},
 				"summary": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				},
 				"updated_at": {
 					"type": "string",
@@ -13314,7 +13270,8 @@
 				"attempts": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/codersdk.ChatDebugAttempt"
+						"type": "object",
+						"additionalProperties": {}
 					}
 				},
 				"chat_id": {
@@ -13322,10 +13279,8 @@
 					"format": "uuid"
 				},
 				"error": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				},
 				"finished_at": {
 					"type": "string",
@@ -13339,22 +13294,16 @@
 					"format": "uuid"
 				},
 				"metadata": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				},
 				"normalized_request": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				},
 				"normalized_response": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				},
 				"operation": {
 					"type": "string"
@@ -13378,10 +13327,8 @@
 					"format": "date-time"
 				},
 				"usage": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "object",
+					"additionalProperties": {}
 				}
 			}
 		},

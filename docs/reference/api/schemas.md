@@ -2023,40 +2023,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size` | integer | false    |              |             |
 
-## codersdk.ChatDebugAttempt
-
-```json
-{
-  "attempt_number": 0,
-  "duration_ms": 0,
-  "error": [
-    0
-  ],
-  "finished_at": "2019-08-24T14:15:22Z",
-  "raw_request": [
-    0
-  ],
-  "raw_response": [
-    0
-  ],
-  "started_at": "2019-08-24T14:15:22Z",
-  "status": "string"
-}
-```
-
-### Properties
-
-| Name             | Type             | Required | Restrictions | Description |
-|------------------|------------------|----------|--------------|-------------|
-| `attempt_number` | integer          | false    |              |             |
-| `duration_ms`    | integer          | false    |              |             |
-| `error`          | array of integer | false    |              |             |
-| `finished_at`    | string           | false    |              |             |
-| `raw_request`    | array of integer | false    |              |             |
-| `raw_response`   | array of integer | false    |              |             |
-| `started_at`     | string           | false    |              |             |
-| `status`         | string           | false    |              |             |
-
 ## codersdk.ChatDebugRun
 
 ```json
@@ -2078,52 +2044,46 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "assistant_message_id": 0,
       "attempts": [
         {
-          "attempt_number": 0,
-          "duration_ms": 0,
-          "error": [
-            0
-          ],
-          "finished_at": "2019-08-24T14:15:22Z",
-          "raw_request": [
-            0
-          ],
-          "raw_response": [
-            0
-          ],
-          "started_at": "2019-08-24T14:15:22Z",
-          "status": "string"
+          "property1": null,
+          "property2": null
         }
       ],
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-      "error": [
-        0
-      ],
+      "error": {
+        "property1": null,
+        "property2": null
+      },
       "finished_at": "2019-08-24T14:15:22Z",
       "history_tip_message_id": 0,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "metadata": [
-        0
-      ],
-      "normalized_request": [
-        0
-      ],
-      "normalized_response": [
-        0
-      ],
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "normalized_request": {
+        "property1": null,
+        "property2": null
+      },
+      "normalized_response": {
+        "property1": null,
+        "property2": null
+      },
       "operation": "string",
       "run_id": "dded282c-8ebd-44cf-8ba5-9a234973d1ec",
       "started_at": "2019-08-24T14:15:22Z",
       "status": "string",
       "step_number": 0,
       "updated_at": "2019-08-24T14:15:22Z",
-      "usage": [
-        0
-      ]
+      "usage": {
+        "property1": null,
+        "property2": null
+      }
     }
   ],
-  "summary": [
-    0
-  ],
+  "summary": {
+    "property1": null,
+    "property2": null
+  },
   "trigger_message_id": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -2146,7 +2106,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `started_at`             | string                                                    | false    |              |             |
 | `status`                 | string                                                    | false    |              |             |
 | `steps`                  | array of [codersdk.ChatDebugStep](#codersdkchatdebugstep) | false    |              |             |
-| `summary`                | array of integer                                          | false    |              |             |
+| `summary`                | object                                                    | false    |              |             |
+| » `[any property]`       | any                                                       | false    |              |             |
 | `trigger_message_id`     | integer                                                   | false    |              |             |
 | `updated_at`             | string                                                    | false    |              |             |
 
@@ -2162,27 +2123,29 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "status": "string",
-  "summary": [
-    0
-  ],
+  "summary": {
+    "property1": null,
+    "property2": null
+  },
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name          | Type             | Required | Restrictions | Description |
-|---------------|------------------|----------|--------------|-------------|
-| `chat_id`     | string           | false    |              |             |
-| `finished_at` | string           | false    |              |             |
-| `id`          | string           | false    |              |             |
-| `kind`        | string           | false    |              |             |
-| `model`       | string           | false    |              |             |
-| `provider`    | string           | false    |              |             |
-| `started_at`  | string           | false    |              |             |
-| `status`      | string           | false    |              |             |
-| `summary`     | array of integer | false    |              |             |
-| `updated_at`  | string           | false    |              |             |
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `chat_id`          | string | false    |              |             |
+| `finished_at`      | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `kind`             | string | false    |              |             |
+| `model`            | string | false    |              |             |
+| `provider`         | string | false    |              |             |
+| `started_at`       | string | false    |              |             |
+| `status`           | string | false    |              |             |
+| `summary`          | object | false    |              |             |
+| » `[any property]` | any    | false    |              |             |
+| `updated_at`       | string | false    |              |             |
 
 ## codersdk.ChatDebugSettings
 
@@ -2207,71 +2170,70 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "assistant_message_id": 0,
   "attempts": [
     {
-      "attempt_number": 0,
-      "duration_ms": 0,
-      "error": [
-        0
-      ],
-      "finished_at": "2019-08-24T14:15:22Z",
-      "raw_request": [
-        0
-      ],
-      "raw_response": [
-        0
-      ],
-      "started_at": "2019-08-24T14:15:22Z",
-      "status": "string"
+      "property1": null,
+      "property2": null
     }
   ],
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "error": [
-    0
-  ],
+  "error": {
+    "property1": null,
+    "property2": null
+  },
   "finished_at": "2019-08-24T14:15:22Z",
   "history_tip_message_id": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "metadata": [
-    0
-  ],
-  "normalized_request": [
-    0
-  ],
-  "normalized_response": [
-    0
-  ],
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "normalized_request": {
+    "property1": null,
+    "property2": null
+  },
+  "normalized_response": {
+    "property1": null,
+    "property2": null
+  },
   "operation": "string",
   "run_id": "dded282c-8ebd-44cf-8ba5-9a234973d1ec",
   "started_at": "2019-08-24T14:15:22Z",
   "status": "string",
   "step_number": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "usage": [
-    0
-  ]
+  "usage": {
+    "property1": null,
+    "property2": null
+  }
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                            | Required | Restrictions | Description |
-|--------------------------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `assistant_message_id`   | integer                                                         | false    |              |             |
-| `attempts`               | array of [codersdk.ChatDebugAttempt](#codersdkchatdebugattempt) | false    |              |             |
-| `chat_id`                | string                                                          | false    |              |             |
-| `error`                  | array of integer                                                | false    |              |             |
-| `finished_at`            | string                                                          | false    |              |             |
-| `history_tip_message_id` | integer                                                         | false    |              |             |
-| `id`                     | string                                                          | false    |              |             |
-| `metadata`               | array of integer                                                | false    |              |             |
-| `normalized_request`     | array of integer                                                | false    |              |             |
-| `normalized_response`    | array of integer                                                | false    |              |             |
-| `operation`              | string                                                          | false    |              |             |
-| `run_id`                 | string                                                          | false    |              |             |
-| `started_at`             | string                                                          | false    |              |             |
-| `status`                 | string                                                          | false    |              |             |
-| `step_number`            | integer                                                         | false    |              |             |
-| `updated_at`             | string                                                          | false    |              |             |
-| `usage`                  | array of integer                                                | false    |              |             |
+| Name                     | Type            | Required | Restrictions | Description |
+|--------------------------|-----------------|----------|--------------|-------------|
+| `assistant_message_id`   | integer         | false    |              |             |
+| `attempts`               | array of object | false    |              |             |
+| » `[any property]`       | any             | false    |              |             |
+| `chat_id`                | string          | false    |              |             |
+| `error`                  | object          | false    |              |             |
+| » `[any property]`       | any             | false    |              |             |
+| `finished_at`            | string          | false    |              |             |
+| `history_tip_message_id` | integer         | false    |              |             |
+| `id`                     | string          | false    |              |             |
+| `metadata`               | object          | false    |              |             |
+| » `[any property]`       | any             | false    |              |             |
+| `normalized_request`     | object          | false    |              |             |
+| » `[any property]`       | any             | false    |              |             |
+| `normalized_response`    | object          | false    |              |             |
+| » `[any property]`       | any             | false    |              |             |
+| `operation`              | string          | false    |              |             |
+| `run_id`                 | string          | false    |              |             |
+| `started_at`             | string          | false    |              |             |
+| `status`                 | string          | false    |              |             |
+| `step_number`            | integer         | false    |              |             |
+| `updated_at`             | string          | false    |              |             |
+| `usage`                  | object          | false    |              |             |
+| » `[any property]`       | any             | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
