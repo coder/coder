@@ -11,7 +11,7 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
 	const sorted = workspaceIds.toSorted();
@@ -859,6 +859,47 @@ export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
 	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
 		API.experimental.getChatModelConfigs(),
+});
+
+export const userChatProviderConfigsKey = [
+	"user-chat-provider-configs",
+] as const;
+
+export const userChatProviderConfigs = () => ({
+	queryKey: userChatProviderConfigsKey,
+	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
+		API.experimental.getUserChatProviderConfigs(),
+});
+
+type UpsertUserChatProviderKeyArgs = {
+	providerConfigId: string;
+	req: TypesGen.CreateUserChatProviderKeyRequest;
+};
+
+export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
+		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.experimental.deleteUserChatProviderKey(providerConfigId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
 });
 
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {

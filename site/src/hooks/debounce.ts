@@ -26,8 +26,11 @@ type UseDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
  * passed into the hook, and use them accordingly.
  *
  * If the debounce time changes while a callback has been queued to fire, the
- * callback will be canceled completely. You will need to restart the debounce
- * process by calling the returned-out function again.
+ * callback will not be canceled.
+ *
+ * Instead of a static debounce time, a function can be passed to enable dynamic
+ * debounce values (for example to make a checkbox fire immediately but to
+ * debounce a text input).
  */
 export function useDebouncedFunction<
 	// Parameterizing on the args instead of the whole callback function type to
@@ -35,14 +38,8 @@ export function useDebouncedFunction<
 	Args extends unknown[] = unknown[],
 >(
 	callback: (...args: Args) => void | Promise<void>,
-	debounceTimeoutMs: number,
+	debounceTimeoutMs: number | ((...args: Args) => number),
 ): UseDebouncedFunctionReturn<Args> {
-	if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
-		throw new Error(
-			`Invalid value ${debounceTimeoutMs} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
-		);
-	}
-
 	const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | undefined>(
 		undefined,
 	);
@@ -56,9 +53,8 @@ export function useDebouncedFunction<
 
 	const debounceTimeRef = useRef(debounceTimeoutMs);
 	useEffect(() => {
-		cancelDebounce();
 		debounceTimeRef.current = debounceTimeoutMs;
-	}, [cancelDebounce, debounceTimeoutMs]);
+	}, [debounceTimeoutMs]);
 
 	const callbackRef = useRef(callback);
 	useEffect(() => {
@@ -74,7 +70,9 @@ export function useDebouncedFunction<
 
 			timeoutIdRef.current = setTimeout(
 				() => void callbackRef.current(...args),
-				debounceTimeRef.current,
+				typeof debounceTimeRef.current === "function"
+					? debounceTimeRef.current(...args)
+					: debounceTimeRef.current,
 			);
 		},
 		[cancelDebounce],
