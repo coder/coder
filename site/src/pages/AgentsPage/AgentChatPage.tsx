@@ -651,7 +651,7 @@ const AgentChatPage: FC = () => {
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
-	const { store, clearStreamError } = useChatStore({
+	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
@@ -880,6 +880,7 @@ const AgentChatPage: FC = () => {
 			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
+				upsertCacheMessages([response.message]);
 			}
 		}
 		if (selectedModelConfigID) {
@@ -924,10 +925,11 @@ const AgentChatPage: FC = () => {
 		store.setChatStatus("pending");
 		try {
 			const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
-			// Insert the promoted message into the store immediately
-			// so it appears in the timeline without waiting for the
-			// WebSocket to deliver it.
+			// Insert the promoted message into the store and cache
+			// immediately so it appears in the timeline without
+			// waiting for the WebSocket to deliver it.
 			store.upsertDurableMessage(promotedMessage);
+			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
 			store.setQueuedMessages(previousQueuedMessages);
 			store.setChatStatus(previousChatStatus);
