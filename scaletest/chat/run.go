@@ -122,12 +122,19 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 		r.storeResults(finalStatus, failureStage, totalDuration, sawAnyFirstOutput, retryCount, eventCount, turnsCompleted)
 	}()
 
+	initialPrompt, err := r.cfg.PromptForTurn(0)
+	if err != nil {
+		r.recordStageFailure(failureStageCreateChat)
+		r.storeResults("", failureStageCreateChat, 0, false, 0, 0, 0)
+		return xerrors.Errorf("build prompt for turn 1: %w", err)
+	}
+
 	chat, err := r.chatClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		WorkspaceID:   &workspaceID,
 		ModelConfigID: r.cfg.ModelConfigID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
-			Text: r.cfg.Prompt,
+			Text: initialPrompt,
 		}},
 	})
 	createDuration := time.Since(conversationStart)
@@ -204,11 +211,17 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 				sawRunning = false
 				sawTurnFirstOutput = false
 				turnStartTime = time.Now()
+				followUpPrompt, err := r.cfg.PromptForTurn(nextTurn - 1)
+				if err != nil {
+					failureStage = failureStageCreateMessage
+					r.recordStageFailure(failureStage)
+					return xerrors.Errorf("build prompt for turn %d: %w", nextTurn, err)
+				}
 				messageStartTime := turnStartTime
 				_, err = r.chatClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 					Content: []codersdk.ChatInputPart{{
 						Type: codersdk.ChatInputPartTypeText,
-						Text: r.cfg.FollowUpPrompt,
+						Text: followUpPrompt,
 					}},
 					ModelConfigID: r.cfg.ModelConfigID,
 				})
@@ -320,6 +333,9 @@ func (r *Runner) GetMetrics() map[string]any {
 		"event_count":              r.eventCount,
 		"turns_requested":          r.cfg.Turns,
 		"turns_completed":          r.turnsCompleted,
+		"tool_calls_per_chat":      r.cfg.ToolCallsPerChat,
+		"tool_call_seed":           r.cfg.ToolCallSeed,
+		"tool_call_command":        r.cfg.ToolCallCommand,
 	}
 }
 

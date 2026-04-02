@@ -36,9 +36,15 @@ func TestNewSummary(t *testing.T) {
 			RunID:              "run-shared",
 			WorkspaceMode:      chat.WorkspaceModeSharedWorkspace,
 			WorkspaceID:        &workspaceID,
+			WorkspaceCount:     1,
+			ChatsPerWorkspace:  25,
 			ModelConfigID:      &modelConfigID,
 			Count:              25,
 			Turns:              10,
+			ToolCallsPerChat:   7,
+			ToolCallSeed:       42,
+			ToolCallTool:       "execute",
+			ToolCallCommand:    "echo scaletest",
 			Prompt:             "Reply with one short sentence.",
 			FollowUpPrompt:     "Continue.",
 			FollowUpStartDelay: 45 * time.Second,
@@ -51,7 +57,13 @@ func TestNewSummary(t *testing.T) {
 		require.Equal(t, workspaceID, *summary.WorkspaceID)
 		require.Nil(t, summary.TemplateID)
 		require.Empty(t, summary.TemplateName)
+		require.EqualValues(t, 1, summary.WorkspaceCount)
+		require.EqualValues(t, 25, summary.ChatsPerWorkspace)
 		require.Zero(t, summary.CreatedWorkspaceCount)
+		require.Equal(t, 7, summary.ToolCallsPerChat)
+		require.EqualValues(t, 42, summary.ToolCallSeed)
+		require.Equal(t, "execute", summary.ToolCallTool)
+		require.Equal(t, "echo scaletest", summary.ToolCallCommand)
 		require.True(t, summary.FollowUpDelayEnabled)
 		require.Equal(t, followUpReleasedAt, *summary.FollowUpPhaseReleasedAt)
 		require.Equal(t, 25, summary.Results.TotalRuns)
@@ -63,6 +75,8 @@ func TestNewSummary(t *testing.T) {
 		compactJSON, err := summary.CompactJSON()
 		require.NoError(t, err)
 		require.Contains(t, string(compactJSON), `"workspace_mode":"shared_workspace"`)
+		require.Contains(t, string(compactJSON), `"workspace_count":1`)
+		require.Contains(t, string(compactJSON), `"chats_per_workspace":25`)
 	})
 
 	t.Run("TemplateMode", func(t *testing.T) {
@@ -73,10 +87,16 @@ func TestNewSummary(t *testing.T) {
 			WorkspaceMode:         chat.WorkspaceModeTemplate,
 			TemplateID:            &templateID,
 			TemplateName:          "starter-template",
-			CreatedWorkspaceCount: 25,
+			WorkspaceCount:        5,
+			ChatsPerWorkspace:     5,
+			CreatedWorkspaceCount: 5,
 			ModelConfigID:         &modelConfigID,
 			Count:                 25,
 			Turns:                 1,
+			ToolCallsPerChat:      0,
+			ToolCallSeed:          0,
+			ToolCallTool:          "execute",
+			ToolCallCommand:       "echo scaletest",
 			Prompt:                "Reply with one short sentence.",
 			FollowUpStartDelay:    0,
 			OutputSpecs:           []string{"text"},
@@ -87,13 +107,17 @@ func TestNewSummary(t *testing.T) {
 		require.NotNil(t, summary.TemplateID)
 		require.Equal(t, templateID, *summary.TemplateID)
 		require.Equal(t, "starter-template", summary.TemplateName)
-		require.EqualValues(t, 25, summary.CreatedWorkspaceCount)
+		require.EqualValues(t, 5, summary.WorkspaceCount)
+		require.EqualValues(t, 5, summary.ChatsPerWorkspace)
+		require.EqualValues(t, 5, summary.CreatedWorkspaceCount)
 		require.False(t, summary.FollowUpDelayEnabled)
 		require.Empty(t, summary.FollowUpPromptFingerprint)
 
 		compactJSON, err := summary.CompactJSON()
 		require.NoError(t, err)
 		require.Contains(t, string(compactJSON), `"template_name":"starter-template"`)
-		require.Contains(t, string(compactJSON), `"created_workspace_count":25`)
+		require.Contains(t, string(compactJSON), `"workspace_count":5`)
+		require.Contains(t, string(compactJSON), `"chats_per_workspace":5`)
+		require.Contains(t, string(compactJSON), `"created_workspace_count":5`)
 	})
 }
