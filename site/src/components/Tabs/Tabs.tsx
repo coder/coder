@@ -19,7 +19,7 @@ import { cn } from "#/utils/cn";
 type TabsProps = ComponentProps<typeof TabsPrimitive.Root>;
 
 export const Tabs: FC<TabsProps> = ({ ...props }) => {
-	return <TabsPrimitive.Root {...props} />;
+	return <TabsPrimitive.Root data-slot="tabs" {...props} />;
 };
 
 const tabsListVariants = cva("flex flex-wrap items-center", {
@@ -27,20 +27,20 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 		variant: {
 			insideBox: cn(
 				"border-solid border-x-0 border-y",
-				"[&_button[data-state=active]]:bg-surface-secondary",
-				"[&_button]:border-x [&_button]:border-y-0 [&_button]:border-solid",
-				"[&_button]:border-x-transparent [&_button[data-state=active]]:border-x-border",
-				"[&_button]:px-4",
-				"[&_button]:text-content-secondary",
-				"[&_button[data-state=active]]:text-content-primary",
+				"[&_[data-slot=tabs-trigger][data-state=active]]:bg-surface-secondary",
+				"[&_[data-slot=tabs-trigger]]:border-x [&_[data-slot=tabs-trigger]]:border-y-0 [&_[data-slot=tabs-trigger]]:border-solid",
+				"[&_[data-slot=tabs-trigger]]:border-x-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-x-border",
+				"[&_[data-slot=tabs-trigger]]:px-4",
+				"[&_[data-slot=tabs-trigger]]:text-content-secondary",
+				"[&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
 			),
 			outsideBox: cn(
 				"border-solid border-0 border-b gap-6",
-				"[&_button]:text-content-secondary [&_button[data-state=active]]:text-content-primary",
-				"[&_button]:border-0 [&_button]:border-y [&_button]:border-solid",
-				"[&_button]:border-transparent [&_button[data-state=active]]:border-b-white",
-				"[&_button]:hover:text-content-primary",
-				"[&_button]:px-1",
+				"[&_[data-slot=tabs-trigger]]:text-content-secondary [&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
+				"[&_[data-slot=tabs-trigger]]:border-0 [&_[data-slot=tabs-trigger]]:border-y [&_[data-slot=tabs-trigger]]:border-solid",
+				"[&_[data-slot=tabs-trigger]]:border-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-b-white",
+				"[&_[data-slot=tabs-trigger]]:hover:text-content-primary",
+				"[&_[data-slot=tabs-trigger]]:px-1",
 			),
 		},
 	},
@@ -61,6 +61,7 @@ export const TabsList: FC<TabsListProps> = ({
 }) => {
 	return (
 		<TabsPrimitive.List
+			data-slot="tabs-list"
 			className={cn(
 				tabsListVariants({ variant }),
 				overflowKebabMenu && "flex-nowrap",
@@ -81,6 +82,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
 
 	return (
 		<TabsPrimitive.Trigger
+			data-slot="tabs-trigger"
 			type={type}
 			className={cn(
 				"border-none py-3 bg-transparent",
@@ -97,7 +99,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
 type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
 
 export const TabsContent: FC<TabsContentProps> = ({ ...props }) => {
-	return <TabsPrimitive.Content {...props} />;
+	return <TabsPrimitive.Content data-slot="tabs-content" {...props} />;
 };
 
 // --- Router link tabs (URL-driven navigation) ---
@@ -123,6 +125,7 @@ export const LinkTabs: FC<LinkTabsProps> = ({
 	return (
 		<LinkTabsContext.Provider value={{ active }}>
 			<div
+				data-slot="link-tabs"
 				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
 				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
 				className={cn(
@@ -195,10 +198,15 @@ export const LinkTabsList: FC<LinkTabsListProps> = ({
 	}, [updateIndicator]);
 
 	return (
-		<div ref={listRef} className="relative">
-			<div className={cn("flex items-baseline gap-6", className)} {...props} />
+		<div ref={listRef} data-slot="link-tabs-list-root" className="relative">
+			<div
+				data-slot="link-tabs-list"
+				className={cn("flex items-baseline gap-6", className)}
+				{...props}
+			/>
 			<div
 				ref={indicatorRef}
+				data-slot="link-tabs-indicator"
 				className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
 			/>
 		</div>
@@ -223,6 +231,7 @@ export const TabLink: FC<TabLinkProps> = ({
 
 	return (
 		<Link
+			data-slot="tab-link"
 			data-active={isActive}
 			aria-current={isActive ? "page" : undefined}
 			{...linkProps}
