@@ -247,7 +247,7 @@ func (s *Service) CreateStep(
 
 		steps, listErr := s.db.GetChatDebugStepsByRunID(chatdContext(ctx), params.RunID)
 		if listErr != nil {
-			return database.ChatDebugStep{}, err
+			return database.ChatDebugStep{}, listErr
 		}
 		nextStepNumber := insert.StepNumber + 1
 		for _, existing := range steps {

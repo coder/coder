@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -227,6 +231,35 @@ func TestService_CreateStep_RetriesDuplicateStepNumbers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, first.StepNumber)
 	require.EqualValues(t, 2, second.StepNumber)
+}
+
+func TestService_CreateStep_ListRetryErrorWins(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+	runID := uuid.New()
+	chatID := uuid.New()
+	listErr := xerrors.New("list chat debug steps")
+
+	db.EXPECT().InsertChatDebugStep(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(database.InsertChatDebugStepParams{}),
+	).Return(database.ChatDebugStep{}, &pq.Error{
+		Code:       pq.ErrorCode("23505"),
+		Constraint: string(database.UniqueIndexChatDebugStepsRunStep),
+	})
+	db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, listErr)
+
+	_, err := svc.CreateStep(context.Background(), chatdebug.CreateStepParams{
+		RunID:      runID,
+		ChatID:     chatID,
+		StepNumber: 1,
+		Operation:  chatdebug.OperationStream,
+		Status:     chatdebug.StatusInProgress,
+	})
+	require.ErrorIs(t, err, listErr)
 }
 
 func TestService_UpdateStep(t *testing.T) {
