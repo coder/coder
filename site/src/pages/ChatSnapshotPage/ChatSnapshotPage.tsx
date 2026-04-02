@@ -1,4 +1,4 @@
-import { MessageSquarePlusIcon } from "lucide-react";
+import { ExternalLinkIcon, MessageSquarePlusIcon, MonitorIcon } from "lucide-react";
 import { type FC, useCallback, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams } from "react-router";
@@ -159,6 +159,9 @@ const ChatSnapshotPage: FC = () => {
 			{/* Body */}
 			<ScrollArea className="flex-1">
 				<div className="mx-auto w-full max-w-screen-md px-6 py-6">
+					{snapshot.workspace_id && snapshot.workspace_name && (
+						<WorkspaceCard snapshot={snapshot} />
+					)}
 					<SnapshotConversation snapshot={snapshot} />
 				</div>
 			</ScrollArea>
@@ -252,5 +255,41 @@ const SnapshotConversation: FC<SnapshotConversationProps> = ({ snapshot }) => {
 				);
 			})}
 		</Conversation>
+	);
+};
+
+type WorkspaceCardProps = {
+	snapshot: ChatSharedSnapshot;
+};
+
+/**
+ * Shows a small card linking to the workspace that produced this work.
+ * If the viewer has access (via workspace sharing), they can click
+ * through to the live workspace.
+ */
+const WorkspaceCard: FC<WorkspaceCardProps> = ({ snapshot }) => {
+	const wsUrl = `/@${snapshot.workspace_owner_username}/${snapshot.workspace_name}`;
+
+	return (
+		<div className="mb-6 flex items-center justify-between rounded-lg border border-solid border-border bg-surface-secondary px-4 py-3">
+			<div className="flex items-center gap-3">
+				<MonitorIcon className="size-5 text-content-secondary" />
+				<div className="flex flex-col">
+					<span className="text-sm font-medium text-content-primary">
+						{snapshot.workspace_name}
+					</span>
+					<span className="text-xs text-content-secondary">
+						Workspace by {snapshot.workspace_owner_username}
+					</span>
+				</div>
+			</div>
+			<a
+				href={wsUrl}
+				className="inline-flex items-center gap-1.5 rounded-md border border-solid border-border bg-surface-primary px-3 py-1.5 text-xs font-medium text-content-primary no-underline hover:bg-surface-secondary"
+			>
+				<ExternalLinkIcon className="size-3.5" />
+				View workspace
+			</a>
+		</div>
 	);
 };

@@ -4288,6 +4288,10 @@ type ChatSharedSnapshot struct {
 	ChatStatus ChatStatus `db:"chat_status" json:"chat_status"`
 	// Denormalized conversation history at snapshot time as JSON array of ChatMessage objects.
 	Messages json.RawMessage `db:"messages" json:"messages"`
+	// Optional workspace ID that produced this work.
+	WorkspaceID            uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName          string        `db:"workspace_name" json:"workspace_name"`
+	WorkspaceOwnerUsername string        `db:"workspace_owner_username" json:"workspace_owner_username"`
 	// When the chat state was captured into this snapshot.
 	SnapshotAt time.Time `db:"snapshot_at" json:"snapshot_at"`
 	// Optional expiry after which the snapshot link returns 410 Gone.

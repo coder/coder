@@ -7193,7 +7193,7 @@ func (q *sqlQuerier) DeleteChatSharedSnapshot(ctx context.Context, id uuid.UUID)
 }
 
 const getChatSharedSnapshotByToken = `-- name: GetChatSharedSnapshotByToken :one
-SELECT id, token, chat_id, owner_id, chat_title, chat_status, messages, snapshot_at, expires_at, created_at FROM chat_shared_snapshots WHERE token = $1
+SELECT id, token, chat_id, owner_id, chat_title, chat_status, messages, workspace_id, workspace_name, workspace_owner_username, snapshot_at, expires_at, created_at FROM chat_shared_snapshots WHERE token = $1
 `
 
 func (q *sqlQuerier) GetChatSharedSnapshotByToken(ctx context.Context, token string) (ChatSharedSnapshot, error) {
@@ -7207,6 +7207,9 @@ func (q *sqlQuerier) GetChatSharedSnapshotByToken(ctx context.Context, token str
 		&i.ChatTitle,
 		&i.ChatStatus,
 		&i.Messages,
+		&i.WorkspaceID,
+		&i.WorkspaceName,
+		&i.WorkspaceOwnerUsername,
 		&i.SnapshotAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -7215,7 +7218,7 @@ func (q *sqlQuerier) GetChatSharedSnapshotByToken(ctx context.Context, token str
 }
 
 const getChatSharedSnapshotsByChatID = `-- name: GetChatSharedSnapshotsByChatID :many
-SELECT id, token, chat_id, owner_id, chat_title, chat_status, messages, snapshot_at, expires_at, created_at FROM chat_shared_snapshots
+SELECT id, token, chat_id, owner_id, chat_title, chat_status, messages, workspace_id, workspace_name, workspace_owner_username, snapshot_at, expires_at, created_at FROM chat_shared_snapshots
 WHERE chat_id = $1
 ORDER BY created_at DESC
 `
@@ -7258,14 +7261,16 @@ const insertChatSharedSnapshot = `-- name: InsertChatSharedSnapshot :one
 INSERT INTO chat_shared_snapshots (
 	id, token, chat_id, owner_id,
 	chat_title, chat_status,
-	messages, snapshot_at, expires_at, created_at
+	messages, workspace_id, workspace_name, workspace_owner_username,
+	snapshot_at, expires_at, created_at
 )
 VALUES (
 	$1, $2, $3, $4,
 	$5, $6,
-	$7, $8, $9, $10
+	$7, $8, $9, $10,
+	$11, $12, $13
 )
-RETURNING id, token, chat_id, owner_id, chat_title, chat_status, messages, snapshot_at, expires_at, created_at
+RETURNING id, token, chat_id, owner_id, chat_title, chat_status, messages, workspace_id, workspace_name, workspace_owner_username, snapshot_at, expires_at, created_at
 `
 
 type InsertChatSharedSnapshotParams struct {
@@ -7275,8 +7280,11 @@ type InsertChatSharedSnapshotParams struct {
 	OwnerID    uuid.UUID       `db:"owner_id" json:"owner_id"`
 	ChatTitle  string          `db:"chat_title" json:"chat_title"`
 	ChatStatus ChatStatus      `db:"chat_status" json:"chat_status"`
-	Messages   json.RawMessage `db:"messages" json:"messages"`
-	SnapshotAt time.Time       `db:"snapshot_at" json:"snapshot_at"`
+	Messages               json.RawMessage `db:"messages" json:"messages"`
+	WorkspaceID            uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName          string          `db:"workspace_name" json:"workspace_name"`
+	WorkspaceOwnerUsername string          `db:"workspace_owner_username" json:"workspace_owner_username"`
+	SnapshotAt             time.Time       `db:"snapshot_at" json:"snapshot_at"`
 	ExpiresAt  sql.NullTime    `db:"expires_at" json:"expires_at"`
 	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
 }
@@ -7290,6 +7298,9 @@ func (q *sqlQuerier) InsertChatSharedSnapshot(ctx context.Context, arg InsertCha
 		arg.ChatTitle,
 		arg.ChatStatus,
 		arg.Messages,
+		arg.WorkspaceID,
+		arg.WorkspaceName,
+		arg.WorkspaceOwnerUsername,
 		arg.SnapshotAt,
 		arg.ExpiresAt,
 		arg.CreatedAt,
@@ -7303,6 +7314,9 @@ func (q *sqlQuerier) InsertChatSharedSnapshot(ctx context.Context, arg InsertCha
 		&i.ChatTitle,
 		&i.ChatStatus,
 		&i.Messages,
+		&i.WorkspaceID,
+		&i.WorkspaceName,
+		&i.WorkspaceOwnerUsername,
 		&i.SnapshotAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,

@@ -1881,6 +1881,9 @@ export interface ChatSharedSnapshot {
 	readonly chat_title: string;
 	readonly chat_status: ChatStatus;
 	readonly messages: readonly ChatMessage[];
+	readonly workspace_id?: string;
+	readonly workspace_name?: string;
+	readonly workspace_owner_username?: string;
 	readonly snapshot_at: string;
 	readonly expires_at?: string;
 	readonly created_at: string;

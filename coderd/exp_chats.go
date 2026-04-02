@@ -5315,17 +5315,33 @@ func (api *API) createChatSharedSnapshot(rw http.ResponseWriter, r *http.Request
 		expiresAt = sql.NullTime{Time: *req.ExpiresAt, Valid: true}
 	}
 
+	// Look up workspace metadata if the chat is bound to one.
+	var wsID uuid.NullUUID
+	var wsName, wsOwnerUsername string
+	if chat.WorkspaceID.Valid {
+		//nolint:gocritic // System context to read workspace for snapshot metadata.
+		ws, err := api.Database.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), chat.WorkspaceID.UUID)
+		if err == nil {
+			wsID = chat.WorkspaceID
+			wsName = ws.Name
+			wsOwnerUsername = ws.OwnerUsername
+		}
+	}
+
 	dbSnapshot, err := api.Database.InsertChatSharedSnapshot(ctx, database.InsertChatSharedSnapshotParams{
-		ID:         uuid.New(),
-		Token:      token,
-		ChatID:     chat.ID,
-		OwnerID:    chat.OwnerID,
-		ChatTitle:  chat.Title,
-		ChatStatus: chat.Status,
-		Messages:   messagesJSON,
-		SnapshotAt: now,
-		ExpiresAt:  expiresAt,
-		CreatedAt:  now,
+		ID:                     uuid.New(),
+		Token:                  token,
+		ChatID:                 chat.ID,
+		OwnerID:                chat.OwnerID,
+		ChatTitle:              chat.Title,
+		ChatStatus:             chat.Status,
+		Messages:               messagesJSON,
+		WorkspaceID:            wsID,
+		WorkspaceName:          wsName,
+		WorkspaceOwnerUsername: wsOwnerUsername,
+		SnapshotAt:             now,
+		ExpiresAt:              expiresAt,
+		CreatedAt:              now,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5451,15 +5467,20 @@ func (api *API) deleteChatSharedSnapshot(rw http.ResponseWriter, r *http.Request
 
 func convertDBChatSharedSnapshot(db database.ChatSharedSnapshot, messages []codersdk.ChatMessage) codersdk.ChatSharedSnapshot {
 	s := codersdk.ChatSharedSnapshot{
-		ID:         db.ID,
-		Token:      db.Token,
-		ChatID:     db.ChatID,
-		OwnerID:    db.OwnerID,
-		ChatTitle:  db.ChatTitle,
-		ChatStatus: codersdk.ChatStatus(db.ChatStatus),
-		Messages:   messages,
-		SnapshotAt: db.SnapshotAt,
-		CreatedAt:  db.CreatedAt,
+		ID:                     db.ID,
+		Token:                  db.Token,
+		ChatID:                 db.ChatID,
+		OwnerID:                db.OwnerID,
+		ChatTitle:              db.ChatTitle,
+		ChatStatus:             codersdk.ChatStatus(db.ChatStatus),
+		Messages:               messages,
+		WorkspaceName:          db.WorkspaceName,
+		WorkspaceOwnerUsername: db.WorkspaceOwnerUsername,
+		SnapshotAt:             db.SnapshotAt,
+		CreatedAt:              db.CreatedAt,
+	}
+	if db.WorkspaceID.Valid {
+		s.WorkspaceID = &db.WorkspaceID.UUID
 	}
 	if db.ExpiresAt.Valid {
 		s.ExpiresAt = &db.ExpiresAt.Time

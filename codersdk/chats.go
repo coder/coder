@@ -2196,16 +2196,19 @@ type PRInsightsPullRequest struct {
 // chat's state that can be viewed via an unguessable token URL
 // without authentication.
 type ChatSharedSnapshot struct {
-	ID         uuid.UUID     `json:"id" format:"uuid"`
-	Token      string        `json:"token"`
-	ChatID     uuid.UUID     `json:"chat_id" format:"uuid"`
-	OwnerID    uuid.UUID     `json:"owner_id" format:"uuid"`
-	ChatTitle  string        `json:"chat_title"`
-	ChatStatus ChatStatus    `json:"chat_status"`
-	Messages   []ChatMessage `json:"messages"`
-	SnapshotAt time.Time     `json:"snapshot_at" format:"date-time"`
-	ExpiresAt  *time.Time    `json:"expires_at,omitempty" format:"date-time"`
-	CreatedAt  time.Time     `json:"created_at" format:"date-time"`
+	ID                     uuid.UUID     `json:"id" format:"uuid"`
+	Token                  string        `json:"token"`
+	ChatID                 uuid.UUID     `json:"chat_id" format:"uuid"`
+	OwnerID                uuid.UUID     `json:"owner_id" format:"uuid"`
+	ChatTitle              string        `json:"chat_title"`
+	ChatStatus             ChatStatus    `json:"chat_status"`
+	Messages               []ChatMessage `json:"messages"`
+	WorkspaceID            *uuid.UUID    `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceName          string        `json:"workspace_name,omitempty"`
+	WorkspaceOwnerUsername string        `json:"workspace_owner_username,omitempty"`
+	SnapshotAt             time.Time     `json:"snapshot_at" format:"date-time"`
+	ExpiresAt              *time.Time    `json:"expires_at,omitempty" format:"date-time"`
+	CreatedAt              time.Time     `json:"created_at" format:"date-time"`
 }
 
 // CreateChatSharedSnapshotRequest is the request body for creating a

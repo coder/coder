@@ -2,12 +2,14 @@
 INSERT INTO chat_shared_snapshots (
 	id, token, chat_id, owner_id,
 	chat_title, chat_status,
-	messages, snapshot_at, expires_at, created_at
+	messages, workspace_id, workspace_name, workspace_owner_username,
+	snapshot_at, expires_at, created_at
 )
 VALUES (
 	$1, $2, $3, $4,
 	$5, $6,
-	$7, $8, $9, $10
+	$7, $8, $9, $10,
+	$11, $12, $13
 )
 RETURNING *;
 
