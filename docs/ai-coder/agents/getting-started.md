@@ -101,7 +101,7 @@ bulk via the CLI.
 To grant the role to all active users at once:
 
 ```sh
-coder users list --status active -o json \
+coder users list -o json \
   | jq -r '.[].username' \
   | while read u; do
       coder users edit-roles "$u" \
