@@ -622,14 +622,21 @@ const ChatMessageItem = memo<{
 						<Message
 							className={cn(
 								"w-full",
-								isLastAssistantMessage && hasCopyableContent && !isLastInConversation && "pb-5",
+								isLastAssistantMessage &&
+									hasCopyableContent &&
+									!isLastInConversation &&
+									"pb-5",
 							)}
 						>
 							<MessageContent className="whitespace-normal">
 								<div
 									className={cn(
-"relative space-y-3 overflow-visible",
-											"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",										(copyHovered || showCopiedSuccess) && isLastAssistantMessage && hasCopyableContent && "before:opacity-100",
+										"relative space-y-3 overflow-visible",
+										"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
+										(copyHovered || showCopiedSuccess) &&
+											isLastAssistantMessage &&
+											hasCopyableContent &&
+											"before:opacity-100",
 									)}
 								>
 									<BlockList
@@ -649,27 +656,33 @@ const ChatMessageItem = memo<{
 													className="flex !mt-0 -ml-1"
 													data-testid="assistant-copy-button"
 												>
-														<Tooltip open={copyHovered || showCopiedSuccess || undefined}>
-															<TooltipTrigger asChild>
-																<Button
-																	size="icon"
-																	variant="subtle"
-																	className="pl-0"
-																	onClick={() => {
-																		copyToClipboard(parsed.markdown);
-																		setCopyHovered(false);
-																	}}
-																	onMouseEnter={() => setCopyHovered(true)}
-																	onMouseLeave={() => setCopyHovered(false)}
-																>
-																	{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-																	<span className="sr-only">Copy message</span>
-																</Button>
-															</TooltipTrigger>
-															<TooltipContent side="bottom" align="start">
-																{showCopiedSuccess ? "Copied!" : "Copy message"}
-															</TooltipContent>
-														</Tooltip>
+													<Tooltip
+														open={copyHovered || showCopiedSuccess || undefined}
+													>
+														<TooltipTrigger asChild>
+															<Button
+																size="icon"
+																variant="subtle"
+																className="pl-0"
+																onClick={() => {
+																	copyToClipboard(parsed.markdown);
+																	setCopyHovered(false);
+																}}
+																onMouseEnter={() => setCopyHovered(true)}
+																onMouseLeave={() => setCopyHovered(false)}
+															>
+																{showCopiedSuccess ? (
+																	<CheckIcon />
+																) : (
+																	<CopyIcon />
+																)}
+																<span className="sr-only">Copy message</span>
+															</Button>
+														</TooltipTrigger>
+														<TooltipContent side="bottom" align="start">
+															{showCopiedSuccess ? "Copied!" : "Copy message"}
+														</TooltipContent>
+													</Tooltip>
 												</div>
 											) : undefined
 										}
@@ -1118,7 +1131,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								isLastAssistantMessage={lastAssistantPerTurnIds.has(message.id)}
-									isLastInConversation={msgIdx === parsedMessages.length - 1}
+								isLastInConversation={msgIdx === parsedMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								computerUseSubagentIds={computerUseSubagentIds}
