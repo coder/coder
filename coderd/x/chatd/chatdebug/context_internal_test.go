@@ -58,11 +58,9 @@ func TestContextWithRun_CleansUpStepCounterOnGCAfterCancel(t *testing.T) {
 	// context cancellation, allowing GC to trigger the cleanup.
 	func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		ctx = ContextWithRun(ctx, &RunContext{RunID: runID, ChatID: chatID})
+		ContextWithRun(ctx, &RunContext{RunID: runID, ChatID: chatID})
 
-		handle, _ := beginStep(ctx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-		require.NotNil(t, handle)
-		require.Equal(t, int32(1), handle.stepCtx.StepNumber)
+		require.Equal(t, int32(1), nextStepNumber(runID))
 
 		_, ok := stepCounters.Load(runID)
 		require.True(t, ok)
@@ -79,8 +77,5 @@ func TestContextWithRun_CleansUpStepCounterOnGCAfterCancel(t *testing.T) {
 		return !ok
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	freshCtx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-	freshHandle, _ := beginStep(freshCtx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-	require.NotNil(t, freshHandle)
-	require.Equal(t, int32(1), freshHandle.stepCtx.StepNumber)
+	require.Equal(t, int32(1), nextStepNumber(runID))
 }

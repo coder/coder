@@ -194,7 +194,6 @@ func (s *Service) UpdateRun(
 			ModelConfigID:       uuid.NullUUID{},
 			TriggerMessageID:    sql.NullInt64{},
 			HistoryTipMessageID: sql.NullInt64{},
-			Kind:                sql.NullString{},
 			Status:              nullString(string(params.Status)),
 			Provider:            sql.NullString{},
 			Model:               sql.NullString{},
