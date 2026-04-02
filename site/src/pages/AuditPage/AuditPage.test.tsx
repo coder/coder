@@ -178,4 +178,29 @@ describe("AuditPage", () => {
 			);
 		});
 	});
+
+	describe("Capped count", () => {
+		it("shows capped count indicator and navigates to next page with correct offset", async () => {
+			vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+				audit_logs: [MockAuditLog, MockAuditLog2],
+				count: 5000,
+				count_cap: 2000,
+			});
+
+			const user = userEvent.setup();
+			await renderPage();
+
+			await screen.findByText(/2,000\+/);
+
+			await user.click(screen.getByRole("button", { name: /next page/i }));
+
+			await waitFor(() =>
+				expect(API.getAuditLogs).toHaveBeenLastCalledWith<[AuditLogsRequest]>({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: DEFAULT_RECORDS_PER_PAGE,
+					q: "",
+				}),
+			);
+		});
+	});
 });
