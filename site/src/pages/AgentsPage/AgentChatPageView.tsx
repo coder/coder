@@ -1,9 +1,10 @@
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useRef, useState } from "react";
+import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-
+import { chatDiffContentsKey } from "#/api/queries/chats";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
@@ -208,6 +209,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 	lastInjectedContext,
 }) => {
+	const queryClient = useQueryClient();
+
+	// Wrap the git watcher refresh to also invalidate the cached
+	// remote/PR diff contents so the panel re-fetches from GitHub.
+	const handleRefresh = () => {
+		const sent = gitWatcher.refresh();
+		if (sent && agentId) {
+			void queryClient.invalidateQueries({
+				queryKey: chatDiffContentsKey(agentId),
+				exact: true,
+			});
+		}
+		return sent;
+	};
+
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
@@ -389,7 +405,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 												: undefined
 										}
 										repositories={gitWatcher.repositories}
-										onRefresh={gitWatcher.refresh}
+										onRefresh={handleRefresh}
 										onCommit={handleCommit}
 										isExpanded={visualExpanded}
 										remoteDiffStats={diffStatusData}
