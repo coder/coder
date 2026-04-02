@@ -156,6 +156,19 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 	token.CORSBehavior = codersdk.CORSBehavior(dbReq.CorsBehavior)
 
+	// Populate visitor identity from the authenticated API key. This is the
+	// user visiting the app, not the workspace owner.
+	if apiKey != nil {
+		visitor, err := p.Database.GetUserByID(dangerousSystemCtx, apiKey.UserID)
+		if err != nil {
+			WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get visitor user")
+			return nil, "", false
+		}
+		token.VisitorUserID = visitor.ID
+		token.VisitorUsername = visitor.Username
+		token.VisitorEmail = visitor.Email
+	}
+
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {

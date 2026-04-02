@@ -364,6 +364,108 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
+		t.Run("InjectsCoderIdentityHeaders", func(t *testing.T) {
+			t.Parallel()
+
+			// Use a custom handler that echoes X-Coder-* request
+			// headers back as response headers so we can verify them.
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				ProxyHeaderPassUserID:    true,
+				ProxyHeaderPassUsername:  true,
+				ProxyHeaderPassUserEmail: true,
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					for name, values := range r.Header {
+						if strings.HasPrefix(name, "X-Coder-") {
+							for _, v := range values {
+								w.Header().Add(name, v)
+							}
+						}
+					}
+					w.WriteHeader(http.StatusOK)
+				}),
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			require.Equal(t, appDetails.Me.ID.String(), resp.Header.Get(codersdk.VisitorUserIDHeader))
+			require.Equal(t, appDetails.Me.Username, resp.Header.Get(codersdk.VisitorUsernameHeader))
+			require.Equal(t, appDetails.Me.Email, resp.Header.Get(codersdk.VisitorUserEmailHeader))
+		})
+
+		t.Run("StripsCoderIdentityHeadersFromClient", func(t *testing.T) {
+			t.Parallel()
+
+			// Verify that spoofed X-Coder-* headers from the client
+			// are stripped before forwarding, even when header injection
+			// is disabled.
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					for name, values := range r.Header {
+						if strings.HasPrefix(name, "X-Coder-") {
+							for _, v := range values {
+								w.Header().Add(name, v)
+							}
+						}
+					}
+					w.WriteHeader(http.StatusOK)
+				}),
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil, func(r *http.Request) {
+				// Attempt to spoof identity headers.
+				r.Header.Set(codersdk.VisitorUsernameHeader, "hacker")
+				r.Header.Set(codersdk.VisitorUserEmailHeader, "hacker@evil.com")
+				r.Header.Set(codersdk.VisitorUserIDHeader, uuid.New().String())
+			})
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// All settings are off, so no identity headers should be
+			// present. The spoofed ones must also be stripped.
+			require.Empty(t, resp.Header.Get(codersdk.VisitorUserIDHeader))
+			require.Empty(t, resp.Header.Get(codersdk.VisitorUsernameHeader))
+			require.Empty(t, resp.Header.Get(codersdk.VisitorUserEmailHeader))
+		})
+
+		t.Run("SelectiveHeaderInjection", func(t *testing.T) {
+			t.Parallel()
+
+			// Enable only the username header; the other two should
+			// be absent.
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				ProxyHeaderPassUsername: true,
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					for name, values := range r.Header {
+						if strings.HasPrefix(name, "X-Coder-") {
+							for _, v := range values {
+								w.Header().Add(name, v)
+							}
+						}
+					}
+					w.WriteHeader(http.StatusOK)
+				}),
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			require.Empty(t, resp.Header.Get(codersdk.VisitorUserIDHeader))
+			require.Equal(t, appDetails.Me.Username, resp.Header.Get(codersdk.VisitorUsernameHeader))
+			require.Empty(t, resp.Header.Get(codersdk.VisitorUserEmailHeader))
+		})
+
 		t.Run("ProxyError", func(t *testing.T) {
 			t.Parallel()
 

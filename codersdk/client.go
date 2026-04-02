@@ -110,6 +110,12 @@ const (
 
 	// EntitlementsWarnings contains active warnings for the user's entitlements.
 	EntitlementsWarningHeader = "X-Coder-Entitlements-Warning"
+
+	// Visitor identity headers injected by the workspace app proxy.
+	// These identify the authenticated user visiting a workspace app.
+	VisitorUserIDHeader    = "X-Coder-User-Id"
+	VisitorUsernameHeader  = "X-Coder-Username"
+	VisitorUserEmailHeader = "X-Coder-User-Email"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log

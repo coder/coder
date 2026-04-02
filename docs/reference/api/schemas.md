@@ -6244,6 +6244,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "daemons": 0,
       "force_cancel_interval": 0
     },
+    "proxy_header_pass_user_email": true,
+    "proxy_header_pass_user_id": true,
+    "proxy_header_pass_username": true,
     "proxy_health_status_interval": 0,
     "proxy_trusted_headers": [
       "string"
@@ -6871,6 +6874,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "daemons": 0,
     "force_cancel_interval": 0
   },
+  "proxy_header_pass_user_email": true,
+  "proxy_header_pass_user_id": true,
+  "proxy_header_pass_username": true,
   "proxy_health_status_interval": 0,
   "proxy_trusted_headers": [
     "string"
@@ -7046,6 +7052,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `pprof`                                        | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                                   | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
 | `provisioner`                                  | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                             | false    |              |                                                                    |
+| `proxy_header_pass_user_email`                 | boolean                                                                                              | false    |              |                                                                    |
+| `proxy_header_pass_user_id`                    | boolean                                                                                              | false    |              |                                                                    |
+| `proxy_header_pass_username`                   | boolean                                                                                              | false    |              |                                                                    |
 | `proxy_health_status_interval`                 | integer                                                                                              | false    |              |                                                                    |
 | `proxy_trusted_headers`                        | array of string                                                                                      | false    |              |                                                                    |
 | `proxy_trusted_origins`                        | array of string                                                                                      | false    |              |                                                                    |

@@ -79,11 +79,14 @@ type Options struct {
 	PrometheusRegistry *prometheus.Registry
 	TLSCertificates    []tls.Certificate
 
-	APIRateLimit           int
-	CookieConfig           codersdk.HTTPCookieConfig
-	DisablePathApps        bool
-	DERPEnabled            bool
-	DERPServerRelayAddress string
+	APIRateLimit             int
+	CookieConfig             codersdk.HTTPCookieConfig
+	DisablePathApps          bool
+	ProxyHeaderPassUserID    bool
+	ProxyHeaderPassUsername  bool
+	ProxyHeaderPassUserEmail bool
+	DERPEnabled              bool
+	DERPServerRelayAddress   string
 	// DERPOnly determines whether this proxy only provides DERP and does not
 	// provide access to workspace apps/terminal.
 	DERPOnly bool
@@ -335,8 +338,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			Logger:                   s.Logger.Named("proxy_token_provider"),
 		},
 
-		DisablePathApps: opts.DisablePathApps,
-		CookiesConfig:   opts.CookieConfig,
+		DisablePathApps:          opts.DisablePathApps,
+		ProxyHeaderPassUserID:    opts.ProxyHeaderPassUserID,
+		ProxyHeaderPassUsername:  opts.ProxyHeaderPassUsername,
+		ProxyHeaderPassUserEmail: opts.ProxyHeaderPassUserEmail,
+		CookiesConfig:            opts.CookieConfig,
 
 		AgentProvider:            agentProvider,
 		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
