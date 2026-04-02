@@ -3,10 +3,14 @@ import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-
+import type { StatusIndicatorProps } from "#/components/StatusIndicator/StatusIndicator";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import { getDisplayWorkspaceStatus } from "#/utils/workspace";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
+
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -20,8 +24,7 @@ import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
-import { ChatTopBar } from "./components/ChatTopBar/ChatTopBar";
-import { statusVariantMap } from "./components/ChatTopBar/WorkspaceBadge";
+import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
@@ -241,6 +244,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
+		const statusVariantMap: Record<
+			DisplayWorkspaceStatusType,
+			StatusIndicatorProps["variant"]
+		> = {
+			active: "pending",
+			inactive: "inactive",
+			success: "success",
+			error: "failed",
+			danger: "warning",
+			warning: "warning",
+		};
 		const { type } = getDisplayWorkspaceStatus(
 			workspace.latest_build.status,
 			workspace.latest_build.job,
@@ -384,7 +398,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onMCPAuthComplete={onMCPAuthComplete}
 							lastInjectedContext={lastInjectedContext}
 							attachedWorkspace={attachedWorkspace}
-							/>					</div>
+						/>{" "}
+					</div>
 				</div>
 				<RightPanel
 					isOpen={shouldShowSidebar}

@@ -29,8 +29,9 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
-import { useEmbedContext } from "../EmbedContext";
-import { PullRequestBadge } from "./PullRequestBadge";
+import { parsePullRequestUrl } from "../utils/pullRequest";
+import { useEmbedContext } from "./EmbedContext";
+import { PrStateIcon } from "./GitPanel/GitPanel";
 
 interface SidebarPanelState {
 	showSidebarPanel: boolean;
@@ -82,6 +83,15 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	diffStatusData,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+
+	const prUrl = diffStatusData?.url;
+	const prState = diffStatusData?.pull_request_state;
+	const prDraft = diffStatusData?.pull_request_draft;
+	const prTitle = diffStatusData?.pull_request_title;
+	const parsedPr = parsePullRequestUrl(prUrl);
+	const prNumberMatch =
+		diffStatusData?.pr_number?.toString() ?? parsedPr?.number;
+	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -152,15 +162,32 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
-			{/* PR link — hidden on desktop when the sidebar panel
-				   is open (which already shows PR info). On mobile the
-				   title is hidden so it collapses to a compact pill. */}
-			{diffStatusData && (
-				<PullRequestBadge
-					diffStatusData={diffStatusData}
-					hiddenWhenPanelOpen={panel.showSidebarPanel}
-				/>
-			)}{" "}
+			{/* PR link — mobile: icon + number; desktop: icon + title.
+			   Hidden on desktop when the sidebar panel is open
+			   (which already shows PR info). */}
+			{prUrl && hasPR && (
+				<a
+					href={prUrl}
+					target="_blank"
+					rel="noreferrer"
+					className={cn(
+						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+						panel.showSidebarPanel && "md:hidden",
+					)}
+				>
+					<PrStateIcon
+						state={prState}
+						draft={prDraft}
+						className="!size-3.5 shrink-0"
+					/>
+					<span className="truncate max-w-[120px] hidden md:inline">
+						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
+					</span>
+					<span className="md:hidden">
+						{prNumberMatch ? prNumberMatch : "PR"}
+					</span>
+				</a>
+			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
 				{!isEmbedded && (
