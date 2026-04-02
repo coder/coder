@@ -1363,47 +1363,49 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 		return xerrors.New("chat_id is required")
 	}
 
-	statusChat := chat
-	interrupted := false
-	var archivedChats []database.Chat
+	var (
+		archivedChats    []database.Chat
+		interruptedChats []database.Chat
+	)
 	if err := p.db.InTx(func(tx database.Store) error {
-		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
-		if err != nil {
+		if _, err := tx.GetChatByIDForUpdate(ctx, chat.ID); err != nil {
 			return xerrors.Errorf("lock chat for archive: %w", err)
 		}
-		statusChat = lockedChat
 
-		// We do not call setChatWaiting here because it intentionally preserves
-		// pending chats so queued-message promotion can win. Archiving is a
-		// harder stop: both pending and running chats must transition to waiting.
-		if lockedChat.Status == database.ChatStatusPending || lockedChat.Status == database.ChatStatusRunning {
-			statusChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:          chat.ID,
+		archivedChats, err := tx.ArchiveChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("archive chat: %w", err)
+		}
+
+		for i, archivedChat := range archivedChats {
+			if archivedChat.Status != database.ChatStatusPending &&
+				archivedChat.Status != database.ChatStatusRunning {
+				continue
+			}
+
+			updatedChat, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:          archivedChat.ID,
 				Status:      database.ChatStatusWaiting,
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},
 				LastError:   sql.NullString{},
 			})
-			if err != nil {
-				return xerrors.Errorf("set chat waiting before archive: %w", err)
+			if updateErr != nil {
+				return xerrors.Errorf("set archived chat waiting before cleanup: %w", updateErr)
 			}
-			interrupted = true
-		}
-
-		archivedChats, err = tx.ArchiveChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("archive chat: %w", err)
+			archivedChats[i] = updatedChat
+			interruptedChats = append(interruptedChats, updatedChat)
 		}
 		return nil
 	}, nil); err != nil {
 		return err
 	}
 
-	if interrupted {
-		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
-		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
-		p.waitForActiveChatStop(ctx, chat.ID, 5*time.Second)
+	for _, interruptedChat := range interruptedChats {
+		p.publishStatus(interruptedChat.ID, interruptedChat.Status, interruptedChat.WorkerID)
+		p.publishChatPubsubEvent(interruptedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.waitForActiveChatStop(ctx, interruptedChat.ID, 5*time.Second)
 	}
 
 	if p.debugSvc != nil {
