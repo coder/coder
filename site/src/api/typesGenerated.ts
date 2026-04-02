@@ -2385,13 +2385,7 @@ export interface CreateChatRequest {
  */
 export interface CreateFirstUserOnboardingInfo {
 	readonly is_business: boolean | null;
-	/**
-	 * IndustryType is a free-form string supplied by the frontend.
-	 * Expected values include "Technology", "Finance", "Healthcare",
-	 * "Education", "Government", "Retail", "Media", "Manufacturing",
-	 * "Transportation", "Energy", "Other".
-	 */
-	readonly industry_type: string;
+	readonly industry_type: IndustryType;
 	readonly org_size: OrgSizeRange;
 	readonly newsletter_marketing: boolean | null;
 	readonly newsletter_releases: boolean | null;
@@ -3850,6 +3844,40 @@ export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
 // From codersdk/inboxnotification.go
 export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
+// From codersdk/users.go
+export type IndustryType =
+	| "Consulting"
+	| "Education"
+	| "Energy"
+	| "Financial Services"
+	| "Government"
+	| "Healthcare"
+	| "Manufacturing"
+	| "Media"
+	| "Non-Profit"
+	| "Other"
+	| "Retail"
+	| "Technology"
+	| "Telecom"
+	| "Transportation";
+
+export const IndustryTypes: IndustryType[] = [
+	"Consulting",
+	"Education",
+	"Energy",
+	"Financial Services",
+	"Government",
+	"Healthcare",
+	"Manufacturing",
+	"Media",
+	"Non-Profit",
+	"Other",
+	"Retail",
+	"Technology",
+	"Telecom",
+	"Transportation",
+];
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -4793,13 +4821,23 @@ export const OptionTypes: OptionType[] = [
 ];
 
 // From codersdk/users.go
-export type OrgSizeRange = "201-2000" | "51-200" | "1-50" | "2001+";
+export type OrgSizeRange =
+	| "11-50"
+	| "1001-5000"
+	| "201-1000"
+	| "2-10"
+	| "51-200"
+	| "5000+"
+	| "Just me";
 
 export const OrgSizeRanges: OrgSizeRange[] = [
-	"201-2000",
+	"11-50",
+	"1001-5000",
+	"201-1000",
+	"2-10",
 	"51-200",
-	"1-50",
-	"2001+",
+	"5000+",
+	"Just me",
 ];
 
 // From codersdk/organizations.go

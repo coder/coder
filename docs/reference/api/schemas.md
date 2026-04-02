@@ -2248,23 +2248,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "industry_type": "string",
+  "industry_type": "Technology",
   "is_business": true,
   "newsletter_marketing": true,
   "newsletter_releases": true,
-  "org_size": "1-50"
+  "org_size": "Just me"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                      |
-|------------------------|------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `industry_type`        | string                                         | false    |              | Industry type is a free-form string supplied by the frontend. Expected values include "Technology", "Finance", "Healthcare", "Education", "Government", "Retail", "Media", "Manufacturing", "Transportation", "Energy", "Other". |
-| `is_business`          | boolean                                        | false    |              |                                                                                                                                                                                                                                  |
-| `newsletter_marketing` | boolean                                        | false    |              |                                                                                                                                                                                                                                  |
-| `newsletter_releases`  | boolean                                        | false    |              |                                                                                                                                                                                                                                  |
-| `org_size`             | [codersdk.OrgSizeRange](#codersdkorgsizerange) | false    |              |                                                                                                                                                                                                                                  |
+| Name                   | Type                                           | Required | Restrictions | Description |
+|------------------------|------------------------------------------------|----------|--------------|-------------|
+| `industry_type`        | [codersdk.IndustryType](#codersdkindustrytype) | false    |              |             |
+| `is_business`          | boolean                                        | false    |              |             |
+| `newsletter_marketing` | boolean                                        | false    |              |             |
+| `newsletter_releases`  | boolean                                        | false    |              |             |
+| `org_size`             | [codersdk.OrgSizeRange](#codersdkorgsizerange) | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -2273,11 +2273,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "string",
   "name": "string",
   "onboarding_info": {
-    "industry_type": "string",
+    "industry_type": "Technology",
     "is_business": true,
     "newsletter_marketing": true,
     "newsletter_releases": true,
-    "org_size": "1-50"
+    "org_size": "Just me"
   },
   "password": "string",
   "trial": true,
@@ -5156,6 +5156,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
 
+## codersdk.IndustryType
+
+```json
+"Technology"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Consulting`, `Education`, `Energy`, `Financial Services`, `Government`, `Healthcare`, `Manufacturing`, `Media`, `Non-Profit`, `Other`, `Retail`, `Technology`, `Telecom`, `Transportation` |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -6390,16 +6404,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ## codersdk.OrgSizeRange
 
 ```json
-"1-50"
+"Just me"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                              |
-|---------------------------------------|
-| `1-50`, `2001+`, `201-2000`, `51-200` |
+| Value(s)                                                               |
+|------------------------------------------------------------------------|
+| `1001-5000`, `11-50`, `2-10`, `201-1000`, `5000+`, `51-200`, `Just me` |
 
 ## codersdk.Organization
 

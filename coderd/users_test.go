@@ -137,8 +137,8 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 			Password: "SomeSecurePassword!",
 			OnboardingInfo: &codersdk.CreateFirstUserOnboardingInfo{
 				IsBusiness:          &isBusiness,
-				IndustryType:        "Technology",
-				OrgSize:             codersdk.OrgSizeRangeMedium,
+				IndustryType:        codersdk.IndustryTypeTechnology,
+				OrgSize:             codersdk.OrgSizeRange51To200,
 				NewsletterMarketing: &wantMarketing,
 				NewsletterReleases:  &wantReleases,
 			},
@@ -149,8 +149,8 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 		require.NotNil(t, snapshot.FirstUserOnboarding)
 		require.NotNil(t, snapshot.FirstUserOnboarding.IsBusiness)
 		require.True(t, *snapshot.FirstUserOnboarding.IsBusiness)
-		require.Equal(t, "Technology", snapshot.FirstUserOnboarding.IndustryType)
-		require.Equal(t, string(codersdk.OrgSizeRangeMedium), snapshot.FirstUserOnboarding.OrgSize)
+		require.Equal(t, string(codersdk.IndustryTypeTechnology), snapshot.FirstUserOnboarding.IndustryType)
+		require.Equal(t, string(codersdk.OrgSizeRange51To200), snapshot.FirstUserOnboarding.OrgSize)
 		require.NotNil(t, snapshot.FirstUserOnboarding.NewsletterMarketing)
 		require.False(t, *snapshot.FirstUserOnboarding.NewsletterMarketing)
 		require.NotNil(t, snapshot.FirstUserOnboarding.NewsletterReleases)

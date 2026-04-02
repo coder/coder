@@ -150,10 +150,35 @@ type CreateFirstUserTrialInfo struct {
 type OrgSizeRange string
 
 const (
-	OrgSizeRangeSmall  OrgSizeRange = "1-50"
-	OrgSizeRangeMedium OrgSizeRange = "51-200"
-	OrgSizeRangeLarge  OrgSizeRange = "201-2000"
-	OrgSizeRangeXL     OrgSizeRange = "2001+"
+	OrgSizeRangeJustMe  OrgSizeRange = "Just me"
+	OrgSizeRange2To10   OrgSizeRange = "2-10"
+	OrgSizeRange11To50  OrgSizeRange = "11-50"
+	OrgSizeRange51To200 OrgSizeRange = "51-200"
+	OrgSizeRange201To1K OrgSizeRange = "201-1000"
+	OrgSizeRange1KTo5K  OrgSizeRange = "1001-5000"
+	OrgSizeRange5KPlus  OrgSizeRange = "5000+"
+)
+
+// IndustryType represents the industry vertical an organization operates in.
+// These values are fixed by agreement with the frontend and the telemetry
+// schema — do not change them without coordinating both sides.
+type IndustryType string
+
+const (
+	IndustryTypeTechnology     IndustryType = "Technology"
+	IndustryTypeFinancial      IndustryType = "Financial Services"
+	IndustryTypeHealthcare     IndustryType = "Healthcare"
+	IndustryTypeGovernment     IndustryType = "Government"
+	IndustryTypeEducation      IndustryType = "Education"
+	IndustryTypeRetail         IndustryType = "Retail"
+	IndustryTypeManufacturing  IndustryType = "Manufacturing"
+	IndustryTypeMedia          IndustryType = "Media"
+	IndustryTypeTelecom        IndustryType = "Telecom"
+	IndustryTypeEnergy         IndustryType = "Energy"
+	IndustryTypeTransportation IndustryType = "Transportation"
+	IndustryTypeConsulting     IndustryType = "Consulting"
+	IndustryTypeNonProfit      IndustryType = "Non-Profit"
+	IndustryTypeOther          IndustryType = "Other"
 )
 
 // CreateFirstUserOnboardingInfo contains optional demographic and
@@ -161,12 +186,8 @@ const (
 // Pointer fields allow an explicit "no" answer to be distinguished
 // from a skipped question, which matters for the telemetry schema.
 type CreateFirstUserOnboardingInfo struct {
-	IsBusiness *bool `json:"is_business"`
-	// IndustryType is a free-form string supplied by the frontend.
-	// Expected values include "Technology", "Finance", "Healthcare",
-	// "Education", "Government", "Retail", "Media", "Manufacturing",
-	// "Transportation", "Energy", "Other".
-	IndustryType        string       `json:"industry_type"`
+	IsBusiness          *bool        `json:"is_business"`
+	IndustryType        IndustryType `json:"industry_type"`
 	OrgSize             OrgSizeRange `json:"org_size"`
 	NewsletterMarketing *bool        `json:"newsletter_marketing"`
 	NewsletterReleases  *bool        `json:"newsletter_releases"`

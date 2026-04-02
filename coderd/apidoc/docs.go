@@ -14550,8 +14550,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "industry_type": {
-                    "description": "IndustryType is a free-form string supplied by the frontend.\nExpected values include \"Technology\", \"Finance\", \"Healthcare\",\n\"Education\", \"Government\", \"Retail\", \"Media\", \"Manufacturing\",\n\"Transportation\", \"Energy\", \"Other\".",
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.IndustryType"
                 },
                 "is_business": {
                     "type": "boolean"
@@ -16435,6 +16434,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.IndustryType": {
+            "type": "string",
+            "enum": [
+                "Technology",
+                "Financial Services",
+                "Healthcare",
+                "Government",
+                "Education",
+                "Retail",
+                "Manufacturing",
+                "Media",
+                "Telecom",
+                "Energy",
+                "Transportation",
+                "Consulting",
+                "Non-Profit",
+                "Other"
+            ],
+            "x-enum-varnames": [
+                "IndustryTypeTechnology",
+                "IndustryTypeFinancial",
+                "IndustryTypeHealthcare",
+                "IndustryTypeGovernment",
+                "IndustryTypeEducation",
+                "IndustryTypeRetail",
+                "IndustryTypeManufacturing",
+                "IndustryTypeMedia",
+                "IndustryTypeTelecom",
+                "IndustryTypeEnergy",
+                "IndustryTypeTransportation",
+                "IndustryTypeConsulting",
+                "IndustryTypeNonProfit",
+                "IndustryTypeOther"
+            ]
+        },
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
@@ -17624,16 +17658,22 @@ const docTemplate = `{
         "codersdk.OrgSizeRange": {
             "type": "string",
             "enum": [
-                "1-50",
+                "Just me",
+                "2-10",
+                "11-50",
                 "51-200",
-                "201-2000",
-                "2001+"
+                "201-1000",
+                "1001-5000",
+                "5000+"
             ],
             "x-enum-varnames": [
-                "OrgSizeRangeSmall",
-                "OrgSizeRangeMedium",
-                "OrgSizeRangeLarge",
-                "OrgSizeRangeXL"
+                "OrgSizeRangeJustMe",
+                "OrgSizeRange2To10",
+                "OrgSizeRange11To50",
+                "OrgSizeRange51To200",
+                "OrgSizeRange201To1K",
+                "OrgSizeRange1KTo5K",
+                "OrgSizeRange5KPlus"
             ]
         },
         "codersdk.Organization": {
