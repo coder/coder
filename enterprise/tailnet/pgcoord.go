@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -808,8 +809,8 @@ type querier struct {
 	newConnections   chan *connIO
 	closeConnections chan *connIO
 
-	peerUpdateQ *workQ[querierWorkKey]
-	mappingQ    *workQ[querierWorkKey]
+	peerUpdateQ *workQ[uuid.UUID]
+	mappingQ    *workQ[mKey]
 
 	wg sync.WaitGroup
 
@@ -842,8 +843,8 @@ func newQuerier(ctx context.Context,
 		store:            store,
 		newConnections:   newConnections,
 		closeConnections: closeConnections,
-		peerUpdateQ:      newWorkQ[querierWorkKey](ctx),
-		mappingQ:         newWorkQ[querierWorkKey](ctx),
+		peerUpdateQ:      newWorkQ[uuid.UUID](ctx),
+		mappingQ:         newWorkQ[mKey](ctx),
 		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
 		mappers:          make(map[mKey]*mapper),
 		updates:          updates,
@@ -851,18 +852,21 @@ func newQuerier(ctx context.Context,
 	}
 	q.subscribe()
 
-	q.wg.Add(2 + numWorkers)
+	// For an odd number of workers we allocate more to the mapping workers since they're busier.
+	mappingWorkers := int(math.Ceil(float64(numWorkers) / 2))
+	peerWorkers := numWorkers - mappingWorkers
+
+	q.wg.Add(2 + mappingWorkers + peerWorkers)
 	go func() {
 		<-firstHeartbeat
 		go q.handleIncoming()
-		for i := 0; i < numWorkers; i++ {
-			if i%2 == 0 {
-				go q.mappingWorker()
-			} else {
-				go q.peerUpdateWorker()
-			}
-		}
 		go q.handleUpdates()
+		for range mappingWorkers {
+			go q.mappingWorker()
+		}
+		for range peerWorkers {
+			go q.peerUpdateWorker()
+		}
 	}()
 	return q
 }
@@ -920,9 +924,7 @@ func (q *querier) newConn(c *connIO) {
 		}
 	}
 	q.mappers[mk] = mpr
-	q.mappingQ.enqueue(querierWorkKey{
-		mappingQuery: mk,
-	})
+	q.mappingQ.enqueue(mk)
 	q.logger.Debug(q.ctx, "added new mapper", slog.F("peer_id", c.UniqueID()))
 }
 
@@ -971,9 +973,7 @@ func (q *querier) peerUpdateWorker() {
 			return
 		}
 		peers := make([]uuid.UUID, 0, len(allKeys))
-		for _, k := range allKeys {
-			peers = append(peers, k.peerUpdate)
-		}
+		peers = append(peers, allKeys...)
 		err = backoff.Retry(func() error {
 			return q.peerUpdate(peers)
 		}, bkoff)
@@ -997,9 +997,7 @@ func (q *querier) mappingWorker() {
 			return
 		}
 		mkeys := make([]mKey, 0, len(allKeys))
-		for _, k := range allKeys {
-			mkeys = append(mkeys, k.mappingQuery)
-		}
+		mkeys = append(mkeys, allKeys...)
 		err = backoff.Retry(func() error {
 			return q.mappingQuery(mkeys)
 		}, bkoff)
@@ -1026,7 +1024,7 @@ func (q *querier) peerUpdate(peers []uuid.UUID) error {
 	for _, other := range others {
 		mk := mKey(other.PeerID)
 		if _, ok := q.mappers[mk]; ok {
-			q.mappingQ.enqueue(querierWorkKey{mappingQuery: mk})
+			q.mappingQ.enqueue(mk)
 		}
 	}
 	q.mu.Unlock()
@@ -1230,7 +1228,7 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	// we know that this peer has an updated node mapping, but we don't yet know who to send that
 	// update to. We need to query the database to find all the other peers that share a tunnel with
 	// this one, and then run mapping queries against all of them.
-	q.peerUpdateQ.enqueue(querierWorkKey{peerUpdate: peer})
+	q.peerUpdateQ.enqueue(peer)
 }
 
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
@@ -1260,7 +1258,7 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 				slog.F("peer_id", peer))
 			continue
 		}
-		q.mappingQ.enqueue(querierWorkKey{mappingQuery: mk})
+		q.mappingQ.enqueue(mk)
 	}
 }
 
@@ -1302,7 +1300,7 @@ func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for mk := range q.mappers {
-		q.mappingQ.enqueue(querierWorkKey{mappingQuery: mk})
+		q.mappingQ.enqueue(mk)
 	}
 }
 
@@ -1429,7 +1427,7 @@ type querierWorkKey struct {
 }
 
 type queueKey interface {
-	bKey | tKey | querierWorkKey
+	bKey | tKey | uuid.UUID | mKey
 }
 
 // workQ allows scheduling work based on a key.  Multiple enqueue requests for the same key are coalesced, and
@@ -1459,13 +1457,15 @@ func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 }
 
 // enqueue adds the key to the workQ if it is not already pending.
-func (q *workQ[K]) enqueue(key K) {
+func (q *workQ[K]) enqueue(keys ...K) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
-	if slices.Contains(q.pending, key) {
-		return
+	for _, key := range keys {
+		if slices.Contains(q.pending, key) {
+			continue
+		}
+		q.pending = append(q.pending, key)
 	}
-	q.pending = append(q.pending, key)
 	q.cond.Signal()
 }
 

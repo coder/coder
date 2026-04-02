@@ -439,10 +439,10 @@ func TestWorkQ_AcquireBatch_RespectsMax(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	q := newWorkQ[querierWorkKey](ctx)
+	q := newWorkQ[uuid.UUID](ctx)
 
 	for i := 0; i < 5; i++ {
-		q.enqueue(querierWorkKey{peerUpdate: uuid.New()})
+		q.enqueue(uuid.New())
 	}
 
 	batch, err := q.acquireBatch(3)
@@ -468,26 +468,26 @@ func TestWorkQ_AcquireBatch_SkipsInProgress(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	q := newWorkQ[querierWorkKey](ctx)
+	q := newWorkQ[uuid.UUID](ctx)
 
 	peer1 := uuid.New()
 	peer2 := uuid.New()
-	q.enqueue(querierWorkKey{peerUpdate: peer1})
-	q.enqueue(querierWorkKey{peerUpdate: peer2})
+	q.enqueue(peer1)
+	q.enqueue(peer2)
 
 	// Acquire one item.
 	key, err := q.acquire()
 	require.NoError(t, err)
-	assert.Equal(t, peer1, key.peerUpdate)
+	assert.Equal(t, peer1, key)
 
 	// Re-enqueue peer1 (simulating a new update while in progress).
-	q.enqueue(querierWorkKey{peerUpdate: peer1})
+	q.enqueue(peer1)
 
 	// acquireBatch should only return peer2 (peer1 is in progress).
 	batch, err := q.acquireBatch(10)
 	require.NoError(t, err)
 	require.Len(t, batch, 1)
-	assert.Equal(t, peer2, batch[0].peerUpdate)
+	assert.Equal(t, peer2, batch[0])
 
 	q.done(key)
 	for _, k := range batch {
@@ -498,7 +498,7 @@ func TestWorkQ_AcquireBatch_SkipsInProgress(t *testing.T) {
 	batch, err = q.acquireBatch(10)
 	require.NoError(t, err)
 	require.Len(t, batch, 1)
-	assert.Equal(t, peer1, batch[0].peerUpdate)
+	assert.Equal(t, peer1, batch[0])
 }
 
 func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
@@ -506,13 +506,13 @@ func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	q := newWorkQ[querierWorkKey](ctx)
+	q := newWorkQ[uuid.UUID](ctx)
 
 	peer := uuid.New()
-	q.enqueue(querierWorkKey{peerUpdate: peer})
+	q.enqueue(peer)
 
 	key, err := q.acquire()
 	require.NoError(t, err)
-	assert.Equal(t, peer, key.peerUpdate)
+	assert.Equal(t, peer, key)
 	q.done(key)
 }
