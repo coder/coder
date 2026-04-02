@@ -220,14 +220,14 @@ Release notes are automatically generated from commit titles and PR metadata.
 | Type                   | Tag           | Branch        | Purpose                                 |
 |------------------------|---------------|---------------|-----------------------------------------|
 | RC (release candidate) | `vX.Y.0-rc.W` | `main`        | Ad-hoc pre-release for customer testing |
-| GA (mainline)          | `vX.Y.0`      | `release/X.Y` | First stable release of a minor version |
+| Release                | `vX.Y.0`      | `release/X.Y` | First release of a minor version        |
 | Patch                  | `vX.Y.Z`      | `release/X.Y` | Bug fixes and security patches          |
 
 ### Workflow
 
 RC tags are created directly on `main`. The `release/X.Y` branch is only cut
-when the GA release is ready. This avoids cherry-picking main's progress onto
-a release branch between the first RC and GA.
+when the release is ready. This avoids cherry-picking main's progress onto
+a release branch between the first RC and the release.
 
 ```text
 main:  ──●──●──●──●──●──●──●──●──●──
@@ -239,9 +239,9 @@ main:  ──●──●──●──●──●──●──●──●�
 
 1. **RC:** On `main`, run `./scripts/release.sh`. The tool suggests the next
    RC version and tags it on `main`.
-2. **GA:** When the RC is blessed, create `release/X.Y` from `main` (or the
-   specific RC commit). Switch to that branch and run `./scripts/release.sh`,
-   which suggests the GA version (`vX.Y.0`).
+2. **Release:** When the RC is blessed, create `release/X.Y` from `main` (or
+   the specific RC commit). Switch to that branch and run
+   `./scripts/release.sh`, which suggests `vX.Y.0`.
 3. **Patch:** Cherry-pick fixes onto `release/X.Y` and run
    `./scripts/release.sh` from that branch.
 

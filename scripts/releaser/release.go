@@ -70,10 +70,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// Two modes:
 	//   1. On "main" — for tagging release candidates (RCs).
-	//   2. On "release/X.Y" — for GA and patch releases.
+	//   2. On "release/X.Y" — for releases and patches.
 	// RCs are tagged directly on main to avoid the toil of
 	// cherry-picking hundreds of commits onto a release branch.
-	// The release/X.Y branch is only cut when the GA release is
+	// The release/X.Y branch is only cut when the release is
 	// ready.
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 	onMain := currentBranch == "main"
@@ -156,7 +156,8 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			}
 		}
 
-		if latestRC != nil {
+		switch {
+		case latestRC != nil:
 			prevVersion = latestRC
 			infof(w, "Latest RC tag: %s", latestRC.String())
 			suggested = version{
@@ -165,7 +166,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 				Patch: latestRC.Patch,
 				Pre:   fmt.Sprintf("rc.%d", latestRC.rcNumber()+1),
 			}
-		} else if latestMainline != nil {
+		case latestMainline != nil:
 			infof(w, "No RC tags found. Latest mainline: %s", latestMainline.String())
 			suggested = version{
 				Major: latestMainline.Major,
@@ -173,7 +174,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 				Patch: 0,
 				Pre:   "rc.0",
 			}
-		} else {
+		default:
 			infof(w, "No previous tags found.")
 			suggested = version{Major: 2, Minor: 0, Patch: 0, Pre: "rc.0"}
 		}
@@ -196,7 +197,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		} else {
 			infof(w, "Previous release tag: %s", prevVersion.String())
 			if prevVersion.IsRC() {
-				// Branch has only RC tags; suggest the GA
+				// Branch has only RC tags; suggest the
 				// release (same base, no pre-release suffix).
 				suggested = version{
 					Major: prevVersion.Major,
@@ -232,19 +233,20 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	newVersion, _ := parseVersion(versionInput)
 
 	// Validate version against branch context.
-	if onMain && !newVersion.IsRC() {
-		warnf(w, "Tagging a non-RC version (%s) on main is unusual. GA releases should be tagged on release/X.Y.", newVersion)
+	switch {
+	case onMain && !newVersion.IsRC():
+		warnf(w, "Tagging a non-RC version (%s) on main is unusual. Non-RC releases should be tagged on release/X.Y.", newVersion)
 		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
 			return err
 		}
 		fmt.Fprintln(w)
-	} else if !onMain && newVersion.IsRC() {
+	case !onMain && newVersion.IsRC():
 		warnf(w, "Tagging an RC (%s) on a release branch is unusual. RCs should be tagged on main.", newVersion)
 		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
 			return err
 		}
 		fmt.Fprintln(w)
-	} else if !onMain && (newVersion.Major != branchMajor || newVersion.Minor != branchMinor) {
+	case !onMain && (newVersion.Major != branchMajor || newVersion.Minor != branchMinor):
 		warnf(w, "Version %s does not match branch %s (expected v%d.%d.X).",
 			newVersion, currentBranch, branchMajor, branchMinor)
 		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
