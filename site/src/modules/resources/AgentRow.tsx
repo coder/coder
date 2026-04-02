@@ -207,8 +207,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 		},
 		...agent.log_sources
 			.filter((logSource) => {
-				const log = agentLogs.find((log) => log.source_id === logSource.id);
-				return (log?.output?.length ?? 0) > 0;
+				return agentLogs.some(
+					(log) =>
+						log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+				);
 			})
 			.map((logSource) => ({
 				startIcon: logSource.icon ? (
