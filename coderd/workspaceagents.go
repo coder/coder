@@ -1495,9 +1495,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	// IsPrebuild() check and the subscribe call, and we'd miss the
 	// pubsub event entirely. By subscribing first, any event that
 	// fires during the checks below is buffered in the channel.
-	reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
-
-	cancelSub, err := prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
+	pubsubCh, cancelSub, err := prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID)
 	if err != nil {
 		log.Error(ctx, "subscribe to prebuild claimed channel", slog.Error(err))
 		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
@@ -1505,18 +1503,15 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer cancelSub()
 
+	reinitEvents := pubsubCh
+
 	// Only perform the durable claim check when the agent opts in via
-	// the "wait" query parameter. Old agents (pre-v2.X) don't send
-	// this and lack the duplicate-reinit guard, so they would enter
-	// an infinite reinit loop if we pre-seeded the channel on every
-	// connection.
-	//
-	// If the workspace has already been claimed (i.e. the owner is
-	// no longer the prebuilds system user), check whether it was
-	// originally a prebuild by inspecting the first build's
-	// initiator. The prebuild reconciler always uses
-	// PrebuildsSystemUserID as the initiator for the initial build.
-	if r.URL.Query().Has("wait") && !workspace.IsPrebuild() {
+	// the "wait" query parameter. Older agents don't send the
+	// "wait" query parameter and lack the duplicate-reinit guard, so
+	// they would enter an infinite reinit loop if we pre-seeded the
+	// channel on every connection.
+	waitParam, _ := strconv.ParseBool(r.URL.Query().Get("wait"))
+	if waitParam && !workspace.IsPrebuild() {
 		firstBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx,
 			database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 				WorkspaceID: workspace.ID,
@@ -1559,26 +1554,19 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if job.CompletedAt.Valid && !job.Error.Valid && !job.CanceledAt.Valid {
-			// Claim build succeeded — cancel the subscription
-			// (we no longer need pubsub) and pre-seed the
-			// channel so the transmitter delivers exactly one
-			// reinit event. Use a non-blocking send in case
-			// pubsub already delivered the event before we
-			// canceled.
+		if job.CompletedAt.Valid && !job.Error.Valid {
+			// Claim build succeeded — cancel the pubsub
+			// subscription (no longer needed) and swap in a
+			// pre-seeded channel so the transmitter delivers
+			// exactly one reinit event.
 			cancelSub()
-			select {
-			case reinitEvents <- agentsdk.ReinitializationEvent{
+			seeded := make(chan agentsdk.ReinitializationEvent, 1)
+			seeded <- agentsdk.ReinitializationEvent{
 				WorkspaceID: workspace.ID,
 				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 				OwnerID:     workspace.OwnerID,
-			}:
-			default:
-				// Pubsub already delivered the event.
 			}
-			// Don't close the channel — the transmitter will
-			// send the buffered event and then block until ctx
-			// is canceled or the client disconnects.
+			reinitEvents = seeded
 		} else if job.CompletedAt.Valid && job.Error.Valid {
 			// Claim build failed permanently. Return 409 so the
 			// agent treats this as terminal and stops retrying

@@ -772,7 +772,8 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 			if err != nil {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
-					logger.Info(ctx, "received terminal 409, stopping reinit polling")
+					logger.Info(ctx, "received terminal 409, stopping reinit polling",
+						slog.Error(sdkErr))
 					return
 				}
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
