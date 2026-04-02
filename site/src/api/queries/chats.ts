@@ -861,6 +861,47 @@ export const chatModelConfigs = () => ({
 		API.experimental.getChatModelConfigs(),
 });
 
+export const userChatProviderConfigsKey = [
+	"user-chat-provider-configs",
+] as const;
+
+export const userChatProviderConfigs = () => ({
+	queryKey: userChatProviderConfigsKey,
+	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
+		API.experimental.getUserChatProviderConfigs(),
+});
+
+type UpsertUserChatProviderKeyArgs = {
+	providerConfigId: string;
+	req: TypesGen.CreateUserChatProviderKeyRequest;
+};
+
+export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
+		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.experimental.deleteUserChatProviderKey(providerConfigId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	await Promise.all([
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),

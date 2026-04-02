@@ -61,12 +61,14 @@ import {
 	getSavedMCPSelection,
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
+import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
@@ -732,11 +734,19 @@ const AgentChatPage: FC = () => {
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
+		modelCatalog,
 	);
+	const modelSelectorHelp = getModelSelectorHelp({
+		isModelCatalogLoading,
+		hasModelOptions,
+		hasConfiguredModels,
+		hasUserFixableModelProviders,
+	});
 	const isSubmissionPending =
 		sendMutation.isPending ||
 		editMutation.isPending ||
@@ -1117,6 +1127,7 @@ const AgentChatPage: FC = () => {
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			modelSelectorHelp={modelSelectorHelp}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			compressionThreshold={compressionThreshold}

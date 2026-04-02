@@ -115,7 +115,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
-			selectedProviderState.hasEffectiveAPIKey,
+			(selectedProviderState.hasEffectiveAPIKey ||
+				selectedProviderState.providerConfig.allow_user_api_key),
 	);
 
 	const form = useFormik<ModelFormValues>({
@@ -315,7 +316,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
 			</button>
-			{/* Header — editable display name */}
+			{/* Header - editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
 					<ProviderIcon
@@ -447,7 +448,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 					/>
 
 					<div className="space-y-5">
-						{/* Pricing — toggle */}
+						{/* Pricing - toggle */}
 						<div>
 							<button
 								type="button"
@@ -482,7 +483,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							)}
 						</div>
 
-						{/* Advanced — toggle */}
+						{/* Advanced - toggle */}
 						<div>
 							<button
 								type="button"
@@ -542,7 +543,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 				</div>
-				{/* Footer — pushed to bottom */}
+				{/* Footer - pushed to bottom */}
 				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">
