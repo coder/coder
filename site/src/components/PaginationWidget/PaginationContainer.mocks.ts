@@ -34,7 +34,7 @@ export const mockInitialRenderResult: PaginationResult = {
 	hasPreviousPage: false,
 	totalRecords: undefined,
 	totalPages: undefined,
-	countIsCapped: false as const,
+	countIsCapped: false,
 };
 
 export const mockSuccessResult: PaginationResult = {
