@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
@@ -58,5 +59,219 @@ func TestUserEditRoles(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "fetch user")
+	})
+
+	t.Run("AddRole", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Member starts with no extra roles. Add auditor.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--add", "auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		memberRoles, err := client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
+	})
+
+	t.Run("AddRoleIdempotent", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// First, give the member the auditor role via --roles.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--roles=auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify auditor role was set.
+		memberRoles, err := client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
+
+		// Now try adding auditor again; should be a no-op with info
+		// message.
+		var stdout, stderr bytes.Buffer
+		inv, root = clitest.New(t, "users", "edit-roles", member.Username, "--add", "auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Roles should remain unchanged.
+		memberRoles, err = client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
+
+		// The command should have printed an info message about the
+		// role already being present.
+		combinedOutput := stdout.String() + stderr.String()
+		require.Contains(t, combinedOutput, "already")
+	})
+
+	t.Run("RemoveRole", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Give the member both auditor and user-admin roles.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--roles=auditor,user-admin")
+		clitest.SetupConfig(t, userAdmin, root)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify both roles were set.
+		memberRoles, err := client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"auditor", "user-admin"}, memberRoles.Roles)
+
+		// Remove auditor, leaving only user-admin.
+		inv, root = clitest.New(t, "users", "edit-roles", member.Username, "--remove", "auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		memberRoles, err = client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"user-admin"}, memberRoles.Roles)
+	})
+
+	t.Run("RemoveRoleNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Member starts with no extra roles (only implied "member").
+		// Try removing a role the user doesn't have.
+		var stdout, stderr bytes.Buffer
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--remove", "auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// The command should have printed an info message about no
+		// changes being required.
+		combinedOutput := stdout.String() + stderr.String()
+		require.Contains(t, combinedOutput, "already")
+	})
+
+	t.Run("AddAndRemoveTogether", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Give the member the auditor role first.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--roles=auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify setup.
+		memberRoles, err := client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"auditor"}, memberRoles.Roles)
+
+		// Add user-admin and remove auditor in one command.
+		inv, root = clitest.New(t, "users", "edit-roles", member.Username, "--add", "user-admin", "--remove", "auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		memberRoles, err = client.UserRoles(ctx, member.Username)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"user-admin"}, memberRoles.Roles)
+	})
+
+	t.Run("ConflictWithRolesFlag", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Using --roles together with --add should be rejected.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--roles", "auditor", "--add", "user-admin")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "--roles cannot be used with --add or --remove")
+	})
+
+	t.Run("SameRoleInBothFlags", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Specifying the same role in --add and --remove is
+		// contradictory and should be rejected.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--add", "auditor", "--remove", "auditor")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cannot appear in both --add and --remove")
+	})
+
+	t.Run("InvalidRoleNameInAdd", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOwner())
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Adding a role that doesn't exist should fail validation.
+		inv, root := clitest.New(t, "users", "edit-roles", member.Username, "--add", "nonexistent")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not valid")
 	})
 }

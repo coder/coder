@@ -12,7 +12,11 @@ import (
 )
 
 func (r *RootCmd) userEditRoles() *serpent.Command {
-	var givenRoles []string
+	var (
+		givenRoles  []string
+		addRoles    []string
+		removeRoles []string
+	)
 	cmd := &serpent.Command{
 		Use:   "edit-roles <username|user_id>",
 		Short: "Edit a user's roles by username or id",
@@ -24,9 +28,31 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				Flag:        "roles",
 				Value:       serpent.StringArrayOf(&givenRoles),
 			},
+			{
+				Name:        "add",
+				Description: "A list of roles to add to the user's existing roles.",
+				Flag:        "add",
+				Value:       serpent.StringArrayOf(&addRoles),
+			},
+			{
+				Name:        "remove",
+				Description: "A list of roles to remove from the user's existing roles.",
+				Flag:        "remove",
+				Value:       serpent.StringArrayOf(&removeRoles),
+			},
 		},
 		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
 		Handler: func(inv *serpent.Invocation) error {
+			// Validate flag conflicts before any API calls.
+			if len(givenRoles) > 0 && (len(addRoles) > 0 || len(removeRoles) > 0) {
+				return xerrors.Errorf("--roles cannot be used with --add or --remove")
+			}
+			for _, role := range addRoles {
+				if slices.Contains(removeRoles, role) {
+					return xerrors.Errorf("role %q cannot appear in both --add and --remove", role)
+				}
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -53,7 +79,48 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			}
 
 			var selectedRoles []string
-			if len(givenRoles) > 0 {
+			switch {
+			case len(addRoles) > 0 || len(removeRoles) > 0:
+				// Validate --add roles against assignable site roles.
+				for _, role := range addRoles {
+					if !slices.Contains(siteRoleNames, role) {
+						siteRolesPretty := strings.Join(siteRoleNames, ", ")
+						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", role, siteRolesPretty)
+					}
+				}
+
+				// Start from the user's current assignable roles,
+				// filtering out implied roles like "member" that
+				// are not real assignable site roles.
+				currentAssignable := make([]string, 0, len(userRoles.Roles))
+				for _, role := range userRoles.Roles {
+					if slices.Contains(siteRoleNames, role) {
+						currentAssignable = append(currentAssignable, role)
+					}
+				}
+				selectedRoles = append([]string{}, currentAssignable...)
+
+				// Apply additions.
+				for _, role := range addRoles {
+					if !slices.Contains(selectedRoles, role) {
+						selectedRoles = append(selectedRoles, role)
+					}
+				}
+
+				// Apply removals.
+				selectedRoles = slices.DeleteFunc(selectedRoles, func(r string) bool {
+					return slices.Contains(removeRoles, r)
+				})
+
+				// If nothing changed, inform the user and exit early.
+				slices.Sort(selectedRoles)
+				slices.Sort(currentAssignable)
+				if slices.Equal(selectedRoles, currentAssignable) {
+					cliui.Infof(inv.Stdout, "No role changes required; the user already has the desired roles.")
+					return nil
+				}
+
+			case len(givenRoles) > 0:
 				// Make sure all of the given roles are valid site roles
 				for _, givenRole := range givenRoles {
 					if !slices.Contains(siteRoleNames, givenRole) {
@@ -63,7 +130,8 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				}
 
 				selectedRoles = givenRoles
-			} else {
+
+			default:
 				selectedRoles, err = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 					Message:  "Select the roles you'd like to assign to the user",
 					Options:  siteRoleNames,
