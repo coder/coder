@@ -26,6 +26,7 @@ import {
 	getSavedMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
+import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -187,11 +188,21 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
+	const hasUserFixableModelProviders =
+		modelCatalog?.providers?.some(
+			(provider) => provider.unavailable_reason === "user_api_key_required",
+		) ?? false;
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
 	);
+	const modelSelectorHelp = getModelSelectorHelp({
+		isModelCatalogLoading,
+		hasModelOptions,
+		hasConfiguredModels,
+		hasUserFixableModelProviders,
+	});
 	useEffect(() => {
 		if (!initialLastModelConfigID) {
 			return;
@@ -367,6 +378,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onWorkspaceChange={handleWorkspaceChange}
 					isWorkspaceLoading={isWorkspacesLoading}
 				/>
+				{modelSelectorHelp ? (
+					<div className="px-3 pt-1 text-2xs text-content-secondary">
+						{modelSelectorHelp}
+					</div>
+				) : null}
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
 					Coder Agents is available via{" "}
 					<a

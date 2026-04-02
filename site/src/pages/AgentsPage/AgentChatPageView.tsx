@@ -6,7 +6,13 @@ import {
 	MonitorXIcon,
 } from "lucide-react";
 
-import { type FC, type RefObject, useRef, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	type RefObject,
+	useRef,
+	useState,
+} from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { chatDiffContentsKey } from "#/api/queries/chats";
@@ -94,6 +100,7 @@ interface AgentChatPageViewProps {
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	compressionThreshold: number | undefined;
@@ -179,6 +186,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	setSelectedModel,
 	modelOptions,
 	modelSelectorPlaceholder,
+	modelSelectorHelp,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	compressionThreshold,
@@ -403,6 +411,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onModelChange={setSelectedModel}
 							modelOptions={modelOptions}
 							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							modelSelectorHelp={modelSelectorHelp}
 							isModelCatalogLoading={isModelCatalogLoading}
 							inputRef={editing.chatInputRef}
 							initialValue={editing.editorInitialValue}

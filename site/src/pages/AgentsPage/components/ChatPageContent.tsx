@@ -1,4 +1,4 @@
-import { type FC, Profiler, useEffect } from "react";
+import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -128,6 +128,7 @@ interface ChatPageInputProps {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -181,6 +182,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onModelChange,
 	modelOptions,
 	modelSelectorPlaceholder,
+	modelSelectorHelp,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -292,75 +294,82 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
 	return (
-		<AgentChatInput
-			onSend={(message) => {
-				void (async () => {
-					// Collect file IDs from already-uploaded attachments.
-					// Skip files in error state (e.g. too large).
-					const fileIds: string[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
+		<div>
+			<AgentChatInput
+				onSend={(message) => {
+					void (async () => {
+						// Collect file IDs from already-uploaded attachments.
+						// Skip files in error state (e.g. too large).
+						const fileIds: string[] = [];
+						let skippedErrors = 0;
+						for (const file of attachments) {
+							const state = uploadStates.get(file);
+							if (state?.status === "error") {
+								skippedErrors++;
+								continue;
+							}
+							if (state?.status === "uploaded" && state.fileId) {
+								fileIds.push(state.fileId);
+							}
 						}
-						if (state?.status === "uploaded" && state.fileId) {
-							fileIds.push(state.fileId);
+						if (skippedErrors > 0) {
+							toast.warning(
+								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+							);
 						}
-					}
-					if (skippedErrors > 0) {
-						toast.warning(
-							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-						);
-					}
-					const fileArg = fileIds.length > 0 ? fileIds : undefined;
-					try {
-						await onSend(message, fileArg);
-					} catch {
-						// Attachments preserved for retry on failure.
-						return;
-					}
-					resetAttachments();
-				})();
-			}}
-			attachments={attachments}
-			onAttach={handleAttach}
-			onRemoveAttachment={handleRemoveAttachment}
-			uploadStates={uploadStates}
-			previewUrls={previewUrls}
-			textContents={textContents}
-			inputRef={inputRef}
-			initialValue={initialValue}
-			initialEditorState={initialEditorState}
-			remountKey={remountKey}
-			onContentChange={onContentChange}
-			queuedMessages={queuedMessages}
-			onDeleteQueuedMessage={onDeleteQueuedMessage}
-			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			editingQueuedMessageID={editingQueuedMessageID}
-			onStartQueueEdit={onStartQueueEdit}
-			onCancelQueueEdit={onCancelQueueEdit}
-			isEditingHistoryMessage={isEditingHistoryMessage}
-			onCancelHistoryEdit={onCancelHistoryEdit}
-			onEditLastUserMessage={handleEditLastUserMessage}
-			isDisabled={isInputDisabled}
-			isLoading={isSendPending}
-			isStreaming={isStreaming}
-			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending}
-			contextUsage={latestContextUsage}
-			hasModelOptions={hasModelOptions}
-			selectedModel={selectedModel}
-			onModelChange={onModelChange}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			isModelCatalogLoading={isModelCatalogLoading}
-			mcpServers={mcpServers}
-			selectedMCPServerIds={selectedMCPServerIds}
-			onMCPSelectionChange={onMCPSelectionChange}
-			onMCPAuthComplete={onMCPAuthComplete}
-			attachedWorkspace={attachedWorkspace}
-		/>
+						const fileArg = fileIds.length > 0 ? fileIds : undefined;
+						try {
+							await onSend(message, fileArg);
+						} catch {
+							// Attachments preserved for retry on failure.
+							return;
+						}
+						resetAttachments();
+					})();
+				}}
+				attachments={attachments}
+				onAttach={handleAttach}
+				onRemoveAttachment={handleRemoveAttachment}
+				uploadStates={uploadStates}
+				previewUrls={previewUrls}
+				textContents={textContents}
+				inputRef={inputRef}
+				initialValue={initialValue}
+				initialEditorState={initialEditorState}
+				remountKey={remountKey}
+				onContentChange={onContentChange}
+				queuedMessages={queuedMessages}
+				onDeleteQueuedMessage={onDeleteQueuedMessage}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+				editingQueuedMessageID={editingQueuedMessageID}
+				onStartQueueEdit={onStartQueueEdit}
+				onCancelQueueEdit={onCancelQueueEdit}
+				isEditingHistoryMessage={isEditingHistoryMessage}
+				onCancelHistoryEdit={onCancelHistoryEdit}
+				onEditLastUserMessage={handleEditLastUserMessage}
+				isDisabled={isInputDisabled}
+				isLoading={isSendPending}
+				isStreaming={isStreaming}
+				onInterrupt={onInterrupt}
+				isInterruptPending={isInterruptPending}
+				contextUsage={latestContextUsage}
+				hasModelOptions={hasModelOptions}
+				selectedModel={selectedModel}
+				onModelChange={onModelChange}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				isModelCatalogLoading={isModelCatalogLoading}
+				mcpServers={mcpServers}
+				selectedMCPServerIds={selectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+				onMCPAuthComplete={onMCPAuthComplete}
+				attachedWorkspace={attachedWorkspace}
+			/>
+			{modelSelectorHelp ? (
+				<div className="px-3 pt-1 text-2xs text-content-secondary">
+					{modelSelectorHelp}
+				</div>
+			) : null}
+		</div>
 	);
 };
