@@ -81,8 +81,13 @@ describe("isWorkspaceNotFound", () => {
 
 describe("archiveAndDeleteWorkspace", () => {
 	it("archives and deletes when both succeed", async () => {
-		const doArchive = vi.fn(async () => undefined);
-		const doDelete = vi.fn(async () => undefined);
+		const callOrder: string[] = [];
+		const doArchive = vi.fn(async () => {
+			callOrder.push("archive");
+		});
+		const doDelete = vi.fn(async () => {
+			callOrder.push("delete");
+		});
 
 		await expect(
 			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
@@ -91,6 +96,7 @@ describe("archiveAndDeleteWorkspace", () => {
 		expect(doArchive).toHaveBeenCalledWith("chat-1");
 		expect(doDelete).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledWith("workspace-1");
+		expect(callOrder).toEqual(["archive", "delete"]);
 	});
 
 	it("succeeds when delete returns 404", async () => {

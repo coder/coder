@@ -342,6 +342,10 @@ const AgentsPage: FC = () => {
 					},
 				);
 			} else if (action === "archive") {
+				// The workspace is already gone (404), so we skip the
+				// running-agent confirmation dialog. That dialog warns
+				// about interrupting a live workspace, which is moot
+				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
