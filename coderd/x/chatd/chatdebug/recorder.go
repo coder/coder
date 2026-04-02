@@ -95,6 +95,32 @@ func CleanupStepCounter(runID uuid.UUID) {
 	stepCounters.Delete(runID)
 }
 
+const stepFinalizeTimeout = 5 * time.Second
+
+func stepFinalizeContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		panic("chatdebug: nil context")
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), stepFinalizeTimeout)
+}
+
+func syncStepCounter(runID uuid.UUID, stepNumber int32) {
+	val, _ := stepCounters.LoadOrStore(runID, &atomic.Int32{})
+	counter, ok := val.(*atomic.Int32)
+	if !ok {
+		panic("chatdebug: invalid step counter type")
+	}
+	for {
+		current := counter.Load()
+		if current >= stepNumber {
+			return
+		}
+		if counter.CompareAndSwap(current, stepNumber) {
+			return
+		}
+	}
+}
+
 type stepHandle struct {
 	stepCtx *StepContext
 	sink    *attemptSink
@@ -160,11 +186,17 @@ func beginStep(
 		return nil, ctx
 	}
 
+	syncStepCounter(rc.RunID, step.StepNumber)
+	actualStepNumber := step.StepNumber
+	if actualStepNumber == 0 {
+		actualStepNumber = stepNum
+	}
+
 	sc := &StepContext{
 		StepID:              step.ID,
 		RunID:               rc.RunID,
 		ChatID:              chatID,
-		StepNumber:          stepNum,
+		StepNumber:          actualStepNumber,
 		Operation:           op,
 		HistoryTipMessageID: rc.HistoryTipMessageID,
 	}
@@ -191,7 +223,14 @@ func (h *stepHandle) finish(
 		return
 	}
 
-	_, _ = h.svc.UpdateStep(ctx, UpdateStepParams{
+	if h.svc == nil {
+		return
+	}
+
+	updateCtx, cancel := stepFinalizeContext(ctx)
+	defer cancel()
+
+	_, _ = h.svc.UpdateStep(updateCtx, UpdateStepParams{
 		ID:                 h.stepCtx.StepID,
 		ChatID:             h.stepCtx.ChatID,
 		Status:             status,

@@ -2,6 +2,7 @@ package chatdebug
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -215,6 +216,8 @@ func (r *recordingBody) Close() error {
 	sawEOF := r.sawEOF
 	bytesRead := r.bytesRead
 	contentLength := r.contentLength
+	truncated := r.truncated
+	responseBody := append([]byte(nil), r.buf.Bytes()...)
 	r.mu.Unlock()
 
 	switch {
@@ -222,10 +225,20 @@ func (r *recordingBody) Close() error {
 		r.record(io.EOF)
 	case contentLength >= 0 && bytesRead >= contentLength:
 		r.record(nil)
+	case contentLength < 0 && !truncated && isCompleteUnknownLengthBody(responseBody):
+		r.record(nil)
 	default:
 		r.record(io.ErrUnexpectedEOF)
 	}
 	return nil
+}
+
+func isCompleteUnknownLengthBody(body []byte) bool {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return true
+	}
+	return json.Valid(trimmed)
 }
 
 func (r *recordingBody) record(err error) {
