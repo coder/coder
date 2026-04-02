@@ -438,9 +438,13 @@ type Story = StoryObj<typeof DebugPanel>;
 export const Loading: Story = {
 	beforeEach: () => {
 		const pendingRequest = () => new Promise<never>(() => {});
-		spyOn(API.experimental, "getChatDebugRuns").mockImplementation(
-			pendingRequest,
-		);
+		const getChatDebugRunsMock = spyOn(
+			API.experimental,
+			"getChatDebugRuns",
+		).mockImplementation(pendingRequest);
+		return () => {
+			getChatDebugRunsMock.mockRestore();
+		};
 	},
 };
 
