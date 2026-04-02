@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import { type ChangeEvent, type FC, type ReactNode, useState } from "react";
+import type { ChangeEvent, FC, ReactNode } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import * as Yup from "yup";
 import { API } from "#/api/api";
@@ -32,36 +32,30 @@ import {
 export const Language = {
 	emailLabel: "Email",
 	passwordLabel: "Password",
-	nameLabel: "Full Name",
 	usernameLabel: "Username",
 	emailInvalid: "Please enter a valid email address.",
 	emailRequired: "Please enter an email address.",
 	passwordRequired: "Please enter a password.",
-	create: "Continue with email",
-	githubCreate: "Continue with GitHub",
-	welcomeMessage: <>Welcome to Coder</>,
+	create: "Continue",
+	githubCreate: "GitHub",
 	firstNameLabel: "First name",
 	lastNameLabel: "Last name",
 	companyLabel: "Company",
 	jobTitleLabel: "Job title",
 	phoneNumberLabel: "Phone number",
 	countryLabel: "Country",
-	developersLabel: "Number of developers",
 	firstNameRequired: "Please enter your first name.",
 	phoneNumberRequired: "Please enter your phone number.",
 	jobTitleRequired: "Please enter your job title.",
 	companyNameRequired: "Please enter your company name.",
 	countryRequired: "Please select your country.",
-	developersRequired: "Please select the number of developers in your company.",
-	isBusinessLabel: "Is this for business use?",
-	industryTypeLabel: "Industry",
-	orgSizeLabel: "Organization size",
-	newsletterSectionLabel: "Newsletter signup",
-	newsletterMarketingLabel: "Marketing updates",
+	newsletterSectionLabel: "Sign up for updates",
+	newsletterReleasesLabel: "Release notes & security updates",
+	newsletterReleasesDescription:
+		"Monthly changelog, security updates, and more",
+	newsletterMarketingLabel: "Coder news",
 	newsletterMarketingDescription:
 		"Latest articles, workshops, events, and announcements",
-	newsletterReleasesLabel: "Release & security updates",
-	newsletterReleasesDescription: "New releases, patches, security advisories",
 };
 
 const usernameValidator = nameValidator(Language.usernameLabel);
@@ -101,40 +95,10 @@ const validationSchema = Yup.object({
 			}),
 	}),
 	onboarding_info: Yup.object().shape({
-		is_business: Yup.bool(),
-		industry_type: Yup.string(),
-		org_size: Yup.string(),
 		newsletter_marketing: Yup.bool(),
 		newsletter_releases: Yup.bool(),
 	}),
 });
-
-const industryTypeOptions = [
-	"Technology",
-	"Financial Services",
-	"Healthcare",
-	"Government",
-	"Education",
-	"Retail",
-	"Manufacturing",
-	"Media",
-	"Telecom",
-	"Energy",
-	"Transportation",
-	"Consulting",
-	"Non-Profit",
-	"Other",
-];
-
-const orgSizeOptions = [
-	"Just me",
-	"2-10",
-	"11-50",
-	"51-200",
-	"201-1000",
-	"1001-5000",
-	"5000+",
-];
 
 interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
@@ -176,10 +140,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	isLoading,
 	authMethods,
 }) => {
-	// Track the is_business select display value separately because the form
-	// stores a boolean but we need three visual states: unselected / yes / no.
-	const [isBusinessDisplay, setIsBusinessDisplay] = useState("");
-
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
@@ -307,7 +267,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						/>
 					</Field>
 
-					{/* Enterprise trial toggle */}
+					{/* Premium trial toggle */}
 					<label
 						htmlFor="trial"
 						className="flex cursor-pointer gap-2 items-start"
@@ -324,7 +284,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						/>
 						<div className="flex flex-col gap-0.5">
 							<span className="text-sm font-semibold">
-								Start a 30-day trial of Enterprise
+								Start a 30-day trial of Premium
 							</span>
 							<span className="text-xs text-content-secondary leading-relaxed">
 								Get access to high availability, template RBAC, audit logging,
@@ -456,165 +416,68 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						</div>
 					)}
 
-					{/* Divider */}
-					<hr className="w-full border-0 border-t border-solid border-border my-2" />
-					{/* Onboarding info — always visible, all optional */}
-					<div className="flex flex-col gap-4">
-						<div>
-							<span className="text-sm font-semibold">
-								Help us make Coder better
+					{/* Sign up for updates */}
+					<div className="flex flex-col gap-3">
+						<span className="text-sm font-semibold">
+							{Language.newsletterSectionLabel}
+						</span>
+
+						<label
+							htmlFor="onboarding_info.newsletter_releases"
+							className="flex cursor-pointer gap-2 items-center"
+						>
+							<Checkbox
+								id="onboarding_info.newsletter_releases"
+								checked={form.values.onboarding_info.newsletter_releases}
+								onCheckedChange={(checked) =>
+									form.setFieldValue(
+										"onboarding_info.newsletter_releases",
+										checked === true,
+									)
+								}
+								data-testid="onboarding_info.newsletter_releases"
+							/>
+							<span className="text-sm">
+								<span className="font-medium">
+									{Language.newsletterReleasesLabel}
+								</span>
+								<span className="text-content-secondary">
+									{" "}
+									— {Language.newsletterReleasesDescription}
+								</span>
 							</span>
-							<span className="text-xs text-content-secondary ml-1.5">
-								(optional)
+						</label>
+
+						<label
+							htmlFor="onboarding_info.newsletter_marketing"
+							className="flex cursor-pointer gap-2 items-center"
+						>
+							<Checkbox
+								id="onboarding_info.newsletter_marketing"
+								checked={form.values.onboarding_info.newsletter_marketing}
+								onCheckedChange={(checked) =>
+									form.setFieldValue(
+										"onboarding_info.newsletter_marketing",
+										checked === true,
+									)
+								}
+								data-testid="onboarding_info.newsletter_marketing"
+							/>
+							<span className="text-sm">
+								<span className="font-medium">
+									{Language.newsletterMarketingLabel}
+								</span>
+								<span className="text-content-secondary">
+									{" "}
+									— {Language.newsletterMarketingDescription}
+								</span>
 							</span>
-						</div>
-
-						<div className="w-1/2 pr-1.5">
-							<Field
-								label={Language.isBusinessLabel}
-								id="onboarding_info.is_business"
-							>
-								<Select
-									value={isBusinessDisplay}
-									onValueChange={(value) => {
-										setIsBusinessDisplay(value);
-										form.setFieldValue(
-											"onboarding_info.is_business",
-											value === "yes",
-										);
-									}}
-								>
-									<SelectTrigger
-										id="onboarding_info.is_business"
-										data-testid="onboarding_info.is_business"
-									>
-										<SelectValue placeholder="Select..." />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="yes">Yes</SelectItem>
-										<SelectItem value="no">No</SelectItem>
-									</SelectContent>
-								</Select>
-							</Field>
-						</div>
-
-						{isBusinessDisplay === "yes" && (
-							<div className="grid grid-cols-2 gap-3">
-								<Field
-									label={Language.industryTypeLabel}
-									id="onboarding_info.industry_type"
-								>
-									<Select
-										value={form.values.onboarding_info.industry_type}
-										onValueChange={(value) =>
-											form.setFieldValue("onboarding_info.industry_type", value)
-										}
-									>
-										<SelectTrigger
-											id="onboarding_info.industry_type"
-											data-testid="onboarding_info.industry_type"
-										>
-											<SelectValue placeholder="Select..." />
-										</SelectTrigger>
-										<SelectContent>
-											{industryTypeOptions.map((opt) => (
-												<SelectItem key={opt} value={opt}>
-													{opt}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-
-								<Field
-									label={Language.orgSizeLabel}
-									id="onboarding_info.org_size"
-								>
-									<Select
-										value={form.values.onboarding_info.org_size}
-										onValueChange={(value) =>
-											form.setFieldValue("onboarding_info.org_size", value)
-										}
-									>
-										<SelectTrigger
-											id="onboarding_info.org_size"
-											data-testid="onboarding_info.org_size"
-										>
-											<SelectValue placeholder="Select..." />
-										</SelectTrigger>
-										<SelectContent>
-											{orgSizeOptions.map((opt) => (
-												<SelectItem key={opt} value={opt}>
-													{opt}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-							</div>
-						)}
-						{/* Newsletter signup */}
-						<div className="mt-2">
-							<span className="text-sm font-semibold block mb-2">
-								{Language.newsletterSectionLabel}
-							</span>
-
-							<label
-								htmlFor="onboarding_info.newsletter_marketing"
-								className="flex cursor-pointer gap-2 items-start mb-2"
-							>
-								<Checkbox
-									id="onboarding_info.newsletter_marketing"
-									checked={form.values.onboarding_info.newsletter_marketing}
-									onCheckedChange={(checked) =>
-										form.setFieldValue(
-											"onboarding_info.newsletter_marketing",
-											checked === true,
-										)
-									}
-									data-testid="onboarding_info.newsletter_marketing"
-									className="mt-0.5"
-								/>
-								<div>
-									<span className="text-sm font-medium block">
-										{Language.newsletterMarketingLabel}
-									</span>
-									<span className="text-xs text-content-secondary block">
-										{Language.newsletterMarketingDescription}
-									</span>
-								</div>
-							</label>
-
-							<label
-								htmlFor="onboarding_info.newsletter_releases"
-								className="flex cursor-pointer gap-2 items-start"
-							>
-								<Checkbox
-									id="onboarding_info.newsletter_releases"
-									checked={form.values.onboarding_info.newsletter_releases}
-									onCheckedChange={(checked) =>
-										form.setFieldValue(
-											"onboarding_info.newsletter_releases",
-											checked === true,
-										)
-									}
-									data-testid="onboarding_info.newsletter_releases"
-									className="mt-0.5"
-								/>
-								<div>
-									<span className="text-sm font-medium block">
-										{Language.newsletterReleasesLabel}
-									</span>
-									<span className="text-xs text-content-secondary block">
-										{Language.newsletterReleasesDescription}
-									</span>
-								</div>
-							</label>
-						</div>
+						</label>
 
 						{/* Privacy policy notice */}
-						<p className="text-xs text-content-secondary leading-relaxed mt-2">
-							The information you provide will be treated in accordance with the{" "}
+						<p className="text-xs text-content-secondary leading-relaxed">
+							Subscribe for the latest product and news updates from Coder. The
+							information you provide will be treated in accordance with the{" "}
 							<a
 								href="https://coder.com/legal/privacy-policy"
 								target="_blank"
@@ -623,10 +486,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							>
 								Coder Privacy Policy
 							</a>
-							. Opt-out at any time.
+							.
 						</p>
 					</div>
 
+					{/* Error alert */}
 					{isAxiosError(error) && error.response?.data?.message && (
 						<Alert severity="error" prominent>
 							<AlertTitle>{error.response.data.message}</AlertTitle>
@@ -647,16 +511,17 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						</Alert>
 					)}
 
-					<Button
-						className="w-full"
-						disabled={isLoading}
-						type="submit"
-						data-testid="create"
-						size="lg"
-					>
-						<Spinner loading={isLoading} />
-						{Language.create}
-					</Button>
+					<div className="flex justify-end">
+						<Button
+							disabled={isLoading}
+							type="submit"
+							data-testid="create"
+							variant="outline"
+						>
+							<Spinner loading={isLoading} />
+							{Language.create}
+						</Button>
+					</div>
 				</form>
 
 				<div className="text-xs text-content-secondary pt-6">
