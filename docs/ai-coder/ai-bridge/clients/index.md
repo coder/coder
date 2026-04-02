@@ -45,12 +45,12 @@ Alternatively, [generate a long-lived API token](../../../admin/users/sessions-t
 
 ## Bring Your Own Key (BYOK)
 
-![BYOK authentication flow](../../../images/aibridge/clients/byok_auth_flow.png)
-
 In addition to centralized key management, AI Bridge supports **Bring Your
 Own Key** (BYOK) mode. Users can provide their own LLM API keys or use
 provider subscriptions (such as Claude Pro/Max or ChatGPT Plus/Pro) while
 AI Bridge continues to provide observability and governance.
+
+![BYOK authentication flow](../../../images/aibridge/clients/byok_auth_flow.png)
 
 In BYOK mode, users need two credentials:
 
