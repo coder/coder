@@ -628,7 +628,7 @@ const ChatMessageItem = memo<{
 									"pb-5",
 							)}
 						>
-							<MessageContent className="whitespace-normal">
+							<MessageContent className="whitespace-normal pl-1">
 								<div
 									className={cn(
 										"relative space-y-3 overflow-visible",
@@ -653,7 +653,7 @@ const ChatMessageItem = memo<{
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
-													className="flex !mt-0 -ml-1"
+													className="flex !mt-0 -ml-2"
 													data-testid="assistant-copy-button"
 												>
 													<Tooltip
@@ -663,7 +663,7 @@ const ChatMessageItem = memo<{
 															<Button
 																size="icon"
 																variant="subtle"
-																className="pl-0"
+																className=""
 																onClick={() => {
 																	copyToClipboard(parsed.markdown);
 																	setCopyHovered(false);
