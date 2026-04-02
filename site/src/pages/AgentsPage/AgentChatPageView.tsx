@@ -3,7 +3,6 @@ import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import type { StatusIndicatorProps } from "#/components/StatusIndicator/StatusIndicator";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
@@ -244,27 +243,26 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		const statusVariantMap: Record<
-			DisplayWorkspaceStatusType,
-			StatusIndicatorProps["variant"]
-		> = {
-			active: "pending",
-			inactive: "inactive",
-			success: "success",
-			error: "failed",
-			danger: "warning",
-			warning: "warning",
-		};
 		const { type } = getDisplayWorkspaceStatus(
 			workspace.latest_build.status,
 			workspace.latest_build.job,
 		);
-		const variant =
-			statusVariantMap[workspace.health.healthy ? type : "warning"];
+		const effectiveType = workspace.health.healthy ? type : "warning";
+		// Muted dot classes — just enough to read on vs off.
+		// Error/warning states stay vivid since they warrant
+		// attention.
+		const statusClassMap: Record<DisplayWorkspaceStatusType, string> = {
+			success: "bg-content-success/60",
+			active: "bg-content-secondary",
+			inactive: "bg-content-secondary/50",
+			error: "bg-content-destructive",
+			danger: "bg-content-warning",
+			warning: "bg-content-warning",
+		};
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
-			statusVariant: variant,
+			statusClassName: statusClassMap[effectiveType],
 		};
 	})();
 

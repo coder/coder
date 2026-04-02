@@ -42,10 +42,6 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "#/components/StatusIndicator/StatusIndicator";
 import { Switch } from "#/components/Switch/Switch";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
@@ -149,7 +145,7 @@ interface AgentChatInputProps {
 	attachedWorkspace?: {
 		name: string;
 		route: string;
-		statusVariant: StatusIndicatorProps["variant"];
+		statusClassName: string;
 	};
 }
 type ToolBadgeData =
@@ -158,7 +154,7 @@ type ToolBadgeData =
 			kind: "attached-workspace";
 			name: string;
 			route: string;
-			statusVariant: StatusIndicatorProps["variant"];
+			statusClassName: string;
 	  }
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
@@ -185,7 +181,12 @@ const ToolBadge: FC<{
 			>
 				<MonitorIcon className="size-3" />
 				{badge.name}
-				<StatusIndicatorDot variant={badge.statusVariant} size="sm" />
+				<span
+					className={cn(
+						"inline-block size-1.5 shrink-0 rounded-full",
+						badge.statusClassName,
+					)}
+				/>
 			</Link>
 		);
 	}

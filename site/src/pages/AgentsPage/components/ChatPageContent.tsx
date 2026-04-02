@@ -2,7 +2,6 @@ import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { StatusIndicatorProps } from "#/components/StatusIndicator/StatusIndicator";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
@@ -166,7 +165,7 @@ interface ChatPageInputProps {
 	attachedWorkspace?: {
 		name: string;
 		route: string;
-		statusVariant: StatusIndicatorProps["variant"];
+		statusClassName: string;
 	};
 }
 
