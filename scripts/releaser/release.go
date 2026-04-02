@@ -68,31 +68,48 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
-	// Match release branches (release/X.Y). Both regular releases
-	// and release candidates use the same branch pattern; the RC-ness
-	// is expressed in the tag (e.g. v2.32.0-rc.0), not the branch.
+	// Two modes:
+	//   1. On "main" — for tagging release candidates (RCs).
+	//   2. On "release/X.Y" — for GA and patch releases.
+	// RCs are tagged directly on main to avoid the toil of
+	// cherry-picking hundreds of commits onto a release branch.
+	// The release/X.Y branch is only cut when the GA release is
+	// ready.
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
-	m := branchRe.FindStringSubmatch(currentBranch)
-	if m == nil {
-		warnf(w, "Current branch %q is not a release branch (release/X.Y).", currentBranch)
+	onMain := currentBranch == "main"
+	var branchMajor, branchMinor int
+
+	if onMain {
+		successf(w, "On main branch — RC tagging mode.")
+	} else if m := branchRe.FindStringSubmatch(currentBranch); m != nil {
+		branchMajor, _ = strconv.Atoi(m[1])
+		branchMinor, _ = strconv.Atoi(m[2])
+		successf(w, "Using release branch: %s", currentBranch)
+	} else {
+		warnf(w, "Current branch %q is not 'main' or a release branch (release/X.Y).", currentBranch)
 		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
-			Text: "Enter the release branch to use (e.g. release/2.21)",
+			Text: "Enter the branch to use (e.g. main, release/2.21)",
 			Validate: func(s string) error {
-				if !branchRe.MatchString(s) {
-					return xerrors.New("must be in format release/X.Y (e.g. release/2.21)")
+				if s == "main" || branchRe.MatchString(s) {
+					return nil
 				}
-				return nil
+				return xerrors.New("must be 'main' or release/X.Y (e.g. release/2.21)")
 			},
 		})
 		if err != nil {
 			return err
 		}
 		currentBranch = branchInput
-		m = branchRe.FindStringSubmatch(currentBranch)
+		if currentBranch == "main" {
+			onMain = true
+			successf(w, "On main branch — RC tagging mode.")
+		} else {
+			m := branchRe.FindStringSubmatch(currentBranch)
+			branchMajor, _ = strconv.Atoi(m[1])
+			branchMinor, _ = strconv.Atoi(m[2])
+			successf(w, "Using release branch: %s", currentBranch)
+		}
 	}
-	branchMajor, _ := strconv.Atoi(m[1])
-	branchMinor, _ := strconv.Atoi(m[2])
-	successf(w, "Using release branch: %s", currentBranch)
 
 	// --- Fetch & sync check ---
 	infof(w, "Fetching latest from origin...")
@@ -122,35 +139,77 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("listing merged tags: %w", err)
 	}
 
-	// Find the latest tag matching this branch's major.minor.
-	// Without this filter, tags from newer branches (e.g. v2.31.0)
-	// that are reachable via merge history would be picked up
-	// incorrectly on older release branches (e.g. release/2.30).
 	var prevVersion *version
-	for _, t := range mergedTags {
-		if t.Major == branchMajor && t.Minor == branchMinor {
-			v := t
-			prevVersion = &v
-			break
-		}
-	}
-
 	var suggested version
-	if prevVersion == nil {
-		infof(w, "No previous release tag found on this branch.")
-		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
-	} else {
-		infof(w, "Previous release tag: %s", prevVersion.String())
-		if prevVersion.IsRC() {
-			// If the latest tag is an RC, suggest the next RC.
+
+	if onMain {
+		// On main, suggest the next RC. Find the latest RC tag
+		// across all tags, then suggest the next one. If no RC
+		// tags exist, suggest rc.0 for the next minor after the
+		// latest mainline release.
+		var latestRC *version
+		for _, t := range allTags {
+			if t.IsRC() {
+				v := t
+				latestRC = &v
+				break
+			}
+		}
+
+		if latestRC != nil {
+			prevVersion = latestRC
+			infof(w, "Latest RC tag: %s", latestRC.String())
 			suggested = version{
-				Major: prevVersion.Major,
-				Minor: prevVersion.Minor,
-				Patch: prevVersion.Patch,
-				Pre:   fmt.Sprintf("rc.%d", prevVersion.rcNumber()+1),
+				Major: latestRC.Major,
+				Minor: latestRC.Minor,
+				Patch: latestRC.Patch,
+				Pre:   fmt.Sprintf("rc.%d", latestRC.rcNumber()+1),
+			}
+		} else if latestMainline != nil {
+			infof(w, "No RC tags found. Latest mainline: %s", latestMainline.String())
+			suggested = version{
+				Major: latestMainline.Major,
+				Minor: latestMainline.Minor + 1,
+				Patch: 0,
+				Pre:   "rc.0",
 			}
 		} else {
-			suggested = version{Major: prevVersion.Major, Minor: prevVersion.Minor, Patch: prevVersion.Patch + 1}
+			infof(w, "No previous tags found.")
+			suggested = version{Major: 2, Minor: 0, Patch: 0, Pre: "rc.0"}
+		}
+	} else {
+		// On a release branch, find the latest tag matching this
+		// branch's major.minor. Without this filter, tags from
+		// newer branches reachable via merge history would be
+		// picked up incorrectly.
+		for _, t := range mergedTags {
+			if t.Major == branchMajor && t.Minor == branchMinor {
+				v := t
+				prevVersion = &v
+				break
+			}
+		}
+
+		if prevVersion == nil {
+			infof(w, "No previous release tag found on this branch.")
+			suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
+		} else {
+			infof(w, "Previous release tag: %s", prevVersion.String())
+			if prevVersion.IsRC() {
+				// Branch has only RC tags; suggest the GA
+				// release (same base, no pre-release suffix).
+				suggested = version{
+					Major: prevVersion.Major,
+					Minor: prevVersion.Minor,
+					Patch: prevVersion.Patch,
+				}
+			} else {
+				suggested = version{
+					Major: prevVersion.Major,
+					Minor: prevVersion.Minor,
+					Patch: prevVersion.Patch + 1,
+				}
+			}
 		}
 	}
 
@@ -172,8 +231,20 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	newVersion, _ := parseVersion(versionInput)
 
-	// Warn if version doesn't match branch.
-	if newVersion.Major != branchMajor || newVersion.Minor != branchMinor {
+	// Validate version against branch context.
+	if onMain && !newVersion.IsRC() {
+		warnf(w, "Tagging a non-RC version (%s) on main is unusual. GA releases should be tagged on release/X.Y.", newVersion)
+		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
+			return err
+		}
+		fmt.Fprintln(w)
+	} else if !onMain && newVersion.IsRC() {
+		warnf(w, "Tagging an RC (%s) on a release branch is unusual. RCs should be tagged on main.", newVersion)
+		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
+			return err
+		}
+		fmt.Fprintln(w)
+	} else if !onMain && (newVersion.Major != branchMajor || newVersion.Minor != branchMinor) {
 		warnf(w, "Version %s does not match branch %s (expected v%d.%d.X).",
 			newVersion, currentBranch, branchMajor, branchMinor)
 		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
