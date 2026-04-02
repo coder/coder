@@ -410,6 +410,34 @@ const longPayloadRunDetail = makeRun({
 	],
 });
 
+const getAllRunDetails = () => [
+	successfulRunDetail,
+	richRunDetail,
+	toolCallRunDetail,
+	multiStepRunDetail,
+	errorRunDetail,
+	longPayloadRunDetail,
+	backendShapeRunDetail,
+];
+
+const getAllRunSummaries = () =>
+	getAllRunDetails().map((run) =>
+		makeRunSummary({
+			id: run.id,
+			kind: run.kind,
+			status: run.status,
+			provider: run.provider,
+			model: run.model,
+			summary: run.summary,
+			started_at: run.started_at,
+			updated_at: run.updated_at,
+			finished_at: run.finished_at,
+		}),
+	);
+
+const getDebugRunDetailById = () =>
+	new Map(getAllRunDetails().map((run) => [run.id, run]));
+
 const meta: Meta<typeof DebugPanel> = {
 	title: "pages/AgentsPage/DebugPanel",
 	component: DebugPanel,
@@ -419,8 +447,20 @@ const meta: Meta<typeof DebugPanel> = {
 	beforeEach: () => {
 		const real = Date.now;
 		Date.now = () => FIXTURE_NOW;
+		const getChatDebugRunsMock = spyOn(
+			API.experimental,
+			"getChatDebugRuns",
+		).mockResolvedValue(getAllRunSummaries());
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockImplementation(async (_chatID, runID) => {
+			return getDebugRunDetailById().get(runID) ?? successfulRunDetail;
+		});
 		return () => {
 			Date.now = real;
+			getChatDebugRunsMock.mockRestore();
+			getChatDebugRunMock.mockRestore();
 		};
 	},
 	decorators: [
