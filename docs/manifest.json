@@ -1458,6 +1458,10 @@
 							"path": "./reference/api/builds.md"
 						},
 						{
+							"title": "Changelog",
+							"path": "./reference/api/changelog.md"
+						},
+						{
 							"title": "Chats",
 							"path": "./reference/api/chats.md"
 						},
