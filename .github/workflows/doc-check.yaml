@@ -290,13 +290,13 @@ jobs:
         if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         id: wait_task
         env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_IDENTIFIER: ${{ steps.create_task.outputs.coder-username }}/${{ steps.create_task.outputs.task-name }}
         run: |
           echo "Waiting for task to complete..."
-          echo "Task name: ${TASK_NAME}"
+          echo "Task identifier: ${TASK_IDENTIFIER}"
 
-          if [[ -z "${TASK_NAME}" ]]; then
-            echo "::error::TASK_NAME is empty"
+          if [[ -z "${TASK_IDENTIFIER}" ]]; then
+            echo "::error::TASK_IDENTIFIER is empty"
             exit 1
           fi
 
@@ -315,7 +315,7 @@ jobs:
 
           while [[ $WAITED -lt $MAX_WAIT ]]; do
             # Get task status (|| true prevents set -e from exiting on non-zero)
-            RAW_OUTPUT=$(coder task status "${TASK_NAME}" -o json 2>&1) || true
+            RAW_OUTPUT=$(coder task status "${TASK_IDENTIFIER}" -o json 2>&1) || true
             STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v" || true)
 
             # Debug: show first poll's raw output
@@ -379,26 +379,26 @@ jobs:
       - name: Fetch Task Logs
         if: always() && steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_IDENTIFIER: ${{ steps.create_task.outputs.coder-username }}/${{ steps.create_task.outputs.task-name }}
         run: |
           echo "::group::Task Conversation Log"
-          if [[ -n "${TASK_NAME}" ]]; then
-            coder task logs "${TASK_NAME}" 2>&1 || echo "Failed to fetch logs"
+          if [[ -n "${TASK_IDENTIFIER}" ]]; then
+            coder task logs "${TASK_IDENTIFIER}" 2>&1 || echo "Failed to fetch logs"
           else
-            echo "No task name, skipping log fetch"
+            echo "No task identifier, skipping log fetch"
           fi
           echo "::endgroup::"
 
       - name: Cleanup Task
         if: always() && steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_IDENTIFIER: ${{ steps.create_task.outputs.coder-username }}/${{ steps.create_task.outputs.task-name }}
         run: |
-          if [[ -n "${TASK_NAME}" ]]; then
-            echo "Deleting task: ${TASK_NAME}"
-            coder task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
+          if [[ -n "${TASK_IDENTIFIER}" ]]; then
+            echo "Deleting task: ${TASK_IDENTIFIER}"
+            coder task delete "${TASK_IDENTIFIER}" -y 2>&1 || echo "Task deletion failed or already deleted"
           else
-            echo "No task name, skipping cleanup"
+            echo "No task identifier, skipping cleanup"
           fi
 
       - name: Write Final Summary
