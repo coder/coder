@@ -168,6 +168,7 @@ export type ChatStore = {
 	clearRetryState: () => void;
 	setReconnectState: (state: ReconnectState | null) => void;
 	clearReconnectState: () => void;
+	setStreamState: (streamState: StreamState | null) => void;
 	clearStreamState: () => void;
 	resetTransportReplayState: () => void;
 	setSubagentStatusOverride: (
@@ -459,6 +460,17 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				reconnectState: null,
 			}));
+		},
+		setStreamState: (streamState) => {
+			setState((current) => {
+				if (current.streamState === streamState) {
+					return current;
+				}
+				return {
+					...current,
+					streamState,
+				};
+			});
 		},
 		clearStreamState: () => {
 			if (state.streamState === null) {

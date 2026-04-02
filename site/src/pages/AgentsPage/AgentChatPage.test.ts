@@ -7,6 +7,7 @@ import {
 	useConversationEditingState,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import type { PreparedUserSubmission } from "./components/ChatConversation/prepareUserSubmission";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -16,6 +17,12 @@ type MockChatInputHandle = {
 	getValue: ReturnType<typeof vi.fn>;
 	currentValue: { value: string };
 };
+
+const createSubmission = (text = "hello"): PreparedUserSubmission => ({
+	requestContent: [{ type: "text", text }],
+	optimisticContent: [{ type: "text", text }],
+	skippedAttachmentErrors: 0,
+});
 
 const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 	const currentValue = { value: initialValue };
@@ -44,6 +51,16 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 		getValue,
 		currentValue,
 	};
+};
+
+const createDeferred = <T>() => {
+	let resolve!: (value: T | PromiseLike<T>) => void;
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
 };
 
 const setMobileViewport = (isMobile: boolean) => {
@@ -310,7 +327,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await result.current.handleSendFromInput(createSubmission("hello"));
 		});
 
 		const remountKeyAfterSend = result.current.remountKey;
@@ -323,7 +340,7 @@ describe("useConversationEditingState", () => {
 		// the same text, so the editor is forced to reinitialize.
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		expect(onSend).toHaveBeenCalledWith(createSubmission("hello"), 7);
 		unmount();
 	});
 
@@ -334,13 +351,104 @@ describe("useConversationEditingState", () => {
 		result.current.chatInputRef.current = mockInput.handle;
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await result.current.handleSendFromInput(createSubmission("hello"));
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(onSend).toHaveBeenCalledWith(createSubmission("hello"), undefined);
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+		unmount();
+	});
+
+	it("optimistically exits history edit mode while an edited send is pending", async () => {
+		const deferred = createDeferred<void>();
+		const { result, onSend, unmount } = renderEditing();
+		onSend.mockImplementation(() => deferred.promise);
+		const mockInput = createMockChatInputHandle("edited message");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+
+		let sendPromise!: Promise<void>;
+		act(() => {
+			sendPromise = result.current.handleSendFromInput(
+				createSubmission("edited message"),
+			);
+		});
+
+		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editingFileBlocks).toEqual([]);
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(mockInput.focus).toHaveBeenCalled();
+
+		await act(async () => {
+			deferred.resolve(undefined);
+			await sendPromise;
+		});
+		unmount();
+	});
+
+	it("restores the history edit after an optimistic send fails", async () => {
+		const deferred = createDeferred<void>();
+		const { result, onSend, unmount } = renderEditing();
+		onSend.mockImplementation(() => deferred.promise);
+		const serializedEditorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{ text: "edited message" },
+							{
+								type: "file-reference",
+								version: 1,
+								fileName: "main.go",
+								startLine: 1,
+								endLine: 10,
+								content: "code",
+							},
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+		const fileBlocks = [
+			{ type: "file", file_id: "file-1", media_type: "image/png" },
+		] as const;
+		const mockInput = createMockChatInputHandle("edited message");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
+			result.current.handleContentChange(
+				"edited message",
+				serializedEditorState,
+				true,
+			);
+		});
+
+		let sendPromise!: Promise<void>;
+		act(() => {
+			sendPromise = result.current.handleSendFromInput(
+				createSubmission("edited message"),
+			);
+		});
+
+		expect(result.current.editingMessageId).toBeNull();
+
+		await act(async () => {
+			deferred.reject(new Error("boom"));
+			await expect(sendPromise).rejects.toThrow("boom");
+		});
+
+		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.initialEditorState).toBe(serializedEditorState);
+		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
 		unmount();
 	});
 
@@ -378,9 +486,12 @@ describe("useConversationEditingState", () => {
 		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
+			result.current.handleSendFromInput(createSubmission("hello"));
 			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+				expect(onSend).toHaveBeenCalledWith(
+					createSubmission("hello"),
+					undefined,
+				);
 			});
 		});
 
@@ -415,7 +526,7 @@ describe("useConversationEditingState", () => {
 		expect(localStorage.getItem(expectedKey)).toBe("draft to clear");
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
+			result.current.handleSendFromInput(createSubmission("hello"));
 			await vi.waitFor(() => {
 				expect(localStorage.getItem(expectedKey)).toBeNull();
 			});
@@ -629,14 +740,6 @@ describe("useConversationEditingState", () => {
 		const { result, unmount } = renderEditing();
 
 		expect(result.current.initialEditorState).toBeUndefined();
-
-		act(() => {
-			result.current.handleContentChange(
-				"plain text draft",
-				"plain text draft",
-				false,
-			);
-		});
 
 		act(() => {
 			result.current.handleEditUserMessage(1, "editing");

@@ -114,7 +114,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		isArchived: false,
 		hasWorkspace: true,
 		store: createChatStore(),
-		pendingEditMessageId: null as number | null,
+		savingMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -516,7 +516,7 @@ export const EditingSaving: Story = {
 				editingMessageId: 3,
 				editorInitialValue: "Now tell me a better joke",
 			}}
-			pendingEditMessageId={3}
+			savingMessageId={3}
 			isSubmissionPending
 		/>
 	),

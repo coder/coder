@@ -1,4 +1,4 @@
-import { type FC, Profiler, useEffect } from "react";
+import { type FC, Profiler, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -29,6 +29,10 @@ import {
 	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
+import {
+	type PreparedUserSubmission,
+	prepareUserSubmission,
+} from "./ChatConversation/prepareUserSubmission";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 
@@ -115,7 +119,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 interface ChatPageInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string, fileIds?: string[]) => void;
+	onSend: (submission: PreparedUserSubmission) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -130,7 +134,7 @@ interface ChatPageInputProps {
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
-	inputRef?: React.Ref<ChatMessageInputRef>;
+	inputRef?: React.RefObject<ChatMessageInputRef | null>;
 	initialValue?: string;
 	initialEditorState?: string;
 	remountKey?: number;
@@ -241,16 +245,55 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		resetAttachments,
 		setAttachments,
 		setPreviewUrls,
+		setTextContents,
 		setUploadStates,
 	} = useFileAttachments(organizationId);
+	type AttachmentSnapshot = {
+		attachments: File[];
+		previewUrls: Map<File, string>;
+		textContents: Map<File, string>;
+		uploadStates: Map<File, UploadState>;
+	};
+
+	const skipEditingFileBlockSyncRef = useRef(false);
+
+	const snapshotAttachments = (): AttachmentSnapshot => ({
+		attachments: [...attachments],
+		previewUrls: new Map(previewUrls),
+		textContents: new Map(textContents),
+		uploadStates: new Map(uploadStates),
+	});
+
+	const restoreAttachments = (snapshot: AttachmentSnapshot) => {
+		skipEditingFileBlockSyncRef.current = true;
+		setAttachments([...snapshot.attachments]);
+		// resetAttachments() revokes blob previews on the optimistic path,
+		// so recreate them here when restoring the failed edit draft.
+		const restoredPreviewUrls = new Map<File, string>();
+		for (const [file, url] of snapshot.previewUrls) {
+			restoredPreviewUrls.set(
+				file,
+				url.startsWith("blob:") ? URL.createObjectURL(file) : url,
+			);
+		}
+		setPreviewUrls(restoredPreviewUrls);
+		setTextContents(new Map(snapshot.textContents));
+		setUploadStates(new Map(snapshot.uploadStates));
+	};
+
 	// Pre-populate attachments from existing file blocks when
-	// entering edit mode on a message with images.
+	// entering edit mode so retries preserve prior attachments.
 	useEffect(() => {
+		if (skipEditingFileBlockSyncRef.current) {
+			skipEditingFileBlockSyncRef.current = false;
+			return;
+		}
 		if (!editingFileBlocks || editingFileBlocks.length === 0) {
 			// Clear attachments when exiting edit mode.
 			setAttachments([]);
 			setUploadStates(new Map());
 			setPreviewUrls(new Map());
+			setTextContents(new Map());
 			return;
 		}
 		const fileBlocks = editingFileBlocks.filter(
@@ -259,63 +302,82 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
 			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
-			// Empty File used as a Map key only, its content is never
-			// read because the existing file_id is reused at send time.
+			// Empty File used as a Map key only. The synthetic name
+			// preserves the original block index so retries stay aligned
+			// even if the user removes another attachment first.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
 		setAttachments(files);
-		setPreviewUrls(
-			new Map(
-				files.map((f, i) => [
-					f,
-					`/api/experimental/chats/files/${fileBlocks[i].file_id}`,
-				]),
-			),
-		);
+		const nextPreviewUrls = new Map<File, string>();
+		const nextTextContents = new Map<File, string>();
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
 			const block = fileBlocks[i];
 			if (block.file_id) {
+				nextPreviewUrls.set(
+					file,
+					`/api/experimental/chats/files/${block.file_id}`,
+				);
 				newUploadStates.set(file, {
 					status: "uploaded",
 					fileId: block.file_id,
 				});
+				continue;
+			}
+			if (block.media_type.startsWith("image/") && block.data) {
+				nextPreviewUrls.set(
+					file,
+					`data:${block.media_type};base64,${block.data}`,
+				);
+			}
+			if (block.media_type === "text/plain" && block.data) {
+				nextTextContents.set(file, block.data);
 			}
 		}
+		setPreviewUrls(nextPreviewUrls);
+		setTextContents(nextTextContents);
 		setUploadStates(newUploadStates);
-	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+	}, [
+		editingFileBlocks,
+		setAttachments,
+		setPreviewUrls,
+		setTextContents,
+		setUploadStates,
+	]);
 
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
 	return (
 		<AgentChatInput
-			onSend={(message) => {
+			onSend={(_message) => {
 				void (async () => {
-					// Collect file IDs from already-uploaded attachments.
-					// Skip files in error state (e.g. too large).
-					const fileIds: string[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							fileIds.push(state.fileId);
-						}
-					}
-					if (skippedErrors > 0) {
+					const submission = prepareUserSubmission({
+						editorParts: inputRef?.current?.getContentParts() ?? [],
+						attachments,
+						uploadStates,
+						editingFileBlocks,
+					});
+					if (submission.skippedAttachmentErrors > 0) {
 						toast.warning(
-							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+							`${submission.skippedAttachmentErrors} attachment${submission.skippedAttachmentErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
-					const fileArg = fileIds.length > 0 ? fileIds : undefined;
+					if (submission.requestContent.length === 0) {
+						return;
+					}
+					const attachmentSnapshot = isEditingHistoryMessage
+						? snapshotAttachments()
+						: null;
+					if (isEditingHistoryMessage) {
+						resetAttachments();
+					}
 					try {
-						await onSend(message, fileArg);
+						await onSend(submission);
 					} catch {
-						// Attachments preserved for retry on failure.
+						if (attachmentSnapshot) {
+							restoreAttachments(attachmentSnapshot);
+						}
 						return;
 					}
 					resetAttachments();

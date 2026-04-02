@@ -128,6 +128,7 @@ interface UseFileAttachmentsReturn {
 	resetAttachments: () => void;
 	setAttachments: Dispatch<SetStateAction<File[]>>;
 	setPreviewUrls: Dispatch<SetStateAction<Map<File, string>>>;
+	setTextContents: Dispatch<SetStateAction<Map<File, string>>>;
 	setUploadStates: Dispatch<SetStateAction<Map<File, UploadState>>>;
 }
 
@@ -336,6 +337,7 @@ export function useFileAttachments(
 		// localStorage persistence. Only use when persist is false.
 		setAttachments,
 		setPreviewUrls,
+		setTextContents,
 		setUploadStates,
 	};
 }

@@ -2738,6 +2738,181 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("keeps the edited message visible through optimistic and authoritative edit phases", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-edit-bridge";
+		const msg1 = makeMessage(chatID, 1, "user", "first");
+		const msg2 = makeMessage(chatID, 2, "assistant", "second");
+		const msg3 = makeMessage(chatID, 3, "user", "third");
+		const optimisticMsg3 = {
+			...msg3,
+			content: [{ type: "text", text: "edited third" }],
+		} satisfies TypesGen.ChatMessage;
+		const authoritativeMsg = makeMessage(chatID, 9, "user", "edited third");
+
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper: FC<PropsWithChildren> = ({ children }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+		const optimisticEditToken = Symbol("optimistic-edit");
+		const optimisticEditSessionRef: {
+			current: {
+				token: symbol;
+				editedMessageId: number;
+				visibleMessageId: number;
+				phase: "optimistic" | "authoritative";
+			} | null;
+		} = {
+			current: null,
+		};
+		const clearOptimisticEditSessionByToken = vi.fn((token: symbol) => {
+			if (optimisticEditSessionRef.current?.token === token) {
+				optimisticEditSessionRef.current = null;
+			}
+		});
+
+		const noQueued: TypesGen.ChatQueuedMessage[] = [];
+		const initialMessages = [msg1, msg2, msg3];
+		const initialOptions = {
+			chatID,
+			chatMessages: initialMessages,
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: initialMessages,
+				queued_messages: noQueued,
+				has_more: false,
+			},
+			chatQueuedMessages: noQueued,
+			optimisticEditSessionRef,
+			clearOptimisticEditSessionByToken,
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					store,
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		optimisticEditSessionRef.current = {
+			token: optimisticEditToken,
+			editedMessageId: 3,
+			visibleMessageId: 3,
+			phase: "optimistic",
+		};
+		act(() => {
+			result.current.store.batch(() => {
+				result.current.store.replaceMessages([msg1, msg2, optimisticMsg3]);
+				result.current.store.setQueuedMessages([]);
+				result.current.store.setChatStatus("running");
+				result.current.store.clearStreamState();
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.messagesByID.get(3)?.content).toEqual([
+				{ type: "text", text: "edited third" },
+			]);
+		});
+
+		// Simulate editChatMessage.onMutate truncating the React Query cache to
+		// only the messages before the edited one while the visible store keeps
+		// the edited bubble in place.
+		rerender({
+			...initialOptions,
+			chatMessages: [msg1, msg2],
+			chatMessagesData: {
+				messages: [msg1, msg2],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messagesByID.get(3)?.content).toEqual([
+				{ type: "text", text: "edited third" },
+			]);
+		});
+		expect(clearOptimisticEditSessionByToken).not.toHaveBeenCalled();
+
+		optimisticEditSessionRef.current = {
+			token: optimisticEditToken,
+			editedMessageId: 3,
+			visibleMessageId: 9,
+			phase: "authoritative",
+		};
+		act(() => {
+			result.current.store.batch(() => {
+				result.current.store.replaceMessages([msg1, msg2, authoritativeMsg]);
+				result.current.store.setQueuedMessages([]);
+				result.current.store.setChatStatus("running");
+				result.current.store.clearStreamState();
+			});
+		});
+
+		// The query cache is still truncated immediately after PATCH success, so
+		// the bridge must preserve the authoritative replacement bubble too.
+		rerender({
+			...initialOptions,
+			chatMessages: [msg1, msg2],
+			chatMessagesData: {
+				messages: [msg1, msg2],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
+			expect(result.current.messagesByID.get(3)).toBeUndefined();
+			expect(result.current.messagesByID.get(9)?.content).toEqual(
+				authoritativeMsg.content,
+			);
+		});
+		expect(clearOptimisticEditSessionByToken).not.toHaveBeenCalled();
+
+		// Once the cache refetch catches up with the authoritative replacement ID,
+		// normal sync can resume and the special session is cleared.
+		rerender({
+			...initialOptions,
+			chatMessages: [msg1, msg2, authoritativeMsg],
+			chatMessagesData: {
+				messages: [msg1, msg2, authoritativeMsg],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
+			expect(result.current.messagesByID.get(3)).toBeUndefined();
+			expect(result.current.messagesByID.get(9)?.content).toEqual(
+				authoritativeMsg.content,
+			);
+			expect(clearOptimisticEditSessionByToken).toHaveBeenCalledWith(
+				optimisticEditToken,
+			);
+			expect(optimisticEditSessionRef.current).toBeNull();
+		});
+	});
 	it("does not wipe WebSocket-delivered message when queue_update triggers cache change", async () => {
 		immediateAnimationFrame();
 

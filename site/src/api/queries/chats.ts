@@ -5,6 +5,7 @@ import type {
 } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { truncateMessagesForEdit } from "#/pages/AgentsPage/components/ChatConversation/optimisticEdit";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -635,7 +636,7 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 				...current,
 				pages: current.pages.map((page) => ({
 					...page,
-					messages: page.messages.filter((m) => m.id < messageId),
+					messages: truncateMessagesForEdit(page.messages, messageId),
 				})),
 			};
 		});
@@ -661,11 +662,13 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	},
 	onSettled: () => {
 		// Always reconcile with the server regardless of whether
-		// the mutation succeeded or failed. On success this picks
-		// up the replacement message; on failure it confirms the
-		// restore from onError matches the server state. Use exact
-		// matching to avoid cascading to unrelated queries
-		// (diff-status, diff-contents, cost summaries, etc.).
+		// the mutation succeeded or failed. The local store may
+		// also apply an optimistic edit immediately, but only an
+		// exact refetch can pick up the replacement message and
+		// remove stale cache entries left after server-side
+		// truncation. Use exact matching to avoid cascading to
+		// unrelated queries (diff-status, diff-contents, cost
+		// summaries, etc.).
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,

@@ -586,6 +586,28 @@ describe("subscribe", () => {
 });
 
 // ---------------------------------------------------------------------------
+// setStreamState
+// ---------------------------------------------------------------------------
+
+describe("setStreamState", () => {
+	it("replaces the current stream state", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "partial response" });
+
+		const restoredStreamState = {
+			blocks: [{ type: "response" as const, text: "restored response" }],
+			toolCalls: {},
+			toolResults: {},
+			sources: [],
+		};
+		store.setStreamState(restoredStreamState);
+
+		const state = store.getSnapshot();
+		expect(state.streamState).toBe(restoredStreamState);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // selectIsAwaitingFirstStreamChunk
 // ---------------------------------------------------------------------------
 

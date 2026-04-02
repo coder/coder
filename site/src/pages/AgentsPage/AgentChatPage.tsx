@@ -1,4 +1,11 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	useInfiniteQuery,
@@ -55,6 +62,15 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import {
+	buildOptimisticEditedMessage,
+	getSavingMessageId,
+	getVisibleConversation,
+	type OptimisticEditSession,
+	projectAuthoritativeEditedConversation,
+	truncateMessagesForEdit,
+} from "./components/ChatConversation/optimisticEdit";
+import type { PreparedUserSubmission } from "./components/ChatConversation/prepareUserSubmission";
 import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
 import {
 	getDefaultMCPSelection,
@@ -103,8 +119,7 @@ export function getPersistedDraftInputValue(
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (
-		message: string,
-		fileIds?: string[],
+		submission: PreparedUserSubmission,
 		editedMessageID?: number,
 	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -127,6 +142,12 @@ export function useConversationEditingState(deps: {
 				initialEditorState: draft.editorState,
 			};
 		},
+	);
+	// Track the latest serialized Lexical state so optimistic edit
+	// rollbacks can restore file-reference chips without widening the
+	// editor's imperative ref surface.
+	const serializedEditorStateRef = useRef<string | undefined>(
+		initialEditorState,
 	);
 
 	// Monotonic counter to force LexicalComposer remount.
@@ -158,15 +179,9 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => {
 		if (editingMessageId === null) {
-			// Read the current serialized editor state from localStorage
-			// (kept up-to-date by handleContentChange) rather than from
-			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
 			setDraftBeforeHistoryEdit({
 				text: inputValueRef.current,
-				editorState: currentEditorState,
+				editorState: serializedEditorStateRef.current,
 			});
 		}
 		setEditingMessageId(messageId);
@@ -174,6 +189,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
@@ -186,6 +202,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingMessageId(null);
@@ -206,12 +223,9 @@ export function useConversationEditingState(deps: {
 		fileBlocks: readonly ChatMessagePart[],
 	) => {
 		if (editingQueuedMessageID === null) {
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
 			setDraftBeforeQueueEdit({
 				text: inputValueRef.current,
-				editorState: currentEditorState,
+				editorState: serializedEditorStateRef.current,
 			});
 		}
 		setEditingQueuedMessageID(id);
@@ -219,6 +233,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks);
@@ -231,6 +246,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingQueuedMessageID(null);
@@ -240,23 +256,60 @@ export function useConversationEditingState(deps: {
 
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
-	const handleSendFromInput = async (message: string, fileIds?: string[]) => {
+	const handleSendFromInput = async (submission: PreparedUserSubmission) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
+		const historyEditSnapshot =
+			editingMessageId !== null
+				? {
+						messageId: editingMessageId,
+						text: inputValueRef.current,
+						editorState: serializedEditorStateRef.current,
+						fileBlocks: editingFileBlocks,
+					}
+				: null;
 
-		await onSend(message, fileIds, editedMessageID);
-		// Clear input and editing state on success.
-		chatInputRef.current?.clear();
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
+		if (historyEditSnapshot) {
+			chatInputRef.current?.clear();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
+			inputValueRef.current = "";
+			setEditingMessageId(null);
+			setEditingFileBlocks([]);
 		}
-		inputValueRef.current = "";
+
+		try {
+			await onSend(submission, editedMessageID);
+		} catch (error) {
+			if (historyEditSnapshot) {
+				setDraftState({
+					editorInitialValue: historyEditSnapshot.text,
+					initialEditorState: historyEditSnapshot.editorState,
+				});
+				serializedEditorStateRef.current = historyEditSnapshot.editorState;
+				setRemountKey((k) => k + 1);
+				inputValueRef.current = historyEditSnapshot.text;
+				setEditingMessageId(historyEditSnapshot.messageId);
+				setEditingFileBlocks(historyEditSnapshot.fileBlocks);
+			}
+			throw error;
+		}
+
+		if (!historyEditSnapshot) {
+			// Clear input on successful non-edit sends.
+			chatInputRef.current?.clear();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
+			inputValueRef.current = "";
+		}
+		serializedEditorStateRef.current = undefined;
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
 		if (editingMessageId !== null) {
-			setEditingMessageId(null);
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
@@ -274,6 +327,7 @@ export function useConversationEditingState(deps: {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
+		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
 		// history or queued message — the original draft (possibly
@@ -428,11 +482,41 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [pendingEditMessageId, setPendingEditMessageId] = useState<
-		number | null
-	>(null);
+	const [optimisticEditSession, setOptimisticEditSession] =
+		useState<OptimisticEditSession | null>(null);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
+	const optimisticEditSessionRef = useRef<OptimisticEditSession | null>(null);
+	const setCurrentOptimisticEditSession = useCallback(
+		(next: OptimisticEditSession | null) => {
+			optimisticEditSessionRef.current = next;
+			setOptimisticEditSession(next);
+		},
+		[],
+	);
+	const advanceOptimisticEditSessionByToken = useCallback(
+		(
+			token: symbol,
+			updater: (current: OptimisticEditSession) => OptimisticEditSession | null,
+		) => {
+			const current = optimisticEditSessionRef.current;
+			if (!current || current.token !== token) {
+				return;
+			}
+			const next = updater(current);
+			optimisticEditSessionRef.current = next;
+			setOptimisticEditSession(next);
+		},
+		[],
+	);
+	const clearOptimisticEditSessionByToken = useCallback((token: symbol) => {
+		const current = optimisticEditSessionRef.current;
+		if (!current || current.token !== token) {
+			return;
+		}
+		optimisticEditSessionRef.current = null;
+		setOptimisticEditSession(null);
+	}, []);
 	const inputValueRef = useRef(
 		agentId
 			? parseStoredDraft(
@@ -657,6 +741,8 @@ const AgentChatPage: FC = () => {
 		chatRecord,
 		chatMessagesData,
 		chatQueuedMessages,
+		optimisticEditSessionRef,
+		clearOptimisticEditSessionByToken,
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
@@ -667,6 +753,7 @@ const AgentChatPage: FC = () => {
 		chatRecord,
 		cachedError: agentId ? chatErrorReasons[agentId] : undefined,
 	});
+	const savingMessageId = getSavingMessageId(optimisticEditSession);
 
 	// Git watcher: runs regardless of sidebar visibility, but only
 	// connects when the workspace agent is in the "connected" state
@@ -768,80 +855,121 @@ const AgentChatPage: FC = () => {
 	};
 
 	const handleSend = async (
-		message: string,
-		fileIds?: string[],
+		submission: PreparedUserSubmission,
 		editedMessageID?: number,
 	) => {
-		const chatInputHandle = (
-			editing.chatInputRef as React.RefObject<ChatMessageInputRef | null>
-		)?.current;
-
-		// Walk the Lexical tree in document order so file-reference
-		// parts appear at the correct position relative to the
-		// surrounding text the user typed.
-		const editorParts = chatInputHandle?.getContentParts() ?? [];
-		const hasFileReferences = editorParts.some(
-			(p) => p.type === "file-reference",
-		);
-		const hasContent =
-			message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
+		const hasContent = submission.requestContent.length > 0;
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
 
-		const content: TypesGen.ChatInputPart[] = [];
-
-		// Emit parts in document order — text segments and
-		// file-reference chips are interleaved as they appear in
-		// the editor.
-		for (const part of editorParts) {
-			if (part.type === "text") {
-				const trimmed = part.text.trim();
-				if (trimmed) {
-					content.push({ type: "text", text: part.text });
-				}
-			} else {
-				const r = part.reference;
-				content.push({
-					type: "file-reference",
-					file_name: r.fileName,
-					start_line: r.startLine,
-					end_line: r.endLine,
-					content: r.content,
-				});
-			}
-		}
-
-		// Add pre-uploaded file references.
-		if (fileIds && fileIds.length > 0) {
-			for (const fileId of fileIds) {
-				content.push({ type: "file", file_id: fileId });
-			}
-		}
 		if (editedMessageID !== undefined) {
-			const request: TypesGen.EditChatMessageRequest = { content };
+			const request: TypesGen.EditChatMessageRequest = {
+				content: submission.requestContent,
+			};
 			clearChatErrorReason(agentId);
 			clearStreamError();
-			setPendingEditMessageId(editedMessageID);
+
+			const previousConversation = getVisibleConversation(store.getSnapshot());
+			const originalEditedMessage = previousConversation.messages.find(
+				(message) => message.id === editedMessageID,
+			);
+			const canApplyOptimisticEdit = Boolean(originalEditedMessage);
+			const messagesBeforeEditedMessage = canApplyOptimisticEdit
+				? truncateMessagesForEdit(
+						previousConversation.messages,
+						editedMessageID,
+					)
+				: [];
+			const optimisticEditSession = canApplyOptimisticEdit
+				? {
+						token: Symbol("optimistic-edit"),
+						editedMessageId: editedMessageID,
+						visibleMessageId: editedMessageID,
+						phase: "optimistic" as const,
+					}
+				: null;
+			const restoreVisibleConversation = () => {
+				store.batch(() => {
+					store.replaceMessages(previousConversation.messages);
+					store.setQueuedMessages(previousConversation.queuedMessages);
+					store.setChatStatus(previousConversation.chatStatus);
+					store.setStreamState(previousConversation.streamState);
+				});
+			};
+
+			if (optimisticEditSession) {
+				setCurrentOptimisticEditSession(optimisticEditSession);
+			}
+
+			if (originalEditedMessage) {
+				const optimisticEditedMessage = buildOptimisticEditedMessage(
+					originalEditedMessage,
+					submission.optimisticContent,
+				);
+				store.batch(() => {
+					store.replaceMessages([
+						...messagesBeforeEditedMessage,
+						optimisticEditedMessage,
+					]);
+					store.setQueuedMessages([]);
+					store.setChatStatus("running");
+					store.clearStreamState();
+				});
+			}
+
 			scrollToBottomRef.current?.();
+			let editError: unknown;
 			try {
-				await editMutation.mutateAsync({
+				const responseMessage = await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
-				store.clearStreamState();
-				store.setChatStatus("running");
-				setPendingEditMessageId(null);
+				if (canApplyOptimisticEdit) {
+					if (optimisticEditSession) {
+						advanceOptimisticEditSessionByToken(
+							optimisticEditSession.token,
+							(current) => ({
+								...current,
+								visibleMessageId: responseMessage.id,
+								phase: "authoritative",
+							}),
+						);
+					}
+					store.batch(() => {
+						store.replaceMessages(
+							projectAuthoritativeEditedConversation(
+								messagesBeforeEditedMessage,
+								responseMessage,
+							),
+						);
+						store.setQueuedMessages([]);
+						store.setChatStatus("running");
+						store.clearStreamState();
+					});
+				} else {
+					store.clearStreamState();
+					store.setChatStatus("running");
+				}
 			} catch (error) {
-				setPendingEditMessageId(null);
+				if (optimisticEditSession) {
+					clearOptimisticEditSessionByToken(optimisticEditSession.token);
+				}
+				if (canApplyOptimisticEdit) {
+					restoreVisibleConversation();
+				}
 				handleUsageLimitError(error);
-				throw error;
+				editError = error;
+			}
+			if (editError) {
+				throw editError;
 			}
 			return;
 		}
+
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
-			content,
+			content: submission.requestContent,
 			model_config_id: selectedModelConfigID,
 			mcp_server_ids:
 				effectiveMCPServerIds.length > 0
@@ -888,7 +1016,6 @@ const AgentChatPage: FC = () => {
 			localStorage.removeItem(lastModelConfigIDStorageKey);
 		}
 	};
-
 	const handleInterrupt = () => {
 		if (!agentId || interruptMutation.isPending) {
 			return;
@@ -1110,7 +1237,7 @@ const AgentChatPage: FC = () => {
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
 			editing={editing}
-			pendingEditMessageId={pendingEditMessageId}
+			savingMessageId={savingMessageId}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}

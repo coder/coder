@@ -16,6 +16,12 @@ import {
 	createChatStore,
 	isActiveChatStatus,
 } from "./chatStore";
+import {
+	getVisibleConversation,
+	hasConvergedOptimisticEditSession,
+	isExpectedOptimisticEditDivergence,
+	type OptimisticEditSession,
+} from "./optimisticEdit";
 import type { RetryState } from "./types";
 
 const isChatStreamEvent = (data: unknown): data is TypesGen.ChatStreamEvent =>
@@ -75,6 +81,10 @@ interface UseChatStoreOptions {
 	chatRecord: TypesGen.Chat | undefined;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
+	optimisticEditSessionRef?: {
+		current: OptimisticEditSession | null;
+	};
+	clearOptimisticEditSessionByToken?: (token: symbol) => void;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
@@ -88,6 +98,8 @@ export const useChatStore = (
 		chatRecord,
 		chatMessagesData,
 		chatQueuedMessages,
+		optimisticEditSessionRef,
+		clearOptimisticEditSessionByToken,
 		setChatErrorReason,
 		clearChatErrorReason,
 	} = options;
@@ -143,6 +155,7 @@ export const useChatStore = (
 	const initialDataLoaded = chatMessages !== undefined;
 
 	useEffect(() => {
+		let convergedOptimisticEditSessionToken: symbol | null = null;
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
 			// immediately so the previous chat's messages aren't
@@ -157,12 +170,14 @@ export const useChatStore = (
 			// appeared in a REST page yet.
 			//
 			// If the fetched set is missing message IDs the store
-			// already has (e.g. after an edit truncation), a full
-			// replace is needed. We must only do this when the
-			// fetched messages actually changed (new elements from
-			// a refetch), not when an unrelated field like
-			// queued_messages caused the query data reference to
-			// update.
+			// already has, a full replace is usually needed. The one
+			// sanctioned exception is the optimistic edit window:
+			// React Query intentionally truncates the cache while the
+			// visible store keeps the edited user bubble in place.
+			// We must only do this work when the fetched messages
+			// actually changed (new elements from a refetch), not when
+			// an unrelated field like queued_messages caused the query
+			// data reference to update.
 			if (chatMessages) {
 				const prev = lastSyncedMessagesRef.current;
 				const contentChanged =
@@ -170,19 +185,47 @@ export const useChatStore = (
 					chatMessages.some((m, i) => m !== prev[i]);
 				lastSyncedMessagesRef.current = chatMessages;
 
-				const storeSnap = store.getSnapshot();
+				const optimisticEditSession = optimisticEditSessionRef?.current;
+				const visibleConversation = getVisibleConversation(store.getSnapshot());
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&
-					storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
-				if (hasStaleEntries) {
+					visibleConversation.messages.some(
+						(message) => !fetchedIDs.has(message.id),
+					);
+				const shouldKeepOptimisticEdit =
+					hasStaleEntries &&
+					isExpectedOptimisticEditDivergence({
+						visibleMessages: visibleConversation.messages,
+						fetchedMessages: chatMessages,
+						optimisticEditSession,
+					});
+				if (hasStaleEntries && !shouldKeepOptimisticEdit) {
 					store.replaceMessages(chatMessages);
 				} else {
 					store.upsertDurableMessages(chatMessages);
 				}
+				if (
+					optimisticEditSession &&
+					hasConvergedOptimisticEditSession({
+						fetchedMessages: chatMessages,
+						optimisticEditSession,
+					})
+				) {
+					convergedOptimisticEditSessionToken = optimisticEditSession.token;
+				}
 			}
 		});
-	}, [chatID, chatMessages, store]);
+		if (convergedOptimisticEditSessionToken) {
+			clearOptimisticEditSessionByToken?.(convergedOptimisticEditSessionToken);
+		}
+	}, [
+		chatID,
+		chatMessages,
+		clearOptimisticEditSessionByToken,
+		optimisticEditSessionRef,
+		store,
+	]);
 
 	useEffect(() => {
 		store.setChatStatus(chatRecord?.status ?? null);
