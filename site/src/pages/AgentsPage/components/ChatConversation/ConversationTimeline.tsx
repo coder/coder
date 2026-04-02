@@ -1,4 +1,4 @@
-import { FileTextIcon, PencilIcon } from "lucide-react";
+import { CopyIcon, FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -10,6 +10,8 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -17,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import {
 	decodeInlineTextAttachment,
@@ -466,6 +469,8 @@ const ChatMessageItem = memo<{
 		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] = useState<string | null>(null);
+		const [copyHovered, setCopyHovered] = useState(false);
+		const { showCopiedSuccess, copyToClipboard } = useClipboard();
 		if (
 			parsed.toolResults.length > 0 &&
 			parsed.toolCalls.length === 0 &&
@@ -612,9 +617,20 @@ const ChatMessageItem = memo<{
 							</MessageContent>
 						</Message>
 					) : (
-						<Message className="w-full">
+						<Message
+							className={cn(
+								"w-full",
+								isLastAssistantMessage && hasCopyableContent && "pb-5",
+							)}
+						>
 							<MessageContent className="whitespace-normal">
-								<div className="space-y-3">
+								<div
+									className={cn(
+										"relative space-y-3 pl-4",
+										"before:content-[''] before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
+										copyHovered && "before:opacity-100",
+									)}
+								>
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -629,13 +645,37 @@ const ChatMessageItem = memo<{
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
-													className="flex"
+													className="flex !mt-0"
 													data-testid="assistant-copy-button"
 												>
-													<CopyButton
-														text={parsed.markdown}
-														label="Copy message"
-													/>
+													{" "}
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<Button
+																size="icon"
+																variant="subtle"
+																className="pl-0"
+																onClick={() => copyToClipboard(parsed.markdown)}
+																onMouseEnter={() => setCopyHovered(true)}
+																onMouseLeave={() => setCopyHovered(false)}
+															>
+																{" "}
+																{showCopiedSuccess ? (
+																	<CheckIcon />
+																) : (
+																	<CopyIcon />
+																)}
+																<span className="sr-only">Copy message</span>
+															</Button>
+														</TooltipTrigger>
+														<TooltipContent
+															side="bottom"
+															align="start"
+															className="px-2 py-1 text-2xs"
+														>
+															{showCopiedSuccess ? "Copied!" : "Copy message"}
+														</TooltipContent>
+													</Tooltip>
 												</div>
 											) : undefined
 										}
