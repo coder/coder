@@ -121,7 +121,7 @@ jobs:
           fi
 
           # Derive the release branch from the version tag.
-          # GA/patch releases must be on a release/X.Y branch.
+          # Non-RC releases must be on a release/X.Y branch.
           # RC tags are allowed on any branch (typically main).
           version="$(./scripts/version.sh)"
           # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
