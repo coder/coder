@@ -345,15 +345,16 @@ func wrapStreamSeq(
 ) fantasy.StreamResponse {
 	return func(yield func(fantasy.StreamPart) bool) {
 		var (
-			summary      streamSummary
-			latestUsage  fantasy.Usage
-			usageSeen    bool
-			finishReason fantasy.FinishReason
-			content      []normalizedContentPart
-			warnings     []normalizedWarning
-			streamError  any
-			streamStatus = StatusCompleted
-			once         sync.Once
+			summary          streamSummary
+			latestUsage      fantasy.Usage
+			usageSeen        bool
+			finishReason     fantasy.FinishReason
+			content          []normalizedContentPart
+			warnings         []normalizedWarning
+			streamDebugBytes int
+			streamError      any
+			streamStatus     = StatusCompleted
+			once             sync.Once
 		)
 
 		finalize := func(status Status) {
@@ -402,7 +403,7 @@ func wrapStreamSeq(
 					usageSeen = true
 				}
 
-				content = appendNormalizedStreamContent(content, part)
+				content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
 
 				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
@@ -553,8 +554,14 @@ func boundText(s string) string {
 	if utf8.RuneCountInString(s) <= MaxMessagePartTextLength {
 		return s
 	}
+	if MaxMessagePartTextLength <= 0 {
+		return ""
+	}
+	if MaxMessagePartTextLength == 1 {
+		return "…"
+	}
 	runes := []rune(s)
-	return string(runes[:MaxMessagePartTextLength]) + "…"
+	return string(runes[:MaxMessagePartTextLength-1]) + "…"
 }
 
 func mustMarshalJSON(label string, value any) json.RawMessage {
@@ -575,30 +582,58 @@ func appendStreamContentText(
 	content []normalizedContentPart,
 	partType string,
 	delta string,
+	streamDebugBytes *int,
 ) []normalizedContentPart {
 	if delta == "" {
 		return content
 	}
+
+	remaining := maxStreamDebugTextBytes
+	if streamDebugBytes != nil {
+		remaining -= *streamDebugBytes
+	}
+	if remaining <= 0 {
+		return content
+	}
+	if len(delta) > remaining {
+		cut := 0
+		for _, r := range delta {
+			size := utf8.RuneLen(r)
+			if size < 0 {
+				size = 1
+			}
+			if cut+size > remaining {
+				break
+			}
+			cut += size
+		}
+		delta = delta[:cut]
+	}
+	if delta == "" {
+		return content
+	}
+
 	if len(content) == 0 || content[len(content)-1].Type != partType {
 		content = append(content, normalizedContentPart{Type: partType})
 	}
 	last := &content[len(content)-1]
-	var builder strings.Builder
-	_, _ = builder.WriteString(last.Text)
-	appendStreamDebugText(&builder, delta)
-	last.Text = builder.String()
+	last.Text += delta
+	if streamDebugBytes != nil {
+		*streamDebugBytes += len(delta)
+	}
 	return content
 }
 
 func appendNormalizedStreamContent(
 	content []normalizedContentPart,
 	part fantasy.StreamPart,
+	streamDebugBytes *int,
 ) []normalizedContentPart {
 	switch part.Type {
 	case fantasy.StreamPartTypeTextDelta:
-		return appendStreamContentText(content, "text", part.Delta)
+		return appendStreamContentText(content, "text", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeReasoningDelta:
-		return appendStreamContentText(content, "reasoning", part.Delta)
+		return appendStreamContentText(content, "reasoning", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeToolCall:
 		return append(content, normalizedContentPart{
 			Type:        "tool_call",

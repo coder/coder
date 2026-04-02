@@ -3,6 +3,8 @@ package chatdebug
 import (
 	"context"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type (
@@ -20,7 +22,17 @@ func ContextWithRun(ctx context.Context, rc *RunContext) context.Context {
 	if rc == nil {
 		panic("chatdebug: nil RunContext")
 	}
-	return context.WithValue(ctx, runContextKey{}, rc)
+
+	enriched := context.WithValue(ctx, runContextKey{}, rc)
+	if rc.RunID != uuid.Nil {
+		// Keep the per-run step counter scoped to the run context so
+		// completed runs do not leave atomic counters behind.
+		runID := rc.RunID
+		context.AfterFunc(enriched, func() {
+			CleanupStepCounter(runID)
+		})
+	}
+	return enriched
 }
 
 // RunFromContext returns the debug run context stored in ctx.

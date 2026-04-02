@@ -1,6 +1,7 @@
 package chatdebug //nolint:testpackage // Uses unexported normalization helpers.
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -109,13 +110,14 @@ func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testin
 	t.Parallel()
 
 	var content []normalizedContentPart
+	streamDebugBytes := 0
 	for _, part := range []fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "before "},
 		{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{"query":"debug"}`},
 		{Type: fantasy.StreamPartTypeToolResult, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{"matches":1}`},
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "after"},
 	} {
-		content = appendNormalizedStreamContent(content, part)
+		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
 	}
 
 	require.Equal(t, []normalizedContentPart{
@@ -124,6 +126,39 @@ func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testin
 		{Type: "tool_result", ToolCallID: "call-1", ToolName: "search_docs", Result: `{"matches":1}`},
 		{Type: "text", Text: "after"},
 	}, content)
+}
+
+func TestAppendNormalizedStreamContent_GlobalTextCap(t *testing.T) {
+	t.Parallel()
+
+	streamDebugBytes := 0
+	long := strings.Repeat("a", maxStreamDebugTextBytes)
+	var content []normalizedContentPart
+	for _, part := range []fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: long},
+		{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{}`},
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "tail"},
+	} {
+		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+	}
+
+	require.Len(t, content, 2)
+	require.Equal(t, strings.Repeat("a", maxStreamDebugTextBytes), content[0].Text)
+	require.Equal(t, "tool_call", content[1].Type)
+	require.Equal(t, maxStreamDebugTextBytes, streamDebugBytes)
+}
+
+func TestBoundText_RespectsDocumentedRuneLimit(t *testing.T) {
+	t.Parallel()
+
+	runes := make([]rune, MaxMessagePartTextLength+5)
+	for i := range runes {
+		runes[i] = 'a'
+	}
+	input := string(runes)
+	got := boundText(input)
+	require.Equal(t, MaxMessagePartTextLength, len([]rune(got)))
+	require.Equal(t, '…', []rune(got)[len([]rune(got))-1])
 }
 
 func TestNormalizeResponse_PreservesToolCallArguments(t *testing.T) {
