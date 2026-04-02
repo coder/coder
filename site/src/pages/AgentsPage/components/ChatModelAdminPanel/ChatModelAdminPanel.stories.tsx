@@ -550,7 +550,9 @@ export const ProviderWithUserKeysEnabled: Story = {
 			body.getByRole("switch", { name: "Allow user API keys" }),
 		).toBeChecked();
 		await expect(
-			body.getByRole("switch", { name: "Use central key as fallback" }),
+			await body.findByRole("switch", {
+				name: "Use central key as fallback",
+			}),
 		).not.toBeChecked();
 	},
 };
@@ -594,7 +596,9 @@ export const ProviderWithCentralFallback: Story = {
 			await body.findByRole("button", { name: /OpenRouter/i }),
 		);
 		await expect(
-			body.getByRole("switch", { name: "Use central key as fallback" }),
+			await body.findByRole("switch", {
+				name: "Use central key as fallback",
+			}),
 		).toBeChecked();
 	},
 };
