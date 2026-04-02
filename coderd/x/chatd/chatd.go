@@ -1372,7 +1372,8 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 			return xerrors.Errorf("lock chat for archive: %w", err)
 		}
 
-		archivedChats, err := tx.ArchiveChatByID(ctx, chat.ID)
+		var err error
+		archivedChats, err = tx.ArchiveChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("archive chat: %w", err)
 		}
