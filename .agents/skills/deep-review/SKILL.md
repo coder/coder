@@ -111,8 +111,8 @@ Tier 2 file filters:
 
 - **Modernization Reviewer**: one instance per language present in the diff. Filter by extension:
   - Go: `*.go` — reference `.claude/docs/GO.md` before reviewing.
-  - TypeScript: `*.ts` `*.tsx` — reference `.agents/skills/deep-review/references/typescript.md` before reviewing.
-  - React: `*.tsx` `*.jsx` — reference `.agents/skills/deep-review/references/react.md` before reviewing.
+  - TypeScript: `*.ts` `*.tsx`: reference `.agents/skills/deep-review/references/typescript.md` before reviewing.
+  - React: `*.tsx` `*.jsx`: reference `.agents/skills/deep-review/references/react.md` before reviewing.
 
   `.tsx` files match both TypeScript and React filters. Spawn both instances when the diff contains `.tsx` changes — TS covers language-level patterns; React covers component and hooks patterns. Before spawning, verify each instance's filter produces a non-empty diff. Skip instances whose filtered diff is empty.
 
