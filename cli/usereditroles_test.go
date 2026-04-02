@@ -239,6 +239,15 @@ func TestUserEditRoles(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not valid")
+
+		// Same for --remove: a typo should fail fast rather than
+		// silently being a no-op.
+		inv, root = clitest.New(t, "users", "edit-roles", member.Username, "--remove", "nonexistent")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		err = inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not valid")
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {

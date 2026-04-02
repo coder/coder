@@ -66,7 +66,8 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			}
 
 			// Pre-flight check: verify the caller has permission to
-			// assign site roles before we do any further work.
+			// assign and unassign site roles before we do any further
+			// work.
 			authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{
 				Checks: map[string]codersdk.AuthorizationCheck{
 					"assignRole": {
@@ -75,12 +76,18 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 						},
 						Action: codersdk.ActionAssign,
 					},
+					"unassignRole": {
+						Object: codersdk.AuthorizationObject{
+							ResourceType: codersdk.ResourceAssignRole,
+						},
+						Action: codersdk.ActionUnassign,
+					},
 				},
 			})
 			if err != nil {
 				return xerrors.Errorf("check permissions: %w", err)
 			}
-			if !authResp["assignRole"] {
+			if !authResp["assignRole"] || !authResp["unassignRole"] {
 				return xerrors.Errorf("you do not have permission to edit user roles")
 			}
 
@@ -100,8 +107,15 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			var selectedRoles []string
 			switch {
 			case len(addRoles) > 0 || len(removeRoles) > 0:
-				// Validate --add roles against assignable site roles.
+				// Validate --add and --remove roles against assignable
+				// site roles so typos fail fast.
 				for _, role := range addRoles {
+					if !slices.Contains(siteRoleNames, role) {
+						siteRolesPretty := strings.Join(siteRoleNames, ", ")
+						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", role, siteRolesPretty)
+					}
+				}
+				for _, role := range removeRoles {
 					if !slices.Contains(siteRoleNames, role) {
 						siteRolesPretty := strings.Join(siteRoleNames, ", ")
 						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", role, siteRolesPretty)
