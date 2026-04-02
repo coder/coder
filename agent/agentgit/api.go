@@ -1,8 +1,13 @@
 package agentgit
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,10 +35,15 @@ func NewAPI(logger slog.Logger, pathStore *PathStore, opts ...Option) *API {
 	}
 }
 
+// maxShowFileSize is the maximum file size returned by the show
+// endpoint. Files larger than this are rejected with 422.
+const maxShowFileSize = 512 * 1024 // 512 KB
+
 // Routes returns the chi router for mounting at /api/v0/git.
 func (a *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/watch", a.handleWatch)
+	r.Get("/show", a.handleShow)
 	return r
 }
 
@@ -144,4 +154,75 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// GitShowResponse is the JSON response for the show endpoint.
+type GitShowResponse struct {
+	Contents string `json:"contents"`
+}
+
+func (a *API) handleShow(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	repoRoot := r.URL.Query().Get("repo_root")
+	filePath := r.URL.Query().Get("path")
+	ref := r.URL.Query().Get("ref")
+
+	if repoRoot == "" || filePath == "" || ref == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameters.",
+			Detail:  "repo_root, path, and ref are required.",
+		})
+		return
+	}
+
+	// Validate that repo_root is a git repository by checking for
+	// a .git entry.
+	gitPath := filepath.Join(repoRoot, ".git")
+	if _, err := os.Stat(gitPath); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Not a git repository.",
+			Detail:  repoRoot + " does not contain a .git directory.",
+		})
+		return
+	}
+
+	// Run `git show ref:path` to retrieve the file at the given
+	// ref.
+	//nolint:gosec // ref and filePath are user-provided but we
+	// intentionally pass them to git.
+	cmd := exec.CommandContext(ctx, "git", "-C", repoRoot, "show", ref+":"+filePath)
+	out, err := cmd.Output()
+	if err != nil {
+		// git show exits non-zero when the path doesn't exist at
+		// the given ref.
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "File not found.",
+			Detail:  filePath + " does not exist at ref " + ref + ".",
+		})
+		return
+	}
+
+	// Check if the file is binary by looking for null bytes in
+	// the first 8 KB.
+	checkLen := min(len(out), 8*1024)
+	if bytes.ContainsRune(out[:checkLen], '\x00') {
+		httpapi.Write(ctx, rw, http.StatusUnprocessableEntity, codersdk.Response{
+			Message: "binary file",
+		})
+		return
+	}
+
+	if len(out) > maxShowFileSize {
+		httpapi.Write(ctx, rw, http.StatusUnprocessableEntity, codersdk.Response{
+			Message: "file too large",
+		})
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(rw).Encode(GitShowResponse{
+		Contents: string(out),
+	})
 }

@@ -1,5 +1,5 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
-import { parsePatchFiles } from "@pierre/diffs";
+import { parsePatchFiles, processFile } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, waitFor } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
@@ -427,5 +427,88 @@ const renameFiles = parsePatchFiles(renameDiff).flatMap((p) => p.files);
 export const RenameWithLongPaths: Story = {
 	args: {
 		parsedFiles: renameFiles,
+	},
+};
+
+// -------------------------------------------------------------------
+// Expandable context stories
+// -------------------------------------------------------------------
+
+// A diff with full file contents provided via processFile so the
+// library has isPartial: false and renders native expand buttons.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const expandableFilePatch = [
+"diff --git a/src/config.ts b/src/config.ts",
+"index abc1234..def5678 100644",
+"--- a/src/config.ts",
+"+++ b/src/config.ts",
+"@@ -5,3 +5,4 @@ const config = {",
+"   host: \"localhost\",",
+"   debug: false,",
+"+  verbose: true,",
+" };",
+].join("\n");
+
+const expandableOldContents = [
+	"// Configuration file",
+	"import { defaults } from './defaults';",
+	"",
+	"const config = {",
+	'  host: "localhost",',
+	"  debug: false,",
+	"};",
+	"",
+	"export default config;",
+].join("\n");
+
+const expandableNewContents = [
+	"// Configuration file",
+	"import { defaults } from './defaults';",
+	"",
+	"const config = {",
+	'  host: "localhost",',
+	"  debug: false,",
+	"  verbose: true,",
+	"};",
+	"",
+	"export default config;",
+].join("\n");
+
+const expandableFile = processFile(expandableFilePatch, {
+	oldFile: { name: "src/config.ts", contents: expandableOldContents },
+	newFile: { name: "src/config.ts", contents: expandableNewContents },
+	isGitDiff: true,
+});
+
+const expandableFiles = expandableFile ? [expandableFile] : [];
+
+export const WithExpandableContext: Story = {
+	args: {
+		parsedFiles: expandableFiles,
+	},
+	play: async ({ canvasElement }) => {
+		// The enriched diff should have isPartial: false, which means
+		// the library renders native expand buttons in the separator.
+		await waitFor(() => {
+			const container = canvasElement.querySelector("diffs-container");
+			expect(container).not.toBeNull();
+		});
+	},
+};
+
+// Story simulating the loading state while expansion is in progress.
+// The onRequestFileContents callback never resolves so the button
+// stays in its loading state.
+export const WithExpansionLoading: Story = {
+	args: {
+		parsedFiles: multiHunkFiles,
+		onRequestFileContents: () => new Promise(() => {}),
+	},
+	play: async ({ canvasElement }) => {
+		// The "Expand context" button should be visible in the header.
+		await waitFor(() => {
+			const btn = canvasElement.querySelector("button");
+			expect(btn).not.toBeNull();
+		});
 	},
 };

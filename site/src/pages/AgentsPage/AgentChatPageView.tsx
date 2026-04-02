@@ -382,9 +382,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								id: "git",
 								label: "Git",
 								content: (
-									<GitPanel
-										prTab={
-											prNumber && agentId
+										<GitPanel
+											chatId={agentId}
+											prTab={											prNumber && agentId
 												? { prNumber, chatId: agentId }
 												: undefined
 										}
