@@ -420,6 +420,54 @@ func TestDebugModel_StreamEarlyStop(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
+func TestWrapStreamSeq_CancellationErrorMarksInterrupted(t *testing.T) {
+	t.Parallel()
+
+	var gotStatus Status
+	handle := &stepHandle{
+		stepCtx: &StepContext{StepID: uuid.New()},
+		sink:    &attemptSink{},
+		finishFn: func(_ context.Context, status Status, _ any, _ any, _ any, _ any) {
+			gotStatus = status
+		},
+	}
+
+	seq := wrapStreamSeq(context.Background(), handle, partsToSeq([]fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeError, Error: context.Canceled},
+	}))
+	count := 0
+	for range seq {
+		count++
+	}
+
+	require.Equal(t, 1, count)
+	require.Equal(t, StatusInterrupted, gotStatus)
+}
+
+func TestWrapObjectStreamSeq_CancellationErrorMarksInterrupted(t *testing.T) {
+	t.Parallel()
+
+	var gotStatus Status
+	handle := &stepHandle{
+		stepCtx: &StepContext{StepID: uuid.New()},
+		sink:    &attemptSink{},
+		finishFn: func(_ context.Context, status Status, _ any, _ any, _ any, _ any) {
+			gotStatus = status
+		},
+	}
+
+	seq := wrapObjectStreamSeq(context.Background(), handle, objectPartsToSeq([]fantasy.ObjectStreamPart{
+		{Type: fantasy.ObjectStreamPartTypeError, Error: context.Canceled},
+	}))
+	count := 0
+	for range seq {
+		count++
+	}
+
+	require.Equal(t, 1, count)
+	require.Equal(t, StatusInterrupted, gotStatus)
+}
+
 func objectPartsToSeq(parts []fantasy.ObjectStreamPart) fantasy.ObjectStreamResponse {
 	return func(yield func(fantasy.ObjectStreamPart) bool) {
 		for _, part := range parts {

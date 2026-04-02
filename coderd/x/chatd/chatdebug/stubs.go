@@ -69,8 +69,9 @@ func CleanupStepCounter(runID uuid.UUID) {
 }
 
 type stepHandle struct {
-	stepCtx *StepContext
-	sink    *attemptSink
+	stepCtx  *StepContext
+	sink     *attemptSink
+	finishFn func(context.Context, Status, any, any, any, any)
 }
 
 func beginStep(
@@ -134,15 +135,18 @@ func newStepHandle(
 }
 
 func (h *stepHandle) finish(
-	_ context.Context,
-	_ Status,
-	_ any,
-	_ any,
-	_ any,
-	_ any,
+	ctx context.Context,
+	status Status,
+	response any,
+	usage any,
+	errPayload any,
+	metadata any,
 ) {
 	if h == nil || h.stepCtx == nil {
 		return
+	}
+	if h.finishFn != nil {
+		h.finishFn(ctx, status, response, usage, errPayload, metadata)
 	}
 }
 
