@@ -62,7 +62,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 							}
 						: undefined
 				}
-				className={cn(className, "overflow-scroll", isExpanded && "pb-9")}
+				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
 				{text}
 			</p>
