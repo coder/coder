@@ -318,7 +318,9 @@ export const EnvPresetProviders: Story = {
 		).toBeInTheDocument();
 
 		// Navigate to Anthropic detail view and verify it's also env-managed.
-		await userEvent.click(body.getByRole("button", { name: /Anthropic/i }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /Anthropic/i }),
+		);
 		await expect(
 			await body.findByText(
 				"This provider key is configured from deployment environment settings and cannot be edited in this UI.",
@@ -436,10 +438,10 @@ export const CreateAndUpdateProvider: Story = {
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
 		await expect(
-			body.getByRole("switch", { name: "Central API key" }),
+			await body.findByRole("switch", { name: "Central API key" }),
 		).toBeChecked();
 		expect(
-			body.getByRole("switch", { name: "Allow user API keys" }),
+			await body.findByRole("switch", { name: "Allow user API keys" }),
 		).not.toBeChecked();
 		expect(
 			body.queryByRole("switch", { name: "Use central key as fallback" }),
@@ -450,11 +452,11 @@ export const CreateAndUpdateProvider: Story = {
 			"sk-provider-key",
 		);
 		await userEvent.type(
-			body.getByLabelText("Base URL"),
+			await body.findByLabelText("Base URL"),
 			"https://proxy.example.com/v1",
 		);
 		await userEvent.click(
-			body.getByRole("button", { name: "Create provider config" }),
+			await body.findByRole("button", { name: "Create provider config" }),
 		);
 
 		await waitFor(() => {
@@ -478,7 +480,7 @@ export const CreateAndUpdateProvider: Story = {
 		});
 
 		await userEvent.click(
-			body.getByRole("switch", { name: "Allow user API keys" }),
+			await body.findByRole("switch", { name: "Allow user API keys" }),
 		);
 		await userEvent.click(
 			await body.findByRole("switch", { name: "Use central key as fallback" }),
@@ -547,7 +549,7 @@ export const ProviderWithUserKeysEnabled: Story = {
 		).toBeInTheDocument();
 		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
 		await expect(
-			body.getByRole("switch", { name: "Allow user API keys" }),
+			await body.findByRole("switch", { name: "Allow user API keys" }),
 		).toBeChecked();
 		await expect(
 			await body.findByRole("switch", {
