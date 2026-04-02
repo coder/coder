@@ -3152,6 +3152,10 @@ func (api *API) getChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Keep in sync with retentionDaysMaximum in
+// site/src/pages/AgentsPage/AgentSettingsBehaviorPageView.tsx.
+const retentionDaysMaximum = 3650 // ~10 years
+
 // @Summary Update chat retention days
 // @ID update-chat-retention-days
 // @Security CoderSessionToken
@@ -3161,8 +3165,6 @@ func (api *API) getChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /experimental/chats/config/retention-days [put]
 // @x-apidocgen {"skip": true}
-const retentionDaysMaximum = 3650 // ~10 years
-
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {

@@ -6678,6 +6678,10 @@ func TestChatRetentionDays(t *testing.T) {
 	require.NoError(t, err, "member get")
 	require.Equal(t, int32(90), resp.RetentionDays, "member should see same value")
 
+	// Non-admin member cannot write.
+	err = memberClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 7})
+	requireSDKError(t, err, http.StatusForbidden)
+
 	// Admin can disable purge by setting 0.
 	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
 		RetentionDays: 0,
@@ -6696,7 +6700,7 @@ func TestChatRetentionDays(t *testing.T) {
 
 	// Validation: exceeding the 3650-day maximum is rejected.
 	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
-		RetentionDays: 3651,
+		RetentionDays: 3651, // retentionDaysMaximum + 1; keep in sync with coderd/exp_chats.go.
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
 }
