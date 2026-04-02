@@ -4487,30 +4487,24 @@ func (p *Server) runChat(
 				}
 
 				// Cap enforcement and dedup are handled atomically
-				// in SQL. 0 rows = cap exceeded.
-				rowsAffected, err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     chatSnapshot.ID,
-					MaxFileIDs: int32(codersdk.MaxChatFileIDs),
-					FileIDs:    []uuid.UUID{row.ID},
+				// in SQL. rejected > 0 = cap exceeded.
+				rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chatSnapshot.ID,
+					MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+					FileIds:      []uuid.UUID{row.ID},
 				})
 				switch {
 				case err != nil:
-					p.logger.Error(ctx, "failed to append file ID to chat",
+					p.logger.Error(ctx, "failed to link file to chat",
 						slog.F("chat_id", chatSnapshot.ID),
 						slog.F("file_id", row.ID),
 						slog.Error(err),
 					)
-				case rowsAffected > 0:
-					// Update the snapshot so subsequent StoreFile
-					// calls in the same turn see the new count.
-					workspaceCtx.chatStateMu.Lock()
-					workspaceCtx.currentChat.FileIDs = append(workspaceCtx.currentChat.FileIDs, row.ID)
-					workspaceCtx.chatStateMu.Unlock()
-				default:
+				case rejected > 0:
 					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
 						slog.F("chat_id", chatSnapshot.ID),
 						slog.F("file_id", row.ID),
-						slog.F("max_file_ids", codersdk.MaxChatFileIDs),
+						slog.F("max_file_links", codersdk.MaxChatFileIDs),
 					)
 				}
 				return row.ID, nil

@@ -1522,7 +1522,7 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 // When diffStatus is non-nil the response includes diff metadata.
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
-func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByIDsRow) codersdk.Chat {
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}

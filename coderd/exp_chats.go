@@ -530,7 +530,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID, chat.FileIDs)
+	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	if len(unlinked) > 0 {
 		if capExceeded {
@@ -1277,8 +1277,8 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Hydrate file metadata from the chat's file_ids array.
-	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID, chat.FileIDs)
+	// Hydrate file metadata for all files linked to this chat.
+	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
 }
@@ -3910,9 +3910,9 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-// linkFilesToChat appends file IDs to a chat's file_ids array.
-// Cap enforcement and dedup are handled atomically in SQL.
-// On success returns (nil, false). On failure returns the full
+// linkFilesToChat inserts file-link rows into the chat_file_links
+// join table. Cap enforcement and dedup are handled atomically in
+// SQL. On success returns (nil, false). On failure returns the full
 // input fileIDs slice — linking is all-or-nothing because the
 // SQL operates on the batch atomically. capExceeded indicates
 // whether the failure was due to the cap being exceeded (true)
@@ -3922,10 +3922,10 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs [
 	if len(fileIDs) == 0 {
 		return nil, false
 	}
-	rowsAffected, err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-		ChatID:     chatID,
-		MaxFileIDs: int32(codersdk.MaxChatFileIDs),
-		FileIDs:    fileIDs,
+	rejected, err := api.Database.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      fileIDs,
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "failed to link files to chat",
@@ -3935,11 +3935,11 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs [
 		)
 		return fileIDs, false
 	}
-	if rowsAffected == 0 {
+	if rejected > 0 {
 		api.Logger.Warn(ctx, "file cap reached, files not linked",
 			slog.F("chat_id", chatID),
 			slog.F("file_ids", fileIDs),
-			slog.F("max_file_ids", codersdk.MaxChatFileIDs),
+			slog.F("max_file_links", codersdk.MaxChatFileIDs),
 		)
 		return fileIDs, true
 	}
@@ -3959,18 +3959,14 @@ func fileLinkErrorWarning(count int) string {
 	return fmt.Sprintf("%d file(s) could not be linked due to a server error", count)
 }
 
-// fetchChatFileMetadata returns metadata for the given file
-// IDs. Errors are logged and result in a nil return (callers
-// treat file metadata as best-effort).
-func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) []database.GetChatFileMetadataByIDsRow {
-	if len(fileIDs) == 0 {
-		return nil
-	}
-	rows, err := api.Database.GetChatFileMetadataByIDs(ctx, fileIDs)
+// fetchChatFileMetadata returns metadata for all files linked to
+// the given chat. Errors are logged and result in a nil return
+// (callers treat file metadata as best-effort).
+func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID) []database.GetChatFileMetadataByChatIDRow {
+	rows, err := api.Database.GetChatFileMetadataByChatID(ctx, chatID)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to fetch chat file metadata",
 			slog.F("chat_id", chatID),
-			slog.F("file_ids", fileIDs),
 			slog.Error(err),
 		)
 		return nil

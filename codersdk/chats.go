@@ -28,8 +28,8 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
 // MaxChatFileIDs is the maximum number of file IDs that can be
 // associated with a single chat. This limit prevents unbounded
-// array growth in the chats table. It is easier to raise this
-// limit than to lower it.
+// growth in the chat_file_links table. It is easier to raise
+// this limit than to lower it.
 const MaxChatFileIDs = 20
 
 // CompactionThresholdKey returns the user-config key for a specific

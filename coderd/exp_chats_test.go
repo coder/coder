@@ -2152,8 +2152,7 @@ func TestGetChat(t *testing.T) {
 
 	// ToolCreatedFilesLinked exercises the DB path that chatd uses
 	// when a tool (e.g. propose_plan) creates a file: InsertChatFile
-	// then AppendChatFileIDs. This is a DB-level test because driving
-	// the full chatd tool-call pipeline requires an LLM mock.
+	// then LinkChatFiles. This is a DB-level test because driving	// the full chatd tool-call pipeline requires an LLM mock.
 	t.Run("ToolCreatedFilesLinked", func(t *testing.T) {
 		t.Parallel()
 
@@ -2172,8 +2171,7 @@ func TestGetChat(t *testing.T) {
 
 		// Mimic what chatd's StoreFile closure does:
 		// 1. InsertChatFile
-		// 2. AppendChatFileIDs
-		//nolint:gocritic // Using AsChatd to mimic the chatd background worker.
+		// 2. LinkChatFiles		//nolint:gocritic // Using AsChatd to mimic the chatd background worker.
 		chatdCtx := dbauthz.AsChatd(ctx)
 		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 			OwnerID:        firstUser.UserID,
@@ -2184,13 +2182,13 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rowsAffected, err := store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
-			ChatID:     chat.ID,
-			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
-			FileIDs:    []uuid.UUID{fileRow.ID},
+		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
-		require.Equal(t, int64(1), rowsAffected)
+		require.Equal(t, int32(0), rejected, "0 rejected = all files linked")
 
 		// Verify via the API that the file appears in the chat.
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -2214,10 +2212,10 @@ func TestGetChat(t *testing.T) {
 				Data:           []byte("data"),
 			})
 			require.NoError(t, err)
-			_, err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
-				ChatID:     chat.ID,
-				MaxFileIDs: int32(codersdk.MaxChatFileIDs),
-				FileIDs:    []uuid.UUID{extra.ID},
+			_, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+				ChatID:       chat.ID,
+				MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+				FileIds:      []uuid.UUID{extra.ID},
 			})
 			require.NoError(t, err)
 		}
@@ -2236,23 +2234,25 @@ func TestGetChat(t *testing.T) {
 			Data:           []byte("too many"),
 		})
 		require.NoError(t, err)
-		rowsAffected, err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
-			ChatID:     chat.ID,
-			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
-			FileIDs:    []uuid.UUID{overflow.ID},
+		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
-		require.Equal(t, int64(0), rowsAffected, "cap should reject the 21st file")
+		require.Equal(t, int32(1), rejected, "cap should reject the 21st file")
 
 		// Re-appending an already-linked ID at cap should succeed
 		// (dedup means no array growth).
-		rowsAffected, err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
-			ChatID:     chat.ID,
-			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
-			FileIDs:    []uuid.UUID{fileRow.ID},
+		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
-		require.Equal(t, int64(1), rowsAffected, "dedup of existing ID should succeed at cap")
+		// ON CONFLICT DO NOTHING returns 0 rows when the link
+		// already exists, which is fine — the file is still linked.
+		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
 
 		// Count should still be exactly MaxChatFileIDs.
 		chatResult, err = client.GetChat(ctx, chat.ID)

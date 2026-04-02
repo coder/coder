@@ -4176,7 +4176,6 @@ type Chat struct {
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
-	FileIDs             []uuid.UUID           `db:"file_ids" json:"file_ids"`
 }
 
 type ChatDiffStatus struct {
@@ -4213,6 +4212,11 @@ type ChatFile struct {
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
 	Data           []byte    `db:"data" json:"data"`
+}
+
+type ChatFileLink struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	FileID uuid.UUID `db:"file_id" json:"file_id"`
 }
 
 type ChatMessage struct {

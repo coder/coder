@@ -565,33 +565,42 @@ WHERE
 RETURNING
     *;
 
--- name: AppendChatFileIDs :execrows
--- AppendChatFileIDs merges new file IDs into the chat's file_ids
--- array with deduplication (DISTINCT). The update is conditional:
--- it only proceeds when the resulting array length does not exceed
--- max_file_ids. Returns 0 rows affected when the cap would be
--- exceeded (all new IDs are silently rejected as a batch).
--- The inner SELECT uses FOR UPDATE to prevent lost-update races
--- under concurrent access (two concurrent appends on the same chat
--- would otherwise read stale file_ids and overwrite each other).
--- updated_at is only bumped when file_ids actually changes.
-WITH new AS (
-    SELECT COALESCE(array_agg(DISTINCT fid ORDER BY fid), '{}') AS ids
-    FROM unnest(
-        (SELECT file_ids FROM chats WHERE id = @chat_id::uuid FOR UPDATE)
-        || COALESCE(@file_ids::uuid[], '{}'::uuid[])
-    ) AS fid
+-- name: LinkChatFiles :one
+-- LinkChatFiles inserts file associations into the chat_file_links
+-- join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
+-- is conditional: it only proceeds when the total number of links
+-- (existing + genuinely new) does not exceed max_file_links. Returns
+-- the number of genuinely new file IDs that were NOT inserted due to
+-- the cap. A return value of 0 means all files were linked (or were
+-- already linked). A positive value means the cap blocked that many
+-- new links.
+WITH current AS (
+    SELECT COUNT(*) AS cnt
+    FROM chat_file_links
+    WHERE chat_id = @chat_id::uuid
+),
+new_links AS (
+    SELECT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
+),
+genuinely_new AS (
+    SELECT nl.chat_id, nl.file_id
+    FROM new_links nl
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chat_file_links cfl
+        WHERE cfl.chat_id = nl.chat_id AND cfl.file_id = nl.file_id
+    )
+),
+inserted AS (
+    INSERT INTO chat_file_links (chat_id, file_id)
+    SELECT gn.chat_id, gn.file_id
+    FROM genuinely_new gn, current c
+    WHERE c.cnt + (SELECT COUNT(*) FROM genuinely_new) <= @max_file_links::int
+    ON CONFLICT (chat_id, file_id) DO NOTHING
+    RETURNING file_id
 )
-UPDATE chats
-SET
-    file_ids = new.ids,
-    updated_at = CASE
-        WHEN file_ids IS DISTINCT FROM new.ids THEN NOW()
-        ELSE updated_at
-    END
-FROM new
-WHERE chats.id = @chat_id::uuid
-  AND COALESCE(array_length(new.ids, 1), 0) <= @max_file_ids::int;
+SELECT
+    (SELECT COUNT(*)::int FROM genuinely_new) -
+    (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
 
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED

@@ -147,21 +147,6 @@ func (mr *MockStoreMockRecorder) AllUserIDs(ctx, includeSystem any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllUserIDs", reflect.TypeOf((*MockStore)(nil).AllUserIDs), ctx, includeSystem)
 }
 
-// AppendChatFileIDs mocks base method.
-func (m *MockStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AppendChatFileIDs", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AppendChatFileIDs indicates an expected call of AppendChatFileIDs.
-func (mr *MockStoreMockRecorder) AppendChatFileIDs(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendChatFileIDs", reflect.TypeOf((*MockStore)(nil).AppendChatFileIDs), ctx, arg)
-}
-
 // ArchiveChatByID mocks base method.
 func (m *MockStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -2059,19 +2044,19 @@ func (mr *MockStoreMockRecorder) GetChatFileByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileByID", reflect.TypeOf((*MockStore)(nil).GetChatFileByID), ctx, id)
 }
 
-// GetChatFileMetadataByIDs mocks base method.
-func (m *MockStore) GetChatFileMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFileMetadataByIDsRow, error) {
+// GetChatFileMetadataByChatID mocks base method.
+func (m *MockStore) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatFileMetadataByIDs", ctx, ids)
-	ret0, _ := ret[0].([]database.GetChatFileMetadataByIDsRow)
+	ret := m.ctrl.Call(m, "GetChatFileMetadataByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.GetChatFileMetadataByChatIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatFileMetadataByIDs indicates an expected call of GetChatFileMetadataByIDs.
-func (mr *MockStoreMockRecorder) GetChatFileMetadataByIDs(ctx, ids any) *gomock.Call {
+// GetChatFileMetadataByChatID indicates an expected call of GetChatFileMetadataByChatID.
+func (mr *MockStoreMockRecorder) GetChatFileMetadataByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileMetadataByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFileMetadataByIDs), ctx, ids)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileMetadataByChatID", reflect.TypeOf((*MockStore)(nil).GetChatFileMetadataByChatID), ctx, chatID)
 }
 
 // GetChatFilesByIDs mocks base method.
@@ -7051,6 +7036,21 @@ func (m *MockStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), ctx, arg)
+}
+
+// LinkChatFiles mocks base method.
+func (m *MockStore) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LinkChatFiles", ctx, arg)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LinkChatFiles indicates an expected call of LinkChatFiles.
+func (mr *MockStoreMockRecorder) LinkChatFiles(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LinkChatFiles", reflect.TypeOf((*MockStore)(nil).LinkChatFiles), ctx, arg)
 }
 
 // ListAIBridgeClients mocks base method.

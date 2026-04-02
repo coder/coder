@@ -541,7 +541,6 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
-		FileIDs:           []uuid.UUID{uuid.New()},
 		LastInjectedContext: pqtype.NullRawMessage{
 			// Use a context-file part to verify internal
 			// fields are not present (they are stripped at
@@ -558,9 +557,9 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ChatID: input.ID,
 	}
 
-	fileRows := []database.GetChatFileMetadataByIDsRow{
+	fileRows := []database.GetChatFileMetadataByChatIDRow{
 		{
-			ID:             input.FileIDs[0],
+			ID:             uuid.New(),
 			OwnerID:        input.OwnerID,
 			OrganizationID: uuid.New(),
 			Name:           "test.png",
@@ -606,10 +605,9 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,
 		UpdatedAt:         now,
-		FileIDs:           []uuid.UUID{fileID},
 	}
 
-	rows := []database.GetChatFileMetadataByIDsRow{
+	rows := []database.GetChatFileMetadataByChatIDRow{
 		{
 			ID:             fileID,
 			OwnerID:        ownerID,
@@ -670,10 +668,9 @@ func TestChat_MultipleFiles(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,
 		UpdatedAt:         now,
-		FileIDs:           []uuid.UUID{file1, file2},
 	}
 
-	rows := []database.GetChatFileMetadataByIDsRow{
+	rows := []database.GetChatFileMetadataByChatIDRow{
 		{
 			ID:             file1,
 			OwnerID:        chat.OwnerID,
