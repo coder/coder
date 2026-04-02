@@ -191,37 +191,41 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
-			{/* Workspace badge — always visible when a workspace is attached. */}
-			{workspaceData && workspaceRoute && (
-				<WorkspaceBadge workspace={workspaceData} route={workspaceRoute} />
-			)}
-			{/* PR link — mobile: icon + number; desktop: icon + title.
-				   Hidden on desktop when the sidebar panel is open
-				   (which already shows PR info). */}
-			{prUrl && hasPR && (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer"
-					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-						panel.showSidebarPanel && "md:hidden",
+			{/* Resource badges — workspace status and/or PR link.
+				   On mobile the workspace name and PR title are hidden
+				   so these collapse to compact icon-only pills, leaving
+				   room for the chat title. */}
+			{(workspaceData || hasPR) && (
+				<div className="flex shrink-0 items-center gap-1.5">
+					{workspaceData && workspaceRoute && (
+						<WorkspaceBadge workspace={workspaceData} route={workspaceRoute} />
 					)}
-				>
-					<PrStateIcon
-						state={prState}
-						draft={prDraft}
-						className="!size-3.5 shrink-0"
-					/>
-					<span className="truncate max-w-[120px] hidden md:inline">
-						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-					</span>
-					<span className="md:hidden">
-						{prNumberMatch ? prNumberMatch : "PR"}
-					</span>
-				</a>
+					{prUrl && hasPR && (
+						<a
+							href={prUrl}
+							target="_blank"
+							rel="noreferrer"
+							className={cn(
+								"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+								panel.showSidebarPanel && "md:hidden",
+							)}
+						>
+							<PrStateIcon
+								state={prState}
+								draft={prDraft}
+								className="!size-3.5 shrink-0"
+							/>
+							<span className="truncate max-w-[120px] hidden md:inline">
+								{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
+							</span>
+							<span className="md:hidden">
+								{prNumberMatch ? prNumberMatch : "PR"}
+							</span>
+						</a>
+					)}
+				</div>
 			)}
-			{/* Actions area */}
+			{/* Actions area */}{" "}
 			<div className="flex items-center gap-2">
 				{!isEmbedded && (
 					<DropdownMenu>
@@ -374,11 +378,15 @@ const WorkspaceBadge: FC<WorkspaceBadgeProps> = ({ workspace, route }) => {
 					className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
 				>
 					<MonitorIcon className="size-3.5 shrink-0" />
-					<span className="truncate max-w-[120px]">{workspace.name}</span>
+					<span className="hidden truncate max-w-[120px] md:inline">
+						{workspace.name}
+					</span>
 					<StatusIndicatorDot variant={variant} size="sm" />
 				</Link>
 			</TooltipTrigger>
-			<TooltipContent>Workspace: {text}</TooltipContent>
+			<TooltipContent>
+				{workspace.name} &mdash; {text}
+			</TooltipContent>
 		</Tooltip>
 	);
 };

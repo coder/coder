@@ -306,3 +306,23 @@ export const WithWorkspaceAndPR: Story = {
 		},
 	},
 };
+
+export const MobileWithWorkspaceAndPR: Story = {
+	decorators: mobileDecorator,
+	parameters: { chromatic: { viewports: [390] } },
+	args: {
+		workspaceData: MockWorkspace,
+		workspaceRoute: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+		hasWorkspace: true,
+		diffStatusData: {
+			chat_id: "chat-1",
+			url: "https://github.com/coder/coder/pull/123",
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		},
+	},
+};
