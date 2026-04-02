@@ -664,12 +664,10 @@ const ChatMessageItem = memo<{
 																<span className="sr-only">Copy message</span>
 															</Button>
 														</TooltipTrigger>
-														<TooltipContent
-															side="bottom"
-															align="start"
-															className="px-2 py-1 text-2xs"
-														>
-															{showCopiedSuccess ? "Copied!" : "Copy message"}
+															<TooltipContent
+																side="bottom"
+																align="start"
+															>															{showCopiedSuccess ? "Copied!" : "Copy message"}
 														</TooltipContent>
 													</Tooltip>
 												</div>
