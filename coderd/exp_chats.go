@@ -4911,11 +4911,11 @@ func chatProviderAPIKeysFromDeploymentValues(
 	// For now, we'll just manage configs in the UI.
 	// We should probably not be reusing the AI bridge configs anyways.
 	return chatprovider.ProviderAPIKeys{
-		// OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
-		// Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
+		// OpenAI:    deploymentValues.AI.BridgeConfig.LegacyOpenAI.Key.Value(),
+		// Anthropic: deploymentValues.AI.BridgeConfig.LegacyAnthropic.Key.Value(),
 		// BaseURLByProvider: map[string]string{
-		// 	"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
-		// 	"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
+		// 	"openai":    deploymentValues.AI.BridgeConfig.LegacyOpenAI.BaseURL.Value(),
+		// 	"anthropic": deploymentValues.AI.BridgeConfig.LegacyAnthropic.BaseURL.Value(),
 		// },
 	}
 }
