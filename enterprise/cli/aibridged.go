@@ -147,54 +147,25 @@ func buildProviders(cfg codersdk.AIBridgeConfig, cbConfig *config.CircuitBreaker
 	}
 
 	// Always add built-in providers unless their name is already claimed.
-	builtins := []struct {
-		name    string
-		baseURL string
-		factory func(name, baseURL string) aibridge.Provider
-	}{
-		{
-			name: aibridge.ProviderCopilot,
-			factory: func(name, baseURL string) aibridge.Provider {
-				return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-					Name: name, BaseURL: baseURL, CircuitBreaker: cbConfig,
-				})
-			},
-		},
-		{
-			name:    agplaibridge.ProviderCopilotBusiness,
-			baseURL: "https://" + agplaibridge.HostCopilotBusiness,
-			factory: func(name, baseURL string) aibridge.Provider {
-				return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-					Name: name, BaseURL: baseURL, CircuitBreaker: cbConfig,
-				})
-			},
-		},
-		{
-			name:    agplaibridge.ProviderCopilotEnterprise,
-			baseURL: "https://" + agplaibridge.HostCopilotEnterprise,
-			factory: func(name, baseURL string) aibridge.Provider {
-				return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-					Name: name, BaseURL: baseURL, CircuitBreaker: cbConfig,
-				})
-			},
-		},
-		{
-			name:    agplaibridge.ProviderChatGPT,
-			baseURL: agplaibridge.BaseURLChatGPT,
-			factory: func(name, baseURL string) aibridge.Provider {
-				return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-					Name: name, BaseURL: baseURL, CircuitBreaker: cbConfig,
-					SendActorHeaders: cfg.SendActorHeaders.Value(),
-				})
-			},
-		},
-	}
-	for _, b := range builtins {
-		if _, exists := usedNames[b.name]; !exists {
-			providers = append(providers, b.factory(b.name, b.baseURL))
-			usedNames[b.name] = struct{}{}
+	addBuiltin := func(name string, p aibridge.Provider) {
+		if _, exists := usedNames[name]; !exists {
+			providers = append(providers, p)
+			usedNames[name] = struct{}{}
 		}
 	}
+	addBuiltin(aibridge.ProviderCopilot, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+		Name: aibridge.ProviderCopilot, CircuitBreaker: cbConfig,
+	}))
+	addBuiltin(agplaibridge.ProviderCopilotBusiness, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+		Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness, CircuitBreaker: cbConfig,
+	}))
+	addBuiltin(agplaibridge.ProviderCopilotEnterprise, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+		Name: agplaibridge.ProviderCopilotEnterprise, BaseURL: "https://" + agplaibridge.HostCopilotEnterprise, CircuitBreaker: cbConfig,
+	}))
+	addBuiltin(agplaibridge.ProviderChatGPT, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+		Name: agplaibridge.ProviderChatGPT, BaseURL: agplaibridge.BaseURLChatGPT, CircuitBreaker: cbConfig,
+		SendActorHeaders: cfg.SendActorHeaders.Value(),
+	}))
 
 	return providers, nil
 }

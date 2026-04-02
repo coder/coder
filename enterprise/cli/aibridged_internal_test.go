@@ -14,8 +14,34 @@ import (
 	"github.com/coder/serpent"
 )
 
+// builtinProviderNames are the providers that buildProviders always registers
+// unless explicitly overridden.
+var builtinProviderNames = []string{
+	aibridge.ProviderCopilot,
+	agplaibridge.ProviderCopilotBusiness,
+	agplaibridge.ProviderCopilotEnterprise,
+	agplaibridge.ProviderChatGPT,
+}
+
+func assertHasBuiltins(t *testing.T, names []string) {
+	t.Helper()
+	for _, b := range builtinProviderNames {
+		assert.Contains(t, names, b)
+	}
+}
+
 func TestBuildProviders(t *testing.T) {
 	t.Parallel()
+
+	t.Run("EmptyConfig", func(t *testing.T) {
+		t.Parallel()
+		providers, err := buildProviders(codersdk.AIBridgeConfig{}, nil)
+		require.NoError(t, err)
+
+		names := providerNames(providers)
+		assertHasBuiltins(t, names)
+		assert.Len(t, names, len(builtinProviderNames))
+	})
 
 	t.Run("LegacyOnly", func(t *testing.T) {
 		t.Parallel()
@@ -27,13 +53,9 @@ func TestBuildProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		names := providerNames(providers)
-		// Legacy + builtins.
+		assertHasBuiltins(t, names)
 		assert.Contains(t, names, aibridge.ProviderOpenAI)
 		assert.Contains(t, names, aibridge.ProviderAnthropic)
-		assert.Contains(t, names, aibridge.ProviderCopilot)
-		assert.Contains(t, names, agplaibridge.ProviderCopilotBusiness)
-		assert.Contains(t, names, agplaibridge.ProviderCopilotEnterprise)
-		assert.Contains(t, names, agplaibridge.ProviderChatGPT)
 	})
 
 	t.Run("IndexedOnly", func(t *testing.T) {
@@ -49,17 +71,14 @@ func TestBuildProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		names := providerNames(providers)
-		// Indexed + builtins (no legacy since keys are empty).
+		assertHasBuiltins(t, names)
 		assert.Contains(t, names, "anthropic-zdr")
 		assert.Contains(t, names, "openai-azure")
-		assert.Contains(t, names, aibridge.ProviderCopilot)
-		assert.Contains(t, names, agplaibridge.ProviderChatGPT)
-		// No default openai/anthropic since legacy keys are empty.
 		assert.NotContains(t, names, aibridge.ProviderOpenAI)
 		assert.NotContains(t, names, aibridge.ProviderAnthropic)
 	})
 
-	t.Run("LegacyConflictsWithIndexed", func(t *testing.T) {
+	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
@@ -73,11 +92,24 @@ func TestBuildProviders(t *testing.T) {
 		assert.Contains(t, err.Error(), "conflicts with indexed provider")
 	})
 
+	t.Run("LegacyAnthropicConflictsWithIndexed", func(t *testing.T) {
+		t.Parallel()
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Key: "sk-indexed"},
+			},
+		}
+		cfg.LegacyAnthropic.Key = serpent.String("sk-legacy")
+
+		_, err := buildProviders(cfg, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "conflicts with indexed provider")
+	})
+
 	t.Run("IndexedOverridesBuiltin", func(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				// Override the built-in copilot provider.
 				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot, BaseURL: "https://custom.copilot.com"},
 			},
 		}
@@ -85,7 +117,6 @@ func TestBuildProviders(t *testing.T) {
 		providers, err := buildProviders(cfg, nil)
 		require.NoError(t, err)
 
-		// Should have the indexed copilot, not the default one.
 		for _, p := range providers {
 			if p.Name() == aibridge.ProviderCopilot {
 				assert.Equal(t, "https://custom.copilot.com", p.BaseURL())
@@ -108,40 +139,9 @@ func TestBuildProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		names := providerNames(providers)
-		// Legacy openai and anthropic should both be present since no name collision.
 		assert.Contains(t, names, aibridge.ProviderOpenAI)
 		assert.Contains(t, names, aibridge.ProviderAnthropic)
-		// Indexed provider also present.
 		assert.Contains(t, names, "anthropic-zdr")
-	})
-
-	t.Run("LegacyAnthropicConflictsWithIndexed", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Key: "sk-indexed"},
-			},
-		}
-		cfg.LegacyAnthropic.Key = serpent.String("sk-legacy")
-
-		_, err := buildProviders(cfg, nil)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "conflicts with indexed provider")
-	})
-
-	t.Run("EmptyConfig", func(t *testing.T) {
-		t.Parallel()
-		// No legacy keys, no indexed providers — should get builtins only.
-		providers, err := buildProviders(codersdk.AIBridgeConfig{}, nil)
-		require.NoError(t, err)
-
-		names := providerNames(providers)
-		assert.Contains(t, names, aibridge.ProviderCopilot)
-		assert.Contains(t, names, agplaibridge.ProviderCopilotBusiness)
-		assert.Contains(t, names, agplaibridge.ProviderCopilotEnterprise)
-		assert.Contains(t, names, agplaibridge.ProviderChatGPT)
-		assert.NotContains(t, names, aibridge.ProviderOpenAI)
-		assert.NotContains(t, names, aibridge.ProviderAnthropic)
 	})
 
 	t.Run("LegacyAnthropicWithBedrock", func(t *testing.T) {

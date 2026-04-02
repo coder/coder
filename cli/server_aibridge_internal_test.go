@@ -172,6 +172,17 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		assert.Contains(t, err.Error(), "duplicate NAME")
 	})
 
+	t.Run("BedrockFieldsOnNonAnthropic", func(t *testing.T) {
+		t.Parallel()
+		_, err := ReadAIBridgeProvidersFromEnv([]string{
+			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-xxx",
+			"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-west-2",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "BEDROCK_* fields are only supported with TYPE")
+	})
+
 	t.Run("IgnoresUnrelatedEnvVars", func(t *testing.T) {
 		t.Parallel()
 		providers, err := ReadAIBridgeProvidersFromEnv([]string{
