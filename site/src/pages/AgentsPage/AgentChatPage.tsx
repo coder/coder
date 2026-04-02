@@ -1108,6 +1108,7 @@ const AgentChatPage: FC = () => {
 			persistedError={persistedError}
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
+			workspace={workspace}
 			store={store}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}

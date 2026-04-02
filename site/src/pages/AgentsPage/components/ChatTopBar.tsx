@@ -28,10 +28,35 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
+
+const statusVariantMap: Record<
+	DisplayWorkspaceStatusType,
+	StatusIndicatorProps["variant"]
+> = {
+	active: "pending",
+	inactive: "inactive",
+	success: "success",
+	error: "failed",
+	danger: "warning",
+	warning: "warning",
+};
 
 interface SidebarPanelState {
 	showSidebarPanel: boolean;
@@ -52,6 +77,8 @@ type ChatTopBarProps = {
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
 	workspace: WorkspaceActions;
+	workspaceData?: TypesGen.Workspace;
+	workspaceRoute?: string;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
@@ -70,6 +97,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	parentChat,
 	panel,
 	workspace,
+	workspaceData,
+	workspaceRoute,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -162,9 +191,13 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
+			{/* Workspace badge — always visible when a workspace is attached. */}
+			{workspaceData && workspaceRoute && (
+				<WorkspaceBadge workspace={workspaceData} route={workspaceRoute} />
+			)}
 			{/* PR link — mobile: icon + number; desktop: icon + title.
-			   Hidden on desktop when the sidebar panel is open
-			   (which already shows PR info). */}
+				   Hidden on desktop when the sidebar panel is open
+				   (which already shows PR info). */}
 			{prUrl && hasPR && (
 				<a
 					href={prUrl}
@@ -317,5 +350,34 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
+	);
+};
+
+interface WorkspaceBadgeProps {
+	workspace: TypesGen.Workspace;
+	route: string;
+}
+
+const WorkspaceBadge: FC<WorkspaceBadgeProps> = ({ workspace, route }) => {
+	const { text, type } = getDisplayWorkspaceStatus(
+		workspace.latest_build.status,
+		workspace.latest_build.job,
+	);
+	const variant = statusVariantMap[workspace.health.healthy ? type : "warning"];
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Link
+					to={route}
+					target="_blank"
+					className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
+				>
+					<StatusIndicatorDot variant={variant} size="sm" />
+					<span className="truncate max-w-[120px]">{workspace.name}</span>
+				</Link>
+			</TooltipTrigger>
+			<TooltipContent>{text}</TooltipContent>
+		</Tooltip>
 	);
 };

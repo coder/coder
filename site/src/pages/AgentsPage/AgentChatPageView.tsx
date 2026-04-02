@@ -274,6 +274,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onOpenTerminal: handleOpenTerminal,
 								sshCommand,
 							}}
+							workspaceData={workspace}
+							workspaceRoute={
+								workspace
+									? `/@${workspace.owner_name}/${workspace.name}`
+									: undefined
+							}
 							onArchiveAgent={handleArchiveAgentAction}
 							onUnarchiveAgent={handleUnarchiveAgentAction}
 							onArchiveAndDeleteWorkspace={
