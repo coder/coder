@@ -28,17 +28,20 @@ func TruncateLabel(text string, maxLen int) string {
 	}
 
 	normalized := strings.TrimSpace(whitespaceRun.ReplaceAllString(text, " "))
-	if normalized == "" {
+	if normalized == "" || maxLen == 0 {
 		return ""
 	}
 
 	if utf8.RuneCountInString(normalized) <= maxLen {
 		return normalized
 	}
+	if maxLen == 1 {
+		return "…"
+	}
 
-	// Truncate at maxLen runes and append ellipsis.
+	// Truncate to leave room for the trailing ellipsis within maxLen.
 	runes := []rune(normalized)
-	return string(runes[:maxLen]) + "…"
+	return string(runes[:maxLen-1]) + "…"
 }
 
 // SeedSummary builds a base summary map with a first_message label.
