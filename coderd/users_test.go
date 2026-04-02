@@ -758,6 +758,35 @@ func TestPostUsers(t *testing.T) {
 		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 	})
 
+	// CreateWithAgentsExperiment verifies that new users
+	// are auto-assigned the agents-access role when the
+	// experiment is enabled. The experiment-disabled case
+	// is implicitly covered by TestInitialRoles, which
+	// asserts exactly [owner] with no experiment — it
+	// would fail if agents-access leaked through.
+	t.Run("CreateWithAgentsExperiment", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAgents)}
+		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
+			Email:           "another@user.org",
+			Username:        "someone-else",
+			Password:        "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		roles, err := client.UserRoles(ctx, user.Username)
+		require.NoError(t, err)
+		require.Contains(t, roles.Roles, codersdk.RoleAgentsAccess,
+			"new user should have agents-access role when agents experiment is enabled")
+	})
+
 	t.Run("CreateWithStatus", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
