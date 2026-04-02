@@ -225,6 +225,26 @@ describe("chat debug queries", () => {
 		const query = chatDebugRun(chatId, runId);
 
 		expect(query.queryKey).toEqual(["chats", chatId, "debug-runs", runId]);
+
+		const refetchInterval = query.refetchInterval;
+		expect(typeof refetchInterval).toBe("function");
+		if (typeof refetchInterval === "function") {
+			expect(
+				refetchInterval({
+					state: { data: run },
+				} as Parameters<typeof refetchInterval>[0]),
+			).toBe(5_000);
+			expect(
+				refetchInterval({
+					state: {
+						data: {
+							...run,
+							status: "completed",
+						},
+					},
+				} as Parameters<typeof refetchInterval>[0]),
+			).toBe(false);
+		}
 		await expect(query.queryFn()).resolves.toEqual(run);
 	});
 });

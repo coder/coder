@@ -808,8 +808,11 @@ const chatDebugRunKey = (chatId: string, runId: string) =>
 export const chatDebugRun = (chatId: string, runId: string) => ({
 	queryKey: chatDebugRunKey(chatId, runId),
 	queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
-	refetchInterval: (run: TypesGen.ChatDebugRun | undefined) =>
-		debugRunRefetchInterval(run),
+	refetchInterval: ({
+		state,
+	}: {
+		state: { data: TypesGen.ChatDebugRun | undefined };
+	}) => debugRunRefetchInterval(state.data),
 	refetchIntervalInBackground: false,
 });
 
