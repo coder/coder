@@ -1,4 +1,11 @@
-import { ArchiveIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	MonitorDotIcon,
+	MonitorIcon,
+	MonitorPauseIcon,
+	MonitorXIcon,
+} from "lucide-react";
+
 import { type FC, type RefObject, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
@@ -7,6 +14,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
+
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -249,6 +261,37 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Compute local diff stats from git watcher unified diffs.
 
+	const workspaceRoute = workspace
+		? `/@${workspace.owner_name}/${workspace.name}`
+		: undefined;
+
+	const attachedWorkspace = (() => {
+		if (!workspace || !workspaceRoute) return undefined;
+		const { type, text } = getDisplayWorkspaceStatus(
+			workspace.latest_build.status,
+			workspace.latest_build.job,
+		);
+		const effectiveType = workspace.health.healthy ? type : "warning";
+		const statusLabel = workspace.health.healthy
+			? `Workspace ${text.toLowerCase()}`
+			: `Workspace ${text.toLowerCase()} (unhealthy)`;
+		const iconCls = "size-3";
+		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
+			success: <MonitorIcon className={iconCls} />,
+			active: <MonitorDotIcon className={iconCls} />,
+			inactive: <MonitorPauseIcon className={iconCls} />,
+			error: <MonitorXIcon className={iconCls} />,
+			danger: <MonitorXIcon className={iconCls} />,
+			warning: <MonitorXIcon className={iconCls} />,
+		};
+		return {
+			name: workspace.name,
+			route: workspaceRoute,
+			statusIcon: statusIconMap[effectiveType],
+			statusLabel,
+		};
+	})();
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -378,6 +421,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onMCPSelectionChange={onMCPSelectionChange}
 							onMCPAuthComplete={onMCPAuthComplete}
 							lastInjectedContext={lastInjectedContext}
+							attachedWorkspace={attachedWorkspace}
 						/>
 					</div>
 				</div>

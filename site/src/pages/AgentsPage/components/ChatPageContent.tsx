@@ -7,6 +7,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
+	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	type UploadState,
 } from "./AgentChatInput";
@@ -162,6 +163,7 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
@@ -197,6 +199,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	attachedWorkspace,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -357,6 +360,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			attachedWorkspace={attachedWorkspace}
 		/>
 	);
 };
