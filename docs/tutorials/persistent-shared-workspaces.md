@@ -1,15 +1,6 @@
 # Persistent Shared Workspaces with Service Accounts
 
-<div>
-  <a href="https://github.com/coder" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Sushant Patankar</span>
-  </a>
-</div>
-March, 2026
-
----
-
-This tutorial walks through setting up a long-lived workspace that is owned by a
+This guide walks through setting up a long-lived workspace that is owned by a
 service account and shared with a rotating set of users. Because no single
 person owns the workspace, it persists across team changes and every user
 authenticates as themselves.
