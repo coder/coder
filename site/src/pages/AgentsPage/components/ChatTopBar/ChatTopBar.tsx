@@ -28,35 +28,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "#/components/StatusIndicator/StatusIndicator";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
-import { parsePullRequestUrl } from "../utils/pullRequest";
-import { useEmbedContext } from "./EmbedContext";
-import { PrStateIcon } from "./GitPanel/GitPanel";
-
-const statusVariantMap: Record<
-	DisplayWorkspaceStatusType,
-	StatusIndicatorProps["variant"]
-> = {
-	active: "pending",
-	inactive: "inactive",
-	success: "success",
-	error: "failed",
-	danger: "warning",
-	warning: "warning",
-};
+import { useEmbedContext } from "../EmbedContext";
+import { PullRequestBadge } from "./PullRequestBadge";
+import { WorkspaceBadge } from "./WorkspaceBadge";
 
 interface SidebarPanelState {
 	showSidebarPanel: boolean;
@@ -113,14 +88,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 }) => {
 	const { isEmbedded } = useEmbedContext();
 
-	const prUrl = diffStatusData?.url;
-	const prState = diffStatusData?.pull_request_state;
-	const prDraft = diffStatusData?.pull_request_draft;
-	const prTitle = diffStatusData?.pull_request_title;
-	const parsedPr = parsePullRequestUrl(prUrl);
-	const prNumberMatch =
-		diffStatusData?.pr_number?.toString() ?? parsedPr?.number;
-	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+	const hasResourceBadges = Boolean(workspaceData || diffStatusData);
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -192,40 +160,23 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				)}
 			</div>
 			{/* Resource badges — workspace status and/or PR link.
-				   On mobile the workspace name and PR title are hidden
-				   so these collapse to compact icon-only pills, leaving
-				   room for the chat title. */}
-			{(workspaceData || hasPR) && (
+			   On mobile the workspace name and PR title are hidden
+			   so these collapse to compact icon-only pills, leaving
+			   room for the chat title. */}
+			{hasResourceBadges && (
 				<div className="flex shrink-0 items-center gap-1.5">
 					{workspaceData && workspaceRoute && (
 						<WorkspaceBadge workspace={workspaceData} route={workspaceRoute} />
 					)}
-					{prUrl && hasPR && (
-						<a
-							href={prUrl}
-							target="_blank"
-							rel="noreferrer"
-							className={cn(
-								"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-								panel.showSidebarPanel && "md:hidden",
-							)}
-						>
-							<PrStateIcon
-								state={prState}
-								draft={prDraft}
-								className="!size-3.5 shrink-0"
-							/>
-							<span className="truncate max-w-[120px] hidden md:inline">
-								{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-							</span>
-							<span className="md:hidden">
-								{prNumberMatch ? prNumberMatch : "PR"}
-							</span>
-						</a>
+					{diffStatusData && (
+						<PullRequestBadge
+							diffStatusData={diffStatusData}
+							hiddenWhenPanelOpen={panel.showSidebarPanel}
+						/>
 					)}
 				</div>
 			)}
-			{/* Actions area */}{" "}
+			{/* Actions area */}
 			<div className="flex items-center gap-2">
 				{!isEmbedded && (
 					<DropdownMenu>
@@ -354,39 +305,5 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
-	);
-};
-
-interface WorkspaceBadgeProps {
-	workspace: TypesGen.Workspace;
-	route: string;
-}
-
-const WorkspaceBadge: FC<WorkspaceBadgeProps> = ({ workspace, route }) => {
-	const { text, type } = getDisplayWorkspaceStatus(
-		workspace.latest_build.status,
-		workspace.latest_build.job,
-	);
-	const variant = statusVariantMap[workspace.health.healthy ? type : "warning"];
-
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Link
-					to={route}
-					target="_blank"
-					className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
-				>
-					<MonitorIcon className="size-3.5 shrink-0" />
-					<span className="hidden truncate max-w-[120px] md:inline">
-						{workspace.name}
-					</span>
-					<StatusIndicatorDot variant={variant} size="sm" />
-				</Link>
-			</TooltipTrigger>
-			<TooltipContent>
-				{workspace.name} &mdash; {text}
-			</TooltipContent>
-		</Tooltip>
 	);
 };

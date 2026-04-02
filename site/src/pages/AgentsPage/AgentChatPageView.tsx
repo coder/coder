@@ -19,7 +19,7 @@ import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
-import { ChatTopBar } from "./components/ChatTopBar";
+import { ChatTopBar } from "./components/ChatTopBar/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
