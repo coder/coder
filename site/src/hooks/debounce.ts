@@ -70,7 +70,7 @@ export function useDebouncedFunction<
 
 			timeoutIdRef.current = setTimeout(
 				() => void callbackRef.current(...args),
-				debounceTimeRef.current instanceof Function
+				typeof debounceTimeRef.current === "function"
 					? debounceTimeRef.current(...args)
 					: debounceTimeRef.current,
 			);
