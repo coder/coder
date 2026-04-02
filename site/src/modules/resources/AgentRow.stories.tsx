@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
+import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { chromatic } from "#/testHelpers/chromatic";
 import * as M from "#/testHelpers/entities";
@@ -88,6 +89,36 @@ const logs = [
 	source_id: M.MockWorkspaceAgentLogSource.id,
 	created_at: new Date().toISOString(),
 }));
+
+const installScriptLogSource: WorkspaceAgentLogSource = {
+	...M.MockWorkspaceAgentLogSource,
+	id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+	display_name: "Install Script",
+};
+
+const tabbedLogs = [
+	{
+		id: 100,
+		level: "info",
+		output: "startup: preparing workspace",
+		source_id: M.MockWorkspaceAgentLogSource.id,
+		created_at: new Date().toISOString(),
+	},
+	{
+		id: 101,
+		level: "info",
+		output: "install: pnpm install",
+		source_id: installScriptLogSource.id,
+		created_at: new Date().toISOString(),
+	},
+	{
+		id: 102,
+		level: "info",
+		output: "install: setup complete",
+		source_id: installScriptLogSource.id,
+		created_at: new Date().toISOString(),
+	},
+];
 
 const meta: Meta<typeof AgentRow> = {
 	title: "components/AgentRow",
@@ -332,5 +363,42 @@ export const FoundDevcontainer: Story = {
 			},
 		],
 		webSocket: [],
+	},
+};
+
+export const LogsTabs: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentReady,
+			logs_length: tabbedLogs.length,
+			log_sources: [M.MockWorkspaceAgentLogSource, installScriptLogSource],
+		},
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(tabbedLogs),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
+
+		const installTab = await canvas.findByRole("tab", {
+			name: "Install Script",
+		});
+		await userEvent.click(installTab);
+
+		await waitFor(() =>
+			expect(installTab).toHaveAttribute("data-state", "active"),
+		);
+		await waitFor(() =>
+			expect(
+				canvas.queryByText("startup: preparing workspace"),
+			).not.toBeInTheDocument(),
+		);
+		await expect(canvas.getByText("install: pnpm install")).toBeVisible();
 	},
 };
