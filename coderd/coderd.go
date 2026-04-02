@@ -1163,6 +1163,7 @@ func New(options *Options) *API {
 			r.Route("/snapshots/{token}", func(r chi.Router) {
 				r.Delete("/", api.deleteChatSharedSnapshot)
 			})
+			r.Post("/from-snapshot/{token}", api.forkChatFromSnapshot)
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)

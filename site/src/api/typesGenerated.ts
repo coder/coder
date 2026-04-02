@@ -2413,6 +2413,14 @@ export interface CreateChatSharedSnapshotResponse {
 	readonly share_url: string;
 }
 
+/**
+ * ForkChatFromSnapshotResponse is returned when a chat is created
+ * from a shared snapshot.
+ */
+export interface ForkChatFromSnapshotResponse {
+	readonly chat: Chat;
+}
+
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
 	readonly email: string;

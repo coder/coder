@@ -3022,6 +3022,16 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/chats/snapshots/${token}`);
 	};
 
+	forkChatFromSnapshot = async (
+		token: string,
+	): Promise<TypesGen.ForkChatFromSnapshotResponse> => {
+		const response =
+			await this.axios.post<TypesGen.ForkChatFromSnapshotResponse>(
+				`/api/v2/chats/from-snapshot/${token}`,
+			);
+		return response.data;
+	};
+
 	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(
 			"/api/v2/aibridge/interceptions",

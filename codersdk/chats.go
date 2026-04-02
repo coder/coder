@@ -2256,3 +2256,27 @@ func (c *Client) GetChatSharedSnapshot(ctx context.Context, token string) (ChatS
 	}
 	return snapshot, nil
 }
+
+// ForkChatFromSnapshotResponse is returned when a chat is created
+// from a shared snapshot.
+type ForkChatFromSnapshotResponse struct {
+	Chat Chat `json:"chat"`
+}
+
+// ForkChatFromSnapshot creates a new chat pre-loaded with the
+// message history from a shared snapshot.
+func (c *Client) ForkChatFromSnapshot(ctx context.Context, token string) (ForkChatFromSnapshotResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/from-snapshot/%s", token), nil)
+	if err != nil {
+		return ForkChatFromSnapshotResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ForkChatFromSnapshotResponse{}, ReadBodyAsError(res)
+	}
+	var resp ForkChatFromSnapshotResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return ForkChatFromSnapshotResponse{}, xerrors.Errorf("decoding fork response: %w", err)
+	}
+	return resp, nil
+}

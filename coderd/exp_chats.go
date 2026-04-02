@@ -5466,3 +5466,168 @@ func convertDBChatSharedSnapshot(db database.ChatSharedSnapshot, messages []code
 	}
 	return s
 }
+
+// @Summary Fork a chat from a shared snapshot
+// @ID fork-chat-from-shared-snapshot
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param token path string true "Share token"
+// @Success 201 {object} codersdk.ForkChatFromSnapshotResponse
+// @Router /chats/from-snapshot/{token} [post]
+// @x-apidocgen {"skip": true}
+func (api *API) forkChatFromSnapshot(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		token = chi.URLParam(r, "token")
+		apiKey = httpmw.APIKey(r)
+	)
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Fetch snapshot — use system context since token is the access control.
+	dbSnapshot, err := api.Database.GetChatSharedSnapshotByToken(
+		dbauthz.AsSystemRestricted(ctx), token,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Snapshot not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if dbSnapshot.ExpiresAt.Valid && dbSnapshot.ExpiresAt.Time.Before(dbtime.Now()) {
+		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+			Message: "This snapshot link has expired.",
+		})
+		return
+	}
+
+	// Decode the snapshot messages.
+	var messages []codersdk.ChatMessage
+	if err := json.Unmarshal(dbSnapshot.Messages, &messages); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to decode snapshot messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// We need at least one model config to create a chat. Use the first
+	// available enabled config, or the one from the snapshot messages.
+	var modelConfigID uuid.UUID
+	for _, m := range messages {
+		if m.ModelConfigID != nil {
+			modelConfigID = *m.ModelConfigID
+			break
+		}
+	}
+	if modelConfigID == uuid.Nil {
+		// Fall back to any enabled model config.
+		//nolint:gocritic // System context to read model configs.
+		configs, err := api.Database.GetChatModelConfigs(dbauthz.AsSystemRestricted(ctx))
+		if err == nil && len(configs) > 0 {
+			modelConfigID = configs[0].ID
+		}
+		if modelConfigID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No model configs available to create a chat.",
+			})
+			return
+		}
+	}
+
+	title := "Continued: " + dbSnapshot.ChatTitle
+
+	// Create the chat row.
+	chat, err := api.Database.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           apiKey.UserID,
+		LastModelConfigID: modelConfigID,
+		Title:             title,
+		MCPServerIDs:      []uuid.UUID{},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Bulk-insert the snapshot messages as history.
+	if len(messages) > 0 {
+		createdBy := make([]uuid.UUID, len(messages))
+		modelConfigIDs := make([]uuid.UUID, len(messages))
+		roles := make([]database.ChatMessageRole, len(messages))
+		contents := make([]string, len(messages))
+		contentVersions := make([]int16, len(messages))
+		visibilities := make([]database.ChatMessageVisibility, len(messages))
+		inputTokens := make([]int64, len(messages))
+		outputTokens := make([]int64, len(messages))
+		totalTokens := make([]int64, len(messages))
+		reasoningTokens := make([]int64, len(messages))
+		cacheCreationTokens := make([]int64, len(messages))
+		cacheReadTokens := make([]int64, len(messages))
+		contextLimits := make([]int64, len(messages))
+		compressed := make([]bool, len(messages))
+		totalCostMicros := make([]int64, len(messages))
+		runtimeMs := make([]int64, len(messages))
+		providerResponseIDs := make([]string, len(messages))
+
+		for i, m := range messages {
+			if m.CreatedBy != nil {
+				createdBy[i] = *m.CreatedBy
+			}
+			if m.ModelConfigID != nil {
+				modelConfigIDs[i] = *m.ModelConfigID
+			}
+			roles[i] = database.ChatMessageRole(m.Role)
+			contentJSON, _ := json.Marshal(m.Content)
+			contents[i] = string(contentJSON)
+			contentVersions[i] = 1
+			visibilities[i] = database.ChatMessageVisibilityBoth
+		}
+
+		_, err = api.Database.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           createdBy,
+			ModelConfigID:       modelConfigIDs,
+			Role:                roles,
+			Content:             contents,
+			ContentVersion:      contentVersions,
+			Visibility:          visibilities,
+			InputTokens:         inputTokens,
+			OutputTokens:        outputTokens,
+			TotalTokens:         totalTokens,
+			ReasoningTokens:     reasoningTokens,
+			CacheCreationTokens: cacheCreationTokens,
+			CacheReadTokens:     cacheReadTokens,
+			ContextLimit:        contextLimits,
+			Compressed:          compressed,
+			TotalCostMicros:     totalCostMicros,
+			RuntimeMs:           runtimeMs,
+			ProviderResponseID:  providerResponseIDs,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to insert snapshot messages into new chat.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.ForkChatFromSnapshotResponse{
+		Chat: db2sdk.Chat(chat, nil),
+	})
+}

@@ -1,17 +1,21 @@
-import type { FC } from "react";
+import { MessageSquarePlusIcon } from "lucide-react";
+import { type FC, useCallback, useState } from "react";
 import { useQuery } from "react-query";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { API } from "#/api/api";
-import { getErrorStatus } from "#/api/errors";
+import { getErrorStatus, isApiError } from "#/api/errors";
 import type {
 	ChatMessage,
 	ChatMessagePart,
 	ChatSharedSnapshot,
 	ChatStatus,
 } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { Loader } from "#/components/Loader/Loader";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -23,7 +27,10 @@ import {
 	Conversation,
 	ConversationItem,
 } from "../AgentsPage/components/ChatElements/Conversation";
-import { Message, MessageContent } from "../AgentsPage/components/ChatElements/Message";
+import {
+	Message,
+	MessageContent,
+} from "../AgentsPage/components/ChatElements/Message";
 import { Response } from "../AgentsPage/components/ChatElements/Response";
 
 const statusVariantMap: Record<ChatStatus, StatusIndicatorProps["variant"]> = {
@@ -37,6 +44,7 @@ const statusVariantMap: Record<ChatStatus, StatusIndicatorProps["variant"]> = {
 
 const ChatSnapshotPage: FC = () => {
 	const { token } = useParams() as { token: string };
+	const navigate = useNavigate();
 
 	const {
 		data: snapshot,
@@ -47,6 +55,26 @@ const ChatSnapshotPage: FC = () => {
 		queryFn: () => API.getChatSharedSnapshot(token),
 		retry: false,
 	});
+
+	const [isForking, setIsForking] = useState(false);
+
+	const handleContinue = useCallback(async () => {
+		setIsForking(true);
+		try {
+			const result = await API.forkChatFromSnapshot(token);
+			navigate(`/agents/${result.chat.id}`);
+		} catch (err) {
+			if (isApiError(err) && err.response.status === 401) {
+				// Not logged in — redirect to login, then back here.
+				const returnTo = encodeURIComponent(window.location.pathname);
+				window.location.href = `/login?redirect=${returnTo}`;
+				return;
+			}
+			toast.error("Failed to continue conversation");
+		} finally {
+			setIsForking(false);
+		}
+	}, [token, navigate]);
 
 	if (isLoading) {
 		return (
@@ -103,12 +131,29 @@ const ChatSnapshotPage: FC = () => {
 						Chat Snapshot
 					</span>
 				</div>
-				<StatusIndicator variant={statusVariantMap[snapshot.chat_status]}>
-					<StatusIndicatorDot />
-					<span className="[&:first-letter]:uppercase">
-						{snapshot.chat_status}
-					</span>
-				</StatusIndicator>
+				<div className="flex items-center gap-3">
+					<Button
+						variant="default"
+						size="sm"
+						onClick={handleContinue}
+						disabled={isForking}
+					>
+						{isForking ? (
+							<Spinner size="sm" loading />
+						) : (
+							<MessageSquarePlusIcon className="size-4" />
+						)}
+						Continue this conversation
+					</Button>
+					<StatusIndicator
+						variant={statusVariantMap[snapshot.chat_status]}
+					>
+						<StatusIndicatorDot />
+						<span className="[&:first-letter]:uppercase">
+							{snapshot.chat_status}
+						</span>
+					</StatusIndicator>
+				</div>
 			</header>
 
 			{/* Body */}
@@ -186,11 +231,16 @@ const SnapshotConversation: FC<SnapshotConversationProps> = ({ snapshot }) => {
 				if (!text.trim()) return null;
 
 				return (
-					<ConversationItem key={msg.id} role={msg.role as "user" | "assistant"}>
+					<ConversationItem
+						key={msg.id}
+						role={msg.role as "user" | "assistant"}
+					>
 						{msg.role === "user" ? (
-							<Message className={cn(
-								"max-w-[85%] rounded-lg bg-surface-secondary px-4 py-3",
-							)}>
+							<Message
+								className={cn(
+									"max-w-[85%] rounded-lg bg-surface-secondary px-4 py-3",
+								)}
+							>
 								<MessageContent>{text}</MessageContent>
 							</Message>
 						) : (
