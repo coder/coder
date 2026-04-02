@@ -251,10 +251,17 @@ func TestPostChats(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		// Member without agents-access should be denied.
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		// Strip the auto-assigned agents-access role to test
+		// the denied case.
+		_, err := client.Client.UpdateUserRoles(ctx, member.Username, codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -264,7 +271,6 @@ func TestPostChats(t *testing.T) {
 		})
 		requireSDKError(t, err, http.StatusForbidden)
 	})
-
 	t.Run("HidesSystemPromptMessages", func(t *testing.T) {
 		t.Parallel()
 
@@ -628,7 +634,15 @@ func TestListChats(t *testing.T) {
 		// returning empty because no chats exist.
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+
+		// Strip the auto-assigned agents-access role to test
+		// the denied case.
+		_, err := client.Client.UpdateUserRoles(ctx, member.Username, codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.NoError(t, err)
+
+		_, err = db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
