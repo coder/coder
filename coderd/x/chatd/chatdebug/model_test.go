@@ -562,7 +562,19 @@ func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
+	ownerID := uuid.New()
 	runID := uuid.New()
+
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
+		require.False(t, params.NormalizedResponse.Valid)
+		require.False(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.True(t, params.Error.Valid)
+		require.False(t, params.Metadata.Valid)
+	})
+
 	svc := NewService(db, testutil.Logger(t), nil)
 	model := &debugModel{
 		inner: &scriptedModel{
@@ -572,7 +584,7 @@ func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: uuid.New()},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
@@ -592,7 +604,19 @@ func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
+	ownerID := uuid.New()
 	runID := uuid.New()
+
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
+		require.False(t, params.NormalizedResponse.Valid)
+		require.False(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.True(t, params.Error.Valid)
+		require.True(t, params.Metadata.Valid)
+	})
+
 	svc := NewService(db, testutil.Logger(t), nil)
 	model := &debugModel{
 		inner: &scriptedModel{
@@ -602,7 +626,7 @@ func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: uuid.New()},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 

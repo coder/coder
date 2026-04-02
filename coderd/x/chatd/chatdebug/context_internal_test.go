@@ -32,9 +32,8 @@ func TestContextWithRun_CleansUpStepCounterAfterGC(t *testing.T) {
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
 	func() {
-		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-		handle, _ := beginStep(ctx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-		require.NotNil(t, handle)
+		_ = ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+		require.Equal(t, int32(1), nextStepNumber(runID))
 		_, ok := stepCounters.Load(runID)
 		require.True(t, ok)
 	}()
