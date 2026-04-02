@@ -1,10 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	MonitorDotIcon,
-	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
-} from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -731,52 +725,6 @@ export const ContextNearLimit: Story = {
 					context_file_path: "/home/coder/project/AGENTS.md",
 				},
 			] as TypesGen.ChatMessagePart[],
-		},
-	},
-};
-
-const iconCls = "size-3";
-
-export const AttachedWorkspaceRunning: Story = {
-	args: {
-		attachedWorkspace: {
-			name: "my-workspace",
-			route: "/@admin/my-workspace",
-			statusIcon: <MonitorIcon className={iconCls} />,
-			statusLabel: "Workspace running",
-		},
-	},
-};
-
-export const AttachedWorkspaceStopped: Story = {
-	args: {
-		attachedWorkspace: {
-			name: "my-workspace",
-			route: "/@admin/my-workspace",
-			statusIcon: <MonitorPauseIcon className={iconCls} />,
-			statusLabel: "Workspace stopped",
-		},
-	},
-};
-
-export const AttachedWorkspaceStarting: Story = {
-	args: {
-		attachedWorkspace: {
-			name: "my-workspace",
-			route: "/@admin/my-workspace",
-			statusIcon: <MonitorDotIcon className={iconCls} />,
-			statusLabel: "Workspace starting",
-		},
-	},
-};
-
-export const AttachedWorkspaceError: Story = {
-	args: {
-		attachedWorkspace: {
-			name: "my-workspace",
-			route: "/@admin/my-workspace",
-			statusIcon: <MonitorXIcon className={iconCls} />,
-			statusLabel: "Workspace failed",
 		},
 	},
 };
