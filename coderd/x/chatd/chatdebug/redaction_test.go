@@ -81,19 +81,38 @@ func TestRedactHeaders(t *testing.T) {
 		require.Equal(t, "trace", redacted[traceHeader])
 	})
 
-	t.Run("rate limit headers containing token are not redacted", func(t *testing.T) {
+	t.Run("known safe rate limit headers containing token are not redacted", func(t *testing.T) {
 		t.Parallel()
 
 		headers := http.Header{
 			"Anthropic-Ratelimit-Tokens-Limit":     {"1000000"},
 			"Anthropic-Ratelimit-Tokens-Remaining": {"999000"},
 			"Anthropic-Ratelimit-Tokens-Reset":     {"2026-03-31T08:55:26Z"},
+			"X-RateLimit-Limit-Tokens":             {"120000"},
+			"X-RateLimit-Remaining-Tokens":         {"119500"},
+			"X-RateLimit-Reset-Tokens":             {"12ms"},
 		}
 
 		redacted := chatdebug.RedactHeaders(headers)
 		require.Equal(t, "1000000", redacted["Anthropic-Ratelimit-Tokens-Limit"])
 		require.Equal(t, "999000", redacted["Anthropic-Ratelimit-Tokens-Remaining"])
 		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Ratelimit-Tokens-Reset"])
+		require.Equal(t, "120000", redacted["X-RateLimit-Limit-Tokens"])
+		require.Equal(t, "119500", redacted["X-RateLimit-Remaining-Tokens"])
+		require.Equal(t, "12ms", redacted["X-RateLimit-Reset-Tokens"])
+	})
+
+	t.Run("rate limit headers with secret fragments are still redacted", func(t *testing.T) {
+		t.Parallel()
+
+		headers := http.Header{
+			"X-RateLimit-Token":   {"secret-token"},
+			"X-RateLimit-Api-Key": {"secret-key"},
+		}
+
+		redacted := chatdebug.RedactHeaders(headers)
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-RateLimit-Token"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-RateLimit-Api-Key"])
 	})
 
 	t.Run("original header is not modified", func(t *testing.T) {

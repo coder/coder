@@ -90,12 +90,27 @@ func consumeJSONEOF(decoder *json.Decoder) error {
 	return err
 }
 
+var safeRateLimitHeaderNames = map[string]struct{}{
+	"anthropic-ratelimit-requests-limit":     {},
+	"anthropic-ratelimit-requests-remaining": {},
+	"anthropic-ratelimit-requests-reset":     {},
+	"anthropic-ratelimit-tokens-limit":       {},
+	"anthropic-ratelimit-tokens-remaining":   {},
+	"anthropic-ratelimit-tokens-reset":       {},
+	"x-ratelimit-limit-requests":             {},
+	"x-ratelimit-limit-tokens":               {},
+	"x-ratelimit-remaining-requests":         {},
+	"x-ratelimit-remaining-tokens":           {},
+	"x-ratelimit-reset-requests":             {},
+	"x-ratelimit-reset-tokens":               {},
+}
+
 func isSensitiveHeaderName(name string) bool {
 	lowerName := strings.ToLower(name)
 	if _, ok := sensitiveHeaderNames[lowerName]; ok {
 		return true
 	}
-	if strings.Contains(lowerName, "ratelimit") {
+	if _, ok := safeRateLimitHeaderNames[lowerName]; ok {
 		return false
 	}
 	if strings.Contains(lowerName, "api-key") ||
