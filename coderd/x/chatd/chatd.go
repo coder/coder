@@ -93,7 +93,7 @@ const (
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
-var errChatHasNoWorkspaceAgent = xerrors.New("chat has no workspace agent")
+var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -344,7 +344,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace")
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -4441,7 +4441,7 @@ func (p *Server) runChat(
 				workspaceCtx.chatStateMu.Unlock()
 
 				if !chatSnapshot.WorkspaceID.Valid {
-					return uuid.Nil, xerrors.New("chat has no workspace")
+					return uuid.Nil, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
 				}
 
 				ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
