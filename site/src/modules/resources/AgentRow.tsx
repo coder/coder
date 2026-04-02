@@ -478,7 +478,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 																	: "inactive"
 															}
 															aria-label="More log tabs"
-															className="border-none py-3 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+															className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
 														>
 															<EllipsisIcon className="size-icon-sm" />
 															<span className="sr-only">More log tabs</span>
@@ -493,6 +493,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 																<DropdownMenuRadioItem
 																	key={tab.value}
 																	value={tab.value}
+																	className="gap-2"
 																>
 																	{tab.startIcon}
 																	<span className="whitespace-nowrap">
