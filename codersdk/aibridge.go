@@ -12,18 +12,19 @@ import (
 )
 
 type AIBridgeInterception struct {
-	ID          uuid.UUID            `json:"id" format:"uuid"`
-	APIKeyID    *string              `json:"api_key_id"`
-	Initiator   MinimalUser          `json:"initiator"`
-	Provider    string               `json:"provider"`
-	Model       string               `json:"model"`
-	Client      *string              `json:"client"`
-	Metadata    map[string]any       `json:"metadata"`
-	StartedAt   time.Time            `json:"started_at" format:"date-time"`
-	EndedAt     *time.Time           `json:"ended_at" format:"date-time"`
-	TokenUsages []AIBridgeTokenUsage `json:"token_usages"`
-	UserPrompts []AIBridgeUserPrompt `json:"user_prompts"`
-	ToolUsages  []AIBridgeToolUsage  `json:"tool_usages"`
+	ID           uuid.UUID            `json:"id" format:"uuid"`
+	APIKeyID     *string              `json:"api_key_id"`
+	Initiator    MinimalUser          `json:"initiator"`
+	Provider     string               `json:"provider"`
+	ProviderName string               `json:"provider_name"`
+	Model        string               `json:"model"`
+	Client       *string              `json:"client"`
+	Metadata     map[string]any       `json:"metadata"`
+	StartedAt    time.Time            `json:"started_at" format:"date-time"`
+	EndedAt      *time.Time           `json:"ended_at" format:"date-time"`
+	TokenUsages  []AIBridgeTokenUsage `json:"token_usages"`
+	UserPrompts  []AIBridgeUserPrompt `json:"user_prompts"`
+	ToolUsages   []AIBridgeToolUsage  `json:"tool_usages"`
 }
 
 type AIBridgeTokenUsage struct {

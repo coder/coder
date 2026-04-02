@@ -5223,6 +5223,7 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 		avatar_url: "https://example.com/avatar.png",
 	},
 	provider: "openai",
+	provider_name: "openai",
 	model: "gpt-4o",
 	started_at: "2022-05-17T17:39:01.382927298Z",
 	ended_at: "2022-05-17T17:39:01.382927298Z",

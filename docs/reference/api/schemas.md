@@ -498,6 +498,7 @@
   },
   "model": "string",
   "provider": "string",
+  "provider_name": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usages": [
     {
@@ -559,6 +560,7 @@
 | » `[any property]` | any                                                                 | false    |              |             |
 | `model`            | string                                                              | false    |              |             |
 | `provider`         | string                                                              | false    |              |             |
+| `provider_name`    | string                                                              | false    |              |             |
 | `started_at`       | string                                                              | false    |              |             |
 | `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
 | `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
@@ -587,6 +589,7 @@
       },
       "model": "string",
       "provider": "string",
+      "provider_name": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
