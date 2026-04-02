@@ -76,7 +76,7 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 }
 
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
-	log, err := db.UpsertConnectionLog(genCtx, database.UpsertConnectionLogParams{
+	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
 		Time:             takeFirst(seed.Time, dbtime.Now()),
 		OrganizationID:   takeFirst(seed.OrganizationID, uuid.New()),
@@ -117,9 +117,52 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
+	}
+
+	var disconnectTime sql.NullTime
+	if arg.ConnectionStatus == database.ConnectionStatusDisconnected {
+		disconnectTime = sql.NullTime{Time: arg.Time, Valid: true}
+	}
+
+	err := db.BatchUpsertConnectionLogs(genCtx, database.BatchUpsertConnectionLogsParams{
+		ID:               []uuid.UUID{arg.ID},
+		ConnectTime:      []time.Time{arg.Time},
+		OrganizationID:   []uuid.UUID{arg.OrganizationID},
+		WorkspaceOwnerID: []uuid.UUID{arg.WorkspaceOwnerID},
+		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
+		WorkspaceName:    []string{arg.WorkspaceName},
+		AgentName:        []string{arg.AgentName},
+		Type:             []database.ConnectionType{arg.Type},
+		Code:             []int32{arg.Code.Int32},
+		CodeValid:        []bool{arg.Code.Valid},
+		Ip:               []pqtype.Inet{arg.Ip},
+		UserAgent:        []string{arg.UserAgent.String},
+		UserID:           []uuid.UUID{arg.UserID.UUID},
+		SlugOrPort:       []string{arg.SlugOrPort.String},
+		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
+		DisconnectReason: []string{arg.DisconnectReason.String},
+		DisconnectTime:   []time.Time{arg.Time},
 	})
 	require.NoError(t, err, "insert connection log")
-	return log
+
+	return database.ConnectionLog{
+		ID:               arg.ID,
+		ConnectTime:      arg.Time,
+		OrganizationID:   arg.OrganizationID,
+		WorkspaceOwnerID: arg.WorkspaceOwnerID,
+		WorkspaceID:      arg.WorkspaceID,
+		WorkspaceName:    arg.WorkspaceName,
+		AgentName:        arg.AgentName,
+		Type:             arg.Type,
+		Code:             arg.Code,
+		Ip:               arg.Ip,
+		UserAgent:        arg.UserAgent,
+		UserID:           arg.UserID,
+		SlugOrPort:       arg.SlugOrPort,
+		ConnectionID:     arg.ConnectionID,
+		DisconnectReason: arg.DisconnectReason,
+		DisconnectTime:   disconnectTime,
+	}
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
