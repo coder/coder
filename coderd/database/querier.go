@@ -878,10 +878,10 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
-	// Unarchives a chat (and its children) and scrubs any stale
-	// file_ids that reference chat_files rows deleted by dbpurge
-	// while the chat was archived. This prevents purged files from
-	// counting toward MaxChatFileIDs.
+	// Unarchives a chat (and its children). Stale file references are
+	// handled automatically by FK cascades on chat_file_links: when
+	// dbpurge deletes a chat_files row, the corresponding
+	// chat_file_links rows are cascade-deleted by PostgreSQL.
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error

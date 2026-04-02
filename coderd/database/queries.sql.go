@@ -2871,10 +2871,11 @@ WITH kept_file_ids AS (
     -- because there is no archived_at column. Correctness
     -- requires that updated_at is never backdated on archived
     -- chats. See ArchiveChatByID.
-    SELECT DISTINCT unnest(file_ids) AS file_id
-    FROM chats
-    WHERE archived = false
-       OR updated_at >= $1::timestamptz
+    SELECT DISTINCT cfl.file_id
+    FROM chat_file_links cfl
+    JOIN chats c ON c.id = cfl.chat_id
+    WHERE c.archived = false
+       OR c.updated_at >= $1::timestamptz
 ),
 deletable AS (
     SELECT cf.id
@@ -6414,13 +6415,7 @@ const unarchiveChatByID = `-- name: UnarchiveChatByID :many
 WITH chats AS (
     UPDATE chats SET
         archived = false,
-        updated_at = NOW(),
-        file_ids = COALESCE(
-            (SELECT array_agg(fid)
-             FROM unnest(file_ids) AS fid
-             WHERE EXISTS (SELECT 1 FROM chat_files WHERE id = fid)),
-            '{}'
-        )
+        updated_at = NOW()
     WHERE id = $1::uuid OR root_chat_id = $1::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
 )
@@ -6429,10 +6424,10 @@ FROM chats
 ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
 
-// Unarchives a chat (and its children) and scrubs any stale
-// file_ids that reference chat_files rows deleted by dbpurge
-// while the chat was archived. This prevents purged files from
-// counting toward MaxChatFileIDs.
+// Unarchives a chat (and its children). Stale file references are
+// handled automatically by FK cascades on chat_file_links: when
+// dbpurge deletes a chat_files row, the corresponding
+// chat_file_links rows are cascade-deleted by PostgreSQL.
 func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, unarchiveChatByID, id)
 	if err != nil {
