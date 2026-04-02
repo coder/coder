@@ -18,12 +18,13 @@ CREATE TABLE chat_debug_runs (
     finished_at            TIMESTAMPTZ
 );
 
+CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs(id, chat_id);
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs(chat_id, started_at DESC);
 CREATE INDEX idx_chat_debug_runs_chat_status ON chat_debug_runs(chat_id, status);
 
 CREATE TABLE chat_debug_steps (
     id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    run_id                 UUID        NOT NULL REFERENCES chat_debug_runs(id) ON DELETE CASCADE,
+    run_id                 UUID        NOT NULL,
     chat_id                UUID        NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
     step_number            INT         NOT NULL,
     operation              TEXT        NOT NULL,
@@ -38,7 +39,11 @@ CREATE TABLE chat_debug_steps (
     metadata               JSONB       NOT NULL DEFAULT '{}'::jsonb,
     started_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    finished_at            TIMESTAMPTZ
+    finished_at            TIMESTAMPTZ,
+    CONSTRAINT fk_chat_debug_steps_run_chat
+        FOREIGN KEY (run_id, chat_id)
+        REFERENCES chat_debug_runs(id, chat_id)
+        ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps(run_id, step_number);

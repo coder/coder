@@ -3781,6 +3781,8 @@ CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (ch
 
 CREATE INDEX idx_chat_debug_runs_chat_status ON chat_debug_runs USING btree (chat_id, status);
 
+CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
+
 CREATE INDEX idx_chat_debug_steps_chat_started ON chat_debug_steps USING btree (chat_id, started_at DESC);
 
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
@@ -4094,9 +4096,6 @@ ALTER TABLE ONLY chat_debug_runs
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT chat_debug_steps_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY chat_debug_steps
-    ADD CONSTRAINT chat_debug_steps_run_id_fkey FOREIGN KEY (run_id) REFERENCES chat_debug_runs(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4162,6 +4161,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_debug_steps
+    ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT fk_oauth2_provider_app_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
