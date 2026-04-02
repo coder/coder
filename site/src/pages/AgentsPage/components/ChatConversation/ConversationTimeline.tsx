@@ -653,7 +653,10 @@ const ChatMessageItem = memo<{
 																size="icon"
 																variant="subtle"
 																className="pl-0"
-																onClick={() => copyToClipboard(parsed.markdown)}
+																onClick={() => {
+																		copyToClipboard(parsed.markdown);
+																		setCopyHovered(false);
+																	}}
 																onMouseEnter={() => setCopyHovered(true)}
 																onMouseLeave={() => setCopyHovered(false)}
 															>
