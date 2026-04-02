@@ -13,6 +13,7 @@ import {
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectMessagesByID,
@@ -64,6 +65,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const hasStreamState = useChatSelector(store, selectHasStreamState);
+	const isTurnActive = isActiveChatStatus(chatStatus) || hasStreamState;
 
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
@@ -91,6 +95,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={false}
+					isTurnActive={isTurnActive}
 				/>
 				<LiveStreamTail
 					store={store}

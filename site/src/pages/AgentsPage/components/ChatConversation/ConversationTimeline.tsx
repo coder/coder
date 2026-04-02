@@ -1009,6 +1009,11 @@ interface ConversationTimelineProps {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
+	// When true the current turn is still in progress (the agent
+	// is streaming or a tool call is running). The copy button on
+	// the trailing assistant message is suppressed because the
+	// content is not yet final.
+	isTurnActive: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1022,6 +1027,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		mcpServers,
 		computerUseSubagentIds,
 		showDesktopPreviews,
+		isTurnActive,
 	}) => {
 		if (parsedMessages.length === 0) {
 			return null;
@@ -1055,7 +1061,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							lastAsstId = null;
 						}
 					}
-					if (lastAsstId != null) lastAssistantPerTurnIds.add(lastAsstId);
+					if (lastAsstId != null && !isTurnActive) {
+						lastAssistantPerTurnIds.add(lastAsstId);
+					}
 					return parsedMessages.map(({ message, parsed }) =>
 						message.role === "user" ? (
 							<StickyUserMessage
