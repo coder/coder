@@ -247,7 +247,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		) => {
 			// Return a debounce for string fields (those that involve typing) and
 			// zero debounce for all others (so the UI can react immediately).
-			return parameters.some(({ parameter }) => parameter.type === "string")
+			return parameters.some(
+				({ parameter }) =>
+					parameter.form_type === "input" || parameter.form_type === "textarea",
+			)
 				? 500
 				: 0;
 		},
