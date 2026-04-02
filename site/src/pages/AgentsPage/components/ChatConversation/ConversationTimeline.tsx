@@ -648,30 +648,27 @@ const ChatMessageItem = memo<{
 													className="flex !mt-0"
 													data-testid="assistant-copy-button"
 												>
-															<Tooltip open={copyHovered || showCopiedSuccess || undefined}>														<TooltipTrigger asChild>															<Button
-																size="icon"
-																variant="subtle"
-																className="pl-0"
-																onClick={() => {
+														<Tooltip open={copyHovered || showCopiedSuccess || undefined}>
+															<TooltipTrigger asChild>
+																<Button
+																	size="icon"
+																	variant="subtle"
+																	className="pl-0"
+																	onClick={() => {
 																		copyToClipboard(parsed.markdown);
 																		setCopyHovered(false);
 																	}}
-																onMouseEnter={() => setCopyHovered(true)}
-																onMouseLeave={() => setCopyHovered(false)}
-															>
-																	{showCopiedSuccess ? (																	<CheckIcon />
-																) : (
-																	<CopyIcon />
-																)}
-																<span className="sr-only">Copy message</span>
-															</Button>
-														</TooltipTrigger>
-															<TooltipContent
-																side="bottom"
-																align="start"
-															>															{showCopiedSuccess ? "Copied!" : "Copy message"}
-														</TooltipContent>
-													</Tooltip>
+																	onMouseEnter={() => setCopyHovered(true)}
+																	onMouseLeave={() => setCopyHovered(false)}
+																>
+																	{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+																	<span className="sr-only">Copy message</span>
+																</Button>
+															</TooltipTrigger>
+															<TooltipContent side="bottom" align="start">
+																{showCopiedSuccess ? "Copied!" : "Copy message"}
+															</TooltipContent>
+														</Tooltip>
 												</div>
 											) : undefined
 										}
