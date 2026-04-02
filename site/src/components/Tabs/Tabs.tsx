@@ -61,6 +61,7 @@ export const TabsList: FC<TabsListProps> = ({
 }) => {
 	return (
 		<TabsPrimitive.List
+			data-slot="tabs-list"
 			className={cn(
 				tabsListVariants({ variant }),
 				overflowKebabMenu && "flex-nowrap",
@@ -81,6 +82,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
 
 	return (
 		<TabsPrimitive.Trigger
+			data-slot="tabs-trigger"
 			type={type}
 			className={cn(
 				"border-none py-3 bg-transparent",
