@@ -1554,13 +1554,14 @@ type User struct {
 
 // FirstUserOnboarding contains optional demographic and newsletter
 // preference data collected during first user setup. This is sent
-// once when the first user is created.
+// once when the first user is created. Pointer fields distinguish an
+// explicit answer from a skipped question.
 type FirstUserOnboarding struct {
-	IsBusiness          bool   `json:"is_business"`
+	IsBusiness          *bool  `json:"is_business"`
 	IndustryType        string `json:"industry_type"`
 	OrgSize             string `json:"org_size"`
-	NewsletterMarketing bool   `json:"newsletter_marketing"`
-	NewsletterReleases  bool   `json:"newsletter_releases"`
+	NewsletterMarketing *bool  `json:"newsletter_marketing"`
+	NewsletterReleases  *bool  `json:"newsletter_releases"`
 }
 
 type Group struct {

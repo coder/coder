@@ -14550,6 +14550,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "industry_type": {
+                    "description": "IndustryType is a free-form string supplied by the frontend.\nExpected values include \"Technology\", \"Finance\", \"Healthcare\",\n\"Education\", \"Government\", \"Retail\", \"Media\", \"Manufacturing\",\n\"Transportation\", \"Energy\", \"Other\".",
                     "type": "string"
                 },
                 "is_business": {
@@ -14562,7 +14563,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "org_size": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.OrgSizeRange"
                 }
             }
         },
@@ -17618,6 +17619,21 @@ const docTemplate = `{
                 "OptionTypeNumber",
                 "OptionTypeBoolean",
                 "OptionTypeListString"
+            ]
+        },
+        "codersdk.OrgSizeRange": {
+            "type": "string",
+            "enum": [
+                "1-50",
+                "51-200",
+                "201-2000",
+                "2001+"
+            ],
+            "x-enum-varnames": [
+                "OrgSizeRangeSmall",
+                "OrgSizeRangeMedium",
+                "OrgSizeRangeLarge",
+                "OrgSizeRangeXL"
             ]
         },
         "codersdk.Organization": {

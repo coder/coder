@@ -125,13 +125,13 @@ type LicensorTrialRequest struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email          string                        `json:"email" validate:"required,email"`
-	Username       string                        `json:"username" validate:"required,username"`
-	Name           string                        `json:"name" validate:"user_real_name"`
-	Password       string                        `json:"password" validate:"required"`
-	Trial          bool                          `json:"trial"`
-	TrialInfo      CreateFirstUserTrialInfo      `json:"trial_info"`
-	OnboardingInfo CreateFirstUserOnboardingInfo `json:"onboarding_info"`
+	Email          string                         `json:"email" validate:"required,email"`
+	Username       string                         `json:"username" validate:"required,username"`
+	Name           string                         `json:"name" validate:"user_real_name"`
+	Password       string                         `json:"password" validate:"required"`
+	Trial          bool                           `json:"trial"`
+	TrialInfo      CreateFirstUserTrialInfo       `json:"trial_info"`
+	OnboardingInfo *CreateFirstUserOnboardingInfo `json:"onboarding_info,omitempty"`
 }
 
 type CreateFirstUserTrialInfo struct {
@@ -144,14 +144,32 @@ type CreateFirstUserTrialInfo struct {
 	Developers  string `json:"developers"`
 }
 
+// OrgSizeRange represents a bucketed headcount range for an organization.
+// These values are fixed by agreement with the frontend and the telemetry
+// schema — do not change them without coordinating both sides.
+type OrgSizeRange string
+
+const (
+	OrgSizeRangeSmall  OrgSizeRange = "1-50"
+	OrgSizeRangeMedium OrgSizeRange = "51-200"
+	OrgSizeRangeLarge  OrgSizeRange = "201-2000"
+	OrgSizeRangeXL     OrgSizeRange = "2001+"
+)
+
 // CreateFirstUserOnboardingInfo contains optional demographic and
 // newsletter preference data collected during first user setup.
+// Pointer fields allow an explicit "no" answer to be distinguished
+// from a skipped question, which matters for the telemetry schema.
 type CreateFirstUserOnboardingInfo struct {
-	IsBusiness          bool   `json:"is_business"`
-	IndustryType        string `json:"industry_type"`
-	OrgSize             string `json:"org_size"`
-	NewsletterMarketing bool   `json:"newsletter_marketing"`
-	NewsletterReleases  bool   `json:"newsletter_releases"`
+	IsBusiness *bool `json:"is_business"`
+	// IndustryType is a free-form string supplied by the frontend.
+	// Expected values include "Technology", "Finance", "Healthcare",
+	// "Education", "Government", "Retail", "Media", "Manufacturing",
+	// "Transportation", "Energy", "Other".
+	IndustryType        string       `json:"industry_type"`
+	OrgSize             OrgSizeRange `json:"org_size"`
+	NewsletterMarketing *bool        `json:"newsletter_marketing"`
+	NewsletterReleases  *bool        `json:"newsletter_releases"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.

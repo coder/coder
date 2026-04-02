@@ -2380,13 +2380,21 @@ export interface CreateChatRequest {
 /**
  * CreateFirstUserOnboardingInfo contains optional demographic and
  * newsletter preference data collected during first user setup.
+ * Pointer fields allow an explicit "no" answer to be distinguished
+ * from a skipped question, which matters for the telemetry schema.
  */
 export interface CreateFirstUserOnboardingInfo {
-	readonly is_business: boolean;
+	readonly is_business: boolean | null;
+	/**
+	 * IndustryType is a free-form string supplied by the frontend.
+	 * Expected values include "Technology", "Finance", "Healthcare",
+	 * "Education", "Government", "Retail", "Media", "Manufacturing",
+	 * "Transportation", "Energy", "Other".
+	 */
 	readonly industry_type: string;
-	readonly org_size: string;
-	readonly newsletter_marketing: boolean;
-	readonly newsletter_releases: boolean;
+	readonly org_size: OrgSizeRange;
+	readonly newsletter_marketing: boolean | null;
+	readonly newsletter_releases: boolean | null;
 }
 
 // From codersdk/users.go
@@ -2397,7 +2405,7 @@ export interface CreateFirstUserRequest {
 	readonly password: string;
 	readonly trial: boolean;
 	readonly trial_info: CreateFirstUserTrialInfo;
-	readonly onboarding_info: CreateFirstUserOnboardingInfo;
+	readonly onboarding_info?: CreateFirstUserOnboardingInfo;
 }
 
 // From codersdk/users.go
@@ -4782,6 +4790,16 @@ export const OptionTypes: OptionType[] = [
 	"list(string)",
 	"number",
 	"string",
+];
+
+// From codersdk/users.go
+export type OrgSizeRange = "201-2000" | "51-200" | "1-50" | "2001+";
+
+export const OrgSizeRanges: OrgSizeRange[] = [
+	"201-2000",
+	"51-200",
+	"1-50",
+	"2001+",
 ];
 
 // From codersdk/organizations.go
