@@ -455,7 +455,11 @@ const meta: Meta<typeof DebugPanel> = {
 			API.experimental,
 			"getChatDebugRun",
 		).mockImplementation(async (_chatID, runID) => {
-			return getDebugRunDetailById().get(runID) ?? successfulRunDetail;
+			const run = getDebugRunDetailById().get(runID);
+			if (!run) {
+				throw new Error(`Unknown debug run fixture: ${runID}`);
+			}
+			return run;
 		});
 		return () => {
 			Date.now = real;
