@@ -704,11 +704,12 @@ func seedChat(
 	owner := dbgen.User(t, db, database.User{})
 	providerName := "openai"
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    providerName,
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		CreatedBy:   uuid.NullUUID{UUID: owner.ID, Valid: true},
-		Enabled:     true,
+		Provider:             providerName,
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
