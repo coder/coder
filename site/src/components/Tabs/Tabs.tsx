@@ -61,7 +61,6 @@ export const TabsList: FC<TabsListProps> = ({
 }) => {
 	return (
 		<TabsPrimitive.List
-			data-slot="tabs-list"
 			className={cn(
 				tabsListVariants({ variant }),
 				overflowKebabMenu && "flex-nowrap",
