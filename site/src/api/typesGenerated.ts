@@ -1868,6 +1868,25 @@ export interface ChatReasoningPart {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatSharedSnapshot is a self-contained, read-only snapshot of a
+ * chat's state that can be viewed via an unguessable token URL
+ * without authentication.
+ */
+export interface ChatSharedSnapshot {
+	readonly id: string;
+	readonly token: string;
+	readonly chat_id: string;
+	readonly owner_id: string;
+	readonly chat_title: string;
+	readonly chat_status: ChatStatus;
+	readonly messages: readonly ChatMessage[];
+	readonly snapshot_at: string;
+	readonly expires_at?: string;
+	readonly created_at: string;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -2373,6 +2392,25 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatSharedSnapshotRequest is the request body for creating a
+ * shared chat snapshot.
+ */
+export interface CreateChatSharedSnapshotRequest {
+	readonly expires_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatSharedSnapshotResponse is returned after creating a shared
+ * snapshot and includes the full share URL.
+ */
+export interface CreateChatSharedSnapshotResponse {
+	readonly snapshot: ChatSharedSnapshot;
+	readonly share_url: string;
 }
 
 // From codersdk/users.go

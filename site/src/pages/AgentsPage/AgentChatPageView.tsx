@@ -255,6 +255,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					<div className="relative z-10 shrink-0 overflow-visible">
 						{" "}
 						<ChatTopBar
+							chatId={agentId}
 							chatTitle={chatTitle}
 							parentChat={parentChat}
 							panel={{

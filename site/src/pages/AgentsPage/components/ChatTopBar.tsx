@@ -6,6 +6,7 @@ import {
 	CopyIcon,
 	EllipsisIcon,
 	ExternalLinkIcon,
+	LinkIcon,
 	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
@@ -14,7 +15,7 @@ import {
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -48,6 +49,7 @@ interface WorkspaceActions {
 }
 
 type ChatTopBarProps = {
+	chatId?: string;
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
@@ -66,6 +68,7 @@ type ChatTopBarProps = {
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
+	chatId,
 	chatTitle,
 	parentChat,
 	panel,
@@ -247,6 +250,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<CopyIcon className="h-3.5 w-3.5" />
 								Copy SSH Command
 							</DropdownMenuItem>
+							{chatId && (
+								<ShareSnapshotMenuItem chatId={chatId} />
+							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								disabled={!workspace.canOpenWorkspace}
@@ -317,5 +323,36 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
+	);
+};
+
+type ShareSnapshotMenuItemProps = { chatId: string };
+
+const ShareSnapshotMenuItem: FC<ShareSnapshotMenuItemProps> = ({ chatId }) => {
+	const [isPending, setIsPending] = useState(false);
+
+	const handleClick = async () => {
+		setIsPending(true);
+		try {
+			const { API } = await import("#/api/api");
+			const result = await API.createChatSharedSnapshot(chatId);
+			await navigator.clipboard.writeText(result.share_url);
+			toast.success("Snapshot link copied to clipboard");
+		} catch {
+			toast.error("Failed to create snapshot");
+		} finally {
+			setIsPending(false);
+		}
+	};
+
+	return (
+		<DropdownMenuItem disabled={isPending} onSelect={handleClick}>
+			{isPending ? (
+				<Spinner size="sm" loading className="h-3.5 w-3.5" />
+			) : (
+				<LinkIcon className="h-3.5 w-3.5" />
+			)}
+			Share Snapshot
+		</DropdownMenuItem>
 	);
 };

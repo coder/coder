@@ -2191,3 +2191,68 @@ type PRInsightsPullRequest struct {
 	CostMicros       int64     `json:"cost_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
+
+// ChatSharedSnapshot is a self-contained, read-only snapshot of a
+// chat's state that can be viewed via an unguessable token URL
+// without authentication.
+type ChatSharedSnapshot struct {
+	ID         uuid.UUID     `json:"id" format:"uuid"`
+	Token      string        `json:"token"`
+	ChatID     uuid.UUID     `json:"chat_id" format:"uuid"`
+	OwnerID    uuid.UUID     `json:"owner_id" format:"uuid"`
+	ChatTitle  string        `json:"chat_title"`
+	ChatStatus ChatStatus    `json:"chat_status"`
+	Messages   []ChatMessage `json:"messages"`
+	SnapshotAt time.Time     `json:"snapshot_at" format:"date-time"`
+	ExpiresAt  *time.Time    `json:"expires_at,omitempty" format:"date-time"`
+	CreatedAt  time.Time     `json:"created_at" format:"date-time"`
+}
+
+// CreateChatSharedSnapshotRequest is the request body for creating a
+// shared chat snapshot.
+type CreateChatSharedSnapshotRequest struct {
+	ExpiresAt *time.Time `json:"expires_at,omitempty" format:"date-time"`
+}
+
+// CreateChatSharedSnapshotResponse is returned after creating a shared
+// snapshot and includes the full share URL.
+type CreateChatSharedSnapshotResponse struct {
+	Snapshot ChatSharedSnapshot `json:"snapshot"`
+	ShareURL string             `json:"share_url"`
+}
+
+// CreateChatSharedSnapshot generates a shareable snapshot link for a
+// chat conversation.
+func (c *Client) CreateChatSharedSnapshot(ctx context.Context, chatID uuid.UUID, req CreateChatSharedSnapshotRequest) (CreateChatSharedSnapshotResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/snapshot", chatID.String()), req)
+	if err != nil {
+		return CreateChatSharedSnapshotResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return CreateChatSharedSnapshotResponse{}, ReadBodyAsError(res)
+	}
+	var resp CreateChatSharedSnapshotResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return CreateChatSharedSnapshotResponse{}, xerrors.Errorf("decoding snapshot response: %w", err)
+	}
+	return resp, nil
+}
+
+// GetChatSharedSnapshot retrieves a shared chat snapshot by its
+// public token. This endpoint does not require authentication.
+func (c *Client) GetChatSharedSnapshot(ctx context.Context, token string) (ChatSharedSnapshot, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/snapshots/%s", token), nil)
+	if err != nil {
+		return ChatSharedSnapshot{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatSharedSnapshot{}, ReadBodyAsError(res)
+	}
+	var snapshot ChatSharedSnapshot
+	if err := json.NewDecoder(res.Body).Decode(&snapshot); err != nil {
+		return ChatSharedSnapshot{}, xerrors.Errorf("decoding snapshot: %w", err)
+	}
+	return snapshot, nil
+}

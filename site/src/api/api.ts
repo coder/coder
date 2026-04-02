@@ -2996,6 +2996,32 @@ class ApiMethods {
 		});
 	};
 
+	createChatSharedSnapshot = async (
+		chatId: string,
+		req: TypesGen.CreateChatSharedSnapshotRequest = {},
+	): Promise<TypesGen.CreateChatSharedSnapshotResponse> => {
+		const response =
+			await this.axios.post<TypesGen.CreateChatSharedSnapshotResponse>(
+				`/api/v2/chats/${chatId}/snapshot`,
+				req,
+			);
+		return response.data;
+	};
+
+	getChatSharedSnapshot = async (
+		token: string,
+	): Promise<TypesGen.ChatSharedSnapshot> => {
+		const response =
+			await this.axios.get<TypesGen.ChatSharedSnapshot>(
+				`/api/v2/chats/snapshots/${token}`,
+			);
+		return response.data;
+	};
+
+	deleteChatSharedSnapshot = async (token: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/chats/snapshots/${token}`);
+	};
+
 	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(
 			"/api/v2/aibridge/interceptions",

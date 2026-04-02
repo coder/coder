@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
@@ -52,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/websocket"
 )
 
@@ -5238,4 +5240,229 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		ByModel:    modelEntries,
 		RecentPRs:  prEntries,
 	})
+}
+
+const (
+	// chatSnapshotTokenLength is the number of random hex characters
+	// in a shared snapshot token. 32 hex chars = 128 bits of entropy.
+	chatSnapshotTokenLength = 32
+)
+
+// @Summary Create a shared chat snapshot
+// @ID create-shared-chat-snapshot
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.CreateChatSharedSnapshotRequest true "Snapshot options"
+// @Success 201 {object} codersdk.CreateChatSharedSnapshotResponse
+// @Router /chats/{chat}/snapshot [post]
+// @x-apidocgen {"skip": true}
+func (api *API) createChatSharedSnapshot(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		chat = httpmw.ChatParam(r)
+	)
+
+	var req codersdk.CreateChatSharedSnapshotRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Fetch all user-visible, non-deleted messages.
+	dbMessages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch chat messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Convert to SDK types and strip internal fields.
+	sdkMessages := convertChatMessages(dbMessages)
+	for i := range sdkMessages {
+		for j := range sdkMessages[i].Content {
+			sdkMessages[i].Content[j].StripInternal()
+		}
+	}
+
+	messagesJSON, err := json.Marshal(sdkMessages)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to serialize messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	token, err := cryptorand.HexString(chatSnapshotTokenLength)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to generate share token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	now := dbtime.Now()
+	var expiresAt sql.NullTime
+	if req.ExpiresAt != nil {
+		expiresAt = sql.NullTime{Time: *req.ExpiresAt, Valid: true}
+	}
+
+	dbSnapshot, err := api.Database.InsertChatSharedSnapshot(ctx, database.InsertChatSharedSnapshotParams{
+		ID:         uuid.New(),
+		Token:      token,
+		ChatID:     chat.ID,
+		OwnerID:    chat.OwnerID,
+		ChatTitle:  chat.Title,
+		ChatStatus: chat.Status,
+		Messages:   messagesJSON,
+		SnapshotAt: now,
+		ExpiresAt:  expiresAt,
+		CreatedAt:  now,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create shared snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	snapshot := convertDBChatSharedSnapshot(dbSnapshot, sdkMessages)
+	shareURL := fmt.Sprintf("%s/agents/snapshots/%s", api.AccessURL.String(), token)
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatSharedSnapshotResponse{
+		Snapshot: snapshot,
+		ShareURL: shareURL,
+	})
+}
+
+// @Summary Get a shared chat snapshot
+// @ID get-shared-chat-snapshot
+// @Produce json
+// @Tags Chats
+// @Param token path string true "Share token"
+// @Success 200 {object} codersdk.ChatSharedSnapshot
+// @Router /chats/snapshots/{token} [get]
+// @x-apidocgen {"skip": true}
+func (api *API) getChatSharedSnapshot(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		token = chi.URLParam(r, "token")
+	)
+
+	dbSnapshot, err := api.Database.GetChatSharedSnapshotByToken(
+		dbauthz.AsSystemRestricted(ctx), token,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Snapshot not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if dbSnapshot.ExpiresAt.Valid && dbSnapshot.ExpiresAt.Time.Before(dbtime.Now()) {
+		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+			Message: "This snapshot link has expired.",
+		})
+		return
+	}
+
+	var messages []codersdk.ChatMessage
+	if err := json.Unmarshal(dbSnapshot.Messages, &messages); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to decode snapshot messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertDBChatSharedSnapshot(dbSnapshot, messages))
+}
+
+// @Summary Delete a shared chat snapshot
+// @ID delete-shared-chat-snapshot
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param token path string true "Share token"
+// @Success 204
+// @Router /chats/snapshots/{token} [delete]
+// @x-apidocgen {"skip": true}
+func (api *API) deleteChatSharedSnapshot(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		token = chi.URLParam(r, "token")
+	)
+
+	dbSnapshot, err := api.Database.GetChatSharedSnapshotByToken(
+		dbauthz.AsSystemRestricted(ctx), token,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Snapshot not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := api.Database.GetChatByID(ctx, dbSnapshot.ChatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to verify chat ownership.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	if err := api.Database.DeleteChatSharedSnapshot(ctx, dbSnapshot.ID); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func convertDBChatSharedSnapshot(db database.ChatSharedSnapshot, messages []codersdk.ChatMessage) codersdk.ChatSharedSnapshot {
+	s := codersdk.ChatSharedSnapshot{
+		ID:         db.ID,
+		Token:      db.Token,
+		ChatID:     db.ChatID,
+		OwnerID:    db.OwnerID,
+		ChatTitle:  db.ChatTitle,
+		ChatStatus: codersdk.ChatStatus(db.ChatStatus),
+		Messages:   messages,
+		SnapshotAt: db.SnapshotAt,
+		CreatedAt:  db.CreatedAt,
+	}
+	if db.ExpiresAt.Valid {
+		s.ExpiresAt = &db.ExpiresAt.Time
+	}
+	return s
 }

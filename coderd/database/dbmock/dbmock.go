@@ -684,6 +684,20 @@ func (mr *MockStoreMockRecorder) DeleteChatQueuedMessage(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessage", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessage), ctx, arg)
 }
 
+// DeleteChatSharedSnapshot mocks base method.
+func (m *MockStore) DeleteChatSharedSnapshot(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatSharedSnapshot", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatSharedSnapshot indicates an expected call of DeleteChatSharedSnapshot.
+func (mr *MockStoreMockRecorder) DeleteChatSharedSnapshot(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatSharedSnapshot", reflect.TypeOf((*MockStore)(nil).DeleteChatSharedSnapshot), ctx, id)
+}
+
 // DeleteChatUsageLimitGroupOverride mocks base method.
 func (m *MockStore) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2236,6 +2250,36 @@ func (m *MockStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID)
 func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
+}
+
+// GetChatSharedSnapshotByToken mocks base method.
+func (m *MockStore) GetChatSharedSnapshotByToken(ctx context.Context, token string) (database.ChatSharedSnapshot, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatSharedSnapshotByToken", ctx, token)
+	ret0, _ := ret[0].(database.ChatSharedSnapshot)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatSharedSnapshotByToken indicates an expected call of GetChatSharedSnapshotByToken.
+func (mr *MockStoreMockRecorder) GetChatSharedSnapshotByToken(ctx, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSharedSnapshotByToken", reflect.TypeOf((*MockStore)(nil).GetChatSharedSnapshotByToken), ctx, token)
+}
+
+// GetChatSharedSnapshotsByChatID mocks base method.
+func (m *MockStore) GetChatSharedSnapshotsByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatSharedSnapshot, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatSharedSnapshotsByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.ChatSharedSnapshot)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatSharedSnapshotsByChatID indicates an expected call of GetChatSharedSnapshotsByChatID.
+func (mr *MockStoreMockRecorder) GetChatSharedSnapshotsByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSharedSnapshotsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatSharedSnapshotsByChatID), ctx, chatID)
 }
 
 // GetChatSystemPrompt mocks base method.
@@ -6120,6 +6164,21 @@ func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.In
 func (mr *MockStoreMockRecorder) InsertChatQueuedMessage(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessage", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessage), ctx, arg)
+}
+
+// InsertChatSharedSnapshot mocks base method.
+func (m *MockStore) InsertChatSharedSnapshot(ctx context.Context, arg database.InsertChatSharedSnapshotParams) (database.ChatSharedSnapshot, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatSharedSnapshot", ctx, arg)
+	ret0, _ := ret[0].(database.ChatSharedSnapshot)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatSharedSnapshot indicates an expected call of InsertChatSharedSnapshot.
+func (mr *MockStoreMockRecorder) InsertChatSharedSnapshot(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatSharedSnapshot", reflect.TypeOf((*MockStore)(nil).InsertChatSharedSnapshot), ctx, arg)
 }
 
 // InsertCryptoKey mocks base method.

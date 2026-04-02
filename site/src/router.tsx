@@ -350,6 +350,9 @@ const ProvisionerJobsPage = lazy(
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const ChatSnapshotPage = lazy(
+	() => import("./pages/ChatSnapshotPage/ChatSnapshotPage"),
+);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
@@ -723,11 +726,20 @@ export const router = createBrowserRouter(
 						}
 					/>
 				</Route>
-			</Route>
+				</Route>
 
-			<Route
-				path="/agents/:agentId/embed"
-				element={
+				{/* Public chat snapshot page — no auth required */}
+				<Route
+					path="/agents/snapshots/:token"
+					element={
+						<Suspense fallback={<Loader fullscreen />}>
+							<ChatSnapshotPage />
+						</Suspense>
+					}
+				/>
+
+				<Route
+					path="/agents/:agentId/embed"				element={
 					<Suspense fallback={<AgentChatPageSkeleton />}>
 						<AgentEmbedPage />
 					</Suspense>

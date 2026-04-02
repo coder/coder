@@ -424,6 +424,14 @@ func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg data
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatSharedSnapshot(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatSharedSnapshot(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteChatSharedSnapshot").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatSharedSnapshot").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatUsageLimitGroupOverride(ctx, groupID)
@@ -1213,6 +1221,22 @@ func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uui
 	r0, r1 := m.s.GetChatQueuedMessages(ctx, chatID)
 	m.queryLatencies.WithLabelValues("GetChatQueuedMessages").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatQueuedMessages").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatSharedSnapshotByToken(ctx context.Context, token string) (database.ChatSharedSnapshot, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSharedSnapshotByToken(ctx, token)
+	m.queryLatencies.WithLabelValues("GetChatSharedSnapshotByToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSharedSnapshotByToken").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatSharedSnapshotsByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatSharedSnapshot, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSharedSnapshotsByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatSharedSnapshotsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSharedSnapshotsByChatID").Inc()
 	return r0, r1
 }
 
@@ -3261,6 +3285,14 @@ func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg data
 	r0, r1 := m.s.InsertChatQueuedMessage(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatQueuedMessage").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessage").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatSharedSnapshot(ctx context.Context, arg database.InsertChatSharedSnapshotParams) (database.ChatSharedSnapshot, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatSharedSnapshot(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatSharedSnapshot").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatSharedSnapshot").Inc()
 	return r0, r1
 }
 

@@ -7183,6 +7183,133 @@ func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg U
 	return i, err
 }
 
+const deleteChatSharedSnapshot = `-- name: DeleteChatSharedSnapshot :exec
+DELETE FROM chat_shared_snapshots WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteChatSharedSnapshot(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatSharedSnapshot, id)
+	return err
+}
+
+const getChatSharedSnapshotByToken = `-- name: GetChatSharedSnapshotByToken :one
+SELECT id, token, chat_id, owner_id, chat_title, chat_status, messages, snapshot_at, expires_at, created_at FROM chat_shared_snapshots WHERE token = $1
+`
+
+func (q *sqlQuerier) GetChatSharedSnapshotByToken(ctx context.Context, token string) (ChatSharedSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, getChatSharedSnapshotByToken, token)
+	var i ChatSharedSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.Token,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ChatTitle,
+		&i.ChatStatus,
+		&i.Messages,
+		&i.SnapshotAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getChatSharedSnapshotsByChatID = `-- name: GetChatSharedSnapshotsByChatID :many
+SELECT id, token, chat_id, owner_id, chat_title, chat_status, messages, snapshot_at, expires_at, created_at FROM chat_shared_snapshots
+WHERE chat_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) GetChatSharedSnapshotsByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatSharedSnapshot, error) {
+	rows, err := q.db.QueryContext(ctx, getChatSharedSnapshotsByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatSharedSnapshot
+	for rows.Next() {
+		var i ChatSharedSnapshot
+		if err := rows.Scan(
+			&i.ID,
+			&i.Token,
+			&i.ChatID,
+			&i.OwnerID,
+			&i.ChatTitle,
+			&i.ChatStatus,
+			&i.Messages,
+			&i.SnapshotAt,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatSharedSnapshot = `-- name: InsertChatSharedSnapshot :one
+INSERT INTO chat_shared_snapshots (
+	id, token, chat_id, owner_id,
+	chat_title, chat_status,
+	messages, snapshot_at, expires_at, created_at
+)
+VALUES (
+	$1, $2, $3, $4,
+	$5, $6,
+	$7, $8, $9, $10
+)
+RETURNING id, token, chat_id, owner_id, chat_title, chat_status, messages, snapshot_at, expires_at, created_at
+`
+
+type InsertChatSharedSnapshotParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	Token      string          `db:"token" json:"token"`
+	ChatID     uuid.UUID       `db:"chat_id" json:"chat_id"`
+	OwnerID    uuid.UUID       `db:"owner_id" json:"owner_id"`
+	ChatTitle  string          `db:"chat_title" json:"chat_title"`
+	ChatStatus ChatStatus      `db:"chat_status" json:"chat_status"`
+	Messages   json.RawMessage `db:"messages" json:"messages"`
+	SnapshotAt time.Time       `db:"snapshot_at" json:"snapshot_at"`
+	ExpiresAt  sql.NullTime    `db:"expires_at" json:"expires_at"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertChatSharedSnapshot(ctx context.Context, arg InsertChatSharedSnapshotParams) (ChatSharedSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, insertChatSharedSnapshot,
+		arg.ID,
+		arg.Token,
+		arg.ChatID,
+		arg.OwnerID,
+		arg.ChatTitle,
+		arg.ChatStatus,
+		arg.Messages,
+		arg.SnapshotAt,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+	)
+	var i ChatSharedSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.Token,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ChatTitle,
+		&i.ChatStatus,
+		&i.Messages,
+		&i.SnapshotAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count

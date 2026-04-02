@@ -4277,6 +4277,24 @@ type ChatQueuedMessage struct {
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
+// Self-contained, read-only snapshots of chat state shared via unguessable token links.
+type ChatSharedSnapshot struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Crypto-random token used in the public share URL.
+	Token      string     `db:"token" json:"token"`
+	ChatID     uuid.UUID  `db:"chat_id" json:"chat_id"`
+	OwnerID    uuid.UUID  `db:"owner_id" json:"owner_id"`
+	ChatTitle  string     `db:"chat_title" json:"chat_title"`
+	ChatStatus ChatStatus `db:"chat_status" json:"chat_status"`
+	// Denormalized conversation history at snapshot time as JSON array of ChatMessage objects.
+	Messages json.RawMessage `db:"messages" json:"messages"`
+	// When the chat state was captured into this snapshot.
+	SnapshotAt time.Time `db:"snapshot_at" json:"snapshot_at"`
+	// Optional expiry after which the snapshot link returns 410 Gone.
+	ExpiresAt sql.NullTime `db:"expires_at" json:"expires_at"`
+	CreatedAt time.Time    `db:"created_at" json:"created_at"`
+}
+
 type ChatUsageLimitConfig struct {
 	ID                 int64     `db:"id" json:"id"`
 	Singleton          bool      `db:"singleton" json:"singleton"`

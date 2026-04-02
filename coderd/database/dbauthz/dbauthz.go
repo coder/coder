@@ -1867,6 +1867,11 @@ func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.Dele
 	return q.db.DeleteChatQueuedMessage(ctx, arg)
 }
 
+func (q *querier) DeleteChatSharedSnapshot(ctx context.Context, id uuid.UUID) error {
+	// The API handler verifies ownership before calling delete.
+	return q.db.DeleteChatSharedSnapshot(ctx, id)
+}
+
 func (q *querier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -2680,6 +2685,22 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 		return nil, err
 	}
 	return q.db.GetChatQueuedMessages(ctx, chatID)
+}
+
+func (q *querier) GetChatSharedSnapshotByToken(ctx context.Context, token string) (database.ChatSharedSnapshot, error) {
+	// Public endpoint — the token itself is the access control.
+	return q.db.GetChatSharedSnapshotByToken(ctx, token)
+}
+
+func (q *querier) GetChatSharedSnapshotsByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatSharedSnapshot, error) {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat.RBACObject()); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatSharedSnapshotsByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
@@ -4812,6 +4833,17 @@ func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.Inse
 		return database.ChatQueuedMessage{}, err
 	}
 	return q.db.InsertChatQueuedMessage(ctx, arg)
+}
+
+func (q *querier) InsertChatSharedSnapshot(ctx context.Context, arg database.InsertChatSharedSnapshotParams) (database.ChatSharedSnapshot, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatSharedSnapshot{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat.RBACObject()); err != nil {
+		return database.ChatSharedSnapshot{}, err
+	}
+	return q.db.InsertChatSharedSnapshot(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {

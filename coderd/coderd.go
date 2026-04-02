@@ -1151,10 +1151,18 @@ func New(options *Options) *API {
 		})
 		// Experimental(agents): chat API routes gated by ExperimentAgents.
 		r.Route("/chats", func(r chi.Router) {
+			// Public snapshot retrieval — no auth required.
+			r.Get("/snapshots/{token}", api.getChatSharedSnapshot)
+
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
+
+			// Snapshot management — auth required.
+			r.Route("/snapshots/{token}", func(r chi.Router) {
+				r.Delete("/", api.deleteChatSharedSnapshot)
+			})
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
@@ -1240,6 +1248,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
 				})
+				r.Post("/snapshot", api.createChatSharedSnapshot)
 			})
 		})
 

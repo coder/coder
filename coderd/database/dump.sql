@@ -1359,6 +1359,29 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_shared_snapshots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    token text NOT NULL,
+    chat_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    chat_title text DEFAULT ''::text NOT NULL,
+    chat_status chat_status DEFAULT 'waiting'::chat_status NOT NULL,
+    messages jsonb NOT NULL,
+    snapshot_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_shared_snapshots IS 'Self-contained, read-only snapshots of chat state shared via unguessable token links.';
+
+COMMENT ON COLUMN chat_shared_snapshots.token IS 'Crypto-random token used in the public share URL.';
+
+COMMENT ON COLUMN chat_shared_snapshots.messages IS 'Denormalized conversation history at snapshot time as JSON array of ChatMessage objects.';
+
+COMMENT ON COLUMN chat_shared_snapshots.snapshot_at IS 'When the chat state was captured into this snapshot.';
+
+COMMENT ON COLUMN chat_shared_snapshots.expires_at IS 'Optional expiry after which the snapshot link returns 410 Gone.';
+
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -3341,6 +3364,12 @@ ALTER TABLE ONLY chat_providers
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_shared_snapshots
+    ADD CONSTRAINT chat_shared_snapshots_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_shared_snapshots
+    ADD CONSTRAINT chat_shared_snapshots_token_key UNIQUE (token);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -3733,6 +3762,10 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chat_shared_snapshots_chat_id ON chat_shared_snapshots USING btree (chat_id);
+
+CREATE INDEX idx_chat_shared_snapshots_token ON chat_shared_snapshots USING btree (token);
+
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
@@ -4038,6 +4071,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_shared_snapshots
+    ADD CONSTRAINT chat_shared_snapshots_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_shared_snapshots
+    ADD CONSTRAINT chat_shared_snapshots_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
