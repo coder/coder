@@ -307,7 +307,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const sidebarTabIds = [
 		"git",
-		...(hasWorkspace && workspaceAgent ? ["terminal"] : []),
+		...(workspace && workspaceAgent ? ["terminal"] : []),
 		...(debugLoggingEnabled ? ["debug"] : []),
 	];
 	const allSidebarTabIds = new Set(sidebarTabIds);
@@ -336,7 +336,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				/>
 			),
 		},
-		...(hasWorkspace && workspaceAgent
+		...(workspace && workspaceAgent
 			? [
 					{
 						id: "terminal",
