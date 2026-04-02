@@ -10,6 +10,13 @@ We provide an example Grafana dashboard that you can import as a starting point 
 
 These logs and metrics can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
+## Structured Logging
+
+AI Bridge can emit structured logs for every interception event to your
+existing log pipeline. This is useful for exporting data to external SIEM or
+observability platforms. See [Structured Logging](./setup.md#structured-logging)
+in the setup guide for configuration and a full list of record types.
+
 ## Exporting Data
 
 AI Bridge interception data can be exported for external analysis, compliance reporting, or integration with log aggregation systems.
