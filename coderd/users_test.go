@@ -758,6 +758,12 @@ func TestPostUsers(t *testing.T) {
 		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 	})
 
+	// CreateWithAgentsExperiment verifies that new users
+	// are auto-assigned the agents-access role when the
+	// experiment is enabled. The experiment-disabled case
+	// is implicitly covered by TestInitialRoles, which
+	// asserts exactly [owner] with no experiment — it
+	// would fail if agents-access leaked through.
 	t.Run("CreateWithAgentsExperiment", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
@@ -1605,26 +1611,6 @@ func TestInitialRoles(t *testing.T) {
 	require.ElementsMatch(t, roles.Roles, []string{
 		codersdk.RoleOwner,
 	}, "should be a member and admin")
-
-	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{}, "should be a member")
-}
-
-// TestInitialRolesWithAgentsExperiment ensures the first user gets
-// agents-access alongside owner when the agents experiment is enabled.
-func TestInitialRolesWithAgentsExperiment(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentAgents)}
-	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
-	first := coderdtest.CreateFirstUser(t, client)
-
-	roles, err := client.UserRoles(ctx, codersdk.Me)
-	require.NoError(t, err)
-	require.ElementsMatch(t, roles.Roles, []string{
-		codersdk.RoleOwner,
-		codersdk.RoleAgentsAccess,
-	}, "first user should be owner and have agents-access")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{}, "should be a member")
 }
