@@ -758,6 +758,29 @@ func TestPostUsers(t *testing.T) {
 		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 	})
 
+	t.Run("CreateWithAgentsExperiment", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAgents)}
+		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
+			Email:           "another@user.org",
+			Username:        "someone-else",
+			Password:        "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		roles, err := client.UserRoles(ctx, user.Username)
+		require.NoError(t, err)
+		require.Contains(t, roles.Roles, codersdk.RoleAgentsAccess,
+			"new user should have agents-access role when agents experiment is enabled")
+	})
+
 	t.Run("CreateWithStatus", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1582,6 +1605,26 @@ func TestInitialRoles(t *testing.T) {
 	require.ElementsMatch(t, roles.Roles, []string{
 		codersdk.RoleOwner,
 	}, "should be a member and admin")
+
+	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{}, "should be a member")
+}
+
+// TestInitialRolesWithAgentsExperiment ensures the first user gets
+// agents-access alongside owner when the agents experiment is enabled.
+func TestInitialRolesWithAgentsExperiment(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+	first := coderdtest.CreateFirstUser(t, client)
+
+	roles, err := client.UserRoles(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.ElementsMatch(t, roles.Roles, []string{
+		codersdk.RoleOwner,
+		codersdk.RoleAgentsAccess,
+	}, "first user should be owner and have agents-access")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{}, "should be a member")
 }
