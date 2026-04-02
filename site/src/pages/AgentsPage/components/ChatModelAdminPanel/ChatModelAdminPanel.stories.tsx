@@ -462,6 +462,9 @@ export const CreateAndUpdateProvider: Story = {
 		await waitFor(() => {
 			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
 		});
+		await waitFor(() => {
+			expect(body.getByRole("button", { name: "Save changes" })).toBeDisabled();
+		});
 		expect(args.onCreateProvider).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
