@@ -2355,6 +2355,11 @@ SELECT COUNT(*) FROM (
 	-- passes the count cap and we add 1 so the frontend can detect
 	-- capping and show "... of N+". A cap of 0 means no limit (NULLIF
 	-- -> NULL + 1 = NULL).
+	-- NOTE: Parameterizing this so that we can easily change from,
+	-- e.g., 2000 to 5000. However, use literal NULL (or no LIMIT)
+	-- here if disabling the capping on a large table permanently.
+	-- This way the PG planner can plan parallel execution for
+	-- potential large wins.
 	LIMIT NULLIF($13::int, 0) + 1
 ) AS limited_count
 `
@@ -7298,10 +7303,7 @@ SELECT COUNT(*) AS count FROM (
 		-- Authorize Filter clause will be injected below in
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
-	-- Avoid a slow scan on a large table with joins. The caller
-	-- passes the count cap and we add 1 so the frontend can detect
-	-- capping and show "... of N+". A cap of 0 means no limit (NULLIF
-	-- -> NULL + 1 = NULL).
+	-- NOTE: See the CountAuditLogs LIMIT note.
 	LIMIT NULLIF($14::int, 0) + 1
 ) AS limited_count
 `

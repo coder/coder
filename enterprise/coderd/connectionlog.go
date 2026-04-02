@@ -16,8 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Limit the count query to avoid a slow sequential scan due to joins
-// on a large table (set to 0 to disable capping).
+// NOTE: See the auditLogCountCap note.
 const connectionLogCountCap = 2000
 
 // @Summary Get connection logs

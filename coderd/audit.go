@@ -27,7 +27,8 @@ import (
 )
 
 // Limit the count query to avoid a slow sequential scan due to joins
-// on a large table (set to 0 to disable capping).
+// on a large table. Set to 0 to disable capping (but also see the note
+// in the SQL query).
 const auditLogCountCap = 2000
 
 // @Summary Get audit logs
