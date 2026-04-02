@@ -231,8 +231,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 		// Chat retention is configured via site_configs. When
 		// enabled, old archived chats are deleted first, then
-		// orphaned chat files. Deleting a chat does not cascade
-		// to chat_files (no FK), so files from deleted chats
+		// orphaned chat files. Deleting a chat cascades to
+		// chat_file_links (removing references) but not to
+		// chat_files directly, so files from deleted chats
 		// become orphaned and are caught by DeleteOldChatFiles
 		// in the same tick.
 		var purgedChats int64
@@ -257,7 +258,6 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 				return xerrors.Errorf("failed to delete old chat files: %w", err)
 			}
 		}
-
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),

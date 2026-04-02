@@ -1676,6 +1676,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			OwnerID:           ownerID,
 			LastModelConfigID: modelConfigID,
 			Title:             "test-chat",
+			Status:            database.ChatStatusWaiting,
 		})
 		require.NoError(t, err)
 		if archived {
@@ -1686,7 +1687,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		require.NoError(t, err)
 		return chat
 	}
-
 	// setupChatDeps creates the common dependencies needed for
 	// chat-related tests: user, org, org member, provider, model config.
 	type chatDeps struct {
@@ -1839,10 +1839,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File B: 31 days old, in an active chat -> should be retained.
 				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     activeChat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{fileB},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       activeChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileB},
 				})
 				require.NoError(t, err)
 
@@ -1887,13 +1887,13 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File D: 31 days old, in a chat archived 31 days ago -> should be deleted.
 				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     oldArchivedChat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{fileD},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       oldArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileD},
 				})
 				require.NoError(t, err)
-				// AppendChatFileIDs sets updated_at to NOW(), so backdate again.
+				// LinkChatFiles does not update chats.updated_at, so backdate.
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
 					now.Add(-31*24*time.Hour), oldArchivedChat.ID)
 				require.NoError(t, err)
@@ -1901,10 +1901,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File E: 31 days old, in a chat archived 10 days ago -> should be retained.
 				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     recentArchivedChat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{fileE},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       recentArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileE},
 				})
 				require.NoError(t, err)
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
@@ -1914,10 +1914,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File F: 31 days old, in BOTH an active chat AND an old archived chat -> should be retained.
 				fileF := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				anotherOldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     anotherOldArchivedChat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{fileF},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       anotherOldArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileF},
 				})
 				require.NoError(t, err)
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
@@ -1925,10 +1925,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				activeChatForF := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     activeChatForF.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{fileF},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       activeChatForF.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileF},
 				})
 				require.NoError(t, err)
 
@@ -1948,8 +1948,12 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			},
 		},
 		{
-			name: "UnarchiveScrubsStaleFileIDs",
+			name: "UnarchiveAfterFilePurge",
 			run: func(t *testing.T) {
+				// Validates that when dbpurge deletes chat_files rows,
+				// the FK cascade on chat_file_links automatically
+				// removes the stale links. Unarchiving a chat after
+				// file purge should show only surviving files.
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				deps := setupChatDeps(ctx, t, db)
@@ -1960,10 +1964,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
 
 				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
-				_, err := db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     chat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{fileA, fileB, fileC},
+				_, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileA, fileB, fileC},
 				})
 				require.NoError(t, err)
 
@@ -1971,22 +1975,25 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				_, err = db.ArchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
-				// Simulate dbpurge deleting files A and B.
+				// Simulate dbpurge deleting files A and B. The FK
+				// cascade on chat_file_links_file_id_fkey should
+				// automatically remove the corresponding link rows.
 				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)", pq.Array([]uuid.UUID{fileA, fileB}))
 				require.NoError(t, err)
 
-				// Unarchive — should scrub stale file_ids.
+				// Unarchive the chat.
 				_, err = db.UnarchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
-				// Only file C should remain in file_ids.
-				updated, err := db.GetChatByID(ctx, chat.ID)
+				// Only file C should remain linked (FK cascade
+				// removed the links for deleted files A and B).
+				files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 				require.NoError(t, err)
-				require.Equal(t, []uuid.UUID{fileC}, updated.FileIDs, "stale file_ids should be scrubbed on unarchive")
+				require.Len(t, files, 1, "only surviving file should be linked")
+				require.Equal(t, fileC, files[0].ID)
 
-				// Now test the all-files-stale edge case: the
-				// COALESCE(array_agg(...), '{}') must return an
-				// empty array, not NULL, when every file is gone.
+				// Edge case: delete the last file too. The chat
+				// should have zero linked files, not an error.
 				_, err = db.ArchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = $1", fileC)
@@ -1994,20 +2001,19 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				_, err = db.UnarchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
-				updated, err = db.GetChatByID(ctx, chat.ID)
+				files, err = db.GetChatFileMetadataByChatID(ctx, chat.ID)
 				require.NoError(t, err)
-				require.NotNil(t, updated.FileIDs, "file_ids should be empty array, not NULL")
-				require.Empty(t, updated.FileIDs, "all-files-stale should yield empty slice, not nil")
+				require.Empty(t, files, "all-files-deleted should yield empty result")
 
-				// Test parent+child cascade: UnarchiveChatByID operates
-				// on both the target chat and its children (via
-				// root_chat_id). Each row's file_ids should be scrubbed
-				// independently.
+				// Test parent+child cascade: deleting files should
+				// clean up links for both parent and child chats
+				// independently via FK cascade.
 				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
 				childChat, err := db.InsertChat(ctx, database.InsertChatParams{
 					OwnerID:           deps.user.ID,
 					LastModelConfigID: deps.modelConfig.ID,
 					Title:             "child-chat",
+					Status:            database.ChatStatusWaiting,
 				})
 				require.NoError(t, err)
 				// Set root_chat_id to link child to parent.
@@ -2020,16 +2026,16 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				childFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
 				childFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
 
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     parentChat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{parentFileKeep, parentFileStale},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       parentChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{parentFileKeep, parentFileStale},
 				})
 				require.NoError(t, err)
-				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:     childChat.ID,
-					MaxFileIDs: 100,
-					FileIDs:    []uuid.UUID{childFileKeep, childFileStale},
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       childChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{childFileKeep, childFileStale},
 				})
 				require.NoError(t, err)
 
@@ -2042,18 +2048,20 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					pq.Array([]uuid.UUID{parentFileStale, childFileStale}))
 				require.NoError(t, err)
 
-				// Unarchive via parent — should scrub both rows.
+				// Unarchive via parent.
 				_, err = db.UnarchiveChatByID(ctx, parentChat.ID)
 				require.NoError(t, err)
 
-				updatedParent, err := db.GetChatByID(ctx, parentChat.ID)
+				parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parentChat.ID)
 				require.NoError(t, err)
-				require.Equal(t, []uuid.UUID{parentFileKeep}, updatedParent.FileIDs,
+				require.Len(t, parentFiles, 1)
+				require.Equal(t, parentFileKeep, parentFiles[0].ID,
 					"parent should retain only non-stale file")
 
-				updatedChild, err := db.GetChatByID(ctx, childChat.ID)
+				childFiles, err := db.GetChatFileMetadataByChatID(ctx, childChat.ID)
 				require.NoError(t, err)
-				require.Equal(t, []uuid.UUID{childFileKeep}, updatedChild.FileIDs,
+				require.Len(t, childFiles, 1)
+				require.Equal(t, childFileKeep, childFiles[0].ID,
 					"child should retain only non-stale file")
 			},
 		},
