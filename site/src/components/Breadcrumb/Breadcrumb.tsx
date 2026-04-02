@@ -2,7 +2,6 @@
  * Copied from shadc/ui on 12/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/breadcrumb}
  */
-
 import { MoreHorizontal } from "lucide-react";
 import { Slot } from "radix-ui";
 import { cn } from "#/utils/cn";

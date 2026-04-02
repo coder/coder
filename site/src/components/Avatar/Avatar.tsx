@@ -9,7 +9,6 @@
  * It was also simplified to make usage easier and reduce boilerplate.
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
-
 import { useTheme } from "@emotion/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Avatar as AvatarPrimitive } from "radix-ui";

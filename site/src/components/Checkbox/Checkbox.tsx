@@ -2,7 +2,6 @@
  * Copied from shadc/ui on 04/03/2025
  * @see {@link https://ui.shadcn.com/docs/components/checkbox}
  */
-
 import { Check, Minus } from "lucide-react";
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";

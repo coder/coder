@@ -2,7 +2,6 @@
  * Copied from shadc/ui on 13/01/2025
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
-
 import {
 	Check,
 	ChevronUp,
