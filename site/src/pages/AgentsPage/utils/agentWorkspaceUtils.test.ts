@@ -81,6 +81,15 @@ describe("isWorkspaceNotFound", () => {
 		expect(isWorkspaceNotFound(error)).toBe(false);
 	});
 
+	it("returns false for axios errors without a response (network error)", () => {
+		const error = {
+			isAxiosError: true,
+			response: undefined,
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(false);
+	});
+
 	it("returns false for plain Error objects", () => {
 		expect(isWorkspaceNotFound(new Error("Workspace not found"))).toBe(false);
 	});
