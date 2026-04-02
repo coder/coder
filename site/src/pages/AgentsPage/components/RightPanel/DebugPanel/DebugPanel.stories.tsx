@@ -36,7 +36,7 @@ const makeStep = (
 	normalized_request: { model: "gpt-4", prompt: "Hello" },
 	normalized_response: { content: "Hi there!", finish_reason: "stop" },
 	usage: { prompt_tokens: "10", completion_tokens: "5", total_tokens: "15" },
-	attempts: { entries: "[]" },
+	attempts: [],
 	metadata: { provider: "openai" },
 	started_at: "2026-03-01T10:00:01Z",
 	updated_at: "2026-03-01T10:00:04Z",
@@ -61,10 +61,25 @@ const makeRun = (
 	...overrides,
 });
 
+type StoryAttempt = TypesGen.ChatDebugAttempt & Record<string, unknown>;
+
 const makeAttempts = (
 	attempts: readonly Record<string, unknown>[],
 ): TypesGen.ChatDebugStep["attempts"] => {
-	return { entries: JSON.stringify(attempts) };
+	return attempts.map((attempt, index) => ({
+		...attempt,
+		attempt_number:
+			typeof attempt.attempt_number === "number"
+				? attempt.attempt_number
+				: typeof attempt.number === "number"
+					? attempt.number
+					: index + 1,
+		status: typeof attempt.status === "string" ? attempt.status : "completed",
+		started_at:
+			typeof attempt.started_at === "string"
+				? attempt.started_at
+				: "2026-03-01T10:00:01Z",
+	})) as readonly StoryAttempt[];
 };
 
 const makeLargeRecord = (
@@ -455,11 +470,14 @@ const meta: Meta<typeof DebugPanel> = {
 			API.experimental,
 			"getChatDebugRun",
 		).mockImplementation(async (_chatID, runID) => {
-			const run = getDebugRunDetailById().get(runID);
-			if (!run) {
-				throw new Error(`Unknown debug run fixture: ${runID}`);
-			}
-			return run;
+			return (
+				getDebugRunDetailById().get(runID) ??
+				makeRun({
+					id: runID,
+					summary: { result: `Unknown debug run fixture: ${runID}` },
+					steps: [],
+				})
+			);
 		});
 		return () => {
 			Date.now = real;
@@ -1031,9 +1049,7 @@ const backendShapeRunDetail = makeRun({
 				output_tokens: "1",
 				total_tokens: "43",
 			},
-			attempts: {
-				entries: JSON.stringify(backendNormalizedAttempts),
-			},
+			attempts: makeAttempts(backendNormalizedAttempts),
 		}),
 	],
 });
