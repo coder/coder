@@ -108,10 +108,14 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 		!!response.finishReason;
 
 	// Detect whether there is an error payload.
+	const stringError =
+		typeof step.error === "string" ? (step.error as string) : undefined;
 	const hasError =
-		!!step.error &&
-		typeof step.error === "object" &&
-		Object.keys(step.error).length > 0;
+		(stringError !== undefined && stringError.trim().length > 0) ||
+		(!!step.error &&
+			typeof step.error === "object" &&
+			Object.keys(step.error).length > 0);
+	const errorCode = stringError ?? safeStringify(step.error);
 
 	return (
 		<Collapsible defaultOpen={defaultOpen}>
@@ -394,8 +398,12 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 					{hasError ? (
 						<DebugDataSection title="Error">
 							<CopyableCodeBlock
-								code={safeStringify(step.error)}
-								label="Copy error JSON"
+								code={errorCode}
+								label={
+									stringError !== undefined
+										? "Copy error text"
+										: "Copy error JSON"
+								}
 							/>
 						</DebugDataSection>
 					) : null}
