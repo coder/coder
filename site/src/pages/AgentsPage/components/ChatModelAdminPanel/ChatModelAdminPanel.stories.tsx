@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -73,6 +74,45 @@ const meta: Meta<typeof ChatModelAdminPanel> = {
 
 export default meta;
 type Story = StoryObj<typeof ChatModelAdminPanel>;
+
+type StatefulProviderCreatePanelProps = ComponentProps<
+	typeof ChatModelAdminPanel
+>;
+
+const StatefulProviderCreatePanel = ({
+	providerConfigsData,
+	onCreateProvider,
+	...args
+}: StatefulProviderCreatePanelProps) => {
+	const [currentProviderConfigsData, setCurrentProviderConfigsData] = useState<
+		TypesGen.ChatProviderConfig[]
+	>(() => [...(providerConfigsData ?? [])]);
+
+	return (
+		<ChatModelAdminPanel
+			{...args}
+			providerConfigsData={currentProviderConfigsData}
+			onCreateProvider={async (req) => {
+				await onCreateProvider(req);
+				setCurrentProviderConfigsData((currentConfigs) => [
+					...currentConfigs.filter(
+						(config) => config.provider !== req.provider,
+					),
+					createProviderConfig({
+						id: "provider-openai-created",
+						provider: req.provider,
+						display_name: req.display_name ?? "",
+						source: "database",
+						enabled: true,
+						has_api_key: true,
+						base_url: req.base_url ?? "",
+					}),
+				]);
+				return {};
+			}}
+		/>
+	);
+};
 
 // ── Providers section stories ──────────────────────────────────
 
@@ -169,6 +209,7 @@ export const EnvPresetProviders: Story = {
 };
 
 export const CreateAndUpdateProvider: Story = {
+	render: (args) => <StatefulProviderCreatePanel {...args} />,
 	args: {
 		section: "providers" as ChatModelAdminSection,
 		providerConfigsData: [
@@ -214,6 +255,9 @@ export const CreateAndUpdateProvider: Story = {
 		// The create callback should have been called.
 		await waitFor(() => {
 			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
+		});
+		await waitFor(() => {
+			expect(body.getByRole("button", { name: "Save changes" })).toBeDisabled();
 		});
 		expect(args.onCreateProvider).toHaveBeenCalledWith(
 			expect.objectContaining({
