@@ -59,7 +59,7 @@ export const WorkspaceBadge: FC<WorkspaceBadgeProps> = ({
 				</Link>
 			</TooltipTrigger>
 			<TooltipContent>
-				{workspace.name} &mdash; {text}
+				{workspace.name} – {text}
 			</TooltipContent>
 		</Tooltip>
 	);
