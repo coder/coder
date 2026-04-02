@@ -120,9 +120,9 @@ func (s *Service) IsEnabled(
 		return chat.DebugLogsEnabledOverride.Bool
 	}
 
-	effectiveOwnerID := ownerID
+	effectiveOwnerID := chat.OwnerID
 	if effectiveOwnerID == uuid.Nil {
-		effectiveOwnerID = chat.OwnerID
+		effectiveOwnerID = ownerID
 	}
 	if effectiveOwnerID != uuid.Nil {
 		enabled, err := s.db.GetUserChatDebugLoggingEnabled(authCtx, effectiveOwnerID)

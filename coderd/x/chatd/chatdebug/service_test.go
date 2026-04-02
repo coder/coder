@@ -60,6 +60,16 @@ func TestService_IsEnabled(t *testing.T) {
 	require.False(t, svc.IsEnabled(ctx, chat.ID, owner.ID))
 	require.False(t, svc.IsEnabled(ctx, chat.ID, uuid.Nil))
 
+	otherUser := dbgen.User(t, db, database.User{})
+	err = db.UpsertUserChatDebugLoggingEnabled(ctx,
+		database.UpsertUserChatDebugLoggingEnabledParams{
+			UserID:              otherUser.ID,
+			DebugLoggingEnabled: true,
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, svc.IsEnabled(ctx, chat.ID, otherUser.ID))
+
 	_, err = sqlDB.ExecContext(ctx,
 		"UPDATE chats SET debug_logs_enabled_override = $1 WHERE id = $2",
 		true,
