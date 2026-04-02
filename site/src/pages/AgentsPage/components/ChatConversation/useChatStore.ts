@@ -94,7 +94,6 @@ export const useChatStore = (
 
 	const queryClient = useQueryClient();
 	const [store] = useState(createChatStore);
-	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
 	// current chat. When true, the stream is the authoritative source
@@ -240,22 +239,6 @@ export const useChatStore = (
 			});
 		};
 
-		const cancelScheduledStreamReset = () => {
-			if (streamResetFrameRef.current === null) {
-				return;
-			}
-			window.cancelAnimationFrame(streamResetFrameRef.current);
-			streamResetFrameRef.current = null;
-		};
-
-		const scheduleStreamReset = () => {
-			cancelScheduledStreamReset();
-			streamResetFrameRef.current = window.requestAnimationFrame(() => {
-				store.clearStreamState();
-				streamResetFrameRef.current = null;
-			});
-		};
-
 		const updateChatQueuedMessages = (
 			queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 		) => {
@@ -336,7 +319,6 @@ export const useChatStore = (
 			});
 		};
 
-		cancelScheduledStreamReset();
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
@@ -366,7 +348,6 @@ export const useChatStore = (
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
 				return;
 			}
-			cancelScheduledStreamReset();
 			partsFlushTimer = setTimeout(() => {
 				partsFlushTimer = null;
 				if (disposed || activeChatIDRef.current !== chatID) {
@@ -391,7 +372,6 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
 			}
-			cancelScheduledStreamReset();
 			const parts = partsBuf.splice(0);
 			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
 				return;
@@ -452,7 +432,6 @@ export const useChatStore = (
 						const part = streamEvent.message_part?.part;
 						if (part) {
 							store.clearRetryState();
-							cancelScheduledStreamReset();
 							partsBuf.push(part);
 						}
 						continue;
@@ -568,7 +547,7 @@ export const useChatStore = (
 					}
 				}
 
-				// Schedule a rAF-coalesced flush for any remaining
+				// Schedule a coalesced flush for any remaining
 				// parts. If parts were already flushed by a
 				// non-message_part event above, this is a no-op.
 				schedulePartsFlush();
@@ -579,10 +558,33 @@ export const useChatStore = (
 					store.upsertDurableMessages(pendingMessages);
 					upsertCacheMessages(pendingMessages);
 				}
+
+				// Clear stream state atomically with the durable
+				// message commit so subscribers never see a
+				// snapshot where both the committed message and
+				// the streaming output coexist. Previously this
+				// was deferred to a requestAnimationFrame, which
+				// left a window where ConversationTimeline and
+				// LiveStreamTail rendered the same content.
+				if (needsStreamReset) {
+					store.clearStreamState();
+					// If more message_part events arrived in this
+					// batch after the durable message, they belong
+					// to the next turn. Apply them immediately so
+					// the stream transitions from the old turn to
+					// the new one without a flash.
+					if (partsBuf.length > 0) {
+						if (partsFlushTimer !== null) {
+							clearTimeout(partsFlushTimer);
+							partsFlushTimer = null;
+						}
+						const nextParts = partsBuf.splice(0);
+						if (shouldApplyMessagePart()) {
+							store.applyMessageParts(nextParts);
+						}
+					}
+				}
 			});
-			if (needsStreamReset) {
-				scheduleStreamReset();
-			}
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
@@ -599,6 +601,12 @@ export const useChatStore = (
 				// partial output or failures do not leak into the new
 				// stream.
 				store.resetTransportReplayState();
+				// Drain any message parts buffered from the
+				// previous socket. Without this, a pending
+				// flush timer could fire after reconnect and
+				// apply stale parts from the old connection
+				// into the fresh stream state.
+				discardBufferedParts();
 			},
 			onDisconnect(
 				reconnectState: import("#/utils/reconnectingWebSocket").ReconnectSchedule,
@@ -616,7 +624,6 @@ export const useChatStore = (
 		return () => {
 			disposed = true;
 			disposeSocket();
-			cancelScheduledStreamReset();
 			if (partsFlushTimer !== null) {
 				clearTimeout(partsFlushTimer);
 			}

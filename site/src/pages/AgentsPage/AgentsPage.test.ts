@@ -38,7 +38,11 @@ describe("useEmptyStateDraft", () => {
 		const { result, unmount } = renderDraft();
 
 		act(() => {
-			result.current.handleContentChange("work in progress");
+			result.current.handleContentChange(
+				"work in progress",
+				"work in progress",
+				false,
+			);
 		});
 
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe("work in progress");
@@ -51,7 +55,10 @@ describe("useEmptyStateDraft", () => {
 		const { result, unmount } = renderDraft();
 
 		act(() => {
-			result.current.handleContentChange("");
+			// Even though the serialized state is non-empty (Lexical always
+			// produces a JSON object), the draft is removed when the plain
+			// text content is empty.
+			result.current.handleContentChange("", '{"root":{"children":[]}}', false);
 		});
 
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
@@ -86,7 +93,7 @@ describe("useEmptyStateDraft", () => {
 		// the re-render with the old content. Without the sentRef
 		// guard this would re-persist the draft.
 		act(() => {
-			result.current.handleContentChange("fix the bug");
+			result.current.handleContentChange("fix the bug", "fix the bug", false);
 		});
 
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
@@ -98,7 +105,7 @@ describe("useEmptyStateDraft", () => {
 		const { result, unmount } = renderDraft();
 
 		act(() => {
-			result.current.handleContentChange("original");
+			result.current.handleContentChange("original", "original", false);
 		});
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe("original");
 
@@ -107,7 +114,11 @@ describe("useEmptyStateDraft", () => {
 		});
 
 		act(() => {
-			result.current.handleContentChange("totally new content");
+			result.current.handleContentChange(
+				"totally new content",
+				"totally new content",
+				false,
+			);
 		});
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
 		unmount();
@@ -133,7 +144,7 @@ describe("useEmptyStateDraft", () => {
 		const { result, unmount } = renderDraft();
 
 		act(() => {
-			result.current.handleContentChange("attempt one");
+			result.current.handleContentChange("attempt one", "attempt one", false);
 		});
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe("attempt one");
 
@@ -148,7 +159,7 @@ describe("useEmptyStateDraft", () => {
 		});
 
 		act(() => {
-			result.current.handleContentChange("attempt two");
+			result.current.handleContentChange("attempt two", "attempt two", false);
 		});
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe("attempt two");
 		unmount();
@@ -166,6 +177,113 @@ describe("useEmptyStateDraft", () => {
 		act(() => {
 			result.current.submitDraft();
 		});
+		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		unmount();
+	});
+
+	it("persists serialized editor state when provided", () => {
+		const { result, unmount } = renderDraft();
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{ text: "review this" },
+							{
+								type: "file-reference",
+								version: 1,
+								fileName: "main.go",
+								startLine: 1,
+								endLine: 10,
+								content: "code",
+							},
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			result.current.handleContentChange("review this", editorState, true);
+		});
+
+		expect(localStorage.getItem(emptyInputStorageKey)).toBe(editorState);
+		expect(result.current.getCurrentContent()).toBe("review this");
+		unmount();
+	});
+
+	it("restores initialEditorState from a Lexical JSON draft", () => {
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [{ text: "hello" }],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+		localStorage.setItem(emptyInputStorageKey, editorState);
+
+		const { result, unmount } = renderDraft();
+
+		expect(result.current.initialEditorState).toBe(editorState);
+		expect(result.current.initialInputValue).toBe("hello");
+		unmount();
+	});
+
+	it("falls back to plain text for legacy drafts", () => {
+		localStorage.setItem(emptyInputStorageKey, "legacy plain text");
+
+		const { result, unmount } = renderDraft();
+
+		expect(result.current.initialEditorState).toBeUndefined();
+		expect(result.current.initialInputValue).toBe("legacy plain text");
+		unmount();
+	});
+
+	it("persists file-reference-only drafts (no text content)", () => {
+		const { result, unmount } = renderDraft();
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{
+								type: "file-reference",
+								version: 1,
+								fileName: "main.go",
+								startLine: 1,
+								endLine: 10,
+								content: "code",
+							},
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			result.current.handleContentChange("", editorState, true);
+		});
+
+		expect(localStorage.getItem(emptyInputStorageKey)).toBe(editorState);
+		unmount();
+	});
+
+	it("removes draft for whitespace-only content without file references", () => {
+		localStorage.setItem(emptyInputStorageKey, "old draft");
+		const { result, unmount } = renderDraft();
+
+		act(() => {
+			result.current.handleContentChange("   ", '{"root":{}}', false);
+		});
+
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
 		unmount();
 	});

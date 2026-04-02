@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { FileReferenceChip } from "#/components/ChatMessageInput/FileReferenceNode";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -34,6 +33,7 @@ import {
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
+import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -602,6 +602,7 @@ const ChatMessageItem = memo<{
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
+												opacity: "var(--fade-opacity, 0)",
 												background:
 													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
 											}}
@@ -627,7 +628,10 @@ const ChatMessageItem = memo<{
 										mcpServers={mcpServers}
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
-												<div data-testid="assistant-copy-button">
+												<div
+													className="flex"
+													data-testid="assistant-copy-button"
+												>
 													<CopyButton
 														text={parsed.markdown}
 														label="Copy message"
@@ -646,42 +650,40 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
-				{isUser && (hasCopyableContent || onEditUserMessage) && (
-					<div
-						className="absolute right-0 top-full z-10 flex items-center gap-1 py-0.5 pl-6 pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
-						style={{
-							background:
-								"linear-gradient(to right, transparent, hsl(var(--surface-primary)) 40%)",
-						}}
-					>
-						{(hasCopyableContent || onEditUserMessage) && !isSavingMessage && (
-							<>
-								{hasCopyableContent && (
-									<CopyButton text={parsed.markdown} label="Copy message" />
-								)}
-								{onEditUserMessage && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<button
-												type="button"
-												className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-												aria-label="Edit message"
-												onClick={() => {
-													const { text, fileBlocks } =
-														getEditableUserMessagePayload(message);
-													onEditUserMessage(message.id, text, fileBlocks);
-												}}
-											>
-												<PencilIcon className="size-3.5" />
-											</button>
-										</TooltipTrigger>
-										<TooltipContent side="top">Edit message</TooltipContent>
-									</Tooltip>
-								)}
-							</>
-						)}
-					</div>
-				)}
+				{isUser &&
+					!isSavingMessage &&
+					(hasCopyableContent || onEditUserMessage) && (
+						<div
+							className="absolute right-0 top-full z-10 flex items-center gap-1 py-0.5 pl-6 pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							style={{
+								background:
+									"linear-gradient(to right, transparent, hsl(var(--surface-primary)) 40%)",
+							}}
+						>
+							{hasCopyableContent && (
+								<CopyButton text={parsed.markdown} label="Copy message" />
+							)}
+							{onEditUserMessage && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+											aria-label="Edit message"
+											onClick={() => {
+												const { text, fileBlocks } =
+													getEditableUserMessagePayload(message);
+												onEditUserMessage(message.id, text, fileBlocks);
+											}}
+										>
+											<PencilIcon className="size-3.5" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="top">Edit message</TooltipContent>
+								</Tooltip>
+							)}
+						</div>
+					)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -792,15 +794,17 @@ const StickyUserMessage = memo<{
 					container.style.top = "0px";
 					return;
 				}
-				const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
+				const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
 				container.style.setProperty("--clip-h", `${visible}px`);
-				// Only show the fade gradient once enough content is
-				// clipped to be visually meaningful.
-				container.style.setProperty(
-					"--fade-opacity",
-					visible < fullHeight - 8 ? "1" : "0",
+				// Only show the blur and gradient once the message
+				// is near its minimum compressed height. Ramp over
+				// the last 40px before MIN_HEIGHT so it doesn't pop.
+				const FADE_RANGE = 40;
+				const fade = Math.max(
+					0,
+					Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
 				);
-
+				container.style.setProperty("--fade-opacity", String(fade));
 				// Push-up effect: when the next user message's sentinel
 				// approaches the bottom of this sticky container, shift
 				// this container upward so it slides out of view — the
@@ -959,6 +963,7 @@ const StickyUserMessage = memo<{
 							<div
 								className="absolute inset-0 backdrop-blur-[1px] bg-surface-primary/15"
 								style={{
+									opacity: "var(--fade-opacity, 0)",
 									maxHeight: "calc(var(--clip-h, 100%) + 48px)",
 									willChange: "max-height, mask-image",
 									maskImage:

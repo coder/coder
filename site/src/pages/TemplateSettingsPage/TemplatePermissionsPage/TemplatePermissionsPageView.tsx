@@ -129,7 +129,7 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					<Spinner loading={isLoading}>
 						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
-					Add member
+					Add
 				</Button>
 			</div>
 		</form>

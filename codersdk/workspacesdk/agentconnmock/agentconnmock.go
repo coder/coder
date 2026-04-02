@@ -17,18 +17,19 @@ import (
 	reflect "reflect"
 	time "time"
 
-	slog "cdr.dev/slog/v3"
-	codersdk "github.com/coder/coder/v2/codersdk"
-	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
-	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
-	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
-	tailnet "github.com/coder/coder/v2/tailnet"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 	ssh "golang.org/x/crypto/ssh"
 	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	ipnstate "tailscale.com/ipn/ipnstate"
 	speedtest "tailscale.com/net/speedtest"
+
+	slog "cdr.dev/slog/v3"
+	codersdk "github.com/coder/coder/v2/codersdk"
+	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
+	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
+	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
+	tailnet "github.com/coder/coder/v2/tailnet"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -111,6 +112,21 @@ func (m *MockAgentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
 func (mr *MockAgentConnMockRecorder) ConnectDesktopVNC(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectDesktopVNC", reflect.TypeOf((*MockAgentConn)(nil).ConnectDesktopVNC), ctx)
+}
+
+// ContextConfig mocks base method.
+func (m *MockAgentConn) ContextConfig(ctx context.Context) (workspacesdk.ContextConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContextConfig", ctx)
+	ret0, _ := ret[0].(workspacesdk.ContextConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContextConfig indicates an expected call of ContextConfig.
+func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextConfig", reflect.TypeOf((*MockAgentConn)(nil).ContextConfig), ctx)
 }
 
 // DebugLogs mocks base method.

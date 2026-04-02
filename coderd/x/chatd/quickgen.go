@@ -2,12 +2,14 @@ package chatd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
+	"charm.land/fantasy/object"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
@@ -27,6 +29,7 @@ import (
 )
 
 const titleGenerationPrompt = "Write a short title for the user's message. " +
+	"Populate the title field with the result. " +
 	"Return only the title text in 2-8 words. " +
 	"Do not answer the user or describe the title-writing task. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
@@ -87,6 +90,10 @@ func normalizeShortTextOutput(text string) string {
 
 	text = strings.Trim(text, "\"'`")
 	return strings.Join(strings.Fields(text), " ")
+}
+
+type generatedTitle struct {
+	Title string `json:"title" description:"Short descriptive chat title"`
 }
 
 // maybeGenerateChatTitle generates an AI title for the chat when
@@ -173,15 +180,77 @@ func generateTitle(
 	model fantasy.LanguageModel,
 	input string,
 ) (string, error) {
-	title, _, err := generateShortText(ctx, model, titleGenerationPrompt, input)
+	title, _, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
-	title = normalizeTitleOutput(title)
-	if title == "" {
-		return "", xerrors.New("generated title was empty")
-	}
 	return title, nil
+}
+
+func generateStructuredTitle(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	systemPrompt string,
+	userInput string,
+) (string, fantasy.Usage, error) {
+	userInput = strings.TrimSpace(userInput)
+	if userInput == "" {
+		return "", fantasy.Usage{}, xerrors.New("title input was empty")
+	}
+
+	prompt := fantasy.Prompt{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: systemPrompt},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: userInput},
+			},
+		},
+	}
+
+	var maxOutputTokens int64 = 256
+	var result *fantasy.ObjectResult[generatedTitle]
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		result, genErr = object.Generate[generatedTitle](retryCtx, model, fantasy.ObjectCall{
+			Prompt:            prompt,
+			SchemaName:        "propose_title",
+			SchemaDescription: "Propose a short chat title.",
+			MaxOutputTokens:   &maxOutputTokens,
+		})
+		return genErr
+	}, nil)
+	if err != nil {
+		// Extract usage from the error when available so that
+		// failed attempts are still accounted for in usage tracking.
+		var usage fantasy.Usage
+		var noObjErr *fantasy.NoObjectGeneratedError
+		if errors.As(err, &noObjErr) {
+			usage = noObjErr.Usage
+		}
+		return "", usage, xerrors.Errorf("generate structured title: %w", err)
+	}
+
+	title := normalizeTitleOutput(result.Object.Title)
+	if err := validateGeneratedTitle(title); err != nil {
+		return "", result.Usage, err
+	}
+	return title, result.Usage, nil
+}
+
+func validateGeneratedTitle(title string) error {
+	if title == "" {
+		return xerrors.New("generated title was empty")
+	}
+	if len(strings.Fields(title)) > 8 {
+		return xerrors.New("generated title exceeded 8 words")
+	}
+	return nil
 }
 
 // titleInput returns the first user message text and whether title
@@ -400,7 +469,8 @@ func renderManualTitlePrompt(
 		_, _ = prompt.WriteString(value)
 	}
 
-	write("Write a short title for this AI coding conversation.\n\n")
+	write("Write a short title for this AI coding conversation.\n")
+	write("Populate the title field with the result.\n\n")
 	write("Primary user objective:\n<primary_objective>\n")
 	write(firstUserText)
 	write("\n</primary_objective>")
@@ -420,6 +490,7 @@ func renderManualTitlePrompt(
 
 	write("\n\nRequirements:\n")
 	write("- Return only the title text in 2-8 words.\n")
+	write("- Populate the title field only.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
 	write("- If the conversation is short or vague, stay close to the user's wording.\n")
@@ -458,19 +529,14 @@ func generateManualTitle(
 		userInput = strings.TrimSpace(firstUserText)
 	}
 
-	title, usage, err := generateShortText(
+	title, usage, err := generateStructuredTitle(
 		titleCtx,
 		fallbackModel,
 		systemPrompt,
 		userInput,
 	)
 	if err != nil {
-		return "", fantasy.Usage{}, err
-	}
-
-	title = normalizeTitleOutput(title)
-	if title == "" {
-		return "", usage, xerrors.New("generated title was empty")
+		return "", usage, err
 	}
 
 	return title, usage, nil

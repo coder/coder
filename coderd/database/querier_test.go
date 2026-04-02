@@ -1285,6 +1285,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 3 chats owned by owner.
 	for i := range 3 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
@@ -1295,6 +1296,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 2 chats owned by member.
 	for i := range 2 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
@@ -1416,6 +1418,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				Status:            database.ChatStatusWaiting,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
@@ -9472,6 +9475,7 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9641,6 +9645,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	newChat := func(t *testing.T) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -10014,6 +10019,7 @@ func TestGetPRInsights(t *testing.T) {
 	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
 			Title:             title,
@@ -10149,6 +10155,7 @@ func TestGetPRInsights(t *testing.T) {
 	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
 			Title:             title,
@@ -10538,6 +10545,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.Helper()
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             title,
@@ -10718,6 +10726,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "labeled-chat",
@@ -10740,6 +10749,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "no-labels-chat",
@@ -10755,6 +10765,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "update-labels-chat",
@@ -10795,6 +10806,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "original-title",
@@ -10831,6 +10843,7 @@ func TestChatLabels(t *testing.T) {
 			labelsJSON, err := json.Marshal(tc.labels)
 			require.NoError(t, err)
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				Status:            database.ChatStatusWaiting,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             tc.title,
@@ -10916,6 +10929,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "test-chat-" + uuid.NewString(),

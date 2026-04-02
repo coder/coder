@@ -3,12 +3,13 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
@@ -53,17 +54,30 @@ export type CreateChatOptions = {
  * @internal Exported for testing.
  */
 export function useEmptyStateDraft() {
-	const [initialInputValue] = useState(() => {
-		return localStorage.getItem(emptyInputStorageKey) ?? "";
+	const [{ initialInputValue, initialEditorState }] = useState(() => {
+		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		return {
+			initialInputValue: draft.text,
+			initialEditorState: draft.editorState,
+		};
 	});
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
 
-	const handleContentChange = (content: string) => {
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
 		inputValueRef.current = content;
 		if (!sentRef.current) {
-			if (content) {
-				localStorage.setItem(emptyInputStorageKey, content);
+			const shouldPersist = content.trim() || hasFileReferences;
+			if (shouldPersist) {
+				try {
+					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+				} catch {
+					// QuotaExceededError — silently discard the draft.
+				}
 			} else {
 				localStorage.removeItem(emptyInputStorageKey);
 			}
@@ -85,6 +99,7 @@ export function useEmptyStateDraft() {
 
 	return {
 		initialInputValue,
+		initialEditorState,
 		getCurrentContent,
 		handleContentChange,
 		submitDraft,
@@ -128,8 +143,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isWorkspacesLoading,
 }) => {
 	const { organizations } = useDashboard();
-	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
-		useEmptyStateDraft();
+	const {
+		initialInputValue,
+		initialEditorState,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	} = useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
@@ -300,14 +320,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					isUsageLimitData(createError.response.data) ? (
 						<Alert
 							severity="info"
-							className="py-2"
 							actions={
-								<Button asChild variant="subtle" size="sm">
+								<Button asChild size="sm">
 									<Link to="/agents/analytics">View Usage</Link>
 								</Button>
 							}
 						>
-							{formatUsageLimitMessage(createError.response.data)}
+							<AlertDescription>
+								{formatUsageLimitMessage(createError.response.data)}
+							</AlertDescription>
 						</Alert>
 					) : (
 						<ErrorAlert error={createError} />
@@ -320,6 +341,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					isDisabled={isCreating || isForbidden}
 					isLoading={isCreating}
 					initialValue={initialInputValue}
+					initialEditorState={initialEditorState}
 					onContentChange={handleContentChange}
 					selectedModel={selectedModel}
 					onModelChange={handleModelChange}

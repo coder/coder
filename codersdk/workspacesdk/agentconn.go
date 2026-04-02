@@ -61,6 +61,7 @@ type AgentConn interface {
 	AwaitReachable(ctx context.Context) bool
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
+	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -946,6 +947,30 @@ type MCPToolInfo struct {
 	Required []string `json:"required"`
 }
 
+// Default values for context configuration. These are used
+// by the agent when env vars are unset and by the server as
+// fallbacks for older agents that don't support the
+// context-config endpoint.
+const (
+	DefaultInstructionsDir  = "~/.coder"
+	DefaultInstructionsFile = "AGENTS.md"
+	DefaultSkillsDir        = ".agents/skills"
+	DefaultSkillMetaFile    = "SKILL.md"
+	DefaultMCPConfigFile    = ".mcp.json"
+)
+
+// ContextConfigResponse is the response from the agent's
+// context configuration endpoint. Directory fields contain
+// fully resolved absolute paths. File name fields contain
+// basenames.
+type ContextConfigResponse struct {
+	InstructionsDirs []string `json:"instructions_dirs"`
+	InstructionsFile string   `json:"instructions_file"`
+	SkillsDirs       []string `json:"skills_dirs"`
+	SkillMetaFile    string   `json:"skill_meta_file"`
+	MCPConfigFiles   []string `json:"mcp_config_files"`
+}
+
 // CallMCPToolRequest is the request body for proxying an MCP
 // tool call through the workspace agent.
 type CallMCPToolRequest struct {
@@ -1015,6 +1040,23 @@ func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, err
 		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListMCPToolsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ContextConfig returns the resolved context configuration from
+// the workspace agent.
+func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/context-config", nil)
+	if err != nil {
+		return ContextConfigResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ContextConfigResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
