@@ -6,6 +6,7 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -20,6 +21,7 @@ import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPane
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar/ChatTopBar";
+import { statusVariantMap } from "./components/ChatTopBar/WorkspaceBadge";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
@@ -233,6 +235,25 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Compute local diff stats from git watcher unified diffs.
 
+	const workspaceRoute = workspace
+		? `/@${workspace.owner_name}/${workspace.name}`
+		: undefined;
+
+	const attachedWorkspace = (() => {
+		if (!workspace || !workspaceRoute) return undefined;
+		const { type } = getDisplayWorkspaceStatus(
+			workspace.latest_build.status,
+			workspace.latest_build.job,
+		);
+		const variant =
+			statusVariantMap[workspace.health.healthy ? type : "warning"];
+		return {
+			name: workspace.name,
+			route: workspaceRoute,
+			statusVariant: variant,
+		};
+	})();
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -274,12 +295,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onOpenTerminal: handleOpenTerminal,
 								sshCommand,
 							}}
-							workspaceData={workspace}
-							workspaceRoute={
-								workspace
-									? `/@${workspace.owner_name}/${workspace.name}`
-									: undefined
-							}
 							onArchiveAgent={handleArchiveAgentAction}
 							onUnarchiveAgent={handleUnarchiveAgentAction}
 							onArchiveAndDeleteWorkspace={
@@ -368,7 +383,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onMCPSelectionChange={onMCPSelectionChange}
 							onMCPAuthComplete={onMCPAuthComplete}
 							lastInjectedContext={lastInjectedContext}
-						/>
+							attachedWorkspace={attachedWorkspace}
+						/>{" "}
 					</div>
 				</div>
 				<RightPanel

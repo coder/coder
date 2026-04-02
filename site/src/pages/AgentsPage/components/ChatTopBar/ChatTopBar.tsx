@@ -31,7 +31,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { useEmbedContext } from "../EmbedContext";
 import { PullRequestBadge } from "./PullRequestBadge";
-import { WorkspaceBadge } from "./WorkspaceBadge";
 
 interface SidebarPanelState {
 	showSidebarPanel: boolean;
@@ -52,8 +51,6 @@ type ChatTopBarProps = {
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
 	workspace: WorkspaceActions;
-	workspaceData?: TypesGen.Workspace;
-	workspaceRoute?: string;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
@@ -72,8 +69,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	parentChat,
 	panel,
 	workspace,
-	workspaceData,
-	workspaceRoute,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -87,8 +82,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	diffStatusData,
 }) => {
 	const { isEmbedded } = useEmbedContext();
-
-	const hasResourceBadges = Boolean(workspaceData || diffStatusData);
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -159,23 +152,15 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
-			{/* Resource badges — workspace status and/or PR link.
-			   On mobile the workspace name and PR title are hidden
-			   so these collapse to compact icon-only pills, leaving
-			   room for the chat title. */}
-			{hasResourceBadges && (
-				<div className="flex shrink-0 items-center gap-1.5">
-					{workspaceData && workspaceRoute && (
-						<WorkspaceBadge workspace={workspaceData} route={workspaceRoute} />
-					)}
-					{diffStatusData && (
-						<PullRequestBadge
-							diffStatusData={diffStatusData}
-							hiddenWhenPanelOpen={panel.showSidebarPanel}
-						/>
-					)}
-				</div>
-			)}
+			{/* PR link — hidden on desktop when the sidebar panel
+				   is open (which already shows PR info). On mobile the
+				   title is hidden so it collapses to a compact pill. */}
+			{diffStatusData && (
+				<PullRequestBadge
+					diffStatusData={diffStatusData}
+					hiddenWhenPanelOpen={panel.showSidebarPanel}
+				/>
+			)}{" "}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
 				{!isEmbedded && (
