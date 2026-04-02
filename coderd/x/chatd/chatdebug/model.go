@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -658,9 +659,26 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 // MessagePart. Text-like payloads are bounded to
 // MaxMessagePartTextLength runes so the debug panel can display
 // readable content.
+func isNilInterfaceValue(v any) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
+
 func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart {
 	result := make([]normalizedMessagePart, 0, len(parts))
 	for _, p := range parts {
+		if isNilInterfaceValue(p) {
+			continue
+		}
 		np := normalizedMessagePart{
 			Type: string(p.GetType()),
 		}
@@ -712,6 +730,9 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 	}
 	result := make([]normalizedTool, 0, len(tools))
 	for _, t := range tools {
+		if isNilInterfaceValue(t) {
+			continue
+		}
 		nt := normalizedTool{
 			Type: string(t.GetType()),
 			Name: t.GetName(),
@@ -752,6 +773,9 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentPart {
 	result := make([]normalizedContentPart, 0, len(content))
 	for _, c := range content {
+		if isNilInterfaceValue(c) {
+			continue
+		}
 		np := normalizedContentPart{
 			Type: string(c.GetType()),
 		}

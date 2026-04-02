@@ -62,6 +62,49 @@ func TestNormalizeCall_PreservesToolSchemasAndMessageToolPayloads(t *testing.T) 
 	)
 }
 
+func TestNormalizers_SkipTypedNilInterfaceValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MessageParts", func(t *testing.T) {
+		t.Parallel()
+
+		var nilPart *fantasy.TextPart
+		parts := normalizeMessageParts([]fantasy.MessagePart{
+			nilPart,
+			fantasy.TextPart{Text: "hello"},
+		})
+		require.Len(t, parts, 1)
+		require.Equal(t, "text", parts[0].Type)
+		require.Equal(t, "hello", parts[0].Text)
+	})
+
+	t.Run("Tools", func(t *testing.T) {
+		t.Parallel()
+
+		var nilTool *fantasy.FunctionTool
+		tools := normalizeTools([]fantasy.Tool{
+			nilTool,
+			fantasy.FunctionTool{Name: "search_docs"},
+		})
+		require.Len(t, tools, 1)
+		require.Equal(t, "function", tools[0].Type)
+		require.Equal(t, "search_docs", tools[0].Name)
+	})
+
+	t.Run("ContentParts", func(t *testing.T) {
+		t.Parallel()
+
+		var nilContent *fantasy.TextContent
+		content := normalizeContentParts(fantasy.ResponseContent{
+			nilContent,
+			fantasy.TextContent{Text: "hello"},
+		})
+		require.Len(t, content, 1)
+		require.Equal(t, "text", content[0].Type)
+		require.Equal(t, "hello", content[0].Text)
+	})
+}
+
 func TestNormalizeResponse_PreservesToolCallArguments(t *testing.T) {
 	t.Parallel()
 
