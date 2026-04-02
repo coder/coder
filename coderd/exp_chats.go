@@ -4378,13 +4378,10 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 
 	resp := make([]codersdk.UserChatProviderConfig, 0, len(providers))
 	for _, provider := range providers {
+		if !provider.Enabled || !provider.AllowUserApiKey {
+			continue
+		}
 		hasUserAPIKey := hasUserAPIKeyByProviderID[provider.ID]
-		if !provider.Enabled && !hasUserAPIKey {
-			continue
-		}
-		if !provider.AllowUserApiKey && !hasUserAPIKey {
-			continue
-		}
 		hasCentralAPIKeyFallback := provider.Enabled &&
 			provider.AllowCentralApiKeyFallback &&
 			api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)

@@ -2018,6 +2018,16 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		return codersdk.UserChatProviderConfig{}
 	}
 
+	requireNoUserProviderConfig := func(t *testing.T, configs []codersdk.UserChatProviderConfig, provider string) {
+		t.Helper()
+
+		for _, config := range configs {
+			if config.Provider == provider {
+				t.Fatalf("provider %q unexpectedly found", provider)
+			}
+		}
+	}
+
 	t.Run("ListOnlyUserKeyProviders", func(t *testing.T) {
 		t.Parallel()
 
@@ -2066,7 +2076,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		require.False(t, configs[0].HasUserAPIKey)
 	})
 
-	t.Run("ListIncludesDisabledProviderWithSavedKey", func(t *testing.T) {
+	t.Run("ListHidesDisabledProviderEvenWithSavedKey", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -2091,6 +2101,49 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		configs, err := client.ListUserChatProviderConfigs(ctx)
+		require.NoError(t, err)
+		require.Empty(t, configs)
+		requireNoUserProviderConfig(t, configs, "anthropic")
+	})
+
+	t.Run("ListHidesUserKeyDisabledProviderAndRestoresOnReEnable", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "anthropic",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpsertUserChatProviderKey(ctx, provider.ID, codersdk.CreateUserChatProviderKeyRequest{
+			APIKey: "user-key",
+		})
+		require.NoError(t, err)
+
+		centralAPIKey := "central-key"
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			APIKey:               &centralAPIKey,
+			CentralAPIKeyEnabled: ptr.Ref(true),
+			AllowUserAPIKey:      ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		configs, err := client.ListUserChatProviderConfigs(ctx)
+		require.NoError(t, err)
+		require.Empty(t, configs)
+		requireNoUserProviderConfig(t, configs, "anthropic")
+
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			AllowUserAPIKey: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		configs, err = client.ListUserChatProviderConfigs(ctx)
 		require.NoError(t, err)
 		listed := requireUserProviderConfig(t, configs, "anthropic")
 		require.Equal(t, provider.ID, listed.ProviderID)
