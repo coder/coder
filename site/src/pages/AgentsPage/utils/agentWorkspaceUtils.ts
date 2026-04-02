@@ -38,7 +38,7 @@ export function isWorkspaceNotFound(error: unknown): boolean {
  * If the workspace is already gone (404 or 410), the delete step is
  * treated as a no-op so the archive still succeeds.
  */
-export async function archiveAndDeleteWorkspace(
+export async function archiveChatAndDeleteWorkspace(
 	chatId: string,
 	workspaceId: string,
 	doArchive: (chatId: string) => Promise<unknown>,
@@ -88,20 +88,20 @@ export function shouldNavigateAfterArchive(
  *   `created_at`.
  * @param getChatCreatedAt - Returns the chat's `created_at`
  *   timestamp, or `undefined` if the chat is not in the cache.
- * @returns `"proceed"` to skip the dialog, `"archive"` to archive
+ * @returns `"proceed"` to skip the dialog, `"archive-only"` to archive
  *   without deleting because the workspace is already gone, or
  *   `"confirm"` to show the dialog.
  */
 export async function resolveArchiveAndDeleteAction(
 	fetchWorkspace: () => Promise<{ created_at: string }>,
 	getChatCreatedAt: () => string | undefined,
-): Promise<"proceed" | "confirm" | "archive"> {
+): Promise<"proceed" | "confirm" | "archive-only"> {
 	let workspace: { created_at: string };
 	try {
 		workspace = await fetchWorkspace();
 	} catch (error) {
 		if (isWorkspaceNotFound(error)) {
-			return "archive";
+			return "archive-only";
 		}
 		throw error;
 	}

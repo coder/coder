@@ -40,7 +40,7 @@ import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import {
-	archiveAndDeleteWorkspace,
+	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
@@ -174,7 +174,7 @@ const AgentsPage: FC = () => {
 			chatId: string;
 			workspaceId: string;
 		}) =>
-			archiveAndDeleteWorkspace(
+			archiveChatAndDeleteWorkspace(
 				chatId,
 				workspaceId,
 				(id) => API.experimental.updateChat(id, { archived: true }),
@@ -192,7 +192,9 @@ const AgentsPage: FC = () => {
 			});
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
+			toast.error(
+				getErrorMessage(error, "Failed to archive and delete workspace."),
+			);
 		},
 	});
 	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
@@ -341,12 +343,17 @@ const AgentsPage: FC = () => {
 						},
 					},
 				);
-			} else if (action === "archive") {
+			} else if (action === "archive-only") {
 				// The workspace is already gone (404), so we skip the
 				// running-agent confirmation dialog. That dialog warns
 				// about interrupting a live workspace, which is moot
 				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
+					// Navigate only on success. The proceed/confirm paths
+					// use onSettled because their pre-existing behavior
+					// navigates regardless of delete outcome. This path
+					// has no delete step, so a failed archive should not
+					// redirect the user.
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
 					},
@@ -441,7 +448,7 @@ const AgentsPage: FC = () => {
 				// Read root_chat_id from the per-chat cache, which
 				// survives WebSocket eviction of sub-agents (only the
 				// parent's chatKey is removed). This must be read at
-				// settle time so it reflects the user's current
+				// callback time so it reflects the user's current
 				// location.
 				activeChatId
 					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))

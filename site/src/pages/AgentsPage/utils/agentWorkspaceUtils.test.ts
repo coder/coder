@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	archiveAndDeleteWorkspace,
+	archiveChatAndDeleteWorkspace,
 	isWorkspaceAutoCreated,
 	isWorkspaceNotFound,
 	resolveArchiveAndDeleteAction,
@@ -91,7 +91,7 @@ describe("isWorkspaceNotFound", () => {
 	});
 });
 
-describe("archiveAndDeleteWorkspace", () => {
+describe("archiveChatAndDeleteWorkspace", () => {
 	it("archives and deletes when both succeed", async () => {
 		const callOrder: string[] = [];
 		const doArchive = vi.fn(async () => {
@@ -102,7 +102,12 @@ describe("archiveAndDeleteWorkspace", () => {
 		});
 
 		await expect(
-			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
 		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doArchive).toHaveBeenCalledWith("chat-1");
@@ -124,7 +129,12 @@ describe("archiveAndDeleteWorkspace", () => {
 		});
 
 		await expect(
-			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
 		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledTimes(1);
@@ -143,7 +153,12 @@ describe("archiveAndDeleteWorkspace", () => {
 		});
 
 		await expect(
-			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
 		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledTimes(1);
@@ -163,7 +178,12 @@ describe("archiveAndDeleteWorkspace", () => {
 		});
 
 		await expect(
-			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
 		).rejects.toBe(error);
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledTimes(1);
@@ -177,7 +197,12 @@ describe("archiveAndDeleteWorkspace", () => {
 		const doDelete = vi.fn(async () => undefined);
 
 		await expect(
-			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
 		).rejects.toBe(error);
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doDelete).not.toHaveBeenCalled();
@@ -231,7 +256,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 		).rejects.toBe(error);
 	});
 
-	it("returns archive when the workspace fetch returns 404", async () => {
+	it("returns archive-only when the workspace fetch returns 404", async () => {
 		const error = {
 			isAxiosError: true,
 			response: {
@@ -247,10 +272,10 @@ describe("resolveArchiveAndDeleteAction", () => {
 				},
 				() => "2026-01-01T00:00:00Z",
 			),
-		).resolves.toBe("archive");
+		).resolves.toBe("archive-only");
 	});
 
-	it("returns archive when the workspace fetch returns 410", async () => {
+	it("returns archive-only when the workspace fetch returns 410", async () => {
 		const error = {
 			isAxiosError: true,
 			response: {
@@ -266,7 +291,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 				},
 				() => "2026-01-01T00:00:00Z",
 			),
-		).resolves.toBe("archive");
+		).resolves.toBe("archive-only");
 	});
 });
 
