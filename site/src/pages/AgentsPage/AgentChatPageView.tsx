@@ -1,4 +1,9 @@
-import { ArchiveIcon, CircleAlertIcon, LoaderIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	CircleAlertIcon,
+	LoaderIcon,
+	MoonIcon,
+} from "lucide-react";
 import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -256,7 +261,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			active: (
 				<LoaderIcon className="size-2.5 shrink-0 animate-spin text-content-secondary" />
 			),
-			inactive: null,
+			inactive: (
+				<MoonIcon className="size-2.5 shrink-0 text-content-secondary/60" />
+			),
 			error: (
 				<CircleAlertIcon className="size-2.5 shrink-0 text-content-destructive" />
 			),
