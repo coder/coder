@@ -384,7 +384,7 @@ func TestRecordingTransport_CloseAfterDecoderConsumesContentLengthSucceeds(t *te
 	require.Empty(t, attempts[0].Error)
 }
 
-func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthMarksFailed(t *testing.T) {
+func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthJSONSucceeds(t *testing.T) {
 	t.Parallel()
 
 	ctx, sink := newTestSinkContext(t)
@@ -395,6 +395,40 @@ func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthMarksFailed(t 
 					StatusCode:    http.StatusOK,
 					Header:        http.Header{"Content-Type": []string{"application/json"}},
 					Body:          &scriptedReadCloser{chunks: [][]byte{[]byte(`{"token":"response-secret","safe":"ok"}`)}},
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	var decoded map[string]string
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&decoded))
+	require.Equal(t, "ok", decoded["safe"])
+	require.NoError(t, resp.Body.Close())
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+}
+
+func TestRecordingTransport_CloseAfterDecoderConsumesUnknownLengthNDJSONMarksFailed(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test response exercises unknown-length close semantics.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"application/x-ndjson"}},
+					Body:          &scriptedReadCloser{chunks: [][]byte{[]byte("{\"token\":\"response-secret\",\"safe\":\"ok\"}\n{\"token\":\"second\"}\n")}},
 					ContentLength: -1,
 				}, nil
 			}),

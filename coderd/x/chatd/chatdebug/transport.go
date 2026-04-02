@@ -2,10 +2,13 @@ package chatdebug
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -215,14 +218,19 @@ func (r *recordingBody) Close() error {
 	sawEOF := r.sawEOF
 	bytesRead := r.bytesRead
 	contentLength := r.contentLength
+	truncated := r.truncated
+	responseBody := append([]byte(nil), r.buf.Bytes()...)
 	r.mu.Unlock()
 
+	contentType := r.base.ResponseHeaders["Content-Type"]
 	switch {
 	case sawEOF:
 		r.record(io.EOF)
 	case responseHasNoBody(r.base.Method, r.base.ResponseStatus):
 		r.record(nil)
 	case contentLength >= 0 && bytesRead >= contentLength:
+		r.record(nil)
+	case contentLength < 0 && !truncated && isCompleteUnknownLengthJSONBody(contentType, responseBody):
 		r.record(nil)
 	default:
 		r.record(io.ErrUnexpectedEOF)
@@ -237,6 +245,29 @@ func responseHasNoBody(method string, statusCode int) bool {
 	return statusCode == http.StatusNoContent ||
 		statusCode == http.StatusNotModified ||
 		(statusCode >= 100 && statusCode < 200)
+}
+
+func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+	}
+	if mediaType != "application/json" && !strings.HasSuffix(mediaType, "+json") {
+		return false
+	}
+
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return false
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return false
+	}
+	var extra any
+	return errors.Is(decoder.Decode(&extra), io.EOF)
 }
 
 func (r *recordingBody) record(err error) {
