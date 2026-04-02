@@ -453,19 +453,34 @@ const getAllRunSummaries = () =>
 const getDebugRunDetailById = () =>
 	new Map(getAllRunDetails().map((run) => [run.id, run]));
 
+const debugRunsQueryKey = ["chats", CHAT_ID, "debug-runs"] as const;
+
+const getSeededRunSummaries = (
+	queries: readonly { key: readonly unknown[]; data: unknown }[] | undefined,
+): TypesGen.ChatDebugRunSummary[] => {
+	const seeded = queries?.find(
+		(query) =>
+			query.key.length === debugRunsQueryKey.length &&
+			query.key.every((part, index) => part === debugRunsQueryKey[index]),
+	)?.data;
+	return Array.isArray(seeded)
+		? [...(seeded as TypesGen.ChatDebugRunSummary[])]
+		: getAllRunSummaries();
+};
+
 const meta: Meta<typeof DebugPanel> = {
 	title: "pages/AgentsPage/DebugPanel",
 	component: DebugPanel,
 	args: {
 		chatId: CHAT_ID,
 	},
-	beforeEach: () => {
+	beforeEach: (ctx) => {
 		const real = Date.now;
 		Date.now = () => FIXTURE_NOW;
 		const getChatDebugRunsMock = spyOn(
 			API.experimental,
 			"getChatDebugRuns",
-		).mockResolvedValue(getAllRunSummaries());
+		).mockResolvedValue(getSeededRunSummaries(ctx.parameters.queries));
 		const getChatDebugRunMock = spyOn(
 			API.experimental,
 			"getChatDebugRun",
