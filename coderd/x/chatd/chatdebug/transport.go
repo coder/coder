@@ -236,7 +236,7 @@ func (r *recordingBody) Close() error {
 func isCompleteUnknownLengthBody(body []byte) bool {
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
-		return true
+		return false
 	}
 	return json.Valid(trimmed)
 }
