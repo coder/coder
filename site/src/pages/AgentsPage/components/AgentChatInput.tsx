@@ -145,7 +145,7 @@ interface AgentChatInputProps {
 	attachedWorkspace?: {
 		name: string;
 		route: string;
-		statusClassName: string;
+		statusIcon: React.ReactNode;
 	};
 }
 type ToolBadgeData =
@@ -154,7 +154,7 @@ type ToolBadgeData =
 			kind: "attached-workspace";
 			name: string;
 			route: string;
-			statusClassName: string;
+			statusIcon: React.ReactNode;
 	  }
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
@@ -181,12 +181,7 @@ const ToolBadge: FC<{
 			>
 				<MonitorIcon className="size-3" />
 				{badge.name}
-				<span
-					className={cn(
-						"inline-block size-1.5 shrink-0 rounded-full",
-						badge.statusClassName,
-					)}
-				/>
+				{badge.statusIcon}
 			</Link>
 		);
 	}

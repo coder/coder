@@ -1,4 +1,10 @@
-import { ArchiveIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	CircleAlertIcon,
+	CircleIcon,
+	LoaderIcon,
+	SquareIcon,
+} from "lucide-react";
 import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -248,21 +254,37 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			workspace.latest_build.job,
 		);
 		const effectiveType = workspace.health.healthy ? type : "warning";
-		// Muted dot classes — just enough to read on vs off.
-		// Error/warning states stay vivid since they warrant
-		// attention.
-		const statusClassMap: Record<DisplayWorkspaceStatusType, string> = {
-			success: "bg-content-success/60",
-			active: "bg-content-secondary",
-			inactive: "bg-content-secondary/50",
-			error: "bg-content-destructive",
-			danger: "bg-content-warning",
-			warning: "bg-content-warning",
+		// Small status icon — shape communicates state so the
+		// indicator doesn't rely on color alone.
+		const iconCls = "size-2.5 shrink-0";
+		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
+			success: (
+				<CircleIcon
+					className={cn(iconCls, "fill-current text-content-success/60")}
+				/>
+			),
+			active: (
+				<LoaderIcon
+					className={cn(iconCls, "animate-spin text-content-secondary")}
+				/>
+			),
+			inactive: (
+				<SquareIcon className={cn(iconCls, "text-content-secondary/50")} />
+			),
+			error: (
+				<CircleAlertIcon className={cn(iconCls, "text-content-destructive")} />
+			),
+			danger: (
+				<CircleAlertIcon className={cn(iconCls, "text-content-warning")} />
+			),
+			warning: (
+				<CircleAlertIcon className={cn(iconCls, "text-content-warning")} />
+			),
 		};
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
-			statusClassName: statusClassMap[effectiveType],
+			statusIcon: statusIconMap[effectiveType],
 		};
 	})();
 

@@ -165,7 +165,7 @@ interface ChatPageInputProps {
 	attachedWorkspace?: {
 		name: string;
 		route: string;
-		statusClassName: string;
+		statusIcon: React.ReactNode;
 	};
 }
 
