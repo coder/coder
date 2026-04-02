@@ -372,7 +372,7 @@ export const DefaultAutostopNotVisibleToNonAdmin: Story = {
 		const canvas = within(canvasElement);
 
 		// Personal Instructions should be visible.
-		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("Instructions");
 
 		// Admin-only sections should not be present.
 		expect(canvas.queryByText("Workspace Autostop Fallback")).toBeNull();
@@ -412,7 +412,7 @@ export const InvisibleUnicodeWarningUserPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("Instructions");
 
 		const alert = await canvas.findByText(/invisible Unicode/);
 		expect(alert).toBeInTheDocument();
@@ -454,7 +454,7 @@ export const NoWarningForCleanPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("Instructions");
 		await canvas.findByText("System Instructions");
 
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();

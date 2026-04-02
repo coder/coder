@@ -78,11 +78,8 @@ export const Default: Story = {
 		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
-		// No footer visible when nothing is dirty
-		expect(
-			canvas.queryByRole("button", { name: /Save/i }),
-		).not.toBeInTheDocument();
-
+		// Save button should be disabled when nothing is dirty.
+		expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
 		// Type a value to make the footer appear
 		await userEvent.type(gpt4oInput, "95");
 		await waitFor(() => {
@@ -163,11 +160,9 @@ export const CancelChanges: Story = {
 		const cancelButton = await canvas.findByRole("button", { name: /Cancel/i });
 		await userEvent.click(cancelButton);
 
-		// Footer should disappear after cancel
+		// Save button should be disabled after cancel.
 		await waitFor(() => {
-			expect(
-				canvas.queryByRole("button", { name: /Save/i }),
-			).not.toBeInTheDocument();
+			expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
 		});
 
 		// Input should be cleared back to empty (no override)
@@ -194,10 +189,8 @@ export const InvalidDraftShowsFooter: Story = {
 		// Cancel button should be visible so user can discard the edit
 		expect(canvas.getByRole("button", { name: /Cancel/i })).toBeInTheDocument();
 
-		// Save button should NOT be visible (nothing valid to save)
-		expect(
-			canvas.queryByRole("button", { name: /Save/i }),
-		).not.toBeInTheDocument();
+		// Save button should be disabled (nothing valid to save).
+		expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
 	},
 };
 
