@@ -9,7 +9,6 @@ import {
 	Table,
 	TableBody,
 	TableCell,
-	TableFooter,
 	TableHead,
 	TableHeader,
 	TableRow,
@@ -33,6 +32,7 @@ interface UserCompactionThresholdSettingsProps {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelConfigId: string) => Promise<unknown>;
+	hideHeader?: boolean;
 }
 
 const parseThresholdDraft = (value: string): number | null => {
@@ -60,6 +60,7 @@ export const UserCompactionThresholdSettings: FC<
 	thresholdsError,
 	onSaveThreshold,
 	onResetThreshold,
+	hideHeader,
 }) => {
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -172,19 +173,23 @@ export const UserCompactionThresholdSettings: FC<
 	};
 
 	const hasAnyPending = pendingModels.size > 0;
-	const hasAnyErrors = Object.keys(rowErrors).length > 0;
-	const hasAnyDrafts = Object.keys(drafts).length > 0;
+
+	const headerBlock = !hideHeader ? (
+		<>
+			<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+				Context Compaction
+			</h3>
+			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+				Control when conversation context is automatically summarized for each
+				model. Setting 100% means the conversation will never auto-compact.
+			</p>
+		</>
+	) : null;
 
 	if (isThresholdsLoading) {
 		return (
 			<div className="space-y-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Context Compaction
-				</h3>
-				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Control when conversation context is automatically summarized for each
-					model. Setting 100% means the conversation will never auto-compact.
-				</p>
+				{headerBlock}
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="h-4 w-4" />
 					Loading thresholds...
@@ -196,13 +201,7 @@ export const UserCompactionThresholdSettings: FC<
 	if (thresholdsError != null) {
 		return (
 			<div className="space-y-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Context Compaction
-				</h3>
-				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Control when conversation context is automatically summarized for each
-					model. Setting 100% means the conversation will never auto-compact.
-				</p>
+				{headerBlock}
 				<p className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(
 						thresholdsError,
@@ -215,13 +214,7 @@ export const UserCompactionThresholdSettings: FC<
 
 	return (
 		<div className="space-y-2">
-			<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-				Context Compaction
-			</h3>
-			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-				Control when conversation context is automatically summarized for each
-				model. Setting 100% means the conversation will never auto-compact.
-			</p>
+			{headerBlock}
 			{isLoadingModelConfigs ? (
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="h-4 w-4" />
@@ -240,165 +233,163 @@ export const UserCompactionThresholdSettings: FC<
 					models before compaction thresholds can be set.
 				</p>
 			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Model</TableHead>
-							<TableHead className="w-0 whitespace-nowrap">Default</TableHead>
-							<TableHead className="w-0 whitespace-nowrap">Threshold</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{enabledModelConfigs.map((modelConfig) => {
-							const existingOverride = overridesByModelID.get(modelConfig.id);
-							const hasOverride = overridesByModelID.has(modelConfig.id);
-							const draftValue =
-								drafts[modelConfig.id] ??
-								(existingOverride !== undefined
-									? String(existingOverride)
-									: "");
-							const parsedDraftValue = parseThresholdDraft(draftValue);
-							const isThisModelMutating = pendingModels.has(modelConfig.id);
-							const isInvalid =
-								draftValue.length > 0 && parsedDraftValue === null;
-							// Only warn when user-typed, not when loaded from
-							// the server.
-							const isDraftDisablingCompaction =
-								draftValue === "100" && drafts[modelConfig.id] !== undefined;
-							const rowError = rowErrors[modelConfig.id];
-							const modelName = modelConfig.display_name || modelConfig.model;
-
-							return (
-								<TableRow key={modelConfig.id}>
-									<TableCell className="text-[13px] font-medium text-content-primary">
-										{modelName}
-										{rowError && (
-											<p
-												aria-live="polite"
-												className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
-											>
-												{rowError}
-											</p>
-										)}
-									</TableCell>
-									<TableCell className="w-0 whitespace-nowrap tabular-nums">
-										{modelConfig.compression_threshold}%
-									</TableCell>
-									<TableCell className="w-0 whitespace-nowrap">
-										<div className="flex items-center gap-1.5">
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Input
-														aria-label={`${modelName} compaction threshold`}
-														aria-invalid={isInvalid || undefined}
-														type="number"
-														min={0}
-														max={100}
-														inputMode="numeric"
-														className={cn(
-															"h-7 w-16 px-2 text-xs tabular-nums",
-															isInvalid &&
-																"border-content-destructive focus:ring-content-destructive/30",
-														)}
-														value={draftValue}
-														placeholder={String(
-															modelConfig.compression_threshold,
-														)}
-														onChange={(event) => {
-															setDrafts((currentDrafts) => ({
-																...currentDrafts,
-																[modelConfig.id]: event.target.value,
-															}));
-															clearRowError(modelConfig.id);
-														}}
-														disabled={isThisModelMutating}
-													/>
-												</TooltipTrigger>
-												{(isInvalid || isDraftDisablingCompaction) && (
-													<TooltipContent>
-														{isInvalid
-															? "Enter a whole number between 0 and 100."
-															: "Setting 100% will disable auto-compaction for this model."}
-													</TooltipContent>
-												)}
-											</Tooltip>
-											<span className="text-xs text-content-secondary">%</span>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														className={cn(
-															"size-7",
-															hasOverride
-																? "opacity-100"
-																: "pointer-events-none opacity-0",
-														)}
-														aria-label={`Reset ${modelName} to default`}
-														aria-hidden={!hasOverride}
-														tabIndex={hasOverride ? 0 : -1}
-														disabled={isThisModelMutating || !hasOverride}
-														onClick={() => handleReset(modelConfig.id)}
-													>
-														<RotateCcwIcon className="size-3.5" />
-													</Button>
-												</TooltipTrigger>
-												{hasOverride && (
-													<TooltipContent>
-														Reset to default (
-														{modelConfig.compression_threshold}%)
-													</TooltipContent>
-												)}
-											</Tooltip>
-										</div>
-										{isInvalid && (
-											<span className="sr-only" aria-live="polite">
-												Enter a whole number between 0 and 100.
-											</span>
-										)}
-										{isDraftDisablingCompaction && (
-											<span className="sr-only" aria-live="polite">
-												Setting 100% will disable auto-compaction for this
-												model.
-											</span>
-										)}
-									</TableCell>
-								</TableRow>
-							);
-						})}
-					</TableBody>
-					{(dirtyRows.length > 0 || hasAnyErrors || hasAnyDrafts) && (
-						<TableFooter className="bg-transparent">
-							<TableRow className="border-0">
-								<TableCell colSpan={3} className="border-0 p-0">
-									<div className="flex items-center justify-end gap-2 px-3 py-1.5">
-										<Button
-											size="sm"
-											variant="outline"
-											type="button"
-											onClick={handleCancelAll}
-											disabled={hasAnyPending}
-										>
-											Cancel
-										</Button>
-										{dirtyRows.length > 0 && (
-											<Button
-												size="sm"
-												type="button"
-												disabled={hasAnyPending}
-												onClick={handleSaveAll}
-											>
-												{hasAnyPending
-													? "Saving..."
-													: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
-											</Button>
-										)}
-									</div>
-								</TableCell>
+				<>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Model</TableHead>
+								<TableHead className="w-0 whitespace-nowrap">Default</TableHead>
+								<TableHead className="w-0 whitespace-nowrap">
+									Threshold
+								</TableHead>
 							</TableRow>
-						</TableFooter>
-					)}
-				</Table>
+						</TableHeader>
+						<TableBody>
+							{enabledModelConfigs.map((modelConfig) => {
+								const existingOverride = overridesByModelID.get(modelConfig.id);
+								const hasOverride = overridesByModelID.has(modelConfig.id);
+								const draftValue =
+									drafts[modelConfig.id] ??
+									(existingOverride !== undefined
+										? String(existingOverride)
+										: "");
+								const parsedDraftValue = parseThresholdDraft(draftValue);
+								const isThisModelMutating = pendingModels.has(modelConfig.id);
+								const isInvalid =
+									draftValue.length > 0 && parsedDraftValue === null;
+								// Only warn when user-typed, not when loaded from
+								// the server.
+								const isDraftDisablingCompaction =
+									draftValue === "100" && drafts[modelConfig.id] !== undefined;
+								const rowError = rowErrors[modelConfig.id];
+								const modelName = modelConfig.display_name || modelConfig.model;
+
+								return (
+									<TableRow key={modelConfig.id}>
+										<TableCell className="text-[13px] font-medium text-content-primary">
+											{modelName}
+											{rowError && (
+												<p
+													aria-live="polite"
+													className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
+												>
+													{rowError}
+												</p>
+											)}
+										</TableCell>
+										<TableCell className="w-0 whitespace-nowrap tabular-nums">
+											{modelConfig.compression_threshold}%
+										</TableCell>
+										<TableCell className="w-0 whitespace-nowrap">
+											<div className="flex items-center gap-1.5">
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Input
+															aria-label={`${modelName} compaction threshold`}
+															aria-invalid={isInvalid || undefined}
+															type="number"
+															min={0}
+															max={100}
+															inputMode="numeric"
+															className={cn(
+																"h-7 w-16 px-2 text-xs tabular-nums",
+																isInvalid &&
+																	"border-content-destructive focus:ring-content-destructive/30",
+															)}
+															value={draftValue}
+															placeholder={String(
+																modelConfig.compression_threshold,
+															)}
+															onChange={(event) => {
+																setDrafts((currentDrafts) => ({
+																	...currentDrafts,
+																	[modelConfig.id]: event.target.value,
+																}));
+																clearRowError(modelConfig.id);
+															}}
+															disabled={isThisModelMutating}
+														/>
+													</TooltipTrigger>
+													{(isInvalid || isDraftDisablingCompaction) && (
+														<TooltipContent>
+															{isInvalid
+																? "Enter a whole number between 0 and 100."
+																: "Setting 100% will disable auto-compaction for this model."}
+														</TooltipContent>
+													)}
+												</Tooltip>
+												<span className="text-xs text-content-secondary">
+													%
+												</span>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															size="icon"
+															variant="subtle"
+															className={cn(
+																"size-7",
+																hasOverride
+																	? "opacity-100"
+																	: "pointer-events-none opacity-0",
+															)}
+															aria-label={`Reset ${modelName} to default`}
+															aria-hidden={!hasOverride}
+															tabIndex={hasOverride ? 0 : -1}
+															disabled={isThisModelMutating || !hasOverride}
+															onClick={() => handleReset(modelConfig.id)}
+														>
+															<RotateCcwIcon className="size-3.5" />
+														</Button>
+													</TooltipTrigger>
+													{hasOverride && (
+														<TooltipContent>
+															Reset to default (
+															{modelConfig.compression_threshold}%)
+														</TooltipContent>
+													)}
+												</Tooltip>
+											</div>
+											{isInvalid && (
+												<span className="sr-only" aria-live="polite">
+													Enter a whole number between 0 and 100.
+												</span>
+											)}
+											{isDraftDisablingCompaction && (
+												<span className="sr-only" aria-live="polite">
+													Setting 100% will disable auto-compaction for this
+													model.
+												</span>
+											)}
+										</TableCell>
+									</TableRow>
+								);
+							})}
+						</TableBody>
+					</Table>
+					<div className="flex justify-end gap-2 pt-2">
+						<Button
+							size="sm"
+							variant="outline"
+							type="button"
+							onClick={handleCancelAll}
+							disabled={hasAnyPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							size="sm"
+							type="button"
+							disabled={hasAnyPending || dirtyRows.length === 0}
+							onClick={handleSaveAll}
+						>
+							{hasAnyPending
+								? "Saving..."
+								: dirtyRows.length > 0
+									? `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`
+									: "Save"}
+						</Button>
+					</div>
+				</>
 			)}
 		</div>
 	);
