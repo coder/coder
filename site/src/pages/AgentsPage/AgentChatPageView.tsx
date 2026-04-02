@@ -250,7 +250,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		const { type } = getDisplayWorkspaceStatus(
+		const { type, text } = getDisplayWorkspaceStatus(
 			workspace.latest_build.status,
 			workspace.latest_build.job,
 		);
@@ -268,6 +268,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			name: workspace.name,
 			route: workspaceRoute,
 			statusIcon: statusIconMap[effectiveType],
+			statusLabel: text,
 		};
 	})();
 

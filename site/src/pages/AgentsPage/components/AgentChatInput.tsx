@@ -43,6 +43,11 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
@@ -146,6 +151,7 @@ interface AgentChatInputProps {
 		name: string;
 		route: string;
 		statusIcon: React.ReactNode;
+		statusLabel: string;
 	};
 }
 type ToolBadgeData =
@@ -155,6 +161,7 @@ type ToolBadgeData =
 			name: string;
 			route: string;
 			statusIcon: React.ReactNode;
+			statusLabel: string;
 	  }
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
@@ -171,17 +178,22 @@ const ToolBadge: FC<{
 
 	if (badge.kind === "attached-workspace") {
 		return (
-			<Link
-				to={badge.route}
-				target="_blank"
-				className={cn(
-					badgeCls,
-					"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-				)}
-			>
-				{badge.statusIcon}
-				{badge.name}
-			</Link>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Link
+						to={badge.route}
+						target="_blank"
+						className={cn(
+							badgeCls,
+							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						)}
+					>
+						{badge.statusIcon}
+						{badge.name}
+					</Link>
+				</TooltipTrigger>
+				<TooltipContent>{badge.statusLabel}</TooltipContent>
+			</Tooltip>
 		);
 	}
 

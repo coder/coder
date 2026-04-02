@@ -166,6 +166,7 @@ interface ChatPageInputProps {
 		name: string;
 		route: string;
 		statusIcon: React.ReactNode;
+		statusLabel: string;
 	};
 }
 
