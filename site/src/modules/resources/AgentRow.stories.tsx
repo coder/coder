@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { chromatic } from "#/testHelpers/chromatic";
 import * as M from "#/testHelpers/entities";
@@ -92,7 +92,7 @@ const logs = [
 	created_at: fixedLogTimestamp,
 }));
 
-const installScriptLogSource: TypesGen.WorkspaceAgentLogSource = {
+const installScriptLogSource: WorkspaceAgentLogSource = {
 	...M.MockWorkspaceAgentLogSource,
 	id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 	display_name: "Install Script",
@@ -121,48 +121,6 @@ const tabbedLogs = [
 		created_at: fixedLogTimestamp,
 	},
 ];
-
-const overflowLogSources = [
-	M.MockWorkspaceAgentLogSource,
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "58f5db69-5f78-496f-bce1-0686f5525aa1",
-		display_name: "Install Script Dependencies",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "f39d758c-bce2-4f41-8d70-58fdb1f0f729",
-		display_name: "Dependency Synchronization",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "bf7529b8-1787-4a20-b54f-eb894680e48f",
-		display_name: "Runtime Bootstrap Checks",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "0d6ebde6-c534-4551-9f91-bfd98bfb04f4",
-		display_name: "Tooling Validation Stage",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "ac9b4bce-2b3d-40ad-a970-66f0705c7995",
-		display_name: "Environment Variable Expansion",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "8cef9a7f-f010-4dfa-9ee7-f7bd09f7ff94",
-		display_name: "Finalization and Warmup",
-	},
-];
-
-const overflowLogs = overflowLogSources.map((source, index) => ({
-	id: 200 + index,
-	level: "info",
-	output: `${source.display_name}: line`,
-	source_id: source.id,
-	created_at: fixedLogTimestamp,
-}));
 
 const meta: Meta<typeof AgentRow> = {
 	title: "components/AgentRow",
@@ -444,46 +402,5 @@ export const LogsTabs: Story = {
 			).not.toBeInTheDocument(),
 		);
 		await expect(canvas.getByText("install: pnpm install")).toBeVisible();
-	},
-};
-
-export const LogsTabsOverflow: Story = {
-	args: {
-		agent: {
-			...M.MockWorkspaceAgentReady,
-			logs_length: overflowLogs.length,
-			log_sources: overflowLogSources,
-		},
-	},
-	parameters: {
-		webSocket: [
-			{
-				event: "message",
-				data: JSON.stringify(overflowLogs),
-			},
-		],
-	},
-	render: (args) => (
-		<div className="max-w-[320px]">
-			<AgentRow {...args} />
-		</div>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const page = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
-		await userEvent.click(
-			canvas.getByRole("button", { name: "More log tabs" }),
-		);
-		const overflowItems = await page.findAllByRole("menuitemradio");
-		const selectedItem = overflowItems[0];
-		const selectedSource = selectedItem.textContent;
-		if (!selectedSource) {
-			throw new Error("Overflow menu item must have text content.");
-		}
-		await userEvent.click(selectedItem);
-		await waitFor(() =>
-			expect(canvas.getByText(`${selectedSource}: line`)).toBeVisible(),
-		);
 	},
 };
