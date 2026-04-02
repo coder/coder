@@ -1,6 +1,6 @@
-import { Slot, Slottable } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
+import { Slot } from "radix-ui";
 import { cn } from "#/utils/cn";
 
 const linkVariants = cva(
@@ -37,10 +37,10 @@ export const Link: React.FC<LinkProps> = ({
 	showExternalIcon = true,
 	...props
 }) => {
-	const Comp = asChild ? Slot : "a";
+	const Comp = asChild ? Slot.Root : "a";
 	return (
 		<Comp className={cn(linkVariants({ size }), className)} {...props}>
-			<Slottable>{children}</Slottable>
+			<Slot.Slottable>{children}</Slot.Slottable>
 			{showExternalIcon && <SquareArrowOutUpRightIcon />}
 		</Comp>
 	);
