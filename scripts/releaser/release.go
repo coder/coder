@@ -68,8 +68,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
-	// Match release branches (release/X.Y). RCs are tagged
-	// from main, not from release branches.
+	// Two modes:
+	//   1. On "main" — for tagging release candidates (RCs).
+	//   2. On "release/X.Y" — for releases and patches.
+	// RCs are tagged directly on main to avoid the toil of
+	// cherry-picking hundreds of commits onto a release branch.
+	// The release/X.Y branch is only cut when the release is
+	// ready.
+	//
+	// Detached HEAD is common: the release manager checks out a
+	// specific commit on main before running the tool. We detect
+	// this by checking whether HEAD is an ancestor of origin/main.
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 	m := branchRe.FindStringSubmatch(currentBranch)
 	if m == nil {
@@ -169,11 +178,20 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if prevVersion == nil {
 		infof(w, "No previous release tag found on this branch.")
 		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
-	} else {
-		infof(w, "Previous release tag: %s", prevVersion.String())
-		suggested = version{Major: prevVersion.Major, Minor: prevVersion.Minor, Patch: prevVersion.Patch + 1}
-	}
-
+		} else {
+			infof(w, "Previous release tag: %s", prevVersion.String())
+			if prevVersion.IsRC() {
+				// Branch has only RC tags; suggest the
+				// release (same base, no pre-release suffix).
+				suggested = version{
+					Major: prevVersion.Major,
+					Minor: prevVersion.Minor,
+					Patch: prevVersion.Patch,
+				}
+			} else {
+				suggested = version{Major: prevVersion.Major, Minor: prevVersion.Minor, Patch: prevVersion.Patch + 1}
+			}
+		}
 	fmt.Fprintln(w)
 
 	// --- Version prompt ---
