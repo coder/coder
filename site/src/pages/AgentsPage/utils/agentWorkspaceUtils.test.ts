@@ -45,7 +45,7 @@ describe("isWorkspaceAutoCreated", () => {
 });
 
 describe("isWorkspaceNotFound", () => {
-	it("returns true for Axios-style 404 errors", () => {
+	it("returns true for Axios-style 404 Not Found errors", () => {
 		const error = {
 			isAxiosError: true,
 			response: {
@@ -57,7 +57,19 @@ describe("isWorkspaceNotFound", () => {
 		expect(isWorkspaceNotFound(error)).toBe(true);
 	});
 
-	it("returns false for Axios-style non-404 errors", () => {
+	it("returns true for Axios-style 410 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 410,
+				data: { message: "Workspace gone" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(true);
+	});
+
+	it("returns false for Axios-style non-404-or-410 errors", () => {
 		const error = {
 			isAxiosError: true,
 			response: {
@@ -118,7 +130,26 @@ describe("archiveAndDeleteWorkspace", () => {
 		expect(doDelete).toHaveBeenCalledTimes(1);
 	});
 
-	it("throws when delete returns non-404 error", async () => {
+	it("succeeds when delete returns 410", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => {
+			throw {
+				isAxiosError: true,
+				response: {
+					status: 410,
+					data: { message: "Workspace gone" },
+				},
+			};
+		});
+
+		await expect(
+			archiveAndDeleteWorkspace("chat-1", "workspace-1", doArchive, doDelete),
+		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws when delete returns non-404-or-410 error", async () => {
 		const doArchive = vi.fn(async () => undefined);
 		const error = {
 			isAxiosError: true,
@@ -181,7 +212,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 		expect(result).toBe(expected);
 	});
 
-	it("propagates non-404 workspace fetch errors", async () => {
+	it("propagates non-404-or-410 workspace fetch errors", async () => {
 		const error = {
 			isAxiosError: true,
 			response: {
@@ -206,6 +237,25 @@ describe("resolveArchiveAndDeleteAction", () => {
 			response: {
 				status: 404,
 				data: { message: "Workspace not found" },
+			},
+		};
+
+		await expect(
+			resolveArchiveAndDeleteAction(
+				async () => {
+					throw error;
+				},
+				() => "2026-01-01T00:00:00Z",
+			),
+		).resolves.toBe("archive");
+	});
+
+	it("returns archive when the workspace fetch returns 410", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 410,
+				data: { message: "Workspace gone" },
 			},
 		};
 
