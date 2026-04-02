@@ -628,7 +628,7 @@ const ChatMessageItem = memo<{
 									className={cn(
 										"relative space-y-3 pl-4",
 										"before:content-[''] before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
-										copyHovered && "before:opacity-100",
+										copyHovered && isLastAssistantMessage && hasCopyableContent && "before:opacity-100",
 									)}
 								>
 									<BlockList
@@ -648,9 +648,7 @@ const ChatMessageItem = memo<{
 													className="flex !mt-0"
 													data-testid="assistant-copy-button"
 												>
-													{" "}
-													<Tooltip>
-														<TooltipTrigger asChild>
+														<Tooltip>														<TooltipTrigger asChild>
 															<Button
 																size="icon"
 																variant="subtle"
@@ -659,9 +657,7 @@ const ChatMessageItem = memo<{
 																onMouseEnter={() => setCopyHovered(true)}
 																onMouseLeave={() => setCopyHovered(false)}
 															>
-																{" "}
-																{showCopiedSuccess ? (
-																	<CheckIcon />
+																	{showCopiedSuccess ? (																	<CheckIcon />
 																) : (
 																	<CopyIcon />
 																)}
