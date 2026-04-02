@@ -2,9 +2,9 @@ import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import { chatDiffContentsKey } from "#/api/queries/chats";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
