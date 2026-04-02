@@ -209,7 +209,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "structured_logging": true
       },
       "chat": {
-        "acquire_batch_size": 0
+        "acquire_batch_size": 0,
+        "pubsub_batch_enabled": true,
+        "pubsub_batch_size": 0,
+        "pubsub_flush_interval": 0,
+        "pubsub_queue_size": 0
       }
     },
     "allow_workspace_renames": true,

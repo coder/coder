@@ -111,6 +111,13 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
+func chatConfigPubsub(api *API) dbpubsub.Pubsub {
+	if api.ChatPubsub != nil {
+		return api.ChatPubsub
+	}
+	return api.Pubsub
+}
+
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
 	payload, err := json.Marshal(pubsub.ChatConfigEvent{
 		Kind:     kind,
@@ -3274,7 +3281,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventUserPrompt, apiKey.UserID)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventUserPrompt, apiKey.UserID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
@@ -4048,7 +4055,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventProviders, uuid.Nil)
 
 	httpapi.Write(
 		ctx,
@@ -4136,7 +4143,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventProviders, uuid.Nil)
 
 	httpapi.Write(
 		ctx,
@@ -4192,7 +4199,7 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventProviders, uuid.Nil)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4373,7 +4380,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventModelConfig, inserted.ID)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
@@ -4546,7 +4553,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventModelConfig, updated.ID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
@@ -4588,7 +4595,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, modelConfigID)
+	publishChatConfigEvent(api.Logger, chatConfigPubsub(api), pubsub.ChatConfigEventModelConfig, modelConfigID)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
