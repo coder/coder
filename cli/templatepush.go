@@ -36,6 +36,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		provisionerTags      []string
 		uploadFlags          templateUploadFlags
 		activate             bool
+		displayName          string
+		description          string
+		icon                 string
 		orgContext           = NewOrganizationContext()
 	)
 	cmd := &serpent.Command{
@@ -70,6 +73,30 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				err = codersdk.TemplateVersionNameValid(versionName)
 				if err != nil {
 					return xerrors.Errorf("template version name %q is invalid: %w", versionName, err)
+				}
+			}
+
+			// Read frontmatter from README.md when not reading from
+			// stdin so display_name, description, and icon can be
+			// populated automatically.
+			if !uploadFlags.stdin(inv) {
+				readmeData, _ := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
+				if len(readmeData) > 0 {
+					frontmatter, fmErr := ParseTemplateFrontmatter(readmeData)
+					if fmErr != nil {
+						cliui.Warn(inv.Stderr, "Failed to parse README.md frontmatter: "+fmErr.Error())
+					} else {
+						// CLI flags take precedence over frontmatter values.
+						if !userSetOption(inv, "display-name") && frontmatter.DisplayName != "" {
+							displayName = frontmatter.DisplayName
+						}
+						if !userSetOption(inv, "description") && frontmatter.Description != "" {
+							description = frontmatter.Description
+						}
+						if !userSetOption(inv, "icon") && frontmatter.Icon != "" {
+							icon = frontmatter.Icon
+						}
+					}
 				}
 			}
 
@@ -184,8 +211,11 @@ func (r *RootCmd) templatePush() *serpent.Command {
 
 			if createTemplate {
 				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
-					Name:      name,
-					VersionID: job.ID,
+					Name:        name,
+					DisplayName: displayName,
+					Description: description,
+					Icon:        icon,
+					VersionID:   job.ID,
 				})
 				if err != nil {
 					return err
@@ -201,6 +231,20 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				})
 				if err != nil {
 					return err
+				}
+			}
+
+			// Update template metadata when any display fields are
+			// set on an existing template. The create path already
+			// includes these fields in CreateTemplateRequest.
+			if !createTemplate && (displayName != "" || description != "" || icon != "") {
+				_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, codersdk.UpdateTemplateMeta{
+					DisplayName: &displayName,
+					Description: &description,
+					Icon:        &icon,
+				})
+				if err != nil {
+					return xerrors.Errorf("update template metadata: %w", err)
 				}
 			}
 
@@ -261,6 +305,21 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
 			Value:       serpent.BoolOf(&activate),
+		},
+		{
+			Flag:        "display-name",
+			Description: "Set the display name of the template. Overrides any value from README.md frontmatter.",
+			Value:       serpent.StringOf(&displayName),
+		},
+		{
+			Flag:        "description",
+			Description: "Set the description of the template. Overrides any value from README.md frontmatter.",
+			Value:       serpent.StringOf(&description),
+		},
+		{
+			Flag:        "icon",
+			Description: "Set the icon of the template. Overrides any value from README.md frontmatter.",
+			Value:       serpent.StringOf(&icon),
 		},
 		cliui.SkipPromptOption(),
 	}

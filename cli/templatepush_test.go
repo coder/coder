@@ -1285,6 +1285,77 @@ cli_overrides_file_var: from-file`)
 			require.Equal(t, "from-cli-override", varMap["cli_overrides_file_var"])
 		})
 	})
+
+	t.Run("Frontmatter", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("CreateTemplateFromFrontmatter", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
+
+			readmePath := filepath.Join(source, "README.md")
+			err := os.WriteFile(readmePath, []byte("---\ndisplay_name: Frontmatter Test\ndescription: A test template from frontmatter\nicon: /icon/docker.png\n---\n# Hello\n"), 0o600)
+			require.NoError(t, err)
+
+			const templateName = "frontmatter-template"
+			inv, root := clitest.New(t,
+				"templates", "push", templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
+			w.RequireSuccess()
+
+			template, err := client.TemplateByName(context.Background(), owner.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Equal(t, "Frontmatter Test", template.DisplayName)
+			require.Equal(t, "A test template from frontmatter", template.Description)
+			require.Equal(t, "/icon/docker.png", template.Icon)
+		})
+
+		t.Run("CLIFlagOverridesFrontmatter", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
+
+			readmePath := filepath.Join(source, "README.md")
+			err := os.WriteFile(readmePath, []byte("---\ndisplay_name: From Frontmatter\ndescription: From frontmatter desc\nicon: /icon/fm.png\n---\n# Hello\n"), 0o600)
+			require.NoError(t, err)
+
+			const templateName = "flag-override"
+			inv, root := clitest.New(t,
+				"templates", "push", templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--display-name", "From CLI Flag",
+				"--description", "From CLI description",
+				"--icon", "/icon/cli.png",
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
+			w.RequireSuccess()
+
+			template, err := client.TemplateByName(context.Background(), owner.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Equal(t, "From CLI Flag", template.DisplayName)
+			require.Equal(t, "From CLI description", template.Description)
+			require.Equal(t, "/icon/cli.png", template.Icon)
+		})
+	})
 }
 
 func createEchoResponsesWithTemplateVariables(templateVariables []*proto.TemplateVariable) *echo.Responses {
