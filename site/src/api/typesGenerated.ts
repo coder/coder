@@ -70,6 +70,7 @@ export interface AIBridgeInterception {
 	readonly api_key_id: string | null;
 	readonly initiator: MinimalUser;
 	readonly provider: string;
+	readonly provider_name: string;
 	readonly model: string;
 	readonly client: string | null;
 	// empty interface{} type, falling back to unknown

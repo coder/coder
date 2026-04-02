@@ -380,13 +380,14 @@ func TestRecordInterception(t *testing.T) {
 			{
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
-					Id:          uuid.NewString(),
-					ApiKeyId:    uuid.NewString(),
-					InitiatorId: uuid.NewString(),
-					Provider:    "anthropic",
-					Model:       "claude-4-opus",
-					Metadata:    metadataProto,
-					StartedAt:   timestamppb.Now(),
+					Id:           uuid.NewString(),
+					ApiKeyId:     uuid.NewString(),
+					InitiatorId:  uuid.NewString(),
+					Provider:     "anthropic",
+					ProviderName: "anthropic",
+					Model:        "claude-4-opus",
+					Metadata:     metadataProto,
+					StartedAt:    timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -395,20 +396,22 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse interception initiator UUID")
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						Metadata:    json.RawMessage(metadataJSON),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     req.GetProvider(),
+						ProviderName: req.GetProviderName(),
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage(metadataJSON),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
 					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     req.GetProvider(),
+						ProviderName: req.GetProviderName(),
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
 					}, nil)
 				},
 			},
@@ -435,6 +438,7 @@ func TestRecordInterception(t *testing.T) {
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:     initiatorID,
 						Provider:        req.GetProvider(),
+						ProviderName:    req.GetProvider(),
 						Model:           req.GetModel(),
 						Metadata:        json.RawMessage(metadataJSON),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
@@ -444,6 +448,7 @@ func TestRecordInterception(t *testing.T) {
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:     initiatorID,
 						Provider:        req.GetProvider(),
+						ProviderName:    req.GetProvider(),
 						Model:           req.GetModel(),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
 						ClientSessionID: sql.NullString{String: "session-abc-123", Valid: true},
@@ -473,17 +478,19 @@ func TestRecordInterception(t *testing.T) {
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:     initiatorID,
 						Provider:        req.GetProvider(),
+						ProviderName:    req.GetProvider(),
 						Model:           req.GetModel(),
 						Metadata:        json.RawMessage(metadataJSON),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
 						ClientSessionID: sql.NullString{},
 					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     req.GetProvider(),
+						ProviderName: req.GetProvider(),
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
 					}, nil)
 				},
 			},
@@ -522,6 +529,113 @@ func TestRecordInterception(t *testing.T) {
 					StartedAt:   timestamppb.Now(),
 				},
 				expectedErr: "empty API key ID",
+			},
+			{
+				name: "provider name differs from provider type",
+				request: &proto.RecordInterceptionRequest{
+					Id:           uuid.NewString(),
+					ApiKeyId:     uuid.NewString(),
+					InitiatorId:  uuid.NewString(),
+					Provider:     "copilot",
+					ProviderName: "copilot-business",
+					Model:        "gpt-4o",
+					StartedAt:    timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot-business",
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage("{}"),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:           interceptionID,
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot-business",
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "empty provider name defaults to provider",
+				request: &proto.RecordInterceptionRequest{
+					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
+					InitiatorId: uuid.NewString(),
+					Provider:    "copilot",
+					Model:       "gpt-4o",
+					StartedAt:   timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage("{}"),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:           interceptionID,
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "whitespace provider name defaults to provider",
+				request: &proto.RecordInterceptionRequest{
+					Id:           uuid.NewString(),
+					ApiKeyId:     uuid.NewString(),
+					InitiatorId:  uuid.NewString(),
+					Provider:     "copilot",
+					ProviderName: "   ",
+					Model:        "gpt-4o",
+					StartedAt:    timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:           interceptionID,
+						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						Metadata:     json.RawMessage("{}"),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:           interceptionID,
+						InitiatorID:  initiatorID,
+						Provider:     "copilot",
+						ProviderName: "copilot",
+						Model:        req.GetModel(),
+						StartedAt:    req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
 			},
 			{
 				name: "database error",
