@@ -29,36 +29,7 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-export const Language = {
-	emailLabel: "Email",
-	passwordLabel: "Password",
-	usernameLabel: "Username",
-	emailInvalid: "Please enter a valid email address.",
-	emailRequired: "Please enter an email address.",
-	passwordRequired: "Please enter a password.",
-	create: "Continue",
-	githubCreate: "GitHub",
-	firstNameLabel: "First name",
-	lastNameLabel: "Last name",
-	companyLabel: "Company",
-	jobTitleLabel: "Job title",
-	phoneNumberLabel: "Phone number",
-	countryLabel: "Country",
-	firstNameRequired: "Please enter your first name.",
-	phoneNumberRequired: "Please enter your phone number.",
-	jobTitleRequired: "Please enter your job title.",
-	companyNameRequired: "Please enter your company name.",
-	countryRequired: "Please select your country.",
-	newsletterSectionLabel: "Sign up for updates",
-	newsletterReleasesLabel: "Release notes & security updates",
-	newsletterReleasesDescription:
-		"Monthly changelog, security updates, and more",
-	newsletterMarketingLabel: "Coder news",
-	newsletterMarketingDescription:
-		"Latest articles, workshops, events, and announcements",
-};
-
-const usernameValidator = nameValidator(Language.usernameLabel);
+const usernameValidator = nameValidator("Username");
 const usernameFromEmail = (email: string): string => {
 	try {
 		const emailPrefix = email.split("@")[0];
@@ -77,21 +48,21 @@ const usernameFromEmail = (email: string): string => {
 const validationSchema = Yup.object({
 	email: Yup.string()
 		.trim()
-		.email(Language.emailInvalid)
-		.required(Language.emailRequired),
-	password: Yup.string().required(Language.passwordRequired),
+		.email("Please enter a valid email address.")
+		.required("Please enter an email address."),
+	password: Yup.string().required("Please enter a password."),
 	username: usernameValidator,
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
 		is: true,
 		then: (schema) =>
 			schema.shape({
-				first_name: Yup.string().required(Language.firstNameRequired),
-				last_name: Yup.string().required(Language.firstNameRequired),
-				phone_number: Yup.string().required(Language.phoneNumberRequired),
-				job_title: Yup.string().required(Language.jobTitleRequired),
-				company_name: Yup.string().required(Language.companyNameRequired),
-				country: Yup.string().required(Language.countryRequired),
+				first_name: Yup.string().required("Please enter your first name."),
+				last_name: Yup.string().required("Please enter your first name."),
+				phone_number: Yup.string().required("Please enter your phone number."),
+				job_title: Yup.string().required("Please enter your job title."),
+				company_name: Yup.string().required("Please enter your company name."),
+				country: Yup.string().required("Please select your country."),
 			}),
 	}),
 	onboarding_info: Yup.object().shape({
@@ -158,9 +129,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					developers: "",
 				},
 				onboarding_info: {
-					is_business: false,
-					industry_type: "",
-					org_size: "",
 					newsletter_marketing: false,
 					newsletter_releases: false,
 				},
@@ -208,7 +176,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
 									<ExternalImage src="/icon/github.svg" className="invert" />
-									{Language.githubCreate}
+									GitHub
 								</a>
 							</Button>
 							<div className="flex items-center gap-4">
@@ -223,7 +191,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					{/* Email */}
 					<Field
-						label={Language.emailLabel}
+						label="Email"
 						id="email"
 						error={emailField.error}
 						helperText={emailField.helperText}
@@ -246,7 +214,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					{/* Password */}
 					<Field
-						label={Language.passwordLabel}
+						label="Password"
 						id="password"
 						error={!passwordValid || passwordField.error}
 						helperText={
@@ -306,7 +274,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						<div className="flex flex-col gap-4">
 							<div className="grid grid-cols-2 gap-3">
 								<Field
-									label={Language.firstNameLabel}
+									label="First name"
 									id="trial_info.first_name"
 									error={getFieldHelpers("trial_info.first_name").error}
 									helperText={
@@ -322,7 +290,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									/>
 								</Field>
 								<Field
-									label={Language.lastNameLabel}
+									label="Last name"
 									id="trial_info.last_name"
 									error={getFieldHelpers("trial_info.last_name").error}
 									helperText={
@@ -340,7 +308,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							</div>
 
 							<Field
-								label={Language.companyLabel}
+								label="Company"
 								id="trial_info.company_name"
 								error={getFieldHelpers("trial_info.company_name").error}
 								helperText={
@@ -357,7 +325,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							</Field>
 
 							<Field
-								label={Language.jobTitleLabel}
+								label="Job title"
 								id="trial_info.job_title"
 								error={getFieldHelpers("trial_info.job_title").error}
 								helperText={getFieldHelpers("trial_info.job_title").helperText}
@@ -373,7 +341,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 							<div className="grid grid-cols-2 gap-3">
 								<Field
-									label={Language.phoneNumberLabel}
+									label="Phone number"
 									id="trial_info.phone_number"
 									error={getFieldHelpers("trial_info.phone_number").error}
 									helperText={
@@ -389,7 +357,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									/>
 								</Field>
 								<Field
-									label={Language.countryLabel}
+									label="Country"
 									id="trial_info.country"
 									error={getFieldHelpers("trial_info.country").error}
 									helperText={getFieldHelpers("trial_info.country").helperText}
@@ -418,9 +386,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					{/* Sign up for updates */}
 					<div className="flex flex-col gap-3">
-						<span className="text-sm font-semibold">
-							{Language.newsletterSectionLabel}
-						</span>
+						<span className="text-sm font-semibold">Sign up for updates</span>
 
 						<label
 							htmlFor="onboarding_info.newsletter_releases"
@@ -428,7 +394,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						>
 							<Checkbox
 								id="onboarding_info.newsletter_releases"
-								checked={form.values.onboarding_info.newsletter_releases}
+								checked={
+									form.values.onboarding_info?.newsletter_releases ?? false
+								}
 								onCheckedChange={(checked) =>
 									form.setFieldValue(
 										"onboarding_info.newsletter_releases",
@@ -439,11 +407,10 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							/>
 							<span className="text-sm">
 								<span className="font-medium">
-									{Language.newsletterReleasesLabel}
+									Release notes & security updates
 								</span>
 								<span className="text-content-secondary">
-									{" "}
-									— {Language.newsletterReleasesDescription}
+									— Monthly changelog, security updates, and more
 								</span>
 							</span>
 						</label>
@@ -454,7 +421,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						>
 							<Checkbox
 								id="onboarding_info.newsletter_marketing"
-								checked={form.values.onboarding_info.newsletter_marketing}
+								checked={
+									form.values.onboarding_info?.newsletter_marketing ?? false
+								}
 								onCheckedChange={(checked) =>
 									form.setFieldValue(
 										"onboarding_info.newsletter_marketing",
@@ -464,12 +433,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								data-testid="onboarding_info.newsletter_marketing"
 							/>
 							<span className="text-sm">
-								<span className="font-medium">
-									{Language.newsletterMarketingLabel}
-								</span>
+								<span className="font-medium">Coder news</span>
 								<span className="text-content-secondary">
-									{" "}
-									— {Language.newsletterMarketingDescription}
+									— Latest articles, workshops, events, and announcements
 								</span>
 							</span>
 						</label>
@@ -519,7 +485,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							variant="outline"
 						>
 							<Spinner loading={isLoading} />
-							{Language.create}
+							Continue
 						</Button>
 					</div>
 				</form>
