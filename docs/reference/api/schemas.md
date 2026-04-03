@@ -2246,12 +2246,48 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateFirstUserOnboardingInfo
+
+```json
+{
+  "industry_type": "Technology",
+  "is_business": true,
+  "newsletter_marketing": true,
+  "newsletter_releases": true,
+  "org_size": "Just me"
+}
+```
+
+### Properties
+
+| Name                   | Type                                           | Required | Restrictions | Description |
+|------------------------|------------------------------------------------|----------|--------------|-------------|
+| `industry_type`        | [codersdk.IndustryType](#codersdkindustrytype) | false    |              |             |
+| `is_business`          | boolean                                        | false    |              |             |
+| `newsletter_marketing` | boolean                                        | false    |              |             |
+| `newsletter_releases`  | boolean                                        | false    |              |             |
+| `org_size`             | [codersdk.OrgSizeRange](#codersdkorgsizerange) | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value(s)                                                                                                                                                                                    |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `industry_type` | `Consulting`, `Education`, `Energy`, `Financial Services`, `Government`, `Healthcare`, `Manufacturing`, `Media`, `Non-Profit`, `Other`, `Retail`, `Technology`, `Telecom`, `Transportation` |
+| `org_size`      | `1001-5000`, `11-50`, `2-10`, `201-1000`, `5000+`, `51-200`, `Just me`                                                                                                                      |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "industry_type": "Technology",
+    "is_business": true,
+    "newsletter_marketing": true,
+    "newsletter_releases": true,
+    "org_size": "Just me"
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -2269,14 +2305,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                   | Required | Restrictions | Description |
-|--------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`      | string                                                                 | true     |              |             |
-| `name`       | string                                                                 | false    |              |             |
-| `password`   | string                                                                 | true     |              |             |
-| `trial`      | boolean                                                                | false    |              |             |
-| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
-| `username`   | string                                                                 | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `email`           | string                                                                           | true     |              |             |
+| `name`            | string                                                                           | false    |              |             |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
+| `password`        | string                                                                           | true     |              |             |
+| `trial`           | boolean                                                                          | false    |              |             |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
+| `username`        | string                                                                           | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -5128,6 +5165,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
 
+## codersdk.IndustryType
+
+```json
+"Technology"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Consulting`, `Education`, `Energy`, `Financial Services`, `Government`, `Healthcare`, `Manufacturing`, `Media`, `Non-Profit`, `Other`, `Retail`, `Technology`, `Telecom`, `Transportation` |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -6358,6 +6409,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Value(s)                                   |
 |--------------------------------------------|
 | `bool`, `list(string)`, `number`, `string` |
+
+## codersdk.OrgSizeRange
+
+```json
+"Just me"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                               |
+|------------------------------------------------------------------------|
+| `1001-5000`, `11-50`, `2-10`, `201-1000`, `5000+`, `51-200`, `Just me` |
 
 ## codersdk.Organization
 
