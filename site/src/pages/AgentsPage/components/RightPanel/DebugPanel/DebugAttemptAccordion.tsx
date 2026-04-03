@@ -14,9 +14,9 @@ import {
 	DebugDataSection,
 } from "./DebugPanelPrimitives";
 import {
-	annotateRedactedJson,
 	computeDurationMs,
 	getStatusBadgeVariant,
+	safeJsonStringify,
 	type NormalizedAttempt,
 } from "./debugPanelUtils";
 
@@ -42,7 +42,7 @@ const renderJsonBlock = (value: unknown, fallbackCopy: string) => {
 
 	return (
 		<DebugCodeBlock
-			code={JSON.stringify(annotateRedactedJson(value), null, 2)}
+			code={safeJsonStringify(value)}
 		/>
 	);
 };

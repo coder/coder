@@ -1,6 +1,7 @@
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { getErrorMessage } from "#/api/errors";
 import { chatDebugRun } from "#/api/queries/chats";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -30,12 +31,7 @@ interface DebugRunCardProps {
 	enabled?: boolean;
 }
 
-const getErrorMessage = (error: unknown): string => {
-	if (error instanceof Error && error.message) {
-		return error.message;
-	}
-	return "Unable to load debug run details.";
-};
+
 
 const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
 	const durationMs = computeDurationMs(startedAt, finishedAt);

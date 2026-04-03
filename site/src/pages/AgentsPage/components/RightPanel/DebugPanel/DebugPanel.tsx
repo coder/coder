@@ -1,5 +1,6 @@
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
+import { getErrorMessage } from "#/api/errors";
 import { chatDebugRuns } from "#/api/queries/chats";
 import { Alert } from "#/components/Alert/Alert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -10,13 +11,6 @@ interface DebugPanelProps {
 	chatId: string;
 	enabled?: boolean;
 }
-
-const getErrorMessage = (error: unknown): string => {
-	if (error instanceof Error && error.message) {
-		return error.message;
-	}
-	return "Unable to load debug panel data.";
-};
 
 export const DebugPanel: FC<DebugPanelProps> = ({ chatId, enabled = true }) => {
 	const runsQuery = useQuery({

@@ -93,7 +93,7 @@ const humanizeToken = (value: string): string => {
 		.replace(/\b\w/g, (match) => match.toUpperCase());
 };
 
-const safeJsonStringify = (value: unknown): string => {
+export const safeJsonStringify = (value: unknown): string => {
 	if (typeof value === "string") {
 		return value;
 	}
