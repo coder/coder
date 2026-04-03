@@ -4245,12 +4245,15 @@ func (p *Server) runChat(
 	// even after the chat processing context is canceled.
 	// Snapshot the original chat model so the goroutine doesn't
 	// race with the model = cuModel reassignment below.
+	// Snapshot ctx before the goroutine to avoid a data race with
+	// the ctx = runCtx reassignment later in the main goroutine.
 	titleModel := result.PushSummaryModel
+	titleCtx := context.WithoutCancel(ctx)
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
 		p.maybeGenerateChatTitle(
-			context.WithoutCancel(ctx),
+			titleCtx,
 			chat,
 			messages,
 			modelConfig.Provider,
