@@ -473,6 +473,35 @@ const ChatMessageItem = memo<{
 		const [previewText, setPreviewText] = useState<string | null>(null);
 		const [copyHovered, setCopyHovered] = useState(false);
 		const { showCopiedSuccess, copyToClipboard } = useClipboard();
+		const contentRef = useRef<HTMLDivElement>(null);
+		const [indicatorHeight, setIndicatorHeight] = useState(0);
+
+		// Calculate indicator line height by walking children bottom-up
+		// from the copy button, stopping at the first non-response
+		// element (tool call, reasoning disclosure, etc.). This scopes
+		// the line to only the response text that gets copied.
+		useEffect(() => {
+			if (!contentRef.current || (!copyHovered && !showCopiedSuccess)) {
+				return;
+			}
+			const wrapper = contentRef.current;
+			const children = Array.from(wrapper.children) as HTMLElement[];
+			// Find the last non-response, non-indicator child. Everything
+			// below it is response content that the copy button copies.
+			let stopBottom = 0;
+			for (let i = children.length - 1; i >= 0; i--) {
+				const child = children[i];
+				if (child.hasAttribute("data-copy-indicator")) continue;
+				if (child.dataset.blockType === "response") continue;
+				// Found a non-response element (tool, thinking, etc.).
+				stopBottom = child.offsetTop + child.offsetHeight;
+				break;
+			}
+			// Span from stop point to bottom of wrapper, minus a small
+			// offset so the line doesn't extend past the copy icon.
+			const height = wrapper.scrollHeight - stopBottom - 4;
+			setIndicatorHeight(Math.max(0, height));
+		}, [copyHovered, showCopiedSuccess]);
 		if (
 			parsed.toolResults.length > 0 &&
 			parsed.toolCalls.length === 0 &&
@@ -630,15 +659,19 @@ const ChatMessageItem = memo<{
 						>
 							<MessageContent className="whitespace-normal">
 								<div
-									className={cn(
-										"relative space-y-3 overflow-visible",
-										"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
-										(copyHovered || showCopiedSuccess) &&
-											isLastAssistantMessage &&
-											hasCopyableContent &&
-											"before:opacity-100",
-									)}
+									ref={contentRef}
+									className="relative space-y-3 overflow-visible"
 								>
+									{isLastAssistantMessage && hasCopyableContent && (
+										<div
+											data-copy-indicator
+											className={cn(
+												"pointer-events-none absolute -left-2 bottom-0 w-0.5 rounded-full bg-border opacity-0 transition-opacity",
+												(copyHovered || showCopiedSuccess) && "opacity-100",
+											)}
+											style={{ height: indicatorHeight }}
+										/>
+									)}
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -654,6 +687,7 @@ const ChatMessageItem = memo<{
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
 													className="flex !mt-0 -ml-2.5"
+													data-copy-indicator
 													data-testid="assistant-copy-button"
 												>
 													<Tooltip

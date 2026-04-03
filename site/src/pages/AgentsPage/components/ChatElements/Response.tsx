@@ -255,6 +255,7 @@ export const Response = ({
 	return (
 		<div
 			ref={ref}
+			data-block-type="response"
 			className={cn(
 				"text-[13px] leading-relaxed text-content-primary",
 				className,
