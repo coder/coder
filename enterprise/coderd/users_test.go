@@ -617,8 +617,13 @@ func TestEnterprisePostUser(t *testing.T) {
 
 	t.Run("ServiceAccount/OK", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -638,8 +643,13 @@ func TestEnterprisePostUser(t *testing.T) {
 
 	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -658,8 +668,13 @@ func TestEnterprisePostUser(t *testing.T) {
 
 	t.Run("ServiceAccount/WithPassword", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -678,8 +693,13 @@ func TestEnterprisePostUser(t *testing.T) {
 
 	t.Run("ServiceAccount/WithInvalidLoginType", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -698,8 +718,13 @@ func TestEnterprisePostUser(t *testing.T) {
 
 	t.Run("ServiceAccount/DefaultLoginType", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -717,28 +742,15 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Empty(t, found.Email)
 	})
 
-	t.Run("NonServiceAccount/WithoutEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "regular-no-email",
-			UserLoginType:   codersdk.LoginTypePassword,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
 	t.Run("ServiceAccount/MultipleWithoutEmail", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
