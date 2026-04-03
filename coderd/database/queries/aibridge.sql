@@ -31,9 +31,9 @@ WHERE aibridge_interceptions.id = (
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
-  id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+  id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @input_tokens, @output_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @input_tokens, @output_tokens, @cache_read_input_tokens, @cache_write_input_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 
@@ -299,21 +299,8 @@ token_aggregates AS (
     SELECT
         COALESCE(SUM(tu.input_tokens), 0) AS token_count_input,
         COALESCE(SUM(tu.output_tokens), 0) AS token_count_output,
-        -- Cached tokens are stored in metadata JSON, extract if available.
-        -- Read tokens may be stored in:
-        -- - cache_read_input (Anthropic)
-        -- - prompt_cached (OpenAI)
-        COALESCE(SUM(
-            COALESCE((tu.metadata->>'cache_read_input')::bigint, 0) +
-            COALESCE((tu.metadata->>'prompt_cached')::bigint, 0)
-        ), 0) AS token_count_cached_read,
-        -- Written tokens may be stored in:
-        -- - cache_creation_input (Anthropic)
-        -- Note that cache_ephemeral_5m_input and cache_ephemeral_1h_input on
-        -- Anthropic are included in the cache_creation_input field.
-        COALESCE(SUM(
-            COALESCE((tu.metadata->>'cache_creation_input')::bigint, 0)
-        ), 0) AS token_count_cached_written,
+        COALESCE(SUM(tu.cache_read_input_tokens), 0) AS token_count_cached_read,
+        COALESCE(SUM(tu.cache_write_input_tokens), 0) AS token_count_cached_written,
         COUNT(tu.id) AS token_usages_count
     FROM
         interceptions_in_range i
@@ -552,6 +539,8 @@ SELECT
 	sp.threads,
 	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
+	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
+	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt
 FROM
 	session_page sp
@@ -573,7 +562,9 @@ LEFT JOIN LATERAL (
 	-- Aggregate tokens only for this session's interceptions.
 	SELECT
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
-		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
 	FROM aibridge_token_usages tu
 	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true

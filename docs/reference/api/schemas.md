@@ -350,6 +350,8 @@
     }
   ],
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -504,6 +506,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "token_usages": [
     {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "input_tokens": 0,
@@ -595,6 +599,8 @@
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
+          "cache_read_input_tokens": 0,
+          "cache_write_input_tokens": 0,
           "created_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "input_tokens": 0,
@@ -679,6 +685,8 @@
       "started_at": "2019-08-24T14:15:22Z",
       "threads": 0,
       "token_usage_summary": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "output_tokens": 0
       }
@@ -787,6 +795,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": 0,
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "output_tokens": 0
   }
@@ -847,6 +857,8 @@
             }
           ],
           "token_usage": {
+            "cache_read_input_tokens": 0,
+            "cache_write_input_tokens": 0,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -879,6 +891,8 @@
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -889,6 +903,8 @@
     }
   ],
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -921,6 +937,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -932,17 +950,21 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `input_tokens`     | integer | false    |              |             |
-| `metadata`         | object  | false    |              |             |
-| » `[any property]` | any     | false    |              |             |
-| `output_tokens`    | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "output_tokens": 0
 }
@@ -950,10 +972,12 @@
 
 ### Properties
 
-| Name            | Type    | Required | Restrictions | Description |
-|-----------------|---------|----------|--------------|-------------|
-| `input_tokens`  | integer | false    |              |             |
-| `output_tokens` | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeThread
 
@@ -968,6 +992,8 @@
         }
       ],
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -1000,6 +1026,8 @@
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -1027,6 +1055,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "input_tokens": 0,
@@ -1042,16 +1072,18 @@
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `input_tokens`         | integer | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `output_tokens`        | integer | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `created_at`               | string  | false    |              |             |
+| `id`                       | string  | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `interception_id`          | string  | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `provider_response_id`     | string  | false    |              |             |
 
 ## codersdk.AIBridgeToolCall
 

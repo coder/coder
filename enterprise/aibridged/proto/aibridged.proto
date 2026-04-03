@@ -67,6 +67,8 @@ message RecordTokenUsageRequest {
   int64 output_tokens = 4;
   map<string, google.protobuf.Any> metadata = 5;
   google.protobuf.Timestamp created_at = 6;
+  int64 cache_read_input_tokens = 7;
+  int64 cache_write_input_tokens = 8;
 }
 message RecordTokenUsageResponse {}
 

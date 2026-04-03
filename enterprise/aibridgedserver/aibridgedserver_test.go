@@ -852,12 +852,14 @@ func TestRecordTokenUsage(t *testing.T) {
 			{
 				name: "valid token usage",
 				request: &proto.RecordTokenUsageRequest{
-					InterceptionId: uuid.NewString(),
-					MsgId:          "msg_123",
-					InputTokens:    100,
-					OutputTokens:   200,
-					Metadata:       metadataProto,
-					CreatedAt:      timestamppb.Now(),
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					Metadata:              metadataProto,
+					CreatedAt:             timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
 					interceptionID, err := uuid.Parse(req.GetInterceptionId())
@@ -869,17 +871,21 @@ func TestRecordTokenUsage(t *testing.T) {
 							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
 							!assert.Equal(t, req.GetInputTokens(), p.InputTokens, "input tokens") ||
 							!assert.Equal(t, req.GetOutputTokens(), p.OutputTokens, "output tokens") ||
+							!assert.Equal(t, req.GetCacheReadInputTokens(), p.CacheReadInputTokens, "cache read input tokens") ||
+							!assert.Equal(t, req.GetCacheWriteInputTokens(), p.CacheWriteInputTokens, "cache write input tokens") ||
 							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
 							!assert.WithinDuration(t, req.GetCreatedAt().AsTime(), p.CreatedAt, time.Second, "created at") {
 							return false
 						}
 						return true
 					})).Return(database.AIBridgeTokenUsage{
-						ID:                 uuid.New(),
-						InterceptionID:     interceptionID,
-						ProviderResponseID: req.GetMsgId(),
-						InputTokens:        req.GetInputTokens(),
-						OutputTokens:       req.GetOutputTokens(),
+						ID:                    uuid.New(),
+						InterceptionID:        interceptionID,
+						ProviderResponseID:    req.GetMsgId(),
+						InputTokens:           req.GetInputTokens(),
+						OutputTokens:          req.GetOutputTokens(),
+						CacheReadInputTokens:  req.GetCacheReadInputTokens(),
+						CacheWriteInputTokens: req.GetCacheWriteInputTokens(),
 						Metadata: pqtype.NullRawMessage{
 							RawMessage: json.RawMessage(metadataJSON),
 							Valid:      true,
@@ -1401,20 +1407,24 @@ func TestStructuredLogging(t *testing.T) {
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-					InterceptionId: intcID.String(),
-					MsgId:          "msg_123",
-					InputTokens:    100,
-					OutputTokens:   200,
-					Metadata:       metadataProto,
-					CreatedAt:      timestamppb.Now(),
+					InterceptionId:        intcID.String(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					Metadata:              metadataProto,
+					CreatedAt:             timestamppb.Now(),
 				})
 				return err
 			},
 			expectedFields: map[string]any{
-				"record_type":     "token_usage",
-				"interception_id": interceptionID.String(),
-				"input_tokens":    float64(100), // JSON numbers are float64.
-				"output_tokens":   float64(200),
+				"record_type":              "token_usage",
+				"interception_id":          interceptionID.String(),
+				"input_tokens":             float64(100), // JSON numbers are float64.
+				"output_tokens":            float64(200),
+				"cache_read_input_tokens":  float64(50),
+				"cache_write_input_tokens": float64(10),
 			},
 		},
 		{

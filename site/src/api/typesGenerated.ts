@@ -164,12 +164,13 @@ export interface AIBridgeSessionThreadsResponse {
 // From codersdk/aibridge.go
 /**
  * AIBridgeSessionThreadsTokenUsage represents aggregated token usage
- * with metadata containing provider-specific fields like
- * cache_creation_input, cache_read_input, etc.
+ * with metadata containing provider-specific fields.
  */
 export interface AIBridgeSessionThreadsTokenUsage {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 }
@@ -178,6 +179,8 @@ export interface AIBridgeSessionThreadsTokenUsage {
 export interface AIBridgeSessionTokenUsageSummary {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 }
 
 // From codersdk/aibridge.go
@@ -203,6 +206,8 @@ export interface AIBridgeTokenUsage {
 	readonly provider_response_id: string;
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
