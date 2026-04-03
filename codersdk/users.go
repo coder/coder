@@ -125,12 +125,13 @@ type LicensorTrialRequest struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email     string                   `json:"email" validate:"required,email"`
-	Username  string                   `json:"username" validate:"required,username"`
-	Name      string                   `json:"name" validate:"user_real_name"`
-	Password  string                   `json:"password" validate:"required"`
-	Trial     bool                     `json:"trial"`
-	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+	Email          string                         `json:"email" validate:"required,email"`
+	Username       string                         `json:"username" validate:"required,username"`
+	Name           string                         `json:"name" validate:"user_real_name"`
+	Password       string                         `json:"password" validate:"required"`
+	Trial          bool                           `json:"trial"`
+	TrialInfo      CreateFirstUserTrialInfo       `json:"trial_info"`
+	OnboardingInfo *CreateFirstUserOnboardingInfo `json:"onboarding_info,omitempty"`
 }
 
 type CreateFirstUserTrialInfo struct {
@@ -141,6 +142,55 @@ type CreateFirstUserTrialInfo struct {
 	CompanyName string `json:"company_name"`
 	Country     string `json:"country"`
 	Developers  string `json:"developers"`
+}
+
+// OrgSizeRange represents a bucketed headcount range for an organization.
+// These values are fixed by agreement with the frontend and the telemetry
+// schema — do not change them without coordinating both sides.
+type OrgSizeRange string
+
+const (
+	OrgSizeRangeJustMe  OrgSizeRange = "Just me"
+	OrgSizeRange2To10   OrgSizeRange = "2-10"
+	OrgSizeRange11To50  OrgSizeRange = "11-50"
+	OrgSizeRange51To200 OrgSizeRange = "51-200"
+	OrgSizeRange201To1K OrgSizeRange = "201-1000"
+	OrgSizeRange1KTo5K  OrgSizeRange = "1001-5000"
+	OrgSizeRange5KPlus  OrgSizeRange = "5000+"
+)
+
+// IndustryType represents the industry vertical an organization operates in.
+// These values are fixed by agreement with the frontend and the telemetry
+// schema — do not change them without coordinating both sides.
+type IndustryType string
+
+const (
+	IndustryTypeTechnology     IndustryType = "Technology"
+	IndustryTypeFinancial      IndustryType = "Financial Services"
+	IndustryTypeHealthcare     IndustryType = "Healthcare"
+	IndustryTypeGovernment     IndustryType = "Government"
+	IndustryTypeEducation      IndustryType = "Education"
+	IndustryTypeRetail         IndustryType = "Retail"
+	IndustryTypeManufacturing  IndustryType = "Manufacturing"
+	IndustryTypeMedia          IndustryType = "Media"
+	IndustryTypeTelecom        IndustryType = "Telecom"
+	IndustryTypeEnergy         IndustryType = "Energy"
+	IndustryTypeTransportation IndustryType = "Transportation"
+	IndustryTypeConsulting     IndustryType = "Consulting"
+	IndustryTypeNonProfit      IndustryType = "Non-Profit"
+	IndustryTypeOther          IndustryType = "Other"
+)
+
+// CreateFirstUserOnboardingInfo contains optional demographic and
+// newsletter preference data collected during first user setup.
+// Pointer fields allow an explicit "no" answer to be distinguished
+// from a skipped question, which matters for the telemetry schema.
+type CreateFirstUserOnboardingInfo struct {
+	IsBusiness          *bool        `json:"is_business"`
+	IndustryType        IndustryType `json:"industry_type" validate:"omitempty,oneof=Technology 'Financial Services' Healthcare Government Education Retail Manufacturing Media Telecom Energy Transportation Consulting Non-Profit Other"`
+	OrgSize             OrgSizeRange `json:"org_size" validate:"omitempty,oneof='Just me' 2-10 11-50 51-200 201-1000 1001-5000 5000+"`
+	NewsletterMarketing *bool        `json:"newsletter_marketing"`
+	NewsletterReleases  *bool        `json:"newsletter_releases"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
