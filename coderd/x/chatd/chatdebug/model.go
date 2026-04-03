@@ -480,7 +480,7 @@ func wrapObjectStreamSeq(
 					summary.ObjectPartCount++
 				case fantasy.ObjectStreamPartTypeTextDelta:
 					summary.TextDeltaCount++
-					rawTextLength += len(part.Delta)
+					rawTextLength += utf8.RuneCountInString(part.Delta)
 				case fantasy.ObjectStreamPartTypeFinish:
 					finishReason = part.FinishReason
 					latestUsage = part.Usage
@@ -972,7 +972,7 @@ func normalizeObjectResponse(resp *fantasy.ObjectResponse) normalizedObjectRespo
 	}
 
 	return normalizedObjectResponsePayload{
-		RawTextLength:    len(resp.RawText),
+		RawTextLength:    utf8.RuneCountInString(resp.RawText),
 		FinishReason:     string(resp.FinishReason),
 		Usage:            normalizeUsage(resp.Usage),
 		Warnings:         normalizeWarnings(resp.Warnings),
