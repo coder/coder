@@ -1008,7 +1008,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		server.inflight.Wait()
+		server.drainInflight()
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -1090,7 +1090,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		// Wait for it to settle, then set the terminal state we need.
 		// This case should return immediately, so use the shared
 		// real-clock server instead of a mock clock.
-		server.inflight.Wait()
+		server.drainInflight()
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(

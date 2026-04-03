@@ -1281,7 +1281,7 @@ func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.
 		WorkspaceName:    workspace.Name,
 		AgentName:        agentName,
 		Type:             typ,
-		Ip:               database.ParseIP(r.RemoteAddr),
+		IP:               database.ParseIP(r.RemoteAddr),
 		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
 		Code: sql.NullInt32{
 			Int32: int32(resp.StatusCode), // nolint:gosec

@@ -284,14 +284,9 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// Only populate onboarding data when the client actually sent it. A nil
 	// OnboardingInfo means the request came from an older client, the CLI, or
 	// the OIDC flow — not from a user who answered "no" to every question.
-	//
-	// Note: newsletter consent (NewsletterMarketing) is bundled here alongside
-	// product-analytics fields. These may have different legal bases under GDPR
-	// and should be separated in a follow-up once the legal posture is clarified.
 	var onboarding *telemetry.FirstUserOnboarding
 	if createUser.OnboardingInfo != nil {
 		onboarding = &telemetry.FirstUserOnboarding{
-			IsBusiness:          createUser.OnboardingInfo.IsBusiness,
 			NewsletterMarketing: createUser.OnboardingInfo.NewsletterMarketing,
 			NewsletterReleases:  createUser.OnboardingInfo.NewsletterReleases,
 		}

@@ -338,10 +338,9 @@ func (s *MethodTestSuite) TestAuditLogs() {
 }
 
 func (s *MethodTestSuite) TestConnectionLogs() {
-	s.Run("UpsertConnectionLog", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		ws := testutil.Fake(s.T(), faker, database.WorkspaceTable{})
-		arg := database.UpsertConnectionLogParams{Ip: defaultIPAddress(), Type: database.ConnectionTypeSsh, WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, ConnectionStatus: database.ConnectionStatusConnected, WorkspaceOwnerID: ws.OwnerID}
-		dbm.EXPECT().UpsertConnectionLog(gomock.Any(), arg).Return(database.ConnectionLog{}, nil).AnyTimes()
+	s.Run("BatchUpsertConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.BatchUpsertConnectionLogsParams{}
+		dbm.EXPECT().BatchUpsertConnectionLogs(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
 	}))
 	s.Run("GetConnectionLogsOffset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -3750,13 +3749,11 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 		check.Args(uuid.New()).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
-	s.Run("GetTailnetTunnelPeerBindings", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+	s.Run("GetTailnetTunnelPeerBindingsBatch", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args([]uuid.UUID{uuid.New()}).Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
-	s.Run("GetTailnetTunnelPeerIDs", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+	s.Run("GetTailnetTunnelPeerIDsBatch", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args([]uuid.UUID{uuid.New()}).Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
 	s.Run("GetAllTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
