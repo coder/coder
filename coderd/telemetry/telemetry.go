@@ -1552,12 +1552,11 @@ type User struct {
 	LoginType string `json:"login_type,omitempty"`
 }
 
-// FirstUserOnboarding contains optional demographic and newsletter
-// preference data collected during first user setup. This is sent
-// once when the first user is created. Pointer fields distinguish an
-// explicit answer from a skipped question.
+// FirstUserOnboarding contains optional newsletter preference data
+// collected during first user setup. This is sent once when the first
+// user is created. Pointer fields distinguish an explicit answer from
+// a skipped question.
 type FirstUserOnboarding struct {
-	IsBusiness          *bool `json:"is_business"`
 	NewsletterMarketing *bool `json:"newsletter_marketing"`
 	NewsletterReleases  *bool `json:"newsletter_releases"`
 }

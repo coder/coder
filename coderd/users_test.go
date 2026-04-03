@@ -128,7 +128,6 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 			TelemetryReporter: fTelemetry,
 		})
 
-		isBusiness := true
 		wantMarketing := false
 		wantReleases := true
 		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
@@ -136,7 +135,6 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 			Username: "admin",
 			Password: "SomeSecurePassword!",
 			OnboardingInfo: &codersdk.CreateFirstUserOnboardingInfo{
-				IsBusiness:          &isBusiness,
 				NewsletterMarketing: &wantMarketing,
 				NewsletterReleases:  &wantReleases,
 			},
@@ -145,8 +143,6 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 
 		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
 		require.NotNil(t, snapshot.FirstUserOnboarding)
-		require.NotNil(t, snapshot.FirstUserOnboarding.IsBusiness)
-		require.True(t, *snapshot.FirstUserOnboarding.IsBusiness)
 		require.NotNil(t, snapshot.FirstUserOnboarding.NewsletterMarketing)
 		require.False(t, *snapshot.FirstUserOnboarding.NewsletterMarketing)
 		require.NotNil(t, snapshot.FirstUserOnboarding.NewsletterReleases)
@@ -190,7 +186,7 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
 		require.NotNil(t, snapshot.FirstUserOnboarding,
 			"non-nil OnboardingInfo must produce non-nil telemetry")
-		require.Nil(t, snapshot.FirstUserOnboarding.IsBusiness,
+		require.Nil(t, snapshot.FirstUserOnboarding.NewsletterMarketing,
 			"nil *bool must stay nil, not become false")
 		require.Nil(t, snapshot.FirstUserOnboarding.NewsletterMarketing)
 		require.Nil(t, snapshot.FirstUserOnboarding.NewsletterReleases)
