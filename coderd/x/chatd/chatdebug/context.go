@@ -19,6 +19,11 @@ type (
 )
 
 // ContextWithRun stores rc in ctx.
+//
+// Step counter cleanup is deferred to GC via runtime.AddCleanup on the
+// RunContext struct. This avoids the race where context.AfterFunc fires
+// on one derived context while another derived context sharing the same
+// RunID is still active, which would silently reset step numbering to 1.
 func ContextWithRun(ctx context.Context, rc *RunContext) context.Context {
 	if rc == nil {
 		panic("chatdebug: nil RunContext")
@@ -26,17 +31,13 @@ func ContextWithRun(ctx context.Context, rc *RunContext) context.Context {
 
 	enriched := context.WithValue(ctx, runContextKey{}, rc)
 	if rc.RunID != uuid.Nil {
-		// Prefer prompt cleanup when the run context is canceled.
-		runID := rc.RunID
-		context.AfterFunc(enriched, func() {
-			CleanupStepCounter(runID)
-		})
-		// Non-cancelable contexts (for example context.Background in tests)
-		// still need a best-effort cleanup path once the run context becomes
-		// unreachable.
+		// Best-effort cleanup once the RunContext struct becomes
+		// unreachable. This is safe with multiple derived contexts
+		// because it fires only when *all* references to rc are
+		// gone, not when any single context is canceled.
 		runtime.AddCleanup(rc, func(id uuid.UUID) {
 			CleanupStepCounter(id)
-		}, runID)
+		}, rc.RunID)
 	}
 	return enriched
 }

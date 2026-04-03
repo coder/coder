@@ -120,12 +120,14 @@ type normalizedTool struct {
 }
 
 // normalizedContentPart captures one piece of the model response.
-// Text is stored in full (the UI needs it), tool-call arguments are
-// stored in bounded form while retaining their original length, and
-// file data is never stored.
+// Text payloads are bounded to MaxMessagePartTextLength runes;
+// TextLength stores the original rune count for truncation detection.
+// Tool-call arguments are similarly bounded, and file data is never
+// stored.
 type normalizedContentPart struct {
 	Type        string `json:"type"`
 	Text        string `json:"text,omitempty"`
+	TextLength  int    `json:"text_length,omitempty"`
 	ToolCallID  string `json:"tool_call_id,omitempty"`
 	ToolName    string `json:"tool_name,omitempty"`
 	Arguments   string `json:"arguments,omitempty"`
@@ -545,7 +547,11 @@ func boundText(s string) string {
 	return string(runes[:MaxMessagePartTextLength-1]) + "…"
 }
 
-func mustMarshalJSON(label string, value any) json.RawMessage {
+// safeMarshalJSON marshals value to JSON. On failure it returns a
+// diagnostic error object rather than panicking, which is appropriate
+// for debug telemetry where a marshal failure should not crash the
+// caller.
+func safeMarshalJSON(label string, value any) json.RawMessage {
 	data, err := json.Marshal(value)
 	if err != nil {
 		fallback, fallbackErr := json.Marshal(map[string]string{
@@ -695,14 +701,12 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 		if output == nil {
 			return ""
 		}
-		return boundText(string(mustMarshalJSON("tool result output", output)))
+		return boundText(string(safeMarshalJSON("tool result output", output)))
 	}
 }
 
-// normalizeMessageParts extracts type and bounded metadata from each
-// MessagePart. Text-like payloads are bounded to
-// MaxMessagePartTextLength runes so the debug panel can display
-// readable content.
+// isNilInterfaceValue reports whether v is nil or holds a nil pointer,
+// map, slice, channel, or func.
 func isNilInterfaceValue(v any) bool {
 	if v == nil {
 		return true
@@ -717,6 +721,10 @@ func isNilInterfaceValue(v any) bool {
 	}
 }
 
+// normalizeMessageParts extracts type and bounded metadata from each
+// MessagePart. Text-like payloads are bounded to
+// MaxMessagePartTextLength runes so the debug panel can display
+// readable content.
 func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart {
 	result := make([]normalizedMessagePart, 0, len(parts))
 	for _, p := range parts {
@@ -729,16 +737,16 @@ func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart 
 		switch v := p.(type) {
 		case fantasy.TextPart:
 			np.Text = boundText(v.Text)
-			np.TextLength = len(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.TextPart:
 			np.Text = boundText(v.Text)
-			np.TextLength = len(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.ReasoningPart:
 			np.Text = boundText(v.Text)
-			np.TextLength = len(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.ReasoningPart:
 			np.Text = boundText(v.Text)
-			np.TextLength = len(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.FilePart:
 			np.Filename = v.Filename
 			np.MediaType = v.MediaType
@@ -786,7 +794,7 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 			nt.Description = v.Description
 			nt.HasInputSchema = len(v.InputSchema) > 0
 			if nt.HasInputSchema {
-				nt.InputSchema = mustMarshalJSON(
+				nt.InputSchema = safeMarshalJSON(
 					fmt.Sprintf("tool %q input schema", v.Name),
 					v.InputSchema,
 				)
@@ -795,7 +803,7 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 			nt.Description = v.Description
 			nt.HasInputSchema = len(v.InputSchema) > 0
 			if nt.HasInputSchema {
-				nt.InputSchema = mustMarshalJSON(
+				nt.InputSchema = safeMarshalJSON(
 					fmt.Sprintf("tool %q input schema", v.Name),
 					v.InputSchema,
 				)
@@ -811,9 +819,9 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 }
 
 // normalizeContentParts converts the response content into a slice
-// of normalizedContentPart values. Text is stored in full (needed
-// by the UI); tool-call arguments are stored in bounded form while
-// preserving their original length; file data is never stored.
+// of normalizedContentPart values. Text payloads are bounded to
+// MaxMessagePartTextLength runes; tool-call arguments are similarly
+// bounded. File data is never stored.
 func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentPart {
 	result := make([]normalizedContentPart, 0, len(content))
 	for _, c := range content {
@@ -825,23 +833,27 @@ func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentP
 		}
 		switch v := c.(type) {
 		case fantasy.TextContent:
-			np.Text = v.Text
+			np.Text = boundText(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.TextContent:
-			np.Text = v.Text
+			np.Text = boundText(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.ReasoningContent:
-			np.Text = v.Text
+			np.Text = boundText(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.ReasoningContent:
-			np.Text = v.Text
+			np.Text = boundText(v.Text)
+			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.ToolCallContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
 			np.Arguments = boundText(v.Input)
-			np.InputLength = len(v.Input)
+			np.InputLength = utf8.RuneCountInString(v.Input)
 		case *fantasy.ToolCallContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
 			np.Arguments = boundText(v.Input)
-			np.InputLength = len(v.Input)
+			np.InputLength = utf8.RuneCountInString(v.Input)
 		case fantasy.FileContent:
 			np.MediaType = v.MediaType
 		case *fantasy.FileContent:
