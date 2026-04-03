@@ -784,7 +784,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		require.NoError(t, err)
 
 		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
-			Ip: parsedFakeClientIP,
+			IP: parsedFakeClientIP,
 		}))
 	})
 
@@ -812,7 +812,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		}
 
 		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
-			Ip: parsedFakeClientIP,
+			IP: parsedFakeClientIP,
 		}))
 	})
 }
@@ -1020,7 +1020,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		// validate it here.
 
 		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
-			Ip: pqtype.Inet{
+			IP: pqtype.Inet{
 				Valid: true, IPNet: net.IPNet{
 					IP:   net.ParseIP("127.0.0.1"),
 					Mask: net.CIDRMask(32, 32),

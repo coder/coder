@@ -76,7 +76,7 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 }
 
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
-	log, err := db.UpsertConnectionLog(genCtx, database.UpsertConnectionLogParams{
+	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
 		Time:             takeFirst(seed.Time, dbtime.Now()),
 		OrganizationID:   takeFirst(seed.OrganizationID, uuid.New()),
@@ -89,7 +89,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
 		},
-		Ip: pqtype.Inet{
+		IP: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   net.IPv4(127, 0, 0, 1),
 				Mask: net.IPv4Mask(255, 255, 255, 255),
@@ -117,9 +117,53 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
+	}
+
+	var disconnectTime sql.NullTime
+	if arg.ConnectionStatus == database.ConnectionStatusDisconnected {
+		disconnectTime = sql.NullTime{Time: arg.Time, Valid: true}
+	}
+
+	err := db.BatchUpsertConnectionLogs(genCtx, database.BatchUpsertConnectionLogsParams{
+		ID:               []uuid.UUID{arg.ID},
+		ConnectTime:      []time.Time{arg.Time},
+		OrganizationID:   []uuid.UUID{arg.OrganizationID},
+		WorkspaceOwnerID: []uuid.UUID{arg.WorkspaceOwnerID},
+		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
+		WorkspaceName:    []string{arg.WorkspaceName},
+		AgentName:        []string{arg.AgentName},
+		Type:             []database.ConnectionType{arg.Type},
+		Code:             []int32{arg.Code.Int32},
+		CodeValid:        []bool{arg.Code.Valid},
+		Ip:               []pqtype.Inet{arg.IP},
+		UserAgent:        []string{arg.UserAgent.String},
+		UserID:           []uuid.UUID{arg.UserID.UUID},
+		SlugOrPort:       []string{arg.SlugOrPort.String},
+		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
+		DisconnectReason: []string{arg.DisconnectReason.String},
+		DisconnectTime:   []time.Time{disconnectTime.Time},
 	})
 	require.NoError(t, err, "insert connection log")
-	return log
+
+	// Query back the actual row from the database. On upsert
+	// conflict the DB keeps the original row's ID, so we can't
+	// rely on arg.ID. Match on the conflict key for rows with a
+	// connection_id, or by primary key for NULL connection_id.
+	rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{})
+	require.NoError(t, err, "query connection logs")
+	for _, row := range rows {
+		if arg.ConnectionID.Valid {
+			if row.ConnectionLog.ConnectionID == arg.ConnectionID &&
+				row.ConnectionLog.WorkspaceID == arg.WorkspaceID &&
+				row.ConnectionLog.AgentName == arg.AgentName {
+				return row.ConnectionLog
+			}
+		} else if row.ConnectionLog.ID == arg.ID {
+			return row.ConnectionLog
+		}
+	}
+	require.Failf(t, "connection log not found", "id=%s", arg.ID)
+	return database.ConnectionLog{} // unreachable
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
@@ -1613,13 +1657,15 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 
 func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIBridgeTokenUsageParams) database.AIBridgeTokenUsage {
 	usage, err := db.InsertAIBridgeTokenUsage(genCtx, database.InsertAIBridgeTokenUsageParams{
-		ID:                 takeFirst(seed.ID, uuid.New()),
-		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
-		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
-		InputTokens:        takeFirst(seed.InputTokens, 100),
-		OutputTokens:       takeFirst(seed.OutputTokens, 100),
-		Metadata:           takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		CreatedAt:          takeFirst(seed.CreatedAt, dbtime.Now()),
+		ID:                    takeFirst(seed.ID, uuid.New()),
+		InterceptionID:        takeFirst(seed.InterceptionID, uuid.New()),
+		ProviderResponseID:    takeFirst(seed.ProviderResponseID, "provider_response_id"),
+		InputTokens:           takeFirst(seed.InputTokens, 100),
+		OutputTokens:          takeFirst(seed.OutputTokens, 100),
+		CacheReadInputTokens:  seed.CacheReadInputTokens,
+		CacheWriteInputTokens: seed.CacheWriteInputTokens,
+		Metadata:              takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		CreatedAt:             takeFirst(seed.CreatedAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

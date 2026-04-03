@@ -5234,6 +5234,8 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 			provider_response_id: "res_1234567890",
 			input_tokens: 5,
 			output_tokens: 1,
+			cache_read_input_tokens: 3,
+			cache_write_input_tokens: 1,
 			metadata: {},
 			created_at: "2022-05-17T17:39:01.382927298Z",
 		},
@@ -5310,6 +5312,8 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	token_usage_summary: {
 		input_tokens: 1234,
 		output_tokens: 4321,
+		cache_read_input_tokens: 980,
+		cache_write_input_tokens: 120,
 	},
 	last_prompt: "But *can* I really fix it?",
 };

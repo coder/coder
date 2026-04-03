@@ -1008,7 +1008,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		server.inflight.Wait()
+		server.drainInflight()
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -1090,7 +1090,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		// Wait for it to settle, then set the terminal state we need.
 		// This case should return immediately, so use the shared
 		// real-clock server instead of a mock clock.
-		server.inflight.Wait()
+		server.drainInflight()
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
@@ -1146,15 +1146,22 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, model)
 
-		// signalWake from CreateChat may have triggered background
-		// processing that transitions the child to "error". Wait
-		// for that to finish, then reset to "running" so the test
-		// exercises the context-cancellation path. Using "running"
-		// (not "pending") prevents re-acquisition by the shared
-		// server's background loop.
-		server.inflight.Wait()
+		// signalWake from CreateChat triggers background
+		// processing. drainInflight waits for in-flight goroutines
+		// but can't guarantee a pending DB row has been acquired
+		// yet — the child chat may still be pending if the second
+		// wake signal hasn't been consumed. Poll until the child
+		// reaches a terminal DB state so processChat has fully
+		// finished, then reset to running for the cancellation
+		// test.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			c, err := db.GetChatByID(ctx, child.ID)
+			if err != nil {
+				return false
+			}
+			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
+		}, testutil.IntervalFast)
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-
 		// Use a short-lived context instead of goroutine + sleep.
 		shortCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 		defer cancel()

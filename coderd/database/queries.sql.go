@@ -148,21 +148,8 @@ token_aggregates AS (
     SELECT
         COALESCE(SUM(tu.input_tokens), 0) AS token_count_input,
         COALESCE(SUM(tu.output_tokens), 0) AS token_count_output,
-        -- Cached tokens are stored in metadata JSON, extract if available.
-        -- Read tokens may be stored in:
-        -- - cache_read_input (Anthropic)
-        -- - prompt_cached (OpenAI)
-        COALESCE(SUM(
-            COALESCE((tu.metadata->>'cache_read_input')::bigint, 0) +
-            COALESCE((tu.metadata->>'prompt_cached')::bigint, 0)
-        ), 0) AS token_count_cached_read,
-        -- Written tokens may be stored in:
-        -- - cache_creation_input (Anthropic)
-        -- Note that cache_ephemeral_5m_input and cache_ephemeral_1h_input on
-        -- Anthropic are included in the cache_creation_input field.
-        COALESCE(SUM(
-            COALESCE((tu.metadata->>'cache_creation_input')::bigint, 0)
-        ), 0) AS token_count_cached_written,
+        COALESCE(SUM(tu.cache_read_input_tokens), 0) AS token_count_cached_read,
+        COALESCE(SUM(tu.cache_write_input_tokens), 0) AS token_count_cached_written,
         COUNT(tu.id) AS token_usages_count
     FROM
         interceptions_in_range i
@@ -559,7 +546,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
@@ -584,6 +571,8 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 			&i.OutputTokens,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.CacheReadInputTokens,
+			&i.CacheWriteInputTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -781,21 +770,23 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
-  id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+  id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
+  $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9
 )
-RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens
 `
 
 type InsertAIBridgeTokenUsageParams struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
-	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
-	InputTokens        int64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens       int64           `db:"output_tokens" json:"output_tokens"`
-	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
-	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	InterceptionID        uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID    string          `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens           int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64           `db:"output_tokens" json:"output_tokens"`
+	CacheReadInputTokens  int64           `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
@@ -805,6 +796,8 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.ProviderResponseID,
 		arg.InputTokens,
 		arg.OutputTokens,
+		arg.CacheReadInputTokens,
+		arg.CacheWriteInputTokens,
 		arg.Metadata,
 		arg.CreatedAt,
 	)
@@ -817,6 +810,8 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		&i.OutputTokens,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.CacheReadInputTokens,
+		&i.CacheWriteInputTokens,
 	)
 	return i, err
 }
@@ -1448,6 +1443,8 @@ SELECT
 	sp.threads,
 	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
+	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
+	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt
 FROM
 	session_page sp
@@ -1469,7 +1466,9 @@ LEFT JOIN LATERAL (
 	-- Aggregate tokens only for this session's interceptions.
 	SELECT
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
-		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
 	FROM aibridge_token_usages tu
 	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true
@@ -1501,21 +1500,23 @@ type ListAIBridgeSessionsParams struct {
 }
 
 type ListAIBridgeSessionsRow struct {
-	SessionID     string          `db:"session_id" json:"session_id"`
-	UserID        uuid.UUID       `db:"user_id" json:"user_id"`
-	UserUsername  string          `db:"user_username" json:"user_username"`
-	UserName      string          `db:"user_name" json:"user_name"`
-	UserAvatarUrl string          `db:"user_avatar_url" json:"user_avatar_url"`
-	Providers     []string        `db:"providers" json:"providers"`
-	Models        []string        `db:"models" json:"models"`
-	Client        string          `db:"client" json:"client"`
-	Metadata      json.RawMessage `db:"metadata" json:"metadata"`
-	StartedAt     time.Time       `db:"started_at" json:"started_at"`
-	EndedAt       time.Time       `db:"ended_at" json:"ended_at"`
-	Threads       int64           `db:"threads" json:"threads"`
-	InputTokens   int64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens  int64           `db:"output_tokens" json:"output_tokens"`
-	LastPrompt    string          `db:"last_prompt" json:"last_prompt"`
+	SessionID             string          `db:"session_id" json:"session_id"`
+	UserID                uuid.UUID       `db:"user_id" json:"user_id"`
+	UserUsername          string          `db:"user_username" json:"user_username"`
+	UserName              string          `db:"user_name" json:"user_name"`
+	UserAvatarUrl         string          `db:"user_avatar_url" json:"user_avatar_url"`
+	Providers             []string        `db:"providers" json:"providers"`
+	Models                []string        `db:"models" json:"models"`
+	Client                string          `db:"client" json:"client"`
+	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
+	StartedAt             time.Time       `db:"started_at" json:"started_at"`
+	EndedAt               time.Time       `db:"ended_at" json:"ended_at"`
+	Threads               int64           `db:"threads" json:"threads"`
+	InputTokens           int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64           `db:"output_tokens" json:"output_tokens"`
+	CacheReadInputTokens  int64           `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	LastPrompt            string          `db:"last_prompt" json:"last_prompt"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -1560,6 +1561,8 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.Threads,
 			&i.InputTokens,
 			&i.OutputTokens,
+			&i.CacheReadInputTokens,
+			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
 		); err != nil {
 			return nil, err
@@ -1577,7 +1580,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens
 FROM
 	aibridge_token_usages
 WHERE
@@ -1604,6 +1607,8 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 			&i.OutputTokens,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.CacheReadInputTokens,
+			&i.CacheWriteInputTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -7333,6 +7338,123 @@ func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg U
 	return i, err
 }
 
+const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
+INSERT INTO connection_logs (
+    id, connect_time, organization_id, workspace_owner_id, workspace_id,
+    workspace_name, agent_name, type, code, ip, user_agent, user_id,
+    slug_or_port, connection_id, disconnect_reason, disconnect_time
+)
+SELECT
+    u.id,
+    u.connect_time,
+    u.organization_id,
+    u.workspace_owner_id,
+    u.workspace_id,
+    u.workspace_name,
+    u.agent_name,
+    u.type,
+    -- Use the validity flag to distinguish "no code" (NULL) from a
+    -- legitimate zero exit code.
+    CASE WHEN u.code_valid THEN u.code ELSE NULL END,
+    u.ip,
+    NULLIF(u.user_agent, ''),
+    NULLIF(u.user_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(u.slug_or_port, ''),
+    NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(u.disconnect_reason, ''),
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+FROM (
+    SELECT
+        unnest($1::uuid[]) AS id,
+        unnest($2::timestamptz[]) AS connect_time,
+        unnest($3::uuid[]) AS organization_id,
+        unnest($4::uuid[]) AS workspace_owner_id,
+        unnest($5::uuid[]) AS workspace_id,
+        unnest($6::text[]) AS workspace_name,
+        unnest($7::text[]) AS agent_name,
+        unnest($8::connection_type[]) AS type,
+        unnest($9::int4[]) AS code,
+        unnest($10::bool[]) AS code_valid,
+        unnest($11::inet[]) AS ip,
+        unnest($12::text[]) AS user_agent,
+        unnest($13::uuid[]) AS user_id,
+        unnest($14::text[]) AS slug_or_port,
+        unnest($15::uuid[]) AS connection_id,
+        unnest($16::text[]) AS disconnect_reason,
+        unnest($17::timestamptz[]) AS disconnect_time
+) AS u
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+    -- Pick the earliest real connect_time. The zero sentinel
+    -- ('0001-01-01') means the batch didn't know the connect_time
+    -- (e.g. a pure disconnect event), so we keep the existing value.
+    connect_time = CASE
+        WHEN EXCLUDED.connect_time = '0001-01-01 00:00:00Z'::timestamptz
+        THEN connection_logs.connect_time
+        WHEN connection_logs.connect_time = '0001-01-01 00:00:00Z'::timestamptz
+        THEN EXCLUDED.connect_time
+        ELSE LEAST(connection_logs.connect_time, EXCLUDED.connect_time)
+    END,
+    disconnect_time = CASE
+        WHEN connection_logs.disconnect_time IS NULL
+        THEN EXCLUDED.disconnect_time
+        ELSE connection_logs.disconnect_time
+    END,
+    disconnect_reason = CASE
+        WHEN connection_logs.disconnect_reason IS NULL
+        THEN EXCLUDED.disconnect_reason
+        ELSE connection_logs.disconnect_reason
+    END,
+    code = CASE
+        WHEN connection_logs.code IS NULL
+        THEN EXCLUDED.code
+        ELSE connection_logs.code
+    END
+`
+
+type BatchUpsertConnectionLogsParams struct {
+	ID               []uuid.UUID      `db:"id" json:"id"`
+	ConnectTime      []time.Time      `db:"connect_time" json:"connect_time"`
+	OrganizationID   []uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID []uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      []uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    []string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        []string         `db:"agent_name" json:"agent_name"`
+	Type             []ConnectionType `db:"type" json:"type"`
+	Code             []int32          `db:"code" json:"code"`
+	CodeValid        []bool           `db:"code_valid" json:"code_valid"`
+	Ip               []pqtype.Inet    `db:"ip" json:"ip"`
+	UserAgent        []string         `db:"user_agent" json:"user_agent"`
+	UserID           []uuid.UUID      `db:"user_id" json:"user_id"`
+	SlugOrPort       []string         `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
+	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
+	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+}
+
+func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpsertConnectionLogs,
+		pq.Array(arg.ID),
+		pq.Array(arg.ConnectTime),
+		pq.Array(arg.OrganizationID),
+		pq.Array(arg.WorkspaceOwnerID),
+		pq.Array(arg.WorkspaceID),
+		pq.Array(arg.WorkspaceName),
+		pq.Array(arg.AgentName),
+		pq.Array(arg.Type),
+		pq.Array(arg.Code),
+		pq.Array(arg.CodeValid),
+		pq.Array(arg.Ip),
+		pq.Array(arg.UserAgent),
+		pq.Array(arg.UserID),
+		pq.Array(arg.SlugOrPort),
+		pq.Array(arg.ConnectionID),
+		pq.Array(arg.DisconnectReason),
+		pq.Array(arg.DisconnectTime),
+	)
+	return err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count
@@ -7746,120 +7868,6 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		return nil, err
 	}
 	return items, nil
-}
-
-const upsertConnectionLog = `-- name: UpsertConnectionLog :one
-INSERT INTO connection_logs (
-	id,
-	connect_time,
-	organization_id,
-	workspace_owner_id,
-	workspace_id,
-	workspace_name,
-	agent_name,
-	type,
-	code,
-	ip,
-	user_agent,
-	user_id,
-	slug_or_port,
-	connection_id,
-	disconnect_reason,
-	disconnect_time
-) VALUES
-	($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-	-- If we've only received a disconnect event, mark the event as immediately
-	-- closed.
-	 CASE
-		 WHEN $16::connection_status = 'disconnected'
-		 THEN $15 :: timestamp with time zone
-		 ELSE NULL
-	 END)
-ON CONFLICT (connection_id, workspace_id, agent_name)
-DO UPDATE SET
-	-- No-op if the connection is still open.
-	disconnect_time = CASE
-		WHEN $16::connection_status = 'disconnected'
-		-- Can only be set once
-		AND connection_logs.disconnect_time IS NULL
-		THEN EXCLUDED.connect_time
-		ELSE connection_logs.disconnect_time
-	END,
-	disconnect_reason = CASE
-		WHEN $16::connection_status = 'disconnected'
-		-- Can only be set once
-		AND connection_logs.disconnect_reason IS NULL
-		THEN EXCLUDED.disconnect_reason
-		ELSE connection_logs.disconnect_reason
-	END,
-	code = CASE
-		WHEN $16::connection_status = 'disconnected'
-		-- Can only be set once
-		AND connection_logs.code IS NULL
-		THEN EXCLUDED.code
-		ELSE connection_logs.code
-	END
-RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason
-`
-
-type UpsertConnectionLogParams struct {
-	ID               uuid.UUID        `db:"id" json:"id"`
-	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
-	AgentName        string           `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType   `db:"type" json:"type"`
-	Code             sql.NullInt32    `db:"code" json:"code"`
-	Ip               pqtype.Inet      `db:"ip" json:"ip"`
-	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
-	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
-	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
-	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
-	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
-	Time             time.Time        `db:"time" json:"time"`
-	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
-}
-
-func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error) {
-	row := q.db.QueryRowContext(ctx, upsertConnectionLog,
-		arg.ID,
-		arg.OrganizationID,
-		arg.WorkspaceOwnerID,
-		arg.WorkspaceID,
-		arg.WorkspaceName,
-		arg.AgentName,
-		arg.Type,
-		arg.Code,
-		arg.Ip,
-		arg.UserAgent,
-		arg.UserID,
-		arg.SlugOrPort,
-		arg.ConnectionID,
-		arg.DisconnectReason,
-		arg.Time,
-		arg.ConnectionStatus,
-	)
-	var i ConnectionLog
-	err := row.Scan(
-		&i.ID,
-		&i.ConnectTime,
-		&i.OrganizationID,
-		&i.WorkspaceOwnerID,
-		&i.WorkspaceID,
-		&i.WorkspaceName,
-		&i.AgentName,
-		&i.Type,
-		&i.Ip,
-		&i.Code,
-		&i.UserAgent,
-		&i.UserID,
-		&i.SlugOrPort,
-		&i.ConnectionID,
-		&i.DisconnectTime,
-		&i.DisconnectReason,
-	)
-	return i, err
 }
 
 const deleteCryptoKey = `-- name: DeleteCryptoKey :one
@@ -19304,43 +19312,44 @@ func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]Tailn
 	return items, nil
 }
 
-const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
-SELECT id AS peer_id, coordinator_id, updated_at, node, status
-FROM tailnet_peers
-WHERE id IN (
-  SELECT dst_id as peer_id
-  FROM tailnet_tunnels
-  WHERE tailnet_tunnels.src_id = $1
+const getTailnetTunnelPeerBindingsBatch = `-- name: GetTailnetTunnelPeerBindingsBatch :many
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tunnels.lookup_id
+FROM (
+  SELECT dst_id AS peer_id, src_id AS lookup_id
+  FROM tailnet_tunnels WHERE src_id = ANY($1 :: uuid[])
   UNION
-  SELECT src_id as peer_id
-  FROM tailnet_tunnels
-  WHERE tailnet_tunnels.dst_id = $1
-)
+  SELECT src_id AS peer_id, dst_id AS lookup_id
+  FROM tailnet_tunnels WHERE dst_id = ANY($1 :: uuid[])
+) tunnels
+INNER JOIN tailnet_peers tp ON tp.id = tunnels.peer_id
 `
 
-type GetTailnetTunnelPeerBindingsRow struct {
+type GetTailnetTunnelPeerBindingsBatchRow struct {
 	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
 	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
 	Node          []byte        `db:"node" json:"node"`
 	Status        TailnetStatus `db:"status" json:"status"`
+	LookupID      uuid.UUID     `db:"lookup_id" json:"lookup_id"`
 }
 
-func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindings, srcID)
+func (q *sqlQuerier) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindingsBatch, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetTailnetTunnelPeerBindingsRow
+	var items []GetTailnetTunnelPeerBindingsBatchRow
 	for rows.Next() {
-		var i GetTailnetTunnelPeerBindingsRow
+		var i GetTailnetTunnelPeerBindingsBatchRow
 		if err := rows.Scan(
 			&i.PeerID,
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
 			&i.Status,
+			&i.LookupID,
 		); err != nil {
 			return nil, err
 		}
@@ -19355,32 +19364,36 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 	return items, nil
 }
 
-const getTailnetTunnelPeerIDs = `-- name: GetTailnetTunnelPeerIDs :many
-SELECT dst_id as peer_id, coordinator_id, updated_at
-FROM tailnet_tunnels
-WHERE tailnet_tunnels.src_id = $1
-UNION
-SELECT src_id as peer_id, coordinator_id, updated_at
-FROM tailnet_tunnels
-WHERE tailnet_tunnels.dst_id = $1
+const getTailnetTunnelPeerIDsBatch = `-- name: GetTailnetTunnelPeerIDsBatch :many
+SELECT src_id AS lookup_id, dst_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE src_id = ANY($1 :: uuid[])
+UNION ALL
+SELECT dst_id AS lookup_id, src_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE dst_id = ANY($1 :: uuid[])
 `
 
-type GetTailnetTunnelPeerIDsRow struct {
+type GetTailnetTunnelPeerIDsBatchRow struct {
+	LookupID      uuid.UUID `db:"lookup_id" json:"lookup_id"`
 	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
 	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerIDs, srcID)
+func (q *sqlQuerier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerIDsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerIDsBatch, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetTailnetTunnelPeerIDsRow
+	var items []GetTailnetTunnelPeerIDsBatchRow
 	for rows.Next() {
-		var i GetTailnetTunnelPeerIDsRow
-		if err := rows.Scan(&i.PeerID, &i.CoordinatorID, &i.UpdatedAt); err != nil {
+		var i GetTailnetTunnelPeerIDsBatchRow
+		if err := rows.Scan(
+			&i.LookupID,
+			&i.PeerID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

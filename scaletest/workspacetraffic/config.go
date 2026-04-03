@@ -12,6 +12,12 @@ import (
 type Config struct {
 	// AgentID is the workspace agent ID to which to connect.
 	AgentID uuid.UUID `json:"agent_id"`
+	// WorkspaceID is the workspace ID, used for logging.
+	WorkspaceID uuid.UUID `json:"workspace_id"`
+	// WorkspaceName is the workspace name, used for logging.
+	WorkspaceName string `json:"workspace_name"`
+	// AgentName is the agent name, used for logging.
+	AgentName string `json:"agent_name"`
 
 	// BytesPerTick is the number of bytes to send to the agent per tick.
 	BytesPerTick int64 `json:"bytes_per_tick"`

@@ -13133,6 +13133,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionThreadsTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13148,6 +13154,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionTokenUsageSummary": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13194,6 +13206,12 @@ const docTemplate = `{
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -14565,6 +14583,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateFirstUserOnboardingInfo": {
+            "type": "object",
+            "properties": {
+                "newsletter_marketing": {
+                    "type": "boolean"
+                },
+                "newsletter_releases": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -14578,6 +14607,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "onboarding_info": {
+                    "$ref": "#/definitions/codersdk.CreateFirstUserOnboardingInfo"
                 },
                 "password": {
                     "type": "string"

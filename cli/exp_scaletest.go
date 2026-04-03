@@ -1401,6 +1401,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
 					AgentID:       agent.ID,
+					WorkspaceID:   ws.ID,
+					WorkspaceName: ws.Name,
+					AgentName:     agent.Name,
 					BytesPerTick:  bytesPerTick,
 					Duration:      strategy.timeout,
 					TickInterval:  tickInterval,

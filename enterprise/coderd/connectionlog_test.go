@@ -227,7 +227,7 @@ func TestConnectionLogs(t *testing.T) {
 				Int32: 0,
 				Valid: false,
 			},
-			Ip: pqtype.Inet{IPNet: net.IPNet{
+			IP: pqtype.Inet{IPNet: net.IPNet{
 				IP:   net.ParseIP("192.168.0.1"),
 				Mask: net.CIDRMask(8, 32),
 			}, Valid: true},

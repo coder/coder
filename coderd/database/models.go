@@ -4055,11 +4055,13 @@ type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
 	// The ID for the response in which the tokens were used, produced by the provider.
-	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
-	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
-	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
-	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+	ProviderResponseID    string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens           int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata              pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt             time.Time             `db:"created_at" json:"created_at"`
+	CacheReadInputTokens  int64                 `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64                 `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge

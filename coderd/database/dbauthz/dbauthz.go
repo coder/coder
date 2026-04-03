@@ -1627,6 +1627,13 @@ func (q *querier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg datab
 	return q.db.BatchUpdateWorkspaceNextStartAt(ctx, arg)
 }
 
+func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
+		return err
+	}
+	return q.db.BatchUpsertConnectionLogs(ctx, arg)
+}
+
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return 0, err
@@ -3646,18 +3653,18 @@ func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database
 	return q.db.GetTailnetPeers(ctx, id)
 }
 
-func (q *querier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+func (q *querier) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsBatchRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
 	}
-	return q.db.GetTailnetTunnelPeerBindings(ctx, srcID)
+	return q.db.GetTailnetTunnelPeerBindingsBatch(ctx, ids)
 }
 
-func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+func (q *querier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerIDsBatchRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
 	}
-	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
+	return q.db.GetTailnetTunnelPeerIDsBatch(ctx, ids)
 }
 
 func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
@@ -7063,13 +7070,6 @@ func (q *querier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl strin
 		return err
 	}
 	return q.db.UpsertChatWorkspaceTTL(ctx, workspaceTtl)
-}
-
-func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
-		return database.ConnectionLog{}, err
-	}
-	return q.db.UpsertConnectionLog(ctx, arg)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

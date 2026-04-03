@@ -15,6 +15,8 @@ const mockThread: AIBridgeThread = {
 	token_usage: {
 		input_tokens: 1240,
 		output_tokens: 320,
+		cache_read_input_tokens: 900,
+		cache_write_input_tokens: 140,
 		metadata: { cache_read_input_tokens: 900 },
 	},
 	agentic_actions: [
@@ -23,6 +25,8 @@ const mockThread: AIBridgeThread = {
 			token_usage: {
 				input_tokens: 620,
 				output_tokens: 160,
+				cache_read_input_tokens: 450,
+				cache_write_input_tokens: 70,
 				metadata: {},
 			},
 			thinking: [
@@ -59,6 +63,8 @@ const mockThreadLong: AIBridgeThread = {
 	token_usage: {
 		input_tokens: 8500,
 		output_tokens: 3200,
+		cache_read_input_tokens: 6000,
+		cache_write_input_tokens: 2000,
 		metadata: {
 			cache_read_input_tokens: 6000,
 			cache_creation_input_tokens: 2000,
@@ -67,7 +73,13 @@ const mockThreadLong: AIBridgeThread = {
 	agentic_actions: [
 		{
 			model: "claude-opus-4-6",
-			token_usage: { input_tokens: 2800, output_tokens: 1100, metadata: {} },
+			token_usage: {
+				input_tokens: 2800,
+				output_tokens: 1100,
+				cache_read_input_tokens: 1800,
+				cache_write_input_tokens: 500,
+				metadata: {},
+			},
 			thinking: [],
 			tool_calls: [
 				{

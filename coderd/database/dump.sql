@@ -1134,7 +1134,9 @@ CREATE TABLE aibridge_token_usages (
     input_tokens bigint NOT NULL,
     output_tokens bigint NOT NULL,
     metadata jsonb,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    cache_read_input_tokens bigint DEFAULT 0 NOT NULL,
+    cache_write_input_tokens bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
