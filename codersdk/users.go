@@ -187,8 +187,8 @@ const (
 // from a skipped question, which matters for the telemetry schema.
 type CreateFirstUserOnboardingInfo struct {
 	IsBusiness          *bool        `json:"is_business"`
-	IndustryType        IndustryType `json:"industry_type"`
-	OrgSize             OrgSizeRange `json:"org_size"`
+	IndustryType        IndustryType `json:"industry_type" validate:"omitempty,oneof=Technology 'Financial Services' Healthcare Government Education Retail Manufacturing Media Telecom Energy Transportation Consulting Non-Profit Other"`
+	OrgSize             OrgSizeRange `json:"org_size" validate:"omitempty,oneof='Just me' 2-10 11-50 51-200 201-1000 1001-5000 5000+"`
 	NewsletterMarketing *bool        `json:"newsletter_marketing"`
 	NewsletterReleases  *bool        `json:"newsletter_releases"`
 }

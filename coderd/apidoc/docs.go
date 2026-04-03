@@ -14550,7 +14550,27 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "industry_type": {
-                    "$ref": "#/definitions/codersdk.IndustryType"
+                    "enum": [
+                        "Technology",
+                        "Financial Services",
+                        "Healthcare",
+                        "Government",
+                        "Education",
+                        "Retail",
+                        "Manufacturing",
+                        "Media",
+                        "Telecom",
+                        "Energy",
+                        "Transportation",
+                        "Consulting",
+                        "Non-Profit",
+                        "Other"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.IndustryType"
+                        }
+                    ]
                 },
                 "is_business": {
                     "type": "boolean"
@@ -14562,7 +14582,20 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "org_size": {
-                    "$ref": "#/definitions/codersdk.OrgSizeRange"
+                    "enum": [
+                        "Just me",
+                        "2-10",
+                        "11-50",
+                        "51-200",
+                        "201-1000",
+                        "1001-5000",
+                        "5000+"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OrgSizeRange"
+                        }
+                    ]
                 }
             }
         },

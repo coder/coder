@@ -2266,6 +2266,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `newsletter_releases`  | boolean                                        | false    |              |             |
 | `org_size`             | [codersdk.OrgSizeRange](#codersdkorgsizerange) | false    |              |             |
 
+#### Enumerated Values
+
+| Property        | Value(s)                                                                                                                                                                                    |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `industry_type` | `Consulting`, `Education`, `Energy`, `Financial Services`, `Government`, `Healthcare`, `Manufacturing`, `Media`, `Non-Profit`, `Other`, `Retail`, `Technology`, `Telecom`, `Transportation` |
+| `org_size`      | `1001-5000`, `11-50`, `2-10`, `201-1000`, `5000+`, `51-200`, `Just me`                                                                                                                      |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
