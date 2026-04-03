@@ -10320,11 +10320,25 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace agent reinitialization",
                 "operationId": "get-workspace-agent-reinitialization",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Opt in to durable reinit checks",
+                        "name": "wait",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/agentsdk.ReinitializationEvent"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -12762,11 +12776,16 @@ const docTemplate = `{
         "agentsdk.ReinitializationEvent": {
             "type": "object",
             "properties": {
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "reason": {
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 },
-                "workspaceID": {
-                    "type": "string"
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -13009,6 +13028,9 @@ const docTemplate = `{
                 "provider": {
                     "type": "string"
                 },
+                "provider_name": {
+                    "type": "string"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
@@ -13226,6 +13248,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionThreadsTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13241,6 +13269,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionTokenUsageSummary": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13287,6 +13321,12 @@ const docTemplate = `{
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -14681,6 +14721,59 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateFirstUserOnboardingInfo": {
+            "type": "object",
+            "properties": {
+                "industry_type": {
+                    "enum": [
+                        "Technology",
+                        "Financial Services",
+                        "Healthcare",
+                        "Government",
+                        "Education",
+                        "Retail",
+                        "Manufacturing",
+                        "Media",
+                        "Telecom",
+                        "Energy",
+                        "Transportation",
+                        "Consulting",
+                        "Non-Profit",
+                        "Other"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.IndustryType"
+                        }
+                    ]
+                },
+                "is_business": {
+                    "type": "boolean"
+                },
+                "newsletter_marketing": {
+                    "type": "boolean"
+                },
+                "newsletter_releases": {
+                    "type": "boolean"
+                },
+                "org_size": {
+                    "enum": [
+                        "Just me",
+                        "2-10",
+                        "11-50",
+                        "51-200",
+                        "201-1000",
+                        "1001-5000",
+                        "5000+"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OrgSizeRange"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -14694,6 +14787,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "onboarding_info": {
+                    "$ref": "#/definitions/codersdk.CreateFirstUserOnboardingInfo"
                 },
                 "password": {
                     "type": "string"
@@ -16546,6 +16642,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.IndustryType": {
+            "type": "string",
+            "enum": [
+                "Technology",
+                "Financial Services",
+                "Healthcare",
+                "Government",
+                "Education",
+                "Retail",
+                "Manufacturing",
+                "Media",
+                "Telecom",
+                "Energy",
+                "Transportation",
+                "Consulting",
+                "Non-Profit",
+                "Other"
+            ],
+            "x-enum-varnames": [
+                "IndustryTypeTechnology",
+                "IndustryTypeFinancial",
+                "IndustryTypeHealthcare",
+                "IndustryTypeGovernment",
+                "IndustryTypeEducation",
+                "IndustryTypeRetail",
+                "IndustryTypeManufacturing",
+                "IndustryTypeMedia",
+                "IndustryTypeTelecom",
+                "IndustryTypeEnergy",
+                "IndustryTypeTransportation",
+                "IndustryTypeConsulting",
+                "IndustryTypeNonProfit",
+                "IndustryTypeOther"
+            ]
+        },
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
@@ -17741,6 +17872,27 @@ const docTemplate = `{
                 "OptionTypeNumber",
                 "OptionTypeBoolean",
                 "OptionTypeListString"
+            ]
+        },
+        "codersdk.OrgSizeRange": {
+            "type": "string",
+            "enum": [
+                "Just me",
+                "2-10",
+                "11-50",
+                "51-200",
+                "201-1000",
+                "1001-5000",
+                "5000+"
+            ],
+            "x-enum-varnames": [
+                "OrgSizeRangeJustMe",
+                "OrgSizeRange2To10",
+                "OrgSizeRange11To50",
+                "OrgSizeRange51To200",
+                "OrgSizeRange201To1K",
+                "OrgSizeRange1KTo5K",
+                "OrgSizeRange5KPlus"
             ]
         },
         "codersdk.Organization": {

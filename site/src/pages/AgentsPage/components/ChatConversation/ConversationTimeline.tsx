@@ -1,4 +1,4 @@
-import { FileTextIcon, PencilIcon } from "lucide-react";
+import { CopyIcon, FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -10,6 +10,8 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -17,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import {
 	decodeInlineTextAttachment,
@@ -437,6 +440,7 @@ const ChatMessageItem = memo<{
 	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	isLastAssistantMessage?: boolean;
+	isLastInConversation?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -455,6 +459,7 @@ const ChatMessageItem = memo<{
 		savingMessageId,
 		isAfterEditingMessage = false,
 		isLastAssistantMessage = false,
+		isLastInConversation = false,
 		fadeFromBottom = false,
 		urlTransform,
 		mcpServers,
@@ -466,6 +471,8 @@ const ChatMessageItem = memo<{
 		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] = useState<string | null>(null);
+		const [copyHovered, setCopyHovered] = useState(false);
+		const { showCopiedSuccess, copyToClipboard } = useClipboard();
 		if (
 			parsed.toolResults.length > 0 &&
 			parsed.toolCalls.length === 0 &&
@@ -612,9 +619,26 @@ const ChatMessageItem = memo<{
 							</MessageContent>
 						</Message>
 					) : (
-						<Message className="w-full">
+						<Message
+							className={cn(
+								"w-full",
+								isLastAssistantMessage &&
+									hasCopyableContent &&
+									!isLastInConversation &&
+									"pb-5",
+							)}
+						>
 							<MessageContent className="whitespace-normal">
-								<div className="space-y-3">
+								<div
+									className={cn(
+										"relative space-y-3 overflow-visible",
+										"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
+										(copyHovered || showCopiedSuccess) &&
+											isLastAssistantMessage &&
+											hasCopyableContent &&
+											"before:opacity-100",
+									)}
+								>
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -629,13 +653,36 @@ const ChatMessageItem = memo<{
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
-													className="flex"
+													className="flex !mt-0 -ml-2.5"
 													data-testid="assistant-copy-button"
 												>
-													<CopyButton
-														text={parsed.markdown}
-														label="Copy message"
-													/>
+													<Tooltip
+														open={copyHovered || showCopiedSuccess || undefined}
+													>
+														<TooltipTrigger asChild>
+															<Button
+																size="icon"
+																variant="subtle"
+																className=""
+																onClick={() => {
+																	copyToClipboard(parsed.markdown);
+																	setCopyHovered(false);
+																}}
+																onMouseEnter={() => setCopyHovered(true)}
+																onMouseLeave={() => setCopyHovered(false)}
+															>
+																{showCopiedSuccess ? (
+																	<CheckIcon />
+																) : (
+																	<CopyIcon />
+																)}
+																<span className="sr-only">Copy message</span>
+															</Button>
+														</TooltipTrigger>
+														<TooltipContent side="bottom" align="start">
+															{showCopiedSuccess ? "Copied!" : "Copy message"}
+														</TooltipContent>
+													</Tooltip>
 												</div>
 											) : undefined
 										}
@@ -1009,6 +1056,11 @@ interface ConversationTimelineProps {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
+	// When true the current turn is still in progress (the agent
+	// is streaming or a tool call is running). The copy button on
+	// the trailing assistant message is suppressed because the
+	// content is not yet final.
+	isTurnActive: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1022,6 +1074,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		mcpServers,
 		computerUseSubagentIds,
 		showDesktopPreviews,
+		isTurnActive,
 	}) => {
 		if (parsedMessages.length === 0) {
 			return null;
@@ -1055,8 +1108,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							lastAsstId = null;
 						}
 					}
-					if (lastAsstId != null) lastAssistantPerTurnIds.add(lastAsstId);
-					return parsedMessages.map(({ message, parsed }) =>
+					if (lastAsstId != null && !isTurnActive) {
+						lastAssistantPerTurnIds.add(lastAsstId);
+					}
+					return parsedMessages.map(({ message, parsed }, msgIdx) =>
 						message.role === "user" ? (
 							<StickyUserMessage
 								key={message.id}
@@ -1076,6 +1131,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								isLastAssistantMessage={lastAssistantPerTurnIds.has(message.id)}
+								isLastInConversation={msgIdx === parsedMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								computerUseSubagentIds={computerUseSubagentIds}

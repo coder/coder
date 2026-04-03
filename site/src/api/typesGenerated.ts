@@ -70,6 +70,7 @@ export interface AIBridgeInterception {
 	readonly api_key_id: string | null;
 	readonly initiator: MinimalUser;
 	readonly provider: string;
+	readonly provider_name: string;
 	readonly model: string;
 	readonly client: string | null;
 	// empty interface{} type, falling back to unknown
@@ -163,12 +164,13 @@ export interface AIBridgeSessionThreadsResponse {
 // From codersdk/aibridge.go
 /**
  * AIBridgeSessionThreadsTokenUsage represents aggregated token usage
- * with metadata containing provider-specific fields like
- * cache_creation_input, cache_read_input, etc.
+ * with metadata containing provider-specific fields.
  */
 export interface AIBridgeSessionThreadsTokenUsage {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 }
@@ -177,6 +179,8 @@ export interface AIBridgeSessionThreadsTokenUsage {
 export interface AIBridgeSessionTokenUsageSummary {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 }
 
 // From codersdk/aibridge.go
@@ -202,6 +206,8 @@ export interface AIBridgeTokenUsage {
 	readonly provider_response_id: string;
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
@@ -1785,10 +1791,11 @@ export interface ChatModelProviderOptions {
 // From codersdk/chats.go
 export type ChatModelProviderUnavailableReason =
 	| "fetch_failed"
-	| "missing_api_key";
+	| "missing_api_key"
+	| "user_api_key_required";
 
 export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableReason[] =
-	["fetch_failed", "missing_api_key"];
+	["fetch_failed", "missing_api_key", "user_api_key_required"];
 
 // From codersdk/chats.go
 /**
@@ -1845,6 +1852,9 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
+	readonly central_api_key_enabled: boolean;
+	readonly allow_user_api_key: boolean;
+	readonly allow_central_api_key_fallback: boolean;
 	readonly base_url?: string;
 	readonly source: ChatProviderConfigSource;
 	readonly created_at?: string;
@@ -2371,6 +2381,9 @@ export interface CreateChatProviderConfigRequest {
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
+	readonly central_api_key_enabled?: boolean;
+	readonly allow_user_api_key?: boolean;
+	readonly allow_central_api_key_fallback?: boolean;
 }
 
 // From codersdk/chats.go
@@ -2386,6 +2399,21 @@ export interface CreateChatRequest {
 }
 
 // From codersdk/users.go
+/**
+ * CreateFirstUserOnboardingInfo contains optional demographic and
+ * newsletter preference data collected during first user setup.
+ * Pointer fields allow an explicit "no" answer to be distinguished
+ * from a skipped question, which matters for the telemetry schema.
+ */
+export interface CreateFirstUserOnboardingInfo {
+	readonly is_business: boolean | null;
+	readonly industry_type: IndustryType;
+	readonly org_size: OrgSizeRange;
+	readonly newsletter_marketing: boolean | null;
+	readonly newsletter_releases: boolean | null;
+}
+
+// From codersdk/users.go
 export interface CreateFirstUserRequest {
 	readonly email: string;
 	readonly username: string;
@@ -2393,6 +2421,7 @@ export interface CreateFirstUserRequest {
 	readonly password: string;
 	readonly trial: boolean;
 	readonly trial_info: CreateFirstUserTrialInfo;
+	readonly onboarding_info?: CreateFirstUserOnboardingInfo;
 }
 
 // From codersdk/users.go
@@ -2650,6 +2679,15 @@ export interface CreateTokenRequest {
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly allow_list?: readonly APIAllowListTarget[];
+}
+
+// From codersdk/chats.go
+/**
+ * CreateUserChatProviderKeyRequest creates or replaces a user's API key
+ * for a provider.
+ */
+export interface CreateUserChatProviderKeyRequest {
+	readonly api_key: string;
 }
 
 // From codersdk/users.go
@@ -3840,6 +3878,40 @@ export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
 // From codersdk/inboxnotification.go
 export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
+// From codersdk/users.go
+export type IndustryType =
+	| "Consulting"
+	| "Education"
+	| "Energy"
+	| "Financial Services"
+	| "Government"
+	| "Healthcare"
+	| "Manufacturing"
+	| "Media"
+	| "Non-Profit"
+	| "Other"
+	| "Retail"
+	| "Technology"
+	| "Telecom"
+	| "Transportation";
+
+export const IndustryTypes: IndustryType[] = [
+	"Consulting",
+	"Education",
+	"Energy",
+	"Financial Services",
+	"Government",
+	"Healthcare",
+	"Manufacturing",
+	"Media",
+	"Non-Profit",
+	"Other",
+	"Retail",
+	"Technology",
+	"Telecom",
+	"Transportation",
+];
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -4785,6 +4857,26 @@ export const OptionTypes: OptionType[] = [
 	"list(string)",
 	"number",
 	"string",
+];
+
+// From codersdk/users.go
+export type OrgSizeRange =
+	| "11-50"
+	| "1001-5000"
+	| "201-1000"
+	| "2-10"
+	| "51-200"
+	| "5000+"
+	| "Just me";
+
+export const OrgSizeRanges: OrgSizeRange[] = [
+	"11-50",
+	"1001-5000",
+	"201-1000",
+	"2-10",
+	"51-200",
+	"5000+",
+	"Just me",
 ];
 
 // From codersdk/organizations.go
@@ -7172,6 +7264,9 @@ export interface UpdateChatProviderConfigRequest {
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
+	readonly central_api_key_enabled?: boolean;
+	readonly allow_user_api_key?: boolean;
+	readonly allow_central_api_key_fallback?: boolean;
 }
 
 // From codersdk/chats.go
@@ -7714,6 +7809,19 @@ export interface UserChatCompactionThresholds {
  */
 export interface UserChatCustomPrompt {
 	readonly custom_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatProviderConfig is a summary of a provider that allows
+ * user-supplied keys, as seen from the current user's perspective.
+ */
+export interface UserChatProviderConfig {
+	readonly provider_id: string;
+	readonly provider: string;
+	readonly display_name: string;
+	readonly has_user_api_key: boolean;
+	readonly has_central_api_key_fallback: boolean;
 }
 
 // From codersdk/insights.go

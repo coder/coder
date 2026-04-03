@@ -64,6 +64,7 @@ const defaultArgs: Omit<
 	"parsedMessages"
 > = {
 	subagentTitles: new Map(),
+	isTurnActive: false,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -763,6 +764,38 @@ export const CopyButtonWritesToClipboard: Story = {
 				configurable: true,
 			});
 		}
+	},
+};
+
+/**
+ * When the turn is still active (isTurnActive=true), the trailing
+ * assistant message should NOT show a copy button because the
+ * content is not yet final.
+ */
+export const NoCopyButtonDuringActiveTurn: Story = {
+	args: {
+		...defaultArgs,
+		isTurnActive: true,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Fix the bug" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "Let me look at the code." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByTestId("assistant-copy-button"),
+		).not.toBeInTheDocument();
 	},
 };
 

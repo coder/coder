@@ -93,3 +93,25 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, []string{a, b}, cfg.InstructionsDirs)
 	})
 }
+
+func TestNewAPI_LazyDirectory(t *testing.T) {
+	t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
+	t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
+	t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
+	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
+	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
+
+	dir := ""
+	api := agentcontextconfig.NewAPI(func() string { return dir })
+
+	// Before directory is set, relative paths resolve to nothing.
+	cfg := api.Config()
+	require.Empty(t, cfg.SkillsDirs)
+	require.Empty(t, cfg.MCPConfigFiles)
+
+	// After setting the directory, Config() picks it up lazily.
+	dir = platformAbsPath("work")
+	cfg = api.Config()
+	require.NotEmpty(t, cfg.SkillsDirs)
+	require.Equal(t, []string{filepath.Join(dir, ".agents", "skills")}, cfg.SkillsDirs)
+}

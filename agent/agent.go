@@ -398,11 +398,17 @@ func (a *agent) init() {
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
-		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
+		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
 	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager)
+	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	})
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1265,12 +1271,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			return xerrors.Errorf("update workspace agent startup: %w", err)
 		}
 
-		// Initialize the context config API with the expanded
-		// working directory so that it is ready before the HTTP
-		// handler is created (which happens after manifestOK).
-		a.contextConfigAPI = agentcontextconfig.NewAPI(
-			manifest.Directory,
-		)
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true

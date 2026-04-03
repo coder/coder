@@ -19,13 +19,14 @@ const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
-					Centralized auditing for LLM usage across your organization.{" "}
+					Review and audit AI activity, token usage, and prompt history across
+					sessions.{" "}
 					<Link
-						href={docs("/ai-coder/ai-governance")}
+						href={docs("/ai-coder/ai-bridge/audit")}
 						className="ml-auto"
 						target="_blank"
 					>
-						More about AI Governance
+						Learn how to audit AI sessions
 					</Link>
 				</PageHeaderSubtitle>
 			</PageHeader>

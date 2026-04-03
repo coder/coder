@@ -12,28 +12,31 @@ import (
 )
 
 type AIBridgeInterception struct {
-	ID          uuid.UUID            `json:"id" format:"uuid"`
-	APIKeyID    *string              `json:"api_key_id"`
-	Initiator   MinimalUser          `json:"initiator"`
-	Provider    string               `json:"provider"`
-	Model       string               `json:"model"`
-	Client      *string              `json:"client"`
-	Metadata    map[string]any       `json:"metadata"`
-	StartedAt   time.Time            `json:"started_at" format:"date-time"`
-	EndedAt     *time.Time           `json:"ended_at" format:"date-time"`
-	TokenUsages []AIBridgeTokenUsage `json:"token_usages"`
-	UserPrompts []AIBridgeUserPrompt `json:"user_prompts"`
-	ToolUsages  []AIBridgeToolUsage  `json:"tool_usages"`
+	ID           uuid.UUID            `json:"id" format:"uuid"`
+	APIKeyID     *string              `json:"api_key_id"`
+	Initiator    MinimalUser          `json:"initiator"`
+	Provider     string               `json:"provider"`
+	ProviderName string               `json:"provider_name"`
+	Model        string               `json:"model"`
+	Client       *string              `json:"client"`
+	Metadata     map[string]any       `json:"metadata"`
+	StartedAt    time.Time            `json:"started_at" format:"date-time"`
+	EndedAt      *time.Time           `json:"ended_at" format:"date-time"`
+	TokenUsages  []AIBridgeTokenUsage `json:"token_usages"`
+	UserPrompts  []AIBridgeUserPrompt `json:"user_prompts"`
+	ToolUsages   []AIBridgeToolUsage  `json:"tool_usages"`
 }
 
 type AIBridgeTokenUsage struct {
-	ID                 uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
-	ProviderResponseID string         `json:"provider_response_id"`
-	InputTokens        int64          `json:"input_tokens"`
-	OutputTokens       int64          `json:"output_tokens"`
-	Metadata           map[string]any `json:"metadata"`
-	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
+	ID                    uuid.UUID      `json:"id" format:"uuid"`
+	InterceptionID        uuid.UUID      `json:"interception_id" format:"uuid"`
+	ProviderResponseID    string         `json:"provider_response_id"`
+	InputTokens           int64          `json:"input_tokens"`
+	OutputTokens          int64          `json:"output_tokens"`
+	CacheReadInputTokens  int64          `json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64          `json:"cache_write_input_tokens"`
+	Metadata              map[string]any `json:"metadata"`
+	CreatedAt             time.Time      `json:"created_at" format:"date-time"`
 }
 
 type AIBridgeUserPrompt struct {
@@ -78,8 +81,10 @@ type AIBridgeSession struct {
 }
 
 type AIBridgeSessionTokenUsageSummary struct {
-	InputTokens  int64 `json:"input_tokens"`
-	OutputTokens int64 `json:"output_tokens"`
+	InputTokens           int64 `json:"input_tokens"`
+	OutputTokens          int64 `json:"output_tokens"`
+	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
 }
 
 type AIBridgeListSessionsResponse struct {
@@ -106,12 +111,13 @@ type AIBridgeSessionThreadsResponse struct {
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage
-// with metadata containing provider-specific fields like
-// cache_creation_input, cache_read_input, etc.
+// with metadata containing provider-specific fields.
 type AIBridgeSessionThreadsTokenUsage struct {
-	InputTokens  int64          `json:"input_tokens"`
-	OutputTokens int64          `json:"output_tokens"`
-	Metadata     map[string]any `json:"metadata"`
+	InputTokens           int64          `json:"input_tokens"`
+	OutputTokens          int64          `json:"output_tokens"`
+	CacheReadInputTokens  int64          `json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64          `json:"cache_write_input_tokens"`
+	Metadata              map[string]any `json:"metadata"`
 }
 
 // AIBridgeThread represents a single thread within a session.

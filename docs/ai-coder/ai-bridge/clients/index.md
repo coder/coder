@@ -43,6 +43,29 @@ export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 
 Alternatively, [generate a long-lived API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) via the Coder dashboard.
 
+## Bring Your Own Key (BYOK)
+
+In addition to centralized key management, AI Bridge supports **Bring Your
+Own Key** (BYOK) mode. Users can provide their own LLM API keys or use
+provider subscriptions (such as Claude Pro/Max or ChatGPT Plus/Pro) while
+AI Bridge continues to provide observability and governance.
+
+![BYOK authentication flow](../../../images/aibridge/clients/byok_auth_flow.png)
+
+In BYOK mode, users need two credentials:
+
+- A **Coder session token** to authenticate with AI Bridge.
+- Their **own LLM credential** (personal API key or subscription token) which AI Bridge forwards
+  to the upstream provider.
+
+BYOK and centralized modes can be used together. When a user provides
+their own credential, AI Bridge forwards it directly. When no user
+credential is present, AI Bridge falls back to the admin-configured
+provider key. This lets organizations offer centralized keys as a default
+while allowing individual users to bring their own.
+
+See individual client pages for configuration details.
+
 ## Compatibility
 
 The table below shows tested AI clients and their compatibility with AI Bridge.

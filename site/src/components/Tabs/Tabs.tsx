@@ -1,5 +1,5 @@
-import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Tabs as TabsPrimitive } from "radix-ui";
 import {
 	type ComponentProps,
 	createContext,

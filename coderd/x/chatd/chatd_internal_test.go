@@ -23,6 +23,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -99,9 +100,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "openai",
-		APIKey:   "test-key",
-		BaseUrl:  serverURL,
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+		APIKey:               "test-key",
+		BaseUrl:              serverURL,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
@@ -261,9 +263,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "openai",
-		APIKey:   "test-key",
-		BaseUrl:  serverURL,
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+		APIKey:               "test-key",
+		BaseUrl:              serverURL,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
@@ -376,6 +379,87 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for title change pubsub event")
 	}
+}
+
+func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI:    "openai-deployment-key",
+			Anthropic: "anthropic-deployment-key",
+			ByProvider: map[string]string{
+				"openai":    "openai-deployment-key",
+				"anthropic": "anthropic-deployment-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai":    "https://openai.example.com",
+				"anthropic": "https://anthropic.example.com",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:                   "anthropic",
+		CentralApiKeyEnabled:       true,
+		AllowCentralApiKeyFallback: true,
+	}}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Empty(t, keys.OpenAI)
+	require.Empty(t, keys.APIKey("openai"))
+	require.Empty(t, keys.BaseURL("openai"))
+	require.Equal(t, "anthropic-deployment-key", keys.Anthropic)
+	require.Equal(t, "anthropic-deployment-key", keys.APIKey("anthropic"))
+	require.Equal(t, "https://anthropic.example.com", keys.BaseURL("anthropic"))
+	require.Equal(t, map[string]string{"anthropic": "anthropic-deployment-key"}, keys.ByProvider)
+	require.Equal(t, map[string]string{"anthropic": "https://anthropic.example.com"}, keys.BaseURLByProvider)
+}
+
+func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI: "openai-deployment-key",
+			ByProvider: map[string]string{
+				"openai": "openai-deployment-key",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+	}}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Equal(t, "openai-deployment-key", keys.OpenAI)
+	require.Equal(t, "openai-deployment-key", keys.APIKey("openai"))
 }
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
@@ -523,7 +607,8 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		workspacesdk.LSResponse{},
 		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
 	).AnyTimes()
-	conn.EXPECT().ReadFile(gomock.Any(),
+	conn.EXPECT().ReadFile(
+		gomock.Any(),
 		"/home/coder/project/AGENTS.md",
 		int64(0),
 		int64(maxInstructionFileBytes+1)).Return(

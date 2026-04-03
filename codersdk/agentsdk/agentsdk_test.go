@@ -26,6 +26,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		eventToSend := agentsdk.ReinitializationEvent{
 			WorkspaceID: uuid.New(),
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			OwnerID:     uuid.New(),
 		}
 
 		events := make(chan agentsdk.ReinitializationEvent, 1)

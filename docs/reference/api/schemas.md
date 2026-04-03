@@ -186,17 +186,19 @@
 
 ```json
 {
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "reason": "prebuild_claimed",
-  "workspaceID": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                               | Required | Restrictions | Description |
-|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
-| `workspaceID` | string                                                             | false    |              |             |
+| Name           | Type                                                               | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `owner_id`     | string                                                             | false    |              |             |
+| `reason`       | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspace_id` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
 
@@ -348,6 +350,8 @@
     }
   ],
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -498,9 +502,12 @@
   },
   "model": "string",
   "provider": "string",
+  "provider_name": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usages": [
     {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "input_tokens": 0,
@@ -559,6 +566,7 @@
 | » `[any property]` | any                                                                 | false    |              |             |
 | `model`            | string                                                              | false    |              |             |
 | `provider`         | string                                                              | false    |              |             |
+| `provider_name`    | string                                                              | false    |              |             |
 | `started_at`       | string                                                              | false    |              |             |
 | `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
 | `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
@@ -587,9 +595,12 @@
       },
       "model": "string",
       "provider": "string",
+      "provider_name": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
+          "cache_read_input_tokens": 0,
+          "cache_write_input_tokens": 0,
           "created_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "input_tokens": 0,
@@ -674,6 +685,8 @@
       "started_at": "2019-08-24T14:15:22Z",
       "threads": 0,
       "token_usage_summary": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "output_tokens": 0
       }
@@ -782,6 +795,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": 0,
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "output_tokens": 0
   }
@@ -842,6 +857,8 @@
             }
           ],
           "token_usage": {
+            "cache_read_input_tokens": 0,
+            "cache_write_input_tokens": 0,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -874,6 +891,8 @@
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -884,6 +903,8 @@
     }
   ],
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -916,6 +937,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -927,17 +950,21 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `input_tokens`     | integer | false    |              |             |
-| `metadata`         | object  | false    |              |             |
-| » `[any property]` | any     | false    |              |             |
-| `output_tokens`    | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "output_tokens": 0
 }
@@ -945,10 +972,12 @@
 
 ### Properties
 
-| Name            | Type    | Required | Restrictions | Description |
-|-----------------|---------|----------|--------------|-------------|
-| `input_tokens`  | integer | false    |              |             |
-| `output_tokens` | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeThread
 
@@ -963,6 +992,8 @@
         }
       ],
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -995,6 +1026,8 @@
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -1022,6 +1055,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "input_tokens": 0,
@@ -1037,16 +1072,18 @@
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `input_tokens`         | integer | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `output_tokens`        | integer | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `created_at`               | string  | false    |              |             |
+| `id`                       | string  | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `interception_id`          | string  | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `provider_response_id`     | string  | false    |              |             |
 
 ## codersdk.AIBridgeToolCall
 
@@ -2265,12 +2302,48 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateFirstUserOnboardingInfo
+
+```json
+{
+  "industry_type": "Technology",
+  "is_business": true,
+  "newsletter_marketing": true,
+  "newsletter_releases": true,
+  "org_size": "Just me"
+}
+```
+
+### Properties
+
+| Name                   | Type                                           | Required | Restrictions | Description |
+|------------------------|------------------------------------------------|----------|--------------|-------------|
+| `industry_type`        | [codersdk.IndustryType](#codersdkindustrytype) | false    |              |             |
+| `is_business`          | boolean                                        | false    |              |             |
+| `newsletter_marketing` | boolean                                        | false    |              |             |
+| `newsletter_releases`  | boolean                                        | false    |              |             |
+| `org_size`             | [codersdk.OrgSizeRange](#codersdkorgsizerange) | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value(s)                                                                                                                                                                                    |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `industry_type` | `Consulting`, `Education`, `Energy`, `Financial Services`, `Government`, `Healthcare`, `Manufacturing`, `Media`, `Non-Profit`, `Other`, `Retail`, `Technology`, `Telecom`, `Transportation` |
+| `org_size`      | `1001-5000`, `11-50`, `2-10`, `201-1000`, `5000+`, `51-200`, `Just me`                                                                                                                      |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "industry_type": "Technology",
+    "is_business": true,
+    "newsletter_marketing": true,
+    "newsletter_releases": true,
+    "org_size": "Just me"
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -2288,14 +2361,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                   | Required | Restrictions | Description |
-|--------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`      | string                                                                 | true     |              |             |
-| `name`       | string                                                                 | false    |              |             |
-| `password`   | string                                                                 | true     |              |             |
-| `trial`      | boolean                                                                | false    |              |             |
-| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
-| `username`   | string                                                                 | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `email`           | string                                                                           | true     |              |             |
+| `name`            | string                                                                           | false    |              |             |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
+| `password`        | string                                                                           | true     |              |             |
+| `trial`           | boolean                                                                          | false    |              |             |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
+| `username`        | string                                                                           | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -5147,6 +5221,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
 
+## codersdk.IndustryType
+
+```json
+"Technology"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Consulting`, `Education`, `Energy`, `Financial Services`, `Government`, `Healthcare`, `Manufacturing`, `Media`, `Non-Profit`, `Other`, `Retail`, `Technology`, `Telecom`, `Transportation` |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -6400,6 +6488,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Value(s)                                   |
 |--------------------------------------------|
 | `bool`, `list(string)`, `number`, `string` |
+
+## codersdk.OrgSizeRange
+
+```json
+"Just me"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                               |
+|------------------------------------------------------------------------|
+| `1001-5000`, `11-50`, `2-10`, `201-1000`, `5000+`, `51-200`, `Just me` |
 
 ## codersdk.Organization
 

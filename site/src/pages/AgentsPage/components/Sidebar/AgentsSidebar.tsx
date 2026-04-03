@@ -55,7 +55,9 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router";
+import { userChatProviderConfigs } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -765,6 +767,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
+	const providerConfigsQuery = useQuery({
+		...userChatProviderConfigs(),
+		enabled: sidebarView.panel === "settings" && !isAdmin,
+	});
+	const isApiKeysSection =
+		sidebarView.panel === "settings" && sidebarView.section === "api-keys";
+	const showApiKeysItem =
+		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
@@ -1256,6 +1266,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							to="/agents/settings/behavior"
 							state={location.state}
 						/>
+						{showApiKeysItem && (
+							<SettingsNavItem
+								icon={KeyRoundIcon}
+								label="API Keys"
+								active={sidebarView.section === "api-keys"}
+								to="/agents/settings/api-keys"
+								state={location.state}
+							/>
+						)}
 						{isAdmin && (
 							<>
 								<SettingsNavItem
