@@ -23,13 +23,37 @@ var sensitiveHeaderNames = map[string]struct{}{
 	"set-cookie":          {},
 }
 
+// sensitiveJSONKeyFragments triggers redaction for JSON keys containing
+// these substrings. Notably, "token" is intentionally absent because it
+// false-positively redacts LLM token-usage fields (input_tokens,
+// output_tokens, prompt_tokens, completion_tokens, reasoning_tokens,
+// cache_creation_input_tokens, cache_read_input_tokens, etc.). Auth-
+// related token fields are caught by the exact-match set below.
 var sensitiveJSONKeyFragments = []string{
-	"token",
 	"secret",
-	"key",
 	"password",
 	"authorization",
 	"credential",
+}
+
+// sensitiveJSONKeyExact matches auth-related token/key field names
+// without false-positiving on LLM usage counters.
+var sensitiveJSONKeyExact = map[string]struct{}{
+	"token":         {},
+	"access_token":  {},
+	"refresh_token": {},
+	"id_token":      {},
+	"api_token":     {},
+	"api_key":       {},
+	"apikey":        {},
+	"api-key":       {},
+	"x-api-key":     {},
+	"auth_token":    {},
+	"bearer_token":  {},
+	"session_token": {},
+	"private_key":   {},
+	"signing_key":   {},
+	"secret_key":    {},
 }
 
 // RedactHeaders returns a flattened copy of h with sensitive values redacted.
@@ -40,7 +64,7 @@ func RedactHeaders(h http.Header) map[string]string {
 
 	redacted := make(map[string]string, len(h))
 	for name, values := range h {
-		if isSensitiveHeaderName(name) {
+		if isSensitiveName(name) {
 			redacted[name] = RedactedValue
 			continue
 		}
@@ -49,7 +73,10 @@ func RedactHeaders(h http.Header) map[string]string {
 	return redacted
 }
 
-// RedactJSONSecrets redacts sensitive JSON values by key name.
+// RedactJSONSecrets redacts sensitive JSON values by key name. When
+// the input is not valid JSON (truncated body, HTML error page, etc.)
+// the raw bytes are replaced entirely with a diagnostic placeholder
+// to avoid leaking credentials from malformed payloads.
 func RedactJSONSecrets(data []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -60,10 +87,12 @@ func RedactJSONSecrets(data []byte) []byte {
 
 	var value any
 	if err := decoder.Decode(&value); err != nil {
-		return data
+		// Cannot parse: replace entirely to prevent credential leaks
+		// from non-JSON error responses (HTML pages, partial bodies).
+		return []byte(`{"error":"chatdebug: body is not valid JSON, redacted for safety"}`)
 	}
 	if err := consumeJSONEOF(decoder); err != nil {
-		return data
+		return []byte(`{"error":"chatdebug: body contains extra JSON values, redacted for safety"}`)
 	}
 
 	redacted, changed := redactJSONValue(value)
@@ -105,7 +134,11 @@ var safeRateLimitHeaderNames = map[string]struct{}{
 	"x-ratelimit-reset-tokens":               {},
 }
 
-func isSensitiveHeaderName(name string) bool {
+// isSensitiveName reports whether a name (header or query parameter)
+// looks like a credential-carrying key. Exact-match headers are
+// checked first, then the rate-limit allowlist, then substring
+// patterns for API keys and auth tokens.
+func isSensitiveName(name string) bool {
 	lowerName := strings.ToLower(name)
 	if _, ok := sensitiveHeaderNames[lowerName]; ok {
 		return true
@@ -118,12 +151,17 @@ func isSensitiveHeaderName(name string) bool {
 		strings.Contains(lowerName, "apikey") {
 		return true
 	}
-	return strings.Contains(lowerName, "token") ||
-		strings.Contains(lowerName, "secret")
+	return strings.Contains(lowerName, "secret") ||
+		strings.Contains(lowerName, "auth-token") ||
+		strings.Contains(lowerName, "session-token") ||
+		strings.Contains(lowerName, "bearer")
 }
 
 func isSensitiveJSONKey(key string) bool {
 	lowerKey := strings.ToLower(key)
+	if _, ok := sensitiveJSONKeyExact[lowerKey]; ok {
+		return true
+	}
 	for _, fragment := range sensitiveJSONKeyFragments {
 		if strings.Contains(lowerKey, fragment) {
 			return true

@@ -70,14 +70,16 @@ func TestRedactHeaders(t *testing.T) {
 
 		traceHeader := "X-Trace-ID"
 		headers := http.Header{
-			"X-Custom-Token":  {"abc"},
+			"X-Auth-Token":    {"abc"},
 			"X-Custom-Secret": {"def"},
+			"X-Bearer":        {"ghi"},
 			traceHeader:       {"trace"},
 		}
 
 		redacted := chatdebug.RedactHeaders(headers)
-		require.Equal(t, chatdebug.RedactedValue, redacted["X-Custom-Token"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Auth-Token"])
 		require.Equal(t, chatdebug.RedactedValue, redacted["X-Custom-Secret"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Bearer"])
 		require.Equal(t, "trace", redacted[traceHeader])
 	})
 
@@ -102,17 +104,34 @@ func TestRedactHeaders(t *testing.T) {
 		require.Equal(t, "12ms", redacted["X-RateLimit-Reset-Tokens"])
 	})
 
-	t.Run("rate limit headers with secret fragments are still redacted", func(t *testing.T) {
+	t.Run("non-standard headers with api-key pattern are redacted", func(t *testing.T) {
 		t.Parallel()
 
 		headers := http.Header{
-			"X-RateLimit-Token":   {"secret-token"},
-			"X-RateLimit-Api-Key": {"secret-key"},
+			"X-Custom-Api-Key":     {"secret-key"},
+			"X-Custom-Secret":      {"secret-val"},
+			"X-Custom-Session-Token": {"session-id"},
 		}
 
 		redacted := chatdebug.RedactHeaders(headers)
-		require.Equal(t, chatdebug.RedactedValue, redacted["X-RateLimit-Token"])
-		require.Equal(t, chatdebug.RedactedValue, redacted["X-RateLimit-Api-Key"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Custom-Api-Key"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Custom-Secret"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Custom-Session-Token"])
+	})
+
+	t.Run("rate limit headers with token in name are preserved", func(t *testing.T) {
+		t.Parallel()
+
+		// Rate-limit headers containing "token" should NOT be redacted
+		// because they carry usage/limit counts, not credentials.
+		headers := http.Header{
+			"X-Ratelimit-Limit-Tokens":     {"1000000"},
+			"X-Ratelimit-Remaining-Tokens": {"999000"},
+		}
+
+		redacted := chatdebug.RedactHeaders(headers)
+		require.Equal(t, "1000000", redacted["X-Ratelimit-Limit-Tokens"])
+		require.Equal(t, "999000", redacted["X-Ratelimit-Remaining-Tokens"])
 	})
 
 	t.Run("original header is not modified", func(t *testing.T) {
@@ -157,6 +176,16 @@ func TestRedactJSONSecrets(t *testing.T) {
 		require.JSONEq(t, `{"api_key":"[REDACTED]","token":"[REDACTED]","password":"[REDACTED]","safe":"ok"}`, string(redacted))
 	})
 
+	t.Run("preserves LLM token usage fields", func(t *testing.T) {
+		t.Parallel()
+
+		input := []byte(`{"input_tokens":100,"output_tokens":50,"prompt_tokens":80,"completion_tokens":20,"reasoning_tokens":10,"cache_creation_input_tokens":5,"cache_read_input_tokens":3,"total_tokens":150,"max_tokens":4096,"max_output_tokens":2048}`)
+		redacted := chatdebug.RedactJSONSecrets(input)
+		// All usage/limit fields should be preserved, not redacted.
+		require.Equal(t, input, redacted)
+	})
+
+
 	t.Run("redacts nested objects", func(t *testing.T) {
 		t.Parallel()
 
@@ -173,18 +202,20 @@ func TestRedactJSONSecrets(t *testing.T) {
 		require.JSONEq(t, `[{"token":"[REDACTED]"},{"value":1,"credentials":"[REDACTED]"}]`, string(redacted))
 	})
 
-	t.Run("concatenated JSON is unchanged", func(t *testing.T) {
+	t.Run("concatenated JSON is replaced with diagnostic", func(t *testing.T) {
 		t.Parallel()
 
 		input := []byte(`{"token":"abc"}{"safe":"ok"}`)
-		require.Equal(t, input, chatdebug.RedactJSONSecrets(input))
+		result := chatdebug.RedactJSONSecrets(input)
+		require.Contains(t, string(result), "extra JSON values")
 	})
 
-	t.Run("non JSON input is unchanged", func(t *testing.T) {
+	t.Run("non JSON input is replaced with diagnostic", func(t *testing.T) {
 		t.Parallel()
 
 		input := []byte("not json")
-		require.Equal(t, input, chatdebug.RedactJSONSecrets(input))
+		result := chatdebug.RedactJSONSecrets(input)
+		require.Contains(t, string(result), "not valid JSON")
 	})
 
 	t.Run("empty input is unchanged", func(t *testing.T) {

@@ -121,7 +121,7 @@ func redactURL(u *url.URL) string {
 	clone.User = nil
 	q := clone.Query()
 	for key, values := range q {
-		if isSensitiveHeaderName(key) || isSensitiveJSONKey(key) {
+		if isSensitiveName(key) || isSensitiveJSONKey(key) {
 			for i := range values {
 				values[i] = RedactedValue
 			}
@@ -280,13 +280,20 @@ func isJSONLikeContentType(contentType string) bool {
 	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
+// maxDrainBytes caps how many trailing bytes drainToEOF will consume.
+// This prevents Close() from blocking indefinitely on a misbehaving
+// or extremely large chunked body.
+const maxDrainBytes = 64 * 1024 // 64 KB
+
 func (r *recordingBody) drainToEOF() error {
 	buf := make([]byte, 4*1024)
+	var drained int64
 	for {
 		n, err := r.inner.Read(buf)
 
 		r.mu.Lock()
 		r.bytesRead += int64(n)
+		drained += int64(n)
 		if n > 0 && !r.truncated {
 			remaining := maxRecordedResponseBodyBytes - r.buf.Len()
 			if remaining > 0 {
@@ -310,6 +317,12 @@ func (r *recordingBody) drainToEOF() error {
 				return nil
 			}
 			return err
+		}
+
+		// Safety valve: stop draining after maxDrainBytes to prevent
+		// Close() from blocking indefinitely on a chunked body.
+		if drained >= maxDrainBytes {
+			return io.ErrUnexpectedEOF
 		}
 	}
 }

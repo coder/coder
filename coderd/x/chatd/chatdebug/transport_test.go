@@ -30,6 +30,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 type scriptedReadCloser struct {
 	chunks [][]byte
 	index  int
+	offset int // byte offset within current chunk
 }
 
 func (r *scriptedReadCloser) Read(p []byte) (int, error) {
@@ -37,8 +38,14 @@ func (r *scriptedReadCloser) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 	chunk := r.chunks[r.index]
-	r.index++
-	return copy(p, chunk), nil
+	remaining := chunk[r.offset:]
+	n := copy(p, remaining)
+	r.offset += n
+	if r.offset >= len(chunk) {
+		r.index++
+		r.offset = 0
+	}
+	return n, nil
 }
 
 func (*scriptedReadCloser) Close() error {
