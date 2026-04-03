@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	auditbackends "github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/quartz"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -144,6 +146,8 @@ type DBBatcher struct {
 	timer    *quartz.Timer
 	interval time.Duration
 
+	closed atomic.Bool
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -193,11 +197,11 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 // blocks if the internal buffer is full, ensuring no logs are dropped.
 // It returns an error if the batcher or caller context is canceled.
 func (b *DBBatcher) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
-	// Check cancellation before attempting the send so that
+	// Check the closed flag before attempting the send so that
 	// post-Close() calls fail deterministically rather than
 	// racing with channel capacity.
-	if err := b.ctx.Err(); err != nil {
-		return err
+	if b.closed.Load() {
+		return xerrors.New("batcher closed")
 	}
 	select {
 	case b.itemCh <- clog:
@@ -316,6 +320,10 @@ func (b *DBBatcher) run(ctx context.Context) {
 			// Signal the retry worker to skip delays and close
 			// the channel so it exits after processing any
 			// remaining items.
+			// Mark the batcher as closed so that any subsequent
+			// Upsert calls fail immediately instead of sending
+			// into itemCh after the run loop has exited.
+			b.closed.Store(true)
 			close(b.retryCh)
 			return
 		}

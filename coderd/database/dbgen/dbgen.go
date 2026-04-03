@@ -141,7 +141,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		SlugOrPort:       []string{arg.SlugOrPort.String},
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
-		DisconnectTime:   []time.Time{arg.Time},
+		DisconnectTime:   []time.Time{disconnectTime.Time},
 	})
 	require.NoError(t, err, "insert connection log")
 
