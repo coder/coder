@@ -1326,6 +1326,7 @@ CREATE TABLE chat_model_configs (
     context_limit bigint NOT NULL,
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
+    provider_config_id uuid,
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
@@ -3354,9 +3355,6 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
-
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
@@ -4050,7 +4048,7 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
-    ADD CONSTRAINT chat_model_configs_provider_fkey FOREIGN KEY (provider) REFERENCES chat_providers(provider) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_model_configs_provider_config_id_fkey FOREIGN KEY (provider_config_id) REFERENCES chat_providers(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);

@@ -1118,8 +1118,8 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
+			hasWorkspace={Boolean(workspaceId)}
 			workspace={workspace}
-			workspaceAgent={workspaceAgent}
 			store={store}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}

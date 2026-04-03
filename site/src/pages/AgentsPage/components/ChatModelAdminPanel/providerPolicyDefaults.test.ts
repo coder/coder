@@ -10,6 +10,7 @@ const baseProviderConfig: ProviderConfigWithOptionalPolicyFields = {
 	display_name: "OpenAI",
 	enabled: true,
 	has_api_key: true,
+	has_effective_api_key: true,
 	base_url: "https://api.openai.com/v1",
 	source: "database",
 	created_at: "2025-01-01T00:00:00Z",

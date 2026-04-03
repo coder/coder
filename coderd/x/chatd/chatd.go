@@ -1804,10 +1804,11 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
+	modelKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		modelKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -1836,10 +1837,11 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
+	modelKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		modelKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -4818,6 +4820,7 @@ func (p *Server) resolveChatModel(
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
 
+	keys = p.resolveProviderAPIKeysForModel(ctx, dbConfig, keys)
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
@@ -4841,6 +4844,7 @@ func (p *Server) resolveUserProviderAPIKeys(
 			err,
 		)
 	}
+	providers = database.ChatProvidersByFamilyPrecedence(providers)
 	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),
 	)
@@ -4897,6 +4901,54 @@ func (p *Server) resolveUserProviderAPIKeys(
 	}
 	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
 	return keys, nil
+}
+
+// resolveProviderAPIKeysForModel returns provider API keys, optionally
+// overridden by a model's stored provider config binding. If the model
+// has a valid provider_config_id, the specific provider's non-empty API
+// key and base URL replace the family-level values in the merged key
+// set. If the binding is missing from the enabled-provider cache, it
+// falls back to the family-level keys.
+func (p *Server) resolveProviderAPIKeysForModel(
+	ctx context.Context,
+	modelConfig database.ChatModelConfig,
+	baseKeys chatprovider.ProviderAPIKeys,
+) chatprovider.ProviderAPIKeys {
+	if !modelConfig.ProviderConfigID.Valid {
+		return baseKeys
+	}
+
+	providers, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load enabled providers for model binding",
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
+			slog.Error(err),
+		)
+		return baseKeys
+	}
+
+	for _, providerConfig := range providers {
+		if providerConfig.ID != modelConfig.ProviderConfigID.UUID {
+			continue
+		}
+		resolved := chatprovider.MergeProviderAPIKeys(baseKeys, []chatprovider.ConfiguredProvider{{
+			Provider: providerConfig.Provider,
+			APIKey:   providerConfig.APIKey,
+			BaseURL:  providerConfig.BaseUrl,
+		}})
+		if strings.TrimSpace(providerConfig.APIKey) != "" &&
+			strings.TrimSpace(providerConfig.BaseUrl) == "" &&
+			resolved.BaseURLByProvider != nil {
+			delete(
+				resolved.BaseURLByProvider,
+				chatprovider.NormalizeProvider(providerConfig.Provider),
+			)
+		}
+		return resolved
+	}
+
+	return baseKeys
 }
 
 // resolveModelConfig looks up the chat's model config by its

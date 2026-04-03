@@ -34,7 +34,9 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { isDatabaseProviderConfig, readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
@@ -47,6 +49,10 @@ import {
 	parsePositiveInteger,
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
+import {
+	type ModelProviderOption,
+	resolveDefaultOption,
+} from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 
 // ── Validation ──────────────────────────────────────────────────
@@ -70,15 +76,50 @@ const validationSchema = Yup.object({
 	isDefault: Yup.boolean(),
 });
 
+const getDatabaseProviderConfigs = (
+	providerState: ProviderState | null | undefined,
+): readonly TypesGen.ChatProviderConfig[] => {
+	return providerState?.providerConfigs.filter(isDatabaseProviderConfig) ?? [];
+};
+
+const getEnabledDatabaseProviderConfigs = (
+	providerState: ProviderState | null | undefined,
+): readonly TypesGen.ChatProviderConfig[] => {
+	return getDatabaseProviderConfigs(providerState).filter(
+		(config) => config.enabled,
+	);
+};
+
+const buildDatabaseProviderConfigOption = (
+	providerState: ProviderState,
+	config: TypesGen.ChatProviderConfig,
+	index: number,
+	totalCount: number,
+): ModelProviderOption => {
+	const baseLabel = formatProviderLabel(providerState.provider);
+	return {
+		key: config.id,
+		provider: providerState.provider,
+		label:
+			readOptionalString(config.display_name) ??
+			(totalCount === 1 ? baseLabel : `${baseLabel} ${index + 1}`),
+		iconProvider: providerState.provider,
+		configId: config.id,
+	};
+};
+
 // ── Component ──────────────────────────────────────────────────
 
 interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
 	editingModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
+	createModeProviderOptions: readonly ModelProviderOption[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
+	selectedModelOptionKey: string | null;
+	onSelectedModelOptionChange: (key: string | null) => void;
 	modelConfigsUnavailable: boolean;
 	isSaving: boolean;
 	isDeleting: boolean;
@@ -96,9 +137,12 @@ interface ModelFormProps {
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,
 	providerStates,
+	createModeProviderOptions,
 	selectedProvider,
 	selectedProviderState,
 	onSelectedProviderChange,
+	selectedModelOptionKey,
+	onSelectedModelOptionChange,
 	modelConfigsUnavailable,
 	isSaving,
 	isDeleting,
@@ -113,11 +157,94 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const canManageModels = Boolean(
-		selectedProviderState?.providerConfig &&
-			(selectedProviderState.hasEffectiveAPIKey ||
-				selectedProviderState.providerConfig.allow_user_api_key),
-	);
+	const providerOptions: readonly ModelProviderOption[] = isEditing
+		? []
+		: createModeProviderOptions;
+	const resolvedProviderOption = isEditing
+		? undefined
+		: (providerOptions.find(
+				(option) => option.key === selectedModelOptionKey,
+			) ??
+			resolveDefaultOption(
+				providerOptions,
+				selectedProvider ?? selectedProviderState?.provider ?? null,
+			));
+	const effectiveProvider = isEditing
+		? (selectedProviderState?.provider ?? selectedProvider ?? null)
+		: (resolvedProviderOption?.provider ??
+			selectedProviderState?.provider ??
+			selectedProvider ??
+			null);
+	const effectiveProviderState = effectiveProvider
+		? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
+		: null;
+	const editProviderConfigOptions: readonly ModelProviderOption[] =
+		isEditing && effectiveProviderState
+			? (() => {
+					const databaseConfigs = getEnabledDatabaseProviderConfigs(
+						effectiveProviderState,
+					);
+					const options = databaseConfigs.map((config, index) =>
+						buildDatabaseProviderConfigOption(
+							effectiveProviderState,
+							config,
+							index,
+							databaseConfigs.length,
+						),
+					);
+					const editingProviderConfigId = editingModel?.provider_config_id;
+					if (
+						!editingProviderConfigId ||
+						options.some(
+							(option) => option.configId === editingProviderConfigId,
+						)
+					) {
+						return options;
+					}
+
+					const providerStateWithEditingConfig = providerStates.find(
+						(providerState) =>
+							getDatabaseProviderConfigs(providerState).some(
+								(config) => config.id === editingProviderConfigId,
+							),
+					);
+					if (!providerStateWithEditingConfig) {
+						return options;
+					}
+
+					const editingProviderConfigs = getDatabaseProviderConfigs(
+						providerStateWithEditingConfig,
+					);
+					const editingConfigIndex = editingProviderConfigs.findIndex(
+						(config) => config.id === editingProviderConfigId,
+					);
+					if (editingConfigIndex === -1) {
+						return options;
+					}
+
+					return [
+						...options,
+						buildDatabaseProviderConfigOption(
+							providerStateWithEditingConfig,
+							editingProviderConfigs[editingConfigIndex],
+							editingConfigIndex,
+							editingProviderConfigs.length,
+						),
+					];
+				})()
+			: [];
+	const headerProviderLabel = isEditing
+		? effectiveProviderState?.label
+		: (resolvedProviderOption?.label ?? effectiveProviderState?.label);
+	const selectedProviderConfigCount = getDatabaseProviderConfigs(
+		effectiveProviderState,
+	).length;
+	const canManageModels = isEditing
+		? Boolean(
+				selectedProviderConfigCount &&
+					effectiveProviderState?.hasEffectiveAPIKey,
+			)
+		: Boolean(resolvedProviderOption);
 
 	const form = useFormik<ModelFormValues>({
 		initialValues: buildInitialModelFormValues(editingModel),
@@ -136,7 +263,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProviderState?.provider,
+				effectiveProvider,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -167,18 +294,26 @@ export const ModelForm: FC<ModelFormProps> = ({
 					...(values.isDefault !== editingModel.is_default && {
 						is_default: values.isDefault,
 					}),
+					...(values.providerConfigId &&
+						values.providerConfigId !==
+							(editingModel.provider_config_id ?? "") && {
+							provider_config_id: values.providerConfigId,
+						}),
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
 				};
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!effectiveProvider) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProviderState.provider,
+					provider: effectiveProvider,
 					model: trimmedModel,
 					enabled: true,
+					...(resolvedProviderOption?.configId && {
+						provider_config_id: resolvedProviderOption.configId,
+					}),
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -207,7 +342,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProviderState?.provider,
+		effectiveProvider,
 		form.values.config,
 	);
 
@@ -225,33 +360,109 @@ export const ModelForm: FC<ModelFormProps> = ({
 			>
 				Provider
 			</Label>
-			<Select
-				value={selectedProvider ?? ""}
-				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || providerStates.length === 0}
-			>
-				<SelectTrigger
-					id="providerSelect"
-					className="h-10 max-w-[240px] text-[13px]"
+			{isEditing ? (
+				<>
+					<Select
+						value={selectedProvider ?? ""}
+						onValueChange={onSelectedProviderChange}
+						disabled
+					>
+						<SelectTrigger
+							id="providerSelect"
+							className="h-10 max-w-[240px] text-[13px]"
+						>
+							<SelectValue placeholder="Select provider" />
+						</SelectTrigger>
+						<SelectContent>
+							{providerStates.map((ps) => (
+								<SelectItem key={ps.provider} value={ps.provider}>
+									<span className="flex items-center gap-2">
+										<ProviderIcon provider={ps.provider} className="h-4 w-4" />
+										{ps.label}
+									</span>
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					{editProviderConfigOptions.length > 0 && (
+						<div className="mt-3 grid gap-1.5">
+							<Label
+								htmlFor="providerConfigSelect"
+								className="text-[13px] font-medium text-content-primary"
+							>
+								Provider Configuration
+							</Label>
+							<Select
+								value={form.values.providerConfigId}
+								onValueChange={(value) => {
+									form.setFieldValue("providerConfigId", value);
+								}}
+								disabled={isSaving}
+							>
+								<SelectTrigger
+									id="providerConfigSelect"
+									className="h-10 max-w-[240px] text-[13px]"
+								>
+									<SelectValue placeholder="Select configuration" />
+								</SelectTrigger>
+								<SelectContent>
+									{editProviderConfigOptions.map((option) => (
+										<SelectItem
+											key={option.key}
+											value={option.configId ?? option.key}
+										>
+											<span className="flex items-center gap-2">
+												<ProviderIcon
+													provider={option.iconProvider}
+													className="h-4 w-4"
+												/>
+												{option.label}
+											</span>
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+				</>
+			) : (
+				<Select
+					value={resolvedProviderOption?.key ?? ""}
+					onValueChange={(key) => {
+						const option = providerOptions.find((option) => option.key === key);
+						if (option) {
+							onSelectedProviderChange(option.provider);
+							onSelectedModelOptionChange(option.key);
+						}
+					}}
+					disabled={providerOptions.length === 0}
 				>
-					<SelectValue placeholder="Select provider" />
-				</SelectTrigger>
-				<SelectContent>
-					{providerStates.map((ps) => (
-						<SelectItem key={ps.provider} value={ps.provider}>
-							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
-								{ps.label}
-							</span>
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+					<SelectTrigger
+						id="providerSelect"
+						className="h-10 max-w-[240px] text-[13px]"
+					>
+						<SelectValue placeholder="Select provider" />
+					</SelectTrigger>
+					<SelectContent>
+						{providerOptions.map((option) => (
+							<SelectItem key={option.key} value={option.key}>
+								<span className="flex items-center gap-2">
+									<ProviderIcon
+										provider={option.iconProvider}
+										className="h-4 w-4"
+									/>
+									{option.label}
+								</span>
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			)}
 		</div>
 	);
 
 	// No provider selected or configs unavailable.
-	if (!selectedProviderState || modelConfigsUnavailable) {
+	if (!effectiveProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
 				<button
@@ -290,7 +501,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="space-y-3">
 					{providerSelect}
 					<p className="text-sm text-content-secondary">
-						{!selectedProviderState.providerConfig
+						{selectedProviderConfigCount === 0
 							? "Create a managed provider config on the Providers tab before adding models."
 							: "Set an API key for this provider on the Providers tab before adding models."}
 					</p>
@@ -316,15 +527,20 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
 			</button>
-			{/* Header - editable display name */}
+			{/* Header — editable display name */}
 			<div className="flex items-center gap-3">
-				{selectedProviderState && (
+				{effectiveProviderState && (
 					<ProviderIcon
-						provider={selectedProviderState.provider}
+						provider={effectiveProviderState.provider}
 						className="h-8 w-8"
 					/>
 				)}
 				<div className="min-w-0 flex-1">
+					{headerProviderLabel && (
+						<span className="text-xs text-content-secondary">
+							{headerProviderLabel}
+						</span>
+					)}
 					<input
 						type="text"
 						{...form.getFieldProps("displayName")}
@@ -441,14 +657,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 					{/* Provider-specific model config fields */}
 					<ModelConfigFields
-						provider={selectedProviderState.provider}
+						provider={effectiveProviderState.provider}
 						form={form}
 						fieldErrors={modelConfigFormBuildResult.fieldErrors}
 						disabled={isSaving}
 					/>
 
 					<div className="space-y-5">
-						{/* Pricing - toggle */}
+						{/* Pricing — toggle */}
 						<div>
 							<button
 								type="button"
@@ -473,7 +689,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									</div>
 									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 										<PricingModelConfigFields
-											provider={selectedProviderState.provider}
+											provider={effectiveProviderState.provider}
 											form={form}
 											fieldErrors={modelConfigFormBuildResult.fieldErrors}
 											disabled={isSaving}
@@ -483,7 +699,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							)}
 						</div>
 
-						{/* Advanced - toggle */}
+						{/* Advanced — toggle */}
 						<div>
 							<button
 								type="button"
@@ -501,7 +717,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								<div className="mt-4 space-y-5">
 									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 										<GeneralModelConfigFields
-											provider={selectedProviderState.provider}
+											provider={effectiveProviderState.provider}
 											form={form}
 											fieldErrors={modelConfigFormBuildResult.fieldErrors}
 											disabled={isSaving}
@@ -543,7 +759,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 				</div>
-				{/* Footer - pushed to bottom */}
+				{/* Footer — pushed to bottom */}
 				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">

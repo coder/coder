@@ -4256,6 +4256,7 @@ type ChatModelConfig struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
+	ProviderConfigID     uuid.NullUUID   `db:"provider_config_id" json:"provider_config_id"`
 }
 
 type ChatProvider struct {

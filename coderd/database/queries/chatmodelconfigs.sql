@@ -34,12 +34,9 @@ SELECT
     cmc.*
 FROM
     chat_model_configs cmc
-JOIN
-    chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -57,7 +54,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    provider_config_id
 ) VALUES (
     @provider::text,
     @model::text,
@@ -68,7 +66,8 @@ INSERT INTO chat_model_configs (
     @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @options::jsonb
+    @options::jsonb,
+    sqlc.narg('provider_config_id')::uuid
 )
 RETURNING
     *;
@@ -86,6 +85,7 @@ SET
     context_limit = @context_limit::bigint,
     compression_threshold = @compression_threshold::integer,
     options = @options::jsonb,
+    provider_config_id = sqlc.narg('provider_config_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -112,3 +112,26 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid;
+
+-- name: SoftDeleteUnboundChatModelConfigsByProvider :execrows
+-- Soft-deletes model configs in the given provider family that have
+-- no provider_config_id binding. Used during last-provider cleanup
+-- so lingering NULL-bound rows do not become orphans.
+UPDATE chat_model_configs
+SET deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE provider = @provider::text
+  AND provider_config_id IS NULL
+  AND deleted = FALSE;
+
+-- name: SoftDeleteBoundChatModelConfigsByProviderConfigID :execrows
+-- Soft-deletes model configs bound to a specific provider config.
+-- Called before provider deletion so bound models are preserved
+-- (soft-deleted) rather than hard-removed by a database cascade.
+UPDATE chat_model_configs
+SET deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE provider_config_id = @provider_config_id::uuid
+  AND deleted = FALSE;

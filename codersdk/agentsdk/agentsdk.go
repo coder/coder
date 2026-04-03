@@ -3,7 +3,6 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -707,9 +706,8 @@ const (
 )
 
 type ReinitializationEvent struct {
-	WorkspaceID uuid.UUID              `json:"workspace_id" format:"uuid"`
+	WorkspaceID uuid.UUID
 	Reason      ReinitializationReason `json:"reason"`
-	OwnerID     uuid.UUID              `json:"owner_id,omitzero" format:"uuid"`
 }
 
 func PrebuildClaimedChannel(id uuid.UUID) string {
@@ -724,9 +722,6 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	q := rpcURL.Query()
-	q.Set("wait", "true")
-	rpcURL.RawQuery = q.Encode()
 
 	httpClient := &http.Client{
 		Transport: c.SDK.HTTPClient.Transport,
@@ -755,33 +750,21 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	return reinitEvent, nil
 }
 
-// WaitForReinitLoop polls the /reinit SSE endpoint in a retry loop and
-// forwards received reinitialization events to the returned channel. The
-// channel is closed when ctx is canceled or the server returns 409
-// Conflict (indicating the workspace is not a prebuilt workspace or the
-// claim build failed permanently). The caller should select on both the
-// channel and ctx.Done().
 func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) <-chan ReinitializationEvent {
 	reinitEvents := make(chan ReinitializationEvent)
 
 	go func() {
-		defer close(reinitEvents)
 		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "waiting for agent reinitialization instructions")
 			reinitEvent, err := client.WaitForReinit(ctx)
 			if err != nil {
-				var sdkErr *codersdk.Error
-				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
-					logger.Info(ctx, "received terminal 409, stopping reinit polling",
-						slog.Error(sdkErr))
-					return
-				}
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
 				continue
 			}
 			retrier.Reset()
 			select {
 			case <-ctx.Done():
+				close(reinitEvents)
 				return
 			case reinitEvents <- *reinitEvent:
 			}

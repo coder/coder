@@ -30,6 +30,7 @@ export type ModelFormValues = {
 	compressionThreshold: string;
 	isDefault: boolean;
 	config: ModelConfigFormState;
+	providerConfigId: string;
 };
 
 // ── Preserved parsing utilities ────────────────────────────────
@@ -234,6 +235,7 @@ export const buildInitialModelFormValues = (
 	config: editingModel
 		? extractModelConfigFormState(editingModel)
 		: structuredClone(emptyModelConfigFormState),
+	providerConfigId: editingModel?.provider_config_id ?? "",
 });
 
 function isNonNegativePricingField(field: FieldSchema): boolean {

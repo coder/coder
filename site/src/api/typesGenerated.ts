@@ -1639,6 +1639,7 @@ export interface ChatModelConfig {
 	readonly is_default: boolean;
 	readonly context_limit: number;
 	readonly compression_threshold: number;
+	readonly provider_config_id?: string;
 	readonly model_config?: ChatModelCallConfig;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -1837,6 +1838,7 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
+	readonly has_effective_api_key: boolean;
 	readonly central_api_key_enabled: boolean;
 	readonly allow_user_api_key: boolean;
 	readonly allow_central_api_key_fallback: boolean;
@@ -2353,6 +2355,7 @@ export interface CreateChatModelConfigRequest {
 	readonly is_default?: boolean;
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
+	readonly provider_config_id?: string;
 	readonly model_config?: ChatModelCallConfig;
 }
 
@@ -7154,6 +7157,7 @@ export interface UpdateChatModelConfigRequest {
 	readonly is_default?: boolean;
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
+	readonly provider_config_id?: string;
 	readonly model_config?: ChatModelCallConfig;
 }
 

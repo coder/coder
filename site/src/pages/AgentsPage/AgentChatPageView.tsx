@@ -84,6 +84,7 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
+	hasWorkspace: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 
@@ -175,6 +176,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
+	hasWorkspace,
 	workspaceAgent,
 	workspace,
 	store,
@@ -349,7 +351,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								: {})}
 							isRegeneratingTitle={isRegeneratingTitle}
 							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
-							hasWorkspace={Boolean(workspace)}
+							hasWorkspace={hasWorkspace}
 							isArchived={isArchived}
 							diffStatusData={diffStatusData}
 							isSidebarCollapsed={isSidebarCollapsed}
@@ -464,7 +466,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									/>
 								),
 							},
-							...(workspace && workspaceAgent
+							...(hasWorkspace && workspaceAgent
 								? [
 										{
 											id: "terminal",

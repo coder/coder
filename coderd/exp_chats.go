@@ -518,9 +518,118 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func defaultChatProviderAPIKeys(
+	fallback chatprovider.ProviderAPIKeys,
+	enabledProviders []database.ChatProvider,
+) chatprovider.ProviderAPIKeys {
+	providers := database.ChatProvidersByFamilyPrecedence(enabledProviders)
+	configuredProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(providers),
+	)
+	for _, provider := range providers {
+		configuredProviders = append(
+			configuredProviders, chatprovider.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
+			},
+		)
+	}
+	return chatprovider.MergeProviderAPIKeys(fallback, configuredProviders)
+}
+
+func shouldCleanUnboundModelsAfterProviderDelete(
+	deletedProvider database.ChatProvider,
+	remainingTotal int32,
+	enabledProviders []database.ChatProvider,
+	fallbackKeys chatprovider.ProviderAPIKeys,
+) bool {
+	remainingEnabledProviders := make(
+		[]database.ChatProvider, 0, len(enabledProviders),
+	)
+	remainingEnabledInFamily := 0
+	for _, provider := range enabledProviders {
+		if provider.ID == deletedProvider.ID {
+			continue
+		}
+		remainingEnabledProviders = append(remainingEnabledProviders, provider)
+		if provider.Provider == deletedProvider.Provider {
+			remainingEnabledInFamily++
+		}
+	}
+	if defaultChatProviderAPIKeys(
+		fallbackKeys,
+		remainingEnabledProviders,
+	).APIKey(deletedProvider.Provider) != "" {
+		return false
+	}
+	return remainingTotal == 0 ||
+		(deletedProvider.Enabled && remainingEnabledInFamily == 0)
+}
+
+func filterUserVisibleChatModelConfigs(
+	configs []database.ChatModelConfig,
+	enabledProviders []database.ChatProvider,
+	deploymentKeys chatprovider.ProviderAPIKeys,
+) []database.ChatModelConfig {
+	defaultKeys := defaultChatProviderAPIKeys(deploymentKeys, enabledProviders)
+	enabledProviderByID := make(map[uuid.UUID]database.ChatProvider, len(enabledProviders))
+	for _, provider := range enabledProviders {
+		enabledProviderByID[provider.ID] = provider
+	}
+	return slices.DeleteFunc(configs, func(config database.ChatModelConfig) bool {
+		if !config.ProviderConfigID.Valid {
+			return defaultKeys.APIKey(config.Provider) == ""
+		}
+		provider, ok := enabledProviderByID[config.ProviderConfigID.UUID]
+		if !ok {
+			return defaultKeys.APIKey(config.Provider) == ""
+		}
+		return !effectiveChatProviderConfigHasAPIKey(provider, defaultKeys)
+	})
+}
+
+func runtimeProvidersForVisibleModels(
+	configs []database.ChatModelConfig,
+	enabledProviders []database.ChatProvider,
+) []database.ChatProvider {
+	enabledProviderByID := make(map[uuid.UUID]database.ChatProvider, len(enabledProviders))
+	for _, provider := range enabledProviders {
+		enabledProviderByID[provider.ID] = provider
+	}
+	defaultProviderByFamily := make(map[string]database.ChatProvider)
+	for _, provider := range database.ChatProvidersByFamilyPrecedence(enabledProviders) {
+		defaultProviderByFamily[chatprovider.NormalizeProvider(provider.Provider)] = provider
+	}
+	providers := make([]database.ChatProvider, 0, len(configs))
+	seenProviderIDs := make(map[uuid.UUID]struct{})
+	appendProvider := func(provider database.ChatProvider) {
+		if _, ok := seenProviderIDs[provider.ID]; ok {
+			return
+		}
+		seenProviderIDs[provider.ID] = struct{}{}
+		providers = append(providers, provider)
+	}
+	for _, config := range configs {
+		if defaultProvider, ok := defaultProviderByFamily[chatprovider.NormalizeProvider(config.Provider)]; ok {
+			appendProvider(defaultProvider)
+		}
+		if !config.ProviderConfigID.Valid {
+			continue
+		}
+		enabledProvider, ok := enabledProviderByID[config.ProviderConfigID.UUID]
+		if !ok {
+			continue
+		}
+		appendProvider(enabledProvider)
+	}
+	return providers
+}
+
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
 	//nolint:gocritic // System context required to read enabled chat models.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
@@ -553,11 +662,33 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
+	visibleModels := enabledModels
+	visibleProviders := enabledProviders
+	if !isAdmin {
+		visibleModels = filterUserVisibleChatModelConfigs(
+			visibleModels,
+			enabledProviders,
+			deploymentKeys,
+		)
+		visibleProviders = runtimeProvidersForVisibleModels(
+			visibleModels,
+			enabledProviders,
+		)
+	}
+
 	configuredProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
+		[]chatprovider.ConfiguredProvider, 0, len(visibleProviders),
 	)
 	enabledProviderNames := make(map[string]struct{}, len(enabledProviders))
 	for _, provider := range enabledProviders {
+		normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		enabledProviderNames[normalizedProvider] = struct{}{}
+	}
+	for _, provider := range visibleProviders {
 		configuredProviders = append(
 			configuredProviders, chatprovider.ConfiguredProvider{
 				ProviderID:                 provider.ID,
@@ -576,9 +707,9 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		enabledProviderNames[normalizedProvider] = struct{}{}
 	}
 	configuredModels := make(
-		[]chatprovider.ConfiguredModel, 0, len(enabledModels),
+		[]chatprovider.ConfiguredModel, 0, len(visibleModels),
 	)
-	for _, model := range enabledModels {
+	for _, model := range visibleModels {
 		configuredModels = append(configuredModels, chatprovider.ConfiguredModel{
 			Provider:    model.Provider,
 			Model:       model.Model,
@@ -603,7 +734,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, providerAvailability := chatprovider.ResolveUserProviderKeys(
-		ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		configuredProviders,
 		userKeys,
 	)
@@ -3919,20 +4050,16 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	providersByName := make(map[string]database.ChatProvider, len(providers))
-	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
-	for _, provider := range providers {
-		normalizedProvider := normalizeChatProvider(provider.Provider)
+	configuredFamilies := make(map[string]struct{}, len(providers))
+	normalizedProviders := make([]database.ChatProvider, 0, len(providers))
+	for i := range providers {
+		normalizedProvider := normalizeChatProvider(providers[i].Provider)
 		if normalizedProvider == "" {
 			continue
 		}
-		provider.Provider = normalizedProvider
-		providersByName[normalizedProvider] = provider
-		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
-			Provider: normalizedProvider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
-		})
+		providers[i].Provider = normalizedProvider
+		normalizedProviders = append(normalizedProviders, providers[i])
+		configuredFamilies[normalizedProvider] = struct{}{}
 	}
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3942,9 +4069,8 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	enabledProviders, err := api.Database.GetEnabledChatProviders(
-		systemCtx,
-	)
+	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
+	effectiveKeys, err := api.effectiveChatProviderAPIKeys(systemCtx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to resolve provider API keys.",
@@ -3953,44 +4079,25 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	enabledConfiguredProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
-	)
-	for _, provider := range enabledProviders {
-		normalizedProvider := normalizeChatProvider(provider.Provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		enabledConfiguredProviders = append(
-			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
-				Provider: normalizedProvider,
-				APIKey:   provider.APIKey,
-				BaseURL:  provider.BaseUrl,
-			},
+	supportedProviders := chatprovider.SupportedProviders()
+	resp := make([]codersdk.ChatProviderConfig, 0, len(normalizedProviders)+len(supportedProviders))
+	for _, provider := range normalizedProviders {
+		hasEffectiveAPIKey := effectiveChatProviderConfigHasAPIKey(
+			provider,
+			deploymentKeys,
+		)
+		resp = append(
+			resp,
+			convertChatProviderConfig(
+				provider,
+				chatProviderConfigHasAPIKey(provider),
+				hasEffectiveAPIKey,
+				codersdk.ChatProviderConfigSourceDatabase,
+			),
 		)
 	}
-
-	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
-		enabledConfiguredProviders,
-	)
-	effectiveKeys = chatprovider.MergeProviderAPIKeys(
-		effectiveKeys, configuredProviders,
-	)
-
-	supportedProviders := chatprovider.SupportedProviders()
-	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
 	for _, provider := range supportedProviders {
-		configured, ok := providersByName[provider]
-		if ok {
-			resp = append(
-				resp,
-				convertChatProviderConfig(
-					configured,
-					api.hasEffectiveProviderAPIKey(ctx, configured),
-					codersdk.ChatProviderConfigSourceDatabase,
-				),
-			)
+		if _, ok := configuredFamilies[provider]; ok {
 			continue
 		}
 
@@ -4008,6 +4115,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                chatprovider.ProviderDisplayName(provider),
 			Enabled:                    enabled,
 			HasAPIKey:                  hasAPIKey,
+			HasEffectiveAPIKey:         hasAPIKey,
 			CentralAPIKeyEnabled:       true,
 			AllowUserAPIKey:            false,
 			AllowCentralAPIKeyFallback: false,
@@ -4117,12 +4225,6 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case database.IsUniqueViolation(err):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat provider already exists.",
-				Detail:  err.Error(),
-			})
-			return
 		case database.IsCheckViolation(err):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid provider.",
@@ -4140,13 +4242,19 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
 
+	hasEffectiveAPIKey := effectiveChatProviderConfigHasAPIKey(
+		inserted,
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+	)
+
 	httpapi.Write(
 		ctx,
 		rw,
 		http.StatusCreated,
 		convertChatProviderConfig(
 			inserted,
-			api.hasEffectiveProviderAPIKey(ctx, inserted),
+			chatProviderConfigHasAPIKey(inserted),
+			hasEffectiveAPIKey,
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
 	)
@@ -4286,13 +4394,19 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
 
+	hasEffectiveAPIKey := effectiveChatProviderConfigHasAPIKey(
+		updated,
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+	)
+
 	httpapi.Write(
 		ctx,
 		rw,
 		http.StatusOK,
 		convertChatProviderConfig(
 			updated,
-			api.hasEffectiveProviderAPIKey(ctx, updated),
+			chatProviderConfigHasAPIKey(updated),
+			hasEffectiveAPIKey,
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
 	)
@@ -4310,25 +4424,57 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := api.Database.GetChatProviderByID(ctx, providerID); err != nil {
+	err := api.Database.InTx(func(tx database.Store) error {
+		provider, err := tx.GetChatProviderByID(ctx, providerID)
+		if err != nil {
+			return err
+		}
+
+		remainingTotal, err := tx.CountChatProvidersByProviderExcludingID(ctx, database.CountChatProvidersByProviderExcludingIDParams{
+			Provider: provider.Provider,
+			ID:       providerID,
+		})
+		if err != nil {
+			return xerrors.Errorf("count remaining providers: %w", err)
+		}
+
+		//nolint:gocritic // System context required to read enabled chat providers.
+		enabledProviders, err := tx.GetEnabledChatProviders(dbauthz.AsSystemRestricted(ctx))
+		if err != nil {
+			return xerrors.Errorf("get enabled providers: %w", err)
+		}
+		shouldCleanUnbound := shouldCleanUnboundModelsAfterProviderDelete(
+			provider,
+			remainingTotal,
+			enabledProviders,
+			chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		)
+		if shouldCleanUnbound {
+			if _, err := tx.SoftDeleteUnboundChatModelConfigsByProvider(ctx, provider.Provider); err != nil {
+				return xerrors.Errorf("soft-delete unbound model configs: %w", err)
+			}
+		}
+
+		// Soft-delete model configs bound to this specific provider
+		// config. This preserves tracking data and chat history that
+		// ON DELETE SET NULL would otherwise orphan.
+		if _, err := tx.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, providerID); err != nil {
+			return xerrors.Errorf("soft-delete bound model configs: %w", err)
+		}
+
+		return tx.DeleteChatProviderByID(ctx, providerID)
+	}, nil)
+	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
 		if database.IsForeignKeyViolation(err,
 			database.ForeignKeyChatMessagesModelConfigID,
 			database.ForeignKeyChatsLastModelConfigID,
 		) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Provider models are still referenced by existing chats.",
+				Message: "Cannot delete provider config: models bound to it are still referenced by active chats.",
 				Detail:  err.Error(),
 			})
 			return
@@ -4341,7 +4487,6 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
-
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -4521,8 +4666,21 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	if isAdmin {
 		configs, err = api.Database.GetChatModelConfigs(ctx)
 	} else {
-		//nolint:gocritic // All authenticated users need to read enabled model configs to use the chat feature.
-		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsSystemRestricted(ctx))
+		//nolint:gocritic // All authenticated users need to read enabled chat model and provider configs to use the chat feature.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		configs, err = api.Database.GetEnabledChatModelConfigs(systemCtx)
+		if err == nil {
+			enabledProviders, enabledProvidersErr := api.Database.GetEnabledChatProviders(systemCtx)
+			if enabledProvidersErr != nil {
+				err = enabledProvidersErr
+			} else {
+				configs = filterUserVisibleChatModelConfigs(
+					configs,
+					enabledProviders,
+					chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+				)
+			}
+		}
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4538,6 +4696,73 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+var errProviderConfigValidation = xerrors.New("provider config validation failed")
+
+func revalidateProviderConfigBinding(
+	ctx context.Context,
+	db database.Store,
+	providerConfigID uuid.NullUUID,
+	normalizedProvider string,
+) (uuid.NullUUID, *codersdk.Response, int) {
+	if !providerConfigID.Valid {
+		return uuid.NullUUID{}, nil, 0
+	}
+	return validateProviderConfigID(ctx, db, &providerConfigID.UUID, normalizedProvider)
+}
+
+func validateProviderConfigID(ctx context.Context, db database.Store, requestedID *uuid.UUID, normalizedProvider string) (uuid.NullUUID, *codersdk.Response, int) {
+	if requestedID == nil {
+		return uuid.NullUUID{}, nil, 0
+	}
+
+	configID := *requestedID
+	providerConfig, err := db.GetChatProviderByID(ctx, configID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return uuid.NullUUID{}, &codersdk.Response{
+				Message: "Provider config not found.",
+				Detail:  fmt.Sprintf("provider_config_id %s does not exist", configID),
+			}, http.StatusBadRequest
+		}
+		return uuid.NullUUID{}, &codersdk.Response{
+			Message: "Failed to look up provider config.",
+			Detail:  err.Error(),
+		}, http.StatusInternalServerError
+	}
+	if !providerConfig.Enabled {
+		return uuid.NullUUID{}, &codersdk.Response{
+			Message: "Provider config is disabled.",
+			Detail:  fmt.Sprintf("provider_config_id %s is not enabled", configID),
+		}, http.StatusBadRequest
+	}
+	if normalizeChatProvider(providerConfig.Provider) != normalizedProvider {
+		return uuid.NullUUID{}, &codersdk.Response{
+			Message: "Provider config does not match the requested provider.",
+			Detail:  fmt.Sprintf("provider_config_id %s belongs to provider %q, not %q", configID, providerConfig.Provider, normalizedProvider),
+		}, http.StatusBadRequest
+	}
+
+	return uuid.NullUUID{UUID: configID, Valid: true}, nil, 0
+}
+
+func resolveProviderConfigBinding(ctx context.Context, db database.Store, requestedID *uuid.UUID, normalizedProvider string) (uuid.NullUUID, *codersdk.Response, int) {
+	if requestedID != nil {
+		return validateProviderConfigID(ctx, db, requestedID, normalizedProvider)
+	}
+
+	providerConfig, err := db.GetEnabledChatProviderByProvider(ctx, normalizedProvider)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return uuid.NullUUID{}, nil, 0
+		}
+		return uuid.NullUUID{}, &codersdk.Response{
+			Message: "Failed to resolve provider config.",
+			Detail:  err.Error(),
+		}, http.StatusInternalServerError
+	}
+	return uuid.NullUUID{UUID: providerConfig.ID, Valid: true}, nil, 0
 }
 
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -4559,6 +4784,17 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			Message: "Invalid provider.",
 			Detail:  chatProviderValidationDetail(),
 		})
+		return
+	}
+
+	providerConfigID, providerConfigErr, providerConfigStatus := resolveProviderConfigBinding(
+		ctx,
+		api.Database,
+		req.ProviderConfigID,
+		provider,
+	)
+	if providerConfigErr != nil {
+		httpapi.Write(ctx, rw, providerConfigStatus, *providerConfigErr)
 		return
 	}
 
@@ -4618,12 +4854,30 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
+		ProviderConfigID:     providerConfigID,
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 	}
 
-	var inserted database.ChatModelConfig
+	var (
+		inserted                       database.ChatModelConfig
+		providerConfigValidationErr    *codersdk.Response
+		providerConfigValidationStatus int
+	)
 	err := api.Database.InTx(func(tx database.Store) error {
+		validatedProviderConfigID, providerConfigErr, validationStatus := revalidateProviderConfigBinding(
+			ctx,
+			tx,
+			insertParams.ProviderConfigID,
+			provider,
+		)
+		if providerConfigErr != nil {
+			providerConfigValidationErr = providerConfigErr
+			providerConfigValidationStatus = validationStatus
+			return errProviderConfigValidation
+		}
+		insertParams.ProviderConfigID = validatedProviderConfigID
+
 		insertAsDefault := isDefault
 		if !insertAsDefault {
 			_, err := tx.GetDefaultChatModelConfig(ctx)
@@ -4661,6 +4915,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		inserted = refreshedConfig
 		return nil
 	}, nil)
+	if providerConfigValidationErr != nil {
+		httpapi.Write(ctx, rw, providerConfigValidationStatus, *providerConfigValidationErr)
+		return
+	}
 	if err != nil {
 		switch {
 		case database.IsUniqueViolation(err):
@@ -4721,6 +4979,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	provider := existing.Provider
+	providerChanged := false
 	if strings.TrimSpace(req.Provider) != "" {
 		provider = normalizeChatProvider(req.Provider)
 		if provider == "" {
@@ -4730,6 +4989,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		providerChanged = provider != existing.Provider
 	}
 
 	model := existing.Model
@@ -4787,6 +5047,41 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		modelConfigRaw = encodedModelConfig
 	}
 
+	providerConfigID := existing.ProviderConfigID
+	bindingChanged := providerChanged || req.ProviderConfigID != nil
+	if providerChanged && req.ProviderConfigID == nil {
+		resolvedProviderConfigID, providerConfigErr, providerConfigStatus := resolveProviderConfigBinding(
+			ctx,
+			api.Database,
+			nil,
+			provider,
+		)
+		if providerConfigErr != nil {
+			httpapi.Write(ctx, rw, providerConfigStatus, *providerConfigErr)
+			return
+		}
+		providerConfigID = resolvedProviderConfigID
+	}
+	if req.ProviderConfigID != nil {
+		// A nil UUID sentinel explicitly clears the binding while keeping the
+		// current provider family unchanged.
+		if *req.ProviderConfigID == uuid.Nil {
+			providerConfigID = uuid.NullUUID{}
+		} else {
+			validatedProviderConfigID, providerConfigErr, providerConfigStatus := validateProviderConfigID(
+				ctx,
+				api.Database,
+				req.ProviderConfigID,
+				provider,
+			)
+			if providerConfigErr != nil {
+				httpapi.Write(ctx, rw, providerConfigStatus, *providerConfigErr)
+				return
+			}
+			providerConfigID = validatedProviderConfigID
+		}
+	}
+
 	updateParams := database.UpdateChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -4796,12 +5091,32 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
+		ProviderConfigID:     providerConfigID,
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		ID:                   existing.ID,
 	}
 
-	var updated database.ChatModelConfig
+	var (
+		updated                        database.ChatModelConfig
+		providerConfigValidationErr    *codersdk.Response
+		providerConfigValidationStatus int
+	)
 	err = api.Database.InTx(func(tx database.Store) error {
+		if bindingChanged {
+			validatedProviderConfigID, providerConfigErr, validationStatus := revalidateProviderConfigBinding(
+				ctx,
+				tx,
+				updateParams.ProviderConfigID,
+				provider,
+			)
+			if providerConfigErr != nil {
+				providerConfigValidationErr = providerConfigErr
+				providerConfigValidationStatus = validationStatus
+				return errProviderConfigValidation
+			}
+			updateParams.ProviderConfigID = validatedProviderConfigID
+		}
+
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
@@ -4834,6 +5149,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		updated = refreshedConfig
 		return nil
 	}, nil)
+	if providerConfigValidationErr != nil {
+		httpapi.Write(ctx, rw, providerConfigValidationStatus, *providerConfigValidationErr)
+		return
+	}
 	if err != nil {
 		switch {
 		case database.IsUniqueViolation(err):
@@ -4965,6 +5284,7 @@ func chatModelConfigToUpdateParams(
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
 		Options:              config.Options,
+		ProviderConfigID:     config.ProviderConfigID,
 		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
 	}
@@ -5040,6 +5360,7 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 func convertChatProviderConfig(
 	provider database.ChatProvider,
 	hasAPIKey bool,
+	hasEffectiveAPIKey bool,
 	source codersdk.ChatProviderConfigSource,
 ) codersdk.ChatProviderConfig {
 	displayName := strings.TrimSpace(provider.DisplayName)
@@ -5053,6 +5374,7 @@ func convertChatProviderConfig(
 		DisplayName:                displayName,
 		Enabled:                    provider.Enabled,
 		HasAPIKey:                  hasAPIKey,
+		HasEffectiveAPIKey:         hasEffectiveAPIKey,
 		CentralAPIKeyEnabled:       provider.CentralApiKeyEnabled,
 		AllowUserAPIKey:            provider.AllowUserApiKey,
 		AllowCentralAPIKeyFallback: provider.AllowCentralApiKeyFallback,
@@ -5083,6 +5405,11 @@ func convertUserChatProviderConfig(
 }
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+	var providerConfigID *uuid.UUID
+	if config.ProviderConfigID.Valid {
+		providerConfigID = &config.ProviderConfigID.UUID
+	}
+
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
 		Provider:             config.Provider,
@@ -5092,6 +5419,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		IsDefault:            config.IsDefault,
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
+		ProviderConfigID:     providerConfigID,
 		ModelConfig:          unmarshalChatModelCallConfig(config.Options),
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
@@ -5292,8 +5620,14 @@ func ChatProviderAPIKeysFromDeploymentValues(
 	return chatprovider.ProviderAPIKeys{}
 }
 
-func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
-	return api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+// chatProviderAPIKeysFromDeploymentValues is the unexported counterpart of
+// ChatProviderAPIKeysFromDeploymentValues, used by internal callers.
+//
+//nolint:revive // Lowercase wrapper for internal use.
+func chatProviderAPIKeysFromDeploymentValues(
+	v *codersdk.DeploymentValues,
+) chatprovider.ProviderAPIKeys {
+	return ChatProviderAPIKeysFromDeploymentValues(v)
 }
 
 func (api *API) hasEffectiveCentralProviderAPIKey(
@@ -5314,17 +5648,12 @@ func (api *API) hasEffectiveCentralProviderAPIKey(
 	if api.chatDaemon == nil {
 		return false
 	}
-	//nolint:gocritic // System context required to read enabled chat providers.
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
+	//nolint:gocritic // System context required to read enabled chat providers.
 	enabledProviders, err := api.Database.GetEnabledChatProviders(
-		systemCtx,
+		dbauthz.AsSystemRestricted(ctx),
 	)
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to resolve provider API keys",
-			slog.F("provider", provider.Provider),
-			slog.Error(err),
-		)
 		return false
 	}
 
@@ -5349,6 +5678,62 @@ func (api *API) hasEffectiveCentralProviderAPIKey(
 		enabledConfiguredProviders,
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""
+}
+
+// effectiveChatProviderAPIKeys returns family-level provider keys using
+// all enabled provider configs so later keyed siblings still surface family
+// availability.
+func (api *API) effectiveChatProviderAPIKeys(
+	ctx context.Context,
+) (chatprovider.ProviderAPIKeys, error) {
+	//nolint:gocritic // System context required to read enabled chat providers.
+	enabledProviders, err := api.Database.GetEnabledChatProviders(
+		dbauthz.AsSystemRestricted(ctx),
+	)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, err
+	}
+
+	configuredProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
+	)
+	for _, provider := range enabledProviders {
+		configuredProviders = append(
+			configuredProviders, chatprovider.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
+			},
+		)
+	}
+
+	effectiveKeys := chatprovider.MergeProviderAPIKeys(
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		configuredProviders,
+	)
+	return effectiveKeys, nil
+}
+
+func effectiveChatProviderConfigHasAPIKey(
+	provider database.ChatProvider,
+	fallback chatprovider.ProviderAPIKeys,
+) bool {
+	normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
+	if normalizedProvider == "" {
+		return false
+	}
+	return chatprovider.MergeProviderAPIKeys(
+		fallback,
+		[]chatprovider.ConfiguredProvider{{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		}},
+	).APIKey(normalizedProvider) != ""
+}
+
+func chatProviderConfigHasAPIKey(provider database.ChatProvider) bool {
+	return strings.TrimSpace(provider.APIKey) != ""
 }
 
 // @Summary Get PR insights

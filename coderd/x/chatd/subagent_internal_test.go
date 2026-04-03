@@ -11,11 +11,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -148,6 +151,204 @@ func seedInternalChatDeps(
 	require.NoError(t, err)
 
 	return user, model
+}
+
+func TestResolveProviderAPIKeysForModel(t *testing.T) {
+	t.Parallel()
+
+	baseKeys := chatprovider.ProviderAPIKeys{
+		OpenAI:    "family-key",
+		Anthropic: "anthropic-key",
+		ByProvider: map[string]string{
+			"openai":    "family-key",
+			"anthropic": "anthropic-key",
+		},
+		BaseURLByProvider: map[string]string{
+			"openai": "https://family.example.com",
+		},
+	}
+
+	t.Run("NoBinding", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{}
+		resolved := server.resolveProviderAPIKeysForModel(
+			context.Background(),
+			database.ChatModelConfig{},
+			baseKeys,
+		)
+		require.Equal(t, baseKeys, resolved)
+	})
+
+	t.Run("CacheErrorFallsBack", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, xerrors.New("cache down"))
+
+		server := &Server{
+			logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			configCache: newChatConfigCache(context.Background(), db, quartz.NewMock(t)),
+		}
+		resolved := server.resolveProviderAPIKeysForModel(
+			context.Background(),
+			database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("99999999-9999-9999-9999-999999999999"), Valid: true},
+			},
+			baseKeys,
+		)
+
+		require.Equal(t, baseKeys, resolved)
+	})
+
+	tests := []struct {
+		name             string
+		model            database.ChatModelConfig
+		enabledProviders []database.ChatProvider
+		want             chatprovider.ProviderAPIKeys
+	}{
+		{
+			name: "BoundProviderOverridesFamilyKeys",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:       uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+				Provider: "openai",
+				APIKey:   "bound-key",
+				BaseUrl:  "https://bound.example.com",
+			}},
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "bound-key",
+				Anthropic: "anthropic-key",
+				ByProvider: map[string]string{
+					"openai":    "bound-key",
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{
+					"openai": "https://bound.example.com",
+				},
+			},
+		},
+		{
+			name: "EmptyBoundKeyKeepsInheritedFamilyKeys",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:       uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+				Provider: "openai",
+				APIKey:   "   ",
+				BaseUrl:  "   ",
+			}},
+			want: baseKeys,
+		},
+		{
+			name: "BoundToNonOldestProviderInFamily",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000003"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{
+				{
+					ID:        uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Provider:  "openai",
+					APIKey:    "older-key",
+					BaseUrl:   "https://older.example.com",
+					CreatedAt: time.Unix(1, 0).UTC(),
+				},
+				{
+					ID:        uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					Provider:  "openai",
+					APIKey:    "newer-key",
+					BaseUrl:   "https://newer.example.com",
+					CreatedAt: time.Unix(2, 0).UTC(),
+				},
+			},
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "newer-key",
+				Anthropic: "anthropic-key",
+				ByProvider: map[string]string{
+					"openai":    "newer-key",
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{
+					"openai": "https://newer.example.com",
+				},
+			},
+		},
+		{
+			name: "EmptyBoundBaseURLClearsInheritedFamilyBaseURL",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("12121212-1212-1212-1212-121212121212"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:       uuid.MustParse("12121212-1212-1212-1212-121212121212"),
+				Provider: "openai",
+				APIKey:   "bound-key",
+				BaseUrl:  "   ",
+			}},
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "bound-key",
+				Anthropic: "anthropic-key",
+				ByProvider: map[string]string{
+					"openai":    "bound-key",
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{},
+			},
+		},
+		{
+			name: "DisabledBindingFallsBack",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:       uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+				Provider: "openai",
+				APIKey:   "cached-key",
+				BaseUrl:  "https://cached.example.com",
+			}},
+			want: baseKeys,
+		},
+		{
+			name: "MissingBindingFallsBack",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:       uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+				Provider: "anthropic",
+				APIKey:   "cached-anthropic-key",
+				BaseUrl:  "https://anthropic.example.com",
+			}},
+			want: baseKeys,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(tt.enabledProviders, nil)
+
+			server := &Server{
+				configCache: newChatConfigCache(context.Background(), db, quartz.NewMock(t)),
+			}
+			resolved := server.resolveProviderAPIKeysForModel(
+				context.Background(),
+				tt.model,
+				baseKeys,
+			)
+
+			require.Equal(t, tt.want, resolved)
+			require.Equal(t, "family-key", baseKeys.APIKey("openai"))
+			require.Equal(t, "https://family.example.com", baseKeys.BaseURL("openai"))
+		})
+	}
 }
 
 func seedWorkspaceBinding(
