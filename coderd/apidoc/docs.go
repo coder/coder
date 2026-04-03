@@ -14586,9 +14586,6 @@ const docTemplate = `{
         "codersdk.CreateFirstUserOnboardingInfo": {
             "type": "object",
             "properties": {
-                "is_business": {
-                    "type": "boolean"
-                },
                 "newsletter_marketing": {
                     "type": "boolean"
                 },
