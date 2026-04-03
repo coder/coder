@@ -172,6 +172,8 @@ export const SubagentTool: React.FC<{
 	variant?: "default" | "computer-use";
 	/** File ID for a completed recording (shown after tool completes). */
 	recordingFileId?: string;
+	/** File ID for the JPEG thumbnail of a completed recording. */
+	thumbnailFileId?: string;
 }> = ({
 	toolName,
 	title,
@@ -187,6 +189,7 @@ export const SubagentTool: React.FC<{
 	showDesktopPreview,
 	variant = "default",
 	recordingFileId,
+	thumbnailFileId,
 }) => {
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
@@ -262,7 +265,10 @@ export const SubagentTool: React.FC<{
 
 			{recordingFileId && toolStatus === "completed" && (
 				<div className="mt-1.5 w-fit">
-					<RecordingPreview recordingFileId={recordingFileId} />
+					<RecordingPreview
+						recordingFileId={recordingFileId}
+						thumbnailFileId={thumbnailFileId}
+					/>
 				</div>
 			)}
 			{expanded && hasPrompt && (
