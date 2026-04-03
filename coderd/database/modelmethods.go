@@ -936,7 +936,7 @@ type UpsertConnectionLogParams struct {
 	AgentName        string           `db:"agent_name" json:"agent_name"`
 	Type             ConnectionType   `db:"type" json:"type"`
 	Code             sql.NullInt32    `db:"code" json:"code"`
-	Ip               pqtype.Inet      `db:"ip" json:"ip"`
+	IP               pqtype.Inet      `db:"ip" json:"ip"`
 	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
 	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
 	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`

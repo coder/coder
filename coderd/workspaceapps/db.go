@@ -535,7 +535,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 				Int32: statusCode,
 				Valid: true,
 			},
-			Ip:        database.ParseIP(ip),
+			IP:        database.ParseIP(ip),
 			UserAgent: sql.NullString{Valid: userAgent != "", String: userAgent},
 			UserID: uuid.NullUUID{
 				UUID:  userID,

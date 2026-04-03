@@ -82,7 +82,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
-			Ip:               testIP(),
+			IP:               testIP(),
 		})
 		require.NoError(t, err)
 
@@ -129,7 +129,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
-			Ip:               testIP(),
+			IP:               testIP(),
 		})
 		require.NoError(t, err)
 		require.NoError(t, b1.Close())
@@ -155,7 +155,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			ConnectionStatus: database.ConnectionStatusDisconnected,
 			Code:             sql.NullInt32{Int32: 0, Valid: true},
 			DisconnectReason: sql.NullString{String: "client left", Valid: true},
-			Ip:               testIP(),
+			IP:               testIP(),
 		})
 		require.NoError(t, err)
 		require.NoError(t, b2.Close())
@@ -202,7 +202,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
-			Ip:               testIP(),
+			IP:               testIP(),
 		})
 		require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			ConnectionStatus: database.ConnectionStatusDisconnected,
 			Code:             sql.NullInt32{Int32: 0, Valid: true},
 			DisconnectReason: sql.NullString{String: "done", Valid: true},
-			Ip:               testIP(),
+			IP:               testIP(),
 		})
 		require.NoError(t, err)
 
@@ -266,7 +266,7 @@ func TestDBBackendIntegration(t *testing.T) {
 				Type:             database.ConnectionTypeSsh,
 				ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
 				ConnectionStatus: database.ConnectionStatusConnected,
-				Ip:               testIP(),
+				IP:               testIP(),
 			})
 			require.NoError(t, err)
 		}
@@ -311,7 +311,7 @@ func TestDBBackendIntegration(t *testing.T) {
 				Type:             database.ConnectionTypeWorkspaceApp,
 				ConnectionID:     uuid.NullUUID{},
 				ConnectionStatus: database.ConnectionStatusConnected,
-				Ip:               testIP(),
+				IP:               testIP(),
 			})
 			require.NoError(t, err)
 		}
@@ -354,7 +354,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
-			Ip:               testIP(),
+			IP:               testIP(),
 		})
 		require.NoError(t, err)
 

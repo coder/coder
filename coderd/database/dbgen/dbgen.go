@@ -89,7 +89,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
 		},
-		Ip: pqtype.Inet{
+		IP: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   net.IPv4(127, 0, 0, 1),
 				Mask: net.IPv4Mask(255, 255, 255, 255),
@@ -135,7 +135,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		Type:             []database.ConnectionType{arg.Type},
 		Code:             []int32{arg.Code.Int32},
 		CodeValid:        []bool{arg.Code.Valid},
-		Ip:               []pqtype.Inet{arg.Ip},
+		Ip:               []pqtype.Inet{arg.IP},
 		UserAgent:        []string{arg.UserAgent.String},
 		UserID:           []uuid.UUID{arg.UserID.UUID},
 		SlugOrPort:       []string{arg.SlugOrPort.String},
@@ -155,7 +155,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		AgentName:        arg.AgentName,
 		Type:             arg.Type,
 		Code:             arg.Code,
-		Ip:               arg.Ip,
+		Ip:               arg.IP,
 		UserAgent:        arg.UserAgent,
 		UserID:           arg.UserID,
 		SlugOrPort:       arg.SlugOrPort,

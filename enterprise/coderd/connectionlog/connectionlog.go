@@ -34,7 +34,6 @@ const (
 	// shutdownWriteTimeout bounds how long a final write attempt
 	// can take during shutdown when the batcher context is already
 	// canceled.
-	/*  */
 	shutdownWriteTimeout = 10 * time.Second
 
 	// maxRetries is the number of times to retry a failed batch
@@ -414,7 +413,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		connType = append(connType, e.Type)
 		code = append(code, e.Code.Int32)
 		codeValid = append(codeValid, e.Code.Valid)
-		ip = append(ip, e.Ip)
+		ip = append(ip, e.IP)
 		userAgent = append(userAgent, e.UserAgent.String)
 		userID = append(userID, e.UserID.UUID)
 		slugOrPort = append(slugOrPort, e.SlugOrPort.String)
