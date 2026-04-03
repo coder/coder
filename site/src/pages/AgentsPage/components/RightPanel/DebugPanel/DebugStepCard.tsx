@@ -257,7 +257,9 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 									<div key={key} className="contents">
 										<dt className="text-content-tertiary">{key}</dt>
 										<dd className="font-medium text-content-primary">
-											{String(value)}
+											{typeof value === "object"
+												? safeJsonStringify(value)
+												: String(value)}
 										</dd>
 									</div>
 								))}
