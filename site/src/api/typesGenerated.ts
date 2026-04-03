@@ -2391,13 +2391,11 @@ export interface CreateChatRequest {
 // From codersdk/users.go
 /**
  * CreateFirstUserOnboardingInfo contains optional newsletter preference
- * data collected during first user setup. Pointer fields allow an
- * explicit "no" answer to be distinguished from a skipped question,
- * which matters for the telemetry schema.
+ * data collected during first user setup.
  */
 export interface CreateFirstUserOnboardingInfo {
-	readonly newsletter_marketing: boolean | null;
-	readonly newsletter_releases: boolean | null;
+	readonly newsletter_marketing: boolean;
+	readonly newsletter_releases: boolean;
 }
 
 // From codersdk/users.go

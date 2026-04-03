@@ -145,12 +145,10 @@ type CreateFirstUserTrialInfo struct {
 }
 
 // CreateFirstUserOnboardingInfo contains optional newsletter preference
-// data collected during first user setup. Pointer fields allow an
-// explicit "no" answer to be distinguished from a skipped question,
-// which matters for the telemetry schema.
+// data collected during first user setup.
 type CreateFirstUserOnboardingInfo struct {
-	NewsletterMarketing *bool `json:"newsletter_marketing"`
-	NewsletterReleases  *bool `json:"newsletter_releases"`
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.

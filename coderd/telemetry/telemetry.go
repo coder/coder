@@ -1554,11 +1554,10 @@ type User struct {
 
 // FirstUserOnboarding contains optional newsletter preference data
 // collected during first user setup. This is sent once when the first
-// user is created. Pointer fields distinguish an explicit answer from
-// a skipped question.
+// user is created.
 type FirstUserOnboarding struct {
-	NewsletterMarketing *bool `json:"newsletter_marketing"`
-	NewsletterReleases  *bool `json:"newsletter_releases"`
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 type Group struct {
