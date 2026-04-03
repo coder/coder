@@ -945,6 +945,3 @@ type UpsertConnectionLogParams struct {
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
 }
-
-
-
