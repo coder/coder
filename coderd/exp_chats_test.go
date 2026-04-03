@@ -3123,6 +3123,7 @@ func TestGetChat(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
+
 func TestArchiveChat(t *testing.T) {
 	t.Parallel()
 
