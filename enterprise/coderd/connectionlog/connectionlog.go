@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -197,12 +196,10 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 // blocks if the internal buffer is full, ensuring no logs are dropped.
 // It returns an error if the batcher or caller context is canceled.
 func (b *DBBatcher) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
-	// Check the closed flag before attempting the send so that
-	// post-Close() calls fail deterministically rather than
-	// racing with channel capacity.
-	if b.closed.Load() {
-		return xerrors.New("batcher closed")
+	if b.ctx.Err() != nil {
+		return b.ctx.Err()
 	}
+
 	select {
 	case b.itemCh <- clog:
 		return nil
@@ -323,7 +320,6 @@ func (b *DBBatcher) run(ctx context.Context) {
 			// Mark the batcher as closed so that any subsequent
 			// Upsert calls fail immediately instead of sending
 			// into itemCh after the run loop has exited.
-			b.closed.Store(true)
 			close(b.retryCh)
 			return
 		}
