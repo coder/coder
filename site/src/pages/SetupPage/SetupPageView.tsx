@@ -178,6 +178,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			validationSchema,
 			onSubmit,
 			validateOnBlur: false,
+			validateOnMount: true,
 		});
 	const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(
 		form,
@@ -426,10 +427,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					<div className="flex justify-end">
 						<Button
-							disabled={isLoading}
+							disabled={!form.isValid || isLoading}
 							type="submit"
 							data-testid="create"
-							variant="outline"
 						>
 							<Spinner loading={isLoading} />
 							Continue
