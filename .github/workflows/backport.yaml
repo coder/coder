@@ -9,7 +9,7 @@
 #
 # The created backport PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
-#   - Title:   chore: backport #<pr> to <version>
+#   - Title:   <original PR title> (<version>)
 #   - Label:   cherry-pick/v<version>
 #   - Body:    links back to the original PR and merge commit
 
@@ -137,5 +137,5 @@ jobs:
             --base "$RELEASE_VERSION" \
             --head "$BACKPORT_BRANCH" \
             --label "$LABEL" \
-            --title "chore: backport #${PR_NUMBER} to ${VERSION}" \
+            --title "${PR_TITLE} (${VERSION})" \
             --body "$BODY"
