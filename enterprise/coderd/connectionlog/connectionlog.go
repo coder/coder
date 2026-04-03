@@ -10,13 +10,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	auditbackends "github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/quartz"
-	"golang.org/x/xerrors"
 )
 
 const (
