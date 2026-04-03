@@ -797,17 +797,41 @@ const debugRunRefetchInterval = (
 };
 
 export const chatDebugRunsKey = (chatId: string) =>
-	["chats", chatId, "debug-runs"] as const;
+	[...chatsKey, chatId, "debug-runs"] as const;
 
 export const chatDebugRuns = (chatId: string) => ({
 	queryKey: chatDebugRunsKey(chatId),
 	queryFn: () => API.experimental.getChatDebugRuns(chatId),
-	refetchInterval: 5_000,
+	refetchInterval: ({
+		state,
+	}: {
+		state: { data?: unknown; status: string };
+	}): number | false => {
+		// Stop polling when the query errors to avoid burning fetches.
+		if (state.status === "error") {
+			return false;
+		}
+		// Check if all runs are in terminal state.
+		const runs = state.data;
+		if (Array.isArray(runs) && runs.length > 0) {
+			const allTerminal = runs.every(
+				(r: { status?: string }) =>
+					r.status === "completed" ||
+					r.status === "error" ||
+					r.status === "interrupted" ||
+					r.status === "cancelled",
+			);
+			if (allTerminal) {
+				return false;
+			}
+		}
+		return 5_000;
+	},
 	refetchIntervalInBackground: false,
 });
 
 const chatDebugRunKey = (chatId: string, runId: string) =>
-	["chats", chatId, "debug-runs", runId] as const;
+	[...chatsKey, chatId, "debug-runs", runId] as const;
 
 export const chatDebugRun = (chatId: string, runId: string) => ({
 	queryKey: chatDebugRunKey(chatId, runId),

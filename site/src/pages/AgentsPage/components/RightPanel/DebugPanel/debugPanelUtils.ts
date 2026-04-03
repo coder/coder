@@ -273,29 +273,11 @@ export const getStatusBadgeVariant = (status: string) => {
 	return "default";
 };
 
-export const annotateRedactedJson = (obj: unknown): unknown => {
-	if (typeof obj === "string") {
-		return obj;
-	}
-	if (Array.isArray(obj)) {
-		return obj.map((item) => annotateRedactedJson(item));
-	}
-	if (!isRecord(obj)) {
-		return obj;
-	}
-
-	return Object.fromEntries(
-		Object.entries(obj).map(([key, value]) => [
-			key,
-			annotateRedactedJson(value),
-		]),
-	);
-};
 
 export const normalizeAttempts = (
-	attempts: Record<string, string>,
+	attempts: unknown,
 ): { parsed: NormalizedAttempt[]; rawFallback?: string } => {
-	const source = attempts as unknown;
+	const source = attempts;
 
 	if (Array.isArray(source)) {
 		const parsed = normalizeAttemptList(source);
@@ -317,6 +299,14 @@ export const normalizeAttempts = (
 			return parsedJson.length === 0
 				? { parsed: [] }
 				: { parsed: [], rawFallback: source };
+		}
+		// Handle object-shaped JSON strings (e.g., a dict of attempts
+		// keyed by index) by treating them as a single-element record.
+		if (isRecord(parsedJson)) {
+			const parsed = normalizeAttemptList(Object.values(parsedJson));
+			if (parsed.length > 0) {
+				return { parsed };
+			}
 		}
 		return { parsed: [], rawFallback: source };
 	}
@@ -1148,17 +1138,6 @@ export const clampContent = (text: string, maxLen: number): string => {
 	return `${trimmed.slice(0, maxLen).trimEnd()}…`;
 };
 
-// ---------------------------------------------------------------------------
-// Label truncation.
-// ---------------------------------------------------------------------------
-
-export const truncatePrimaryLabel = (text: string, maxLen = 80): string => {
-	const trimmed = text.trim();
-	if (trimmed.length <= maxLen) {
-		return trimmed;
-	}
-	return `${trimmed.slice(0, maxLen).trimEnd()}…`;
-};
 
 // ---------------------------------------------------------------------------
 // Active-status helper (for spinner indicators).
