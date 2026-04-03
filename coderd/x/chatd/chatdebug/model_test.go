@@ -588,9 +588,6 @@ func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
-	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
-	expectUpdateStep(t, db, stepID, chatID, StatusError, func(_ database.UpdateChatDebugStepParams) {})
-
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -629,9 +626,6 @@ func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
-
-	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
-	expectUpdateStep(t, db, stepID, chatID, StatusError, func(_ database.UpdateChatDebugStepParams) {})
 
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
