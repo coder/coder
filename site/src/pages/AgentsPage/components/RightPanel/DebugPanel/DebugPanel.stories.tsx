@@ -523,9 +523,7 @@ export const Empty: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/no debug runs/i),
-		).toBeInTheDocument();
+		await expect(canvas.getByText(/no debug runs/i)).toBeInTheDocument();
 	},
 };
 
@@ -560,9 +558,7 @@ export const Loading: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/loading debug/i),
-		).toBeInTheDocument();
+		await expect(canvas.getByText(/loading debug/i)).toBeInTheDocument();
 	},
 };
 
