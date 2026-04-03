@@ -490,7 +490,7 @@ type ChatDebugSettings struct {
 
 // UpdateChatDebugLoggingRequest is the request to update the debug logging setting.
 type UpdateChatDebugLoggingRequest struct {
-	DebugLoggingEnabled bool  `json:"debug_logging_enabled"`
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
 }
 
 // ChatDebugRunSummary is a lightweight run entry for list endpoints.
@@ -1665,6 +1665,7 @@ func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req U
 	}
 	return nil
 }
+
 // GetChatWorkspaceTTL returns the configured chat workspace TTL.
 func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
@@ -1926,6 +1927,7 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 		return nil
 	}), nil
 }
+
 // GetChat returns a chat by ID.
 func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)

@@ -1759,6 +1759,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	rw.WriteHeader(http.StatusNoContent)
 }
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3020,6 +3021,7 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
+
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
@@ -3308,6 +3310,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		CustomPrompt: updatedConfig.Value,
 	})
 }
+
 // @Summary Get user chat compaction thresholds
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
