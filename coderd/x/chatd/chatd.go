@@ -104,9 +104,10 @@ var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: th
 
 // Server handles background processing of pending chats.
 type Server struct {
-	cancel   context.CancelFunc
-	closed   chan struct{}
-	inflight sync.WaitGroup
+	cancel     context.CancelFunc
+	closed     chan struct{}
+	inflight   sync.WaitGroup
+	inflightMu sync.Mutex
 
 	db       database.Store
 	workerID uuid.UUID
@@ -2513,6 +2514,7 @@ func (p *Server) processOnce(ctx context.Context) {
 		return
 	}
 
+	p.inflightMu.Lock()
 	for _, chat := range chats {
 		p.inflight.Add(1)
 		go func() {
@@ -2520,6 +2522,7 @@ func (p *Server) processOnce(ctx context.Context) {
 			p.processChat(ctx, chat)
 		}()
 	}
+	p.inflightMu.Unlock()
 }
 
 func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -5454,8 +5457,21 @@ func (p *Server) Close() error {
 	}
 	p.cancel()
 	<-p.closed
-	p.inflight.Wait()
+	p.drainInflight()
 	return nil
+}
+
+// drainInflight waits for all in-flight operations to complete.
+// It acquires inflightMu to prevent processOnce from spawning
+// new goroutines (via inflight.Add) concurrently with Wait,
+// which would violate sync.WaitGroup's contract.
+//
+// https://pkg.go.dev/sync#WaitGroup.Add
+// > Note that calls with a positive delta that occur when the counter is zero must happen before a Wait.
+func (p *Server) drainInflight() {
+	p.inflightMu.Lock()
+	p.inflight.Wait()
+	p.inflightMu.Unlock()
 }
 
 // refreshExpiredMCPTokens checks each MCP OAuth2 token and refreshes
