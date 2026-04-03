@@ -24,7 +24,6 @@ import {
 	ToolPayloadDisclosure,
 } from "./DebugStepCardTooling";
 import {
-	annotateRedactedJson,
 	coerceStepRequest,
 	coerceStepResponse,
 	coerceUsage,
@@ -34,6 +33,7 @@ import {
 	formatTokenSummary,
 	getStatusBadgeVariant,
 	normalizeAttempts,
+	safeJsonStringify,
 	TRANSCRIPT_PREVIEW_COUNT,
 } from "./debugPanelUtils";
 
@@ -43,14 +43,6 @@ interface DebugStepCardProps {
 }
 
 type SectionKey = "tools" | "options" | "usage" | "policy";
-
-const safeStringify = (value: unknown): string => {
-	try {
-		return JSON.stringify(annotateRedactedJson(value), null, 2);
-	} catch {
-		return String(value);
-	}
-};
 
 export const DebugStepCard: FC<DebugStepCardProps> = ({
 	step,
@@ -115,7 +107,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 		(!!step.error &&
 			typeof step.error === "object" &&
 			Object.keys(step.error).length > 0);
-	const errorCode = stringError ?? safeStringify(step.error);
+	const errorCode = stringError ?? safeJsonStringify(step.error);
 
 	return (
 		<Collapsible defaultOpen={defaultOpen}>
@@ -421,7 +413,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 						</CollapsibleTrigger>
 						<CollapsibleContent className="mt-1.5">
 							<CopyableCodeBlock
-								code={safeStringify(step.normalized_request)}
+								code={safeJsonStringify(step.normalized_request)}
 								label="Copy request body JSON"
 							/>
 						</CollapsibleContent>
@@ -441,7 +433,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 							</CollapsibleTrigger>
 							<CollapsibleContent className="mt-1.5">
 								<CopyableCodeBlock
-									code={safeStringify(step.normalized_response)}
+									code={safeJsonStringify(step.normalized_response)}
 									label="Copy response body JSON"
 								/>
 							</CollapsibleContent>

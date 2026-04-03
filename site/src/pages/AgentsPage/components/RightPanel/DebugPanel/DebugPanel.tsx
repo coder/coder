@@ -30,7 +30,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({ chatId, enabled = true }) => {
 			<div className="p-4">
 				<Alert severity="error" prominent>
 					<p className="text-sm text-content-primary">
-						{getErrorMessage(runsQuery.error)}
+						{getErrorMessage(runsQuery.error, "Unable to load debug panel data.")}
 					</p>
 				</Alert>
 			</div>

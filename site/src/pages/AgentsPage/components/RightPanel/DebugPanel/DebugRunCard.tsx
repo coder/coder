@@ -15,6 +15,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { DebugStepCard } from "./DebugStepCard";
 import {
+	clampContent,
 	coerceRunSummary,
 	compactDuration,
 	computeDurationMs,
@@ -22,7 +23,6 @@ import {
 	getRunKindLabel,
 	getStatusBadgeVariant,
 	isActiveStatus,
-	truncatePrimaryLabel,
 } from "./debugPanelUtils";
 
 interface DebugRunCardProps {
@@ -56,8 +56,9 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	const modelLabel = summaryVm.model?.trim() || run.model?.trim() || "";
 
 	// Primary label fallback chain: firstMessage → kind.
-	const primaryLabel = truncatePrimaryLabel(
+	const primaryLabel = clampContent(
 		summaryVm.primaryLabel.trim() || getRunKindLabel(run.kind),
+		80,
 	);
 
 	// Token summary for the header.
@@ -129,7 +130,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 					) : runDetailQuery.isError ? (
 						<Alert severity="error" prominent>
 							<p className="text-sm text-content-primary">
-								{getErrorMessage(runDetailQuery.error)}
+								{getErrorMessage(runDetailQuery.error, "Unable to load debug run details.")}
 							</p>
 						</Alert>
 					) : (
