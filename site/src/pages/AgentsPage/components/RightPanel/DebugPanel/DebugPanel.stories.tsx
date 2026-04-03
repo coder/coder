@@ -703,8 +703,10 @@ export const ErrorStateWithRedactedHeaders: Story = {
 
 		// After expanding, verify [REDACTED] markers appear in the
 		// rendered output (Radix Collapsible hides content until open).
+		// Use regex since [REDACTED] appears inside larger JSON text
+		// nodes, not as standalone text content.
 		await waitFor(() => {
-			const redactedMarkers = canvas.getAllByText("[REDACTED]");
+			const redactedMarkers = canvas.getAllByText(/\[REDACTED\]/);
 			expect(redactedMarkers.length).toBeGreaterThan(0);
 		});
 	},
