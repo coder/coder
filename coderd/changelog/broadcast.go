@@ -18,6 +18,41 @@ import (
 
 const changelogLastNotifiedSiteConfigKey = "changelog_last_notified_version"
 
+func ensureChangelogTemplateMethodInbox(ctx context.Context, store database.Store) error {
+	tpl, err := store.GetNotificationTemplateByID(
+		//nolint:gocritic // Changelog broadcast needs system access to template metadata.
+		dbauthz.AsSystemRestricted(ctx),
+		notifications.TemplateChangelog,
+	)
+	if err != nil {
+		return xerrors.Errorf("get changelog notification template: %w", err)
+	}
+
+	if tpl.Method.Valid && tpl.Method.NotificationMethod == database.NotificationMethodInbox {
+		return nil
+	}
+
+	// The changelog template migration leaves method NULL because migrations run
+	// in one transaction, and Postgres rejects using newly added enum values in
+	// the same transaction. Normalize the template method at runtime instead.
+	_, err = store.UpdateNotificationTemplateMethodByID(
+		//nolint:gocritic // Changelog broadcast needs system access to template metadata.
+		dbauthz.AsSystemRestricted(ctx),
+		database.UpdateNotificationTemplateMethodByIDParams{
+			ID: notifications.TemplateChangelog,
+			Method: database.NullNotificationMethod{
+				NotificationMethod: database.NotificationMethodInbox,
+				Valid:              true,
+			},
+		},
+	)
+	if err != nil {
+		return xerrors.Errorf("set changelog template method: %w", err)
+	}
+
+	return nil
+}
+
 // BroadcastChangelog sends a changelog notification to all active users for the
 // current version, if it hasn't been sent yet.
 //
@@ -60,6 +95,10 @@ func BroadcastChangelog(
 	defer func() {
 		_, _ = conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", lockID)
 	}()
+
+	if err := ensureChangelogTemplateMethodInbox(ctx, store); err != nil {
+		return xerrors.Errorf("ensure changelog template method: %w", err)
+	}
 
 	var lastNotified string
 	err = conn.QueryRowContext(ctx, "SELECT value FROM site_configs WHERE key = $1", changelogLastNotifiedSiteConfigKey).

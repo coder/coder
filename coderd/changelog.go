@@ -18,6 +18,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func changelogImageURL(image string) string {
+	assetPath := normalizeChangelogAssetPath(image)
+	if assetPath == "" {
+		return ""
+	}
+
+	return "/api/v2/changelog/assets/" + assetPath
+}
+
+func normalizeChangelogAssetPath(assetPath string) string {
+	assetPath = strings.TrimSpace(assetPath)
+	assetPath = strings.TrimPrefix(assetPath, "/")
+	assetPath = strings.TrimPrefix(assetPath, "assets/")
+	return assetPath
+}
+
 // listChangelogEntries lists the embedded changelog entries.
 //
 // @Summary List changelog entries
@@ -40,10 +56,7 @@ func (api *API) listChangelogEntries(rw http.ResponseWriter, r *http.Request) {
 		Entries: make([]codersdk.ChangelogEntry, 0, len(entries)),
 	}
 	for _, e := range entries {
-		imageURL := ""
-		if e.Image != "" {
-			imageURL = "/api/v2/changelog/assets/" + e.Image
-		}
+		imageURL := changelogImageURL(e.Image)
 
 		resp.Entries = append(resp.Entries, codersdk.ChangelogEntry{
 			Version:  e.Version,
@@ -84,10 +97,7 @@ func (api *API) changelogEntryByVersion(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	imageURL := ""
-	if entry.Image != "" {
-		imageURL = "/api/v2/changelog/assets/" + entry.Image
-	}
+	imageURL := changelogImageURL(entry.Image)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChangelogEntry{
 		Version:  entry.Version,
@@ -110,7 +120,7 @@ func (api *API) changelogEntryByVersion(rw http.ResponseWriter, r *http.Request)
 // @Success 200
 // @Router /changelog/assets/{path} [get]
 func (*API) changelogAsset(rw http.ResponseWriter, r *http.Request) {
-	assetPath := chi.URLParam(r, "*")
+	assetPath := normalizeChangelogAssetPath(chi.URLParam(r, "*"))
 	if !fs.ValidPath(assetPath) {
 		http.NotFound(rw, r)
 		return
