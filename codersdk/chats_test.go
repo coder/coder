@@ -152,12 +152,12 @@ func TestNullableBool_JSON(t *testing.T) {
 		require.JSONEq(t, `false`, string(encodedFalse))
 	})
 
-	t.Run("Marshal invalid state as explicit object", func(t *testing.T) {
+	t.Run("Marshal invalid state as null", func(t *testing.T) {
 		t.Parallel()
 
 		encoded, err := json.Marshal(codersdk.NullableBool{Value: false, Valid: false})
 		require.NoError(t, err)
-		require.JSONEq(t, `{"value":false,"valid":false}`, string(encoded))
+		require.Equal(t, "null", string(encoded))
 	})
 
 	t.Run("Unmarshal legacy bool", func(t *testing.T) {
