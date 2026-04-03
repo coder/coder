@@ -152,6 +152,7 @@ func isSensitiveName(name string) bool {
 		return true
 	}
 	return strings.Contains(lowerName, "secret") ||
+		strings.Contains(lowerName, "security-token") ||
 		strings.Contains(lowerName, "auth-token") ||
 		strings.Contains(lowerName, "access-token") ||
 		strings.Contains(lowerName, "refresh-token") ||

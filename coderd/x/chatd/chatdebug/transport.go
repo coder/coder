@@ -247,7 +247,10 @@ func (r *recordingBody) Close() error {
 	r.mu.Unlock()
 
 	switch {
-	case sawEOF && contentLength < 0 && isJSONLikeContentType(contentType) && !isCompleteUnknownLengthJSONBody(contentType, responseBody):
+	// Only check JSON completeness when the recording buffer is
+	// not truncated. A truncated buffer is an incomplete prefix
+	// of the body, so the completeness check would false-positive.
+	case sawEOF && !truncated && contentLength < 0 && isJSONLikeContentType(contentType) && !isCompleteUnknownLengthJSONBody(contentType, responseBody):
 		r.record(io.ErrUnexpectedEOF)
 	case sawEOF:
 		r.record(io.EOF)
