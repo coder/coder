@@ -1786,15 +1786,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary List chat debug runs
-// @ID list-chat-debug-runs
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID"
-// @Success 200 {array} codersdk.ChatDebugRunSummary
-// @Router /chats/{chat}/debug/runs [get]
-// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -1819,16 +1810,6 @@ func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// @Summary Get chat debug run
-// @ID get-chat-debug-run
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID"
-// @Param run path string true "Run ID"
-// @Success 200 {object} codersdk.ChatDebugRun
-// @Router /chats/{chat}/debug/runs/{run} [get]
-// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -3135,14 +3116,6 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Get chat debug logging setting
-// @ID get-chat-debug-logging
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ChatDebugSettings
-// @Router /chats/config/debug-logging [get]
-// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -3161,15 +3134,6 @@ func (api *API) getChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
-// @Summary Update chat debug logging setting
-// @ID update-chat-debug-logging
-// @Security CoderSessionToken
-// @Accept json
-// @Tags Chats
-// @Param request body codersdk.UpdateChatDebugLoggingRequest true "Update request"
-// @Success 204
-// @Router /chats/config/debug-logging [put]
-// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3485,14 +3449,6 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
-// @Summary Get user chat debug logging setting
-// @ID get-user-chat-debug-logging
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ChatDebugSettings
-// @Router /chats/config/user-debug-logging [get]
-// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -3525,15 +3481,6 @@ func (api *API) getUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.R
 	})
 }
 
-// @Summary Update user chat debug logging setting
-// @ID update-user-chat-debug-logging
-// @Security CoderSessionToken
-// @Accept json
-// @Tags Chats
-// @Param request body codersdk.UpdateChatDebugLoggingRequest true "Update request"
-// @Success 204
-// @Router /chats/config/user-debug-logging [put]
-// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
