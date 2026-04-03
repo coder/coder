@@ -814,16 +814,8 @@ export const chatDebugRuns = (chatId: string) => ({
 		// Check if all runs are in terminal state.
 		const runs = state.data;
 		if (Array.isArray(runs) && runs.length > 0) {
-			const terminalStatuses = new Set([
-				"completed",
-				"error",
-				"failed",
-				"interrupted",
-				"cancelled",
-				"canceled",
-			]);
 			const allTerminal = runs.every((r: { status?: string }) =>
-				terminalStatuses.has(r.status ?? ""),
+				debugRunTerminalStatuses.has((r.status ?? "").toLowerCase()),
 			);
 			if (allTerminal) {
 				return false;
