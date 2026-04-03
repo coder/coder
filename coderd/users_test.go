@@ -1009,85 +1009,6 @@ func TestPostUsers(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Premium feature")
 	})
 
-	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-email",
-			Email:           "should-not-have@email.com",
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Email cannot be set for service accounts")
-	})
-
-	t.Run("ServiceAccount/WithPassword", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-password",
-			Password:        "ShouldNotHavePassword123!",
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Password cannot be set for service accounts")
-	})
-
-	t.Run("ServiceAccount/WithInvalidLoginType", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-login-type",
-			UserLoginType:   codersdk.LoginTypePassword,
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Service accounts must use login type 'none'")
-	})
-
-	t.Run("ServiceAccount/DefaultLoginType", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-default-login",
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Premium feature")
-	})
-
 	t.Run("NonServiceAccount/WithoutEmail", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -1104,25 +1025,6 @@ func TestPostUsers(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
-	t.Run("ServiceAccount/MultipleWithoutEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-multi-1",
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Premium feature")
 	})
 }
 
