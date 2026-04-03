@@ -18,7 +18,7 @@ const makeRunSummary = (
 	provider: "openai",
 	model: "gpt-4",
 	summary: {},
-	started_at: "2026-03-01T10:00:00Z",
+	started_at: "2026-03-05T12:00:05Z",
 	updated_at: "2026-03-01T10:00:05Z",
 	finished_at: "2026-03-01T10:00:05Z",
 	...overrides,
@@ -38,7 +38,7 @@ const makeStep = (
 	usage: { prompt_tokens: "10", completion_tokens: "5", total_tokens: "15" },
 	attempts: [],
 	metadata: { provider: "openai" },
-	started_at: "2026-03-01T10:00:01Z",
+	started_at: "2026-03-05T12:00:06Z",
 	updated_at: "2026-03-01T10:00:04Z",
 	finished_at: "2026-03-01T10:00:04Z",
 	...overrides,
@@ -54,7 +54,7 @@ const makeRun = (
 	provider: "openai",
 	model: "gpt-4",
 	summary: { result: "Generated response successfully" },
-	started_at: "2026-03-01T10:00:00Z",
+	started_at: "2026-03-05T12:00:05Z",
 	updated_at: "2026-03-01T10:00:05Z",
 	finished_at: "2026-03-01T10:00:05Z",
 	steps: [makeStep({})],
@@ -197,7 +197,7 @@ const successfulRunDetail = makeRun({
 						request_id: "req-success-1",
 					},
 					duration_ms: 1500,
-					started_at: "2026-03-01T10:00:01Z",
+					started_at: "2026-03-05T12:00:06Z",
 					finished_at: "2026-03-01T10:00:02.500Z",
 				},
 			]),
@@ -236,7 +236,7 @@ const richRunDetail = makeRun({
 					},
 					raw_response: { status: "200" },
 					duration_ms: 2200,
-					started_at: "2026-03-01T10:00:01Z",
+					started_at: "2026-03-05T12:00:06Z",
 					finished_at: "2026-03-01T10:00:03.200Z",
 				},
 			]),
@@ -512,6 +512,41 @@ const meta: Meta<typeof DebugPanel> = {
 export default meta;
 type Story = StoryObj<typeof DebugPanel>;
 
+export const Empty: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/no debug runs/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ErrorState: Story = {
+	beforeEach: () => {
+		const getChatDebugRunsMock = spyOn(
+			API.experimental,
+			"getChatDebugRuns",
+		).mockRejectedValue(new Error("Network failure"));
+		return () => {
+			getChatDebugRunsMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/network failure/i)).toBeInTheDocument();
+		});
+	},
+};
+
 export const Loading: Story = {
 	beforeEach: () => {
 		const pendingRequest = () => new Promise<never>(() => {});
@@ -522,6 +557,12 @@ export const Loading: Story = {
 		return () => {
 			getChatDebugRunsMock.mockRestore();
 		};
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/loading debug/i),
+		).toBeInTheDocument();
 	},
 };
 
@@ -656,6 +697,13 @@ export const ErrorStateWithRedactedHeaders: Story = {
 			expect(canvas.getByText(/upstream_unauthorized/i)).toBeVisible();
 		});
 
+		// Expand an attempt section and verify [REDACTED] markers appear
+		// in the rendered output.
+		await waitFor(() => {
+			const redactedMarkers = canvas.getAllByText("[REDACTED]");
+			expect(redactedMarkers.length).toBeGreaterThan(0);
+		});
+
 		// Expand request body and verify the JSON copy action is available.
 		await user.click(canvas.getByText("Request body"));
 		await waitFor(() => {
@@ -704,6 +752,13 @@ export const CompactionAndTitleGenerationBadges: Story = {
 				],
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Verify all three kind badge labels render.
+		await expect(canvas.getByText(/compaction/i)).toBeInTheDocument();
+		await expect(canvas.getByText(/chat turn/i)).toBeInTheDocument();
+		await expect(canvas.getByText(/title generation/i)).toBeInTheDocument();
 	},
 };
 
