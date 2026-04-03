@@ -2893,12 +2893,13 @@ func seedChatDependenciesWithProvider(
 
 	user := dbgen.User(t, db, database.User{})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    provider,
-		DisplayName: provider,
-		APIKey:      "test-key",
-		BaseUrl:     baseURL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             provider,
+		DisplayName:          provider,
+		APIKey:               "test-key",
+		BaseUrl:              baseURL,
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
@@ -2915,6 +2916,102 @@ func seedChatDependenciesWithProvider(
 	})
 	require.NoError(t, err)
 	return user, model
+}
+
+func seedChatDependenciesWithProviderPolicy(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	provider string,
+	baseURL string,
+	apiKey string,
+	centralAPIKeyEnabled bool,
+	allowUserAPIKey bool,
+	allowCentralAPIKeyFallback bool,
+) (database.User, database.ChatProvider, database.ChatModelConfig) {
+	t.Helper()
+
+	user := dbgen.User(t, db, database.User{})
+	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:                   provider,
+		DisplayName:                provider,
+		APIKey:                     apiKey,
+		BaseUrl:                    baseURL,
+		CreatedBy:                  uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:                    true,
+		CentralApiKeyEnabled:       centralAPIKeyEnabled,
+		AllowUserApiKey:            allowUserAPIKey,
+		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
+	})
+	require.NoError(t, err)
+
+	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             provider,
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	return user, providerConfig, model
+}
+
+func waitForTerminalChatStatusEvent(
+	ctx context.Context,
+	t *testing.T,
+	events <-chan codersdk.ChatStreamEvent,
+) codersdk.ChatStatus {
+	t.Helper()
+
+	var terminalStatus codersdk.ChatStatus
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		for {
+			select {
+			case event, ok := <-events:
+				if !ok {
+					return false
+				}
+				if event.Type != codersdk.ChatStreamEventTypeStatus || event.Status == nil {
+					continue
+				}
+				if event.Status.Status == codersdk.ChatStatusWaiting || event.Status.Status == codersdk.ChatStatusError {
+					terminalStatus = event.Status.Status
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, testutil.IntervalFast)
+
+	return terminalStatus
+}
+
+func waitForTerminalChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+) database.Chat {
+	t.Helper()
+
+	var chatResult database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		got, err := db.GetChatByID(ctx, chatID)
+		if err != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.IntervalFast)
+
+	return chatResult
 }
 
 // seedWorkspaceWithAgent creates a full workspace chain with a connected
@@ -2973,12 +3070,15 @@ func setOpenAIProviderBaseURL(
 	require.NoError(t, err)
 
 	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		ID:          provider.ID,
-		DisplayName: provider.DisplayName,
-		APIKey:      provider.APIKey,
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: provider.ApiKeyKeyID,
-		Enabled:     provider.Enabled,
+		ID:                         provider.ID,
+		DisplayName:                provider.DisplayName,
+		APIKey:                     provider.APIKey,
+		BaseUrl:                    baseURL,
+		ApiKeyKeyID:                provider.ApiKeyKeyID,
+		Enabled:                    provider.Enabled,
+		CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
+		AllowUserApiKey:            provider.AllowUserApiKey,
+		AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
 	})
 	require.NoError(t, err)
 }
@@ -3552,12 +3652,13 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// Add an Anthropic provider pointing to our mock server.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "anthropic",
-		DisplayName: "Anthropic",
-		APIKey:      "test-anthropic-key",
-		BaseUrl:     anthropicSrv.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "anthropic",
+		DisplayName:          "Anthropic",
+		APIKey:               "test-anthropic-key",
+		BaseUrl:              anthropicSrv.URL,
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -3839,6 +3940,135 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	}
 	require.Contains(t, foundText, "hello world",
 		"partial assistant response should contain the streamed text")
+}
+
+func TestProcessChat_UserProviderKey_Success(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const userAPIKey = "user-test-key"
+
+	var authHeadersMu sync.Mutex
+	authHeaders := make([]string, 0, 1)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		authHeadersMu.Lock()
+		authHeaders = append(authHeaders, req.Header.Get("Authorization"))
+		authHeadersMu.Unlock()
+
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("user provider key success")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("hello from the saved user key")...,
+		)
+	})
+
+	user, provider, model := seedChatDependenciesWithProviderPolicy(
+		ctx,
+		t,
+		db,
+		"openai-compat",
+		openAIURL,
+		"",
+		false,
+		true,
+		false,
+	)
+	_, err := db.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
+		UserID:         user.ID,
+		ChatProviderID: provider.ID,
+		APIKey:         userAPIKey,
+	})
+	require.NoError(t, err)
+
+	creator := newTestServer(t, db, ps, uuid.New())
+	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "user-provider-key-success",
+		ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	_ = newActiveTestServer(t, db, ps)
+
+	terminalStatus := waitForTerminalChatStatusEvent(ctx, t, events)
+	require.Equal(t, codersdk.ChatStatusWaiting, terminalStatus)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.False(t, chatResult.LastError.Valid)
+
+	authHeadersMu.Lock()
+	recordedAuthHeaders := append([]string(nil), authHeaders...)
+	authHeadersMu.Unlock()
+	require.Contains(t, recordedAuthHeaders, "Bearer "+userAPIKey)
+}
+
+func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var llmCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		llmCalls.Add(1)
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("unexpected non-streaming request")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("unexpected streaming request")...,
+		)
+	})
+
+	user, _, model := seedChatDependenciesWithProviderPolicy(
+		ctx,
+		t,
+		db,
+		"openai-compat",
+		openAIURL,
+		"",
+		false,
+		true,
+		false,
+	)
+
+	creator := newTestServer(t, db, ps, uuid.New())
+	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "user-provider-key-missing",
+		ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	_ = newActiveTestServer(t, db, ps)
+
+	terminalStatus := waitForTerminalChatStatusEvent(ctx, t, events)
+	require.Equal(t, codersdk.ChatStatusError, terminalStatus)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	require.Equal(t, database.ChatStatusError, chatResult.Status)
+	require.True(t, chatResult.LastError.Valid, "LastError should be set")
+	require.NotEmpty(t, chatResult.LastError.String)
+	require.NotContains(t, chatResult.LastError.String, "panicked")
+	require.NotEqual(t, database.ChatStatusRunning, chatResult.Status)
+	require.Zero(t, llmCalls.Load(), "missing user key should fail before any LLM request")
 }
 
 func TestProcessChatPanicRecovery(t *testing.T) {

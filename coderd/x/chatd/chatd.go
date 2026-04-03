@@ -71,6 +71,13 @@ const (
 	// events cached per chat for same-replica stream catch-up.
 	maxDurableMessageCacheSize = 256
 
+	// maxConcurrentRecordingUploads caps the number of recording
+	// stop-and-store operations that can run concurrently. Each
+	// slot buffers up to MaxRecordingSize (100 MB) in memory, so
+	// this value implicitly bounds memory to roughly
+	// maxConcurrentRecordingUploads * 100 MB.
+	maxConcurrentRecordingUploads = 25
+
 	// staleRecoveryIntervalDivisor determines how often the stale
 	// recovery loop runs relative to the stale threshold. A value
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
@@ -129,6 +136,7 @@ type Server struct {
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
+	recordingSem chan struct{}
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
@@ -1577,17 +1585,17 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
 		}
-		if isFreshManualTitleLock(lockedChat, now) {
+		// Only a fresh manual lock or a chat without a real worker should
+		// block title regeneration. Running chats with a real worker may
+		// regenerate their title concurrently, and last write wins.
+		hasRealWorker := lockedChat.Status == database.ChatStatusRunning &&
+			lockedChat.WorkerID.Valid &&
+			lockedChat.WorkerID.UUID != manualTitleLockWorkerID
+		if lockedChat.Status == database.ChatStatusPending ||
+			(lockedChat.Status == database.ChatStatusRunning && !hasRealWorker) ||
+			isFreshManualTitleLock(lockedChat, now) {
 			return ErrManualTitleRegenerationInProgress
 		}
-
-		// Only write the lock marker when no real worker owns WorkerID.
-		// When a real worker is running, we skip the DB lock but still
-		// allow regeneration. The frontend prevents same-browser
-		// double-clicks, and concurrent regeneration from different
-		// replicas is harmless, last write wins.
-		hasRealWorker := lockedChat.WorkerID.Valid &&
-			lockedChat.WorkerID.UUID != manualTitleLockWorkerID
 		if hasRealWorker {
 			return nil
 		}
@@ -1650,7 +1658,7 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	keys, err := p.resolveProviderAPIKeys(chatdCtx)
+	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("resolve chat providers: %w", err)
 	}
@@ -2372,6 +2380,7 @@ func New(cfg Config) *Server {
 		chatHeartbeatInterval:          chatHeartbeatInterval,
 		usageTracker:                   cfg.UsageTracker,
 		clock:                          clk,
+		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                         make(chan struct{}, 1),
 	}
 
@@ -4799,7 +4808,7 @@ func (p *Server) resolveChatModel(
 	})
 	g.Go(func() error {
 		var err error
-		keys, err = p.resolveProviderAPIKeys(ctx)
+		keys, err = p.resolveUserProviderAPIKeys(ctx, chat.OwnerID)
 		if err != nil {
 			return xerrors.Errorf("resolve provider API keys: %w", err)
 		}
@@ -4821,8 +4830,9 @@ func (p *Server) resolveChatModel(
 	return model, dbConfig, keys, nil
 }
 
-func (p *Server) resolveProviderAPIKeys(
+func (p *Server) resolveUserProviderAPIKeys(
 	ctx context.Context,
+	ownerID uuid.UUID,
 ) (chatprovider.ProviderAPIKeys, error) {
 	providers, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
@@ -4831,17 +4841,62 @@ func (p *Server) resolveProviderAPIKeys(
 			err,
 		)
 	}
-	dbProviders := make(
+	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),
 	)
 	for _, provider := range providers {
-		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
-		})
+		configuredProviders = append(
+			configuredProviders, chatprovider.ConfiguredProvider{
+				ProviderID:                 provider.ID,
+				Provider:                   provider.Provider,
+				APIKey:                     provider.APIKey,
+				BaseURL:                    provider.BaseUrl,
+				CentralAPIKeyEnabled:       provider.CentralApiKeyEnabled,
+				AllowUserAPIKey:            provider.AllowUserApiKey,
+				AllowCentralAPIKeyFallback: provider.AllowCentralApiKeyFallback,
+			},
+		)
 	}
-	return chatprovider.MergeProviderAPIKeys(p.providerAPIKeys, dbProviders), nil
+	allowAnyUserAPIKey := false
+	for _, provider := range configuredProviders {
+		if provider.AllowUserAPIKey {
+			allowAnyUserAPIKey = true
+			break
+		}
+	}
+
+	userKeys := []chatprovider.UserProviderKey{}
+	if allowAnyUserAPIKey {
+		userKeyRows, err := p.db.GetUserChatProviderKeys(ctx, ownerID)
+		if err != nil {
+			return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+				"get user chat provider keys: %w",
+				err,
+			)
+		}
+		userKeys = make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
+		for _, userKey := range userKeyRows {
+			userKeys = append(userKeys, chatprovider.UserProviderKey{
+				ChatProviderID: userKey.ChatProviderID,
+				APIKey:         userKey.APIKey,
+			})
+		}
+	}
+	keys, _ := chatprovider.ResolveUserProviderKeys(
+		p.providerAPIKeys,
+		configuredProviders,
+		userKeys,
+	)
+	enabledProviders := make(map[string]struct{}, len(configuredProviders))
+	for _, provider := range configuredProviders {
+		normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		enabledProviders[normalizedProvider] = struct{}{}
+	}
+	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
+	return keys, nil
 }
 
 // resolveModelConfig looks up the chat's model config by its
