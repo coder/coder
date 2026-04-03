@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
