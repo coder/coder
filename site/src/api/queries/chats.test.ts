@@ -9,14 +9,10 @@ import {
 	chatCostSummaryKey,
 	chatCostUsers,
 	chatCostUsersKey,
-	chatDebugLogging,
-	chatDebugRun,
-	chatDebugRuns,
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
 	chatsKey,
-	chatUserDebugLogging,
 	createChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -30,8 +26,6 @@ import {
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
-	updateChatDebugLogging,
-	updateChatUserDebugLogging,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -44,12 +38,6 @@ vi.mock("#/api/api", () => ({
 			getChats: vi.fn(),
 			getChatCostSummary: vi.fn(),
 			getChatCostUsers: vi.fn(),
-			getChatDebugLogging: vi.fn(),
-			updateChatDebugLogging: vi.fn(),
-			getChatUserDebugLogging: vi.fn(),
-			updateChatUserDebugLogging: vi.fn(),
-			getChatDebugRuns: vi.fn(),
-			getChatDebugRun: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -118,160 +106,6 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
-
-describe("chat debug queries", () => {
-	it("builds the expected chat debug logging query", async () => {
-		const settings = {
-			debug_logging_enabled: true,
-		} satisfies TypesGen.ChatDebugSettings;
-		vi.mocked(API.experimental.getChatDebugLogging).mockResolvedValue(settings);
-
-		const query = chatDebugLogging();
-
-		expect(query.queryKey).toEqual(["chats", "config", "debug-logging"]);
-		await expect(query.queryFn()).resolves.toEqual(settings);
-	});
-
-	it("invalidates chat debug logging after updates", async () => {
-		const queryClient = createTestQueryClient();
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-		const req = {
-			debug_logging_enabled: true,
-		} satisfies TypesGen.UpdateChatDebugLoggingRequest;
-		vi.mocked(API.experimental.updateChatDebugLogging).mockResolvedValue();
-
-		const mutation = updateChatDebugLogging(queryClient);
-		await expect(mutation.mutationFn(req)).resolves.toBeUndefined();
-		await mutation.onSuccess();
-
-		expect(API.experimental.updateChatDebugLogging).toHaveBeenCalledWith(req);
-		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: ["chats", "config", "debug-logging"],
-		});
-	});
-
-	it("builds the expected chat user debug logging query", async () => {
-		const settings = {
-			debug_logging_enabled: false,
-		} satisfies TypesGen.ChatDebugSettings;
-		vi.mocked(API.experimental.getChatUserDebugLogging).mockResolvedValue(
-			settings,
-		);
-
-		const query = chatUserDebugLogging();
-
-		expect(query.queryKey).toEqual(["chats", "config", "user-debug-logging"]);
-		await expect(query.queryFn()).resolves.toEqual(settings);
-	});
-
-	it("invalidates chat user debug logging after updates", async () => {
-		const queryClient = createTestQueryClient();
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-		const req = {
-			debug_logging_enabled: false,
-		} satisfies TypesGen.UpdateChatDebugLoggingRequest;
-		vi.mocked(API.experimental.updateChatUserDebugLogging).mockResolvedValue();
-
-		const mutation = updateChatUserDebugLogging(queryClient);
-		await expect(mutation.mutationFn(req)).resolves.toBeUndefined();
-		await mutation.onSuccess();
-
-		expect(API.experimental.updateChatUserDebugLogging).toHaveBeenCalledWith(
-			req,
-		);
-		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: ["chats", "config", "user-debug-logging"],
-		});
-	});
-
-	it("builds the expected chat debug runs query", async () => {
-		const chatId = "chat-1";
-		const runs = [
-			{
-				id: "run-1",
-				chat_id: chatId,
-				kind: "message",
-				status: "running",
-				summary: {},
-				started_at: "2025-01-01T00:00:00.000Z",
-				updated_at: "2025-01-01T00:00:00.000Z",
-			},
-		] satisfies TypesGen.ChatDebugRunSummary[];
-		vi.mocked(API.experimental.getChatDebugRuns).mockResolvedValue(runs);
-
-		const query = chatDebugRuns(chatId);
-
-		expect(query.queryKey).toEqual(["chats", chatId, "debug-runs"]);
-		expect(typeof query.refetchInterval).toBe("function");
-		expect(query.refetchIntervalInBackground).toBe(false);
-		await expect(query.queryFn()).resolves.toEqual(runs);
-
-		// Verify polling behavior: active runs poll, terminal runs stop.
-		if (typeof query.refetchInterval === "function") {
-			const activeState = {
-				state: { data: runs, status: "success" as const },
-			};
-			expect(query.refetchInterval(activeState)).toBe(5_000);
-
-			const allTerminal = {
-				state: {
-					data: runs.map((r) => ({ ...r, status: "completed" })),
-					status: "success" as const,
-				},
-			};
-			expect(query.refetchInterval(allTerminal)).toBe(false);
-
-			const errorState = {
-				state: { data: runs, status: "error" as const },
-			};
-			expect(query.refetchInterval(errorState)).toBe(false);
-		}
-	});
-
-	it("builds the expected chat debug run query", async () => {
-		const chatId = "chat-1";
-		const runId = "run-1";
-		const run = {
-			id: runId,
-			chat_id: chatId,
-			kind: "message",
-			status: "running",
-			summary: {},
-			started_at: "2025-01-01T00:00:00.000Z",
-			updated_at: "2025-01-01T00:00:00.000Z",
-			steps: [],
-		} satisfies TypesGen.ChatDebugRun;
-		vi.mocked(API.experimental.getChatDebugRun).mockResolvedValue(run);
-
-		const query = chatDebugRun(chatId, runId);
-
-		expect(query.queryKey).toEqual(["chats", chatId, "debug-runs", runId]);
-
-		const refetchInterval = query.refetchInterval;
-		expect(typeof refetchInterval).toBe("function");
-		if (typeof refetchInterval === "function") {
-			const activeQueryState: Parameters<typeof refetchInterval>[0] = {
-				state: { data: run, status: "success" },
-			};
-			const completedQueryState: Parameters<typeof refetchInterval>[0] = {
-				state: {
-					data: {
-						...run,
-						status: "completed",
-					},
-					status: "success",
-				},
-			};
-			const errorQueryState: Parameters<typeof refetchInterval>[0] = {
-				state: { data: run, status: "error" },
-			};
-			expect(refetchInterval(activeQueryState)).toBe(5_000);
-			expect(refetchInterval(completedQueryState)).toBe(false);
-			expect(refetchInterval(errorQueryState)).toBe(false);
-		}
-		await expect(query.queryFn()).resolves.toEqual(run);
-	});
-});
 
 describe("invalidateChatListQueries", () => {
 	it("invalidates flat and infinite chat list queries", async () => {
