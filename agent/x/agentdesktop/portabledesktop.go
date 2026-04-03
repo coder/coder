@@ -56,6 +56,7 @@ type screenshotOutput struct {
 type recordingProcess struct {
 	cmd        *exec.Cmd
 	filePath   string
+	thumbPath  string
 	stopped    bool
 	killed     bool          // true when the process was SIGKILLed
 	done       chan struct{} // closed when cmd.Wait() returns
@@ -390,9 +391,15 @@ func (p *portableDesktop) StartRecording(ctx context.Context, recordingID string
 				slog.Error(err),
 			)
 		}
+		if err := os.Remove(rec.thumbPath); err != nil && !os.IsNotExist(err) {
+			p.logger.Warn(ctx, "failed to remove old thumbnail file",
+				slog.F("recording_id", recordingID),
+				slog.F("file_path", rec.thumbPath),
+				slog.Error(err),
+			)
+		}
 		delete(p.recordings, recordingID)
 	}
-
 	// Check concurrent recording limit.
 	if p.lockedActiveRecordingCount() >= maxConcurrentRecordings {
 		return xerrors.Errorf("too many concurrent recordings (max %d)", maxConcurrentRecordings)
@@ -406,6 +413,7 @@ func (p *portableDesktop) StartRecording(ctx context.Context, recordingID string
 	}
 
 	filePath := filepath.Join(os.TempDir(), "coder-recording-"+recordingID+".mp4")
+	thumbPath := filepath.Join(os.TempDir(), "coder-recording-"+recordingID+".thumb.jpg")
 
 	// Use a background context so the process outlives the HTTP
 	// request that triggered it.
@@ -419,6 +427,7 @@ func (p *portableDesktop) StartRecording(ctx context.Context, recordingID string
 		"--idle-speedup", "20",
 		"--idle-min-duration", "0.35",
 		"--idle-noise-tolerance", "-38dB",
+		"--thumbnail", thumbPath,
 		filePath)
 
 	if err := cmd.Start(); err != nil {
@@ -427,9 +436,10 @@ func (p *portableDesktop) StartRecording(ctx context.Context, recordingID string
 	}
 
 	rec := &recordingProcess{
-		cmd:      cmd,
-		filePath: filePath,
-		done:     make(chan struct{}),
+		cmd:       cmd,
+		filePath:  filePath,
+		thumbPath: thumbPath,
+		done:      make(chan struct{}),
 	}
 	go func() {
 		rec.waitErr = cmd.Wait()
@@ -499,10 +509,20 @@ func (p *portableDesktop) StopRecording(ctx context.Context, recordingID string)
 		_ = f.Close()
 		return nil, xerrors.Errorf("stat recording artifact: %w", err)
 	}
-	return &RecordingArtifact{
+	artifact := &RecordingArtifact{
 		Reader: f,
 		Size:   info.Size(),
-	}, nil
+	}
+	// Attach thumbnail if the subprocess wrote one.
+	if thumbFile, err := os.Open(rec.thumbPath); err == nil {
+		if thumbInfo, err := thumbFile.Stat(); err == nil && thumbInfo.Size() > 0 {
+			artifact.ThumbnailReader = thumbFile
+			artifact.ThumbnailSize = thumbInfo.Size()
+		} else {
+			_ = thumbFile.Close()
+		}
+	}
+	return artifact, nil
 }
 
 // lockedStopRecordingProcess stops a single recording via stopOnce.
@@ -571,7 +591,15 @@ func (p *portableDesktop) lockedCleanStaleRecordings(ctx context.Context) {
 		}
 		info, err := os.Stat(rec.filePath)
 		if err != nil {
-			// File already removed or inaccessible; drop entry.
+			// File already removed or inaccessible; clean up
+			// any leftover thumbnail and drop the entry.
+			if err := os.Remove(rec.thumbPath); err != nil && !os.IsNotExist(err) {
+				p.logger.Warn(ctx, "failed to remove stale thumbnail file",
+					slog.F("recording_id", id),
+					slog.F("file_path", rec.thumbPath),
+					slog.Error(err),
+				)
+			}
 			delete(p.recordings, id)
 			continue
 		}
@@ -580,6 +608,13 @@ func (p *portableDesktop) lockedCleanStaleRecordings(ctx context.Context) {
 				p.logger.Warn(ctx, "failed to remove stale recording file",
 					slog.F("recording_id", id),
 					slog.F("file_path", rec.filePath),
+					slog.Error(err),
+				)
+			}
+			if err := os.Remove(rec.thumbPath); err != nil && !os.IsNotExist(err) {
+				p.logger.Warn(ctx, "failed to remove stale thumbnail file",
+					slog.F("recording_id", id),
+					slog.F("file_path", rec.thumbPath),
 					slog.Error(err),
 				)
 			}
@@ -603,13 +638,14 @@ func (p *portableDesktop) Close() error {
 	// Snapshot recording file paths and idle goroutine channels
 	// for cleanup, then clear the map.
 	type recEntry struct {
-		id       string
-		filePath string
-		idleDone chan struct{}
+		id        string
+		filePath  string
+		thumbPath string
+		idleDone  chan struct{}
 	}
 	var allRecs []recEntry
 	for id, rec := range p.recordings {
-		allRecs = append(allRecs, recEntry{id: id, filePath: rec.filePath, idleDone: rec.idleDone})
+		allRecs = append(allRecs, recEntry{id: id, filePath: rec.filePath, thumbPath: rec.thumbPath, idleDone: rec.idleDone})
 		delete(p.recordings, id)
 	}
 	session := p.session
@@ -634,6 +670,13 @@ func (p *portableDesktop) Close() error {
 				p.logger.Warn(context.Background(), "failed to remove recording file on close",
 					slog.F("recording_id", entry.id),
 					slog.F("file_path", entry.filePath),
+					slog.Error(err),
+				)
+			}
+			if err := os.Remove(entry.thumbPath); err != nil && !os.IsNotExist(err) {
+				p.logger.Warn(context.Background(), "failed to remove thumbnail file on close",
+					slog.F("recording_id", entry.id),
+					slog.F("file_path", entry.thumbPath),
 					slog.Error(err),
 				)
 			}

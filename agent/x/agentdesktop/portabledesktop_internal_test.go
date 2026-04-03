@@ -2,6 +2,7 @@ package agentdesktop
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -584,6 +585,7 @@ func TestPortableDesktop_StartRecording(t *testing.T) {
 		joined := strings.Join(cmd, " ")
 		if strings.Contains(joined, "record") && strings.Contains(joined, "coder-recording-"+recID) {
 			found = true
+			assert.Contains(t, joined, "--thumbnail", "record command should include --thumbnail flag")
 			break
 		}
 	}
@@ -665,6 +667,66 @@ func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
 	require.NoError(t, err)
 	defer artifact.Reader.Close()
 	assert.Equal(t, int64(len("fake-mp4-data")), artifact.Size)
+
+	// No thumbnail file exists, so ThumbnailReader should be nil.
+	assert.Nil(t, artifact.ThumbnailReader, "ThumbnailReader should be nil when no thumbnail file exists")
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StopRecording_WithThumbnail(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	// Write a dummy MP4 file at the expected path.
+	filePath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".mp4")
+	require.NoError(t, os.WriteFile(filePath, []byte("fake-mp4-data"), 0o600))
+	t.Cleanup(func() { _ = os.Remove(filePath) })
+
+	// Write a thumbnail file at the expected path.
+	thumbPath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".thumb.jpg")
+	thumbContent := []byte("fake-jpeg-thumbnail")
+	require.NoError(t, os.WriteFile(thumbPath, thumbContent, 0o600))
+	t.Cleanup(func() { _ = os.Remove(thumbPath) })
+
+	artifact, err := pd.StopRecording(ctx, recID)
+	require.NoError(t, err)
+	defer artifact.Reader.Close()
+
+	assert.Equal(t, int64(len("fake-mp4-data")), artifact.Size)
+
+	// Thumbnail should be attached.
+	require.NotNil(t, artifact.ThumbnailReader, "ThumbnailReader should be non-nil when thumbnail file exists")
+	defer artifact.ThumbnailReader.Close()
+	assert.Equal(t, int64(len(thumbContent)), artifact.ThumbnailSize)
+
+	// Read and verify thumbnail content.
+	thumbData, err := io.ReadAll(artifact.ThumbnailReader)
+	require.NoError(t, err)
+	assert.Equal(t, thumbContent, thumbData)
 
 	require.NoError(t, pd.Close())
 }
