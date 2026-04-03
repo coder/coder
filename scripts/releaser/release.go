@@ -75,18 +75,38 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// cherry-picking hundreds of commits onto a release branch.
 	// The release/X.Y branch is only cut when the release is
 	// ready.
+	//
+	// Detached HEAD is common: the release manager checks out a
+	// specific commit on main before running the tool. We detect
+	// this by checking whether HEAD is an ancestor of origin/main.
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 	onMain := currentBranch == "main"
 	var branchMajor, branchMinor int
 
-	if onMain {
+	// Detached HEAD: currentBranch is empty. Check if HEAD is
+	// reachable from origin/main.
+	if currentBranch == "" {
+		if err := gitRun("merge-base", "--is-ancestor", "HEAD", "origin/main"); err == nil {
+			onMain = true
+			currentBranch = "main"
+			successf(w, "Detached HEAD is an ancestor of main — RC tagging mode.")
+		}
+	}
+
+	switch {
+	case onMain:
 		successf(w, "On main branch — RC tagging mode.")
-	} else if m := branchRe.FindStringSubmatch(currentBranch); m != nil {
+	case branchRe.MatchString(currentBranch):
+		m := branchRe.FindStringSubmatch(currentBranch)
 		branchMajor, _ = strconv.Atoi(m[1])
 		branchMinor, _ = strconv.Atoi(m[2])
 		successf(w, "Using release branch: %s", currentBranch)
-	} else {
-		warnf(w, "Current branch %q is not 'main' or a release branch (release/X.Y).", currentBranch)
+	default:
+		if currentBranch == "" {
+			warnf(w, "Detached HEAD is not reachable from origin/main.")
+		} else {
+			warnf(w, "Current branch %q is not 'main' or a release branch (release/X.Y).", currentBranch)
+		}
 		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
 			Text: "Enter the branch to use (e.g. main, release/2.21)",
 			Validate: func(s string) error {
@@ -111,26 +131,72 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		}
 	}
 
+	// --- Commit selection (RC mode) ---
+	// RCs are always tagged at a specific commit. Show the current
+	// HEAD and let the user confirm or provide a different SHA.
+	// We always checkout the commit so the rest of the flow
+	// operates in detached HEAD at the exact commit being tagged.
+	if onMain {
+		headSHA, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			return xerrors.Errorf("resolving HEAD: %w", err)
+		}
+		headShort := headSHA[:12]
+		headTitle, _ := gitOutput("log", "-1", "--format=%s", "HEAD")
+		fmt.Fprintf(w, "  Current commit: %s %s\n", headShort, headTitle)
+		fmt.Fprintln(w)
+
+		commitInput, err := cliui.Prompt(inv, cliui.PromptOptions{
+			Text:    "Commit SHA to tag (press Enter to use current)",
+			Default: headShort,
+		})
+		if err != nil {
+			return err
+		}
+		commitInput = strings.TrimSpace(commitInput)
+
+		// Resolve the input to a full SHA.
+		targetSHA, err := gitOutput("rev-parse", commitInput)
+		if err != nil {
+			return xerrors.Errorf("resolving %q: %w", commitInput, err)
+		}
+
+		// Always checkout so we're in detached HEAD at the
+		// target commit for the rest of the flow.
+		if err := gitRun("checkout", "--quiet", targetSHA); err != nil {
+			return xerrors.Errorf("checking out %s: %w", commitInput, err)
+		}
+		if targetSHA != headSHA {
+			newTitle, _ := gitOutput("log", "-1", "--format=%s", "HEAD")
+			successf(w, "Checked out %s %s", targetSHA[:12], newTitle)
+		}
+		fmt.Fprintln(w)
+	}
+
 	// --- Fetch & sync check ---
 	infof(w, "Fetching latest from origin...")
 	if err := gitRun("fetch", "--quiet", "--tags", "origin", currentBranch); err != nil {
 		return xerrors.Errorf("fetching: %w", err)
 	}
 
-	localHead, err := gitOutput("rev-parse", "HEAD")
-	if err != nil {
-		return xerrors.Errorf("resolving HEAD: %w", err)
-	}
-	remoteHead, _ := gitOutput("rev-parse", "origin/"+currentBranch)
-
-	if remoteHead != "" && localHead != remoteHead {
-		warnf(w, "Your local branch is not up to date with origin/%s.", currentBranch)
-		fmt.Fprintf(w, "  Local:  %s\n", localHead[:12])
-		fmt.Fprintf(w, "  Remote: %s\n", remoteHead[:12])
-		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
-			return err
+	// Skip the local-vs-remote sync check in RC mode because
+	// we always checkout a specific commit (detached HEAD).
+	if !onMain {
+		localHead, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			return xerrors.Errorf("resolving HEAD: %w", err)
 		}
-		fmt.Fprintln(w)
+		remoteHead, _ := gitOutput("rev-parse", "origin/"+currentBranch)
+
+		if remoteHead != "" && localHead != remoteHead {
+			warnf(w, "Your local branch is not up to date with origin/%s.", currentBranch)
+			fmt.Fprintf(w, "  Local:  %s\n", localHead[:12])
+			fmt.Fprintf(w, "  Remote: %s\n", remoteHead[:12])
+			if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
+				return err
+			}
+			fmt.Fprintln(w)
+		}
 	}
 
 	// --- Find previous version & suggest next ---
@@ -273,34 +339,37 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// --- Check open PRs ---
 	// This runs before breaking changes so any last-minute merges
-	// are caught by the subsequent checks.
-	infof(w, "Checking for open PRs against %s...", currentBranch)
-	var openPRs []ghPR
-	if ghAvailable {
-		openPRs, err = ghListOpenPRs(currentBranch)
-		if err != nil {
-			warnf(w, "Failed to check open PRs: %v", err)
+	// are caught by the subsequent checks. Skipped on main since
+	// there are always open PRs targeting main.
+	if !onMain {
+		infof(w, "Checking for open PRs against %s...", currentBranch)
+		var openPRs []ghPR
+		if ghAvailable {
+			openPRs, err = ghListOpenPRs(currentBranch)
+			if err != nil {
+				warnf(w, "Failed to check open PRs: %v", err)
+			}
+		} else {
+			infof(w, "Skipping (no gh CLI).")
 		}
-	} else {
-		infof(w, "Skipping (no gh CLI).")
-	}
 
-	if len(openPRs) > 0 {
-		fmt.Fprintln(w)
-		warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
-		fmt.Fprintln(w)
-		for _, pr := range openPRs {
-			fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
+		if len(openPRs) > 0 {
+			fmt.Fprintln(w)
+			warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
+			fmt.Fprintln(w)
+			for _, pr := range openPRs {
+				fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
+			}
+			fmt.Fprintln(w)
+			if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
+				return err
+			}
+			fmt.Fprintln(w)
+		} else {
+			successf(w, "No open PRs against %s.", currentBranch)
 		}
 		fmt.Fprintln(w)
-		if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
-			return err
-		}
-		fmt.Fprintln(w)
-	} else {
-		successf(w, "No open PRs against %s.", currentBranch)
 	}
-	fmt.Fprintln(w)
 
 	// --- Semver sanity checks ---
 	if prevVersion != nil { //nolint:nestif // Sequential release checks are inherently nested.
