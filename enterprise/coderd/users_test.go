@@ -615,3 +615,87 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{second.ID, third.ID}, []uuid.UUID{memberedOrgs[0].ID, memberedOrgs[1].ID})
 	})
 }
+
+func TestEnterpriseServiceAccounts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-ok",
+			UserLoginType:   codersdk.LoginTypeNone,
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
+		require.Empty(t, user.Email)
+		require.Equal(t, "service-acct-ok", user.Username)
+		require.True(t, user.IsServiceAccount)
+	})
+
+	t.Run("DefaultLoginType", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-default-login",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
+		require.Empty(t, user.Email)
+	})
+
+	t.Run("MultipleWithoutEmail", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user1, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-multi-1",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, user1.Email)
+
+		user2, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-multi-2",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, user2.Email)
+		require.NotEqual(t, user1.ID, user2.ID)
+	})
+}

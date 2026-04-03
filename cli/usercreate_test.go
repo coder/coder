@@ -134,6 +134,7 @@ func TestUserCreate(t *testing.T) {
 		{
 			name: "ServiceAccount",
 			args: []string{"--service-account", "-u", "dean"},
+			err:  "Premium feature",
 		},
 		{
 			name: "ServiceAccountLoginType",

@@ -989,7 +989,7 @@ func TestPostUsers(t *testing.T) {
 		require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 	})
 
-	t.Run("ServiceAccount/OK", func(t *testing.T) {
+	t.Run("ServiceAccount/Unlicensed", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
@@ -997,17 +997,16 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Username:        "service-acct-ok",
 			UserLoginType:   codersdk.LoginTypeNone,
 			ServiceAccount:  true,
 		})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
-		require.Empty(t, user.Email)
-		require.Equal(t, "service-acct-ok", user.Username)
-		require.Equal(t, codersdk.UserStatusDormant, user.Status)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Premium feature")
 	})
 
 	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
@@ -1078,17 +1077,15 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Username:        "service-acct-default-login",
 			ServiceAccount:  true,
 		})
-		require.NoError(t, err)
-
-		found, err := client.User(ctx, user.ID.String())
-		require.NoError(t, err)
-		require.Equal(t, codersdk.LoginTypeNone, found.LoginType)
-		require.Empty(t, found.Email)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Premium feature")
 	})
 
 	t.Run("NonServiceAccount/WithoutEmail", func(t *testing.T) {
@@ -1117,22 +1114,15 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user1, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Username:        "service-acct-multi-1",
 			ServiceAccount:  true,
 		})
-		require.NoError(t, err)
-		require.Empty(t, user1.Email)
-
-		user2, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-multi-2",
-			ServiceAccount:  true,
-		})
-		require.NoError(t, err)
-		require.Empty(t, user2.Email)
-		require.NotEqual(t, user1.ID, user2.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Premium feature")
 	})
 }
 
