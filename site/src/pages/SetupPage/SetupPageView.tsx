@@ -8,8 +8,8 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { FormField } from "#/components/FormField/FormField";
+import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { Label } from "#/components/Label/Label";
 import { PasswordField } from "#/components/PasswordField/NewPasswordField";
 import {
