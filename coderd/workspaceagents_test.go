@@ -285,7 +285,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 
 		agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
 		require.NoError(t, err)
-		require.Equal(t, int32(len(sanitizedOutput)), agent.LogsLength)
+		require.EqualValues(t, len(sanitizedOutput), agent.LogsLength)
 
 		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)

@@ -157,6 +157,7 @@ func TestBatchCreateLogs(t *testing.T) {
 
 		rawOutput := "before\x00middle\xc3\x28after"
 		sanitizedOutput := agentsdk.SanitizeLogOutput(rawOutput)
+		expectedOutputLength := int32(len(sanitizedOutput)) //nolint:gosec // Test-controlled string length is small.
 		req := &agentproto.BatchCreateLogsRequest{
 			LogSourceId: logSource.ID[:],
 			Logs: []*agentproto.Log{
@@ -174,7 +175,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			CreatedAt:    now,
 			Output:       []string{sanitizedOutput},
 			Level:        []database.LogLevel{database.LogLevelWarn},
-			OutputLength: int32(len(sanitizedOutput)),
+			OutputLength: expectedOutputLength,
 		}).Return([]database.WorkspaceAgentLog{
 			{
 				AgentID:     agent.ID,
