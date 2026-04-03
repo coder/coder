@@ -19,8 +19,8 @@ const makeRunSummary = (
 	model: "gpt-4",
 	summary: {},
 	started_at: "2026-03-05T12:00:05Z",
-	updated_at: "2026-03-01T10:00:05Z",
-	finished_at: "2026-03-01T10:00:05Z",
+	updated_at: "2026-03-05T12:00:08Z",
+	finished_at: "2026-03-05T12:00:08Z",
 	...overrides,
 });
 
@@ -39,8 +39,8 @@ const makeStep = (
 	attempts: [],
 	metadata: { provider: "openai" },
 	started_at: "2026-03-05T12:00:06Z",
-	updated_at: "2026-03-01T10:00:04Z",
-	finished_at: "2026-03-01T10:00:04Z",
+	updated_at: "2026-03-05T12:00:08Z",
+	finished_at: "2026-03-05T12:00:08Z",
 	...overrides,
 });
 
@@ -55,8 +55,8 @@ const makeRun = (
 	model: "gpt-4",
 	summary: { result: "Generated response successfully" },
 	started_at: "2026-03-05T12:00:05Z",
-	updated_at: "2026-03-01T10:00:05Z",
-	finished_at: "2026-03-01T10:00:05Z",
+	updated_at: "2026-03-05T12:00:08Z",
+	finished_at: "2026-03-05T12:00:08Z",
 	steps: [makeStep({})],
 	...overrides,
 });
@@ -78,7 +78,7 @@ const makeAttempts = (
 		started_at:
 			typeof attempt.started_at === "string"
 				? attempt.started_at
-				: "2026-03-01T10:00:01Z",
+				: "2026-03-05T12:00:06Z",
 	})) as readonly StoryAttempt[];
 };
 
@@ -198,7 +198,7 @@ const successfulRunDetail = makeRun({
 					},
 					duration_ms: 1500,
 					started_at: "2026-03-05T12:00:06Z",
-					finished_at: "2026-03-01T10:00:02.500Z",
+					finished_at: "2026-03-05T12:00:08Z",
 				},
 			]),
 			metadata: {
@@ -237,7 +237,7 @@ const richRunDetail = makeRun({
 					raw_response: { status: "200" },
 					duration_ms: 2200,
 					started_at: "2026-03-05T12:00:06Z",
-					finished_at: "2026-03-01T10:00:03.200Z",
+					finished_at: "2026-03-05T12:00:08Z",
 				},
 			]),
 		}),
@@ -693,19 +693,19 @@ export const ErrorStateWithRedactedHeaders: Story = {
 			expect(canvas.getByText(/upstream_unauthorized/i)).toBeVisible();
 		});
 
-		// Expand an attempt section and verify [REDACTED] markers appear
-		// in the rendered output.
-		await waitFor(() => {
-			const redactedMarkers = canvas.getAllByText("[REDACTED]");
-			expect(redactedMarkers.length).toBeGreaterThan(0);
-		});
-
-		// Expand request body and verify the JSON copy action is available.
+		// Expand request body to reveal the redacted headers.
 		await user.click(canvas.getByText("Request body"));
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: /Copy request body JSON/i }),
 			).toBeVisible();
+		});
+
+		// After expanding, verify [REDACTED] markers appear in the
+		// rendered output (Radix Collapsible hides content until open).
+		await waitFor(() => {
+			const redactedMarkers = canvas.getAllByText("[REDACTED]");
+			expect(redactedMarkers.length).toBeGreaterThan(0);
 		});
 	},
 };
@@ -1079,8 +1079,8 @@ const backendNormalizedAttempts = [
 		method: "POST",
 		url: "https://api.anthropic.com/v1/messages",
 		path: "/v1/messages",
-		started_at: "2026-03-01T10:00:01.000Z",
-		finished_at: "2026-03-01T10:00:02.500Z",
+		started_at: "2026-03-05T12:00:06Z",
+		finished_at: "2026-03-05T12:00:08Z",
 		request_headers: { "content-type": "application/json" },
 		request_body:
 			'{"model":"claude-sonnet-4","messages":[{"role":"user","content":"What is 2 + 2?"}]}',
