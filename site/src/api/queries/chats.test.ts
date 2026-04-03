@@ -202,9 +202,30 @@ describe("chat debug queries", () => {
 		const query = chatDebugRuns(chatId);
 
 		expect(query.queryKey).toEqual(["chats", chatId, "debug-runs"]);
-		expect(query.refetchInterval).toBe(5_000);
+		expect(typeof query.refetchInterval).toBe("function");
 		expect(query.refetchIntervalInBackground).toBe(false);
 		await expect(query.queryFn()).resolves.toEqual(runs);
+
+		// Verify polling behavior: active runs poll, terminal runs stop.
+		if (typeof query.refetchInterval === "function") {
+			const activeState = {
+				state: { data: runs, status: "success" as const },
+			};
+			expect(query.refetchInterval(activeState)).toBe(5_000);
+
+			const allTerminal = {
+				state: {
+					data: runs.map((r) => ({ ...r, status: "completed" })),
+					status: "success" as const,
+				},
+			};
+			expect(query.refetchInterval(allTerminal)).toBe(false);
+
+			const errorState = {
+				state: { data: runs, status: "error" as const },
+			};
+			expect(query.refetchInterval(errorState)).toBe(false);
+		}
 	});
 
 	it("builds the expected chat debug run query", async () => {
