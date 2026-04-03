@@ -2248,7 +2248,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "is_business": true,
   "newsletter_marketing": true,
   "newsletter_releases": true
 }
@@ -2258,7 +2257,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                   | Type    | Required | Restrictions | Description |
 |------------------------|---------|----------|--------------|-------------|
-| `is_business`          | boolean | false    |              |             |
 | `newsletter_marketing` | boolean | false    |              |             |
 | `newsletter_releases`  | boolean | false    |              |             |
 
@@ -2269,7 +2267,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "string",
   "name": "string",
   "onboarding_info": {
-    "is_business": true,
     "newsletter_marketing": true,
     "newsletter_releases": true
   },
