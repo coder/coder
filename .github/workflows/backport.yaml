@@ -10,7 +10,6 @@
 # The created backport PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
 #   - Title:   <original PR title> (<version>)
-#   - Label:   cherry-pick/v<version>
 #   - Body:    links back to the original PR and merge commit
 
 name: Backport
@@ -120,10 +119,6 @@ jobs:
 
           git push origin "$BACKPORT_BRANCH"
 
-          # Ensure the cherry-pick label exists (create if missing).
-          LABEL="cherry-pick/v${VERSION}"
-          gh label create "$LABEL" --color "0E8A16" --force 2>/dev/null || true
-
           BODY=$(cat <<EOF
           Backport of ${PR_URL}
 
@@ -136,6 +131,5 @@ jobs:
             --draft \
             --base "$RELEASE_VERSION" \
             --head "$BACKPORT_BRANCH" \
-            --label "$LABEL" \
             --title "${PR_TITLE} (${VERSION})" \
             --body "$BODY"
