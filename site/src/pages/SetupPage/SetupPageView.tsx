@@ -1,9 +1,7 @@
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import type { ChangeEvent, FC, ReactNode } from "react";
-import { keepPreviousData, useQuery } from "react-query";
+import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
-import { API } from "#/api/api";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -11,8 +9,9 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
-import { Input } from "#/components/Input/Input";
+import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
+import { PasswordField } from "#/components/PasswordField/NewPasswordField";
 import {
 	Select,
 	SelectContent,
@@ -21,9 +20,9 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useDebouncedValue } from "#/hooks/debounce";
 import { cn } from "#/utils/cn";
 import {
+	type FormHelpers,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
@@ -58,11 +57,14 @@ const validationSchema = Yup.object({
 		then: (schema) =>
 			schema.shape({
 				first_name: Yup.string().required("Please enter your first name."),
-				last_name: Yup.string().required("Please enter your first name."),
+				last_name: Yup.string().required("Please enter your last name."),
 				phone_number: Yup.string().required("Please enter your phone number."),
 				job_title: Yup.string().required("Please enter your job title."),
 				company_name: Yup.string().required("Please enter your company name."),
 				country: Yup.string().required("Please select your country."),
+				developers: Yup.string().required(
+					"Please select the number of developers in your company.",
+				),
 			}),
 	}),
 	onboarding_info: Yup.object().shape({
@@ -71,26 +73,24 @@ const validationSchema = Yup.object({
 	}),
 });
 
-interface SetupPageViewProps {
-	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
-	error?: unknown;
-	isLoading?: boolean;
-	authMethods: TypesGen.AuthMethods | undefined;
-}
+const numberOfDevelopersOptions = [
+	"1-100",
+	"101-500",
+	"501-1000",
+	"1001-2500",
+	"2500+",
+];
 
-// Reusable field wrapper matching the shadcn/ui pattern used across Coder.
 const Field: FC<{
 	label: string;
 	id: string;
 	error?: boolean;
 	helperText?: ReactNode;
 	className?: string;
-	children: React.ReactNode;
+	children: ReactNode;
 }> = ({ label, id, error, helperText, className, children }) => (
-	<div className={cn("flex flex-col items-start gap-1", className)}>
-		<Label htmlFor={id} className="text-sm font-medium">
-			{label}
-		</Label>
+	<div className={cn("flex flex-col gap-2", className)}>
+		<Label htmlFor={id}>{label}</Label>
 		{children}
 		{helperText && (
 			<span
@@ -104,6 +104,48 @@ const Field: FC<{
 		)}
 	</div>
 );
+
+type SelectFieldProps = FormHelpers & {
+	label: string;
+	className?: string;
+	onValueChange: (value: string) => void;
+	placeholder?: string;
+	children: ReactNode;
+};
+
+const SelectField: FC<SelectFieldProps> = ({
+	label,
+	id,
+	error,
+	helperText,
+	className,
+	value,
+	onValueChange,
+	placeholder,
+	children,
+}) => (
+	<Field
+		label={label}
+		id={id}
+		error={error}
+		helperText={helperText}
+		className={className}
+	>
+		<Select value={String(value ?? "")} onValueChange={onValueChange}>
+			<SelectTrigger id={id}>
+				<SelectValue placeholder={placeholder} />
+			</SelectTrigger>
+			<SelectContent>{children}</SelectContent>
+		</Select>
+	</Field>
+);
+
+interface SetupPageViewProps {
+	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
+	error?: unknown;
+	isLoading?: boolean;
+	authMethods: TypesGen.AuthMethods | undefined;
+}
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,
@@ -142,20 +184,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		error,
 	);
 
-	// Debounced server-side password validation to match the old PasswordField
-	// behavior while using the new Input component.
-	const debouncedPassword = useDebouncedValue(form.values.password, 500);
-	const validatePasswordQuery = useQuery({
-		queryKey: ["validatePassword", debouncedPassword],
-		queryFn: () => API.validateUserPassword(debouncedPassword),
-		placeholderData: keepPreviousData,
-		enabled: debouncedPassword.length > 0,
-	});
-	const passwordValid = validatePasswordQuery.data?.valid ?? true;
-
-	const emailField = getFieldHelpers("email");
-	const passwordField = getFieldHelpers("password");
-
 	return (
 		<div className="grow basis-0 min-h-screen flex justify-center items-center py-12">
 			<div className="flex flex-col w-full max-w-[500px] px-4">
@@ -164,7 +192,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					<h1 className="text-2xl font-normal mt-4 mb-0">
 						Welcome to <strong>Coder</strong>
 					</h1>
-					<p className="mt-3 mb-0 text-sm text-content-secondary">
+					<p className="mt-3 mb-0 text-sm text-content-secondary font-normal">
 						Set up your admin account and start building secure, reproducible
 						dev environments.
 					</p>
@@ -190,50 +218,22 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					)}
 
 					{/* Email */}
-					<Field
+					<FormField
 						label="Email"
-						id="email"
-						error={emailField.error}
-						helperText={emailField.helperText}
-					>
-						<Input
-							id="email"
-							name="email"
-							value={emailField.value}
-							onChange={(event) => {
-								const email = event.target.value;
-								const username = usernameFromEmail(email);
-								form.setFieldValue("username", username);
-								onChangeTrimmed(form)(event as ChangeEvent<HTMLInputElement>);
-							}}
-							onBlur={emailField.onBlur}
-							autoComplete="email"
-							aria-invalid={emailField.error}
-						/>
-					</Field>
+						field={getFieldHelpers("email")}
+						autoComplete="email"
+						onChange={onChangeTrimmed(form, (email) => {
+							form.setFieldValue("username", usernameFromEmail(email));
+						})}
+					/>
 
 					{/* Password */}
-					<Field
+					<PasswordField
+						{...getFieldHelpers("password")}
 						label="Password"
-						id="password"
-						error={!passwordValid || passwordField.error}
-						helperText={
-							!passwordValid
-								? validatePasswordQuery.data?.details
-								: passwordField.helperText
-						}
-					>
-						<Input
-							id="password"
-							name="password"
-							type="password"
-							value={passwordField.value}
-							onChange={form.handleChange}
-							onBlur={passwordField.onBlur}
-							autoComplete="current-password"
-							aria-invalid={!passwordValid || passwordField.error}
-						/>
-					</Field>
+						value={form.values.password}
+						autoComplete="new-password"
+					/>
 
 					{/* Premium trial toggle */}
 					<label
@@ -250,7 +250,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							data-testid="trial"
 							className="mt-0.5"
 						/>
-						<div className="flex flex-col gap-0.5">
+						<div className="flex flex-col items-start gap-0.5">
 							<span className="text-sm font-semibold">
 								Start a 30-day trial of Premium
 							</span>
@@ -273,113 +273,60 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					{form.values.trial && (
 						<div className="flex flex-col gap-4">
 							<div className="grid grid-cols-2 gap-3">
-								<Field
+								<FormField
 									label="First name"
-									id="trial_info.first_name"
-									error={getFieldHelpers("trial_info.first_name").error}
-									helperText={
-										getFieldHelpers("trial_info.first_name").helperText
-									}
-								>
-									<Input
-										id="trial_info.first_name"
-										name="trial_info.first_name"
-										value={form.values.trial_info.first_name}
-										onChange={form.handleChange}
-										onBlur={form.handleBlur}
-									/>
-								</Field>
-								<Field
+									field={getFieldHelpers("trial_info.first_name")}
+								/>
+								<FormField
 									label="Last name"
-									id="trial_info.last_name"
-									error={getFieldHelpers("trial_info.last_name").error}
-									helperText={
-										getFieldHelpers("trial_info.last_name").helperText
-									}
-								>
-									<Input
-										id="trial_info.last_name"
-										name="trial_info.last_name"
-										value={form.values.trial_info.last_name}
-										onChange={form.handleChange}
-										onBlur={form.handleBlur}
-									/>
-								</Field>
+									field={getFieldHelpers("trial_info.last_name")}
+								/>
 							</div>
 
-							<Field
-								label="Company"
-								id="trial_info.company_name"
-								error={getFieldHelpers("trial_info.company_name").error}
-								helperText={
-									getFieldHelpers("trial_info.company_name").helperText
-								}
-							>
-								<Input
-									id="trial_info.company_name"
-									name="trial_info.company_name"
-									value={form.values.trial_info.company_name}
-									onChange={form.handleChange}
-									onBlur={form.handleBlur}
+							<div className="grid grid-cols-2 gap-3">
+								<FormField
+									label="Company"
+									field={getFieldHelpers("trial_info.company_name")}
 								/>
-							</Field>
-
-							<Field
+								<SelectField
+									label="Number of developers"
+									{...getFieldHelpers("trial_info.developers")}
+									onValueChange={(value: string) =>
+										form.setFieldValue("trial_info.developers", value)
+									}
+									placeholder="Select..."
+								>
+									{numberOfDevelopersOptions.map((opt) => (
+										<SelectItem key={opt} value={opt}>
+											{opt}
+										</SelectItem>
+									))}
+								</SelectField>
+							</div>
+							<FormField
 								label="Job title"
-								id="trial_info.job_title"
-								error={getFieldHelpers("trial_info.job_title").error}
-								helperText={getFieldHelpers("trial_info.job_title").helperText}
-							>
-								<Input
-									id="trial_info.job_title"
-									name="trial_info.job_title"
-									value={form.values.trial_info.job_title}
-									onChange={form.handleChange}
-									onBlur={form.handleBlur}
-								/>
-							</Field>
+								field={getFieldHelpers("trial_info.job_title")}
+							/>
 
 							<div className="grid grid-cols-2 gap-3">
-								<Field
+								<FormField
 									label="Phone number"
-									id="trial_info.phone_number"
-									error={getFieldHelpers("trial_info.phone_number").error}
-									helperText={
-										getFieldHelpers("trial_info.phone_number").helperText
-									}
-								>
-									<Input
-										id="trial_info.phone_number"
-										name="trial_info.phone_number"
-										value={form.values.trial_info.phone_number}
-										onChange={form.handleChange}
-										onBlur={form.handleBlur}
-									/>
-								</Field>
-								<Field
+									field={getFieldHelpers("trial_info.phone_number")}
+								/>
+								<SelectField
 									label="Country"
-									id="trial_info.country"
-									error={getFieldHelpers("trial_info.country").error}
-									helperText={getFieldHelpers("trial_info.country").helperText}
+									{...getFieldHelpers("trial_info.country")}
+									onValueChange={(value: string) =>
+										form.setFieldValue("trial_info.country", value)
+									}
+									placeholder="Select..."
 								>
-									<Select
-										value={form.values.trial_info.country}
-										onValueChange={(value) =>
-											form.setFieldValue("trial_info.country", value)
-										}
-									>
-										<SelectTrigger id="trial_info.country">
-											<SelectValue placeholder="Select..." />
-										</SelectTrigger>
-										<SelectContent>
-											{countries.map((c) => (
-												<SelectItem key={c.name} value={c.name}>
-													{c.flag} {c.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
+									{countries.map((c) => (
+										<SelectItem key={c.name} value={c.name}>
+											{c.flag} {c.name}
+										</SelectItem>
+									))}
+								</SelectField>
 							</div>
 						</div>
 					)}
@@ -390,7 +337,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 						<label
 							htmlFor="onboarding_info.newsletter_releases"
-							className="flex cursor-pointer gap-2 items-center"
+							className="flex cursor-pointer gap-2 items-start"
 						>
 							<Checkbox
 								id="onboarding_info.newsletter_releases"
@@ -405,19 +352,19 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								}
 								data-testid="onboarding_info.newsletter_releases"
 							/>
-							<span className="text-sm">
+							<div className="flex flex-col text-sm">
 								<span className="font-medium">
 									Release notes & security updates
 								</span>
 								<span className="text-content-secondary">
-									— Monthly changelog, security updates, and more
+									Monthly changelog, security updates, and more
 								</span>
-							</span>
+							</div>
 						</label>
 
 						<label
 							htmlFor="onboarding_info.newsletter_marketing"
-							className="flex cursor-pointer gap-2 items-center"
+							className="flex cursor-pointer gap-2 items-start"
 						>
 							<Checkbox
 								id="onboarding_info.newsletter_marketing"
@@ -432,12 +379,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								}
 								data-testid="onboarding_info.newsletter_marketing"
 							/>
-							<span className="text-sm">
+							<div className="flex flex-col text-sm">
 								<span className="font-medium">Coder news</span>
 								<span className="text-content-secondary">
-									— Latest articles, workshops, events, and announcements
+									Latest articles, workshops, events, and announcements
 								</span>
-							</span>
+							</div>
 						</label>
 
 						{/* Privacy policy notice */}
