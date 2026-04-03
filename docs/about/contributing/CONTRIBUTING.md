@@ -291,18 +291,22 @@ specification, however, it's still possible to merge PRs on GitHub with a badly
 formatted title. Take care when merging single-commit PRs as GitHub may prefer
 to use the original commit title instead of the PR title.
 
-### Cherry-picking to the latest release branch
+### Backporting fixes to release branches
 
-When a merged PR on `main` should also ship in the current release,
-add the **`cherry-pick`** label to the PR (before or after merge).
+When a merged PR on `main` should also ship in older releases, add the
+`backport` label to the PR. The
+[backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
+will automatically detect the latest three `release/*` branches,
+cherry-pick the merge commit onto each one, and open draft PRs for
+review.
 
-The automation detects the latest `release/*` branch, cherry-picks the
-merge commit, and opens a PR for review. The PR reuses the original
-title (e.g. `fix(site): correct button alignment (#12345)`) so the
-change is meaningful in release notes.
+The label can be added before or after the PR is merged. Each backport
+PR reuses the original title with a version suffix (e.g.
+`fix(site): correct button alignment (2.32)`) so the change is
+meaningful in release notes.
 
-If the cherry-pick encounters conflicts, the PR is still created with
-instructions for manual resolution.
+If the cherry-pick encounters conflicts, the backport PR is still
+created with conflict markers so you can resolve them manually.
 
 ### Breaking changes
 
