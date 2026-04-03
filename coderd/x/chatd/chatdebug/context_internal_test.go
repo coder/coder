@@ -47,26 +47,34 @@ func TestContextWithRun_CleansUpStepCounterAfterGC(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func TestContextWithRun_CleansUpStepCounterOnCancel(t *testing.T) {
+func TestContextWithRun_CleansUpStepCounterOnGCAfterCancel(t *testing.T) {
 	t.Parallel()
 
 	runID := uuid.New()
 	chatID := uuid.New()
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = ContextWithRun(ctx, &RunContext{RunID: runID, ChatID: chatID})
+	// Run in a closure so the RunContext becomes unreachable after
+	// context cancellation, allowing GC to trigger the cleanup.
+	func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		ctx = ContextWithRun(ctx, &RunContext{RunID: runID, ChatID: chatID})
 
-	handle, _ := beginStep(ctx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-	require.NotNil(t, handle)
-	require.Equal(t, int32(1), handle.stepCtx.StepNumber)
+		handle, _ := beginStep(ctx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
+		require.NotNil(t, handle)
+		require.Equal(t, int32(1), handle.stepCtx.StepNumber)
 
-	_, ok := stepCounters.Load(runID)
-	require.True(t, ok)
+		_, ok := stepCounters.Load(runID)
+		require.True(t, ok)
 
-	cancel()
+		cancel()
+	}()
 
+	// After the closure, the RunContext is unreachable.
+	// runtime.AddCleanup fires during GC.
 	require.Eventually(t, func() bool {
+		runtime.GC()
+		runtime.Gosched()
 		_, ok := stepCounters.Load(runID)
 		return !ok
 	}, testutil.WaitShort, testutil.IntervalFast)
