@@ -249,6 +249,28 @@ func (s *Service) CreateStep(
 	for {
 		step, err := s.db.InsertChatDebugStep(chatdContext(ctx), insert)
 		if err == nil {
+			// Touch the parent run's updated_at so the stale-
+			// finalization sweep does not prematurely interrupt
+			// long-running runs that are still producing steps.
+			if _, touchErr := s.db.UpdateChatDebugRun(chatdContext(ctx), database.UpdateChatDebugRunParams{
+				RootChatID:          uuid.NullUUID{},
+				ParentChatID:        uuid.NullUUID{},
+				ModelConfigID:       uuid.NullUUID{},
+				TriggerMessageID:    sql.NullInt64{},
+				HistoryTipMessageID: sql.NullInt64{},
+				Status:              sql.NullString{},
+				Provider:            sql.NullString{},
+				Model:               sql.NullString{},
+				Summary:             pqtype.NullRawMessage{},
+				FinishedAt:          sql.NullTime{},
+				ID:                  params.RunID,
+				ChatID:              params.ChatID,
+			}); touchErr != nil {
+				s.log.Warn(ctx, "failed to touch parent run updated_at",
+					slog.F("run_id", params.RunID),
+					slog.Error(touchErr),
+				)
+			}
 			s.publishEvent(step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
 			return step, nil
 		}

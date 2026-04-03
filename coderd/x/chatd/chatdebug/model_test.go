@@ -127,12 +127,14 @@ func expectCreateStepNumberWithRequestValidity(
 		})
 
 	// CreateStep now touches the parent run's updated_at to prevent
-	// premature stale finalization. Use AnyTimes because some tests
-	// create multiple steps per run.
+	// premature stale finalization.
 	db.EXPECT().
 		UpdateChatDebugRun(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatDebugRunParams{})).
-		Return(database.ChatDebugRun{ID: runID, ChatID: chatID}, nil).
-		AnyTimes()
+		DoAndReturn(func(_ context.Context, params database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.Equal(t, runID, params.ID)
+			require.Equal(t, chatID, params.ChatID)
+			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+		})
 
 	return stepID
 }
