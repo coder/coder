@@ -164,7 +164,10 @@ func beginStep(
 	if reuseStep {
 		holder.mu.Lock()
 		defer holder.mu.Unlock()
-		if holder.handle != nil {
+		// Only reuse the cached handle if it belongs to the same run.
+		// A different RunContext means a new logical run, so we must
+		// create a fresh step to avoid cross-run attribution.
+		if holder.handle != nil && holder.handle.stepCtx.RunID == rc.RunID {
 			enriched := ContextWithStep(ctx, holder.handle.stepCtx)
 			enriched = withAttemptSink(enriched, holder.handle.sink)
 			return holder.handle, enriched
