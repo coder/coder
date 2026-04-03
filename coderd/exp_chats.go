@@ -3182,7 +3182,10 @@ func (api *API) putChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if err := api.Database.UpsertChatDebugLoggingEnabled(ctx, req.DebugLoggingEnabled); err != nil {
+	if err := api.Database.UpsertChatDebugLoggingEnabled(ctx, req.DebugLoggingEnabled); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating debug logging setting.",
 			Detail:  err.Error(),
@@ -3541,6 +3544,10 @@ func (api *API) putUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.R
 		return
 	}
 	if req.DebugLoggingOverrideSet != nil && !*req.DebugLoggingOverrideSet {
+		// TODO(review): Reuses DeleteUserChatCompactionThreshold because
+		// the underlying SQL is a generic user_configs DELETE by key.
+		// A dedicated DeleteUserChatDebugLoggingEnabled query would be
+		// cleaner but requires make gen.
 		if err := api.Database.DeleteUserChatCompactionThreshold(ctx, database.DeleteUserChatCompactionThresholdParams{
 			UserID: userID,
 			Key:    "chat_debug_logging_enabled",

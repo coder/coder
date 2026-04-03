@@ -387,8 +387,7 @@ func (b *NullableBool) UnmarshalJSON(data []byte) error {
 
 func (b NullableBool) MarshalJSON() ([]byte, error) {
 	if !b.Valid {
-		type nullableBoolAlias NullableBool
-		return json.Marshal(nullableBoolAlias(b))
+		return []byte("null"), nil
 	}
 	return json.Marshal(b.Value)
 }
