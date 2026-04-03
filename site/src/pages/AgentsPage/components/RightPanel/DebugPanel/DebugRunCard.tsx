@@ -130,7 +130,10 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 					) : runDetailQuery.isError ? (
 						<Alert severity="error" prominent>
 							<p className="text-sm text-content-primary">
-								{getErrorMessage(runDetailQuery.error, "Unable to load debug run details.")}
+								{getErrorMessage(
+									runDetailQuery.error,
+									"Unable to load debug run details.",
+								)}
 							</p>
 						</Alert>
 					) : (
