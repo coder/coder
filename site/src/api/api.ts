@@ -3243,35 +3243,6 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
-	getChatDebugLogging = async (): Promise<TypesGen.ChatDebugSettings> => {
-		const response = await this.axios.get<TypesGen.ChatDebugSettings>(
-			"/api/experimental/chats/config/debug-logging",
-		);
-		return response.data;
-	};
-
-	updateChatDebugLogging = async (
-		req: TypesGen.UpdateChatDebugLoggingRequest,
-	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/debug-logging", req);
-	};
-
-	getChatUserDebugLogging = async (): Promise<TypesGen.ChatDebugSettings> => {
-		const response = await this.axios.get<TypesGen.ChatDebugSettings>(
-			"/api/experimental/chats/config/user-debug-logging",
-		);
-		return response.data;
-	};
-
-	updateChatUserDebugLogging = async (
-		req: TypesGen.UpdateChatDebugLoggingRequest,
-	): Promise<void> => {
-		await this.axios.put(
-			"/api/experimental/chats/config/user-debug-logging",
-			req,
-		);
-	};
-
 	getChatDebugRuns = async (
 		chatId: string,
 	): Promise<TypesGen.ChatDebugRunSummary[]> => {
