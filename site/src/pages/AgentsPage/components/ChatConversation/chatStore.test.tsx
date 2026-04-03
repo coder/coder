@@ -2,7 +2,6 @@ import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
 
-
 // The infinite query key used by useInfiniteQuery(infiniteChats())
 // is [...chatsKey, undefined] = ["chats", undefined].
 const infiniteChatsTestKey = [...chatsKey, undefined];
