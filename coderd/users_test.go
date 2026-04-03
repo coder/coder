@@ -177,6 +177,30 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
 		require.Nil(t, snapshot.FirstUserOnboarding)
 	})
+
+	t.Run("EmptyOnboardingInfoIsNonNilWithZeroFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		fTelemetry := newFakeTelemetryReporter(ctx, t, 10)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: fTelemetry,
+		})
+		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email: "admin@coder.com", Username: "admin",
+			Password:       "SomeSecurePassword!",
+			OnboardingInfo: &codersdk.CreateFirstUserOnboardingInfo{},
+		})
+		require.NoError(t, err)
+		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
+		require.NotNil(t, snapshot.FirstUserOnboarding,
+			"non-nil OnboardingInfo must produce non-nil telemetry")
+		require.Nil(t, snapshot.FirstUserOnboarding.IsBusiness,
+			"nil *bool must stay nil, not become false")
+		require.Nil(t, snapshot.FirstUserOnboarding.NewsletterMarketing)
+		require.Nil(t, snapshot.FirstUserOnboarding.NewsletterReleases)
+		require.Empty(t, snapshot.FirstUserOnboarding.IndustryType)
+		require.Empty(t, snapshot.FirstUserOnboarding.OrgSize)
+	})
 }
 
 func TestPostLogin(t *testing.T) {
