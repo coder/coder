@@ -145,27 +145,20 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	})
 	require.NoError(t, err, "insert connection log")
 
-	// Query back the actual row. On upsert conflict the DB keeps
-	// the original row's ID, so we can't rely on arg.ID for rows
-	// with a connection_id. For NULL connection_id rows (web
-	// events), the row is always fresh-inserted so arg.ID is
-	// reliable — but the SQL filter ignores zero-UUID connection_id,
-	// so we fetch all and match by ID.
-	if arg.ConnectionID.Valid {
-		rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{
-			ConnectionID: arg.ConnectionID.UUID,
-			LimitOpt:     1,
-		})
-		require.NoError(t, err, "query connection log")
-		require.NotEmpty(t, rows, "connection log not found after insert")
-		return rows[0].ConnectionLog
-	}
-
-	// NULL connection_id: query all and find by primary key.
+	// Query back the actual row from the database. On upsert
+	// conflict the DB keeps the original row's ID, so we can't
+	// rely on arg.ID. Match on the conflict key for rows with a
+	// connection_id, or by primary key for NULL connection_id.
 	rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{})
 	require.NoError(t, err, "query connection logs")
 	for _, row := range rows {
-		if row.ConnectionLog.ID == arg.ID {
+		if arg.ConnectionID.Valid {
+			if row.ConnectionLog.ConnectionID == arg.ConnectionID &&
+				row.ConnectionLog.WorkspaceID == arg.WorkspaceID &&
+				row.ConnectionLog.AgentName == arg.AgentName {
+				return row.ConnectionLog
+			}
+		} else if row.ConnectionLog.ID == arg.ID {
 			return row.ConnectionLog
 		}
 	}
