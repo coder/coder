@@ -16,8 +16,8 @@ import {
 import {
 	computeDurationMs,
 	getStatusBadgeVariant,
-	safeJsonStringify,
 	type NormalizedAttempt,
+	safeJsonStringify,
 } from "./debugPanelUtils";
 
 interface DebugAttemptAccordionProps {
@@ -40,11 +40,7 @@ const renderJsonBlock = (value: unknown, fallbackCopy: string) => {
 		return <DebugCodeBlock code={value} />;
 	}
 
-	return (
-		<DebugCodeBlock
-			code={safeJsonStringify(value)}
-		/>
-	);
+	return <DebugCodeBlock code={safeJsonStringify(value)} />;
 };
 
 const getAttemptTimingLabel = (attempt: NormalizedAttempt): string => {

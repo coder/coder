@@ -31,8 +31,6 @@ interface DebugRunCardProps {
 	enabled?: boolean;
 }
 
-
-
 const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
 	const durationMs = computeDurationMs(startedAt, finishedAt);
 	return durationMs !== null ? compactDuration(durationMs) : "—";
