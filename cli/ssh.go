@@ -267,422 +267,29 @@ func (r *RootCmd) ssh() *serpent.Command {
 					}
 				}
 
-				lastRetryableErr = func() error {
-					stack := newCloserStack(ctx, logger, quartz.NewReal())
-					defer stack.close(nil)
-
-					for _, remoteForward := range remoteForwards {
-						isValid := validateRemoteForward(remoteForward)
-						if !isValid {
-							return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-						}
-						if isValid && stdio {
-							return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
-						}
-					}
-
-					var parsedEnv [][2]string
-					for _, e := range env {
-						k, v, ok := strings.Cut(e, "=")
-						if !ok {
-							return xerrors.Errorf("invalid environment variable setting %q", e)
-						}
-						parsedEnv = append(parsedEnv, [2]string{k, v})
-					}
-
-					cliConfig := codersdk.SSHConfigResponse{
+				lastRetryableErr = r.sshHandleConnAttempt(ctx, cancel, inv, client, wsClient, stdioReader, stdioWriter, logger, &wg, sshHandleConnAttemptArgs{
+					stdio:               stdio,
+					appearanceConfig:    appearanceConfig,
+					forceNewTunnel:      forceNewTunnel,
+					usageApp:            usageApp,
+					disableAutostart:    disableAutostart,
+					networkInfoDir:      networkInfoDir,
+					networkInfoInterval: networkInfoInterval,
+					containerName:       containerName,
+					containerUser:       containerUser,
+					cliConfig: codersdk.SSHConfigResponse{
 						HostnamePrefix: hostPrefix,
 						HostnameSuffix: hostnameSuffix,
-					}
-
-					workspace, workspaceAgent, err := findWorkspaceAndAgentByHostname(
-						ctx, inv, client,
-						inv.Args[0], cliConfig, disableAutostart)
-					if err != nil {
-						return err
-					}
-
-					// Select the startup script behavior based on template configuration or flags.
-					var wait bool
-					switch waitEnum {
-					case "yes":
-						wait = true
-					case "no":
-						wait = false
-					case "auto":
-						for _, script := range workspaceAgent.Scripts {
-							if script.StartBlocksLogin {
-								wait = true
-								break
-							}
-						}
-					default:
-						return xerrors.Errorf("unknown wait value %q", waitEnum)
-					}
-					// The `--no-wait` flag is deprecated, but for now, check it.
-					if noWait {
-						wait = false
-					}
-
-					templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
-					if err != nil {
-						return err
-					}
-
-					var unsupportedWorkspace bool
-					for _, warning := range templateVersion.Warnings {
-						if warning == codersdk.TemplateVersionWarningUnsupportedWorkspaces {
-							unsupportedWorkspace = true
-							break
-						}
-					}
-
-					if unsupportedWorkspace && isTTYErr(inv) {
-						_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Contact your administrator for assistance.")
-					}
-
-					updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
-					if outdated && isTTYErr(inv) {
-						_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)
-					}
-
-					// OpenSSH passes stderr directly to the calling TTY.
-					// This is required in "stdio" mode so a connecting indicator can be displayed.
-					err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
-						FetchInterval: 0,
-						Fetch:         client.WorkspaceAgent,
-						FetchLogs:     client.WorkspaceAgentLogsAfter,
-						Wait:          wait,
-						DocsURL:       appearanceConfig.DocsURL,
-					})
-					if err != nil {
-						if xerrors.Is(err, context.Canceled) {
-							return cliui.ErrCanceled
-						}
-						return err
-					}
-
-					// If we're in stdio mode, check to see if we can use Coder Connect.
-					// We don't support Coder Connect over non-stdio coder ssh yet.
-					if stdio && !forceNewTunnel {
-						connInfo, err := wsClient.AgentConnectionInfoGeneric(ctx)
-						if err != nil {
-							return xerrors.Errorf("get agent connection info: %w", err)
-						}
-						coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
-							workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
-						// Use trailing dot to indicate FQDN and prevent DNS
-						// search domain expansion, which can add 20-30s of
-						// delay on corporate networks with search domains
-						// configured.
-						exists, ccErr := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost+".")
-						if ccErr != nil {
-							logger.Debug(ctx, "failed to check coder connect",
-								slog.F("hostname", coderConnectHost),
-								slog.Error(ccErr),
-							)
-						}
-						if exists {
-							defer cancel()
-
-							if networkInfoDir != "" {
-								if err := writeCoderConnectNetInfo(ctx, networkInfoDir); err != nil {
-									logger.Error(ctx, "failed to write coder connect net info file", slog.Error(err))
-								}
-							}
-
-							stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
-							defer stopPolling()
-
-							usageAppName := getUsageAppName(usageApp)
-							if usageAppName != "" {
-								closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-									AgentID: workspaceAgent.ID,
-									AppName: usageAppName,
-								})
-								defer closeUsage()
-							}
-							return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack)
-						}
-					}
-
-					if r.disableDirect {
-						_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
-					}
-					conn, err := wsClient.
-						DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-							Logger:          logger,
-							BlockEndpoints:  r.disableDirect,
-							EnableTelemetry: !r.disableNetworkTelemetry,
-						})
-					if err != nil {
-						return xerrors.Errorf("dial agent: %w", err)
-					}
-					if err = stack.push("agent conn", conn); err != nil {
-						return err
-					}
-					conn.AwaitReachable(ctx)
-
-					if containerName != "" {
-						cts, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, nil)
-						if err != nil {
-							return xerrors.Errorf("list containers: %w", err)
-						}
-						if len(cts.Containers) == 0 {
-							cliui.Info(inv.Stderr, "No containers found!")
-							return nil
-						}
-						var found bool
-						for _, c := range cts.Containers {
-							if c.FriendlyName == containerName || c.ID == containerName {
-								found = true
-								break
-							}
-						}
-						if !found {
-							availableContainers := make([]string, len(cts.Containers))
-							for i, c := range cts.Containers {
-								availableContainers[i] = c.FriendlyName
-							}
-							cliui.Errorf(inv.Stderr, "Container not found: %q\nAvailable containers: %v", containerName, availableContainers)
-							return nil
-						}
-					}
-
-					stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
-					defer stopPolling()
-
-					usageAppName := getUsageAppName(usageApp)
-					if usageAppName != "" {
-						closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-							AgentID: workspaceAgent.ID,
-							AppName: usageAppName,
-						})
-						defer closeUsage()
-					}
-
-					if stdio {
-						rawSSH, err := conn.SSH(ctx)
-						if err != nil {
-							return xerrors.Errorf("connect SSH: %w", err)
-						}
-						copier := newRawSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
-						if err = stack.push("rawSSHCopier", copier); err != nil {
-							return err
-						}
-
-						var errCh <-chan error
-						if networkInfoDir != "" {
-							errCh, err = setStatsCallback(ctx, conn, logger, networkInfoDir, networkInfoInterval)
-							if err != nil {
-								return err
-							}
-						}
-
-						wg.Add(1)
-						go func() {
-							defer wg.Done()
-							watchAndClose(ctx, func() error {
-								stack.close(xerrors.New("watchAndClose"))
-								return nil
-							}, logger, client, workspace, errCh)
-						}()
-						copier.copy(&wg)
-						return nil
-					}
-
-					sshClient, err := conn.SSHClient(ctx)
-					if err != nil {
-						return xerrors.Errorf("ssh client: %w", err)
-					}
-					if err = stack.push("ssh client", sshClient); err != nil {
-						return err
-					}
-
-					sshSession, err := sshClient.NewSession()
-					if err != nil {
-						return xerrors.Errorf("ssh session: %w", err)
-					}
-					if err = stack.push("sshSession", sshSession); err != nil {
-						return err
-					}
-
-					var errCh <-chan error
-					if networkInfoDir != "" {
-						errCh, err = setStatsCallback(ctx, conn, logger, networkInfoDir, networkInfoInterval)
-						if err != nil {
-							return err
-						}
-					}
-
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						watchAndClose(
-							ctx,
-							func() error {
-								stack.close(xerrors.New("watchAndClose"))
-								return nil
-							},
-							logger,
-							client,
-							workspace,
-							errCh,
-						)
-					}()
-
-					if identityAgent == "" {
-						identityAgent = os.Getenv("SSH_AUTH_SOCK")
-					}
-					if forwardAgent && identityAgent != "" {
-						err = gosshagent.ForwardToRemote(sshClient, identityAgent)
-						if err != nil {
-							return xerrors.Errorf("forward agent: %w", err)
-						}
-						err = gosshagent.RequestAgentForwarding(sshSession)
-						if err != nil {
-							return xerrors.Errorf("request agent forwarding failed: %w", err)
-						}
-					}
-
-					if forwardGPG {
-						if workspaceAgent.OperatingSystem == "windows" {
-							return xerrors.New("GPG forwarding is not supported for Windows workspaces")
-						}
-
-						err = uploadGPGKeys(ctx, sshClient)
-						if err != nil {
-							return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
-						}
-						closer, err := forwardGPGAgent(ctx, inv.Stderr, sshClient)
-						if err != nil {
-							return xerrors.Errorf("forward GPG socket: %w", err)
-						}
-						if err = stack.push("forwardGPGAgent", closer); err != nil {
-							return err
-						}
-					}
-
-					if len(remoteForwards) > 0 {
-						for _, remoteForward := range remoteForwards {
-							localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
-							if err != nil {
-								return err
-							}
-
-							closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
-							if err != nil {
-								return xerrors.Errorf("ssh remote forward: %w", err)
-							}
-							if err = stack.push("sshRemoteForward", closer); err != nil {
-								return err
-							}
-						}
-					}
-
-					stdinFile, validIn := inv.Stdin.(*os.File)
-					stdoutFile, validOut := inv.Stdout.(*os.File)
-					if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
-						inState, err := pty.MakeInputRaw(stdinFile.Fd())
-						if err != nil {
-							return err
-						}
-						defer func() {
-							_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
-						}()
-						outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
-						if err != nil {
-							return err
-						}
-						defer func() {
-							_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
-						}()
-
-						windowChange := listenWindowSize(ctx)
-						go func() {
-							for {
-								select {
-								case <-ctx.Done():
-									return
-								case <-windowChange:
-								}
-								width, height, err := term.GetSize(int(stdoutFile.Fd()))
-								if err != nil {
-									continue
-								}
-								_ = sshSession.WindowChange(height, width)
-							}
-						}()
-					}
-
-					for _, kv := range parsedEnv {
-						if err := sshSession.Setenv(kv[0], kv[1]); err != nil {
-							return xerrors.Errorf("setenv: %w", err)
-						}
-					}
-
-					if containerName != "" {
-						for k, v := range map[string]string{
-							agentssh.ContainerEnvironmentVariable:     containerName,
-							agentssh.ContainerUserEnvironmentVariable: containerUser,
-						} {
-							if err := sshSession.Setenv(k, v); err != nil {
-								return xerrors.Errorf("setenv: %w", err)
-							}
-						}
-					}
-
-					err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-					if err != nil {
-						return xerrors.Errorf("request pty: %w", err)
-					}
-
-					sshSession.Stdin = inv.Stdin
-					sshSession.Stdout = inv.Stdout
-					sshSession.Stderr = inv.Stderr
-
-					if command != "" {
-						err := sshSession.Run(command)
-						if err != nil {
-							return xerrors.Errorf("run command: %w", err)
-						}
-					} else {
-						err = sshSession.Shell()
-						if err != nil {
-							return xerrors.Errorf("start shell: %w", err)
-						}
-
-						// Put cancel at the top of the defer stack to initiate
-						// shutdown of services.
-						defer cancel()
-
-						if validOut {
-							// Set initial window size.
-							width, height, err := term.GetSize(int(stdoutFile.Fd()))
-							if err == nil {
-								_ = sshSession.WindowChange(height, width)
-							}
-						}
-
-						err = sshSession.Wait()
-						conn.TailnetConn().SendDisconnectedTelemetry()
-						if err != nil {
-							if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
-								// Clear the error since it's not useful beyond
-								// reporting status.
-								return ExitError(exitErr.ExitStatus(), nil)
-							}
-							// If the connection drops unexpectedly, we get an
-							// ExitMissingError but no other error details, so try to at
-							// least give the user a better message
-							if errors.Is(err, &gossh.ExitMissingError{}) {
-								return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
-							}
-							return xerrors.Errorf("session ended: %w", err)
-						}
-					}
-					return nil
-				}()
+					},
+					waitEnum:       waitEnum,
+					noWait:         noWait,
+					remoteForwards: remoteForwards,
+					env:            env,
+					identityAgent:  identityAgent,
+					forwardAgent:   forwardAgent,
+					forwardGPG:     forwardGPG,
+					command:        command,
+				})
 
 				if lastRetryableErr == nil || !stdio || !isRetryableError(lastRetryableErr) {
 					return lastRetryableErr
@@ -832,6 +439,458 @@ func isRetryableError(err error) bool {
 		return sdkErr.StatusCode() >= 500
 	}
 	return false
+}
+
+// sshHandleConnAttemptArgs holds CLI flag values needed by a single
+// connection attempt so that the retry loop can pass them cleanly.
+type sshHandleConnAttemptArgs struct {
+	stdio               bool
+	appearanceConfig    codersdk.AppearanceConfig
+	forceNewTunnel      bool
+	usageApp            string
+	disableAutostart    bool
+	networkInfoDir      string
+	networkInfoInterval time.Duration
+	containerName       string
+	containerUser       string
+	cliConfig           codersdk.SSHConfigResponse
+	waitEnum            string
+	noWait              bool
+	remoteForwards      []string
+	env                 []string
+	identityAgent       string
+	forwardAgent        bool
+	forwardGPG          bool
+	command             string
+}
+
+// sshHandleConnAttempt runs one complete SSH connection attempt (resolve
+// workspace, wait for agent, dial, and either proxy stdio or run an
+// interactive session). Called from the retry loop in ssh().
+//
+//nolint:gocognit // All the logic is straightforward sequencing of SSH setup steps.
+func (r *RootCmd) sshHandleConnAttempt(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	inv *serpent.Invocation,
+	client *codersdk.Client,
+	wsClient *workspacesdk.Client,
+	stdioReader io.Reader,
+	stdioWriter io.Writer,
+	logger slog.Logger,
+	wg *sync.WaitGroup,
+	args sshHandleConnAttemptArgs,
+) error {
+	stack := newCloserStack(ctx, logger, quartz.NewReal())
+	defer stack.close(nil)
+
+	for _, remoteForward := range args.remoteForwards {
+		isValid := validateRemoteForward(remoteForward)
+		if !isValid {
+			return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+		}
+		if isValid && args.stdio {
+			return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+		}
+	}
+
+	var parsedEnv [][2]string
+	for _, e := range args.env {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok {
+			return xerrors.Errorf("invalid environment variable setting %q", e)
+		}
+		parsedEnv = append(parsedEnv, [2]string{k, v})
+	}
+
+	workspace, workspaceAgent, err := findWorkspaceAndAgentByHostname(
+		ctx, inv, client,
+		inv.Args[0], args.cliConfig, args.disableAutostart)
+	if err != nil {
+		return err
+	}
+
+	// Select the startup script behavior based on template configuration or flags.
+	var wait bool
+	switch args.waitEnum {
+	case "yes":
+		wait = true
+	case "no":
+		wait = false
+	case "auto":
+		for _, script := range workspaceAgent.Scripts {
+			if script.StartBlocksLogin {
+				wait = true
+				break
+			}
+		}
+	default:
+		return xerrors.Errorf("unknown wait value %q", args.waitEnum)
+	}
+	// The `--no-wait` flag is deprecated, but for now, check it.
+	if args.noWait {
+		wait = false
+	}
+
+	templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
+	if err != nil {
+		return err
+	}
+
+	var unsupportedWorkspace bool
+	for _, warning := range templateVersion.Warnings {
+		if warning == codersdk.TemplateVersionWarningUnsupportedWorkspaces {
+			unsupportedWorkspace = true
+			break
+		}
+	}
+
+	if unsupportedWorkspace && isTTYErr(inv) {
+		_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Contact your administrator for assistance.")
+	}
+
+	updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
+	if outdated && isTTYErr(inv) {
+		_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)
+	}
+
+	// OpenSSH passes stderr directly to the calling TTY.
+	// This is required in "stdio" mode so a connecting indicator can be displayed.
+	err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         client.WorkspaceAgent,
+		FetchLogs:     client.WorkspaceAgentLogsAfter,
+		Wait:          wait,
+		DocsURL:       args.appearanceConfig.DocsURL,
+	})
+	if err != nil {
+		if xerrors.Is(err, context.Canceled) {
+			return cliui.ErrCanceled
+		}
+		return err
+	}
+
+	// If we're in stdio mode, check to see if we can use Coder Connect.
+	// We don't support Coder Connect over non-stdio coder ssh yet.
+	if args.stdio && !args.forceNewTunnel {
+		connInfo, err := wsClient.AgentConnectionInfoGeneric(ctx)
+		if err != nil {
+			return xerrors.Errorf("get agent connection info: %w", err)
+		}
+		coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
+			workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
+		// Use trailing dot to indicate FQDN and prevent DNS
+		// search domain expansion, which can add 20-30s of
+		// delay on corporate networks with search domains
+		// configured.
+		exists, ccErr := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost+".")
+		if ccErr != nil {
+			logger.Debug(ctx, "failed to check coder connect",
+				slog.F("hostname", coderConnectHost),
+				slog.Error(ccErr),
+			)
+		}
+		if exists {
+			defer cancel()
+
+			if args.networkInfoDir != "" {
+				if err := writeCoderConnectNetInfo(ctx, args.networkInfoDir); err != nil {
+					logger.Error(ctx, "failed to write coder connect net info file", slog.Error(err))
+				}
+			}
+
+			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
+			defer stopPolling()
+
+			usageAppName := getUsageAppName(args.usageApp)
+			if usageAppName != "" {
+				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+					AgentID: workspaceAgent.ID,
+					AppName: usageAppName,
+				})
+				defer closeUsage()
+			}
+			return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack)
+		}
+	}
+
+	if r.disableDirect {
+		_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+	}
+	conn, err := wsClient.
+		DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+			Logger:          logger,
+			BlockEndpoints:  r.disableDirect,
+			EnableTelemetry: !r.disableNetworkTelemetry,
+		})
+	if err != nil {
+		return xerrors.Errorf("dial agent: %w", err)
+	}
+	if err = stack.push("agent conn", conn); err != nil {
+		return err
+	}
+	conn.AwaitReachable(ctx)
+
+	if args.containerName != "" {
+		cts, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, nil)
+		if err != nil {
+			return xerrors.Errorf("list containers: %w", err)
+		}
+		if len(cts.Containers) == 0 {
+			cliui.Info(inv.Stderr, "No containers found!")
+			return nil
+		}
+		var found bool
+		for _, c := range cts.Containers {
+			if c.FriendlyName == args.containerName || c.ID == args.containerName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			availableContainers := make([]string, len(cts.Containers))
+			for i, c := range cts.Containers {
+				availableContainers[i] = c.FriendlyName
+			}
+			cliui.Errorf(inv.Stderr, "Container not found: %q\nAvailable containers: %v", args.containerName, availableContainers)
+			return nil
+		}
+	}
+
+	stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
+	defer stopPolling()
+
+	usageAppName := getUsageAppName(args.usageApp)
+	if usageAppName != "" {
+		closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspaceAgent.ID,
+			AppName: usageAppName,
+		})
+		defer closeUsage()
+	}
+
+	if args.stdio {
+		rawSSH, err := conn.SSH(ctx)
+		if err != nil {
+			return xerrors.Errorf("connect SSH: %w", err)
+		}
+		copier := newRawSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
+		if err = stack.push("rawSSHCopier", copier); err != nil {
+			return err
+		}
+
+		var errCh <-chan error
+		if args.networkInfoDir != "" {
+			errCh, err = setStatsCallback(ctx, conn, logger, args.networkInfoDir, args.networkInfoInterval)
+			if err != nil {
+				return err
+			}
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			watchAndClose(ctx, func() error {
+				stack.close(xerrors.New("watchAndClose"))
+				return nil
+			}, logger, client, workspace, errCh)
+		}()
+		copier.copy(wg)
+		return nil
+	}
+
+	sshClient, err := conn.SSHClient(ctx)
+	if err != nil {
+		return xerrors.Errorf("ssh client: %w", err)
+	}
+	if err = stack.push("ssh client", sshClient); err != nil {
+		return err
+	}
+
+	sshSession, err := sshClient.NewSession()
+	if err != nil {
+		return xerrors.Errorf("ssh session: %w", err)
+	}
+	if err = stack.push("sshSession", sshSession); err != nil {
+		return err
+	}
+
+	var errCh <-chan error
+	if args.networkInfoDir != "" {
+		errCh, err = setStatsCallback(ctx, conn, logger, args.networkInfoDir, args.networkInfoInterval)
+		if err != nil {
+			return err
+		}
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		watchAndClose(
+			ctx,
+			func() error {
+				stack.close(xerrors.New("watchAndClose"))
+				return nil
+			},
+			logger,
+			client,
+			workspace,
+			errCh,
+		)
+	}()
+
+	identityAgent := args.identityAgent
+	if identityAgent == "" {
+		identityAgent = os.Getenv("SSH_AUTH_SOCK")
+	}
+	if args.forwardAgent && identityAgent != "" {
+		err = gosshagent.ForwardToRemote(sshClient, identityAgent)
+		if err != nil {
+			return xerrors.Errorf("forward agent: %w", err)
+		}
+		err = gosshagent.RequestAgentForwarding(sshSession)
+		if err != nil {
+			return xerrors.Errorf("request agent forwarding failed: %w", err)
+		}
+	}
+
+	if args.forwardGPG {
+		if workspaceAgent.OperatingSystem == "windows" {
+			return xerrors.New("GPG forwarding is not supported for Windows workspaces")
+		}
+
+		err = uploadGPGKeys(ctx, sshClient)
+		if err != nil {
+			return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
+		}
+		closer, err := forwardGPGAgent(ctx, inv.Stderr, sshClient)
+		if err != nil {
+			return xerrors.Errorf("forward GPG socket: %w", err)
+		}
+		if err = stack.push("forwardGPGAgent", closer); err != nil {
+			return err
+		}
+	}
+
+	if len(args.remoteForwards) > 0 {
+		for _, remoteForward := range args.remoteForwards {
+			localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
+			if err != nil {
+				return err
+			}
+
+			closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
+			if err != nil {
+				return xerrors.Errorf("ssh remote forward: %w", err)
+			}
+			if err = stack.push("sshRemoteForward", closer); err != nil {
+				return err
+			}
+		}
+	}
+
+	stdinFile, validIn := inv.Stdin.(*os.File)
+	stdoutFile, validOut := inv.Stdout.(*os.File)
+	if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+		inState, err := pty.MakeInputRaw(stdinFile.Fd())
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
+		}()
+		outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
+		}()
+
+		windowChange := listenWindowSize(ctx)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-windowChange:
+				}
+				width, height, err := term.GetSize(int(stdoutFile.Fd()))
+				if err != nil {
+					continue
+				}
+				_ = sshSession.WindowChange(height, width)
+			}
+		}()
+	}
+
+	for _, kv := range parsedEnv {
+		if err := sshSession.Setenv(kv[0], kv[1]); err != nil {
+			return xerrors.Errorf("setenv: %w", err)
+		}
+	}
+
+	if args.containerName != "" {
+		for k, v := range map[string]string{
+			agentssh.ContainerEnvironmentVariable:     args.containerName,
+			agentssh.ContainerUserEnvironmentVariable: args.containerUser,
+		} {
+			if err := sshSession.Setenv(k, v); err != nil {
+				return xerrors.Errorf("setenv: %w", err)
+			}
+		}
+	}
+
+	err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+	if err != nil {
+		return xerrors.Errorf("request pty: %w", err)
+	}
+
+	sshSession.Stdin = inv.Stdin
+	sshSession.Stdout = inv.Stdout
+	sshSession.Stderr = inv.Stderr
+
+	if args.command != "" {
+		err := sshSession.Run(args.command)
+		if err != nil {
+			return xerrors.Errorf("run command: %w", err)
+		}
+	} else {
+		err = sshSession.Shell()
+		if err != nil {
+			return xerrors.Errorf("start shell: %w", err)
+		}
+
+		// Put cancel at the top of the defer stack to initiate
+		// shutdown of services.
+		defer cancel()
+
+		if validOut {
+			// Set initial window size.
+			width, height, err := term.GetSize(int(stdoutFile.Fd()))
+			if err == nil {
+				_ = sshSession.WindowChange(height, width)
+			}
+		}
+
+		err = sshSession.Wait()
+		conn.TailnetConn().SendDisconnectedTelemetry()
+		if err != nil {
+			if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+				// Clear the error since it's not useful beyond
+				// reporting status.
+				return ExitError(exitErr.ExitStatus(), nil)
+			}
+			// If the connection drops unexpectedly, we get an
+			// ExitMissingError but no other error details, so try to at
+			// least give the user a better message
+			if errors.Is(err, &gossh.ExitMissingError{}) {
+				return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
+			}
+			return xerrors.Errorf("session ended: %w", err)
+		}
+	}
+	return nil
 }
 
 // findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it

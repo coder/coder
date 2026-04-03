@@ -370,7 +370,7 @@ func TestIsRetryableError(t *testing.T) {
 		},
 		{
 			name:     "OpError/ConnectionRefused",
-			err:      &net.OpError{Op: "dial", Net: "tcp", Err: fmt.Errorf("connection refused")},
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: xerrors.New("connection refused")},
 			expected: true,
 		},
 		{
