@@ -20,14 +20,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "#/components/ChatMessageInput/ChatMessageInput";
 import {
 	Command,
 	CommandEmpty,
@@ -46,6 +43,11 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
@@ -55,17 +57,21 @@ import { formatProviderLabel } from "../utils/modelOptions";
 import type { UploadState } from "./AttachmentPreview";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "./ChatMessageInput/ChatMessageInput";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
-export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 export {
 	ImageThumbnail,
 	type UploadState,
 } from "./AttachmentPreview";
+export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
@@ -75,10 +81,19 @@ interface AgentChatInputProps {
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
-	// Initial text to seed the editor with.
+	// Initial text to seed the editor on first mount only.
 	initialValue?: string;
-	// Called on every text change inside the editor.
-	onContentChange?: (content: string) => void;
+	// Serialized Lexical editor state for restoring drafts with
+	// file-reference chips. Takes precedence over initialValue.
+	initialEditorState?: string;
+	// Monotonic counter to force editor remount.
+	remountKey?: number;
+	// Called on every content change inside the editor.
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	// Model selector.
 	selectedModel: string;
 	onModelChange: (value: string) => void;
@@ -132,9 +147,18 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	attachedWorkspace?: AttachedWorkspaceInfo;
+}
+
+export interface AttachedWorkspaceInfo {
+	name: string;
+	route: string;
+	statusIcon: React.ReactNode;
+	statusLabel: string;
 }
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
+	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
 const ToolBadge: FC<{
@@ -147,6 +171,28 @@ const ToolBadge: FC<{
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
+
+	if (badge.kind === "attached-workspace") {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Link
+						to={badge.route}
+						target="_blank"
+						rel="noreferrer"
+						className={cn(
+							badgeCls,
+							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						)}
+					>
+						{badge.statusIcon}
+						{badge.name}
+					</Link>
+				</TooltipTrigger>
+				<TooltipContent>{badge.statusLabel}</TooltipContent>
+			</Tooltip>
+		);
+	}
 
 	if (badge.kind === "workspace") {
 		return (
@@ -201,6 +247,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	isLoading,
 	inputRef,
 	initialValue,
+	initialEditorState,
+	remountKey,
 	onContentChange,
 	selectedModel,
 	onModelChange,
@@ -236,6 +284,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	attachedWorkspace,
 }) => {
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -344,6 +393,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
+	if (attachedWorkspace) {
+		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
+	}
 	if (selectedWorkspace && onWorkspaceChange) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
@@ -428,11 +480,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		countInvisibleCharacters(initialValue ?? ""),
 	);
 
-	const handleContentChange = (content: string, hasRefs: boolean) => {
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasRefs: boolean,
+	) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content);
+		onContentChange?.(content, serializedEditorState, hasRefs);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -648,6 +704,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
+					initialEditorState={initialEditorState}
+					remountKey={remountKey}
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
@@ -666,9 +724,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{invisibleCharCount > 0 && (
 					<div className="px-3 pb-1">
 						<Alert severity="warning">
-							This message contains {invisibleCharCount} invisible Unicode
-							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
-							content. Review carefully before sending.
+							<AlertDescription>
+								This message contains {invisibleCharCount} invisible Unicode
+								character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+								content. Review carefully before sending.
+							</AlertDescription>
 						</Alert>
 					</div>
 				)}
@@ -864,7 +924,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (
 									<ToolBadge
-										key={badge.kind === "workspace" ? "ws" : badge.server.id}
+										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
 										badge={badge}
 										onRemoveWorkspace={handleRemoveWorkspace}
 										onRemoveMcp={handleRemoveMcp}
@@ -901,9 +961,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									{overflowBadges.map((badge) => (
 										<ToolBadge
 											key={
-												badge.kind === "workspace"
-													? "ws-overflow"
-													: badge.server.id
+												badge.kind === "mcp"
+													? badge.server.id
+													: `${badge.kind}-overflow`
 											}
 											badge={badge}
 											onRemoveWorkspace={handleRemoveWorkspace}

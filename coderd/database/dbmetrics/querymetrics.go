@@ -160,12 +160,12 @@ func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
-	r0 := m.s.ArchiveChatByID(ctx, id)
+	r0, r1 := m.s.ArchiveChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("ArchiveChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ArchiveChatByID").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
@@ -693,6 +693,14 @@ func (m queryMetricsStore) DeleteUserChatCompactionThreshold(ctx context.Context
 	r0 := m.s.DeleteUserChatCompactionThreshold(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteUserChatCompactionThreshold").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserChatCompactionThreshold").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteUserChatProviderKey(ctx context.Context, arg database.DeleteUserChatProviderKeyParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteUserChatProviderKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteUserChatProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserChatProviderKey").Inc()
 	return r0
 }
 
@@ -2528,6 +2536,14 @@ func (m queryMetricsStore) GetUserChatCustomPrompt(ctx context.Context, userID u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserChatProviderKeys(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserChatProviderKeys").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatProviderKeys").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserChatSpendInPeriod(ctx, arg)
@@ -4024,12 +4040,12 @@ func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXact
 	return r0, r1
 }
 
-func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
-	r0 := m.s.UnarchiveChatByID(ctx, id)
+	r0, r1 := m.s.UnarchiveChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UnarchiveChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnarchiveChatByID").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
@@ -4557,6 +4573,14 @@ func (m queryMetricsStore) UpdateUserChatCustomPrompt(ctx context.Context, arg d
 	r0, r1 := m.s.UpdateUserChatCustomPrompt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserChatCustomPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserChatCustomPrompt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserChatProviderKey(ctx context.Context, arg database.UpdateUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserChatProviderKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserChatProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserChatProviderKey").Inc()
 	return r0, r1
 }
 
@@ -5150,6 +5174,14 @@ func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTemplateUsageStats").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertUserChatProviderKey(ctx context.Context, arg database.UpsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertUserChatProviderKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertUserChatProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserChatProviderKey").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {

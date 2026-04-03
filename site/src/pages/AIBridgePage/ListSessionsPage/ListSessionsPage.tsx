@@ -8,7 +8,9 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
+import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
@@ -17,15 +19,11 @@ const AISessionListPage: FC = () => {
 	const { entitlements } = useDashboard();
 	const navigate = useNavigate();
 
-	// Users are allowed to view their own request logs via the API,
-	// but this page is only visible if the feature is enabled and the user
-	// has the `viewAnyAIBridgeInterception` permission.
-	// (as its defined in the Admin settings dropdown).
-	const isEntitled =
-		entitlements.features.aibridge.entitlement === "entitled" ||
-		entitlements.features.aibridge.entitlement === "grace_period";
-	const isEnabled = entitlements.features.aibridge.enabled;
-	const hasPermission = permissions.viewAnyAIBridgeInterception;
+	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
+		entitlements,
+		permissions,
+	);
+
 	const canViewSessions = isEntitled && hasPermission;
 
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -33,6 +31,7 @@ const AISessionListPage: FC = () => {
 		...paginatedSessions(searchParams),
 		enabled: canViewSessions,
 	});
+
 	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
@@ -66,6 +65,15 @@ const AISessionListPage: FC = () => {
 			}),
 	});
 
+	const modelMenu = useModelFilterMenu({
+		value: filter.values.model,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				model: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Bridge")}</title>
@@ -87,6 +95,7 @@ const AISessionListPage: FC = () => {
 						user: userMenu,
 						provider: providerMenu,
 						client: clientMenu,
+						model: modelMenu,
 					},
 				}}
 			/>

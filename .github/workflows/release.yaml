@@ -9,6 +9,7 @@ on:
         options:
           - mainline
           - stable
+          - rc
       release_notes:
         description: Release notes for the publishing the release. This is required to create a release.
       dry_run:
@@ -119,9 +120,19 @@ jobs:
             exit 1
           fi
 
-          # 2.10.2 -> release/2.10
+          # Derive the release branch from the version tag.
+          # Standard: 2.10.2 -> release/2.10
+          # RC:       2.32.0-rc.0 -> release/2.32-rc.0
           version="$(./scripts/version.sh)"
-          release_branch=release/${version%.*}
+          if [[ "$version" == *-rc.* ]]; then
+            # Extract major.minor and rc suffix from e.g. 2.32.0-rc.0
+            base_version="${version%%-rc.*}"   # 2.32.0
+            major_minor="${base_version%.*}"   # 2.32
+            rc_suffix="${version##*-rc.}"      # 0
+            release_branch="release/${major_minor}-rc.${rc_suffix}"
+          else
+            release_branch=release/${version%.*}
+          fi
           branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
           if [[ -z "${branch_contains_tag}" ]]; then
             echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
@@ -531,6 +542,9 @@ jobs:
           if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
             publish_args+=(--stable)
           fi
+          if [[ $CODER_RELEASE_CHANNEL == "rc" ]]; then
+            publish_args+=(--rc)
+          fi
           if [[ $CODER_DRY_RUN == *t* ]]; then
             publish_args+=(--dry-run)
           fi
@@ -562,6 +576,35 @@ jobs:
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
+
+      # Mark the Linear release as shipped.
+      - name: Extract Linear release version
+        if: ${{ !inputs.dry_run }}
+        id: linear_version
+        run: |
+          # Skip RC releases — they must not complete the Linear release.
+          if [[ "$VERSION" == *-rc* ]]; then
+            echo "RC release (${VERSION}), skipping Linear release completion."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
+          linear_version=$(echo "$VERSION" | cut -d. -f1,2)
+          echo "version=$linear_version" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Completing Linear release ${linear_version}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Complete Linear release
+        if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
+        continue-on-error: true
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          version: ${{ steps.linear_version.outputs.version }}
+          timeout: 300
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -614,7 +657,7 @@ jobs:
           retention-days: 7
 
       - name: Send repository-dispatch event
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
@@ -702,7 +745,7 @@ jobs:
     name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
 
     steps:
       - name: Harden Runner

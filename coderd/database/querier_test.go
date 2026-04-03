@@ -1261,10 +1261,11 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -1285,6 +1286,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 3 chats owned by owner.
 	for i := range 3 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
@@ -1295,6 +1297,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 2 chats owned by member.
 	for i := range 2 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
@@ -1416,6 +1419,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				Status:            database.ChatStatusWaiting,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
@@ -9453,10 +9457,11 @@ func TestInsertChatMessages(t *testing.T) {
 		provider := "openai"
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    provider,
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             provider,
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -9472,6 +9477,7 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9617,10 +9623,11 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// A chat_providers row is required as a FK for model configs.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -9641,6 +9648,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	newChat := func(t *testing.T) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9987,10 +9995,11 @@ func TestGetPRInsights(t *testing.T) {
 		user := dbgen.User(t, store, database.User{})
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    "anthropic",
-			DisplayName: "Anthropic",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             "anthropic",
+			DisplayName:          "Anthropic",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -10014,6 +10023,7 @@ func TestGetPRInsights(t *testing.T) {
 	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
 			Title:             title,
@@ -10149,6 +10159,7 @@ func TestGetPRInsights(t *testing.T) {
 	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
 			Title:             title,
@@ -10509,10 +10520,11 @@ func TestChatPinOrderQueries(t *testing.T) {
 		// timed test context doesn't tick during DB init.
 		bg := context.Background()
 		_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
-			Provider:    "openai",
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -10538,6 +10550,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.Helper()
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             title,
@@ -10646,7 +10659,8 @@ func TestChatPinOrderQueries(t *testing.T) {
 		}
 
 		// Archive the middle pin.
-		require.NoError(t, db.ArchiveChatByID(ctx, second.ID))
+		_, err := db.ArchiveChatByID(ctx, second.ID)
+		require.NoError(t, err)
 
 		// Archived chat should have pin_order cleared. Remaining
 		// pins keep their original positions; the next mutation
@@ -10687,10 +10701,11 @@ func TestChatLabels(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -10717,6 +10732,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "labeled-chat",
@@ -10739,6 +10755,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "no-labels-chat",
@@ -10754,6 +10771,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "update-labels-chat",
@@ -10794,6 +10812,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "original-title",
@@ -10830,6 +10849,7 @@ func TestChatLabels(t *testing.T) {
 			labelsJSON, err := json.Marshal(tc.labels)
 			require.NoError(t, err)
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				Status:            database.ChatStatusWaiting,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             tc.title,
@@ -10893,10 +10913,11 @@ func TestChatHasUnread(t *testing.T) {
 	user := dbgen.User(t, store, database.User{})
 
 	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -10915,6 +10936,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "test-chat-" + uuid.NewString(),

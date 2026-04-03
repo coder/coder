@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { Tool } from "./Tool";
@@ -79,6 +79,9 @@ export const Completed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "Copy plan" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -100,6 +103,34 @@ export const CustomPath: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "Copy plan" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const CompletedCopyButton: Story = {
+	args: {
+		status: "completed",
+		args: { path: "/home/coder/PLAN.md" },
+		result: {
+			ok: true,
+			path: "/home/coder/PLAN.md",
+			kind: "plan",
+			file_id: "test-file-id-copy",
+			media_type: "text/markdown",
+		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockResolvedValue(samplePlan);
+		spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Implementation Plan");
+		const copyBtn = canvas.getByRole("button", { name: "Copy plan" });
+		await userEvent.click(copyBtn);
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(samplePlan);
 	},
 };
 

@@ -10,6 +10,7 @@ const (
 	CheckChatModelConfigsCompressionThresholdCheck   CheckConstraint = "chat_model_configs_compression_threshold_check"     // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck           CheckConstraint = "chat_model_configs_context_limit_check"             // chat_model_configs
 	CheckChatProvidersProviderCheck                  CheckConstraint = "chat_providers_provider_check"                      // chat_providers
+	CheckValidCredentialPolicy                       CheckConstraint = "valid_credential_policy"                            // chat_providers
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck CheckConstraint = "chat_usage_limit_config_default_limit_micros_check" // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck             CheckConstraint = "chat_usage_limit_config_period_check"               // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck          CheckConstraint = "chat_usage_limit_config_singleton_check"            // chat_usage_limit_config
@@ -32,4 +33,5 @@ const (
 	CheckTelemetryLockEventTypeConstraint            CheckConstraint = "telemetry_lock_event_type_constraint"               // telemetry_locks
 	CheckValidationMonotonicOrder                    CheckConstraint = "validation_monotonic_order"                         // template_version_parameters
 	CheckUsageEventTypeCheck                         CheckConstraint = "usage_event_type_check"                             // usage_events
+	CheckUserChatProviderKeysAPIKeyCheck             CheckConstraint = "user_chat_provider_keys_api_key_check"              // user_chat_provider_keys
 )

@@ -104,13 +104,14 @@ func seedChatDependencies(
 
 	user := dbgen.User(t, db, database.User{})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		BaseUrl:     safetyNet.URL,
-		ApiKeyKeyID: sql.NullString{},
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		BaseUrl:              safetyNet.URL,
+		CentralApiKeyEnabled: true,
+		ApiKeyKeyID:          sql.NullString{},
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
 	})
 	require.NoError(t, err)
 	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
@@ -140,6 +141,7 @@ func seedWaitingChat(
 	t.Helper()
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             title,
@@ -185,12 +187,15 @@ func setOpenAIProviderBaseURL(
 	require.NoError(t, err)
 
 	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		ID:          provider.ID,
-		DisplayName: provider.DisplayName,
-		APIKey:      provider.APIKey,
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: provider.ApiKeyKeyID,
-		Enabled:     provider.Enabled,
+		ID:                         provider.ID,
+		DisplayName:                provider.DisplayName,
+		APIKey:                     provider.APIKey,
+		BaseUrl:                    baseURL,
+		CentralApiKeyEnabled:       true,
+		AllowUserApiKey:            false,
+		AllowCentralApiKeyFallback: false,
+		ApiKeyKeyID:                provider.ApiKeyKeyID,
+		Enabled:                    provider.Enabled,
 	})
 	require.NoError(t, err)
 }

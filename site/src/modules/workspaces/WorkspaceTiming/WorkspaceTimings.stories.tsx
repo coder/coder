@@ -67,12 +67,12 @@ export const ClickToClose: Story = {
 	},
 };
 
-const [first, ...others] = WorkspaceTimingsResponse.agent_script_timings;
+const failedScriptTimings = WorkspaceTimingsResponse.agent_script_timings;
 export const FailedScript: Story = {
 	args: {
 		agentScriptTimings: [
-			{ ...first, status: "exit_failure", exit_code: 1 },
-			...others,
+			{ ...failedScriptTimings[0], status: "exit_failure", exit_code: 1 },
+			...failedScriptTimings.slice(1),
 		],
 	},
 };
@@ -285,7 +285,7 @@ export const InvalidTimeRange: Story = {
 export const MultipleAgents: Story = {
 	decorators: [
 		(Story) => (
-			<div css={{ "--collapse-body-height": "600px" }}>
+			<div style={{ "--collapse-body-height": "600px" } as React.CSSProperties}>
 				<Story />
 			</div>
 		),

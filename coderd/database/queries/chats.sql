@@ -1,9 +1,24 @@
--- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
-WHERE id = @id OR root_chat_id = @id;
+-- name: ArchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+)
+SELECT *
+FROM chats
+ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
--- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
+-- name: UnarchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = false, updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+)
+SELECT *
+FROM chats
+ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
 -- name: PinChatByID :exec
 WITH target_chat AS (
@@ -377,6 +392,7 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    status,
     mcp_server_ids,
     labels
 ) VALUES (
@@ -389,6 +405,7 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
+    @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
 )

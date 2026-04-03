@@ -616,13 +616,24 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 
-	it("returns false during pending status even when stream state is null", () => {
+	it("returns true during pending status when latest message is from user", () => {
 		const store = createChatStore();
 		store.setChatStatus("pending");
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 
-		// "pending" should NOT be treated as awaiting because the
-		// transport drops message_part events during pending status.
+		// "pending" with a user message as latest means the user
+		// just submitted and is waiting for the server to start.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns false during pending status when latest message is from assistant", () => {
+		const store = createChatStore();
+		store.setChatStatus("pending");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
+
+		// "pending" with an assistant message as latest means a
+		// tool-call cycle is in progress, not a fresh user send.
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 
@@ -653,5 +664,40 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		// During "pending", the transport cannot deliver parts, so
 		// we should not be in a "starting" state.
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
+		const store = createChatStore();
+		// Simulate a completed previous turn: assistant replied,
+		// then server transitioned to "pending".
+		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
+		store.setChatStatus("pending");
+
+		// Verify baseline: not awaiting during pending.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+
+		// Simulate handleSend after POST returns (non-queued).
+		// This is the exact sequence from AgentChatPage.tsx.
+		store.clearStreamState();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
+
+		// "Thinking..." should appear immediately.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns true when WS delivers user message + status:pending (fresh send)", () => {
+		const store = createChatStore();
+		// Simulate the WS batch: [message(user), status:pending].
+		// This is the exact event order from the server when the
+		// user sends a message. "Thinking..." must appear during
+		// the pending phase so there is no visual gap before the
+		// server transitions to running.
+		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
+		store.setChatStatus("pending");
+		store.clearStreamState();
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 });

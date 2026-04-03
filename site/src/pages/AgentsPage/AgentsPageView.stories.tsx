@@ -611,7 +611,7 @@ export const OpensAnalyticsForAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review your personal chat usage and cost breakdowns.",
+					"Review your personal Coder Agents usage and cost breakdowns.",
 				),
 			).toBeInTheDocument();
 		});
@@ -633,7 +633,7 @@ export const OpensAnalyticsForNonAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review your personal chat usage and cost breakdowns.",
+					"Review your personal Coder Agents usage and cost breakdowns.",
 				),
 			).toBeInTheDocument();
 		});
@@ -650,7 +650,7 @@ export const OpensSettingsForAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -670,7 +670,7 @@ export const OpensSettingsForNonAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -688,7 +688,7 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -698,13 +698,13 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review deployment chat usage and drill into individual users.",
+					"Review deployment Coder Agents usage and drill into individual users.",
 				),
 			).toBeInTheDocument();
 		});
 
-		// Go back to chats
-		const backButton = screen.getByLabelText("Back to chats");
+		// Go back to conversations
+		const backButton = screen.getByLabelText("Back to Agents");
 		await userEvent.click(backButton);
 
 		// Re-open settings, should reset to Behavior
@@ -712,7 +712,7 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});

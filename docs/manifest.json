@@ -324,8 +324,7 @@
 					"title": "Workspace Sharing",
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
-					"icon_path": "./images/icons/generic.svg",
-					"state": ["beta"]
+					"icon_path": "./images/icons/generic.svg"
 				},
 				{
 					"title": "Workspace Scheduling",
@@ -1205,7 +1204,7 @@
 					"children": [
 						{
 							"title": "Getting Started",
-							"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
 							"path": "./ai-coder/agents/getting-started.md",
 							"state": ["early access"]
 						},

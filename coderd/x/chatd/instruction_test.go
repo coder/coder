@@ -2,14 +2,17 @@ package chatd //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -56,7 +59,7 @@ func TestReadHomeInstructionFileNotFound(t *testing.T) {
 		},
 	)
 
-	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn)
+	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn, ".coder", "AGENTS.md")
 	require.NoError(t, err)
 	require.Empty(t, content)
 	require.Empty(t, sourcePath)
@@ -90,7 +93,7 @@ func TestReadHomeInstructionFileSuccess(t *testing.T) {
 		nil,
 	)
 
-	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn)
+	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn, ".coder", "AGENTS.md")
 	require.NoError(t, err)
 	require.Equal(t, "base\n\nlocal", content)
 	require.Equal(t, "/home/coder/.coder/AGENTS.md", sourcePath)
@@ -120,7 +123,7 @@ func TestReadHomeInstructionFileTruncates(t *testing.T) {
 		int64(maxInstructionFileBytes+1),
 	).Return(io.NopCloser(strings.NewReader(content)), "text/markdown", nil)
 
-	got, _, truncated, err := readHomeInstructionFile(context.Background(), conn)
+	got, _, truncated, err := readHomeInstructionFile(context.Background(), conn, ".coder", "AGENTS.md")
 	require.NoError(t, err)
 	require.True(t, truncated)
 	require.Len(t, got, maxInstructionFileBytes)
@@ -300,6 +303,57 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 func TestPwdInstructionFilePath(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, "/home/coder/project/AGENTS.md", pwdInstructionFilePath("/home/coder/project"))
-	require.Empty(t, pwdInstructionFilePath(""))
+	require.Equal(t, "/home/coder/project/AGENTS.md", pwdInstructionFilePath("/home/coder/project", "AGENTS.md"))
+	require.Empty(t, pwdInstructionFilePath("", "AGENTS.md"))
+}
+
+func TestSkillMetaFileFromParts(t *testing.T) {
+	t.Parallel()
+
+	makeMsg := func(parts []codersdk.ChatMessagePart) database.ChatMessage {
+		raw, err := json.Marshal(parts)
+		require.NoError(t, err)
+		return database.ChatMessage{
+			Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
+		}
+	}
+
+	t.Run("EmptyMessages", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, "", skillMetaFileFromParts(nil))
+	})
+
+	t.Run("NoContextFileParts", func(t *testing.T) {
+		t.Parallel()
+		msg := makeMsg([]codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: "hello",
+		}})
+		require.Equal(t, "", skillMetaFileFromParts([]database.ChatMessage{msg}))
+	})
+
+	t.Run("ReturnsLastMatch", func(t *testing.T) {
+		t.Parallel()
+		msg1 := makeMsg([]codersdk.ChatMessagePart{{
+			Type:                     codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:          "/old/path",
+			ContextFileSkillMetaFile: "OLD.md",
+		}})
+		msg2 := makeMsg([]codersdk.ChatMessagePart{{
+			Type:                     codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:          "/new/path",
+			ContextFileSkillMetaFile: "NEW.md",
+		}})
+		require.Equal(t, "NEW.md", skillMetaFileFromParts([]database.ChatMessage{msg1, msg2}))
+	})
+
+	t.Run("SkipsEmptyField", func(t *testing.T) {
+		t.Parallel()
+		msg := makeMsg([]codersdk.ChatMessagePart{{
+			Type:                     codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:          "/some/path",
+			ContextFileSkillMetaFile: "",
+		}})
+		require.Equal(t, "", skillMetaFileFromParts([]database.ChatMessage{msg}))
+	})
 }

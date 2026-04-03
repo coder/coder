@@ -142,7 +142,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 				}
 			}}
 			description={
-				<Stack css={{ paddingBottom: 16 }}>
+				<Stack className="pb-4">
 					<p>
 						Downloading logs will create a zip file containing all logs from all
 						jobs in this workspace. This may take a while.

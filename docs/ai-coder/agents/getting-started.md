@@ -1,7 +1,7 @@
 # Getting Started
 
 This guide walks platform teams and administrators through enabling Coder
-Agents, preparing your deployment, and running your first chat.
+Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
 > Coder Agents is in [Early Access](./early-access.md). Deploy to a
@@ -24,9 +24,10 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for enabling the experiment and
   configuring providers.
-- **Use Coder Agents role** assigned to each user who needs to create or use chats.
-  Owners can assign this from **Admin** > **Users**. See
-  [Grant Use Coder Agents](#step-3-grant-use-coder-agents) below.
+- **Coder Agents User role** is automatically assigned to new users when the
+  `agents` experiment is enabled. For existing users, owners can assign it from
+  **Admin** > **Users**. See
+  [Grant Coder Agents User](#step-3-grant-coder-agents-user) below.
 
 ## Step 1: Enable the experiment
 
@@ -72,23 +73,51 @@ Detailed instructions for each provider and model option are in the
 > Start with a single frontier model to validate your setup before adding
 > additional providers.
 
-## Step 3: Grant Use Coder Agents
+## Step 3: Grant Coder Agents User
 
-The **Use Coder Agents** role controls which users can create and use chats.
-Members do not have Use Coder Agents by default.
+The **Coder Agents User** role controls which users can interact with
+Coder Agents.
+
+### New users
+
+When the `agents` experiment is enabled, new users are automatically
+assigned the **Coder Agents User** role at account creation. No admin
+action is required.
+
+### Existing users
+
+Users who were created before the experiment was enabled do not receive
+the role automatically. Owners can assign it from the dashboard or in
+bulk via the CLI.
+
+**Dashboard (individual):**
 
 1. Go to **Admin** > **Users** in the Coder dashboard.
 1. Click the roles icon next to the user you want to grant access to.
-1. Enable the **Use Coder Agents** role and save.
+1. Enable the **Coder Agents User** role and save.
 
-Repeat for each user who needs access. Owners always have full access
-and do not need the role.
+**CLI (bulk):**
+
+To grant the role to all active users at once:
+
+```sh
+coder users list -o json \
+  | jq -r '.[].username' \
+  | while read u; do
+      coder users edit-roles "$u" \
+        --roles "$(coder users show "$u" -o json \
+          | jq -r '[.roles[].name, "agents-access"] | unique | join(",")')" \
+        --yes
+    done
+```
+
+Owners always have full access and do not need the role.
 
 > [!NOTE]
-> Users who created chats before this role was introduced are
+> Users who created conversations before this role was introduced are
 > automatically granted the role during upgrade.
 
-## Step 4: Start your first chat
+## Step 4: Start your first Coder Agent
 
 1. Go to the **Agents** page in the Coder dashboard.
 1. Select a model from the dropdown (your default will be pre-selected).
@@ -144,7 +173,7 @@ set of expectations and limitations.
 
 ### Set a deployment-wide system prompt
 
-Administrators can set a system prompt that applies to all chats across the
+Administrators can set a system prompt that applies to all Coder Agents across the
 deployment. Use this to encode organizational conventions:
 
 - Coding standards and style guidelines.
@@ -177,7 +206,7 @@ with tighter network policies.
 
 ### Plan for LLM costs
 
-Every chat turn sends tokens to your LLM provider. Long-running tasks,
+Every conversation turn sends tokens to your LLM provider. Long-running tasks,
 sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
@@ -207,12 +236,12 @@ multiplier, not a replacement for developer judgment.
 The [Chats API](./chats-api.md) enables programmatic access to Coder Agents.
 This is useful for building automations such as:
 
-- Triggering chats from CI/CD pipelines when builds fail.
-- Creating chats from GitHub webhooks on new issues or PRs.
+- Triggering Coder Agents from CI/CD pipelines when builds fail.
+- Creating Coder Agents from GitHub webhooks on new issues or PRs.
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.
 
-**Quick example — create a chat via the API:**
+**Quick example — create a Coder Agent via the API:**
 
 ```sh
 curl -X POST https://coder.example.com/api/experimental/chats \
@@ -245,7 +274,7 @@ narrowly scoped.
 Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
 the workspace agent's working directory to provide persistent context to the
 agent. This file is automatically read and included in the system prompt
-for every chat that uses that workspace.
+for every conversation with a Coder Agent that uses that workspace.
 
 Use it for:
 
@@ -275,7 +304,7 @@ Good feedback includes:
 - **What you tried** — the prompt, the template, and the model.
 - **What happened** — the agent's behavior, any errors, unexpected results.
 - **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, chat IDs, or links to the Agents page help
+- **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
 Your input directly influences product direction during Early Access.

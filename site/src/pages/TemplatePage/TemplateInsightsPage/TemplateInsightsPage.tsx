@@ -39,12 +39,12 @@ import {
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { Stack } from "#/components/Stack/Stack";
@@ -318,15 +318,15 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is latency calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								The median round trip time of user connections to workspaces.
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -373,16 +373,16 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is activity calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								When a connection is initiated to a user&apos;s workspace they
 								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>

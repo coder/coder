@@ -455,7 +455,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name
 FROM
 	aibridge_interceptions
 WHERE
@@ -479,6 +479,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.ThreadRootID,
 		&i.ClientSessionID,
 		&i.SessionID,
+		&i.ProviderName,
 	)
 	return i, err
 }
@@ -513,7 +514,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name
 FROM
 	aibridge_interceptions
 `
@@ -541,6 +542,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ThreadRootID,
 			&i.ClientSessionID,
 			&i.SessionID,
+			&i.ProviderName,
 		); err != nil {
 			return nil, err
 		}
@@ -687,11 +689,11 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id
 ) VALUES (
-	$1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7, $8, $9, $10::uuid, $11::uuid
+	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -699,6 +701,7 @@ type InsertAIBridgeInterceptionParams struct {
 	APIKeyID                   sql.NullString  `db:"api_key_id" json:"api_key_id"`
 	InitiatorID                uuid.UUID       `db:"initiator_id" json:"initiator_id"`
 	Provider                   string          `db:"provider" json:"provider"`
+	ProviderName               string          `db:"provider_name" json:"provider_name"`
 	Model                      string          `db:"model" json:"model"`
 	Metadata                   json.RawMessage `db:"metadata" json:"metadata"`
 	StartedAt                  time.Time       `db:"started_at" json:"started_at"`
@@ -714,6 +717,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.APIKeyID,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Metadata,
 		arg.StartedAt,
@@ -737,6 +741,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.ThreadRootID,
 		&i.ClientSessionID,
 		&i.SessionID,
+		&i.ProviderName,
 	)
 	return i, err
 }
@@ -963,7 +968,7 @@ func (q *sqlQuerier) ListAIBridgeClients(ctx context.Context, arg ListAIBridgeCl
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -1076,6 +1081,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
 			&i.AIBridgeInterception.SessionID,
+			&i.AIBridgeInterception.ProviderName,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -1271,7 +1277,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name
 FROM
 	aibridge_interceptions
 JOIN
@@ -1332,6 +1338,7 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
 			&i.AIBridgeInterception.SessionID,
+			&i.AIBridgeInterception.ProviderName,
 		); err != nil {
 			return nil, err
 		}
@@ -1347,95 +1354,87 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 }
 
 const listAIBridgeSessions = `-- name: ListAIBridgeSessions :many
-WITH filtered_interceptions AS (
+WITH cursor_pos AS (
+	-- Resolve the cursor's started_at once, outside the HAVING clause,
+	-- so the planner cannot accidentally re-evaluate it per group.
+	SELECT MIN(aibridge_interceptions.started_at) AS started_at
+	FROM aibridge_interceptions
+	WHERE aibridge_interceptions.session_id = $1 AND aibridge_interceptions.ended_at IS NOT NULL
+),
+session_page AS (
+	-- Paginate at the session level first; only cheap aggregates here.
 	SELECT
-		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id
+		ai.session_id,
+		ai.initiator_id,
+		MIN(ai.started_at) AS started_at,
+		MAX(ai.ended_at) AS ended_at,
+		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads
 	FROM
-		aibridge_interceptions
+		aibridge_interceptions ai
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
-		aibridge_interceptions.ended_at IS NOT NULL
+		ai.ended_at IS NOT NULL
 		-- Filter by time frame
 		AND CASE
-			WHEN $4::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $4::timestamptz
+			WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= $2::timestamptz
 			ELSE true
 		END
 		AND CASE
-			WHEN $5::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= $5::timestamptz
+			WHEN $3::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at <= $3::timestamptz
 			ELSE true
 		END
 		-- Filter initiator_id
 		AND CASE
-			WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $6::uuid
+			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
 			ELSE true
 		END
 		-- Filter provider
 		AND CASE
-			WHEN $7::text != '' THEN aibridge_interceptions.provider = $7::text
+			WHEN $5::text != '' THEN ai.provider = $5::text
 			ELSE true
 		END
 		-- Filter model
 		AND CASE
-			WHEN $8::text != '' THEN aibridge_interceptions.model = $8::text
+			WHEN $6::text != '' THEN ai.model = $6::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $9::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $9::text
+			WHEN $7::text != '' THEN COALESCE(ai.client, 'Unknown') = $7::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $10::text != '' THEN aibridge_interceptions.session_id = $10::text
+			WHEN $8::text != '' THEN ai.session_id = $8::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
-),
-session_tokens AS (
-	-- Aggregate token usage across all interceptions in each session.
-	-- Group by (session_id, initiator_id) to avoid merging sessions from
-	-- different users who happen to share the same client_session_id.
-	SELECT
-		fi.session_id,
-		fi.initiator_id,
-		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
-		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
-		-- TODO: add extra token types once https://github.com/coder/aibridge/issues/150 lands.
-	FROM
-		filtered_interceptions fi
-	LEFT JOIN
-		aibridge_token_usages tu ON fi.id = tu.interception_id
 	GROUP BY
-		fi.session_id, fi.initiator_id
-),
-session_root AS (
-	-- Build one summary row per session. Group by (session_id, initiator_id)
-	-- to avoid merging sessions from different users who happen to share the
-	-- same client_session_id. The ARRAY_AGG with ORDER BY picks values from
-	-- the chronologically first interception for fields that should represent
-	-- the session as a whole (client, metadata). Threads are counted as
-	-- distinct root interception IDs: an interception with a NULL
-	-- thread_root_id is itself a thread root.
-	SELECT
-		fi.session_id,
-		fi.initiator_id,
-		(ARRAY_AGG(fi.client ORDER BY fi.started_at, fi.id))[1] AS client,
-		(ARRAY_AGG(fi.metadata ORDER BY fi.started_at, fi.id))[1] AS metadata,
-		ARRAY_AGG(DISTINCT fi.provider ORDER BY fi.provider) AS providers,
-		ARRAY_AGG(DISTINCT fi.model ORDER BY fi.model) AS models,
-		MIN(fi.started_at) AS started_at,
-		MAX(fi.ended_at) AS ended_at,
-		COUNT(DISTINCT COALESCE(fi.thread_root_id, fi.id)) AS threads,
-		-- Collect IDs for lateral prompt lookup.
-		ARRAY_AGG(fi.id) AS interception_ids
-	FROM
-		filtered_interceptions fi
-	GROUP BY
-		fi.session_id, fi.initiator_id
+		ai.session_id, ai.initiator_id
+	HAVING
+		-- Cursor pagination: uses a composite (started_at, session_id)
+		-- cursor to support keyset pagination. The less-than comparison
+		-- matches the DESC sort order so rows after the cursor come
+		-- later in results. The cursor value comes from cursor_pos to
+		-- guarantee single evaluation.
+		CASE
+			WHEN $1::text != '' THEN (
+				(MIN(ai.started_at), ai.session_id) < (
+					(SELECT started_at FROM cursor_pos),
+					$1::text
+				)
+			)
+			ELSE true
+		END
+	ORDER BY
+		MIN(ai.started_at) DESC,
+		ai.session_id DESC
+	LIMIT COALESCE(NULLIF($10::integer, 0), 100)
+	OFFSET $9
 )
 SELECT
-	sr.session_id,
+	sp.session_id,
 	visible_users.id AS user_id,
 	visible_users.username AS user_username,
 	visible_users.name AS user_name,
@@ -1444,51 +1443,52 @@ SELECT
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,
 	sr.metadata::jsonb AS metadata,
-	sr.started_at::timestamptz AS started_at,
-	sr.ended_at::timestamptz AS ended_at,
-	sr.threads,
+	sp.started_at::timestamptz AS started_at,
+	sp.ended_at::timestamptz AS ended_at,
+	sp.threads,
 	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt
 FROM
-	session_root sr
+	session_page sp
 JOIN
-	visible_users ON visible_users.id = sr.initiator_id
-LEFT JOIN
-	session_tokens st ON st.session_id = sr.session_id AND st.initiator_id = sr.initiator_id
+	visible_users ON visible_users.id = sp.initiator_id
 LEFT JOIN LATERAL (
-	-- Lateral join to efficiently fetch only the most recent user prompt
-	-- across all interceptions in the session, avoiding a full aggregation.
+	SELECT
+		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
+		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
+		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
+		ARRAY_AGG(ai.id) AS interception_ids
+	FROM aibridge_interceptions ai
+	WHERE ai.session_id = sp.session_id
+		AND ai.initiator_id = sp.initiator_id
+		AND ai.ended_at IS NOT NULL
+) sr ON true
+LEFT JOIN LATERAL (
+	-- Aggregate tokens only for this session's interceptions.
+	SELECT
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
+	FROM aibridge_token_usages tu
+	WHERE tu.interception_id = ANY(sr.interception_ids)
+) st ON true
+LEFT JOIN LATERAL (
+	-- Fetch only the most recent user prompt across all interceptions
+	-- in the session.
 	SELECT up.prompt
 	FROM aibridge_user_prompts up
 	WHERE up.interception_id = ANY(sr.interception_ids)
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
-WHERE
-	-- Cursor pagination: uses a composite (started_at, session_id) cursor
-	-- to support keyset pagination. The less-than comparison matches the
-	-- DESC sort order so that rows after the cursor come later in results.
-	CASE
-		WHEN $1::text != '' THEN (
-			(sr.started_at, sr.session_id) < (
-				(SELECT started_at FROM session_root WHERE session_id = $1),
-				$1::text
-			)
-		)
-		ELSE true
-	END
 ORDER BY
-	sr.started_at DESC,
-	sr.session_id DESC
-LIMIT COALESCE(NULLIF($3::integer, 0), 100)
-OFFSET $2
+	sp.started_at DESC,
+	sp.session_id DESC
 `
 
 type ListAIBridgeSessionsParams struct {
 	AfterSessionID string    `db:"after_session_id" json:"after_session_id"`
-	Offset         int32     `db:"offset_" json:"offset_"`
-	Limit          int32     `db:"limit_" json:"limit_"`
 	StartedAfter   time.Time `db:"started_after" json:"started_after"`
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
@@ -1496,6 +1496,8 @@ type ListAIBridgeSessionsParams struct {
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
+	Offset         int32     `db:"offset_" json:"offset_"`
+	Limit          int32     `db:"limit_" json:"limit_"`
 }
 
 type ListAIBridgeSessionsRow struct {
@@ -1519,11 +1521,13 @@ type ListAIBridgeSessionsRow struct {
 // Returns paginated sessions with aggregated metadata, token counts, and
 // the most recent user prompt. A "session" is a logical grouping of
 // interceptions that share the same session_id (set by the client).
+//
+// Pagination-first strategy: identify the page of sessions cheaply via a
+// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
+// first-interception metadata) only for the ~page-size result set.
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,
-		arg.Offset,
-		arg.Limit,
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
@@ -1531,6 +1535,8 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
@@ -1707,7 +1713,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $2::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -1732,6 +1738,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.ThreadRootID,
 		&i.ClientSessionID,
 		&i.SessionID,
+		&i.ProviderName,
 	)
 	return i, err
 }
@@ -3792,7 +3799,7 @@ func (q *sqlQuerier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) e
 
 const getChatProviderByID = `-- name: GetChatProviderByID :one
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 WHERE
@@ -3813,13 +3820,16 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
 
 const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 WHERE
@@ -3840,13 +3850,16 @@ func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider str
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
 
 const getChatProviders = `-- name: GetChatProviders :many
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 ORDER BY
@@ -3873,6 +3886,9 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BaseUrl,
+			&i.CentralApiKeyEnabled,
+			&i.AllowUserApiKey,
+			&i.AllowCentralApiKeyFallback,
 		); err != nil {
 			return nil, err
 		}
@@ -3889,7 +3905,7 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 
 const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 FROM
     chat_providers
 WHERE
@@ -3918,6 +3934,9 @@ func (q *sqlQuerier) GetEnabledChatProviders(ctx context.Context) ([]ChatProvide
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BaseUrl,
+			&i.CentralApiKeyEnabled,
+			&i.AllowUserApiKey,
+			&i.AllowCentralApiKeyFallback,
 		); err != nil {
 			return nil, err
 		}
@@ -3940,7 +3959,10 @@ INSERT INTO chat_providers (
     base_url,
     api_key_key_id,
     created_by,
-    enabled
+    enabled,
+    central_api_key_enabled,
+    allow_user_api_key,
+    allow_central_api_key_fallback
 ) VALUES (
     $1::text,
     $2::text,
@@ -3948,20 +3970,26 @@ INSERT INTO chat_providers (
     $4::text,
     $5::text,
     $6::uuid,
-    $7::boolean
+    $7::boolean,
+    $8::boolean,
+    $9::boolean,
+    $10::boolean
 )
 RETURNING
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 `
 
 type InsertChatProviderParams struct {
-	Provider    string         `db:"provider" json:"provider"`
-	DisplayName string         `db:"display_name" json:"display_name"`
-	APIKey      string         `db:"api_key" json:"api_key"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
+	Provider                   string         `db:"provider" json:"provider"`
+	DisplayName                string         `db:"display_name" json:"display_name"`
+	APIKey                     string         `db:"api_key" json:"api_key"`
+	BaseUrl                    string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled                    bool           `db:"enabled" json:"enabled"`
+	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
+	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
+	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
 }
 
 func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error) {
@@ -3973,6 +4001,9 @@ func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProvi
 		arg.ApiKeyKeyID,
 		arg.CreatedBy,
 		arg.Enabled,
+		arg.CentralApiKeyEnabled,
+		arg.AllowUserApiKey,
+		arg.AllowCentralApiKeyFallback,
 	)
 	var i ChatProvider
 	err := row.Scan(
@@ -3986,6 +4017,9 @@ func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProvi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
@@ -3999,20 +4033,26 @@ SET
     base_url = $3::text,
     api_key_key_id = $4::text,
     enabled = $5::boolean,
+    central_api_key_enabled = $6::boolean,
+    allow_user_api_key = $7::boolean,
+    allow_central_api_key_fallback = $8::boolean,
     updated_at = NOW()
 WHERE
-    id = $6::uuid
+    id = $9::uuid
 RETURNING
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
 `
 
 type UpdateChatProviderParams struct {
-	DisplayName string         `db:"display_name" json:"display_name"`
-	APIKey      string         `db:"api_key" json:"api_key"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	DisplayName                string         `db:"display_name" json:"display_name"`
+	APIKey                     string         `db:"api_key" json:"api_key"`
+	BaseUrl                    string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	Enabled                    bool           `db:"enabled" json:"enabled"`
+	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
+	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
+	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
+	ID                         uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error) {
@@ -4022,6 +4062,9 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 		arg.BaseUrl,
 		arg.ApiKeyKeyID,
 		arg.Enabled,
+		arg.CentralApiKeyEnabled,
+		arg.AllowUserApiKey,
+		arg.AllowCentralApiKeyFallback,
 		arg.ID,
 	)
 	var i ChatProvider
@@ -4036,6 +4079,9 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
@@ -4242,14 +4288,63 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 	return items, nil
 }
 
-const archiveChatByID = `-- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
-WHERE id = $1 OR root_chat_id = $1
+const archiveChatByID = `-- name: ArchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    WHERE id = $1::uuid OR root_chat_id = $1::uuid
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+FROM chats
+ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
 
-func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, archiveChatByID, id)
-	return err
+func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, archiveChatByID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.LastInjectedContext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
@@ -5659,6 +5754,7 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    status,
     mcp_server_ids,
     labels
 ) VALUES (
@@ -5671,8 +5767,9 @@ INSERT INTO chats (
     $7::uuid,
     $8::text,
     $9::chat_mode,
-    COALESCE($10::uuid[], '{}'::uuid[]),
-    COALESCE($11::jsonb, '{}'::jsonb)
+    $10::chat_status,
+    COALESCE($11::uuid[], '{}'::uuid[]),
+    COALESCE($12::jsonb, '{}'::jsonb)
 )
 RETURNING
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
@@ -5688,6 +5785,7 @@ type InsertChatParams struct {
 	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string                `db:"title" json:"title"`
 	Mode              NullChatMode          `db:"mode" json:"mode"`
+	Status            ChatStatus            `db:"status" json:"status"`
 	MCPServerIDs      []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels            pqtype.NullRawMessage `db:"labels" json:"labels"`
 }
@@ -5703,6 +5801,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.LastModelConfigID,
 		arg.Title,
 		arg.Mode,
+		arg.Status,
 		pq.Array(arg.MCPServerIDs),
 		arg.Labels,
 	)
@@ -6169,13 +6268,63 @@ func (q *sqlQuerier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg Soft
 	return err
 }
 
-const unarchiveChatByID = `-- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = $1::uuid
+const unarchiveChatByID = `-- name: UnarchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = false, updated_at = NOW()
+    WHERE id = $1::uuid OR root_chat_id = $1::uuid
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
+FROM chats
+ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
 
-func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, unarchiveChatByID, id)
-	return err
+func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, unarchiveChatByID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.LastInjectedContext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const unpinChatByID = `-- name: UnpinChatByID :exec
@@ -22328,7 +22477,7 @@ INSERT INTO user_secrets (
     file_path
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
+) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
 `
 
 type CreateUserSecretParams struct {
@@ -22362,6 +22511,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		&i.FilePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ValueKeyID,
 	)
 	return i, err
 }
@@ -22377,7 +22527,7 @@ func (q *sqlQuerier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
 }
 
 const getUserSecret = `-- name: GetUserSecret :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id FROM user_secrets
 WHERE id = $1
 `
 
@@ -22394,12 +22544,13 @@ func (q *sqlQuerier) GetUserSecret(ctx context.Context, id uuid.UUID) (UserSecre
 		&i.FilePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ValueKeyID,
 	)
 	return i, err
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
 
@@ -22421,12 +22572,13 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 		&i.FilePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ValueKeyID,
 	)
 	return i, err
 }
 
 const listUserSecrets = `-- name: ListUserSecrets :many
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id FROM user_secrets
 WHERE user_id = $1
 ORDER BY name ASC
 `
@@ -22450,6 +22602,7 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]U
 			&i.FilePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ValueKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -22473,7 +22626,7 @@ SET
     file_path = $5,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
 `
 
 type UpdateUserSecretParams struct {
@@ -22501,6 +22654,127 @@ func (q *sqlQuerier) UpdateUserSecret(ctx context.Context, arg UpdateUserSecretP
 		&i.Value,
 		&i.EnvName,
 		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+	)
+	return i, err
+}
+
+const deleteUserChatProviderKey = `-- name: DeleteUserChatProviderKey :exec
+DELETE FROM user_chat_provider_keys WHERE user_id = $1 AND chat_provider_id = $2
+`
+
+type DeleteUserChatProviderKeyParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID `db:"chat_provider_id" json:"chat_provider_id"`
+}
+
+func (q *sqlQuerier) DeleteUserChatProviderKey(ctx context.Context, arg DeleteUserChatProviderKeyParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserChatProviderKey, arg.UserID, arg.ChatProviderID)
+	return err
+}
+
+const getUserChatProviderKeys = `-- name: GetUserChatProviderKeys :many
+SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 ORDER BY created_at ASC, id ASC
+`
+
+func (q *sqlQuerier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]UserChatProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getUserChatProviderKeys, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserChatProviderKey
+	for rows.Next() {
+		var i UserChatProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ChatProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserChatProviderKey = `-- name: UpdateUserChatProviderKey :one
+UPDATE user_chat_provider_keys
+SET api_key = $1, api_key_key_id = $2::text, updated_at = NOW()
+WHERE user_id = $3 AND chat_provider_id = $4
+RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpdateUserChatProviderKeyParams struct {
+	APIKey         string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
+}
+
+func (q *sqlQuerier) UpdateUserChatProviderKey(ctx context.Context, arg UpdateUserChatProviderKeyParams) (UserChatProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, updateUserChatProviderKey,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.UserID,
+		arg.ChatProviderID,
+	)
+	var i UserChatProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ChatProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertUserChatProviderKey = `-- name: UpsertUserChatProviderKey :one
+INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)
+VALUES ($1, $2, $3, $4::text)
+ON CONFLICT (user_id, chat_provider_id) DO UPDATE SET
+    api_key = $3,
+    api_key_key_id = $4::text,
+    updated_at = NOW()
+RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpsertUserChatProviderKeyParams struct {
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
+	APIKey         string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+}
+
+func (q *sqlQuerier) UpsertUserChatProviderKey(ctx context.Context, arg UpsertUserChatProviderKeyParams) (UserChatProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserChatProviderKey,
+		arg.UserID,
+		arg.ChatProviderID,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+	)
+	var i UserChatProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ChatProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

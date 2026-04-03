@@ -3119,6 +3119,7 @@ export const MockPermissions: Permissions = {
 	editOAuth2App: true,
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
+	createChat: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3152,6 +3153,7 @@ export const MockNoPermissions: Permissions = {
 	editOAuth2App: false,
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
+	createChat: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -5221,6 +5223,7 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 		avatar_url: "https://example.com/avatar.png",
 	},
 	provider: "openai",
+	provider_name: "openai",
 	model: "gpt-4o",
 	started_at: "2022-05-17T17:39:01.382927298Z",
 	ended_at: "2022-05-17T17:39:01.382927298Z",

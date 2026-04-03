@@ -227,7 +227,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 														<Link
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
 															onClick={(e) => e.stopPropagation()}
-															aria-label={`View agent chat for ${workspace.name}`}
+															aria-label={`View agent conversation for ${workspace.name}`}
 														>
 															Agent
 														</Link>
@@ -581,9 +581,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							: undefined
 					}
 					isStopping={stopWorkspaceMutation.isPending}
+					onActionSuccess={onActionSuccess}
 				/>
 			</div>
-
 			{/* Stop workspace confirmation dialog */}
 			<ConfirmDialog
 				open={isStopConfirmOpen}

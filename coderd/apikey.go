@@ -582,5 +582,20 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
+		// MaxAge is set so the browser persists the cookie to disk rather
+		// than keeping it in memory as a session cookie. Standalone PWAs
+		// (display: standalone) run in their own browser process, and
+		// mobile OSes kill that process when the app is swiped away —
+		// deleting in-memory cookies and forcing an unexpected login.
+		//
+		// We use a long static value (1 year) instead of the key's
+		// LifetimeSeconds because the server refreshes the key's
+		// ExpiresAt on activity but does not re-set the cookie. Tying
+		// MaxAge to the key lifetime would cause the cookie to expire
+		// client-side even when the server-side key is still valid.
+		//
+		// Security is not affected: the server validates ExpiresAt on
+		// every request regardless of the cookie's MaxAge.
+		MaxAge: int((365 * 24 * time.Hour).Seconds()),
 	}), &newkey, nil
 }

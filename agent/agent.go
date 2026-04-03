@@ -38,6 +38,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -308,12 +309,13 @@ type agent struct {
 	containerAPI        *agentcontainers.API
 	gitAPIOptions       []agentgit.Option
 
-	filesAPI   *agentfiles.API
-	gitAPI     *agentgit.API
-	processAPI *agentproc.API
-	desktopAPI *agentdesktop.API
-	mcpManager *agentmcp.Manager
-	mcpAPI     *agentmcp.API
+	filesAPI         *agentfiles.API
+	gitAPI           *agentgit.API
+	processAPI       *agentproc.API
+	desktopAPI       *agentdesktop.API
+	mcpManager       *agentmcp.Manager
+	mcpAPI           *agentmcp.API
+	contextConfigAPI *agentcontextconfig.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -396,11 +398,17 @@ func (a *agent) init() {
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
-		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
+		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
 	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager)
+	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	})
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1358,7 +1366,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, manifest.Directory); mcpErr != nil {
+				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, a.contextConfigAPI.Config().MCPConfigFiles); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
 				}
 			})

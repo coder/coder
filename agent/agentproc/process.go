@@ -148,6 +148,11 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	for k, v := range req.Env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
+	// Propagate the chat ID so child processes (e.g.
+	// GIT_ASKPASS) can send it back to the server.
+	if chatID != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_CHAT_ID=%s", chatID))
+	}
 
 	if err := cmd.Start(); err != nil {
 		cancel()

@@ -10205,11 +10205,25 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace agent reinitialization",
                 "operationId": "get-workspace-agent-reinitialization",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Opt in to durable reinit checks",
+                        "name": "wait",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/agentsdk.ReinitializationEvent"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -12647,11 +12661,16 @@ const docTemplate = `{
         "agentsdk.ReinitializationEvent": {
             "type": "object",
             "properties": {
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "reason": {
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 },
-                "workspaceID": {
-                    "type": "string"
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -12892,6 +12911,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "provider": {
+                    "type": "string"
+                },
+                "provider_name": {
                     "type": "string"
                 },
                 "started_at": {

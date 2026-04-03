@@ -2539,6 +2539,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
 			WorkspaceID: workspace.ID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			OwnerID:     workspace.OwnerID,
 		})
 		if err != nil {
 			s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
