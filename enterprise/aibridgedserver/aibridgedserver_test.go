@@ -445,6 +445,7 @@ func TestRecordInterception(t *testing.T) {
 						Metadata:        json.RawMessage(metadataJSON),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
 						ClientSessionID: sql.NullString{String: "session-abc-123", Valid: true},
+						CredentialKind:  database.CredentialKindCentralized,
 					}).Return(database.AIBridgeInterception{
 						ID:              interceptionID,
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -483,6 +484,7 @@ func TestRecordInterception(t *testing.T) {
 						Metadata:        json.RawMessage(metadataJSON),
 						StartedAt:       req.StartedAt.AsTime().UTC(),
 						ClientSessionID: sql.NullString{},
+						CredentialKind:  database.CredentialKindCentralized,
 					}).Return(database.AIBridgeInterception{
 						ID:          interceptionID,
 						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},

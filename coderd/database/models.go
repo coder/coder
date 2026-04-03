@@ -1543,6 +1543,67 @@ func AllCorsBehaviorValues() []CorsBehavior {
 	}
 }
 
+type CredentialKind string
+
+const (
+	CredentialKindCentralized      CredentialKind = "centralized"
+	CredentialKindByokApiKey       CredentialKind = "byok_api_key"
+	CredentialKindByokSubscription CredentialKind = "byok_subscription"
+)
+
+func (e *CredentialKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CredentialKind(s)
+	case string:
+		*e = CredentialKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CredentialKind: %T", src)
+	}
+	return nil
+}
+
+type NullCredentialKind struct {
+	CredentialKind CredentialKind `json:"credential_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if CredentialKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCredentialKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.CredentialKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CredentialKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCredentialKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CredentialKind), nil
+}
+
+func (e CredentialKind) Valid() bool {
+	switch e {
+	case CredentialKindCentralized,
+		CredentialKindByokApiKey,
+		CredentialKindByokSubscription:
+		return true
+	}
+	return false
+}
+
+func AllCredentialKindValues() []CredentialKind {
+	return []CredentialKind{
+		CredentialKindCentralized,
+		CredentialKindByokApiKey,
+		CredentialKindByokSubscription,
+	}
+}
+
 type CryptoKeyFeature string
 
 const (
@@ -4038,9 +4099,9 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 	// Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception's own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.
 	SessionID string `db:"session_id" json:"session_id"`
-	// How the request was authenticated: centralized, personal_api_key, or subscription.
-	CredentialKind string `db:"credential_kind" json:"credential_kind"`
-	// Masked credential identifier for audit (e.g. sk-...abc1).
+	// How the request was authenticated: centralized, byok_api_key, or byok_subscription.
+	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
+	// Masked credential identifier for audit (e.g. sk-****efgh).
 	CredentialHint string `db:"credential_hint" json:"credential_hint"`
 }
 

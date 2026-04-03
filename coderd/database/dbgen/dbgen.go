@@ -1598,7 +1598,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
 		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
 		ClientSessionID:            seed.ClientSessionID,
-		CredentialKind:             takeFirst(seed.CredentialKind, "centralized"),
+		CredentialKind:             takeFirst(seed.CredentialKind, database.CredentialKindCentralized),
 		CredentialHint:             takeFirst(seed.CredentialHint, ""),
 	})
 	if endedAt != nil {

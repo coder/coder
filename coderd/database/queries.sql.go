@@ -710,7 +710,7 @@ type InsertAIBridgeInterceptionParams struct {
 	ClientSessionID            sql.NullString  `db:"client_session_id" json:"client_session_id"`
 	ThreadParentInterceptionID uuid.NullUUID   `db:"thread_parent_interception_id" json:"thread_parent_interception_id"`
 	ThreadRootInterceptionID   uuid.NullUUID   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
-	CredentialKind             string          `db:"credential_kind" json:"credential_kind"`
+	CredentialKind             CredentialKind  `db:"credential_kind" json:"credential_kind"`
 	CredentialHint             string          `db:"credential_hint" json:"credential_hint"`
 }
 
