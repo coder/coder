@@ -354,44 +354,6 @@ type CreateChatRequest struct {
 	Labels        map[string]string `json:"labels,omitempty"`
 }
 
-// NullableBool distinguishes omitted, explicit null, and explicit boolean
-// values in experimental chat update requests.
-type NullableBool struct {
-	Value bool `json:"value"`
-	Valid bool `json:"valid"`
-}
-
-func (b *NullableBool) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		b.Value = false
-		b.Valid = false
-		return nil
-	}
-
-	var boolValue bool
-	if err := json.Unmarshal(data, &boolValue); err == nil {
-		b.Value = boolValue
-		b.Valid = true
-		return nil
-	}
-
-	type nullableBoolAlias NullableBool
-	var alias nullableBoolAlias
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	b.Value = alias.Value
-	b.Valid = alias.Valid
-	return nil
-}
-
-func (b NullableBool) MarshalJSON() ([]byte, error) {
-	if !b.Valid {
-		return []byte("null"), nil
-	}
-	return json.Marshal(b.Value)
-}
-
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
 	Title    *string `json:"title,omitempty"`
@@ -405,32 +367,8 @@ type UpdateChatRequest struct {
 	// - >0 (chat is already pinned): move the chat to the
 	//   requested position, shifting neighbors as needed. The
 	//   value is clamped to [1, pinned_count].
-	PinOrder                 *int32             `json:"pin_order,omitempty"`
-	Labels                   *map[string]string `json:"labels,omitempty"`
-	DebugLogsEnabledOverride *NullableBool      `json:"debug_logs_enabled_override,omitempty"`
-}
-
-func (r *UpdateChatRequest) UnmarshalJSON(data []byte) error {
-	type updateChatRequestAlias UpdateChatRequest
-	var alias updateChatRequestAlias
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	*r = UpdateChatRequest(alias)
-
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	override, ok := raw["debug_logs_enabled_override"]
-	if !ok {
-		return nil
-	}
-	if bytes.Equal(bytes.TrimSpace(override), []byte("null")) {
-		r.DebugLogsEnabledOverride = &NullableBool{}
-	}
-	return nil
+	PinOrder *int32             `json:"pin_order,omitempty"`
+	Labels   *map[string]string `json:"labels,omitempty"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.
@@ -547,14 +485,12 @@ type UpdateChatDesktopEnabledRequest struct {
 
 // ChatDebugSettings is the response for getting the debug logging setting.
 type ChatDebugSettings struct {
-	DebugLoggingEnabled     bool `json:"debug_logging_enabled"`
-	DebugLoggingOverrideSet bool `json:"debug_logging_override_set,omitempty"`
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
 }
 
 // UpdateChatDebugLoggingRequest is the request to update the debug logging setting.
 type UpdateChatDebugLoggingRequest struct {
-	DebugLoggingEnabled     bool  `json:"debug_logging_enabled"`
-	DebugLoggingOverrideSet *bool `json:"debug_logging_override_set,omitempty"`
+	DebugLoggingEnabled bool  `json:"debug_logging_enabled"`
 }
 
 // ChatDebugRunSummary is a lightweight run entry for list endpoints.
@@ -1729,61 +1665,6 @@ func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req U
 	}
 	return nil
 }
-
-// GetChatDebugLoggingEnabled returns the deployment-wide debug logging setting.
-func (c *ExperimentalClient) GetChatDebugLoggingEnabled(ctx context.Context) (ChatDebugSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-logging", nil)
-	if err != nil {
-		return ChatDebugSettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDebugSettings{}, ReadBodyAsError(res)
-	}
-	var resp ChatDebugSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// UpdateChatDebugLoggingEnabled updates the deployment-wide debug logging setting.
-func (c *ExperimentalClient) UpdateChatDebugLoggingEnabled(ctx context.Context, req UpdateChatDebugLoggingRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-logging", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// GetUserChatDebugLoggingEnabled returns the user debug logging setting.
-func (c *ExperimentalClient) GetUserChatDebugLoggingEnabled(ctx context.Context) (ChatDebugSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-debug-logging", nil)
-	if err != nil {
-		return ChatDebugSettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDebugSettings{}, ReadBodyAsError(res)
-	}
-	var resp ChatDebugSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// UpdateUserChatDebugLoggingEnabled updates the user debug logging setting.
-func (c *ExperimentalClient) UpdateUserChatDebugLoggingEnabled(ctx context.Context, req UpdateChatDebugLoggingRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-debug-logging", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
 // GetChatWorkspaceTTL returns the configured chat workspace TTL.
 func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
@@ -2045,35 +1926,6 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 		return nil
 	}), nil
 }
-
-// GetChatDebugRuns returns the debug runs for a chat.
-func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.UUID) ([]ChatDebugRunSummary, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chatID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var resp []ChatDebugRunSummary
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// GetChatDebugRun returns a debug run for a chat.
-func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), nil)
-	if err != nil {
-		return ChatDebugRun{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDebugRun{}, ReadBodyAsError(res)
-	}
-	var resp ChatDebugRun
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
 // GetChat returns a chat by ID.
 func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)

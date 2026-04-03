@@ -1757,103 +1757,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.DebugLogsEnabledOverride != nil {
-		override := sql.NullBool{}
-		if req.DebugLogsEnabledOverride.Valid {
-			override = sql.NullBool{
-				Bool:  req.DebugLogsEnabledOverride.Value,
-				Valid: true,
-			}
-		}
-		updatedChat, err := api.Database.UpdateChatDebugLogsEnabledOverride(ctx, database.UpdateChatDebugLogsEnabledOverrideParams{
-			ID:                       chat.ID,
-			DebugLogsEnabledOverride: override,
-		})
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat debug logging override.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		chat = updatedChat
-	}
-
 	rw.WriteHeader(http.StatusNoContent)
 }
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	chat := httpmw.ChatParam(r)
-
-	runs, err := api.Database.GetChatDebugRunsByChat(ctx, chat.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch chat debug runs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resp := make([]codersdk.ChatDebugRunSummary, 0, len(runs))
-	for _, run := range runs {
-		resp = append(resp, db2sdk.ChatDebugRunSummary(run))
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	runID, ok := parseChatDebugRunID(rw, r)
-	if !ok {
-		return
-	}
-	chat := httpmw.ChatParam(r)
-
-	run, err := api.Database.GetChatDebugRunByID(ctx, runID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch chat debug run.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if run.ChatID != chat.ID {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	steps, err := api.Database.GetChatDebugStepsByRunID(ctx, run.ID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch chat debug steps.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatDebugRun(run, steps))
-}
-
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3115,51 +3020,6 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	enabled, err := api.Database.GetChatDebugLoggingEnabled(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching debug logging setting.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDebugSettings{
-		DebugLoggingEnabled: enabled,
-	})
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var req codersdk.UpdateChatDebugLoggingRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if err := api.Database.UpsertChatDebugLoggingEnabled(ctx, req.DebugLoggingEnabled); httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating debug logging setting.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
@@ -3448,87 +3308,6 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		CustomPrompt: updatedConfig.Value,
 	})
 }
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	userID := httpmw.APIKey(r).UserID
-
-	enabled, err := api.Database.GetUserChatDebugLoggingEnabled(ctx, userID)
-	overrideSet := true
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			enabled = false
-			overrideSet = false
-		case httpapi.Is404Error(err):
-			httpapi.ResourceNotFound(rw)
-			return
-		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user chat debug logging setting.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDebugSettings{
-		DebugLoggingEnabled:     enabled,
-		DebugLoggingOverrideSet: overrideSet,
-	})
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putUserChatDebugLoggingEnabled(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	userID := httpmw.APIKey(r).UserID
-
-	var req codersdk.UpdateChatDebugLoggingRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if req.DebugLoggingOverrideSet != nil && !*req.DebugLoggingOverrideSet {
-		// TODO(review): Reuses DeleteUserChatCompactionThreshold because
-		// the underlying SQL is a generic user_configs DELETE by key.
-		// A dedicated DeleteUserChatDebugLoggingEnabled query would be
-		// cleaner but requires make gen.
-		if err := api.Database.DeleteUserChatCompactionThreshold(ctx, database.DeleteUserChatCompactionThresholdParams{
-			UserID: userID,
-			Key:    "chat_debug_logging_enabled",
-		}); err != nil {
-			if httpapi.Is404Error(err) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error clearing user chat debug logging override.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if err := api.Database.UpsertUserChatDebugLoggingEnabled(ctx, database.UpsertUserChatDebugLoggingEnabledParams{
-		UserID:              userID,
-		DebugLoggingEnabled: req.DebugLoggingEnabled,
-	}); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error updating user chat debug logging setting.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
 // @Summary Get user chat compaction thresholds
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -5240,18 +5019,6 @@ func parseChatProviderID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bo
 		return uuid.Nil, false
 	}
 	return providerID, true
-}
-
-func parseChatDebugRunID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	runID, err := uuid.Parse(chi.URLParam(r, "run"))
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat debug run ID.",
-			Detail:  err.Error(),
-		})
-		return uuid.Nil, false
-	}
-	return runID, true
 }
 
 func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

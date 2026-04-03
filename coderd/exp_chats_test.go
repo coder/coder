@@ -3123,55 +3123,6 @@ func TestGetChat(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
-
-func TestUpdateChatDebugLogsEnabledOverride(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ExplicitNullClearsOverride", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "debug override clear",
-			}},
-		})
-		require.NoError(t, err)
-
-		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-			DebugLogsEnabledOverride: &codersdk.NullableBool{Value: true, Valid: true},
-		})
-		require.NoError(t, err)
-
-		updatedChat, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotNil(t, updatedChat.DebugLogsEnabledOverride)
-		require.True(t, *updatedChat.DebugLogsEnabledOverride)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodPatch,
-			fmt.Sprintf("/api/experimental/chats/%s", chat.ID),
-			bytes.NewBufferString(`{"debug_logs_enabled_override":null}`),
-			func(r *http.Request) {
-				r.Header.Set("Content-Type", "application/json")
-			},
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusNoContent, res.StatusCode)
-
-		clearedChat, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Nil(t, clearedChat.DebugLogsEnabledOverride)
-	})
-}
-
 func TestArchiveChat(t *testing.T) {
 	t.Parallel()
 
@@ -7243,63 +7194,6 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
-//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
-func TestUserChatDebugLoggingSettings(t *testing.T) {
-	t.Parallel()
-
-	client, _ := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-	t.Run("EmptyByDefault", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		settings, err := client.GetUserChatDebugLoggingEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, settings.DebugLoggingEnabled)
-		require.False(t, settings.DebugLoggingOverrideSet)
-	})
-
-	t.Run("PutGetAndClear", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		require.NoError(t, client.UpdateUserChatDebugLoggingEnabled(ctx, codersdk.UpdateChatDebugLoggingRequest{
-			DebugLoggingEnabled: true,
-		}))
-
-		settings, err := client.GetUserChatDebugLoggingEnabled(ctx)
-		require.NoError(t, err)
-		require.True(t, settings.DebugLoggingEnabled)
-		require.True(t, settings.DebugLoggingOverrideSet)
-
-		overrideSet := false
-		require.NoError(t, client.UpdateUserChatDebugLoggingEnabled(ctx, codersdk.UpdateChatDebugLoggingRequest{
-			DebugLoggingOverrideSet: &overrideSet,
-		}))
-
-		settings, err = client.GetUserChatDebugLoggingEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, settings.DebugLoggingEnabled)
-		require.False(t, settings.DebugLoggingOverrideSet)
-	})
-
-	t.Run("IsolatedPerUser", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		require.NoError(t, client.UpdateUserChatDebugLoggingEnabled(ctx, codersdk.UpdateChatDebugLoggingRequest{
-			DebugLoggingEnabled: true,
-		}))
-
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		memberSettings, err := memberClient.GetUserChatDebugLoggingEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, memberSettings.DebugLoggingEnabled)
-		require.False(t, memberSettings.DebugLoggingOverrideSet)
-	})
-}
-
-//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
 
