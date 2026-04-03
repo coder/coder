@@ -145,38 +145,32 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	})
 	require.NoError(t, err, "insert connection log")
 
-	// Query back the actual row from the database rather than
-	// constructing a return value from input args. On upsert conflict
-	// the DB keeps the original row's ID, so the input arg.ID may
-	// differ from what was stored.
-	rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{
-		LimitOpt: 0, // no limit
-	})
-	require.NoError(t, err, "query connection logs")
+	// Query back the actual row. On upsert conflict the DB keeps
+	// the original row's ID, so we can't rely on arg.ID for rows
+	// with a connection_id. For NULL connection_id rows (web
+	// events), the row is always fresh-inserted so arg.ID is
+	// reliable — but the SQL filter ignores zero-UUID connection_id,
+	// so we fetch all and match by ID.
+	if arg.ConnectionID.Valid {
+		rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{
+			ConnectionID: arg.ConnectionID.UUID,
+			LimitOpt:     1,
+		})
+		require.NoError(t, err, "query connection log")
+		require.NotEmpty(t, rows, "connection log not found after insert")
+		return rows[0].ConnectionLog
+	}
 
-	var result database.ConnectionLog
-	found := false
+	// NULL connection_id: query all and find by primary key.
+	rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{})
+	require.NoError(t, err, "query connection logs")
 	for _, row := range rows {
-		if arg.ConnectionID.Valid {
-			// For rows with a connection_id, match on the conflict
-			// key: (connection_id, workspace_id, agent_name).
-			if row.ConnectionLog.ConnectionID == arg.ConnectionID &&
-				row.ConnectionLog.WorkspaceID == arg.WorkspaceID &&
-				row.ConnectionLog.AgentName == arg.AgentName {
-				result = row.ConnectionLog
-				found = true
-				break
-			}
-		} else if row.ConnectionLog.ID == arg.ID {
-			// NULL connection_id rows always insert fresh, so the
-			// primary key ID is reliable.
-			result = row.ConnectionLog
-			found = true
-			break
+		if row.ConnectionLog.ID == arg.ID {
+			return row.ConnectionLog
 		}
 	}
-	require.True(t, found, "connection log not found after insert")
-	return result
+	require.Failf(t, "connection log not found", "id=%s", arg.ID)
+	return database.ConnectionLog{} // unreachable
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {

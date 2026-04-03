@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -144,8 +143,6 @@ type DBBatcher struct {
 	clock    quartz.Clock
 	timer    *quartz.Timer
 	interval time.Duration
-
-	closed atomic.Bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
