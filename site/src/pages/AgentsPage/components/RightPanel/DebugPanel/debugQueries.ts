@@ -23,7 +23,7 @@ const debugRunRefetchInterval = (
 	return 5_000;
 };
 
-export const chatDebugRunsKey = (chatId: string) =>
+const chatDebugRunsKey = (chatId: string) =>
 	["chats", chatId, "debug-runs"] as const;
 
 export const chatDebugRuns = (chatId: string) => ({
