@@ -551,20 +551,16 @@ func TestService_FinalizeStale_BroadcastsFinalizeEvent(t *testing.T) {
 
 	memoryPubsub := dbpubsub.NewInMemory()
 	svc := chatdebug.NewService(db, testutil.Logger(t), memoryPubsub)
-	events := make(chan struct {
+	type eventResult struct {
 		event chatdebug.DebugEvent
 		err   error
-	}, 1)
+	}
+	events := make(chan eventResult, 1)
 	cancel, err := memoryPubsub.Subscribe(chatdebug.PubsubChannel(uuid.Nil),
 		func(_ context.Context, message []byte) {
 			var event chatdebug.DebugEvent
-			events <- struct {
-				event chatdebug.DebugEvent
-				err   error
-			}{
-				event: event,
-				err:   json.Unmarshal(message, &event),
-			}
+			unmarshalErr := json.Unmarshal(message, &event)
+			events <- eventResult{event: event, err: unmarshalErr}
 		},
 	)
 	require.NoError(t, err)
@@ -633,20 +629,16 @@ func TestService_PublishesEvents(t *testing.T) {
 
 	memoryPubsub := dbpubsub.NewInMemory()
 	svc := chatdebug.NewService(db, testutil.Logger(t), memoryPubsub)
-	events := make(chan struct {
+	type eventResult struct {
 		event chatdebug.DebugEvent
 		err   error
-	}, 1)
+	}
+	events := make(chan eventResult, 1)
 	cancel, err := memoryPubsub.Subscribe(chatdebug.PubsubChannel(chat.ID),
 		func(_ context.Context, message []byte) {
 			var event chatdebug.DebugEvent
-			events <- struct {
-				event chatdebug.DebugEvent
-				err   error
-			}{
-				event: event,
-				err:   json.Unmarshal(message, &event),
-			}
+			unmarshalErr := json.Unmarshal(message, &event)
+			events <- eventResult{event: event, err: unmarshalErr}
 		},
 	)
 	require.NoError(t, err)

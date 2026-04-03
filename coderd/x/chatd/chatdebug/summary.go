@@ -107,6 +107,7 @@ func (s *Service) AggregateRunSummary(
 		"step_count",
 		"total_input_tokens",
 		"total_output_tokens",
+		"total_reasoning_tokens",
 		"total_cache_creation_tokens",
 		"total_cache_read_tokens",
 		"endpoint_label",
@@ -117,13 +118,14 @@ func (s *Service) AggregateRunSummary(
 	var (
 		totalInput         int64
 		totalOutput        int64
+		totalReasoning     int64
 		totalCacheCreation int64
 		totalCacheRead     int64
 		hasError           bool
 	)
 
 	for _, step := range steps {
-		if step.Error.Valid || step.Status == string(StatusError) || step.Status == string(StatusInterrupted) {
+		if step.Error.Valid || step.Status == string(StatusError) {
 			hasError = true
 		}
 		if !step.Usage.Valid || len(step.Usage.RawMessage) == 0 {
@@ -142,6 +144,7 @@ func (s *Service) AggregateRunSummary(
 
 		totalInput += usage.InputTokens
 		totalOutput += usage.OutputTokens
+		totalReasoning += usage.ReasoningTokens
 		totalCacheCreation += usage.CacheCreationTokens
 		totalCacheRead += usage.CacheReadTokens
 	}
@@ -150,8 +153,11 @@ func (s *Service) AggregateRunSummary(
 	result["total_input_tokens"] = totalInput
 	result["total_output_tokens"] = totalOutput
 
-	// Only include cache fields when non-zero to keep the summary
-	// compact for the common case.
+	// Only include reasoning/cache fields when non-zero to keep the
+	// summary compact for the common case.
+	if totalReasoning > 0 {
+		result["total_reasoning_tokens"] = totalReasoning
+	}
 	if totalCacheCreation > 0 {
 		result["total_cache_creation_tokens"] = totalCacheCreation
 	}
