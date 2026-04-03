@@ -7,9 +7,14 @@ import { DEFAULT_ASPECT, PREVIEW_HEIGHT } from "./previewConstants";
 interface RecordingPreviewProps {
 	/** The chat file ID for the MP4 recording. */
 	recordingFileId: string;
+	/** File ID for the JPEG thumbnail of a completed recording. */
+	thumbnailFileId?: string;
 	/** Optional video URL override. When provided, this is used
 	 * directly instead of deriving the URL from recordingFileId. */
 	src?: string;
+	/** Optional thumbnail URL override. When provided, this is used
+	 * directly instead of deriving the URL from thumbnailFileId. */
+	thumbnailSrc?: string;
 }
 
 /**
@@ -20,7 +25,9 @@ interface RecordingPreviewProps {
  */
 export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 	recordingFileId,
+	thumbnailFileId,
 	src: srcOverride,
+	thumbnailSrc: thumbnailSrcOverride,
 }) => {
 	const [showLightbox, setShowLightbox] = useState(false);
 	const [thumbnailError, setThumbnailError] = useState(false);
@@ -28,9 +35,6 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 	// component remounts and resets its internal error state.
 	const [lightboxKey, setLightboxKey] = useState(0);
 
-	const thumbnailSrc =
-		// Seek to first frame so the browser renders a thumbnail preview.
-		srcOverride ?? `/api/experimental/chats/files/${recordingFileId}#t=0.001`;
 	const videoSrc =
 		srcOverride ?? `/api/experimental/chats/files/${recordingFileId}`;
 
@@ -44,14 +48,19 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 					<ImageOffIcon className="h-3 w-3" />
 					Thumbnail unavailable
 				</div>
-			) : (
-				<video
-					src={thumbnailSrc}
-					preload="metadata"
-					muted
+			) : thumbnailFileId ? (
+				<img
+					src={
+						thumbnailSrcOverride ??
+						`/api/experimental/chats/files/${thumbnailFileId}`
+					}
+					alt="Recording thumbnail"
 					className="h-full w-full pointer-events-none object-cover"
 					onError={() => setThumbnailError(true)}
 				/>
+			) : (
+				// No thumbnail available — neutral gray placeholder.
+				<div className="h-full w-full bg-surface-secondary" />
 			)}
 			<button
 				type="button"
