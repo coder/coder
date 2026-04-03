@@ -102,6 +102,8 @@ type Options struct {
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
+	BlockReversePortForwarding   bool
+	BlockLocalPortForwarding     bool
 	Execer                       agentexec.Execer
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
@@ -214,6 +216,8 @@ func New(options Options) Agent {
 		subsystems:                         options.Subsystems,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
 		blockFileTransfer:                  options.BlockFileTransfer,
+		blockReversePortForwarding:         options.BlockReversePortForwarding,
+		blockLocalPortForwarding:           options.BlockLocalPortForwarding,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -280,6 +284,8 @@ type agent struct {
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
 	blockFileTransfer                  bool
+	blockReversePortForwarding         bool
+	blockLocalPortForwarding           bool
 
 	lifecycleUpdate            chan struct{}
 	lifecycleReported          chan codersdk.WorkspaceAgentLifecycle
@@ -331,12 +337,14 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.execer, &agentssh.Config{
-		MaxTimeout:          a.sshMaxTimeout,
-		MOTDFile:            func() string { return a.manifest.Load().MOTDFile },
-		AnnouncementBanners: func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
-		UpdateEnv:           a.updateCommandEnv,
-		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
-		BlockFileTransfer:   a.blockFileTransfer,
+		MaxTimeout:                 a.sshMaxTimeout,
+		MOTDFile:                   func() string { return a.manifest.Load().MOTDFile },
+		AnnouncementBanners:        func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
+		UpdateEnv:                  a.updateCommandEnv,
+		WorkingDirectory:           func() string { return a.manifest.Load().Directory },
+		BlockFileTransfer:          a.blockFileTransfer,
+		BlockReversePortForwarding: a.blockReversePortForwarding,
+		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
 		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
 			switch magicType {

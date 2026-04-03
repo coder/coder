@@ -117,6 +117,10 @@ type Config struct {
 	X11MaxPort *int
 	// BlockFileTransfer restricts use of file transfer applications.
 	BlockFileTransfer bool
+	// BlockReversePortForwarding disables reverse port forwarding (ssh -R).
+	BlockReversePortForwarding bool
+	// BlockLocalPortForwarding disables local port forwarding (ssh -L).
+	BlockLocalPortForwarding bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
 	// Experimental: allow connecting to running containers via Docker exec.
@@ -250,6 +254,12 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		// be set before we start listening.
 		HostSigners: []ssh.Signer{},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
+			if s.config.BlockLocalPortForwarding {
+				s.logger.Warn(ctx, "local port forward blocked",
+					slog.F("destination_host", destinationHost),
+					slog.F("destination_port", destinationPort))
+				return false
+			}
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination_host", destinationHost),
@@ -260,6 +270,12 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
+			if s.config.BlockReversePortForwarding {
+				s.logger.Warn(ctx, "reverse port forward blocked",
+					slog.F("bind_host", bindHost),
+					slog.F("bind_port", bindPort))
+				return false
+			}
 			// Allow reverse port forwarding all!
 			s.logger.Debug(ctx, "reverse port forward",
 				slog.F("bind_host", bindHost),

@@ -986,6 +986,48 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	requireEcho(t, conn)
 }
 
+func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rl, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer rl.Close()
+	tcpAddr, valid := rl.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	remotePort := tcpAddr.Port
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+	require.Error(t, err)
+}
+
+func TestAgent_TCPRemoteForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	localhost := netip.MustParseAddr("127.0.0.1")
+	randomPort := testutil.RandomPortNoListen(t)
+	addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
+	_, err = sshClient.ListenTCP(addr)
+	require.Error(t, err)
+}
+
 func TestAgent_UnixLocalForwarding(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
