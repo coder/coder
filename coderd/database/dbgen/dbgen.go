@@ -145,24 +145,38 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	})
 	require.NoError(t, err, "insert connection log")
 
-	return database.ConnectionLog{
-		ID:               arg.ID,
-		ConnectTime:      arg.Time,
-		OrganizationID:   arg.OrganizationID,
-		WorkspaceOwnerID: arg.WorkspaceOwnerID,
-		WorkspaceID:      arg.WorkspaceID,
-		WorkspaceName:    arg.WorkspaceName,
-		AgentName:        arg.AgentName,
-		Type:             arg.Type,
-		Code:             arg.Code,
-		Ip:               arg.IP,
-		UserAgent:        arg.UserAgent,
-		UserID:           arg.UserID,
-		SlugOrPort:       arg.SlugOrPort,
-		ConnectionID:     arg.ConnectionID,
-		DisconnectReason: arg.DisconnectReason,
-		DisconnectTime:   disconnectTime,
+	// Query back the actual row from the database rather than
+	// constructing a return value from input args. On upsert conflict
+	// the DB keeps the original row's ID, so the input arg.ID may
+	// differ from what was stored.
+	rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{
+		LimitOpt: 0, // no limit
+	})
+	require.NoError(t, err, "query connection logs")
+
+	var result database.ConnectionLog
+	found := false
+	for _, row := range rows {
+		if arg.ConnectionID.Valid {
+			// For rows with a connection_id, match on the conflict
+			// key: (connection_id, workspace_id, agent_name).
+			if row.ConnectionLog.ConnectionID == arg.ConnectionID &&
+				row.ConnectionLog.WorkspaceID == arg.WorkspaceID &&
+				row.ConnectionLog.AgentName == arg.AgentName {
+				result = row.ConnectionLog
+				found = true
+				break
+			}
+		} else if row.ConnectionLog.ID == arg.ID {
+			// NULL connection_id rows always insert fresh, so the
+			// primary key ID is reliable.
+			result = row.ConnectionLog
+			found = true
+			break
+		}
 	}
+	require.True(t, found, "connection log not found after insert")
+	return result
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
