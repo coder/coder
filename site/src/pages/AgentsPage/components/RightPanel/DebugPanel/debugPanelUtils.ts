@@ -273,7 +273,6 @@ export const getStatusBadgeVariant = (status: string) => {
 	return "default";
 };
 
-
 export const normalizeAttempts = (
 	attempts: unknown,
 ): { parsed: NormalizedAttempt[]; rawFallback?: string } => {
@@ -1137,7 +1136,6 @@ export const clampContent = (text: string, maxLen: number): string => {
 	}
 	return `${trimmed.slice(0, maxLen).trimEnd()}…`;
 };
-
 
 // ---------------------------------------------------------------------------
 // Active-status helper (for spinner indicators).
