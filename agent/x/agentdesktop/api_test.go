@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -58,6 +63,8 @@ type fakeDesktop struct {
 	lastTyped   string
 	lastKeyDown string
 	lastKeyUp   string
+
+	thumbnailData []byte // if set, StopRecording includes a thumbnail
 
 	// Recording tracking (guarded by recMu).
 	recMu         sync.Mutex
@@ -187,10 +194,15 @@ func (f *fakeDesktop) StopRecording(_ context.Context, recordingID string) (*age
 		_ = file.Close()
 		return nil, err
 	}
-	return &agentdesktop.RecordingArtifact{
+	artifact := &agentdesktop.RecordingArtifact{
 		Reader: file,
 		Size:   info.Size(),
-	}, nil
+	}
+	if f.thumbnailData != nil {
+		artifact.ThumbnailReader = io.NopCloser(bytes.NewReader(f.thumbnailData))
+		artifact.ThumbnailSize = int64(len(f.thumbnailData))
+	}
+	return artifact, nil
 }
 
 func (f *fakeDesktop) RecordActivity() {
@@ -785,8 +797,8 @@ func TestRecordingStartStop(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
-	assert.Equal(t, []byte("fake-mp4-data-"+testRecIDDefault+"-1"), rr.Body.Bytes())
+	parts := parseMultipartParts(t, rr.Header().Get("Content-Type"), rr.Body.Bytes())
+	assert.Equal(t, []byte("fake-mp4-data-"+testRecIDDefault+"-1"), parts["video/mp4"])
 }
 
 func TestRecordingStartFails(t *testing.T) {
@@ -847,8 +859,8 @@ func TestRecordingStartIdempotent(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
-	assert.Equal(t, []byte("fake-mp4-data-"+testRecIDStartIdempotent+"-1"), rr.Body.Bytes())
+	parts := parseMultipartParts(t, rr.Header().Get("Content-Type"), rr.Body.Bytes())
+	assert.Equal(t, []byte("fake-mp4-data-"+testRecIDStartIdempotent+"-1"), parts["video/mp4"])
 }
 
 func TestRecordingStopIdempotent(t *testing.T) {
@@ -872,7 +884,7 @@ func TestRecordingStopIdempotent(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	// Stop twice - both should succeed with identical data.
-	var bodies [2][]byte
+	var videoParts [2][]byte
 	for i := range 2 {
 		body, err := json.Marshal(map[string]string{"recording_id": testRecIDStopIdempotent})
 		require.NoError(t, err)
@@ -880,10 +892,10 @@ func TestRecordingStopIdempotent(t *testing.T) {
 		request := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
 		handler.ServeHTTP(recorder, request)
 		require.Equal(t, http.StatusOK, recorder.Code)
-		assert.Equal(t, "video/mp4", recorder.Header().Get("Content-Type"))
-		bodies[i] = recorder.Body.Bytes()
+		parts := parseMultipartParts(t, recorder.Header().Get("Content-Type"), recorder.Body.Bytes())
+		videoParts[i] = parts["video/mp4"]
 	}
-	assert.Equal(t, bodies[0], bodies[1])
+	assert.Equal(t, videoParts[0], videoParts[1])
 }
 
 func TestRecordingStopInvalidIDFormat(t *testing.T) {
@@ -1004,8 +1016,8 @@ func TestRecordingMultipleSimultaneous(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(body))
 		handler.ServeHTTP(rr, req)
 		require.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
-		assert.Equal(t, expected[id], rr.Body.Bytes())
+		parts := parseMultipartParts(t, rr.Header().Get("Content-Type"), rr.Body.Bytes())
+		assert.Equal(t, expected[id], parts["video/mp4"])
 	}
 }
 
@@ -1112,8 +1124,8 @@ func TestRecordingStartAfterCompleted(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
-	firstData := rr.Body.Bytes()
+	firstParts := parseMultipartParts(t, rr.Header().Get("Content-Type"), rr.Body.Bytes())
+	firstData := firstParts["video/mp4"]
 	require.NotEmpty(t, firstData)
 
 	// Step 3: Start again with the same ID - should succeed
@@ -1128,8 +1140,8 @@ func TestRecordingStartAfterCompleted(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "video/mp4", rr.Header().Get("Content-Type"))
-	secondData := rr.Body.Bytes()
+	secondParts := parseMultipartParts(t, rr.Header().Get("Content-Type"), rr.Body.Bytes())
+	secondData := secondParts["video/mp4"]
 	require.NotEmpty(t, secondData)
 
 	// The two recordings should have different data because the
@@ -1234,4 +1246,167 @@ func TestRecordingStopCorrupted(t *testing.T) {
 	err = json.NewDecoder(rr.Body).Decode(&respStop)
 	require.NoError(t, err)
 	assert.Equal(t, "Recording is corrupted.", respStop.Message)
+}
+
+// parseMultipartParts parses a multipart/mixed response and returns
+// a map from Content-Type to body bytes.
+func parseMultipartParts(t *testing.T, contentType string, body []byte) map[string][]byte {
+	t.Helper()
+	_, params, err := mime.ParseMediaType(contentType)
+	require.NoError(t, err, "parse Content-Type")
+	boundary := params["boundary"]
+	require.NotEmpty(t, boundary, "missing boundary")
+	mr := multipart.NewReader(bytes.NewReader(body), boundary)
+	parts := make(map[string][]byte)
+	for {
+		part, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err, "unexpected multipart parse error")
+		ct := part.Header.Get("Content-Type")
+		data, readErr := io.ReadAll(part)
+		require.NoError(t, readErr)
+		parts[ct] = data
+	}
+	return parts
+}
+
+func TestHandleRecordingStop_WithThumbnail(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	// Create a fake JPEG header: 0xFF 0xD8 0xFF followed by 509 zero bytes.
+	thumbnail := make([]byte, 512)
+	thumbnail[0] = 0xff
+	thumbnail[1] = 0xd8
+	thumbnail[2] = 0xff
+
+	fake := &fakeDesktop{
+		startCfg:      agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		thumbnailData: thumbnail,
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start recording.
+	recID := uuid.New().String()
+	startBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop recording.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Verify multipart response.
+	ct := rr.Header().Get("Content-Type")
+	assert.True(t, strings.HasPrefix(ct, "multipart/mixed"),
+		"expected multipart/mixed Content-Type, got %s", ct)
+
+	parts := parseMultipartParts(t, ct, rr.Body.Bytes())
+	assert.Len(t, parts, 2, "expected exactly 2 parts (video + thumbnail)")
+
+	// The fake writes "fake-mp4-data-<id>-<counter>" as the MP4 content.
+	expectedMP4 := []byte("fake-mp4-data-" + recID + "-1")
+	assert.Equal(t, expectedMP4, parts["video/mp4"])
+	assert.Equal(t, thumbnail, parts["image/jpeg"])
+}
+
+func TestHandleRecordingStop_NoThumbnail(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start recording.
+	recID := uuid.New().String()
+	startBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop recording.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Verify multipart response.
+	ct := rr.Header().Get("Content-Type")
+	assert.True(t, strings.HasPrefix(ct, "multipart/mixed"),
+		"expected multipart/mixed Content-Type, got %s", ct)
+
+	parts := parseMultipartParts(t, ct, rr.Body.Bytes())
+	assert.Len(t, parts, 1, "expected exactly 1 part (video only)")
+
+	expectedMP4 := []byte("fake-mp4-data-" + recID + "-1")
+	assert.Equal(t, expectedMP4, parts["video/mp4"])
+}
+
+func TestHandleRecordingStop_OversizedThumbnail(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	// Create thumbnail data that exceeds MaxThumbnailSize.
+	oversizedThumb := make([]byte, workspacesdk.MaxThumbnailSize+1)
+	oversizedThumb[0] = 0xff
+	oversizedThumb[1] = 0xd8
+	oversizedThumb[2] = 0xff
+
+	fake := &fakeDesktop{
+		startCfg:      agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		thumbnailData: oversizedThumb,
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	handler := api.Routes()
+
+	// Start recording.
+	recID := uuid.New().String()
+	startBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/recording/start", bytes.NewReader(startBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Stop recording.
+	stopBody, err := json.Marshal(map[string]string{"recording_id": recID})
+	require.NoError(t, err)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/recording/stop", bytes.NewReader(stopBody))
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Verify multipart response contains only the video part.
+	ct := rr.Header().Get("Content-Type")
+	assert.True(t, strings.HasPrefix(ct, "multipart/mixed"),
+		"expected multipart/mixed Content-Type, got %s", ct)
+
+	parts := parseMultipartParts(t, ct, rr.Body.Bytes())
+	assert.Len(t, parts, 1, "expected exactly 1 part (video only, oversized thumbnail discarded)")
+
+	expectedMP4 := []byte("fake-mp4-data-" + recID + "-1")
+	assert.Equal(t, expectedMP4, parts["video/mp4"])
 }

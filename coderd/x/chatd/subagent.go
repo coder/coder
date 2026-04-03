@@ -233,13 +233,13 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				}
 
 				// Only stop and store the recording on success.
-				var storedFileID string
+				var recResult recordingResult
 				if recordingID != "" && agentConn != nil {
 					// Use a fresh context for cleanup so a canceled
 					// parent context doesn't prevent recording storage.
 					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 					defer stopCancel()
-					storedFileID = p.stopAndStoreRecording(stopCtx, agentConn,
+					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
 						recordingID, parent.OwnerID, parent.WorkspaceID)
 				}
 				resp := map[string]any{
@@ -248,8 +248,11 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 					"report":  report,
 					"status":  string(targetChat.Status),
 				}
-				if storedFileID != "" {
-					resp["recording_file_id"] = storedFileID
+				if recResult.recordingFileID != "" {
+					resp["recording_file_id"] = recResult.recordingFileID
+				}
+				if recResult.thumbnailFileID != "" {
+					resp["thumbnail_file_id"] = recResult.thumbnailFileID
 				}
 				return toolJSONResponse(resp), nil
 			},

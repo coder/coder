@@ -73,9 +73,9 @@ const (
 
 	// maxConcurrentRecordingUploads caps the number of recording
 	// stop-and-store operations that can run concurrently. Each
-	// slot buffers up to MaxRecordingSize (100 MB) in memory, so
-	// this value implicitly bounds memory to roughly
-	// maxConcurrentRecordingUploads * 100 MB.
+	// slot buffers up to MaxRecordingSize + MaxThumbnailSize
+	// (110 MB) in memory, so this value implicitly bounds memory
+	// to roughly maxConcurrentRecordingUploads * 110 MB.
 	maxConcurrentRecordingUploads = 25
 
 	// staleRecoveryIntervalDivisor determines how often the stale
