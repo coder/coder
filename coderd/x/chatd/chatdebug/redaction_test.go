@@ -108,8 +108,8 @@ func TestRedactHeaders(t *testing.T) {
 		t.Parallel()
 
 		headers := http.Header{
-			"X-Custom-Api-Key":     {"secret-key"},
-			"X-Custom-Secret":      {"secret-val"},
+			"X-Custom-Api-Key":       {"secret-key"},
+			"X-Custom-Secret":        {"secret-val"},
 			"X-Custom-Session-Token": {"session-id"},
 		}
 
@@ -184,7 +184,6 @@ func TestRedactJSONSecrets(t *testing.T) {
 		// All usage/limit fields should be preserved, not redacted.
 		require.Equal(t, input, redacted)
 	})
-
 
 	t.Run("redacts nested objects", func(t *testing.T) {
 		t.Parallel()
