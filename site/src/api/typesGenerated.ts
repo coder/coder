@@ -164,12 +164,13 @@ export interface AIBridgeSessionThreadsResponse {
 // From codersdk/aibridge.go
 /**
  * AIBridgeSessionThreadsTokenUsage represents aggregated token usage
- * with metadata containing provider-specific fields like
- * cache_creation_input, cache_read_input, etc.
+ * with metadata containing provider-specific fields.
  */
 export interface AIBridgeSessionThreadsTokenUsage {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 }
@@ -178,6 +179,8 @@ export interface AIBridgeSessionThreadsTokenUsage {
 export interface AIBridgeSessionTokenUsageSummary {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 }
 
 // From codersdk/aibridge.go
@@ -203,6 +206,8 @@ export interface AIBridgeTokenUsage {
 	readonly provider_response_id: string;
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
@@ -2392,8 +2397,6 @@ export interface CreateChatRequest {
  */
 export interface CreateFirstUserOnboardingInfo {
 	readonly is_business: boolean | null;
-	readonly industry_type: IndustryType;
-	readonly org_size: OrgSizeRange;
 	readonly newsletter_marketing: boolean | null;
 	readonly newsletter_releases: boolean | null;
 }
@@ -3860,40 +3863,6 @@ export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
 // From codersdk/inboxnotification.go
 export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
-// From codersdk/users.go
-export type IndustryType =
-	| "Consulting"
-	| "Education"
-	| "Energy"
-	| "Financial Services"
-	| "Government"
-	| "Healthcare"
-	| "Manufacturing"
-	| "Media"
-	| "Non-Profit"
-	| "Other"
-	| "Retail"
-	| "Technology"
-	| "Telecom"
-	| "Transportation";
-
-export const IndustryTypes: IndustryType[] = [
-	"Consulting",
-	"Education",
-	"Energy",
-	"Financial Services",
-	"Government",
-	"Healthcare",
-	"Manufacturing",
-	"Media",
-	"Non-Profit",
-	"Other",
-	"Retail",
-	"Technology",
-	"Telecom",
-	"Transportation",
-];
-
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -4834,26 +4803,6 @@ export const OptionTypes: OptionType[] = [
 	"list(string)",
 	"number",
 	"string",
-];
-
-// From codersdk/users.go
-export type OrgSizeRange =
-	| "11-50"
-	| "1001-5000"
-	| "201-1000"
-	| "2-10"
-	| "51-200"
-	| "5000+"
-	| "Just me";
-
-export const OrgSizeRanges: OrgSizeRange[] = [
-	"11-50",
-	"1001-5000",
-	"201-1000",
-	"2-10",
-	"51-200",
-	"5000+",
-	"Just me",
 ];
 
 // From codersdk/organizations.go

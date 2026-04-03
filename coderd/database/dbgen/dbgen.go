@@ -1613,13 +1613,15 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 
 func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIBridgeTokenUsageParams) database.AIBridgeTokenUsage {
 	usage, err := db.InsertAIBridgeTokenUsage(genCtx, database.InsertAIBridgeTokenUsageParams{
-		ID:                 takeFirst(seed.ID, uuid.New()),
-		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
-		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
-		InputTokens:        takeFirst(seed.InputTokens, 100),
-		OutputTokens:       takeFirst(seed.OutputTokens, 100),
-		Metadata:           takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		CreatedAt:          takeFirst(seed.CreatedAt, dbtime.Now()),
+		ID:                    takeFirst(seed.ID, uuid.New()),
+		InterceptionID:        takeFirst(seed.InterceptionID, uuid.New()),
+		ProviderResponseID:    takeFirst(seed.ProviderResponseID, "provider_response_id"),
+		InputTokens:           takeFirst(seed.InputTokens, 100),
+		OutputTokens:          takeFirst(seed.OutputTokens, 100),
+		CacheReadInputTokens:  seed.CacheReadInputTokens,
+		CacheWriteInputTokens: seed.CacheWriteInputTokens,
+		Metadata:              takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		CreatedAt:             takeFirst(seed.CreatedAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

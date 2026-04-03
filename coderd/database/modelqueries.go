@@ -1029,6 +1029,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.Threads,
 			&i.InputTokens,
 			&i.OutputTokens,
+			&i.CacheReadInputTokens,
+			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
 		); err != nil {
 			return nil, err
