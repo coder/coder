@@ -638,7 +638,7 @@ func appendNormalizedStreamContent(
 			ToolCallID:  part.ID,
 			ToolName:    part.ToolCallName,
 			Arguments:   boundText(part.ToolCallInput),
-			InputLength: len(part.ToolCallInput),
+			InputLength: utf8.RuneCountInString(part.ToolCallInput),
 		})
 	case fantasy.StreamPartTypeToolResult:
 		return append(content, normalizedContentPart{
