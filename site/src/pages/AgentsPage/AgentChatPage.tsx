@@ -13,12 +13,10 @@ import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import {
 	chat,
-	chatDebugLogging,
 	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
-	chatUserDebugLogging,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -37,6 +35,10 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
+import {
+	chatDebugLogging,
+	chatUserDebugLogging,
+} from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugQueries";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";

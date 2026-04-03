@@ -2,7 +2,6 @@ import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { chatDebugRun } from "#/api/queries/chats";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
@@ -24,6 +23,7 @@ import {
 	getStatusBadgeVariant,
 	isActiveStatus,
 } from "./debugPanelUtils";
+import { chatDebugRun } from "./debugQueries";
 
 interface DebugRunCardProps {
 	run: ChatDebugRunSummary;

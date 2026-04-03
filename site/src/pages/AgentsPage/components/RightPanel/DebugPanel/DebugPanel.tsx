@@ -1,11 +1,11 @@
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { chatDebugRuns } from "#/api/queries/chats";
 import { Alert } from "#/components/Alert/Alert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { DebugRunList } from "./DebugRunList";
+import { chatDebugRuns } from "./debugQueries";
 
 interface DebugPanelProps {
 	chatId: string;
