@@ -1,0 +1,141 @@
+# Automatically backport merged PRs to the last N release branches when the
+# "backport" label is applied. Works whether the label is added before or
+# after the PR is merged.
+#
+# Usage:
+#   1. Add the "backport" label to a PR targeting main.
+#   2. When the PR merges (or if already merged), the workflow detects the
+#      latest release/* branches and opens one cherry-pick PR per branch.
+#
+# The created backport PRs follow existing repo conventions:
+#   - Branch:  backport/<pr>-to-<version>
+#   - Title:   chore: backport #<pr> to <version>
+#   - Label:   cherry-pick/v<version>
+#   - Body:    links back to the original PR and merge commit
+
+name: Backport
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - closed
+      - labeled
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Prevent duplicate runs for the same PR when both 'closed' and 'labeled'
+# fire in quick succession.
+concurrency:
+  group: backport-${{ github.event.pull_request.number }}
+
+jobs:
+  detect:
+    name: Detect target branches
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'backport')
+    runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.find.outputs.branches }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Need all refs to discover release branches.
+          fetch-depth: 0
+
+      - name: Find latest release branches
+        id: find
+        run: |
+          # List remote release branches matching the exact release/2.X
+          # pattern (no suffixes like release/2.31_hotfix), sort by minor
+          # version descending, and take the top 3.
+          BRANCHES=$(
+            git branch -r \
+              | grep -E '^\s*origin/release/2\.[0-9]+$' \
+              | sed 's|.*origin/||' \
+              | sort -t. -k2 -n -r \
+              | head -3
+          )
+
+          if [ -z "$BRANCHES" ]; then
+            echo "No release branches found."
+            echo "branches=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Convert to JSON array for the matrix.
+          JSON=$(echo "$BRANCHES" | jq -Rnc '[inputs | select(length > 0)]')
+          echo "branches=$JSON" >> "$GITHUB_OUTPUT"
+          echo "Will backport to: $JSON"
+
+  backport:
+    name: "Backport to ${{ matrix.branch }}"
+    needs: detect
+    if: needs.detect.outputs.branches != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: ${{ fromJson(needs.detect.outputs.branches) }}
+      fail-fast: false
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history required for cherry-pick.
+          fetch-depth: 0
+
+      - name: Cherry-pick and open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_VERSION="${{ matrix.branch }}"
+          # Strip the release/ prefix for naming.
+          VERSION="${RELEASE_VERSION#release/}"
+          BACKPORT_BRANCH="backport/${PR_NUMBER}-to-${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Create the backport branch from the target release branch.
+          git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_VERSION}"
+
+          # Cherry-pick the merge commit. Use -x to record provenance and
+          # -m1 to pick the first parent (the main branch side).
+          if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
+            echo "::warning::Cherry-pick to ${RELEASE_VERSION} had conflicts."
+
+            # Stage conflicts so the PR can be opened for manual resolution.
+            git add -A
+            git -c core.editor=true cherry-pick --continue || true
+          fi
+
+          git push origin "$BACKPORT_BRANCH"
+
+          # Ensure the cherry-pick label exists (create if missing).
+          LABEL="cherry-pick/v${VERSION}"
+          gh label create "$LABEL" --color "0E8A16" --force 2>/dev/null || true
+
+          BODY=$(cat <<EOF
+          Backport of ${PR_URL}
+
+          Original PR: #${PR_NUMBER} — ${PR_TITLE}
+          Merge commit: ${MERGE_SHA}
+          EOF
+          )
+
+          gh pr create \
+            --draft \
+            --base "$RELEASE_VERSION" \
+            --head "$BACKPORT_BRANCH" \
+            --label "$LABEL" \
+            --title "chore: backport #${PR_NUMBER} to ${VERSION}" \
+            --body "$BODY"
