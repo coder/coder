@@ -2216,19 +2216,19 @@ func (m queryMetricsStore) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+func (m queryMetricsStore) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsBatchRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTailnetTunnelPeerBindings(ctx, srcID)
-	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerBindings").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerBindings").Inc()
+	r0, r1 := m.s.GetTailnetTunnelPeerBindingsBatch(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerBindingsBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerBindingsBatch").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+func (m queryMetricsStore) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerIDsBatchRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTailnetTunnelPeerIDs(ctx, srcID)
-	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerIDs").Inc()
+	r0, r1 := m.s.GetTailnetTunnelPeerIDsBatch(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerIDsBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerIDsBatch").Inc()
 	return r0, r1
 }
 
