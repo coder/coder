@@ -159,6 +159,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	conn.writeMetrics = r.cfg.WriteMetrics
 
 	logTrafficSummary := func() {
+		//nolint:gocritic
 		logger.Info(ctx, "traffic summary",
 			slog.F("actual_bytes_read", r.cfg.ReadMetrics.GetTotalBytes()),
 			slog.F("actual_bytes_written", r.cfg.WriteMetrics.GetTotalBytes()),
@@ -197,7 +198,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		if wchRef == nil && rchRef == nil {
 			logTrafficSummary()
 			if !deadlineReached {
-				return xerrors.Errorf("test did not complete: context cancelled after %s of %s",
+				return xerrors.Errorf("test did not complete: context canceled after %s of %s",
 					time.Since(start).Truncate(time.Second), r.cfg.Duration)
 			}
 			if r.cfg.ReadMetrics.GetTotalBytes() == 0 {
