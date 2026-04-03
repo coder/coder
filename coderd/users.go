@@ -292,8 +292,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	if createUser.OnboardingInfo != nil {
 		onboarding = &telemetry.FirstUserOnboarding{
 			IsBusiness:          createUser.OnboardingInfo.IsBusiness,
-			IndustryType:        string(createUser.OnboardingInfo.IndustryType),
-			OrgSize:             string(createUser.OnboardingInfo.OrgSize),
+			IndustryType:        string(ptr.NilToEmpty(createUser.OnboardingInfo.IndustryType)),
+			OrgSize:             string(ptr.NilToEmpty(createUser.OnboardingInfo.OrgSize)),
 			NewsletterMarketing: createUser.OnboardingInfo.NewsletterMarketing,
 			NewsletterReleases:  createUser.OnboardingInfo.NewsletterReleases,
 		}

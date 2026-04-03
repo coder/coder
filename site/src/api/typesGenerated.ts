@@ -2392,8 +2392,8 @@ export interface CreateChatRequest {
  */
 export interface CreateFirstUserOnboardingInfo {
 	readonly is_business: boolean | null;
-	readonly industry_type: IndustryType;
-	readonly org_size: OrgSizeRange;
+	readonly industry_type: IndustryType | null;
+	readonly org_size: OrgSizeRange | null;
 	readonly newsletter_marketing: boolean | null;
 	readonly newsletter_releases: boolean | null;
 }

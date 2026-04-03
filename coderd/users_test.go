@@ -137,8 +137,8 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 			Password: "SomeSecurePassword!",
 			OnboardingInfo: &codersdk.CreateFirstUserOnboardingInfo{
 				IsBusiness:          &isBusiness,
-				IndustryType:        codersdk.IndustryTypeTechnology,
-				OrgSize:             codersdk.OrgSizeRange51To200,
+				IndustryType:        ptr.Ref(codersdk.IndustryTypeTechnology),
+				OrgSize:             ptr.Ref(codersdk.OrgSizeRange51To200),
 				NewsletterMarketing: &wantMarketing,
 				NewsletterReleases:  &wantReleases,
 			},
