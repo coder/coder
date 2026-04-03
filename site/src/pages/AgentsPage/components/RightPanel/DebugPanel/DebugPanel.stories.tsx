@@ -61,7 +61,7 @@ const makeRun = (
 	...overrides,
 });
 
-type StoryAttempt = TypesGen.ChatDebugAttempt & Record<string, unknown>;
+type StoryAttempt = Record<string, unknown>;
 
 const makeAttempts = (
 	attempts: readonly Record<string, unknown>[],
