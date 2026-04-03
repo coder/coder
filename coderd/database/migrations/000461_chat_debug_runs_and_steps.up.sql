@@ -20,7 +20,6 @@ CREATE TABLE chat_debug_runs (
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs(id, chat_id);
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs(chat_id, started_at DESC);
-CREATE INDEX idx_chat_debug_runs_chat_status ON chat_debug_runs(chat_id, status);
 
 CREATE TABLE chat_debug_steps (
     id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -47,5 +46,8 @@ CREATE TABLE chat_debug_steps (
 );
 
 CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps(run_id, step_number);
-CREATE INDEX idx_chat_debug_steps_chat_started ON chat_debug_steps(chat_id, started_at DESC);
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps(chat_id, history_tip_message_id);
+
+-- Supports FinalizeStaleChatDebugRows worker query.
+CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs(updated_at) WHERE finished_at IS NULL;
+CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps(updated_at) WHERE finished_at IS NULL;

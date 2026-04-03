@@ -1630,8 +1630,9 @@ func chatDebugAttempts(raw json.RawMessage) []map[string]any {
 	return attempts
 }
 
-// ChatDebugRunSummary converts a database.ChatDebugRun to a
-// codersdk.ChatDebugRunSummary.
+// rawJSONObject unmarshals a JSON object column into a generic map.
+// Malformed payloads are preserved as diagnostic error maps rather
+// than being silently dropped.
 func rawJSONObject(raw json.RawMessage) map[string]any {
 	if len(raw) == 0 {
 		return nil
@@ -1654,6 +1655,8 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 	return rawJSONObject(raw.RawMessage)
 }
 
+// ChatDebugRunSummary converts a database.ChatDebugRun to a
+// codersdk.ChatDebugRunSummary.
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
 	return codersdk.ChatDebugRunSummary{
 		ID:         r.ID,

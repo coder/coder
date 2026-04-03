@@ -3779,15 +3779,15 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
-CREATE INDEX idx_chat_debug_runs_chat_status ON chat_debug_runs USING btree (chat_id, status);
-
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
 
-CREATE INDEX idx_chat_debug_steps_chat_started ON chat_debug_steps USING btree (chat_id, started_at DESC);
+CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
 
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
 
 CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btree (run_id, step_number);
+
+CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 

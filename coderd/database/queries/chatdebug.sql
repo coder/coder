@@ -41,7 +41,6 @@ SET
     model_config_id = COALESCE(sqlc.narg('model_config_id')::uuid, model_config_id),
     trigger_message_id = COALESCE(sqlc.narg('trigger_message_id')::bigint, trigger_message_id),
     history_tip_message_id = COALESCE(sqlc.narg('history_tip_message_id')::bigint, history_tip_message_id),
-    kind = COALESCE(sqlc.narg('kind')::text, kind),
     status = COALESCE(sqlc.narg('status')::text, status),
     provider = COALESCE(sqlc.narg('provider')::text, provider),
     model = COALESCE(sqlc.narg('model')::text, model),
@@ -116,7 +115,8 @@ RETURNING *;
 SELECT *
 FROM chat_debug_runs
 WHERE chat_id = @chat_id::uuid
-ORDER BY started_at DESC, id DESC;
+ORDER BY started_at DESC, id DESC
+LIMIT 100;
 
 -- name: GetChatDebugRunByID :one
 SELECT *
@@ -166,7 +166,7 @@ WITH finalized_runs AS (
         finished_at = NOW()
     WHERE updated_at < @updated_before::timestamptz
         AND finished_at IS NULL
-        AND COALESCE(status, '') NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
+        AND status NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
     RETURNING 1
 ), finalized_steps AS (
     UPDATE chat_debug_steps
@@ -176,7 +176,7 @@ WITH finalized_runs AS (
         finished_at = NOW()
     WHERE updated_at < @updated_before::timestamptz
         AND finished_at IS NULL
-        AND COALESCE(status, '') NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
+        AND status NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
     RETURNING 1
 )
 SELECT

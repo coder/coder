@@ -2930,7 +2930,7 @@ WITH finalized_runs AS (
         finished_at = NOW()
     WHERE updated_at < $1::timestamptz
         AND finished_at IS NULL
-        AND COALESCE(status, '') NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
+        AND status NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
     RETURNING 1
 ), finalized_steps AS (
     UPDATE chat_debug_steps
@@ -2940,7 +2940,7 @@ WITH finalized_runs AS (
         finished_at = NOW()
     WHERE updated_at < $1::timestamptz
         AND finished_at IS NULL
-        AND COALESCE(status, '') NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
+        AND status NOT IN ('completed', 'error', 'failed', 'interrupted', 'cancelled')
     RETURNING 1
 )
 SELECT
@@ -2994,6 +2994,7 @@ SELECT id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_messa
 FROM chat_debug_runs
 WHERE chat_id = $1::uuid
 ORDER BY started_at DESC, id DESC
+LIMIT 100
 `
 
 func (q *sqlQuerier) GetChatDebugRunsByChat(ctx context.Context, chatID uuid.UUID) ([]ChatDebugRun, error) {
@@ -3285,15 +3286,14 @@ SET
     model_config_id = COALESCE($3::uuid, model_config_id),
     trigger_message_id = COALESCE($4::bigint, trigger_message_id),
     history_tip_message_id = COALESCE($5::bigint, history_tip_message_id),
-    kind = COALESCE($6::text, kind),
-    status = COALESCE($7::text, status),
-    provider = COALESCE($8::text, provider),
-    model = COALESCE($9::text, model),
-    summary = COALESCE($10::jsonb, summary),
-    finished_at = COALESCE($11::timestamptz, finished_at),
+    status = COALESCE($6::text, status),
+    provider = COALESCE($7::text, provider),
+    model = COALESCE($8::text, model),
+    summary = COALESCE($9::jsonb, summary),
+    finished_at = COALESCE($10::timestamptz, finished_at),
     updated_at = NOW()
-WHERE id = $12::uuid
-    AND chat_id = $13::uuid
+WHERE id = $11::uuid
+    AND chat_id = $12::uuid
 RETURNING id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
 `
 
@@ -3303,7 +3303,6 @@ type UpdateChatDebugRunParams struct {
 	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
 	TriggerMessageID    sql.NullInt64         `db:"trigger_message_id" json:"trigger_message_id"`
 	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
-	Kind                sql.NullString        `db:"kind" json:"kind"`
 	Status              sql.NullString        `db:"status" json:"status"`
 	Provider            sql.NullString        `db:"provider" json:"provider"`
 	Model               sql.NullString        `db:"model" json:"model"`
@@ -3320,7 +3319,6 @@ func (q *sqlQuerier) UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebug
 		arg.ModelConfigID,
 		arg.TriggerMessageID,
 		arg.HistoryTipMessageID,
-		arg.Kind,
 		arg.Status,
 		arg.Provider,
 		arg.Model,

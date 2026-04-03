@@ -242,6 +242,24 @@ func TestChatDebugStep(t *testing.T) {
 	}
 
 	sdk := db2sdk.ChatDebugStep(step)
+
+	// Verify all scalar fields are mapped correctly.
+	require.Equal(t, step.ID, sdk.ID)
+	require.Equal(t, step.RunID, sdk.RunID)
+	require.Equal(t, step.ChatID, sdk.ChatID)
+	require.Equal(t, step.StepNumber, sdk.StepNumber)
+	require.Equal(t, step.Operation, sdk.Operation)
+	require.Equal(t, step.Status, sdk.Status)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, &finishedAt, sdk.FinishedAt)
+
+	// Verify JSON object fields are deserialized.
+	require.NotNil(t, sdk.NormalizedRequest)
+	require.Equal(t, map[string]any{"messages": []any{}}, sdk.NormalizedRequest)
+	require.NotNil(t, sdk.Metadata)
+	require.Equal(t, map[string]any{"provider": "openai"}, sdk.Metadata)
+
+	// Verify attempts are preserved with all fields.
 	require.Len(t, sdk.Attempts, 1)
 	require.Equal(t, float64(1), sdk.Attempts[0]["attempt_number"])
 	require.Equal(t, "completed", sdk.Attempts[0]["status"])
