@@ -732,9 +732,10 @@ func (p *Server) finishActiveChat(chatID uuid.UUID, state *activeChatRun) {
 		return
 	}
 
-	if current, ok := p.activeChats.Load(chatID); ok && current == state {
-		p.activeChats.Delete(chatID)
-	}
+	// CompareAndDelete atomically removes the entry only if it still
+	// points to our state, preventing a race where a replacement
+	// worker's entry is accidentally deleted.
+	p.activeChats.CompareAndDelete(chatID, state)
 	close(state.done)
 }
 
@@ -1336,11 +1337,12 @@ func (p *Server) EditMessage(
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
 
-	p.waitForActiveChatStop(ctx, opts.ChatID, 5*time.Second)
-
 	if p.debugSvc != nil {
-		// Tell the active worker to stop before pruning debug rows so it
-		// cannot race the edit cleanup by writing new post-edit traces.
+		// Wait for the active worker to stop before pruning debug rows
+		// so it cannot race the edit cleanup by writing new post-edit
+		// traces. Only pay the wait cost when debug is wired.
+		p.waitForActiveChatStop(ctx, opts.ChatID, 5*time.Second)
+
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cleanupCancel()
 		if _, err := p.debugSvc.DeleteAfterMessageID(
@@ -1417,16 +1419,18 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	}
 
 	if p.debugSvc != nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cleanupCancel()
 		for _, archivedChat := range archivedChats {
 			p.waitForActiveChatStop(ctx, archivedChat.ID, 5*time.Second)
+			// Each chat gets its own timeout so a slow wait on one
+			// chat does not starve the cleanup of subsequent chats.
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			if _, err := p.debugSvc.DeleteByChatID(cleanupCtx, archivedChat.ID); err != nil {
 				p.logger.Warn(ctx, "failed to delete chat debug rows after archive",
 					slog.F("chat_id", archivedChat.ID),
 					slog.Error(err),
 				)
 			}
+			cleanupCancel()
 		}
 	}
 
