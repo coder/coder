@@ -61,7 +61,8 @@ var (
 	gracefulShutdownTimeout = 2 * time.Second
 	workspaceNameRe         = regexp.MustCompile(`[/.]+|--`)
 	// stdioRetryDelays controls retry timing for transient ProxyCommand failures.
-	stdioRetryDelays = []time.Duration{0, 2 * time.Second, 5 * time.Second, 10 * time.Second, 10 * time.Second}
+	stdioRetryDelays        = []time.Duration{0, 2 * time.Second, 5 * time.Second, 10 * time.Second, 10 * time.Second}
+	coderConnectDialTimeout = 5 * time.Second
 )
 
 func (r *RootCmd) ssh() *serpent.Command {
@@ -591,26 +592,37 @@ func (r *RootCmd) sshHandleConnAttempt(
 			)
 		}
 		if exists {
-			defer cancel()
-
-			if args.networkInfoDir != "" {
-				if err := writeCoderConnectNetInfo(ctx, args.networkInfoDir); err != nil {
-					logger.Error(ctx, "failed to write coder connect net info file", slog.Error(err))
+			ccErr := func() error {
+				if args.networkInfoDir != "" {
+					if err := writeCoderConnectNetInfo(ctx, args.networkInfoDir); err != nil {
+						logger.Error(ctx, "failed to write coder connect net info file", slog.Error(err))
+					}
 				}
-			}
 
-			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
-			defer stopPolling()
+				stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
+				defer stopPolling()
 
-			usageAppName := getUsageAppName(args.usageApp)
-			if usageAppName != "" {
-				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-					AgentID: workspaceAgent.ID,
-					AppName: usageAppName,
-				})
-				defer closeUsage()
+				usageAppName := getUsageAppName(args.usageApp)
+				if usageAppName != "" {
+					closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+						AgentID: workspaceAgent.ID,
+						AppName: usageAppName,
+					})
+					defer closeUsage()
+				}
+
+				return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack)
+			}()
+			if ccErr == nil {
+				return nil
 			}
-			return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack)
+			if ctx.Err() != nil {
+				return ccErr
+			}
+			logger.Warn(ctx, "coder connect failed, falling back to tailnet",
+				slog.Error(ccErr),
+			)
+			// Fall through to tailnet path below.
 		}
 	}
 
@@ -1681,7 +1693,10 @@ func WithTestOnlyCoderConnectDialer(ctx context.Context, dialer coderConnectDial
 func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 	dialer, ok := ctx.Value(coderConnectDialerContextKey{}).(coderConnectDialer)
 	if !ok || dialer == nil {
-		return &net.Dialer{}
+		return &net.Dialer{
+			Timeout:   coderConnectDialTimeout,
+			KeepAlive: 30 * time.Second,
+		}
 	}
 	return dialer
 }

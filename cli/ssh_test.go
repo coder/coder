@@ -2153,7 +2153,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		fs := afero.NewMemMapFs()
@@ -2177,14 +2177,78 @@ func TestSSH_CoderConnect(t *testing.T) {
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-		err := testutil.TryReceive(ctx, t, errCh)
-		// Our mock dialer will always fail with this error, if it was called
-		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:22\" over tcp")
+		// The net info file is written when CC is attempted, which
+		// proves the Coder Connect path was taken.
+		require.Eventually(t, func() bool {
+			entries, _ := afero.ReadDir(fs, "/net")
+			return len(entries) > 0
+		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		// The network info file should be created since we passed `--stdio`
-		entries, err := afero.ReadDir(fs, "/net")
+		// Cancel to abort the tailnet fallback (it blocks
+		// indefinitely because ptytest doesn't speak SSH).
+		cancel()
+
+		receiveCtx := testutil.Context(t, testutil.WaitShort)
+		err := testutil.TryReceive(receiveCtx, t, errCh)
+		require.Error(t, err)
+	})
+
+	// Verifies that when the Coder Connect tunnel is broken (DNS
+	// resolves but dial fails), coder ssh falls back to tailnet.
+	t.Run("Fallback", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
+		ctx = withCoderConnectRunning(ctx)
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
 		require.NoError(t, err)
-		require.True(t, len(entries) > 0)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		err = session.Run("exit")
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		<-cmdDone
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
