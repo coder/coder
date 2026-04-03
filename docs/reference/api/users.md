@@ -245,6 +245,13 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "industry_type": "Technology",
+    "is_business": true,
+    "newsletter_marketing": true,
+    "newsletter_releases": true,
+    "org_size": "Just me"
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
