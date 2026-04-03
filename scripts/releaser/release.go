@@ -301,17 +301,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// Validate version against branch context.
 	switch {
 	case onMain && !newVersion.IsRC():
-		warnf(w, "Tagging a non-RC version (%s) on main is unusual. Non-RC releases should be tagged on release/X.Y.", newVersion)
-		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
-			return err
-		}
-		fmt.Fprintln(w)
+		return xerrors.Errorf("cannot tag a non-RC version (%s) on main; switch to a release/X.Y branch", newVersion)
 	case !onMain && newVersion.IsRC():
-		warnf(w, "Tagging an RC (%s) on a release branch is unusual. RCs should be tagged on main.", newVersion)
-		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
-			return err
-		}
-		fmt.Fprintln(w)
+		return xerrors.Errorf("cannot tag an RC (%s) on a release branch; switch to main", newVersion)
 	case !onMain && (newVersion.Major != branchMajor || newVersion.Minor != branchMinor):
 		warnf(w, "Version %s does not match branch %s (expected v%d.%d.X).",
 			newVersion, currentBranch, branchMajor, branchMinor)
