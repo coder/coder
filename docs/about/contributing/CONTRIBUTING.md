@@ -277,7 +277,7 @@ When a merged PR on `main` should also ship in older releases, add the
 `backport` label to the PR. The
 [backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
 will automatically detect the latest three `release/*` branches,
-cherry-pick the merge commit onto each one, and open draft PRs for
+cherry-pick the merge commit onto each one, and open PRs for
 review.
 
 The label can be added before or after the PR is merged. Each backport
