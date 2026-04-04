@@ -113,7 +113,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		template, err := getTemplateByID(t, ctx, api, notifications.TemplateChangelog)
 		require.NoError(t, err)
 		require.NotNil(t, template)
-		originalMethod := template.Method
+		require.Equal(t, string(database.NotificationMethodInbox), template.Method)
 
 		err = api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateChangelog, string(database.NotificationMethodWebhook))
 
@@ -129,7 +129,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		template, err = getTemplateByID(t, ctx, api, notifications.TemplateChangelog)
 		require.NoError(t, err)
 		require.NotNil(t, template)
-		require.Equal(t, originalMethod, template.Method)
+		require.Equal(t, string(database.NotificationMethodInbox), template.Method)
 	})
 
 	t.Run("Not modified", func(t *testing.T) {
