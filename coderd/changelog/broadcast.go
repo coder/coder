@@ -102,6 +102,7 @@ func BroadcastChangelog(
 	const pageSize = 100
 	var afterID uuid.UUID
 	usersNotified := 0
+	enqueueFailures := 0
 
 	for {
 		//nolint:gocritic // This needs system access to list all active users.
@@ -128,11 +129,12 @@ func BroadcastChangelog(
 				"changelog",
 			)
 			if err != nil {
+				enqueueFailures++
 				logger.Warn(ctx, "failed to enqueue changelog notification",
 					slog.F("user_id", user.ID),
 					slog.Error(err),
 				)
-				return xerrors.Errorf("enqueue changelog notification for user %s: %w", user.ID, err)
+				continue
 			}
 			if len(msgIDs) > 0 {
 				usersNotified++
@@ -143,6 +145,13 @@ func BroadcastChangelog(
 		if len(users) < pageSize {
 			break
 		}
+	}
+
+	if enqueueFailures > 0 {
+		logger.Warn(ctx, "changelog notifications had per-user enqueue failures",
+			slog.F("version", majorMinor),
+			slog.F("enqueue_failures", enqueueFailures),
+		)
 	}
 
 	if usersNotified == 0 {

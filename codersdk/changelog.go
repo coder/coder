@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 )
 
 type ChangelogEntry struct {
@@ -39,7 +40,7 @@ func (c *Client) ListChangelogEntries(ctx context.Context) (ListChangelogEntries
 }
 
 func (c *Client) GetChangelogEntry(ctx context.Context, version string) (ChangelogEntry, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/changelog/"+version, nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/changelog/"+url.PathEscape(version), nil)
 	if err != nil {
 		return ChangelogEntry{}, err
 	}
