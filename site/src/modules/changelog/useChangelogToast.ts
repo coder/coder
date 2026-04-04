@@ -16,22 +16,30 @@ export const useChangelogToast = () => {
 		}
 
 		let cancelled = false;
+		let settled = false;
+		const timers: number[] = [];
 
 		const checkForUnread = async () => {
+			if (cancelled || settled) {
+				return;
+			}
+
 			try {
 				const { notification } = await API.getUnreadChangelogNotification();
-				if (cancelled || !notification) {
+				if (cancelled || settled || !notification) {
 					return;
 				}
 
 				const version = notification.title;
 				const lastSeen = localStorage.getItem(CHANGELOG_TOAST_KEY);
 				if (lastSeen === version) {
+					settled = true;
 					return;
 				}
 
 				// Mark as seen immediately so it only shows once.
 				localStorage.setItem(CHANGELOG_TOAST_KEY, version);
+				settled = true;
 
 				toast(`What's new in Coder ${version}`, {
 					description: notification.content,
@@ -61,10 +69,22 @@ export const useChangelogToast = () => {
 			}
 		};
 
-		void checkForUnread();
+		// BroadcastChangelog runs asynchronously at startup; retry a few times
+		// so users who open the dashboard immediately after an upgrade still
+		// get the toast without manually refreshing.
+		for (const delayMs of [0, 15000, 60000] as const) {
+			timers.push(
+				window.setTimeout(() => {
+					void checkForUnread();
+				}, delayMs),
+			);
+		}
 
 		return () => {
 			cancelled = true;
+			for (const timer of timers) {
+				window.clearTimeout(timer);
+			}
 		};
 	}, [openChangelog, queryClient]);
 };
