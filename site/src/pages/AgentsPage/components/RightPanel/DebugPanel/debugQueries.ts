@@ -66,4 +66,3 @@ export const chatDebugLogging = () => ({
 	queryKey: ["chats", "config", "debug-logging"] as const,
 	queryFn: () => API.experimental.getChatDebugLogging(),
 });
-
