@@ -1724,7 +1724,7 @@ func TestGetUsersFilter(t *testing.T) {
 	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
+	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
 		res, err := client.Users(testCtx, req)
 		require.NoError(t, err)
 		reduced := make([]codersdk.ReducedUser, len(res.Users))
