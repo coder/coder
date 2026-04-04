@@ -110,9 +110,22 @@ func BroadcastChangelog(
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("query last notified version: %w", err)
 	}
-	if lastNotified == majorMinor {
-		logger.Debug(ctx, "changelog already notified for version", slog.F("version", majorMinor))
-		return nil
+	if lastNotified != "" {
+		currentVersion := "v" + majorMinor
+		lastNotifiedVersion := "v" + lastNotified
+		if semver.IsValid(currentVersion) && semver.IsValid(lastNotifiedVersion) {
+			if semver.Compare(currentVersion, lastNotifiedVersion) <= 0 {
+				logger.Debug(ctx,
+					"changelog already notified for this version or newer",
+					slog.F("version", majorMinor),
+					slog.F("last_notified_version", lastNotified),
+				)
+				return nil
+			}
+		} else if lastNotified == majorMinor {
+			logger.Debug(ctx, "changelog already notified for version", slog.F("version", majorMinor))
+			return nil
+		}
 	}
 
 	entry, err := changelogStore.Get(majorMinor)
