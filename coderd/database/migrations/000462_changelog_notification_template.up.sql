@@ -4,14 +4,12 @@ INSERT INTO notification_templates (
     title_template,
     body_template,
     "group",
-    actions,
-    method
+    actions
 ) VALUES (
     'b02d53fd-477d-4a65-8d42-1b7e4b38f8c3',
     'Changelog',
     E'{{.Labels.version}}',
     E'{{.Labels.summary}}',
     'Changelog',
-    '[{"label":"View changelog","url":"/changelog/{{.Labels.version}}"}]'::jsonb,
-    'inbox'::notification_method
+    '[{"label":"View changelog","url":"/changelog/{{.Labels.version}}"}]'::jsonb
 );
