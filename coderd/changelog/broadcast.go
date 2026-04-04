@@ -55,9 +55,9 @@ func BroadcastChangelog(
 			return false
 		}
 
-		currentVersion := "v" + majorMinor
-		lastNotifiedVersion := "v" + lastNotified
-		if semver.IsValid(currentVersion) && semver.IsValid(lastNotifiedVersion) {
+		currentVersion := canonicalSemverVersion(majorMinor)
+		lastNotifiedVersion := canonicalSemverVersion(lastNotified)
+		if currentVersion != "" && lastNotifiedVersion != "" {
 			return semver.Compare(currentVersion, lastNotifiedVersion) <= 0
 		}
 
@@ -226,6 +226,27 @@ func BroadcastChangelog(
 		slog.F("users_notified", usersNotified),
 	)
 	return nil
+}
+
+func canonicalSemverVersion(version string) string {
+	trimmed := strings.TrimSpace(strings.TrimPrefix(version, "v"))
+	if trimmed == "" {
+		return ""
+	}
+
+	parts := strings.Split(trimmed, ".")
+	switch len(parts) {
+	case 1:
+		trimmed += ".0.0"
+	case 2:
+		trimmed += ".0"
+	}
+
+	canonical := semver.Canonical("v" + trimmed)
+	if canonical == "" {
+		return ""
+	}
+	return canonical
 }
 
 func changelogNotifiedUsersByVersion(ctx context.Context, sqlDB *sql.DB, version string) (map[uuid.UUID]struct{}, error) {
