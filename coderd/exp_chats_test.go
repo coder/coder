@@ -7203,7 +7203,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	modelConfig := createChatModelConfig(t, client)
 
 	t.Run("EmptyByDefault", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		thresholds, err := client.GetUserChatCompactionThresholds(ctx)
@@ -7212,7 +7211,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("PutAndGet", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7230,7 +7228,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("UpsertChangesValue", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7251,7 +7248,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("BoundaryValues", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7278,7 +7274,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("ValidationRejectsInvalid", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7293,7 +7288,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
@@ -7305,7 +7299,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("DeleteIdempotent", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
@@ -7313,7 +7306,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("NonExistentModelConfig", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		fakeID := uuid.New()
@@ -7324,7 +7316,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 
 	t.Run("IsolatedPerUser", func(t *testing.T) {
-		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
