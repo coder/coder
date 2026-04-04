@@ -35,7 +35,6 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
-import { chatDebugLogging } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugQueries";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -487,13 +486,11 @@ const AgentChatPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
-	const deploymentDebugLoggingQuery = useQuery(chatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
-	const deploymentDebugEnabled =
-		deploymentDebugLoggingQuery.data?.debug_logging_enabled ?? false;
-	const debugLoggingEnabled = deploymentDebugEnabled;
+	// Debug panel is always available (config endpoint removed).
+	const debugLoggingEnabled = true;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];

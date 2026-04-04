@@ -61,8 +61,3 @@ export const chatDebugRun = (chatId: string, runId: string) => ({
 	}) => debugRunRefetchInterval(state.data, state.status === "error"),
 	refetchIntervalInBackground: false,
 });
-
-export const chatDebugLogging = () => ({
-	queryKey: ["chats", "config", "debug-logging"] as const,
-	queryFn: () => API.experimental.getChatDebugLogging(),
-});
