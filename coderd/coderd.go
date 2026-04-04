@@ -1249,7 +1249,6 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
 				})
-
 			})
 		})
 

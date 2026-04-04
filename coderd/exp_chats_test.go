@@ -7202,7 +7202,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
-	t.Run("EmptyByDefault", func(t *testing.T) {
+	t.Run("EmptyByDefault", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		thresholds, err := client.GetUserChatCompactionThresholds(ctx)
@@ -7210,7 +7210,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.Empty(t, thresholds.Thresholds)
 	})
 
-	t.Run("PutAndGet", func(t *testing.T) {
+	t.Run("PutAndGet", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7227,7 +7227,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("UpsertChangesValue", func(t *testing.T) {
+	t.Run("UpsertChangesValue", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7247,7 +7247,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("BoundaryValues", func(t *testing.T) {
+	t.Run("BoundaryValues", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7273,7 +7273,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 100, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("ValidationRejectsInvalid", func(t *testing.T) {
+	t.Run("ValidationRejectsInvalid", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7287,7 +7287,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("Delete", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
@@ -7298,14 +7298,14 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.Empty(t, thresholds.Thresholds)
 	})
 
-	t.Run("DeleteIdempotent", func(t *testing.T) {
+	t.Run("DeleteIdempotent", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
 		require.NoError(t, err)
 	})
 
-	t.Run("NonExistentModelConfig", func(t *testing.T) {
+	t.Run("NonExistentModelConfig", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		fakeID := uuid.New()
@@ -7315,7 +7315,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("IsolatedPerUser", func(t *testing.T) {
+	t.Run("IsolatedPerUser", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
