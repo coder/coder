@@ -56,8 +56,8 @@ func TestStoreGet(t *testing.T) {
 	if entry.Summary != "Dynamic parameters, prebuilt workspaces, and more." {
 		t.Fatalf("Summary = %q, want %q", entry.Summary, "Dynamic parameters, prebuilt workspaces, and more.")
 	}
-	if entry.Image != "assets/2.30-hero.webp" {
-		t.Fatalf("Image = %q, want %q", entry.Image, "assets/2.30-hero.webp")
+	if entry.Image != "assets/2.30-hero.svg" {
+		t.Fatalf("Image = %q, want %q", entry.Image, "assets/2.30-hero.svg")
 	}
 
 	if strings.Contains(entry.Content, "version:") {
@@ -103,10 +103,19 @@ func TestStoreHas(t *testing.T) {
 	t.Parallel()
 
 	s := changelog.NewStore()
-	if !s.Has("2.30") {
+	has230, err := s.Has("2.30")
+	if err != nil {
+		t.Fatalf("Has(\"2.30\") error: %v", err)
+	}
+	if !has230 {
 		t.Fatalf("Has(\"2.30\") = false, want true")
 	}
-	if s.Has("99.99") {
+
+	has9999, err := s.Has("99.99")
+	if err != nil {
+		t.Fatalf("Has(\"99.99\") error: %v", err)
+	}
+	if has9999 {
 		t.Fatalf("Has(\"99.99\") = true, want false")
 	}
 }

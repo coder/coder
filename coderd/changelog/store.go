@@ -112,10 +112,14 @@ func (s *Store) Get(version string) (*Entry, error) {
 }
 
 // Has reports whether an entry exists for the given version.
-func (s *Store) Has(version string) bool {
+func (s *Store) Has(version string) (bool, error) {
 	s.init()
-	e, _ := s.Get(version)
-	return e != nil
+	if s.err != nil {
+		return false, s.err
+	}
+
+	_, ok := s.byVer[version]
+	return ok, nil
 }
 
 // ParseEntry parses a changelog entry markdown file (YAML frontmatter + body).

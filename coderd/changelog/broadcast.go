@@ -76,7 +76,11 @@ func BroadcastChangelog(
 		return nil
 	}
 
-	if !changelogStore.Has(majorMinor) {
+	hasEntry, err := changelogStore.Has(majorMinor)
+	if err != nil {
+		return xerrors.Errorf("check changelog entry for version %q: %w", majorMinor, err)
+	}
+	if !hasEntry {
 		logger.Debug(ctx, "no changelog entry for version", slog.F("version", majorMinor))
 		return nil
 	}
