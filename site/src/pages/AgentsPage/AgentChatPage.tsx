@@ -35,10 +35,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
-import {
-	chatDebugLogging,
-	chatUserDebugLogging,
-} from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugQueries";
+import { chatDebugLogging } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugQueries";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -491,20 +488,12 @@ const AgentChatPage: FC = () => {
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const deploymentDebugLoggingQuery = useQuery(chatDebugLogging());
-	const userDebugLoggingQuery = useQuery(chatUserDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
-	const chatDebugOverride = chatQuery.data?.debug_logs_enabled_override;
-	const userDebugEnabled =
-		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
-	const userDebugOverrideSet =
-		userDebugLoggingQuery.data?.debug_logging_override_set ?? false;
 	const deploymentDebugEnabled =
 		deploymentDebugLoggingQuery.data?.debug_logging_enabled ?? false;
-	const debugLoggingEnabled =
-		chatDebugOverride ??
-		(userDebugOverrideSet ? userDebugEnabled : deploymentDebugEnabled);
+	const debugLoggingEnabled = deploymentDebugEnabled;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
