@@ -1,4 +1,4 @@
-# Persistent Shared Workspaces with Service Accounts (Premium)
+# Persistent Shared Workspaces with Service Accounts
 
 > [!NOTE]
 > This guide requires a
