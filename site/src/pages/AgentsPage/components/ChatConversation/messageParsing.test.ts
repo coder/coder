@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	mergeTools,
@@ -516,8 +515,8 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 describe("parseMessagesWithMergedTools", () => {
 	const makeChatMessage = (
 		id: number,
-		content: TypesGen.ChatMessagePart[],
-	): TypesGen.ChatMessage => ({
+		content: ChatMessagePart[],
+	): ChatMessage => ({
 		id,
 		chat_id: "chat-1",
 		content,
@@ -561,15 +560,15 @@ describe("parseMessagesWithMergedTools", () => {
 					tool_call_id: "tool-1",
 					tool_name: "test_tool",
 					args: {},
-				} as unknown as TypesGen.ChatMessagePart,
+				},
 			]),
 			makeChatMessage(2, [
 				{
 					type: "tool-result",
 					tool_call_id: "tool-1",
 					tool_name: "test_tool",
-					result: "result",
-				} as unknown as TypesGen.ChatMessagePart,
+					result: { output: "result" },
+				},
 			]),
 		];
 		const result = parseMessagesWithMergedTools(msgs);

@@ -49,7 +49,7 @@ describe("lazyWithRetry", () => {
 	});
 
 	it("retries and resolves after transient failure", async () => {
-		const chunkError = new Error("Failed to fetch chunk");
+		const chunkError = new Error("Failed to fetch dynamically imported module");
 		const factory = vi
 			.fn()
 			.mockRejectedValueOnce(chunkError)
@@ -70,7 +70,7 @@ describe("lazyWithRetry", () => {
 	});
 
 	it("rejects after exhausting retries", async () => {
-		const chunkError = new Error("Failed to fetch chunk");
+		const chunkError = new Error("Failed to fetch dynamically imported module");
 		const factory = vi.fn().mockRejectedValue(chunkError);
 
 		lazyWithRetry(factory);
@@ -93,5 +93,20 @@ describe("lazyWithRetry", () => {
 
 		await expect(promise).rejects.toBe(chunkError);
 		expect(factory).toHaveBeenCalledTimes(4);
+	});
+
+	it("fails immediately for non-transient errors", async () => {
+		const moduleError = new Error("Cannot find module './missing'");
+		const factory = vi.fn().mockRejectedValue(moduleError);
+
+		lazyWithRetry(factory);
+		const wrappedFactory = getWrappedFactory();
+
+		const promise = wrappedFactory();
+		await expect(promise).rejects.toBe(moduleError);
+
+		vi.advanceTimersByTime(7000);
+		await flushMicrotasks();
+		expect(factory).toHaveBeenCalledTimes(1);
 	});
 });
