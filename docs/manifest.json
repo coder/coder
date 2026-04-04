@@ -1285,7 +1285,8 @@
 				{
 					"title": "Persistent Shared Workspaces",
 					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing",
-					"path": "./tutorials/persistent-shared-workspaces.md"
+					"path": "./tutorials/persistent-shared-workspaces.md",
+					"state": ["premium"]
 				},
 				{
 					"title": "Google to AWS Federation",

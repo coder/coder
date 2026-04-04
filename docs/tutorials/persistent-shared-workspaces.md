@@ -1,4 +1,10 @@
-# Persistent Shared Workspaces with Service Accounts
+# Persistent Shared Workspaces with Service Accounts (Premium)
+
+> [!NOTE]
+> This guide requires a
+> [Premium license](https://coder.com/pricing#compare-plans) because service
+> accounts are a Premium feature. For more details,
+> [contact your account team](https://coder.com/contact).
 
 This guide walks through setting up a long-lived workspace that is owned by a
 service account and shared with a rotating set of users. Because no single
@@ -27,6 +33,8 @@ group names, and template to match your use case.
 - A running Coder deployment (v2.20+) with workspace sharing enabled. Sharing
   is on by default for OSS; Premium deployments may require
   [admin configuration](../user-guides/shared-workspaces.md#policies).
+- A [Premium license](https://coder.com/pricing#compare-plans), because service
+  accounts are a Premium feature.
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
 - [OIDC authentication](../admin/users/oidc-auth/index.md) configured so
@@ -44,7 +52,8 @@ group names, and template to match your use case.
 
 Create a dedicated service account that will own the shared workspace. Service
 accounts are non-human accounts intended for automation and shared ownership.
-Because no individual user owns the workspace, there are no personal credentials to expose and the shared environment is not affected when any user
+Because no individual user owns the workspace, there are no personal
+credentials to expose and the shared environment is not affected when any user
 leaves the team or the organization.
 
 ```shell
