@@ -110,6 +110,11 @@ func BroadcastChangelog(
 		"summary": entry.Summary,
 	}
 
+	alreadyNotifiedUsers, err := changelogNotifiedUsersByVersion(ctx, sqlDB, majorMinor)
+	if err != nil {
+		return xerrors.Errorf("list users already notified for version %s: %w", majorMinor, err)
+	}
+
 	const pageSize = 100
 	var afterID uuid.UUID
 	usersNotified := 0
@@ -131,6 +136,10 @@ func BroadcastChangelog(
 		}
 
 		for _, user := range users {
+			if _, ok := alreadyNotifiedUsers[user.ID]; ok {
+				continue
+			}
+
 			msgIDs, err := enqueuer.Enqueue(
 				//nolint:gocritic // Enqueueing notifications requires notifier permissions.
 				dbauthz.AsNotifier(ctx),
@@ -149,6 +158,7 @@ func BroadcastChangelog(
 			}
 			if len(msgIDs) > 0 {
 				usersNotified++
+				alreadyNotifiedUsers[user.ID] = struct{}{}
 			}
 		}
 
@@ -224,4 +234,32 @@ func BroadcastChangelog(
 		slog.F("users_notified", usersNotified),
 	)
 	return nil
+}
+
+func changelogNotifiedUsersByVersion(ctx context.Context, sqlDB *sql.DB, version string) (map[uuid.UUID]struct{}, error) {
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT DISTINCT user_id
+		FROM notification_messages
+		WHERE notification_template_id = $1
+			AND payload -> 'labels' ->> 'version' = $2
+	`, notifications.TemplateChangelog, version)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make(map[uuid.UUID]struct{})
+	for rows.Next() {
+		var userID uuid.UUID
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		users[userID] = struct{}{}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
