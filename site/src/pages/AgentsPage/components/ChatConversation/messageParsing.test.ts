@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	mergeTools,
@@ -509,5 +510,70 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
+	});
+});
+
+describe("parseMessagesWithMergedTools", () => {
+	const makeChatMessage = (
+		id: number,
+		content: TypesGen.ChatMessagePart[],
+	): TypesGen.ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		content,
+		role: "assistant",
+		created_at: new Date().toISOString(),
+	});
+
+	it("returns cached entries for unchanged messages", () => {
+		const msgs = [
+			makeChatMessage(1, [{ type: "text", text: "hello" }]),
+			makeChatMessage(2, [{ type: "text", text: "world" }]),
+		];
+		const first = parseMessagesWithMergedTools(msgs);
+		const second = parseMessagesWithMergedTools(msgs);
+		expect(second[0]).toBe(first[0]);
+		expect(second[1]).toBe(first[1]);
+	});
+
+	it("only re-parses changed messages during streaming", () => {
+		const msgs = [
+			makeChatMessage(1, [{ type: "text", text: "hello" }]),
+			makeChatMessage(2, [{ type: "text", text: "partial" }]),
+		];
+		const first = parseMessagesWithMergedTools(msgs);
+		const updated = [
+			msgs[0],
+			makeChatMessage(2, [{ type: "text", text: "partial response" }]),
+		];
+		const second = parseMessagesWithMergedTools(updated);
+		// First message is cached (same reference)
+		expect(second[0]).toBe(first[0]);
+		// Second message was re-parsed (different reference)
+		expect(second[1]).not.toBe(first[1]);
+	});
+
+	it("preserves tool-result merging across messages", () => {
+		const msgs = [
+			makeChatMessage(1, [
+				{
+					type: "tool-call",
+					tool_call_id: "tool-1",
+					tool_name: "test_tool",
+					args: {},
+				} as unknown as TypesGen.ChatMessagePart,
+			]),
+			makeChatMessage(2, [
+				{
+					type: "tool-result",
+					tool_call_id: "tool-1",
+					tool_name: "test_tool",
+					result: "result",
+				} as unknown as TypesGen.ChatMessagePart,
+			]),
+		];
+		const result = parseMessagesWithMergedTools(msgs);
+		expect(result[0].parsed.tools.length).toBeGreaterThan(0);
+		expect(result[0].parsed.tools[0].result).toBeDefined();
 	});
 });

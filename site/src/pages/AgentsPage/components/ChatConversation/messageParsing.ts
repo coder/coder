@@ -256,13 +256,36 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
+// Per-message parse cache to avoid re-parsing unchanged messages
+// during streaming updates.
+type MessageParseCacheEntry = {
+	fingerprint: string;
+	result: { message: TypesGen.ChatMessage; parsed: ParsedMessageContent };
+};
+let messageParseCache = new Map<number, MessageParseCacheEntry>();
+
+const buildContentFingerprint = (msg: TypesGen.ChatMessage): string =>
+	JSON.stringify(msg.content ?? null);
+
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
 ): ParsedMessageEntry[] => {
-	const rawParsed = messages.map((message) => ({
-		message,
-		parsed: parseMessageContent(message.content),
-	}));
+	const nextCache = new Map<number, MessageParseCacheEntry>();
+	const rawParsed = messages.map((message) => {
+		const fp = buildContentFingerprint(message);
+		const cached = messageParseCache.get(message.id);
+		if (cached && cached.fingerprint === fp) {
+			nextCache.set(message.id, cached);
+			return cached.result;
+		}
+		const result = {
+			message,
+			parsed: parseMessageContent(message.content),
+		};
+		nextCache.set(message.id, { fingerprint: fp, result });
+		return result;
+	});
+	messageParseCache = nextCache;
 
 	const globalToolResults = new Map<string, ParsedToolResult>();
 	for (const { parsed } of rawParsed) {
