@@ -145,6 +145,14 @@ func BroadcastChangelog(
 		}
 	}
 
+	if usersNotified == 0 {
+		logger.Debug(ctx,
+			"skipping changelog notified-version update because no notifications were enqueued",
+			slog.F("version", majorMinor),
+		)
+		return nil
+	}
+
 	_, err = conn.ExecContext(ctx,
 		"INSERT INTO site_configs (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1",
 		changelogLastNotifiedSiteConfigKey,

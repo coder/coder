@@ -6,6 +6,9 @@ import { useChangelog } from "./ChangelogProvider";
 
 const CHANGELOG_TOAST_KEY = "changelog-toast-last-seen";
 
+const changelogToastStorageKey = (userID: string) =>
+	`${CHANGELOG_TOAST_KEY}:${userID}`;
+
 export const useChangelogToast = () => {
 	const { openChangelog } = useChangelog();
 	const queryClient = useQueryClient();
@@ -31,14 +34,15 @@ export const useChangelogToast = () => {
 				}
 
 				const version = notification.title;
-				const lastSeen = localStorage.getItem(CHANGELOG_TOAST_KEY);
+				const toastStorageKey = changelogToastStorageKey(notification.user_id);
+				const lastSeen = localStorage.getItem(toastStorageKey);
 				if (lastSeen === version) {
 					settled = true;
 					return;
 				}
 
 				// Mark as seen immediately so it only shows once.
-				localStorage.setItem(CHANGELOG_TOAST_KEY, version);
+				localStorage.setItem(toastStorageKey, version);
 				settled = true;
 
 				toast(`What's new in Coder ${version}`, {

@@ -102,14 +102,9 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 	}
 
 	methods := []database.NotificationMethod{}
-	switch {
-	case templateID == TemplateChangelog:
-		if s.inboxEnabled {
-			methods = append(methods, database.NotificationMethodInbox)
-		}
-	case metadata.CustomMethod.Valid:
+	if metadata.CustomMethod.Valid {
 		methods = append(methods, metadata.CustomMethod.NotificationMethod)
-	case s.defaultEnabled:
+	} else if s.defaultEnabled {
 		methods = append(methods, s.defaultMethod)
 	}
 

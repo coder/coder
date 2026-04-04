@@ -1007,9 +1007,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Broadcast changelog notifications to all users for
 			// new versions. This must run after newAPI so that the
 			// database is wrapped with dbauthz.
+			changelogNotificationsCfg := notificationsCfg
+			changelogNotificationsCfg.SMTP = codersdk.NotificationsEmailConfig{}
+			changelogNotificationsCfg.Webhook = codersdk.NotificationsWebhookConfig{}
+			changelogEnqueuer, err := notifications.NewStoreEnqueuer(
+				changelogNotificationsCfg,
+				options.Database,
+				helpers,
+				logger.Named("notifications.changelog_enqueuer"),
+				quartz.NewReal(),
+			)
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate changelog notification enqueuer: %w", err)
+			}
 			changelogStore := changelog.NewStore()
 			go func() {
-				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, coderAPI.Database, enqueuer, changelogStore); err != nil {
+				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, coderAPI.Database, changelogEnqueuer, changelogStore); err != nil {
 					logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
 				}
 			}()
