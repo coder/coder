@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import {
@@ -25,6 +25,40 @@ export const ChangelogDialog: FC<ChangelogDialogProps> = ({
 		queryFn: () => API.getChangelogEntry(version!),
 		enabled: Boolean(version),
 	});
+
+	const [imageObjectURL, setImageObjectURL] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!data?.image_url) {
+			setImageObjectURL(null);
+			return;
+		}
+
+		let cancelled = false;
+		let objectURL: string | null = null;
+
+		void (async () => {
+			try {
+				const blob = await API.getChangelogAsset(data.image_url);
+				if (cancelled) {
+					return;
+				}
+				objectURL = URL.createObjectURL(blob);
+				setImageObjectURL(objectURL);
+			} catch {
+				if (!cancelled) {
+					setImageObjectURL(null);
+				}
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+			if (objectURL) {
+				URL.revokeObjectURL(objectURL);
+			}
+		};
+	}, [data?.image_url]);
 
 	return (
 		<Dialog open={Boolean(version)} onOpenChange={(open) => !open && onClose()}>
@@ -55,9 +89,9 @@ export const ChangelogDialog: FC<ChangelogDialogProps> = ({
 							)}
 						</DialogHeader>
 
-						{data.image_url && (
+						{imageObjectURL && (
 							<img
-								src={data.image_url}
+								src={imageObjectURL}
 								alt={`${data.title} hero`}
 								className="w-full rounded-lg"
 							/>

@@ -2910,6 +2910,13 @@ class ApiMethods {
 		return res.data;
 	};
 
+	getChangelogAsset = async (assetURL: string): Promise<Blob> => {
+		const res = await this.axios.get(assetURL, {
+			responseType: "blob",
+		});
+		return res.data;
+	};
+
 	getUnreadChangelogNotification =
 		async (): Promise<TypesGen.UnreadChangelogNotificationResponse> => {
 			const res =
