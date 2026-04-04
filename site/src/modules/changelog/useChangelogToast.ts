@@ -40,13 +40,19 @@ export const useChangelogToast = () => {
 						label: "View changelog",
 						onClick: () => {
 							openChangelog(version);
-							void API.updateInboxNotificationReadStatus(notification.id, {
-								is_read: true,
-							}).then(() => {
-								void queryClient.invalidateQueries({
-									queryKey: ["notifications"],
-								});
-							});
+							void (async () => {
+								try {
+									await API.updateInboxNotificationReadStatus(notification.id, {
+										is_read: true,
+									});
+								} catch {
+									// Silently ignore — not critical.
+								} finally {
+									void queryClient.invalidateQueries({
+										queryKey: ["notifications"],
+									});
+								}
+							})();
 						},
 					},
 				});

@@ -158,7 +158,7 @@ func BroadcastChangelog(
 					slog.F("user_id", user.ID),
 					slog.Error(err),
 				)
-				continue
+				return xerrors.Errorf("enqueue changelog notification for user %s: %w", user.ID, err)
 			}
 			if len(msgIDs) > 0 {
 				usersNotified++
