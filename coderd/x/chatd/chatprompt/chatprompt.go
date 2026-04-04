@@ -1193,13 +1193,20 @@ func fileReferencePartToText(part codersdk.ChatMessagePart) string {
 }
 
 // skillPartToText formats a skill SDK part as plain text for
-// LLM consumption. The user attached this skill chip to their
-// message so the LLM should know which skill was referenced.
+// LLM consumption. The user explicitly attached this skill chip
+// to their message, so the text makes clear they want the agent
+// to use the named skill (listed in <available-skills>).
 func skillPartToText(part codersdk.ChatMessagePart) string {
 	if part.SkillDescription != "" {
-		return fmt.Sprintf("[skill] %s: %s", part.SkillName, part.SkillDescription)
+		return fmt.Sprintf(
+			"Use the %q skill (%s). Read it with read_skill before following its instructions.",
+			part.SkillName, part.SkillDescription,
+		)
 	}
-	return fmt.Sprintf("[skill] %s", part.SkillName)
+	return fmt.Sprintf(
+		"Use the %q skill. Read it with read_skill before following its instructions.",
+		part.SkillName,
+	)
 }
 
 // toolResultPartToMessagePart converts an SDK tool-result part

@@ -3779,7 +3779,7 @@ func createChatInputFromParts(
 				SkillName:        part.SkillName,
 				SkillDescription: part.SkillDescription,
 			})
-			textParts = append(textParts, fmt.Sprintf("[skill] %s", part.SkillName))
+			textParts = append(textParts, fmt.Sprintf("Use the %q skill", part.SkillName))
 		default:
 			return nil, "", &codersdk.Response{
 				Message: "Invalid input part.",

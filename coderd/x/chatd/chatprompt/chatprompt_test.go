@@ -1125,8 +1125,9 @@ func TestSkillPartPreservation(t *testing.T) {
 
 	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
 	require.True(t, ok, "skill should become TextPart for LLM")
-	assert.Contains(t, textPart.Text, "[skill]")
 	assert.Contains(t, textPart.Text, "deep-review")
+	assert.Contains(t, textPart.Text, "read_skill")
+	assert.Contains(t, textPart.Text, "Multi-reviewer code review")
 	assert.Contains(t, textPart.Text, "Multi-reviewer code review")
 }
 
