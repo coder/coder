@@ -9,6 +9,11 @@ const CHANGELOG_TOAST_KEY = "changelog-toast-last-seen";
 const changelogToastStorageKey = (userID: string) =>
 	`${CHANGELOG_TOAST_KEY}:${userID}`;
 
+const unreadChangelogNotificationQueryKey = [
+	"changelog",
+	"unreadNotification",
+] as const;
+
 export const useChangelogToast = () => {
 	const { openChangelog } = useChangelog();
 	const queryClient = useQueryClient();
@@ -28,7 +33,11 @@ export const useChangelogToast = () => {
 			}
 
 			try {
-				const { notification } = await API.getUnreadChangelogNotification();
+				const { notification } = await queryClient.fetchQuery({
+					queryKey: unreadChangelogNotificationQueryKey,
+					queryFn: API.getUnreadChangelogNotification,
+					staleTime: 0,
+				});
 				if (cancelled || settled || !notification) {
 					return;
 				}
@@ -61,6 +70,9 @@ export const useChangelogToast = () => {
 								} finally {
 									void queryClient.invalidateQueries({
 										queryKey: ["notifications"],
+									});
+									void queryClient.invalidateQueries({
+										queryKey: unreadChangelogNotificationQueryKey,
 									});
 								}
 							})();

@@ -177,14 +177,6 @@ func BroadcastChangelog(
 		return nil
 	}
 
-	if usersNotified == 0 {
-		logger.Debug(ctx,
-			"skipping changelog notified-version update because no notifications were enqueued",
-			slog.F("version", majorMinor),
-		)
-		return nil
-	}
-
 	err = func() error {
 		conn, err := sqlDB.Conn(ctx)
 		if err != nil {
