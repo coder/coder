@@ -2,9 +2,9 @@
 
 OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Bridge by setting custom base URLs for each provider.
 
-## Configuration
+## Centralized API Key
 
-You can configure OpenCode to connect to AI Bridge by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
+Set the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
 
 ```json
 {
@@ -12,21 +12,19 @@ You can configure OpenCode to connect to AI Bridge by setting the following conf
   "provider": {
     "anthropic": {
       "options": {
-        "baseURL": "https://coder.example.com/api/v2/aibridge/anthropic/v1"
+        "baseURL": "<your-deployment-url>/api/v2/aibridge/anthropic/v1"
       }
     },
     "openai": {
       "options": {
-        "baseURL": "https://coder.example.com/api/v2/aibridge/openai/v1"
+        "baseURL": "<your-deployment-url>/api/v2/aibridge/openai/v1"
       }
     }
   }
 }
 ```
 
-## Authentication
-
-To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and replace `<your-coder-session-token>` in `~/.local/share/opencode/auth.json`
+To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in `~/.local/share/opencode/auth.json`:
 
 ```json
 {
@@ -37,6 +35,49 @@ To authenticate with AI Bridge, get your **[Coder session token](../../../admin/
   "openai": {
     "type": "api",
     "key": "<your-coder-session-token>"
+  }
+}
+```
+
+## BYOK (Personal API Key)
+
+Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-AI-Governance-Token` header with your Coder session token:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "baseURL": "<your-deployment-url>/api/v2/aibridge/anthropic/v1",
+        "headers": {
+          "X-Coder-AI-Governance-Token": "<your-coder-session-token>"
+        }
+      }
+    },
+    "openai": {
+      "options": {
+        "baseURL": "<your-deployment-url>/api/v2/aibridge/openai/v1",
+        "headers": {
+          "X-Coder-AI-Governance-Token": "<your-coder-session-token>"
+        }
+      }
+    }
+  }
+}
+```
+
+Set your personal API keys in `~/.local/share/opencode/auth.json`:
+
+```json
+{
+  "anthropic": {
+    "type": "api",
+    "key": "<your-anthropic-api-key>"
+  },
+  "openai": {
+    "type": "api",
+    "key": "<your-openai-api-key>"
   }
 }
 ```
