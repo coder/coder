@@ -37,7 +37,6 @@ export const useChangelogToast = () => {
 				const toastStorageKey = changelogToastStorageKey(notification.user_id);
 				const lastSeen = localStorage.getItem(toastStorageKey);
 				if (lastSeen === version) {
-					settled = true;
 					return;
 				}
 
