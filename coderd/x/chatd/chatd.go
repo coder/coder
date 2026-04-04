@@ -90,6 +90,12 @@ const (
 	// goroutines and lifecycle management.
 	streamDropWarnInterval = 10 * time.Second
 
+	// bufferRetainGracePeriod is how long the message_part
+	// buffer is kept after processing completes. This gives
+	// cross-replica relay subscribers time to connect and
+	// snapshot the buffer before it is garbage-collected.
+	bufferRetainGracePeriod = 5 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -691,6 +697,13 @@ type chatStreamState struct {
 	bufferLastWarnAt     time.Time
 	subscriberDropCount  int64
 	subscriberLastWarnAt time.Time
+	// bufferRetainedAt records when processing completed and
+	// the buffer was retained for late-connecting relay
+	// subscribers. Zero while buffering is active. When
+	// non-zero, cleanupStreamIfIdle skips GC until the grace
+	// period expires so cross-replica relays can still
+	// snapshot the buffer.
+	bufferRetainedAt time.Time
 }
 
 // resetDropCounters zeroes the rate-limiting state for both buffer
@@ -2681,12 +2694,23 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 
 // cleanupStreamIfIdle removes the chat entry from the sync.Map
 // when there are no subscribers and the stream is not buffering.
+// When bufferRetainedAt is set, cleanup is deferred until the
+// grace period expires so cross-replica relay subscribers can
+// still snapshot the buffer.
 // The caller must hold state.mu.
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
-	if !state.buffering && len(state.subscribers) == 0 {
-		p.chatStreams.Delete(chatID)
-		p.workspaceMCPToolsCache.Delete(chatID)
+	if state.buffering || len(state.subscribers) > 0 {
+		return
 	}
+	// Keep stream state alive during the grace period so
+	// late-connecting relay subscribers can snapshot the
+	// buffer after the worker finishes processing.
+	if !state.bufferRetainedAt.IsZero() &&
+		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
+		return
+	}
+	p.chatStreams.Delete(chatID)
+	p.workspaceMCPToolsCache.Delete(chatID)
 }
 
 func (p *Server) Subscribe(
@@ -3567,15 +3591,20 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState := p.getOrCreateStreamState(chat.ID)
 	streamState.mu.Lock()
 	streamState.buffer = nil
+	streamState.bufferRetainedAt = time.Time{}
 	streamState.resetDropCounters()
 	streamState.buffering = true
 	streamState.mu.Unlock()
 	defer func() {
 		streamState.mu.Lock()
-		streamState.buffer = nil
 		streamState.resetDropCounters()
 		streamState.buffering = false
-		p.cleanupStreamIfIdle(chat.ID, streamState)
+		// Retain the buffer for a grace period so
+		// cross-replica relay subscribers can still snapshot
+		// it after processing completes. The buffer is
+		// cleared when the next processChat starts or when
+		// cleanupStreamIfIdle runs after the grace period.
+		streamState.bufferRetainedAt = p.clock.Now()
 		streamState.mu.Unlock()
 	}()
 
@@ -4302,17 +4331,12 @@ func (p *Server) runChat(
 			p.publishMessage(chat.ID, msg)
 		}
 
-		// Clear the stream buffer now that the step is
-		// persisted. Late-joining subscribers will load
-		// these messages from the database instead.
-		if val, ok := p.chatStreams.Load(chat.ID); ok {
-			if ss, ok := val.(*chatStreamState); ok {
-				ss.mu.Lock()
-				ss.buffer = nil
-				ss.resetDropCounters()
-				ss.mu.Unlock()
-			}
-		}
+		// Do NOT clear the stream buffer here. Cross-replica
+		// relay subscribers may still need to snapshot buffered
+		// message_parts after processing completes. The buffer
+		// is bounded by maxStreamBufferSize and is cleared when
+		// the next processChat starts or when the stream state
+		// is garbage-collected after the retention grace period.
 
 		return nil
 	}
