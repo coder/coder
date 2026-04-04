@@ -89,9 +89,9 @@ export const ChangelogDialog: FC<ChangelogDialogProps> = ({
 							)}
 						</DialogHeader>
 
-						{imageObjectURL && (
+						{data.image_url && (
 							<img
-								src={imageObjectURL}
+								src={imageObjectURL ?? data.image_url}
 								alt={`${data.title} hero`}
 								className="w-full rounded-lg"
 							/>
