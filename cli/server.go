@@ -1007,12 +1007,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Broadcast changelog notifications to all users for
 			// new versions. This must run after newAPI so that the
 			// database is wrapped with dbauthz.
-			changelogStore := changelog.NewStore()
-			go func() {
-				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, coderAPI.Database, enqueuer, changelogStore); err != nil {
-					logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
-				}
-			}()
+			if notificationsCfg.Inbox.Enabled.Value() {
+				changelogStore := changelog.NewStore()
+				go func() {
+					if err := changelog.BroadcastChangelog(
+						ctx,
+						logger.Named("changelog.broadcast"),
+						sqlDB,
+						coderAPI.Database,
+						enqueuer,
+						changelogStore,
+					); err != nil {
+						logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
+					}
+				}()
+			} else {
+				logger.Debug(ctx, "skipping changelog broadcast because inbox notifications are disabled")
+			}
 
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
