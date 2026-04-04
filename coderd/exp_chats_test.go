@@ -7195,6 +7195,7 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
+//nolint:tparallel // subtests share state via client, firstUser, modelConfig
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
 
