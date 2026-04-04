@@ -12,12 +12,12 @@ You can configure OpenCode to connect to AI Bridge by setting the following conf
   "provider": {
     "anthropic": {
       "options": {
-        "baseURL": "<your-deployment-url>/api/v2/aibridge/anthropic/v1"
+        "baseURL": "https://coder.example.com/api/v2/aibridge/anthropic/v1"
       }
     },
     "openai": {
       "options": {
-        "baseURL": "<your-deployment-url>/api/v2/aibridge/openai/v1"
+        "baseURL": "https://coder.example.com/api/v2/aibridge/openai/v1"
       }
     }
   }
@@ -49,7 +49,7 @@ Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-
   "provider": {
     "anthropic": {
       "options": {
-        "baseURL": "<your-deployment-url>/api/v2/aibridge/anthropic/v1",
+        "baseURL": "https://coder.example.com/api/v2/aibridge/anthropic/v1",
         "headers": {
           "X-Coder-AI-Governance-Token": "<your-coder-session-token>"
         }
@@ -57,7 +57,7 @@ Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-
     },
     "openai": {
       "options": {
-        "baseURL": "<your-deployment-url>/api/v2/aibridge/openai/v1",
+        "baseURL": "https://coder.example.com/api/v2/aibridge/openai/v1",
         "headers": {
           "X-Coder-AI-Governance-Token": "<your-coder-session-token>"
         }
