@@ -151,7 +151,9 @@ func BroadcastChangelog(
 		logger.Warn(ctx, "changelog notifications had per-user enqueue failures",
 			slog.F("version", majorMinor),
 			slog.F("enqueue_failures", enqueueFailures),
+			slog.F("users_notified", usersNotified),
 		)
+		return nil
 	}
 
 	if usersNotified == 0 {
