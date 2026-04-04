@@ -1368,6 +1368,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			t.Run("smtp", func(t *testing.T) {
 				t.Parallel()
+				if tc.id == notifications.TemplateChangelog {
+					t.Skip("changelog notifications are inbox-only")
+				}
 
 				// Spin up the DB
 				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
@@ -1551,6 +1554,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			t.Run("webhook", func(t *testing.T) {
 				t.Parallel()
+				if tc.id == notifications.TemplateChangelog {
+					t.Skip("changelog notifications are inbox-only")
+				}
 
 				// Spin up the DB
 				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
