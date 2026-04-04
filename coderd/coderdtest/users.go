@@ -220,11 +220,13 @@ func UsersFilter(
 	}
 
 	// Add some service accounts.
-	for range 3 {
-		_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.ServiceAccount = true
-		})
-		users = append(users, user)
+	if options.CreateServiceAccounts {
+		for range 3 {
+			_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.ServiceAccount = true
+			})
+			users = append(users, user)
+		}
 	}
 
 	hashedPassword, err := userpassword.Hash("SomeStrongPassword!")
