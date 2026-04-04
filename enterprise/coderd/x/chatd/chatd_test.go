@@ -1272,7 +1272,9 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 	subscriberID := uuid.New()
 
 	var dialAttempted atomic.Bool
-	var dialCanceled atomic.Bool
+
+	// Gate: closed when the worker finishes processing.
+	workerDone := make(chan struct{})
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -1298,14 +1300,15 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 		require.NoError(t, worker.Close())
 	})
 
-	// Subscriber's relay dialer blocks until its context is canceled,
+	// Subscriber's relay dialer blocks until the worker finishes,
 	// simulating a slow relay dial (network latency between replicas).
-	// This ensures the worker completes before the relay is established.
+	// After the worker completes, the dialer connects to the worker
+	// to retrieve buffered parts from the retained buffer.
 	subscriber := newTestServer(t, db, ps, subscriberID, func(
 		ctx context.Context,
-		_ uuid.UUID,
-		_ uuid.UUID,
-		_ http.Header,
+		chatID uuid.UUID,
+		targetWorkerID uuid.UUID,
+		requestHeader http.Header,
 	) (
 		[]codersdk.ChatStreamEvent,
 		<-chan codersdk.ChatStreamEvent,
@@ -1313,11 +1316,21 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 		error,
 	) {
 		dialAttempted.Store(true)
-		// Block until context is canceled (enterprise closes relay on
-		// waiting status).
-		<-ctx.Done()
-		dialCanceled.Store(true)
-		return nil, nil, nil, ctx.Err()
+		// Block until the worker finishes processing, simulating
+		// a slow relay dial.
+		select {
+		case <-workerDone:
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		}
+		// Connect to the worker. The buffer is retained for a
+		// grace period after processing, so the relay still gets
+		// the message_part snapshot.
+		snapshot, relayEvents, cancel, ok := worker.Subscribe(ctx, chatID, requestHeader, math.MaxInt64)
+		if !ok {
+			return nil, nil, nil, xerrors.New("worker subscribe failed")
+		}
+		return snapshot, relayEvents, cancel, nil
 	}, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1353,12 +1366,16 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 		return fromDB.Status == database.ChatStatusWaiting
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
+	// Release the relay dial now that the worker is done.
+	close(workerDone)
+
 	// Collect all events that arrived at the subscriber.
 	var messageParts []string
 	var committedAssistantMsgs int
-	var statusChanges []codersdk.ChatStatus
 
-	// Drain events until we see the committed assistant message.
+	// Drain events until we see both the committed message (via
+	// pubsub) and at least one streaming part (via relay
+	// drain-and-close).
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
@@ -1371,12 +1388,8 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 				if event.Message != nil && event.Message.Role == codersdk.ChatMessageRoleAssistant {
 					committedAssistantMsgs++
 				}
-			case codersdk.ChatStreamEventTypeStatus:
-				if event.Status != nil {
-					statusChanges = append(statusChanges, event.Status.Status)
-				}
 			}
-			return committedAssistantMsgs > 0
+			return committedAssistantMsgs > 0 && len(messageParts) > 0
 		default:
 			return false
 		}
@@ -1391,23 +1404,13 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 	require.True(t, dialAttempted.Load(),
 		"relay dial should have been attempted when status changed to running")
 
-	// The relay dial was canceled because the chat transitioned to
-	// waiting before the dial could complete.
-	require.True(t, dialCanceled.Load(),
-		"relay dial should have been canceled by the waiting status notification")
-
-	// BUG: No streaming parts arrived because the relay was never
-	// established. In multi-replica deployments, when the worker
-	// processes a response faster than the relay can be established,
-	// the subscriber never receives message_part events. The response
-	// appears all at once via the committed message instead of
-	// streaming token-by-token.
-	//
-	// After the fix: this assertion should be changed to verify that
-	// streaming parts ARE received even when the relay is slow.
-	require.Empty(t, messageParts,
-		"streaming parts are lost when the relay is slower than the worker; "+
-			"this test documents the multi-replica stream redirection race condition")
+	// Streaming parts are now received even though the relay was
+	// slower than the worker: the OSS buffer retention grace period
+	// keeps parts available, and the enterprise relay completes the
+	// dial (drain-and-close) instead of canceling it immediately.
+	require.NotEmpty(t, messageParts,
+		"streaming parts should be received via the relay even when the "+
+			"worker completes before the relay is established")
 }
 
 // TestSubscribeRelayEstablishedMidStream demonstrates that when the
