@@ -9,7 +9,7 @@ import { useChangelog } from "#/modules/changelog";
 import { relativeTime } from "#/utils/time";
 import { InboxAvatar } from "./InboxAvatar";
 
-const CHANGELOG_ICON = "DEFAULT_ICON_CHANGELOG";
+const CHANGELOG_TEMPLATE_ID = "b02d53fd-477d-4a65-8d42-1b7e4b38f8c3";
 
 type InboxItemProps = {
 	notification: InboxNotification;
@@ -20,7 +20,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 	notification,
 	onMarkNotificationAsRead,
 }) => {
-	const isChangelog = notification.icon === CHANGELOG_ICON;
+	const isChangelog = notification.template_id === CHANGELOG_TEMPLATE_ID;
 	const { openChangelog } = useChangelog();
 
 	return (
