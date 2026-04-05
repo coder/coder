@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
@@ -236,7 +235,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	// At this point connectServer has returned and its internal
 	// connectCtx has been canceled. The subprocess must still be
 	// alive. Verify by listing tools (requires a live server).
-	listCtx, listCancel := context.WithTimeout(ctx, 5*time.Second)
+	listCtx, listCancel := context.WithTimeout(ctx, testutil.WaitShort)
 	defer listCancel()
 	result, err := client.ListTools(listCtx, mcp.ListToolsRequest{})
 	require.NoError(t, err, "ListTools should succeed — server must be alive after connect")
@@ -312,6 +311,5 @@ func runFakeMCPServer() {
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "%s\n", out)
-	}
+			_, err = fmt.Fprintf(os.Stdout, "%s\n", out)	}
 }
