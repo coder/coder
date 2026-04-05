@@ -258,6 +258,8 @@ export const BlockList: FC<{
 	onTextFileClick?: (content: string) => void;
 	urlTransform?: UrlTransform;
 	afterResponseSlot?: React.ReactNode;
+	/** Extra classes applied to the wrapper around response blocks only. */
+	responseWrapperClassName?: string;
 }> = ({
 	blocks,
 	tools,
@@ -272,6 +274,7 @@ export const BlockList: FC<{
 	onTextFileClick,
 	urlTransform,
 	afterResponseSlot,
+	responseWrapperClassName,
 }) => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
@@ -288,122 +291,145 @@ export const BlockList: FC<{
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
 
+	const firstResponseIndex = blocks.findIndex((b) => b.type === "response");
 	const lastResponseIndex = blocks.reduce(
 		(acc, b, idx) => (b.type === "response" ? idx : acc),
 		-1,
 	);
 
+	// Split blocks into pre-response (e.g. reasoning/thinking) and
+	// response-onward groups so the copy indicator line can scope to
+	// only the response content that actually gets copied.
+	const preResponseBlocks =
+		firstResponseIndex >= 0 ? blocks.slice(0, firstResponseIndex) : blocks;
+	const responseOnwardBlocks =
+		firstResponseIndex >= 0 ? blocks.slice(firstResponseIndex) : [];
+
+	const renderBlock = (block: RenderBlock, index: number) => {
+		switch (block.type) {
+			case "response": {
+				const responseEl = isStreaming ? (
+					<SmoothedResponse
+						key={`${keyPrefix}-response-${index}`}
+						text={block.text}
+						streamKey={keyPrefix}
+						urlTransform={urlTransform}
+					/>
+				) : (
+					<Response
+						key={`${keyPrefix}-response-${index}`}
+						urlTransform={urlTransform}
+					>
+						{block.text}
+					</Response>
+				);
+				return (
+					<Fragment key={`${keyPrefix}-response-${index}`}>
+						{responseEl}
+						{index === lastResponseIndex ? afterResponseSlot : null}
+					</Fragment>
+				);
+			}
+			case "thinking":
+				return (
+					<ReasoningDisclosure
+						key={`${keyPrefix}-thinking-${index}`}
+						id={`${keyPrefix}-thinking-${index}`}
+						text={block.text}
+						isStreaming={isStreaming}
+						urlTransform={urlTransform}
+					/>
+				);
+			case "file-reference":
+				return (
+					<div
+						key={`${keyPrefix}-file-reference-${index}`}
+						className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
+					>
+						<span className="shrink-0 text-xs font-medium text-content-link">
+							{block.file_name}:
+							{block.start_line === block.end_line
+								? block.start_line
+								: `${block.start_line}\u2013${block.end_line}`}
+						</span>
+					</div>
+				);
+			case "tool": {
+				const tool = toolByID.get(block.id);
+				if (!tool) {
+					if (!isStreaming) {
+						return null;
+					}
+					// Streaming placeholder for not-yet-resolved tool.
+					return (
+						<Tool
+							key={block.id}
+							name="Tool"
+							status="running"
+							isError={false}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							mcpServers={mcpServers}
+						/>
+					);
+				}
+				return (
+					<Tool
+						key={tool.id}
+						name={tool.name}
+						args={tool.args}
+						result={tool.result}
+						status={tool.status}
+						isError={tool.isError}
+						killedBySignal={tool.killedBySignal}
+						subagentTitles={subagentTitles}
+						computerUseSubagentIds={computerUseSubagentIds}
+						showDesktopPreviews={showDesktopPreviews}
+						subagentStatusOverrides={
+							isStreaming ? subagentStatusOverrides : undefined
+						}
+						mcpServerConfigId={tool.mcpServerConfigId}
+						mcpServers={mcpServers}
+						modelIntent={tool.modelIntent}
+					/>
+				);
+			}
+			case "file":
+				return (
+					<FileBlock
+						key={`${keyPrefix}-file-${block.file_id ?? index}`}
+						block={block}
+						onImageClick={onImageClick}
+						onTextFileClick={onTextFileClick}
+					/>
+				);
+			case "sources":
+				return (
+					<WebSearchSources
+						key={`${keyPrefix}-sources-${index}`}
+						sources={block.sources}
+					/>
+				);
+			default:
+				return null;
+		}
+	};
+
 	return (
 		<>
-			{blocks.map((block, index) => {
-				switch (block.type) {
-					case "response": {
-						const responseEl = isStreaming ? (
-							<SmoothedResponse
-								key={`${keyPrefix}-response-${index}`}
-								text={block.text}
-								streamKey={keyPrefix}
-								urlTransform={urlTransform}
-							/>
-						) : (
-							<Response
-								key={`${keyPrefix}-response-${index}`}
-								urlTransform={urlTransform}
-							>
-								{block.text}
-							</Response>
-						);
-						return (
-							<Fragment key={`${keyPrefix}-response-${index}`}>
-								{responseEl}
-								{index === lastResponseIndex ? afterResponseSlot : null}
-							</Fragment>
-						);
-					}
-					case "thinking":
-						return (
-							<ReasoningDisclosure
-								key={`${keyPrefix}-thinking-${index}`}
-								id={`${keyPrefix}-thinking-${index}`}
-								text={block.text}
-								isStreaming={isStreaming}
-								urlTransform={urlTransform}
-							/>
-						);
-					case "file-reference":
-						return (
-							<div
-								key={`${keyPrefix}-file-reference-${index}`}
-								className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
-							>
-								<span className="shrink-0 text-xs font-medium text-content-link">
-									{block.file_name}:
-									{block.start_line === block.end_line
-										? block.start_line
-										: `${block.start_line}\u2013${block.end_line}`}
-								</span>
-							</div>
-						);
-					case "tool": {
-						const tool = toolByID.get(block.id);
-						if (!tool) {
-							if (!isStreaming) {
-								return null;
-							}
-							// Streaming placeholder for not-yet-resolved tool.
-							return (
-								<Tool
-									key={block.id}
-									name="Tool"
-									status="running"
-									isError={false}
-									subagentTitles={subagentTitles}
-									subagentStatusOverrides={subagentStatusOverrides}
-									mcpServers={mcpServers}
-								/>
-							);
-						}
-						return (
-							<Tool
-								key={tool.id}
-								name={tool.name}
-								args={tool.args}
-								result={tool.result}
-								status={tool.status}
-								isError={tool.isError}
-								killedBySignal={tool.killedBySignal}
-								subagentTitles={subagentTitles}
-								computerUseSubagentIds={computerUseSubagentIds}
-								showDesktopPreviews={showDesktopPreviews}
-								subagentStatusOverrides={
-									isStreaming ? subagentStatusOverrides : undefined
-								}
-								mcpServerConfigId={tool.mcpServerConfigId}
-								mcpServers={mcpServers}
-								modelIntent={tool.modelIntent}
-							/>
-						);
-					}
-					case "file":
-						return (
-							<FileBlock
-								key={`${keyPrefix}-file-${block.file_id ?? index}`}
-								block={block}
-								onImageClick={onImageClick}
-								onTextFileClick={onTextFileClick}
-							/>
-						);
-					case "sources":
-						return (
-							<WebSearchSources
-								key={`${keyPrefix}-sources-${index}`}
-								sources={block.sources}
-							/>
-						);
-					default:
-						return null;
-				}
-			})}
+			{preResponseBlocks.map((block, i) => renderBlock(block, i))}
+			{responseOnwardBlocks.length > 0 &&
+				(responseWrapperClassName ? (
+					<div className={cn("relative space-y-3", responseWrapperClassName)}>
+						{responseOnwardBlocks.map((block, i) =>
+							renderBlock(block, firstResponseIndex + i),
+						)}
+					</div>
+				) : (
+					responseOnwardBlocks.map((block, i) =>
+						renderBlock(block, firstResponseIndex + i),
+					)
+				))}
 			{remainingTools.map((tool) => (
 				<Tool
 					key={tool.id}
@@ -629,16 +655,7 @@ const ChatMessageItem = memo<{
 							)}
 						>
 							<MessageContent className="whitespace-normal">
-								<div
-									className={cn(
-										"relative space-y-3 overflow-visible",
-										"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
-										(copyHovered || showCopiedSuccess) &&
-											isLastAssistantMessage &&
-											hasCopyableContent &&
-											"before:opacity-100",
-									)}
-								>
+								<div className="relative space-y-3 overflow-visible">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -650,6 +667,13 @@ const ChatMessageItem = memo<{
 										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
+										responseWrapperClassName={cn(
+											"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
+											(copyHovered || showCopiedSuccess) &&
+												isLastAssistantMessage &&
+												hasCopyableContent &&
+												"before:opacity-100",
+										)}
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
 												<div
