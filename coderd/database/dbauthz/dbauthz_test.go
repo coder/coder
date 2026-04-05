@@ -719,6 +719,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetStaleChats(gomock.Any(), threshold).Return(chats, nil).AnyTimes()
 		check.Args(threshold).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chats)
 	}))
+	s.Run("GetRequiresActionChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		threshold := dbtime.Now()
+		chats := []database.Chat{testutil.Fake(s.T(), faker, database.Chat{})}
+		dbm.EXPECT().GetRequiresActionChats(gomock.Any(), threshold).Return(chats, nil).AnyTimes()
+		check.Args(threshold).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chats)
+	}))
 	s.Run("InsertChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatParams{
 			Status: database.ChatStatusWaiting,
