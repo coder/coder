@@ -65,31 +65,24 @@ func BroadcastChangelog(
 	}
 
 	lockID := int64(database.LockIDChangelogBroadcast)
-	var lastNotified string
-	err = func() error {
-		conn, err := sqlDB.Conn(ctx)
-		if err != nil {
-			return xerrors.Errorf("acquire db conn: %w", err)
-		}
-		defer conn.Close()
-
-		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", lockID); err != nil {
-			return xerrors.Errorf("acquire advisory lock: %w", err)
-		}
-		defer func() {
-			_, _ = conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", lockID)
-		}()
-
-		err = conn.QueryRowContext(ctx, "SELECT value FROM site_configs WHERE key = $1", changelogLastNotifiedSiteConfigKey).
-			Scan(&lastNotified)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("query last notified version: %w", err)
-		}
-
-		return nil
-	}()
+	conn, err := sqlDB.Conn(ctx)
 	if err != nil {
-		return err
+		return xerrors.Errorf("acquire db conn: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", lockID); err != nil {
+		return xerrors.Errorf("acquire advisory lock: %w", err)
+	}
+	defer func() {
+		_, _ = conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", lockID)
+	}()
+
+	var lastNotified string
+	err = conn.QueryRowContext(ctx, "SELECT value FROM site_configs WHERE key = $1", changelogLastNotifiedSiteConfigKey).
+		Scan(&lastNotified)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("query last notified version: %w", err)
 	}
 	if isAlreadyNotified(lastNotified) {
 		logger.Debug(ctx,
@@ -177,48 +170,13 @@ func BroadcastChangelog(
 		return nil
 	}
 
-	err = func() error {
-		conn, err := sqlDB.Conn(ctx)
-		if err != nil {
-			return xerrors.Errorf("acquire db conn: %w", err)
-		}
-		defer conn.Close()
-
-		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", lockID); err != nil {
-			return xerrors.Errorf("acquire advisory lock: %w", err)
-		}
-		defer func() {
-			_, _ = conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", lockID)
-		}()
-
-		latestLastNotified := ""
-		err = conn.QueryRowContext(ctx, "SELECT value FROM site_configs WHERE key = $1", changelogLastNotifiedSiteConfigKey).
-			Scan(&latestLastNotified)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("query last notified version: %w", err)
-		}
-		if isAlreadyNotified(latestLastNotified) {
-			logger.Debug(ctx,
-				"changelog already notified while broadcast was in progress",
-				slog.F("version", majorMinor),
-				slog.F("last_notified_version", latestLastNotified),
-			)
-			return nil
-		}
-
-		_, err = conn.ExecContext(ctx,
-			"INSERT INTO site_configs (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1",
-			changelogLastNotifiedSiteConfigKey,
-			majorMinor,
-		)
-		if err != nil {
-			return xerrors.Errorf("upsert last notified version: %w", err)
-		}
-
-		return nil
-	}()
+	_, err = conn.ExecContext(ctx,
+		"INSERT INTO site_configs (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1",
+		changelogLastNotifiedSiteConfigKey,
+		majorMinor,
+	)
 	if err != nil {
-		return err
+		return xerrors.Errorf("upsert last notified version: %w", err)
 	}
 
 	logger.Info(ctx, "changelog notifications sent",

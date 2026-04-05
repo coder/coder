@@ -26,6 +26,8 @@ export const useChangelogToast = () => {
 		let cancelled = false;
 		let settled = false;
 		const timers: number[] = [];
+		const pollDelaysMs = [0, 15000, 60000] as const;
+		let pollAttempt = 0;
 
 		const checkForUnread = async () => {
 			if (cancelled || settled) {
@@ -84,16 +86,26 @@ export const useChangelogToast = () => {
 			}
 		};
 
-		// BroadcastChangelog runs asynchronously at startup; retry a few times
-		// so users who open the dashboard immediately after an upgrade still
-		// get the toast without manually refreshing.
-		for (const delayMs of [0, 15000, 60000] as const) {
+		// BroadcastChangelog runs asynchronously at startup and may take longer
+		// on larger deployments, so keep polling until a changelog notification
+		// appears or this component unmounts.
+		const scheduleNextPoll = () => {
+			if (cancelled || settled) {
+				return;
+			}
+
+			const delayMs = pollDelaysMs[Math.min(pollAttempt, pollDelaysMs.length - 1)];
+			pollAttempt++;
 			timers.push(
 				window.setTimeout(() => {
-					void checkForUnread();
+					void checkForUnread().finally(() => {
+						scheduleNextPoll();
+					});
 				}, delayMs),
 			);
-		}
+		};
+
+		scheduleNextPoll();
 
 		return () => {
 			cancelled = true;
