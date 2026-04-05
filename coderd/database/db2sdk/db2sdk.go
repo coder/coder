@@ -1584,19 +1584,25 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
-	if len(files) > 0 {
-		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
-		for _, row := range files {
-			chat.Files = append(chat.Files, codersdk.ChatFileMetadata{
-				ID:             row.ID,
-				OwnerID:        row.OwnerID,
-				OrganizationID: row.OrganizationID,
-				Name:           row.Name,
-				MimeType:       row.Mimetype,
-				CreatedAt:      row.CreatedAt,
-			})
+		if len(files) > 0 {
+			chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
+			for _, row := range files {
+				chat.Files = append(chat.Files, codersdk.ChatFileMetadata{
+					ID:             row.ID,
+					OwnerID:        row.OwnerID,
+					OrganizationID: row.OrganizationID,
+					Name:           row.Name,
+					MimeType:       row.Mimetype,
+					CreatedAt:      row.CreatedAt,
+				})
+			}
 		}
-	}
+		if c.DynamicTools.Valid {
+			var tools []codersdk.DynamicTool
+			if err := json.Unmarshal(c.DynamicTools.RawMessage, &tools); err == nil {
+				chat.DynamicTools = tools
+			}
+		}
 	if c.LastInjectedContext.Valid {
 		var parts []codersdk.ChatMessagePart
 		// Internal fields are stripped at write time in

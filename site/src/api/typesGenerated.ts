@@ -1202,6 +1202,7 @@ export interface Chat {
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
 	readonly files?: readonly ChatFileMetadata[];
+	readonly dynamic_tools?: readonly DynamicTool[];
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
@@ -1940,6 +1941,7 @@ export type ChatStatus =
 	| "error"
 	| "paused"
 	| "pending"
+	| "requires_action"
 	| "running"
 	| "waiting";
 
@@ -1948,9 +1950,18 @@ export const ChatStatuses: ChatStatus[] = [
 	"error",
 	"paused",
 	"pending",
+	"requires_action",
 	"running",
 	"waiting",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatStreamActionRequired is the payload of an action_required stream event.
+ */
+export interface ChatStreamActionRequired {
+	readonly tool_calls: readonly ChatStreamToolCall[];
+}
 
 // From codersdk/chats.go
 /**
@@ -1992,10 +2003,12 @@ export interface ChatStreamEvent {
 	readonly error?: ChatStreamError;
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
+	readonly action_required?: ChatStreamActionRequired;
 }
 
 // From codersdk/chats.go
 export type ChatStreamEventType =
+	| "action_required"
 	| "error"
 	| "message"
 	| "message_part"
@@ -2004,6 +2017,7 @@ export type ChatStreamEventType =
 	| "status";
 
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
+	"action_required",
 	"error",
 	"message",
 	"message_part",
@@ -2063,6 +2077,17 @@ export interface ChatStreamRetry {
  */
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStreamToolCall describes a pending dynamic tool call that the client
+ * must execute.
+ */
+export interface ChatStreamToolCall {
+	readonly tool_call_id: string;
+	readonly tool_name: string;
+	readonly args: string;
 }
 
 // From codersdk/chats.go
@@ -2424,6 +2449,7 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	readonly dynamic_tools?: readonly DynamicTool[];
 }
 
 // From codersdk/users.go
@@ -3222,6 +3248,19 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
+}
+
+// From codersdk/chats.go
+/**
+ * DynamicTool defines a tool that is executed by the client, not
+ * by chatd. Declared at chat creation time and immutable for the
+ * lifetime of the chat.
+ */
+export interface DynamicTool {
+	readonly name: string;
+	readonly description: string;
+	readonly parameters: Record<string, string>;
+	readonly timeout_seconds?: number;
 }
 
 // From codersdk/chats.go
@@ -6432,6 +6471,14 @@ export interface StreamChatOptions {
 export const SubdomainAppSessionTokenCookie =
 	"coder_subdomain_app_session_token";
 
+// From codersdk/chats.go
+/**
+ * SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
+ */
+export interface SubmitToolResultsRequest {
+	readonly results: readonly ToolResult[];
+}
+
 // From codersdk/deployment.go
 export interface SupportConfig {
 	readonly links: SerpentStruct<LinkConfig[]>;
@@ -7178,6 +7225,16 @@ export interface TokenConfig {
 export interface TokensFilter {
 	readonly include_all: boolean;
 	readonly include_expired: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ToolResult is the client's response to a dynamic tool call.
+ */
+export interface ToolResult {
+	readonly tool_call_id: string;
+	readonly output: string;
+	readonly is_error: boolean;
 }
 
 // From codersdk/deployment.go

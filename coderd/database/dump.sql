@@ -293,7 +293,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'paused',
     'completed',
-    'error'
+    'error',
+    'requires_action'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -1418,7 +1419,8 @@ CREATE TABLE chats (
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
-    last_injected_context jsonb
+    last_injected_context jsonb,
+    dynamic_tools jsonb
 );
 
 CREATE TABLE connection_logs (
