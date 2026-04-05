@@ -6486,30 +6486,48 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 	return i, err
 }
 
-const updateChatHeartbeat = `-- name: UpdateChatHeartbeat :execrows
+const updateChatHeartbeats = `-- name: UpdateChatHeartbeats :many
 UPDATE
     chats
 SET
-    heartbeat_at = NOW()
+    heartbeat_at = $1::timestamptz
 WHERE
-    id = $1::uuid
-    AND worker_id = $2::uuid
+    worker_id = $2::uuid
     AND status = 'running'::chat_status
+RETURNING id
 `
 
-type UpdateChatHeartbeatParams struct {
-	ID       uuid.UUID `db:"id" json:"id"`
+type UpdateChatHeartbeatsParams struct {
+	Now      time.Time `db:"now" json:"now"`
 	WorkerID uuid.UUID `db:"worker_id" json:"worker_id"`
 }
 
-// Bumps the heartbeat timestamp for a running chat so that other
-// replicas know the worker is still alive.
-func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateChatHeartbeat, arg.ID, arg.WorkerID)
+// Bumps the heartbeat timestamp for all running chats owned by a
+// specific worker in a single UPDATE. Returns the IDs of the
+// updated rows so the caller can detect chats that were stolen or
+// completed (any registered chat NOT in the result set should
+// self-interrupt).
+func (q *sqlQuerier) UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updateChatHeartbeats, arg.Now, arg.WorkerID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected()
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateChatLabelsByID = `-- name: UpdateChatLabelsByID :one

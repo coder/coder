@@ -857,9 +857,12 @@ type sqlcQuerier interface {
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
-	// Bumps the heartbeat timestamp for a running chat so that other
-	// replicas know the worker is still alive.
-	UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error)
+	// Bumps the heartbeat timestamp for all running chats owned by a
+	// specific worker in a single UPDATE. Returns the IDs of the
+	// updated rows so the caller can detect chats that were stolen or
+	// completed (any registered chat NOT in the result set should
+	// self-interrupt).
+	UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error)
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	// Updates the cached injected context parts (AGENTS.md +
 	// skills) on the chat row. Called only when context changes
