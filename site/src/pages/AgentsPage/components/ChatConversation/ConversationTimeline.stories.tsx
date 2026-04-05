@@ -889,9 +889,10 @@ export const MultiAssistantTurnCopyButton: Story = {
 				el.style.opacity = "1";
 			}
 		}
-		// Every message with text content (user + both assistants)
-		// now gets its own action bar.
+		// The first assistant message (id=2) is mid-chain so its
+		// actions are hidden. Only the user and the last assistant
+		// (id=4) get action bars.
 		const actions = canvas.getAllByTestId("message-actions");
-		expect(actions.length).toBeGreaterThanOrEqual(3);
+		expect(actions).toHaveLength(2);
 	},
 };
