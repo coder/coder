@@ -2463,11 +2463,7 @@ func (p *Server) start(ctx context.Context) {
 	p.recoverStaleChats(ctx)
 
 	// Single heartbeat loop for all chats on this replica.
-	p.inflight.Add(1)
-	go func() {
-		defer p.inflight.Done()
-		p.heartbeatLoop(ctx)
-	}()
+	go p.heartbeatLoop(ctx)
 
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
