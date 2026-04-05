@@ -3934,14 +3934,6 @@ func (p *Server) runChat(
 		)
 	}()
 
-	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
-	if err != nil {
-		return result, xerrors.Errorf("build chat prompt: %w", err)
-	}
-	if chat.ParentChatID.Valid {
-		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
-	}
-
 	// Detect computer-use subagent via the mode column.
 	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 
@@ -3998,7 +3990,20 @@ func (p *Server) runChat(
 			needsInstructionPersist = true
 		}
 	}
+	// Convert messages to prompt format in parallel with g2 work.
+	// ConvertMessagesWithFiles only reads `messages` (available
+	// after g.Wait()) and resolves file references via the DB.
+	// No g2 task reads or writes `prompt`, so this is safe.
+	var prompt []fantasy.Message
 	var g2 errgroup.Group
+	g2.Go(func() error {
+		var err error
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
+		if err != nil {
+			return xerrors.Errorf("build chat prompt: %w", err)
+		}
+		return nil
+	})
 	if needsInstructionPersist {
 		g2.Go(func() error {
 			var persistErr error
@@ -4112,8 +4117,12 @@ func (p *Server) runChat(
 			return nil
 		})
 	}
-	// All g2 goroutines return nil; error is discarded.
-	_ = g2.Wait()
+	if err := g2.Wait(); err != nil {
+		return result, err
+	}
+	if chat.ParentChatID.Valid {
+		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
+	}
 	if mcpCleanup != nil {
 		defer mcpCleanup()
 	}
@@ -4571,7 +4580,7 @@ func (p *Server) runChat(
 		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
 	}
 
-	err = chatloop.Run(ctx, chatloop.RunOptions{
+	err := chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
