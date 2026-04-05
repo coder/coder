@@ -27,6 +27,7 @@ export const useChangelogToast = () => {
 		let settled = false;
 		const timers: number[] = [];
 		const pollDelaysMs = [0, 15000, 60000] as const;
+		const maxPollAttempts = 12;
 		let pollAttempt = 0;
 
 		const checkForUnread = async () => {
@@ -48,6 +49,7 @@ export const useChangelogToast = () => {
 				const toastStorageKey = changelogToastStorageKey(notification.user_id);
 				const lastSeen = localStorage.getItem(toastStorageKey);
 				if (lastSeen === version) {
+					settled = true;
 					return;
 				}
 
@@ -87,10 +89,11 @@ export const useChangelogToast = () => {
 		};
 
 		// BroadcastChangelog runs asynchronously at startup and may take longer
-		// on larger deployments, so keep polling until a changelog notification
-		// appears or this component unmounts.
+		// on larger deployments. Poll until a changelog notification appears,
+		// but cap retries so the dashboard does not keep background polling
+		// indefinitely when there is nothing new to show.
 		const scheduleNextPoll = () => {
-			if (cancelled || settled) {
+			if (cancelled || settled || pollAttempt >= maxPollAttempts) {
 				return;
 			}
 

@@ -8,6 +8,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { Badge } from "#/components/Badge/Badge";
 import { Loader } from "#/components/Loader/Loader";
 import { Markdown } from "#/components/Markdown/Markdown";
 
@@ -73,9 +74,14 @@ export const ChangelogDialog: FC<ChangelogDialogProps> = ({
 					<>
 						<DialogHeader>
 							<div className="flex items-center gap-2 mb-2">
-								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400 border border-violet-300 dark:border-violet-500/30">
+								<Badge
+									variant="info"
+									size="xs"
+									border="solid"
+									className="font-semibold"
+								>
 									Changelog
-								</span>
+								</Badge>
 								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-surface-secondary text-content-secondary border border-default">
 									{data.version}
 								</span>
