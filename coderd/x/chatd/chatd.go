@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -2462,7 +2463,11 @@ func (p *Server) start(ctx context.Context) {
 	p.recoverStaleChats(ctx)
 
 	// Single heartbeat loop for all chats on this replica.
-	go p.heartbeatLoop(ctx)
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+		p.heartbeatLoop(ctx)
+	}()
 
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
@@ -2733,16 +2738,22 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	p.workspaceMCPToolsCache.Delete(chatID)
 }
 
-// registerHeartbeat adds a chat to the centralized heartbeat loop.
-// Called from processChat after chatCtx is created.
+// registerHeartbeat enrolls a chat in the centralized batch
+// heartbeat loop. Must be called after chatCtx is created.
 func (p *Server) registerHeartbeat(entry *heartbeatEntry) {
 	p.heartbeatMu.Lock()
 	defer p.heartbeatMu.Unlock()
+	if _, exists := p.heartbeatRegistry[entry.chatID]; exists {
+		p.logger.Warn(context.Background(),
+			"duplicate heartbeat registration, skipping",
+			slog.F("chat_id", entry.chatID))
+		return
+	}
 	p.heartbeatRegistry[entry.chatID] = entry
 }
 
-// unregisterHeartbeat removes a chat from the centralized heartbeat
-// loop. Called via defer in processChat.
+// unregisterHeartbeat removes a chat from the centralized
+// heartbeat loop when chat processing finishes.
 func (p *Server) unregisterHeartbeat(chatID uuid.UUID) {
 	p.heartbeatMu.Lock()
 	defer p.heartbeatMu.Unlock()
@@ -2770,10 +2781,7 @@ func (p *Server) heartbeatLoop(ctx context.Context) {
 func (p *Server) heartbeatTick(ctx context.Context) {
 	// Snapshot the registry under the lock.
 	p.heartbeatMu.Lock()
-	snapshot := make(map[uuid.UUID]*heartbeatEntry, len(p.heartbeatRegistry))
-	for id, entry := range p.heartbeatRegistry {
-		snapshot[id] = entry
-	}
+	snapshot := maps.Clone(p.heartbeatRegistry)
 	p.heartbeatMu.Unlock()
 
 	if len(snapshot) == 0 {
@@ -2781,15 +2789,12 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 	}
 
 	// Collect the IDs we believe we own.
-	ids := make([]uuid.UUID, 0, len(snapshot))
-	for id := range snapshot {
-		ids = append(ids, id)
-	}
+	ids := slices.Collect(maps.Keys(snapshot))
 
 	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
 	// access for batch-updating heartbeats.
-	dbCtx := dbauthz.AsChatd(ctx)
-	updatedIDs, err := p.db.UpdateChatHeartbeats(dbCtx, database.UpdateChatHeartbeatsParams{
+	chatdCtx := dbauthz.AsChatd(ctx)
+	updatedIDs, err := p.db.UpdateChatHeartbeats(chatdCtx, database.UpdateChatHeartbeatsParams{
 		IDs:      ids,
 		WorkerID: p.workerID,
 		Now:      p.clock.Now(),
