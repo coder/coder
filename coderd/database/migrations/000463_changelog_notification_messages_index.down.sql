@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS notification_messages_changelog_version_user_idx;
