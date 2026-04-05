@@ -638,17 +638,17 @@ WHERE
     AND heartbeat_at < @stale_threshold::timestamptz;
 
 -- name: UpdateChatHeartbeats :many
--- Bumps the heartbeat timestamp for all running chats owned by a
--- specific worker in a single UPDATE. Returns the IDs of the
--- updated rows so the caller can detect chats that were stolen or
--- completed (any registered chat NOT in the result set should
--- self-interrupt).
+-- Bumps the heartbeat timestamp for the given set of chat IDs,
+-- provided they are still running and owned by the specified
+-- worker. Returns the IDs that were actually updated so the
+-- caller can detect stolen or completed chats via set-difference.
 UPDATE
     chats
 SET
     heartbeat_at = @now::timestamptz
 WHERE
-    worker_id = @worker_id::uuid
+    id = ANY(@ids::uuid[])
+    AND worker_id = @worker_id::uuid
     AND status = 'running'::chat_status
 RETURNING id;
 

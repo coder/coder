@@ -2780,10 +2780,17 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 		return
 	}
 
+	// Collect the IDs we believe we own.
+	ids := make([]uuid.UUID, 0, len(snapshot))
+	for id := range snapshot {
+		ids = append(ids, id)
+	}
+
 	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
 	// access for batch-updating heartbeats.
 	dbCtx := dbauthz.AsChatd(ctx)
 	updatedIDs, err := p.db.UpdateChatHeartbeats(dbCtx, database.UpdateChatHeartbeatsParams{
+		IDs:      ids,
 		WorkerID: p.workerID,
 		Now:      p.clock.Now(),
 	})

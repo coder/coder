@@ -821,6 +821,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpdateChatHeartbeats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		resultID := uuid.New()
 		arg := database.UpdateChatHeartbeatsParams{
+			IDs:      []uuid.UUID{resultID},
 			WorkerID: uuid.New(),
 			Now:      time.Now(),
 		}

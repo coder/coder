@@ -6492,23 +6492,24 @@ UPDATE
 SET
     heartbeat_at = $1::timestamptz
 WHERE
-    worker_id = $2::uuid
+    id = ANY($2::uuid[])
+    AND worker_id = $3::uuid
     AND status = 'running'::chat_status
 RETURNING id
 `
 
 type UpdateChatHeartbeatsParams struct {
-	Now      time.Time `db:"now" json:"now"`
-	WorkerID uuid.UUID `db:"worker_id" json:"worker_id"`
+	Now      time.Time   `db:"now" json:"now"`
+	IDs      []uuid.UUID `db:"ids" json:"ids"`
+	WorkerID uuid.UUID   `db:"worker_id" json:"worker_id"`
 }
 
-// Bumps the heartbeat timestamp for all running chats owned by a
-// specific worker in a single UPDATE. Returns the IDs of the
-// updated rows so the caller can detect chats that were stolen or
-// completed (any registered chat NOT in the result set should
-// self-interrupt).
+// Bumps the heartbeat timestamp for the given set of chat IDs,
+// provided they are still running and owned by the specified
+// worker. Returns the IDs that were actually updated so the
+// caller can detect stolen or completed chats via set-difference.
 func (q *sqlQuerier) UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, updateChatHeartbeats, arg.Now, arg.WorkerID)
+	rows, err := q.db.QueryContext(ctx, updateChatHeartbeats, arg.Now, pq.Array(arg.IDs), arg.WorkerID)
 	if err != nil {
 		return nil, err
 	}

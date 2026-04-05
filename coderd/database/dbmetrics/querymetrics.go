@@ -104,14 +104,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatHeartbeats(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatHeartbeats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatHeartbeats").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireChats(ctx, arg)
@@ -4125,6 +4117,14 @@ func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.Upda
 	r0, r1 := m.s.UpdateChatByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatHeartbeats(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatHeartbeats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatHeartbeats").Inc()
 	return r0, r1
 }
 

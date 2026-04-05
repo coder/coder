@@ -503,6 +503,7 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 
 	// Wrong worker_id should return no IDs.
 	ids, err := db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:      []uuid.UUID{chat.ID},
 		WorkerID: uuid.New(),
 		Now:      time.Now(),
 	})
@@ -511,6 +512,7 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 
 	// Correct worker_id should return the chat's ID.
 	ids, err = db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:      []uuid.UUID{chat.ID},
 		WorkerID: workerID,
 		Now:      time.Now(),
 	})

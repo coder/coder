@@ -1516,17 +1516,6 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
-func (q *querier) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
-	// The batch heartbeat is a system-level operation filtered by
-	// worker_id. Authorization is enforced by the AsChatd context
-	// at the call site rather than per-row, because checking each
-	// row individually would defeat the purpose of batching.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.UpdateChatHeartbeats(ctx, arg)
-}
-
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -5776,6 +5765,17 @@ func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByI
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
+	// The batch heartbeat is a system-level operation filtered by
+	// worker_id. Authorization is enforced by the AsChatd context
+	// at the call site rather than per-row, because checking each
+	// row individually would defeat the purpose of batching.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.UpdateChatHeartbeats(ctx, arg)
 }
 
 func (q *querier) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateChatLabelsByIDParams) (database.Chat, error) {
