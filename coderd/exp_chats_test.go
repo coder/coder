@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -7597,6 +7598,201 @@ func TestGetChatsByWorkspace(t *testing.T) {
 
 		_, err := client.GetChatsByWorkspace(ctx, ids)
 		require.Error(t, err)
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+}
+
+func TestSubmitToolResults(t *testing.T) {
+	t.Parallel()
+
+	// setupRequiresAction creates a chat via the DB with dynamic tools,
+	// inserts an assistant message containing tool-call parts for each
+	// given toolCallID, and sets the chat status to requires_action.
+	// It returns the chat row so callers can exercise the endpoint.
+	setupRequiresAction := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		modelConfigID uuid.UUID,
+		dynamicToolName string,
+		toolCallIDs []string,
+	) database.Chat {
+		t.Helper()
+
+		// Marshal dynamic tools into the chat row.
+		dynamicTools := []codersdk.DynamicTool{{
+			Name:        dynamicToolName,
+			Description: "a test dynamic tool",
+			Parameters:  json.RawMessage(`{"type":"object"}`),
+		}}
+		dtJSON, err := json.Marshal(dynamicTools)
+		require.NoError(t, err)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "tool-results-test",
+			DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Build assistant message with tool-call parts.
+		parts := make([]codersdk.ChatMessagePart, 0, len(toolCallIDs))
+		for _, id := range toolCallIDs {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: id,
+				ToolName:   dynamicToolName,
+				Args:       json.RawMessage(`{"key":"value"}`),
+			})
+		}
+		content, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+
+		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfigID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Content:             []string{string(content.RawMessage)},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+
+		// Transition to requires_action.
+		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusRequiresAction,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRequiresAction, chat.Status)
+
+		return chat
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_abc", "call_def"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_abc", Output: `"result_a"`},
+				{ToolCallID: "call_def", Output: `"result_b"`},
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify status is no longer requires_action. The chatd
+		// loop may have already picked the chat up and
+		// transitioned it further (pending → running → …), so we
+		// accept any non-requires_action status.
+		gotChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, codersdk.ChatStatusRequiresAction, gotChat.Status,
+			"chat should no longer be in requires_action after submitting tool results")
+
+		// Verify tool-result messages were persisted.
+		msgsResp, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		var toolResultCount int
+		for _, msg := range msgsResp.Messages {
+			if msg.Role == codersdk.ChatMessageRoleTool {
+				toolResultCount++
+			}
+		}
+		require.Equal(t, len(toolCallIDs), toolResultCount,
+			"expected one tool-result message per submitted result")
+	})
+
+	t.Run("WrongStatus", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a chat that is NOT in requires_action status.
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "wrong-status-test",
+		})
+		require.NoError(t, err)
+
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_xyz", Output: `"nope"`},
+			},
+		})
+		requireSDKError(t, err, http.StatusConflict)
+	})
+
+	t.Run("MissingResult", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_one", "call_two"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Submit only one of the two required results.
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_one", Output: `"partial"`},
+			},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("UnexpectedResult", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_real"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Submit a result with a wrong tool_call_id.
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_bogus", Output: `"wrong"`},
+			},
+		})
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 }

@@ -5689,49 +5689,61 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build tool-result message parts from the submitted results.
-	toolResultParts := make([]codersdk.ChatMessagePart, 0, len(req.Results))
+	// Marshal each tool result as a separate message, matching the
+	// existing chatd pattern where each tool result is its own
+	// tool-role message row.
+	resultContents := make([]pqtype.NullRawMessage, 0, len(req.Results))
 	for _, result := range req.Results {
-		toolResultParts = append(toolResultParts, codersdk.ChatMessagePart{
+		part := codersdk.ChatMessagePart{
 			Type:       codersdk.ChatMessagePartTypeToolResult,
 			ToolCallID: result.ToolCallID,
 			Result:     json.RawMessage(result.Output),
 			IsError:    result.IsError,
-		})
+		}
+		marshaled, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		if marshalErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal tool result.",
+				Detail:  marshalErr.Error(),
+			})
+			return
+		}
+		resultContents = append(resultContents, marshaled)
 	}
 
-	content, err := chatprompt.MarshalParts(toolResultParts)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to marshal tool results.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Persist the tool-result message and transition the chat
-	// to pending so the chatd run loop picks it up.
+	// Persist tool-result messages and transition the chat to
+	// pending so the chatd run loop picks it up.
+	n := len(resultContents)
 	err = api.Database.InTx(func(tx database.Store) error {
-		_, insertErr := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		params := database.InsertChatMessagesParams{
 			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{apiKey.UserID},
-			ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleTool},
-			Content:             []string{string(content.RawMessage)},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
-			RuntimeMs:           []int64{0},
-			ProviderResponseID:  []string{""},
-		})
+			CreatedBy:           make([]uuid.UUID, n),
+			ModelConfigID:       make([]uuid.UUID, n),
+			Role:                make([]database.ChatMessageRole, n),
+			Content:             make([]string, n),
+			ContentVersion:      make([]int16, n),
+			Visibility:          make([]database.ChatMessageVisibility, n),
+			InputTokens:         make([]int64, n),
+			OutputTokens:        make([]int64, n),
+			TotalTokens:         make([]int64, n),
+			ReasoningTokens:     make([]int64, n),
+			CacheCreationTokens: make([]int64, n),
+			CacheReadTokens:     make([]int64, n),
+			ContextLimit:        make([]int64, n),
+			Compressed:          make([]bool, n),
+			TotalCostMicros:     make([]int64, n),
+			RuntimeMs:           make([]int64, n),
+			ProviderResponseID:  make([]string, n),
+		}
+		for i, rc := range resultContents {
+			params.CreatedBy[i] = apiKey.UserID
+			params.ModelConfigID[i] = chat.LastModelConfigID
+			params.Role[i] = database.ChatMessageRoleTool
+			params.Content[i] = string(rc.RawMessage)
+			params.ContentVersion[i] = chatprompt.CurrentContentVersion
+			params.Visibility[i] = database.ChatMessageVisibilityBoth
+		}
+		_, insertErr := tx.InsertChatMessages(ctx, params)
 		if insertErr != nil {
 			return xerrors.Errorf("insert tool results: %w", insertErr)
 		}
