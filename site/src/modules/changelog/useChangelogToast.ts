@@ -94,7 +94,8 @@ export const useChangelogToast = () => {
 				return;
 			}
 
-			const delayMs = pollDelaysMs[Math.min(pollAttempt, pollDelaysMs.length - 1)];
+			const delayMs =
+				pollDelaysMs[Math.min(pollAttempt, pollDelaysMs.length - 1)];
 			pollAttempt++;
 			timers.push(
 				window.setTimeout(() => {
