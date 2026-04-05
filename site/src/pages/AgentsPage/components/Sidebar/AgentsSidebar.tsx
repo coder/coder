@@ -150,6 +150,7 @@ const statusConfig = {
 	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	paused: { icon: PauseIcon, className: "text-content-warning" },
+	requires_action: { icon: PauseIcon, className: "text-content-warning" },
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;

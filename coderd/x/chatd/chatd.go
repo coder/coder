@@ -770,6 +770,7 @@ type CreateOptions struct {
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
+	DynamicTools       json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -881,6 +882,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				RawMessage: labelsJSON,
 				Valid:      true,
 			},
+			DynamicTools: pqtype.NullRawMessage{
+				RawMessage: opts.DynamicTools,
+				Valid:      len(opts.DynamicTools) > 0,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -957,7 +962,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
-	p.signalWake()
+	p.SignalWake()
 	return chat, nil
 }
 
@@ -1119,7 +1124,7 @@ func (p *Server) SendMessage(
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
-	p.signalWake()
+	p.SignalWake()
 	return result, nil
 }
 
@@ -1262,7 +1267,7 @@ func (p *Server) EditMessage(
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
-	p.signalWake()
+	p.SignalWake()
 
 	return result, nil
 }
@@ -1506,7 +1511,7 @@ func (p *Server) PromoteQueued(
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
-	p.signalWake()
+	p.SignalWake()
 
 	return result, nil
 }
@@ -2473,9 +2478,9 @@ func (p *Server) start(ctx context.Context) {
 	}
 }
 
-// signalWake wakes the run loop so it calls processOnce immediately.
+// SignalWake wakes the run loop so it calls processOnce immediately.
 // Non-blocking: if a signal is already pending it is a no-op.
-func (p *Server) signalWake() {
+func (p *Server) SignalWake() {
 	select {
 	case p.wakeCh <- struct{}{}:
 	default:

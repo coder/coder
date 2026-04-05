@@ -36,12 +36,13 @@ func CompactionThresholdKey(modelConfigID uuid.UUID) string {
 type ChatStatus string
 
 const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
+	ChatStatusWaiting        ChatStatus = "waiting"
+	ChatStatusPending        ChatStatus = "pending"
+	ChatStatusRunning        ChatStatus = "running"
+	ChatStatusPaused         ChatStatus = "paused"
+	ChatStatusCompleted      ChatStatus = "completed"
+	ChatStatusError          ChatStatus = "error"
+	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
 // Chat represents a chat session with an AI agent.
@@ -64,6 +65,7 @@ type Chat struct {
 	PinOrder          int32             `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string `json:"labels"`
+	DynamicTools      []DynamicTool     `json:"dynamic_tools,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
@@ -342,6 +344,28 @@ type ChatInputPart struct {
 	Content string `json:"content,omitempty"`
 }
 
+// DynamicTool defines a tool that is executed by the client, not
+// by chatd. Declared at chat creation time and immutable for the
+// lifetime of the chat.
+type DynamicTool struct {
+	Name           string          `json:"name"`
+	Description    string          `json:"description"`
+	Parameters     json.RawMessage `json:"parameters"`
+	TimeoutSeconds int             `json:"timeout_seconds,omitempty"`
+}
+
+// SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
+type SubmitToolResultsRequest struct {
+	Results []ToolResult `json:"results"`
+}
+
+// ToolResult is the client's response to a dynamic tool call.
+type ToolResult struct {
+	ToolCallID string `json:"tool_call_id"`
+	Output     string `json:"output"`
+	IsError    bool   `json:"is_error"`
+}
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	Content       []ChatInputPart   `json:"content"`
@@ -349,6 +373,7 @@ type CreateChatRequest struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels        map[string]string `json:"labels,omitempty"`
+	DynamicTools  []DynamicTool     `json:"dynamic_tools,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -872,12 +897,13 @@ type ChatDiffContents struct {
 type ChatStreamEventType string
 
 const (
-	ChatStreamEventTypeMessagePart ChatStreamEventType = "message_part"
-	ChatStreamEventTypeMessage     ChatStreamEventType = "message"
-	ChatStreamEventTypeStatus      ChatStreamEventType = "status"
-	ChatStreamEventTypeError       ChatStreamEventType = "error"
-	ChatStreamEventTypeQueueUpdate ChatStreamEventType = "queue_update"
-	ChatStreamEventTypeRetry       ChatStreamEventType = "retry"
+	ChatStreamEventTypeMessagePart    ChatStreamEventType = "message_part"
+	ChatStreamEventTypeMessage        ChatStreamEventType = "message"
+	ChatStreamEventTypeStatus         ChatStreamEventType = "status"
+	ChatStreamEventTypeError          ChatStreamEventType = "error"
+	ChatStreamEventTypeQueueUpdate    ChatStreamEventType = "queue_update"
+	ChatStreamEventTypeRetry          ChatStreamEventType = "retry"
+	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -932,16 +958,30 @@ type ChatStreamRetry struct {
 	RetryingAt time.Time `json:"retrying_at" format:"date-time"`
 }
 
+// ChatStreamActionRequired is the payload of an action_required stream event.
+type ChatStreamActionRequired struct {
+	ToolCalls []ChatStreamToolCall `json:"tool_calls"`
+}
+
+// ChatStreamToolCall describes a pending dynamic tool call that the client
+// must execute.
+type ChatStreamToolCall struct {
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Args       string `json:"args"`
+}
+
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
-	Type           ChatStreamEventType    `json:"type"`
-	ChatID         uuid.UUID              `json:"chat_id" format:"uuid"`
-	Message        *ChatMessage           `json:"message,omitempty"`
-	MessagePart    *ChatStreamMessagePart `json:"message_part,omitempty"`
-	Status         *ChatStreamStatus      `json:"status,omitempty"`
-	Error          *ChatStreamError       `json:"error,omitempty"`
-	Retry          *ChatStreamRetry       `json:"retry,omitempty"`
-	QueuedMessages []ChatQueuedMessage    `json:"queued_messages,omitempty"`
+	Type           ChatStreamEventType       `json:"type"`
+	ChatID         uuid.UUID                 `json:"chat_id" format:"uuid"`
+	Message        *ChatMessage              `json:"message,omitempty"`
+	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
+	Status         *ChatStreamStatus         `json:"status,omitempty"`
+	Error          *ChatStreamError          `json:"error,omitempty"`
+	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
+	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
+	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }
 
 type chatStreamEnvelope struct {
@@ -2158,6 +2198,20 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 	}
 	var resp ChatUsageLimitStatus
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// SubmitToolResults submits the results of dynamic tool calls for a chat
+// that is in requires_action status.
+func (c *ExperimentalClient) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/tool-results", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest

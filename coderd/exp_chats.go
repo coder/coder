@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -478,6 +479,27 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.DynamicTools) > 250 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many dynamic tools.",
+			Detail:  "Maximum 250 dynamic tools per chat.",
+		})
+		return
+	}
+
+	var dynamicToolsJSON json.RawMessage
+	if len(req.DynamicTools) > 0 {
+		var err error
+		dynamicToolsJSON, err = json.Marshal(req.DynamicTools)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal dynamic tools.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -487,6 +509,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
+		DynamicTools:       dynamicToolsJSON,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -5567,4 +5590,187 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		ByModel:    modelEntries,
 		RecentPRs:  prEntries,
 	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	var req codersdk.SubmitToolResultsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.Results) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "At least one tool result is required.",
+		})
+		return
+	}
+
+	if chat.Status != database.ChatStatusRequiresAction {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat is not waiting for tool results.",
+			Detail:  fmt.Sprintf("Chat status is %q, expected %q.", chat.Status, database.ChatStatusRequiresAction),
+		})
+		return
+	}
+
+	// Unmarshal dynamic tools from the chat to build the set of
+	// dynamic tool names. Only tool calls targeting these names
+	// require client-submitted results.
+	var dynamicTools []codersdk.DynamicTool
+	if chat.DynamicTools.Valid {
+		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicTools); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to parse chat dynamic tools.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+	dynamicToolNames := make(map[string]bool, len(dynamicTools))
+	for _, dt := range dynamicTools {
+		dynamicToolNames[dt.Name] = true
+	}
+
+	// Get the chat messages to locate the last assistant message
+	// and its pending dynamic tool calls.
+	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Walk backwards to find the last assistant message and
+	// extract the tool-call IDs that target dynamic tools.
+	pendingCallIDs := make(map[string]bool)
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg := messages[i]
+		if msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		if parseErr != nil {
+			break
+		}
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolCall && dynamicToolNames[part.ToolName] {
+				pendingCallIDs[part.ToolCallID] = true
+			}
+		}
+		break // Only inspect the last assistant message.
+	}
+
+	// Validate that submitted results match pending calls
+	// exactly — no missing results and no unexpected ones.
+	submittedIDs := make(map[string]bool, len(req.Results))
+	for _, result := range req.Results {
+		submittedIDs[result.ToolCallID] = true
+	}
+	for id := range pendingCallIDs {
+		if !submittedIDs[id] {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Missing tool result.",
+				Detail:  fmt.Sprintf("Missing result for tool call %q.", id),
+			})
+			return
+		}
+	}
+	for id := range submittedIDs {
+		if !pendingCallIDs[id] {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unexpected tool result.",
+				Detail:  fmt.Sprintf("No pending tool call with ID %q.", id),
+			})
+			return
+		}
+	}
+
+	// Build tool-result message parts from the submitted results.
+	toolResultParts := make([]codersdk.ChatMessagePart, 0, len(req.Results))
+	for _, result := range req.Results {
+		toolResultParts = append(toolResultParts, codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: result.ToolCallID,
+			Result:     json.RawMessage(result.Output),
+			IsError:    result.IsError,
+		})
+	}
+
+	content, err := chatprompt.MarshalParts(toolResultParts)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to marshal tool results.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Persist the tool-result message and transition the chat
+	// to pending so the chatd run loop picks it up.
+	err = api.Database.InTx(func(tx database.Store) error {
+		_, insertErr := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{apiKey.UserID},
+			ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleTool},
+			Content:             []string{string(content.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		if insertErr != nil {
+			return xerrors.Errorf("insert tool results: %w", insertErr)
+		}
+
+		_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		if updateErr != nil {
+			return xerrors.Errorf("update chat status: %w", updateErr)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to submit tool results.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Wake the chatd run loop so it processes the chat
+	// immediately.
+	if api.chatDaemon != nil {
+		api.chatDaemon.SignalWake()
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }

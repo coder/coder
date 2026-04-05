@@ -1581,6 +1581,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if c.DynamicTools.Valid {
+		var tools []codersdk.DynamicTool
+		if err := json.Unmarshal(c.DynamicTools.RawMessage, &tools); err == nil {
+			chat.DynamicTools = tools
+		}
+	}
 	if c.LastInjectedContext.Valid {
 		var parts []codersdk.ChatMessagePart
 		// Internal fields are stripped at write time in

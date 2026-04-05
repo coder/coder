@@ -1290,12 +1290,13 @@ func AllChatModeValues() []ChatMode {
 type ChatStatus string
 
 const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
+	ChatStatusWaiting        ChatStatus = "waiting"
+	ChatStatusPending        ChatStatus = "pending"
+	ChatStatusRunning        ChatStatus = "running"
+	ChatStatusPaused         ChatStatus = "paused"
+	ChatStatusCompleted      ChatStatus = "completed"
+	ChatStatusError          ChatStatus = "error"
+	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1340,7 +1341,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusPaused,
 		ChatStatusCompleted,
-		ChatStatusError:
+		ChatStatusError,
+		ChatStatusRequiresAction:
 		return true
 	}
 	return false
@@ -1354,6 +1356,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusPaused,
 		ChatStatusCompleted,
 		ChatStatusError,
+		ChatStatusRequiresAction,
 	}
 }
 
@@ -4180,6 +4183,7 @@ type Chat struct {
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 }
 
 type ChatDiffStatus struct {
