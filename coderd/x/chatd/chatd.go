@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -91,6 +90,12 @@ const (
 	// goroutines and lifecycle management.
 	streamDropWarnInterval = 10 * time.Second
 
+	// bufferRetainGracePeriod is how long the message_part
+	// buffer is kept after processing completes. This gives
+	// cross-replica relay subscribers time to connect and
+	// snapshot the buffer before it is garbage-collected.
+	bufferRetainGracePeriod = 5 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -117,6 +122,7 @@ type Server struct {
 
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
+	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	pubsub                         pubsub.Pubsub
@@ -691,6 +697,13 @@ type chatStreamState struct {
 	bufferLastWarnAt     time.Time
 	subscriberDropCount  int64
 	subscriberLastWarnAt time.Time
+	// bufferRetainedAt records when processing completed and
+	// the buffer was retained for late-connecting relay
+	// subscribers. Zero while buffering is active. When
+	// non-zero, cleanupStreamIfIdle skips GC until the grace
+	// period expires so cross-replica relays can still
+	// snapshot the buffer.
+	bufferRetainedAt time.Time
 }
 
 // resetDropCounters zeroes the rate-limiting state for both buffer
@@ -2316,6 +2329,7 @@ type Config struct {
 	ChatHeartbeatInterval          time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
+	InstructionLookupTimeout       time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	Pubsub                         pubsub.Pubsub
@@ -2356,6 +2370,11 @@ func New(cfg Config) *Server {
 		clk = quartz.NewReal()
 	}
 
+	instructionLookupTimeout := cfg.InstructionLookupTimeout
+	if instructionLookupTimeout == 0 {
+		instructionLookupTimeout = homeInstructionLookupTimeout
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -2370,6 +2389,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                    cfg.SubscribeFn,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		pubsub:                         cfg.Pubsub,
@@ -2674,12 +2694,23 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 
 // cleanupStreamIfIdle removes the chat entry from the sync.Map
 // when there are no subscribers and the stream is not buffering.
+// When bufferRetainedAt is set, cleanup is deferred until the
+// grace period expires so cross-replica relay subscribers can
+// still snapshot the buffer.
 // The caller must hold state.mu.
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
-	if !state.buffering && len(state.subscribers) == 0 {
-		p.chatStreams.Delete(chatID)
-		p.workspaceMCPToolsCache.Delete(chatID)
+	if state.buffering || len(state.subscribers) > 0 {
+		return
 	}
+	// Keep stream state alive during the grace period so
+	// late-connecting relay subscribers can snapshot the
+	// buffer after the worker finishes processing.
+	if !state.bufferRetainedAt.IsZero() &&
+		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
+		return
+	}
+	p.chatStreams.Delete(chatID)
+	p.workspaceMCPToolsCache.Delete(chatID)
 }
 
 func (p *Server) Subscribe(
@@ -3560,15 +3591,20 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState := p.getOrCreateStreamState(chat.ID)
 	streamState.mu.Lock()
 	streamState.buffer = nil
+	streamState.bufferRetainedAt = time.Time{}
 	streamState.resetDropCounters()
 	streamState.buffering = true
 	streamState.mu.Unlock()
 	defer func() {
 		streamState.mu.Lock()
-		streamState.buffer = nil
 		streamState.resetDropCounters()
 		streamState.buffering = false
-		p.cleanupStreamIfIdle(chat.ID, streamState)
+		// Retain the buffer for a grace period so
+		// cross-replica relay subscribers can still snapshot
+		// it after processing completes. The buffer is
+		// cleared when the next processChat starts or when
+		// cleanupStreamIfIdle runs after the grace period.
+		streamState.bufferRetainedAt = p.clock.Now()
 		streamState.mu.Unlock()
 	}()
 
@@ -3944,7 +3980,6 @@ func (p *Server) runChat(
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		skills             []chattool.SkillMeta
-		skillMetaFile      = workspacesdk.DefaultSkillMetaFile
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3967,7 +4002,7 @@ func (p *Server) runChat(
 	if needsInstructionPersist {
 		g2.Go(func() error {
 			var persistErr error
-			instruction, skills, skillMetaFile, persistErr = p.persistInstructionFiles(
+			instruction, skills, persistErr = p.persistInstructionFiles(
 				ctx,
 				chat,
 				modelConfig.ID,
@@ -3994,9 +4029,6 @@ func (p *Server) runChat(
 		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
 		skills = skillsFromParts(messages)
-		if restored := skillMetaFileFromParts(messages); restored != "" {
-			skillMetaFile = restored
-		}
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
@@ -4299,17 +4331,12 @@ func (p *Server) runChat(
 			p.publishMessage(chat.ID, msg)
 		}
 
-		// Clear the stream buffer now that the step is
-		// persisted. Late-joining subscribers will load
-		// these messages from the database instead.
-		if val, ok := p.chatStreams.Load(chat.ID); ok {
-			if ss, ok := val.(*chatStreamState); ok {
-				ss.mu.Lock()
-				ss.buffer = nil
-				ss.resetDropCounters()
-				ss.mu.Unlock()
-			}
-		}
+		// Do NOT clear the stream buffer here. Cross-replica
+		// relay subscribers may still need to snapshot buffered
+		// message_parts after processing completes. The buffer
+		// is bounded by maxStreamBufferSize and is cleared when
+		// the next processChat starts or when the stream state
+		// is garbage-collected after the retention grace period.
 
 		return nil
 	}
@@ -4487,7 +4514,6 @@ func (p *Server) runChat(
 			GetSkills: func() []chattool.SkillMeta {
 				return skills
 			},
-			SkillMetaFile: skillMetaFile,
 		}
 		tools = append(tools,
 			chattool.ReadSkill(skillOpts),
@@ -4986,22 +5012,22 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 // skills from the workspace agent, persisting both as message
 // parts. This is called once when a workspace is first attached
 // to a chat (or when the agent changes). Returns the formatted
-// instruction string, skill index, and the skill meta file name
-// for injection into the current turn's prompt.
+// instruction string and skill index for injection into the
+// current turn's prompt.
 func (p *Server) persistInstructionFiles(
 	ctx context.Context,
 	chat database.Chat,
 	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (instruction string, skills []chattool.SkillMeta, skillMetaFile string, err error) {
+) (instruction string, skills []chattool.SkillMeta, err error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
+		return "", nil, nil
 	}
 
 	agent, err := getWorkspaceAgent(ctx)
 	if err != nil {
-		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
+		return "", nil, nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -5009,23 +5035,14 @@ func (p *Server) persistInstructionFiles(
 		directory = agent.Directory
 	}
 
-	// Read instruction files from the workspace agent.
-	var (
-		sections        []instructionFileSection
-		workspaceConnOK bool
-	)
+	// Fetch context configuration from the agent. Parts
+	// arrive pre-populated with context-file and skill entries
+	// so we don't need additional round-trips.
+	var workspaceConnOK bool
+	var agentParts []codersdk.ChatMessagePart
 
-	// Fetch context configuration from the agent. This tells
-	// us where instruction files, skills, and MCP configs live.
-	// Fall back to the pre-context-config behavior for older
-	// agents that don't support the endpoint.
-	agentCfg := workspacesdk.ContextConfigResponse{
-		InstructionsFile: workspacesdk.DefaultInstructionsFile,
-		SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
-	}
-
-	if getWorkspaceConn != nil { //nolint:nestif // Existing high-complexity block; config fallback logic adds unavoidable branches.
-		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
+	if getWorkspaceConn != nil {
+		instructionCtx, cancel := context.WithTimeout(ctx, p.instructionLookupTimeout)
 		defer cancel()
 
 		conn, connErr := getWorkspaceConn(instructionCtx)
@@ -5037,108 +5054,62 @@ func (p *Server) persistInstructionFiles(
 		} else {
 			workspaceConnOK = true
 
-			// Fetch resolved context config from agent.
-			var cfgErr error
-			agentCfg, cfgErr = conn.ContextConfig(instructionCtx)
+			agentCfg, cfgErr := conn.ContextConfig(instructionCtx)
 			if cfgErr != nil {
-				p.logger.Debug(ctx, "agent does not support context-config endpoint, using defaults",
+				p.logger.Debug(ctx, "failed to fetch context config from agent",
 					slog.F("chat_id", chat.ID), slog.Error(cfgErr))
-				// Fall back to the pre-context-config behavior:
-				// read instruction file from home dir using
-				// LSRelativityHome and discover skills from the
-				// working directory.
-				agentCfg = workspacesdk.ContextConfigResponse{
-					InstructionsFile: workspacesdk.DefaultInstructionsFile,
-					SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
-				}
-				if content, source, truncated, readErr := readHomeInstructionFile(
-					instructionCtx, conn, ".coder", agentCfg.InstructionsFile,
-				); readErr != nil {
-					p.logger.Debug(ctx, "failed to load home instruction file",
-						slog.F("chat_id", chat.ID), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
-				}
-				if directory != "" {
-					agentCfg.SkillsDirs = []string{path.Join(directory, ".agents/skills")}
-				}
-			}
-
-			// Read instruction files from each configured
-			// instruction directory. Track seen paths to
-			// avoid reading the same file twice when the
-			// user duplicates entries.
-			seenDirs := make(map[string]struct{}, len(agentCfg.InstructionsDirs))
-			for _, absDir := range agentCfg.InstructionsDirs {
-				if _, ok := seenDirs[absDir]; ok {
-					continue
-				}
-				seenDirs[absDir] = struct{}{}
-				if content, source, truncated, readErr := readInstructionDirFile(instructionCtx, conn, absDir, agentCfg.InstructionsFile); readErr != nil {
-					p.logger.Debug(ctx, "failed to load instruction file from dir",
-						slog.F("chat_id", chat.ID), slog.F("dir", absDir), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
-				}
-			}
-
-			// Also check the working directory for the
-			// instruction file, unless it was already
-			// covered by InstructionsDirs.
-			_, pwdSeen := seenDirs[directory]
-			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" && !pwdSeen {
-				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
-					p.logger.Debug(ctx, "failed to load working directory instruction file",
-						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
-				}
+				// Treat a transient ContextConfig failure the
+				// same as a failed connection so no sentinel is
+				// persisted. The next turn will retry.
+				workspaceConnOK = false
+			} else {
+				agentParts = agentCfg.Parts
 			}
 		}
 	}
 
-	// Discover skills from each configured skills directory.
-	// Errors are non-fatal. A chat without skills still works,
-	// it just won't list them in the prompt.
+	// Stamp server-side fields and sanitize content. The
+	// agent cannot know its own UUID, OS metadata, or
+	// directory — those are added here at the trust boundary.
 	var discoveredSkills []chattool.SkillMeta
-	if workspaceConnOK && len(agentCfg.SkillsDirs) > 0 {
-		conn, connErr := getWorkspaceConn(ctx)
-		if connErr == nil {
-			var discoverErr error
-			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, p.logger, conn, agentCfg.SkillsDirs, agentCfg.SkillMetaFile)
-			if discoverErr != nil {
-				p.logger.Debug(ctx, "failed to discover skills",
-					slog.F("chat_id", chat.ID),
-					slog.Error(discoverErr),
-				)
-			}
-		}
-	}
+	var hasContent bool
+	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
 
-	if len(sections) == 0 {
-		if !workspaceConnOK {
-			return "", nil, agentCfg.SkillMetaFile, nil
-		}
-		// Persist a sentinel (plus any discovered skill parts)
-		// so subsequent turns skip the workspace agent dial.
-		parts := []codersdk.ChatMessagePart{{
-			Type:                     codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:          "",
-			ContextFileAgentID:       uuid.NullUUID{UUID: agent.ID, Valid: true},
-			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
-		}}
-		for _, s := range discoveredSkills {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:               codersdk.ChatMessagePartTypeSkill,
-				SkillName:          s.Name,
-				SkillDescription:   s.Description,
-				SkillDir:           s.Dir,
-				ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+	for i := range agentParts {
+		agentParts[i].ContextFileAgentID = agentID
+		switch agentParts[i].Type {
+		case codersdk.ChatMessagePartTypeContextFile:
+			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
+			agentParts[i].ContextFileOS = agent.OperatingSystem
+			agentParts[i].ContextFileDirectory = directory
+			if agentParts[i].ContextFileContent != "" {
+				hasContent = true
+			}
+		case codersdk.ChatMessagePartTypeSkill:
+			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
+				Name:        agentParts[i].SkillName,
+				Description: agentParts[i].SkillDescription,
+				Dir:         agentParts[i].SkillDir,
+				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
 			})
 		}
-		content, err := chatprompt.MarshalParts(parts)
+	}
+
+	if !hasContent {
+		if !workspaceConnOK {
+			return "", nil, nil
+		}
+		// Persist a sentinel (plus any skill-only parts) so
+		// subsequent turns skip the workspace agent dial.
+		if len(agentParts) == 0 {
+			agentParts = []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFileAgentID: agentID,
+			}}
+		}
+		content, err := chatprompt.MarshalParts(agentParts)
 		if err != nil {
-			return "", nil, agentCfg.SkillMetaFile, nil
+			return "", nil, nil
 		}
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: chat.ID,
@@ -5154,50 +5125,13 @@ func (p *Server) persistInstructionFiles(
 		// Update the cache column: persist skills if any
 		// exist, or clear to NULL so stale data from a
 		// previous agent doesn't linger.
-		if len(discoveredSkills) > 0 {
-			skillParts := make([]codersdk.ChatMessagePart, 0, len(discoveredSkills))
-			for _, s := range discoveredSkills {
-				skillParts = append(skillParts, codersdk.ChatMessagePart{
-					Type:               codersdk.ChatMessagePartTypeSkill,
-					SkillName:          s.Name,
-					SkillDescription:   s.Description,
-					ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
-				})
-			}
-			p.updateLastInjectedContext(ctx, chat.ID, skillParts)
-		} else {
-			p.updateLastInjectedContext(ctx, chat.ID, nil)
-		}
-		return "", discoveredSkills, agentCfg.SkillMetaFile, nil
+		skillParts := filterSkillParts(agentParts)
+		p.updateLastInjectedContext(ctx, chat.ID, skillParts)
+		return "", discoveredSkills, nil
 	}
-	// Build context-file parts (one per instruction file) and
-	// skill parts (one per discovered skill).
-	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
-	for _, s := range sections {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:                     codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:          s.source,
-			ContextFileContent:       s.content,
-			ContextFileTruncated:     s.truncated,
-			ContextFileAgentID:       uuid.NullUUID{UUID: agent.ID, Valid: true},
-			ContextFileOS:            agent.OperatingSystem,
-			ContextFileDirectory:     directory,
-			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
-		})
-	}
-	for _, s := range discoveredSkills {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:               codersdk.ChatMessagePartTypeSkill,
-			SkillName:          s.Name,
-			SkillDescription:   s.Description,
-			SkillDir:           s.Dir,
-			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
-		})
-	}
-
-	content, err := chatprompt.MarshalParts(parts)
+	content, err := chatprompt.MarshalParts(agentParts)
 	if err != nil {
-		return "", nil, agentCfg.SkillMetaFile, xerrors.Errorf("marshal context-file parts: %w", err)
+		return "", nil, xerrors.Errorf("marshal context-file parts: %w", err)
 	}
 
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
@@ -5211,13 +5145,13 @@ func (p *Server) persistInstructionFiles(
 		chatprompt.CurrentContentVersion,
 	))
 	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
-		return "", nil, agentCfg.SkillMetaFile, xerrors.Errorf("persist instruction files: %w", err)
+		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
 	}
 	// Build stripped copies for the cache column so internal
 	// fields (full file content, OS, directory, skill paths)
 	// are never persisted or returned to API clients.
-	stripped := make([]codersdk.ChatMessagePart, len(parts))
-	copy(stripped, parts)
+	stripped := make([]codersdk.ChatMessagePart, len(agentParts))
+	copy(stripped, agentParts)
 	for i := range stripped {
 		stripped[i].StripInternal()
 	}
@@ -5226,7 +5160,7 @@ func (p *Server) persistInstructionFiles(
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
 	// the prompt was built before we persisted).
-	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, agentCfg.SkillMetaFile, nil
+	return formatSystemInstructions(agent.OperatingSystem, directory, agentParts), discoveredSkills, nil
 }
 
 // updateLastInjectedContext persists the injected context

@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,6 +27,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -4958,4 +4961,150 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	// Both turns processed — verify second request reached the LLM.
 	require.GreaterOrEqual(t, requestCount.Load(), int32(2),
 		"LLM should have received at least 2 streaming requests")
+}
+
+// TestAgentContextFilesAndSkillsLoadedIntoChat verifies the full
+// end-to-end path: the workspace agent reads instruction files and
+// discovers skills from the filesystem, chatd fetches them via a
+// real tailnet agent connection, and both the <workspace-context>
+// block and <available-skills> index appear in the LLM prompt.
+//
+// This test is NOT parallel because it sets process-wide environment
+// variables via t.Setenv to configure the agent's context config.
+func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	t.Setenv("USERPROFILE", fakeHome)
+
+	instructionsDir := filepath.Join(fakeHome, ".coder")
+	skillsDir := filepath.Join(fakeHome, ".coder", "skills")
+	require.NoError(t, os.MkdirAll(instructionsDir, 0o755))
+	require.NoError(t, os.MkdirAll(skillsDir, 0o755))
+
+	t.Setenv(agentcontextconfig.EnvInstructionsDirs, instructionsDir)
+	t.Setenv(agentcontextconfig.EnvInstructionsFile, "AGENTS.md")
+	t.Setenv(agentcontextconfig.EnvSkillsDirs, skillsDir)
+	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "SKILL.md")
+	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, filepath.Join(fakeHome, "nonexistent-mcp.json"))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(instructionsDir, "AGENTS.md"),
+		[]byte("# Project Rules\nAlways write tests."),
+		0o600,
+	))
+
+	skillDir := filepath.Join(skillsDir, "my-cool-skill")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(skillDir, "SKILL.md"),
+		[]byte("---\nname: my-cool-skill\ndescription: A test skill\n---\nDo the cool thing.\n"),
+		0o600,
+	))
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:              deploymentValues,
+		IncludeProvisionerDaemon:      true,
+		ChatdInstructionLookupTimeout: testutil.WaitLong,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+	// Capture LLM requests so we can inspect the system prompt.
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("context test")
+		}
+
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCallsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Got it.")...,
+		)
+	})
+
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	workspaceID := workspace.ID
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		WorkspaceID: &workspaceID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Hello, what are the project rules?",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+	streamedCallsMu.Lock()
+	recordedCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	streamedCallsMu.Unlock()
+	require.NotEmpty(t, recordedCalls, "LLM should have received at least one streaming request")
+
+	var allSystemContent string
+	for _, msg := range recordedCalls[0] {
+		if msg.Role == "system" {
+			allSystemContent += msg.Content + "\n"
+		}
+	}
+
+	require.Contains(t, allSystemContent, "<workspace-context>",
+		"system prompt should contain workspace-context block")
+	require.Contains(t, allSystemContent, "Always write tests.",
+		"system prompt should contain AGENTS.md content")
+	require.Contains(t, allSystemContent, "AGENTS.md",
+		"system prompt should reference the source file")
+
+	require.Contains(t, allSystemContent, "<available-skills>",
+		"system prompt should contain available-skills block")
+	require.Contains(t, allSystemContent, "my-cool-skill",
+		"system prompt should list the discovered skill")
+	require.Contains(t, allSystemContent, "A test skill",
+		"system prompt should include the skill description")
 }

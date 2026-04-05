@@ -83,14 +83,14 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 		return ""
 	})
 
-	cfg1 := a.contextConfigAPI.Config()
-	require.NotEmpty(t, cfg1.MCPConfigFiles)
-	require.Contains(t, cfg1.MCPConfigFiles[0], dir1)
+	mcpFiles1 := a.contextConfigAPI.MCPConfigFiles()
+	require.NotEmpty(t, mcpFiles1)
+	require.Contains(t, mcpFiles1[0], dir1)
 
-	// Simulate manifest update on reconnection — no field
+	// Simulate manifest update on reconnection -- no field
 	// reassignment needed, the lazy closure picks it up.
 	a.manifest.Store(&agentsdk.Manifest{Directory: dir2})
-	cfg2 := a.contextConfigAPI.Config()
-	require.NotEmpty(t, cfg2.MCPConfigFiles)
-	require.Contains(t, cfg2.MCPConfigFiles[0], dir2)
+	mcpFiles2 := a.contextConfigAPI.MCPConfigFiles()
+	require.NotEmpty(t, mcpFiles2)
+	require.Contains(t, mcpFiles2[0], dir2)
 }
