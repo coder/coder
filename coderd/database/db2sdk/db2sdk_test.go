@@ -210,6 +210,87 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
 }
 
+func TestChatDebugStep(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(2 * time.Second)
+	attempts := json.RawMessage(`[
+		{
+			"attempt_number": 1,
+			"status": "completed",
+			"raw_request": {"url": "https://example.com"},
+			"raw_response": {"status": "200"},
+			"duration_ms": 123,
+			"started_at": "2026-03-01T10:00:01Z",
+			"finished_at": "2026-03-01T10:00:02Z"
+		}
+	]`)
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          attempts,
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         startedAt,
+		UpdatedAt:         finishedAt,
+		FinishedAt:        sql.NullTime{Time: finishedAt, Valid: true},
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+
+	// Verify all scalar fields are mapped correctly.
+	require.Equal(t, step.ID, sdk.ID)
+	require.Equal(t, step.RunID, sdk.RunID)
+	require.Equal(t, step.ChatID, sdk.ChatID)
+	require.Equal(t, step.StepNumber, sdk.StepNumber)
+	require.Equal(t, step.Operation, sdk.Operation)
+	require.Equal(t, step.Status, sdk.Status)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, &finishedAt, sdk.FinishedAt)
+
+	// Verify JSON object fields are deserialized.
+	require.NotNil(t, sdk.NormalizedRequest)
+	require.Equal(t, map[string]any{"messages": []any{}}, sdk.NormalizedRequest)
+	require.NotNil(t, sdk.Metadata)
+	require.Equal(t, map[string]any{"provider": "openai"}, sdk.Metadata)
+
+	// Verify attempts are preserved with all fields.
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, float64(1), sdk.Attempts[0]["attempt_number"])
+	require.Equal(t, "completed", sdk.Attempts[0]["status"])
+	require.Equal(t, float64(123), sdk.Attempts[0]["duration_ms"])
+	require.Equal(t, map[string]any{"url": "https://example.com"}, sdk.Attempts[0]["raw_request"])
+	require.Equal(t, map[string]any{"status": "200"}, sdk.Attempts[0]["raw_response"])
+}
+
+func TestChatDebugStep_PreservesMalformedAttempts(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          json.RawMessage(`{"bad":true}`),
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, "malformed attempts payload", sdk.Attempts[0]["error"])
+	require.Equal(t, `{"bad":true}`, sdk.Attempts[0]["raw"])
+}
+
 func TestAIBridgeInterception(t *testing.T) {
 	t.Parallel()
 
@@ -528,23 +609,24 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// converter is updated.
 	now := dbtime.Now()
 	input := database.Chat{
-		ID:                uuid.New(),
-		OwnerID:           uuid.New(),
-		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		LastModelConfigID: uuid.New(),
-		Title:             "all-fields-test",
-		Status:            database.ChatStatusRunning,
-		LastError:         sql.NullString{String: "boom", Valid: true},
-		CreatedAt:         now,
-		UpdatedAt:         now,
-		Archived:          true,
-		PinOrder:          1,
-		MCPServerIDs:      []uuid.UUID{uuid.New()},
-		Labels:            database.StringMap{"env": "prod"},
+		ID:                       uuid.New(),
+		OwnerID:                  uuid.New(),
+		WorkspaceID:              uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		BuildID:                  uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AgentID:                  uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:               uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		LastModelConfigID:        uuid.New(),
+		Title:                    "all-fields-test",
+		Status:                   database.ChatStatusRunning,
+		LastError:                sql.NullString{String: "boom", Valid: true},
+		CreatedAt:                now,
+		UpdatedAt:                now,
+		Archived:                 true,
+		PinOrder:                 1,
+		MCPServerIDs:             []uuid.UUID{uuid.New()},
+		Labels:                   database.StringMap{"env": "prod"},
+		DebugLogsEnabledOverride: sql.NullBool{Bool: true, Valid: true},
 		LastInjectedContext: pqtype.NullRawMessage{
 			// Use a context-file part to verify internal
 			// fields are not present (they are stripped at

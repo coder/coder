@@ -11188,6 +11188,152 @@ func TestChatLabels(t *testing.T) {
 	})
 }
 
+func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-rollback-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	const cutoff int64 = 50
+
+	affectedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff + 10, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 5, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "running",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      affectedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "running",
+	})
+	require.NoError(t, err)
+
+	affectedByStepHistoryTipRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff - 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "running",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               affectedByStepHistoryTipRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "interrupted",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 7, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unaffectedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "running",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unaffectedStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              unaffectedRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "running",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:    chat.ID,
+		MessageID: cutoff,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, deletedRows)
+
+	_, err = store.GetChatDebugRunByID(ctx, affectedRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedSteps)
+
+	_, err = store.GetChatDebugRunByID(ctx, affectedByStepHistoryTipRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedByStepHistoryTipSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedByStepHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedByStepHistoryTipSteps)
+
+	remainingRuns, err := store.GetChatDebugRunsByChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, remainingRuns, 1)
+	require.Equal(t, unaffectedRun.ID, remainingRuns[0].ID)
+
+	remainingRun, err := store.GetChatDebugRunByID(ctx, unaffectedRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, unaffectedRun.ID, remainingRun.ID)
+
+	remainingSteps, err := store.GetChatDebugStepsByRunID(ctx, unaffectedRun.ID)
+	require.NoError(t, err)
+	require.Len(t, remainingSteps, 1)
+	require.Equal(t, unaffectedStep.ID, remainingSteps[0].ID)
+}
+
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
 

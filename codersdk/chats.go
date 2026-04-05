@@ -68,6 +68,9 @@ type Chat struct {
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
 	HasUnread bool `json:"has_unread"`
+	// DebugLogsEnabledOverride overrides debug logging for this
+	// chat when set.
+	DebugLogsEnabledOverride *bool `json:"debug_logs_enabled_override,omitempty"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
 	// is updated only when context changes — first workspace
@@ -478,6 +481,78 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// ChatDebugSettings is the response for getting the debug logging setting.
+type ChatDebugSettings struct {
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
+}
+
+// UpdateChatDebugLoggingRequest is the request to update the debug logging setting.
+type UpdateChatDebugLoggingRequest struct {
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
+}
+
+// ChatDebugRunSummary is a lightweight run entry for list endpoints.
+type ChatDebugRunSummary struct {
+	ID         uuid.UUID      `json:"id" format:"uuid"`
+	ChatID     uuid.UUID      `json:"chat_id" format:"uuid"`
+	Kind       string         `json:"kind"`
+	Status     string         `json:"status"`
+	Provider   *string        `json:"provider,omitempty"`
+	Model      *string        `json:"model,omitempty"`
+	Summary    map[string]any `json:"summary"`
+	StartedAt  time.Time      `json:"started_at" format:"date-time"`
+	UpdatedAt  time.Time      `json:"updated_at" format:"date-time"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty" format:"date-time"`
+}
+
+// ChatDebugRun is the detailed run response including steps.
+type ChatDebugRun struct {
+	ID                  uuid.UUID       `json:"id" format:"uuid"`
+	ChatID              uuid.UUID       `json:"chat_id" format:"uuid"`
+	RootChatID          *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	ModelConfigID       *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	TriggerMessageID    *int64          `json:"trigger_message_id,omitempty"`
+	HistoryTipMessageID *int64          `json:"history_tip_message_id,omitempty"`
+	Kind                string          `json:"kind"`
+	Status              string          `json:"status"`
+	Provider            *string         `json:"provider,omitempty"`
+	Model               *string         `json:"model,omitempty"`
+	Summary             map[string]any  `json:"summary"`
+	StartedAt           time.Time       `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time      `json:"finished_at,omitempty" format:"date-time"`
+	Steps               []ChatDebugStep `json:"steps"`
+}
+
+// ChatDebugStep is a single step within a debug run.
+type ChatDebugStep struct {
+	ID                  uuid.UUID        `json:"id" format:"uuid"`
+	RunID               uuid.UUID        `json:"run_id" format:"uuid"`
+	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
+	StepNumber          int32            `json:"step_number"`
+	Operation           string           `json:"operation"`
+	Status              string           `json:"status"`
+	HistoryTipMessageID *int64           `json:"history_tip_message_id,omitempty"`
+	AssistantMessageID  *int64           `json:"assistant_message_id,omitempty"`
+	NormalizedRequest   map[string]any   `json:"normalized_request"`
+	NormalizedResponse  map[string]any   `json:"normalized_response,omitempty"`
+	Usage               map[string]any   `json:"usage,omitempty"`
+	Attempts            []map[string]any `json:"attempts"`
+	Error               map[string]any   `json:"error,omitempty"`
+	Metadata            map[string]any   `json:"metadata"`
+	StartedAt           time.Time        `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time        `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time       `json:"finished_at,omitempty" format:"date-time"`
+}
+
+// ChatDebugEvent is a forward-compatible SSE event type for future
+// live debug streaming. No transport is wired in this phase.
+type ChatDebugEvent struct {
+	Type string `json:"type"`
+	Data any    `json:"data"`
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
