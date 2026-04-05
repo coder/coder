@@ -643,6 +643,7 @@ const ChatMessageItem = memo<{
 									text={parsed.markdown}
 									label="Copy message"
 									className="size-6"
+									tooltipSide="bottom"
 								/>
 							)}
 							{isUser && onEditUserMessage && (
