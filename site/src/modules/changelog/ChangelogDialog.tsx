@@ -1,6 +1,7 @@
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Dialog,
 	DialogContent,
@@ -8,7 +9,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { Badge } from "#/components/Badge/Badge";
 import { Loader } from "#/components/Loader/Loader";
 import { Markdown } from "#/components/Markdown/Markdown";
 
