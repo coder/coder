@@ -1877,6 +1877,222 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
 }
 
+func TestDynamicToolCallPausesAndResumes(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Track streaming calls to the mock LLM.
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([]chattest.OpenAIRequest, 0, 2)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		// Non-streaming requests are title generation — return a
+		// simple title.
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Dynamic tool test")
+		}
+
+		// Capture the full request for later assertions.
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, chattest.OpenAIRequest{
+			Messages: append([]chattest.OpenAIMessage(nil), req.Messages...),
+			Tools:    append([]chattest.OpenAITool(nil), req.Tools...),
+			Stream:   req.Stream,
+		})
+		streamedCallsMu.Unlock()
+
+		if streamedCallCount.Add(1) == 1 {
+			// First call: the LLM invokes our dynamic tool.
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"my_dynamic_tool",
+					`{"input":"hello world"}`,
+				),
+			)
+		}
+		// Second call: the LLM returns a normal text response.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Dynamic tool result received.")...,
+		)
+	})
+
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Dynamic tools do not need a workspace connection, but the
+	// chatd server always builds workspace tools. Use an active
+	// server without an agent connection — the built-in tools
+	// are never invoked because the only tool call targets our
+	// dynamic tool.
+	server := newActiveTestServer(t, db, ps)
+
+	// Create a chat with a dynamic tool.
+	dynamicToolsJSON, err := json.Marshal([]codersdk.DynamicTool{{
+		Name:           "my_dynamic_tool",
+		Description:    "A test dynamic tool.",
+		Parameters:     json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}},"required":["input"]}`),
+		TimeoutSeconds: 30,
+	}})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "dynamic-tool-pause-resume",
+		ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Please call the dynamic tool."),
+		},
+		DynamicTools: dynamicToolsJSON,
+	})
+	require.NoError(t, err)
+
+	// 1. Wait for the chat to reach requires_action status.
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusRequiresAction ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.Equal(t, database.ChatStatusRequiresAction, chatResult.Status,
+		"expected requires_action, got %s (last_error=%q)",
+		chatResult.Status, chatResult.LastError.String)
+
+	// 2. Read the assistant message to find the tool-call ID.
+	var toolCallID string
+	var toolCallFound bool
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, msg := range messages {
+			if msg.Role != database.ChatMessageRoleAssistant {
+				continue
+			}
+			parts, parseErr := chatprompt.ParseContent(msg)
+			if parseErr != nil {
+				continue
+			}
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == "my_dynamic_tool" {
+					toolCallID = part.ToolCallID
+					toolCallFound = true
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.True(t, toolCallFound, "expected to find tool call for my_dynamic_tool")
+	require.NotEmpty(t, toolCallID)
+
+	// 3. Submit tool results — replicate what postChatToolResults does.
+	toolResultOutput := `{"result":"dynamic tool output"}`
+	toolResultPart := codersdk.ChatMessagePart{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: toolCallID,
+		Result:     json.RawMessage(toolResultOutput),
+	}
+	marshaled, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{toolResultPart})
+	require.NoError(t, err)
+
+	params := database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{user.ID},
+		ModelConfigID:       []uuid.UUID{chatResult.LastModelConfigID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleTool},
+		Content:             []string{string(marshaled.RawMessage)},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	}
+	_, err = db.InsertChatMessages(ctx, params)
+	require.NoError(t, err)
+
+	// Transition chat back to pending.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	// Wake the chatd loop.
+	server.SignalWake()
+
+	// 4. Wait for the chat to reach a terminal status.
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// 5. Verify the chat completed successfully.
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	// 6. Verify the mock received exactly 2 streaming calls.
+	require.Equal(t, int32(2), streamedCallCount.Load(),
+		"expected exactly 2 streaming calls to the LLM")
+
+	streamedCallsMu.Lock()
+	recordedCalls := append([]chattest.OpenAIRequest(nil), streamedCalls...)
+	streamedCallsMu.Unlock()
+	require.Len(t, recordedCalls, 2)
+
+	// 7. Verify the dynamic tool appeared in the first call's tool list.
+	var foundDynamicTool bool
+	for _, tool := range recordedCalls[0].Tools {
+		if tool.Function.Name == "my_dynamic_tool" {
+			foundDynamicTool = true
+			break
+		}
+	}
+	require.True(t, foundDynamicTool,
+		"expected 'my_dynamic_tool' in the first LLM call's tool list")
+
+	// 8. Verify the second call's messages contain the tool result.
+	var foundToolResultInSecondCall bool
+	for _, message := range recordedCalls[1].Messages {
+		if message.Role != "tool" {
+			continue
+		}
+		if strings.Contains(message.Content, "dynamic tool output") {
+			foundToolResultInSecondCall = true
+			break
+		}
+	}
+	require.True(t, foundToolResultInSecondCall,
+		"expected second LLM call to include the submitted dynamic tool result")
+}
+
 func ptrRef[T any](v T) *T {
 	return &v
 }
