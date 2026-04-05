@@ -311,7 +311,6 @@ func runFakeMCPServer() {
 		if err != nil {
 			continue
 		}
-		//nolint:errcheck // Best-effort write in test helper subprocess.
-		fmt.Fprintf(os.Stdout, "%s\n", out)
+		_, _ = fmt.Fprintf(os.Stdout, "%s\n", out)
 	}
 }
