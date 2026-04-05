@@ -5638,38 +5638,30 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		dynamicToolNames[dt.Name] = true
 	}
 
-	// Get the chat messages to locate the last assistant message
-	// and its pending dynamic tool calls.
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
+	// Get the last assistant message to find pending dynamic
+	// tool calls. This is a single-row lookup instead of
+	// fetching the entire message history.
+	lastAssistant, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat messages.",
+			Message: "Failed to get last assistant message.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Walk backwards to find the last assistant message and
-	// extract the tool-call IDs that target dynamic tools.
+	// Extract the tool-call IDs that target dynamic tools.
 	pendingCallIDs := make(map[string]bool)
-	for i := len(messages) - 1; i >= 0; i-- {
-		msg := messages[i]
-		if msg.Role != database.ChatMessageRoleAssistant {
-			continue
-		}
-		parts, parseErr := chatprompt.ParseContent(msg)
-		if parseErr != nil {
-			break
-		}
+	parts, parseErr := chatprompt.ParseContent(lastAssistant)
+	if parseErr == nil {
 		for _, part := range parts {
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && dynamicToolNames[part.ToolName] {
 				pendingCallIDs[part.ToolCallID] = true
 			}
 		}
-		break // Only inspect the last assistant message.
 	}
 
 	// Validate that submitted results match pending calls
