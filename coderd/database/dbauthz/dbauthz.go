@@ -3623,6 +3623,15 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
+func (q *querier) GetRequiresActionChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
+	// GetRequiresActionChats is a system-level operation used by
+	// the chat processor to recover timed-out dynamic tool calls.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetRequiresActionChats(ctx, staleThreshold)
+}
+
 func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	// This query returns only prebuilt workspaces, but we decided to require permissions for all workspaces.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {

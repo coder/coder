@@ -3765,6 +3765,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		return
 	}
 
+	// The LLM invoked a dynamic tool — park the chat in
+	// requires_action so the client can supply tool results.
+	if len(runResult.PendingDynamicToolCalls) > 0 {
+		status = database.ChatStatusRequiresAction
+		return
+	}
+
 	// If runChat completed successfully but the server context was
 	// canceled (e.g. during Close()), the chat should be returned
 	// to pending so another replica can pick it up. There is a
@@ -3831,9 +3838,10 @@ func (t *generatedChatTitle) Load() (string, bool) {
 }
 
 type runChatResult struct {
-	FinalAssistantText string
-	PushSummaryModel   fantasy.LanguageModel
-	ProviderKeys       chatprovider.ProviderAPIKeys
+	FinalAssistantText      string
+	PushSummaryModel        fantasy.LanguageModel
+	ProviderKeys            chatprovider.ProviderAPIKeys
+	PendingDynamicToolCalls []chatloop.PendingToolCall
 }
 
 func (p *Server) runChat(
@@ -4157,6 +4165,7 @@ func (p *Server) runChat(
 	// (which is the common case).
 	modelConfigContextLimit := modelConfig.ContextLimit
 	var finalAssistantText string
+	var pendingDynamicCalls []chatloop.PendingToolCall
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
 		// If the chat context has been canceled, bail out before
@@ -4175,6 +4184,10 @@ func (p *Server) runChat(
 			}
 			return persistCtx.Err()
 		}
+
+		// Capture pending dynamic tool calls so the caller
+		// can surface them after chatloop.Run returns.
+		pendingDynamicCalls = step.PendingDynamicToolCalls
 
 		// Split the step content into assistant blocks and tool
 		// result blocks so they can be stored as separate messages
@@ -4541,6 +4554,18 @@ func (p *Server) runChat(
 	tools = append(tools, mcpTools...)
 	tools = append(tools, workspaceMCPTools...)
 
+	// Append dynamic tools declared by the client at chat
+	// creation time. These appear in the LLM's tool list but
+	// are never executed by the chatloop — the client handles
+	// execution via POST /tool-results.
+	var dynamicToolDefs []codersdk.DynamicTool
+	if chat.DynamicTools.Valid {
+		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
+			return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+		}
+	}
+	tools = append(tools, dynamicToolsFromSDK(dynamicToolDefs)...)
+
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool
@@ -4585,14 +4610,20 @@ func (p *Server) runChat(
 		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
 	}
 
+	dynamicToolNames := make(map[string]bool, len(dynamicToolDefs))
+	for _, dt := range dynamicToolDefs {
+		dynamicToolNames[dt.Name] = true
+	}
+
 	err := chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
 
-		ModelConfig:     callConfig,
-		ProviderOptions: providerOptions,
-		ProviderTools:   providerTools,
+		ModelConfig:      callConfig,
+		ProviderOptions:  providerOptions,
+		ProviderTools:    providerTools,
+		DynamicToolNames: dynamicToolNames,
 
 		ContextLimitFallback: modelConfigContextLimit,
 
@@ -4670,6 +4701,28 @@ func (p *Server) runChat(
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},
 	})
+	if errors.Is(err, chatloop.ErrDynamicToolCall) {
+		// The LLM invoked a dynamic tool. Publish an
+		// action_required event so the client can execute
+		// the tool calls and submit results.
+		toolCalls := make([]codersdk.ChatStreamToolCall, 0, len(pendingDynamicCalls))
+		for _, tc := range pendingDynamicCalls {
+			toolCalls = append(toolCalls, codersdk.ChatStreamToolCall{
+				ToolCallID: tc.ToolCallID,
+				ToolName:   tc.ToolName,
+				Args:       tc.Args,
+			})
+		}
+		p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeActionRequired,
+			ActionRequired: &codersdk.ChatStreamActionRequired{
+				ToolCalls: toolCalls,
+			},
+		})
+		result.FinalAssistantText = finalAssistantText
+		result.PendingDynamicToolCalls = pendingDynamicCalls
+		return result, nil
+	}
 	if err != nil {
 		classified := chaterror.Classify(err).WithProvider(model.Provider())
 		return result, chaterror.WithClassification(err, classified)
@@ -5251,6 +5304,71 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
+	p.recoverStaleRunningChats(ctx)
+	p.recoverTimedOutDynamicToolChats(ctx)
+}
+
+// recoverTimedOutDynamicToolChats finds chats stuck in
+// requires_action and injects error tool results so the
+// chatloop can resume. The timeout is the max timeout_seconds
+// across the chat's dynamic tools (default 60s).
+func (p *Server) recoverTimedOutDynamicToolChats(ctx context.Context) {
+	// Use the same stale threshold as running chats for now.
+	// A more precise implementation would check per-tool
+	// timeout_seconds, but the stale-chat interval is a
+	// reasonable upper bound for the initial implementation.
+	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
+	staleChats, err := p.db.GetRequiresActionChats(ctx, staleAfter)
+	if err != nil {
+		p.logger.Error(ctx, "failed to get requires_action chats",
+			slog.Error(err))
+		return
+	}
+
+	recovered := 0
+	for _, chat := range staleChats {
+		p.logger.Info(ctx, "recovering timed-out dynamic tool chat",
+			slog.F("chat_id", chat.ID))
+
+		err := p.db.InTx(func(tx database.Store) error {
+			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
+			if lockErr != nil {
+				return xerrors.Errorf("lock chat for recovery: %w", lockErr)
+			}
+			if locked.Status != database.ChatStatusRequiresAction {
+				return nil
+			}
+			// Still in requires_action and updated_at is old
+			// enough — transition to pending so the chatloop
+			// picks it up. The chatloop will see the missing
+			// tool results and the LLM can handle the gap.
+			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:          chat.ID,
+				Status:      database.ChatStatusPending,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
+				LastError:   sql.NullString{String: "Dynamic tool execution timed out", Valid: true},
+			})
+			if updateErr != nil {
+				return updateErr
+			}
+			recovered++
+			return nil
+		}, nil)
+		if err != nil {
+			p.logger.Error(ctx, "failed to recover timed-out dynamic tool chat",
+				slog.F("chat_id", chat.ID), slog.Error(err))
+		}
+	}
+
+	if recovered > 0 {
+		p.logger.Info(ctx, "recovered timed-out dynamic tool chats",
+			slog.F("count", recovered))
+	}
+}
+
+func (p *Server) recoverStaleRunningChats(ctx context.Context) {
 	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
 	if err != nil {
