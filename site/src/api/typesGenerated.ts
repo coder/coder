@@ -1216,6 +1216,11 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
+export type ChatBusyBehavior = "interrupt" | "queue";
+
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+
+// From codersdk/chats.go
 /**
  * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
  * threshold settings.
@@ -2338,6 +2343,7 @@ export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
+	readonly busy_behavior?: ChatBusyBehavior;
 }
 
 // From codersdk/chats.go
