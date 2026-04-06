@@ -827,6 +827,14 @@ const openAddModelForm = async (
 	});
 };
 
+/** Expand a collapsible section by clicking its header button. */
+const expandSection = async (body: ReturnType<typeof within>, name: string) => {
+	const btn = await body.findByRole("button", {
+		name: new RegExp(name, "i"),
+	});
+	await userEvent.click(btn);
+};
+
 export const NoModelConfigByDefault: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
@@ -900,18 +908,18 @@ export const SubmitModelConfigExplicitly: Story = {
 			"gpt-5-pro-custom",
 		);
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
-		// Max output tokens and provider options are under "Advanced".
-		await userEvent.click(body.getByText("Advanced"));
+		// Max output tokens is under "Advanced".
+		await expandSection(body, "Advanced");
 		await userEvent.type(
 			await body.findByLabelText(/Max output tokens/i),
 			"32000",
 		);
-		await userEvent.click(
-			body.getByRole("combobox", {
-				name: "Reasoning Effort",
-			}),
-		);
-		await userEvent.click(await body.findByRole("option", { name: "high" }));
+		// Reasoning Effort is a provider option under "Provider Configuration".
+		await expandSection(body, "Provider Configuration");
+		const effortGroup = await body.findByRole("radiogroup", {
+			name: "Reasoning Effort",
+		});
+		await userEvent.click(within(effortGroup).getByText("High"));
 
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
@@ -1002,6 +1010,7 @@ export const ModelFormOpenAI: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
+		await expandSection(body, "Provider Configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
@@ -1016,6 +1025,7 @@ export const ModelFormAnthropic: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Anthropic");
+		await expandSection(body, "Provider Configuration");
 		await expect(
 			await body.findByLabelText(/Send Reasoning/i),
 		).toBeInTheDocument();
@@ -1030,6 +1040,7 @@ export const ModelFormGoogle: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Google");
+		await expandSection(body, "Provider Configuration");
 		await expect(
 			await body.findByLabelText(/Thinking Config Thinking Budget/i),
 		).toBeInTheDocument();
@@ -1044,6 +1055,7 @@ export const ModelFormOpenAICompat: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI-compatible");
+		await expandSection(body, "Provider Configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
@@ -1055,6 +1067,7 @@ export const ModelFormOpenRouter: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenRouter");
+		await expandSection(body, "Provider Configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Enabled/i),
 		).toBeInTheDocument();
@@ -1069,6 +1082,7 @@ export const ModelFormVercel: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Vercel AI Gateway");
+		await expandSection(body, "Provider Configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Enabled/i),
 		).toBeInTheDocument();
@@ -1083,6 +1097,7 @@ export const ModelFormAzure: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Azure OpenAI");
+		await expandSection(body, "Provider Configuration");
 		// Azure aliases to OpenAI fields.
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
@@ -1098,6 +1113,7 @@ export const ModelFormBedrock: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "AWS Bedrock");
+		await expandSection(body, "Provider Configuration");
 		// Bedrock aliases to Anthropic fields.
 		await expect(
 			await body.findByLabelText(/Send Reasoning/i),
