@@ -102,6 +102,7 @@ describe("buildInitialModelFormValues", () => {
 			contextLimit: "",
 			compressionThreshold: "",
 			isDefault: false,
+			providerConfigId: "",
 			config: emptyModelConfigFormState,
 		});
 	});

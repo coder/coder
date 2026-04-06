@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -5,40 +6,33 @@ import {
 	chatModels,
 	chatProviderConfigs,
 	createChatModelConfig,
-	createChatProviderConfig,
 	deleteChatModelConfig,
-	deleteChatProviderConfig,
 	updateChatModelConfig,
-	updateChatProviderConfig,
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { AdminBadge } from "./components/AdminBadge";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 
+const isEndpointUnavailable = (error: unknown): boolean => {
+	return isAxiosError(error) && error.response?.status === 404;
+};
+
 const AgentSettingsModelsPage: FC = () => {
 	const { permissions } = useAuthenticated();
-
 	const queryClient = useQueryClient();
-
-	// Queries.
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const modelCatalogQuery = useQuery(chatModels());
 
-	// Mutations.
-	const createProviderMutation = useMutation(
-		createChatProviderConfig(queryClient),
-	);
-	const updateProviderMutation = useMutation(
-		updateChatProviderConfig(queryClient),
-	);
-	const deleteProviderMutation = useMutation(
-		deleteChatProviderConfig(queryClient),
-	);
 	const createModelMutation = useMutation(createChatModelConfig(queryClient));
 	const updateModelMutation = useMutation(updateChatModelConfig(queryClient));
 	const deleteModelMutation = useMutation(deleteChatModelConfig(queryClient));
+
+	const isLoading =
+		providerConfigsQuery.isLoading ||
+		modelConfigsQuery.isLoading ||
+		modelCatalogQuery.isLoading;
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
@@ -49,41 +43,15 @@ const AgentSettingsModelsPage: FC = () => {
 				sectionBadge={<AdminBadge />}
 				providerConfigsData={providerConfigsQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
-				modelCatalogData={modelCatalogQuery.data}
-				isLoading={
-					providerConfigsQuery.isLoading ||
-					modelConfigsQuery.isLoading ||
-					modelCatalogQuery.isLoading
-				}
-				providerConfigsError={
-					providerConfigsQuery.isError ? providerConfigsQuery.error : null
-				}
-				modelConfigsError={
-					modelConfigsQuery.isError ? modelConfigsQuery.error : null
-				}
-				modelCatalogError={
-					modelCatalogQuery.isError ? modelCatalogQuery.error : null
-				}
-				onCreateProvider={(req) => createProviderMutation.mutateAsync(req)}
-				onUpdateProvider={(providerConfigId, req) =>
-					updateProviderMutation.mutateAsync({ providerConfigId, req })
-				}
-				onDeleteProvider={(id) => deleteProviderMutation.mutateAsync(id)}
-				isProviderMutationPending={
-					createProviderMutation.isPending ||
-					updateProviderMutation.isPending ||
-					deleteProviderMutation.isPending
-				}
-				providerMutationError={
-					createProviderMutation.error ??
-					updateProviderMutation.error ??
-					deleteProviderMutation.error
-				}
-				onCreateModel={(req) => createModelMutation.mutateAsync(req)}
-				onUpdateModel={(modelConfigId, req) =>
-					updateModelMutation.mutateAsync({ modelConfigId, req })
-				}
-				onDeleteModel={(id) => deleteModelMutation.mutateAsync(id)}
+				catalogData={modelCatalogQuery.data}
+				isLoading={isLoading}
+				providerConfigsUnavailable={isEndpointUnavailable(
+					providerConfigsQuery.error,
+				)}
+				modelConfigsUnavailable={isEndpointUnavailable(modelConfigsQuery.error)}
+				providerConfigsError={providerConfigsQuery.error}
+				modelConfigsError={modelConfigsQuery.error}
+				catalogError={modelCatalogQuery.error}
 				isCreatingModel={createModelMutation.isPending}
 				isUpdatingModel={updateModelMutation.isPending}
 				isDeletingModel={deleteModelMutation.isPending}
@@ -92,6 +60,11 @@ const AgentSettingsModelsPage: FC = () => {
 					updateModelMutation.error ??
 					deleteModelMutation.error
 				}
+				onCreateModel={(req) => createModelMutation.mutateAsync(req)}
+				onUpdateModel={(modelConfigId, req) =>
+					updateModelMutation.mutateAsync({ modelConfigId, req })
+				}
+				onDeleteModel={(id) => deleteModelMutation.mutateAsync(id)}
 			/>
 		</RequirePermission>
 	);

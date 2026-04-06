@@ -25,6 +25,11 @@ import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
+import {
+	buildModelProviderOptions,
+	type ModelProviderOption,
+	resolveDefaultOption,
+} from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 import { hasCustomPricing } from "./pricingFields";
 
@@ -41,8 +46,11 @@ interface ModelsSectionProps {
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
+	selectedModelOptionKey: string | null;
+	onSelectedModelOptionChange: (key: string | null) => void;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsUnavailable: boolean;
+	isLoading?: boolean;
 	isCreating: boolean;
 	isUpdating: boolean;
 	isDeleting: boolean;
@@ -64,8 +72,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	selectedProvider,
 	selectedProviderState,
 	onSelectedProviderChange,
+	selectedModelOptionKey,
+	onSelectedModelOptionChange,
 	modelConfigs,
 	modelConfigsUnavailable,
+	isLoading = false,
 	isCreating,
 	isUpdating,
 	isDeleting,
@@ -98,6 +109,18 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		}
 		return { mode: "list" };
 	})();
+
+	const createModeOptions: readonly ModelProviderOption[] =
+		buildModelProviderOptions(providerStates);
+	const addModelProvider = view.mode === "add" ? view.provider : null;
+	const selectedModelOption = selectedModelOptionKey
+		? createModeOptions.find((option) => option.key === selectedModelOptionKey)
+		: undefined;
+	const resolvedSelectedModelOptionKey =
+		addModelProvider !== null &&
+		selectedModelOption?.provider !== addModelProvider
+			? (resolveDefaultOption(createModeOptions, addModelProvider)?.key ?? null)
+			: selectedModelOptionKey;
 
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {
@@ -155,7 +178,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				providerStates={providerStates}
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
+				createModeProviderOptions={createModeOptions}
 				onSelectedProviderChange={onSelectedProviderChange}
+				selectedModelOptionKey={resolvedSelectedModelOptionKey}
+				onSelectedModelOptionChange={onSelectedModelOptionChange}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
 				isDeleting={isDeleting}
@@ -182,15 +208,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// ── List view ──────────────────────────────────────────────
 
-	// Only show providers that have a deployment key configured or allow
-	// end users to bring their own key.
-	const addableProviders = providerStates.filter(
-		(ps) =>
-			ps.providerConfig &&
-			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
-	);
-
-	const addButton = addableProviders.length > 0 && (
+	const addButton = createModeOptions.length > 0 && (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button size="sm" className="gap-1.5" aria-label="Add model">
@@ -200,20 +218,21 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				{addableProviders.map((ps) => (
+				{createModeOptions.map((option) => (
 					<DropdownMenuItem
-						key={ps.provider}
+						key={option.key}
 						onClick={() => {
-							onSelectedProviderChange(ps.provider);
+							onSelectedProviderChange(option.provider);
+							onSelectedModelOptionChange(option.key);
 							setSearchParams(
-								{ newModel: ps.provider },
+								{ newModel: option.provider },
 								{ state: { pushed: true } },
 							);
 						}}
 						className="gap-2"
 					>
-						<ProviderIcon provider={ps.provider} className="h-5 w-5" />
-						{ps.label}
+						<ProviderIcon provider={option.iconProvider} className="h-5 w-5" />
+						{option.label}
 					</DropdownMenuItem>
 				))}
 			</DropdownMenuContent>
@@ -238,13 +257,13 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				/>
 			)}
 
-			{modelConfigs.length === 0 ? (
+			{!isLoading && modelConfigs.length === 0 ? (
 				<div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
 					<p className="m-0 text-sm text-content-secondary">
 						No models configured yet.
 					</p>
-					{addableProviders.length > 0 && addButton}
-					{addableProviders.length === 0 && (
+					{createModeOptions.length > 0 && addButton}
+					{createModeOptions.length === 0 && (
 						<p className="m-0 text-xs text-content-secondary">
 							Connect a provider first to add models.
 						</p>
@@ -344,8 +363,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										{!modelConfig.enabled
 											? "Cannot set a disabled model as default"
 											: modelConfig.is_default
-												? "Pinned as default for new conversations"
-												: "Pin as default for new conversations"}
+												? "Pinned as default for new chats"
+												: "Pin as default for new chats"}
 									</TooltipContent>
 								</Tooltip>
 								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />

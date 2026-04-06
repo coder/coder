@@ -364,6 +364,96 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	}
 }
 
+func TestMigrate000458BackfillsProviderConfigID(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion uint = 458
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	db := testSQLDB(t)
+
+	sourceDriver, err := iofs.New(os.DirFS("."), ".")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sourceDriver.Close()
+	})
+
+	previousVersion, err := sourceDriver.Prev(migrationVersion)
+	require.NoError(t, err)
+
+	// Migrate up to the migration immediately before 458.
+	next, err := migrations.Stepper(db)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == previousVersion {
+			break
+		}
+	}
+
+	openAIProviderID := uuid.New()
+	anthropicProviderID := uuid.New()
+	googleProviderID := uuid.New()
+
+	// Before migration 458, the schema still enforces one provider row per
+	// provider constraint, and chat_model_configs.provider still references
+	// chat_providers.provider. Seed one provider per family here, including a
+	// disabled google provider so the legacy FK allows a model config that should
+	// remain unbound after backfill.
+	_, err = db.Exec(`
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, created_at)
+		VALUES
+			($1, 'openai', 'OpenAI', 'key1', TRUE, '2024-01-01 00:00:00'),
+			($2, 'anthropic', 'Anthropic', 'key2', TRUE, '2024-01-02 00:00:00'),
+			($3, 'google', 'Google Disabled', 'key3', FALSE, '2024-01-03 00:00:00')
+	`, openAIProviderID, anthropicProviderID, googleProviderID)
+	require.NoError(t, err)
+
+	openAIModelID := uuid.New()
+	anthropicModelID := uuid.New()
+	googleModelID := uuid.New()
+
+	_, err = db.Exec(`
+		INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, is_default, context_limit, compression_threshold, options, deleted)
+		VALUES
+			($1, 'openai', 'gpt-4o', 'GPT-4o', TRUE, TRUE, 128000, 80, '{}', FALSE),
+			($2, 'anthropic', 'claude-3-5-sonnet', 'Claude 3.5 Sonnet', TRUE, FALSE, 200000, 80, '{}', FALSE),
+			($3, 'google', 'gemini-pro', 'Gemini Pro', TRUE, FALSE, 128000, 80, '{}', FALSE)
+	`, openAIModelID, anthropicModelID, googleModelID)
+	require.NoError(t, err)
+
+	// Apply migration 458.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.Equal(t, migrationVersion, version)
+
+	var openAIProviderConfigID uuid.NullUUID
+	err = db.QueryRow(`SELECT provider_config_id FROM chat_model_configs WHERE id = $1`, openAIModelID).Scan(&openAIProviderConfigID)
+	require.NoError(t, err)
+	require.True(t, openAIProviderConfigID.Valid)
+	require.Equal(t, openAIProviderID, openAIProviderConfigID.UUID)
+
+	var anthropicProviderConfigID uuid.NullUUID
+	err = db.QueryRow(`SELECT provider_config_id FROM chat_model_configs WHERE id = $1`, anthropicModelID).Scan(&anthropicProviderConfigID)
+	require.NoError(t, err)
+	require.True(t, anthropicProviderConfigID.Valid)
+	require.Equal(t, anthropicProviderID, anthropicProviderConfigID.UUID)
+
+	var googleProviderConfigID uuid.NullUUID
+	err = db.QueryRow(`SELECT provider_config_id FROM chat_model_configs WHERE id = $1`, googleModelID).Scan(&googleProviderConfigID)
+	require.NoError(t, err)
+	require.False(t, googleProviderConfigID.Valid)
+}
+
 // TestMigration000362AggregateUsageEvents tests the migration that aggregates
 // usage events into daily rows correctly.
 func TestMigration000362AggregateUsageEvents(t *testing.T) {

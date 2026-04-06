@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -2786,7 +2787,8 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				// GIVEN something is listening to process workspace reinitialization:
-				reinitChan, cancel, err := agplprebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID)
+				reinitChan := make(chan agentsdk.ReinitializationEvent, 1) // Buffered to simplify test structure
+				cancel, err := agplprebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID, reinitChan)
 				require.NoError(t, err)
 				defer cancel()
 

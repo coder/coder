@@ -304,6 +304,14 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountChatProvidersByProviderExcludingID(ctx context.Context, arg database.CountChatProvidersByProviderExcludingIDParams) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatProvidersByProviderExcludingID(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountChatProvidersByProviderExcludingID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatProvidersByProviderExcludingID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountConnectionLogs(ctx, arg)
@@ -1208,14 +1216,6 @@ func (m queryMetricsStore) GetChatProviderByID(ctx context.Context, id uuid.UUID
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProviderByProvider(ctx, provider)
-	m.queryLatencies.WithLabelValues("GetChatProviderByProvider").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByProvider").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProviders(ctx)
@@ -1421,6 +1421,14 @@ func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]da
 	r0, r1 := m.s.GetEnabledChatModelConfigs(ctx)
 	m.queryLatencies.WithLabelValues("GetEnabledChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledChatProviderByProvider(ctx, provider)
+	m.queryLatencies.WithLabelValues("GetEnabledChatProviderByProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatProviderByProvider").Inc()
 	return r0, r1
 }
 
@@ -4024,6 +4032,14 @@ func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, n
 	return r0, r1
 }
 
+func (m queryMetricsStore) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, providerConfigID)
+	m.queryLatencies.WithLabelValues("SoftDeleteBoundChatModelConfigsByProviderConfigID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteBoundChatModelConfigsByProviderConfigID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	start := time.Now()
 	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)
@@ -4038,6 +4054,14 @@ func (m queryMetricsStore) SoftDeleteChatMessagesAfterID(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("SoftDeleteChatMessagesAfterID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteChatMessagesAfterID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider string) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.SoftDeleteUnboundChatModelConfigsByProvider(ctx, provider)
+	m.queryLatencies.WithLabelValues("SoftDeleteUnboundChatModelConfigsByProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteUnboundChatModelConfigsByProvider").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {

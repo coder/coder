@@ -539,6 +539,7 @@ type ChatProviderConfig struct {
 	DisplayName                string                   `json:"display_name"`
 	Enabled                    bool                     `json:"enabled"`
 	HasAPIKey                  bool                     `json:"has_api_key"`
+	HasEffectiveAPIKey         bool                     `json:"has_effective_api_key"`
 	CentralAPIKeyEnabled       bool                     `json:"central_api_key_enabled"`
 	AllowUserAPIKey            bool                     `json:"allow_user_api_key"`
 	AllowCentralAPIKeyFallback bool                     `json:"allow_central_api_key_fallback"`
@@ -597,6 +598,7 @@ type ChatModelConfig struct {
 	IsDefault            bool                 `json:"is_default"`
 	ContextLimit         int64                `json:"context_limit"`
 	CompressionThreshold int32                `json:"compression_threshold"`
+	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
 	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
@@ -807,6 +809,7 @@ type CreateChatModelConfigRequest struct {
 	IsDefault            *bool                `json:"is_default,omitempty"`
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
+	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
@@ -819,6 +822,7 @@ type UpdateChatModelConfigRequest struct {
 	IsDefault            *bool                `json:"is_default,omitempty"`
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
+	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 

@@ -1,21 +1,28 @@
 import { type FC, type ReactNode, useState } from "react";
-
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
-import { normalizeProvider, readOptionalString } from "./helpers";
+import {
+	isDatabaseProviderConfig,
+	normalizeProvider,
+	readOptionalString,
+} from "./helpers";
 import { ModelsSection } from "./ModelsSection";
 import { ProvidersSection } from "./ProvidersSection";
+import {
+	hasEffectiveProviderAPIKey,
+	hasEnabledDatabaseProviderAPIKey,
+} from "./providerAvailability";
 
 // ── Exported types ─────────────────────────────────────────────
 
 export type ProviderState = {
 	provider: string;
 	label: string;
-	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	providerConfigs: readonly TypesGen.ChatProviderConfig[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
@@ -31,7 +38,6 @@ export type ChatModelAdminSection = "providers" | "models";
 
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
-const nilUUID = "00000000-0000-0000-0000-000000000000";
 const envPresetProviders = new Set(["openai", "anthropic"]);
 
 const hasProviderAPIKey = (
@@ -39,21 +45,6 @@ const hasProviderAPIKey = (
 ): boolean => {
 	if (!providerConfig) return false;
 	return providerConfig.has_api_key;
-};
-
-const getProviderConfigSource = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-): TypesGen.ChatProviderConfigSource | undefined => {
-	return providerConfig?.source;
-};
-
-const isDatabaseProviderConfig = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-	source: TypesGen.ChatProviderConfigSource | undefined,
-): providerConfig is TypesGen.ChatProviderConfig => {
-	if (!providerConfig) return false;
-	if (providerConfig.id === nilUUID) return false;
-	return source === undefined || source === "database";
 };
 
 const getCatalogProviders = (
@@ -115,12 +106,17 @@ const useProviderStates = (
 
 	const providerConfigsByProvider = new Map<
 		string,
-		TypesGen.ChatProviderConfig
+		TypesGen.ChatProviderConfig[]
 	>();
 	for (const pc of providerConfigsData ?? []) {
 		const normalized = normalizeProvider(pc.provider);
 		if (!normalized) continue;
-		providerConfigsByProvider.set(normalized, pc);
+		const existing = providerConfigsByProvider.get(normalized);
+		if (existing) {
+			existing.push(pc);
+		} else {
+			providerConfigsByProvider.set(normalized, [pc]);
+		}
 	}
 
 	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
@@ -136,50 +132,67 @@ const useProviderStates = (
 	}
 
 	return orderedProviders.map((provider) => {
-		const providerConfigEntry = providerConfigsByProvider.get(provider);
-		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
-		const providerConfig = isDatabaseProviderConfig(
-			providerConfigEntry,
-			providerConfigSource,
-		)
-			? providerConfigEntry
-			: undefined;
+		const providerConfigsForFamily =
+			providerConfigsByProvider.get(provider) ?? [];
+		const databaseConfigs = providerConfigsForFamily.filter(
+			isDatabaseProviderConfig,
+		);
+		const enabledDatabaseConfigs = databaseConfigs.filter(
+			(config) => config.enabled,
+		);
+		const effectiveProviderConfig =
+			enabledDatabaseConfigs[0] ?? databaseConfigs[0];
+		const firstProviderEntry = providerConfigsForFamily[0];
+
 		const catalogProvider = catalogProvidersByProvider.get(provider);
 		const catalogProviderSource = readOptionalString(
 			(catalogProvider as CatalogProvider & { source?: string })?.source,
 		);
-		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
+		const hasManagedAPIKey = hasEnabledDatabaseProviderAPIKey(
+			providerConfigsForFamily,
+		);
+		const hasProviderEntryAPIKey = hasProviderAPIKey(firstProviderEntry);
 		const hasCatalogAPIKey = catalogProvider
 			? providerHasCatalogAPIKey(catalogProvider)
 			: false;
 		const label =
-			readOptionalString(providerConfigEntry?.display_name) ??
+			readOptionalString(firstProviderEntry?.display_name) ??
 			formatProviderLabel(provider);
 		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
 		const isCatalogEnvPreset =
-			!providerConfig &&
+			enabledDatabaseConfigs.length === 0 &&
 			envPresetProviders.has(provider) &&
 			(catalogProviderSource === "env" || hasCatalogAPIKey);
 		const isEnvPreset =
-			providerConfigSource === "env_preset" || isCatalogEnvPreset;
+			firstProviderEntry?.source === "env_preset" || isCatalogEnvPreset;
+
+		const hasEffectiveAPIKey = hasEffectiveProviderAPIKey({
+			hasManagedAPIKey,
+			hasCatalogAPIKey,
+			hasProviderEntryAPIKey,
+			hasDatabaseProviderConfig: Boolean(effectiveProviderConfig),
+		});
 
 		return {
 			provider,
 			label,
-			providerConfig,
+			providerConfigs: providerConfigsForFamily,
 			modelConfigs: modelConfigsForProvider,
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
-			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey
-				: hasManagedAPIKey || hasCatalogAPIKey,
+			hasEffectiveAPIKey,
 			isEnvPreset,
-			baseURL: getProviderBaseURL(providerConfigEntry),
+			baseURL: getProviderBaseURL(effectiveProviderConfig),
 		};
 	});
 };
+
+async function missingOnCreateProviderHandler(
+	_req: TypesGen.CreateChatProviderConfigRequest,
+): Promise<TypesGen.ChatProviderConfig> {
+	throw new Error("onCreateProvider handler is required but was not provided.");
+}
 
 // ── Component ──────────────────────────────────────────────────
 
@@ -189,39 +202,40 @@ interface ChatModelAdminPanelProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	sectionBadge?: ReactNode;
-	// Data from queries.
-	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
-	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
-	modelCatalogData: TypesGen.ChatModelsResponse | undefined;
-	isLoading: boolean;
-	// Query error states.
-	providerConfigsError: Error | null;
-	modelConfigsError: Error | null;
-	modelCatalogError: Error | null;
-	// Provider mutation handlers.
-	onCreateProvider: (
+	// Data props (optional for backward compat with stories).
+	providerConfigsData?: TypesGen.ChatProviderConfig[] | null;
+	modelConfigsData?: TypesGen.ChatModelConfig[] | null;
+	catalogData?: TypesGen.ChatModelsResponse | null;
+	isLoading?: boolean;
+	providerConfigsUnavailable?: boolean;
+	modelConfigsUnavailable?: boolean;
+	providerConfigsError?: unknown;
+	modelConfigsError?: unknown;
+	catalogError?: unknown;
+	// Provider mutation props.
+	isProviderMutationPending?: boolean;
+	providerMutationError?: unknown;
+	onCreateProvider?: (
 		req: TypesGen.CreateChatProviderConfigRequest,
-	) => Promise<unknown>;
-	onUpdateProvider: (
+	) => Promise<TypesGen.ChatProviderConfig>;
+	onUpdateProvider?: (
 		providerConfigId: string,
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
-	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	isProviderMutationPending: boolean;
-	providerMutationError: Error | null;
-	// Model mutation handlers.
-	onCreateModel: (
+	onDeleteProvider?: (providerConfigId: string) => Promise<void>;
+	// Model mutation props.
+	isCreatingModel?: boolean;
+	isUpdatingModel?: boolean;
+	isDeletingModel?: boolean;
+	modelMutationError?: unknown;
+	onCreateModel?: (
 		req: TypesGen.CreateChatModelConfigRequest,
 	) => Promise<unknown>;
-	onUpdateModel: (
+	onUpdateModel?: (
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
-	onDeleteModel: (modelConfigId: string) => Promise<void>;
-	isCreatingModel: boolean;
-	isUpdatingModel: boolean;
-	isDeletingModel: boolean;
-	modelMutationError: Error | null;
+	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 }
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
@@ -230,29 +244,34 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
-	providerConfigsData,
-	modelConfigsData,
-	modelCatalogData,
-	isLoading,
-	providerConfigsError,
-	modelConfigsError,
-	modelCatalogError,
-	onCreateProvider,
-	onUpdateProvider,
-	onDeleteProvider,
-	isProviderMutationPending,
-	providerMutationError,
-	onCreateModel,
-	onUpdateModel,
-	onDeleteModel,
-	isCreatingModel,
-	isUpdatingModel,
-	isDeletingModel,
-	modelMutationError,
+	providerConfigsData = undefined,
+	modelConfigsData = undefined,
+	catalogData = undefined,
+	isLoading = false,
+	providerConfigsUnavailable = false,
+	modelConfigsUnavailable = false,
+	providerConfigsError = undefined,
+	modelConfigsError = undefined,
+	catalogError = undefined,
+	isProviderMutationPending = false,
+	providerMutationError = undefined,
+	onCreateProvider = missingOnCreateProviderHandler,
+	onUpdateProvider = async () => {},
+	onDeleteProvider = async () => {},
+	isCreatingModel = false,
+	isUpdatingModel = false,
+	isDeletingModel = false,
+	modelMutationError = undefined,
+	onCreateModel = async () => {},
+	onUpdateModel = async () => {},
+	onDeleteModel = async () => {},
 }) => {
 	const [requestedProvider, setRequestedProvider] = useState<string | null>(
 		null,
 	);
+	const [selectedModelOptionKey, setSelectedModelOptionKey] = useState<
+		string | null
+	>(null);
 
 	// ── Sorted model configs ───────────────────────────────────
 	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
@@ -264,7 +283,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const providerStates = useProviderStates(
 		modelConfigs,
 		providerConfigsData,
-		modelCatalogData,
+		catalogData,
 	);
 
 	// Derive the effective selected provider from user intent + available
@@ -279,10 +298,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const selectedProviderState = selectedProvider
 		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
 		: null;
-
-	// ── Derived state ──────────────────────────────────────────
-	const providerConfigsUnavailable = providerConfigsData === null;
-	const modelConfigsUnavailable = modelConfigsData === null;
 
 	return (
 		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
@@ -302,10 +317,13 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
+						isLoading={isLoading}
 						isProviderMutationPending={isProviderMutationPending}
-						onCreateProvider={onCreateProvider}
-						onUpdateProvider={onUpdateProvider}
-						onDeleteProvider={onDeleteProvider}
+						onCreateProvider={(req) => onCreateProvider(req)}
+						onUpdateProvider={(providerConfigId, req) =>
+							onUpdateProvider(providerConfigId, req)
+						}
+						onDeleteProvider={(id) => onDeleteProvider(id)}
 						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
@@ -317,24 +335,33 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						selectedProvider={selectedProvider}
 						selectedProviderState={selectedProviderState}
 						onSelectedProviderChange={setRequestedProvider}
+						selectedModelOptionKey={selectedModelOptionKey}
+						onSelectedModelOptionChange={setSelectedModelOptionKey}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
+						isLoading={isLoading}
 						isCreating={isCreatingModel}
 						isUpdating={isUpdatingModel}
 						isDeleting={isDeletingModel}
-						onCreateModel={onCreateModel}
-						onUpdateModel={onUpdateModel}
-						onDeleteModel={onDeleteModel}
+						onCreateModel={(req) => onCreateModel(req)}
+						onUpdateModel={(modelConfigId, req) =>
+							onUpdateModel(modelConfigId, req)
+						}
+						onDeleteModel={(id) => onDeleteModel(id)}
 					/>
 				)}
 			</div>
 
 			{/* Errors — rendered at the bottom */}
-			{providerConfigsError && <ErrorAlert error={providerConfigsError} />}
-			{modelConfigsError && <ErrorAlert error={modelConfigsError} />}
-			{modelCatalogError && <ErrorAlert error={modelCatalogError} />}
-			{providerMutationError && <ErrorAlert error={providerMutationError} />}
-			{modelMutationError && <ErrorAlert error={modelMutationError} />}
+			{providerConfigsError ? (
+				<ErrorAlert error={providerConfigsError} />
+			) : null}
+			{modelConfigsError ? <ErrorAlert error={modelConfigsError} /> : null}
+			{catalogError ? <ErrorAlert error={catalogError} /> : null}
+			{providerMutationError ? (
+				<ErrorAlert error={providerMutationError} />
+			) : null}
+			{modelMutationError ? <ErrorAlert error={modelMutationError} /> : null}
 
 			{providerConfigsUnavailable && (
 				<Alert severity="info">
