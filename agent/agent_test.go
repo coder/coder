@@ -1006,7 +1006,7 @@ func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
 	defer sshClient.Close()
 
 	_, err = sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "administratively prohibited")
 }
 
 func TestAgent_TCPRemoteForwardingBlocked(t *testing.T) {
@@ -1025,7 +1025,7 @@ func TestAgent_TCPRemoteForwardingBlocked(t *testing.T) {
 	randomPort := testutil.RandomPortNoListen(t)
 	addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
 	_, err = sshClient.ListenTCP(addr)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "tcpip-forward request denied by peer")
 }
 
 func TestAgent_UnixLocalForwardingBlocked(t *testing.T) {
@@ -1050,7 +1050,7 @@ func TestAgent_UnixLocalForwardingBlocked(t *testing.T) {
 	defer sshClient.Close()
 
 	_, err = sshClient.Dial("unix", remoteSocketPath)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "administratively prohibited")
 }
 
 func TestAgent_UnixRemoteForwardingBlocked(t *testing.T) {
@@ -1071,7 +1071,7 @@ func TestAgent_UnixRemoteForwardingBlocked(t *testing.T) {
 	defer sshClient.Close()
 
 	_, err = sshClient.ListenUnix(remoteSocketPath)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "streamlocal-forward@openssh.com request denied by peer")
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
