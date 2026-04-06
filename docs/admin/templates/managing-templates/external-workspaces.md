@@ -1,5 +1,9 @@
 # External Workspaces
 
+> [!NOTE]
+> External Workspaces is an [Early Access](../../../install/releases/feature-stages.md#early-access-features) feature.
+> It is not yet feature-complete and may change without notice.
+
 External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces. This enables you to integrate existing servers, on-premises systems, or any capable machine with the Coder environment, ensuring a smooth and efficient development workflow without requiring Coder to provision additional compute resources.
 
 ## Prerequisites
