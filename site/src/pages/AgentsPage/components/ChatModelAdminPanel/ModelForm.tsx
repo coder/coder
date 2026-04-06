@@ -117,8 +117,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const isEditing = Boolean(editingModel);
 	const isDefaultModel = isEditing && editingModel?.is_default === true;
 	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [showPricing, setShowPricing] = useState(true);
-	const [showProviderConfig, setShowProviderConfig] = useState(true);
+	const [showPricing, setShowPricing] = useState(false);
+	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
