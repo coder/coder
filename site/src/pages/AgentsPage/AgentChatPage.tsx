@@ -792,7 +792,7 @@ const AgentChatPage: FC = () => {
 		// surrounding text the user typed.
 		const editorParts = chatInputHandle?.getContentParts() ?? [];
 		const hasFileReferences = editorParts.some(
-			(p) => p.type === "file-reference",
+			(p) => p.type === "file-reference" || p.type === "skill",
 		);
 		const hasContent =
 			message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
@@ -802,16 +802,16 @@ const AgentChatPage: FC = () => {
 
 		const content: TypesGen.ChatInputPart[] = [];
 
-		// Emit parts in document order — text segments and
-		// file-reference chips are interleaved as they appear in
-		// the editor.
+		// Emit parts in document order — text segments,
+		// file-reference chips, and skill chips are interleaved
+		// as they appear in the editor.
 		for (const part of editorParts) {
 			if (part.type === "text") {
 				const trimmed = part.text.trim();
 				if (trimmed) {
 					content.push({ type: "text", text: part.text });
 				}
-			} else {
+			} else if (part.type === "file-reference") {
 				const r = part.reference;
 				content.push({
 					type: "file-reference",
@@ -820,9 +820,15 @@ const AgentChatPage: FC = () => {
 					end_line: r.endLine,
 					content: r.content,
 				});
+			} else if (part.type === "skill") {
+				const s = part.skill;
+				content.push({
+					type: "skill",
+					skill_name: s.skillName,
+					skill_description: s.skillDescription,
+				});
 			}
 		}
-
 		// Add pre-uploaded file references.
 		if (fileIds && fileIds.length > 0) {
 			for (const fileId of fileIds) {

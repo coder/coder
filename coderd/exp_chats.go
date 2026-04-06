@@ -3767,6 +3767,19 @@ func createChatInputFromParts(
 				_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
 			}
 			textParts = append(textParts, sb.String())
+		case string(codersdk.ChatInputPartTypeSkill):
+			if part.SkillName == "" {
+				return nil, "", &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].skill_name cannot be empty for skill parts.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessagePart{
+				Type:             codersdk.ChatMessagePartTypeSkill,
+				SkillName:        part.SkillName,
+				SkillDescription: part.SkillDescription,
+			})
+			textParts = append(textParts, fmt.Sprintf("Use the %q skill", part.SkillName))
 		default:
 			return nil, "", &codersdk.Response{
 				Message: "Invalid input part.",

@@ -35,6 +35,7 @@ import {
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
+import { SkillChip } from "../ChatMessageInput/SkillNode";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -503,8 +504,11 @@ const ChatMessageItem = memo<{
 						b,
 					): b is
 						| Extract<RenderBlock, { type: "response" }>
-						| Extract<RenderBlock, { type: "file-reference" }> =>
-						b.type === "response" || b.type === "file-reference",
+						| Extract<RenderBlock, { type: "file-reference" }>
+						| Extract<RenderBlock, { type: "skill" }> =>
+						b.type === "response" ||
+						b.type === "file-reference" ||
+						b.type === "skill",
 				)
 			: [];
 		const userFileBlocks = isUser
@@ -554,12 +558,19 @@ const ChatMessageItem = memo<{
 														? userInlineContent.map((block, i) =>
 																block.type === "response" ? (
 																	<Fragment key={i}>{block.text}</Fragment>
-																) : (
+																) : block.type === "file-reference" ? (
 																	<FileReferenceChip
 																		key={i}
 																		fileName={block.file_name}
 																		startLine={block.start_line}
 																		endLine={block.end_line}
+																		className="mx-1"
+																	/>
+																) : (
+																	<SkillChip
+																		key={i}
+																		skillName={block.skill_name}
+																		skillDescription={block.skill_description}
 																		className="mx-1"
 																	/>
 																),

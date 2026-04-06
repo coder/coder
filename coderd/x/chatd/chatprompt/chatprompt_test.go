@@ -1088,6 +1088,49 @@ func TestFileReferencePreservation(t *testing.T) {
 	assert.Contains(t, textPart.Text, "func main() {}")
 }
 
+// TestSkillPartPreservation verifies skill parts survive the
+// storage round-trip and convert to text for LLMs.
+func TestSkillPartPreservation(t *testing.T) {
+	t.Parallel()
+
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:             codersdk.ChatMessagePartTypeSkill,
+		SkillName:        "deep-review",
+		SkillDescription: "Multi-reviewer code review",
+	}})
+	require.NoError(t, err)
+
+	// Storage round-trip: all fields intact.
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, raw))
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, codersdk.ChatMessagePartTypeSkill, parts[0].Type)
+	assert.Equal(t, "deep-review", parts[0].SkillName)
+	assert.Equal(t, "Multi-reviewer code review", parts[0].SkillDescription)
+
+	// LLM dispatch: skill becomes a TextPart.
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    raw,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "skill should become TextPart for LLM")
+	assert.Contains(t, textPart.Text, "deep-review")
+	assert.Contains(t, textPart.Text, "read_skill")
+	assert.Contains(t, textPart.Text, "Multi-reviewer code review")
+	assert.Contains(t, textPart.Text, "Multi-reviewer code review")
+}
+
 // TestAssistantWriteRoundTrip verifies the Stage 4 write path:
 // fantasy.Content (with ProviderMetadata) → PartFromContent →
 // MarshalParts → DB → ParseContent (SDK path) →

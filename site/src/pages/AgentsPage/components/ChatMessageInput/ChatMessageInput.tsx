@@ -41,6 +41,7 @@ import {
 	isLargePaste,
 	type PasteCommandEvent,
 } from "./pasteHelpers";
+import { $createSkillNode, type SkillData, SkillNode } from "./SkillNode";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -288,7 +289,7 @@ const ContentChangePlugin: FC<{
 	onChange?: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChipContent: boolean,
 	) => void;
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
@@ -306,7 +307,10 @@ const ContentChangePlugin: FC<{
 					if (!$isParagraphNode(child)) continue;
 
 					for (const node of child.getChildren()) {
-						if (node instanceof FileReferenceNode) {
+						if (
+							node instanceof FileReferenceNode ||
+							node instanceof SkillNode
+						) {
 							hasRefs = true;
 							break;
 						}
@@ -395,13 +399,17 @@ interface FileReferenceData {
 
 /**
  * A content part extracted from the Lexical editor in document order.
- * Either a text segment or a file-reference chip.
+ * A text segment, file-reference chip, or skill chip.
  */
 type EditorContentPart =
 	| { readonly type: "text"; readonly text: string }
 	| {
 			readonly type: "file-reference";
 			readonly reference: FileReferenceData;
+	  }
+	| {
+			readonly type: "skill";
+			readonly skill: SkillData;
 	  };
 
 // Mutable variant used internally while building the parts
@@ -412,7 +420,14 @@ type MutableFileRefPart = {
 	type: "file-reference";
 	reference: FileReferenceData;
 };
-type MutableContentPart = MutableTextPart | MutableFileRefPart;
+type MutableSkillPart = {
+	type: "skill";
+	skill: SkillData;
+};
+type MutableContentPart =
+	| MutableTextPart
+	| MutableFileRefPart
+	| MutableSkillPart;
 
 export interface ChatMessageInputRef {
 	setValue: (text: string) => void;
@@ -426,9 +441,15 @@ export interface ChatMessageInputRef {
 	 */
 	addFileReference: (ref: FileReferenceData) => void;
 	/**
+	 * Insert a skill chip in a single Lexical update
+	 * (atomic for undo/redo).
+	 */
+	addSkill: (data: SkillData) => void;
+	/**
 	 * Walk the Lexical tree in document order and return interleaved
-	 * text / file-reference parts. Adjacent text nodes within the same
-	 * paragraph are merged, and paragraphs are separated by newlines.
+	 * text / file-reference / skill parts. Adjacent text nodes within
+	 * the same paragraph are merged, and paragraphs are separated by
+	 * newlines.
 	 */
 	getContentParts: () => EditorContentPart[];
 }
@@ -446,7 +467,7 @@ interface ChatMessageInputProps
 	onChange?: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChipContent: boolean,
 	) => void;
 	/** Monotonic counter to force editor remount. */
 	remountKey?: number;
@@ -497,7 +518,7 @@ const ChatMessageInput = ({
 			inlineDecorator: "mx-1",
 		},
 		onError: (error: Error) => console.error("Lexical error:", error),
-		nodes: [FileReferenceNode],
+		nodes: [FileReferenceNode, SkillNode],
 		editable: !disabled,
 	};
 	const style = {
@@ -615,6 +636,29 @@ const ChatMessageInput = ({
 					chipNode.selectNext();
 				});
 			},
+			addSkill: (data: SkillData) => {
+				const editor = editorRef.current;
+				if (!editor) return;
+
+				editor.update(() => {
+					const root = $getRoot();
+					const firstChild = root.getFirstChild();
+					const paragraph = $isParagraphNode(firstChild)
+						? firstChild
+						: $createParagraphNode();
+
+					if (!$isParagraphNode(firstChild)) {
+						root.append(paragraph);
+					}
+
+					const chipNode = $createSkillNode(
+						data.skillName,
+						data.skillDescription,
+					);
+					paragraph.append(chipNode);
+					chipNode.selectNext();
+				});
+			},
 			getContentParts: () => {
 				const editor = editorRef.current;
 				if (!editor) return [];
@@ -652,6 +696,14 @@ const ChatMessageInput = ({
 										startLine: node.__startLine,
 										endLine: node.__endLine,
 										content: node.__content,
+									},
+								});
+							} else if (node instanceof SkillNode) {
+								parts.push({
+									type: "skill",
+									skill: {
+										skillName: node.__skillName,
+										skillDescription: node.__skillDescription,
 									},
 								});
 							} else {
