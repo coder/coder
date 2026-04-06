@@ -87,6 +87,11 @@ const placeholderOverrides: Record<string, string> = {
  * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking Budget Tokens"
  * snakeToPrettyLabel("reasoning_effort")        // "Reasoning Effort"
  */
+/** Capitalize the first letter of a string. */
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function snakeToPrettyLabel(jsonName: string): string {
 	if (shortLabelOverrides[jsonName]) {
 		return shortLabelOverrides[jsonName];
@@ -460,7 +465,7 @@ const SchemaField: FC<SchemaFieldProps> = ({
 						errorKey={errorKey}
 						label={label}
 						description={field.description}
-						options={options.map((v) => ({ label: v, value: v }))}
+						options={options.map((v) => ({ label: capitalize(v), value: v }))}
 					/>
 				);
 			}
