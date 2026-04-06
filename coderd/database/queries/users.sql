@@ -361,13 +361,31 @@ WHERE
 			login_type = ANY(@login_type :: login_type[])
 		ELSE true
 	END
-	-- Filter by service account.
-	AND CASE
-		WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
-			is_service_account = sqlc.narg('is_service_account') :: boolean
-		ELSE true
-	END
-	-- End of filters
+		-- Filter by service account.
+		AND CASE
+			WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
+				is_service_account = sqlc.narg('is_service_account') :: boolean
+			ELSE true
+		END
+		-- Filter by AI seat.
+		AND CASE
+			WHEN sqlc.narg('has_ai_seat') :: boolean IS NOT NULL THEN
+				sqlc.narg('has_ai_seat') :: boolean = (
+					users.status = 'active'::user_status
+					AND users.deleted = false
+					AND users.is_system = false
+					AND EXISTS (
+						SELECT
+							1
+						FROM
+							ai_seat_state ais
+						WHERE
+							ais.user_id = users.id
+					)
+				)
+			ELSE true
+		END
+		-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter

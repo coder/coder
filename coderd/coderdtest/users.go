@@ -123,14 +123,20 @@ func UsersPagination(
 	require.Contains(t, gotUsers[0].Name, "after")
 }
 
+// UsersFilterOptions controls which shared user-filter cases run.
+type UsersFilterOptions struct {
+	IncludeAISeatFilters bool
+}
+
 // UsersFilter creates a set of users to run various filters against for
-// testing.  It can be used to test filtering both users and group members.
+// testing. It can be used to test filtering both users and group members.
 func UsersFilter(
 	setupCtx context.Context,
 	t *testing.T,
 	client *codersdk.Client,
 	db database.Store,
 	setup func(users []codersdk.User),
+	opts UsersFilterOptions,
 	fetch func(ctx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser,
 ) {
 	t.Helper()
@@ -208,6 +214,21 @@ func UsersFilter(
 		}
 
 		users = append(users, user)
+
+		if opts.IncludeAISeatFilters && i%3 == 0 {
+			// nolint:gocritic // Setting up unit test data.
+			_, err = db.UpsertAISeatState(dbauthz.AsSystemRestricted(setupCtx), database.UpsertAISeatStateParams{
+				UserID:               user.ID,
+				FirstUsedAt:          dbtime.Now(),
+				LastEventType:        database.AiSeatUsageReasonAibridge,
+				LastEventDescription: fmt.Sprintf("test seat %s", user.ID),
+			})
+			require.NoError(t, err)
+			// Keep expected results aligned with GetUserAISeatStates, which only
+			// marks active users as currently consuming an AI seat.
+			user.HasAISeat = user.Status == codersdk.UserStatusActive
+			users[len(users)-1] = user
+		}
 	}
 
 	// Add some service accounts.
@@ -586,6 +607,39 @@ func UsersFilter(
 				return !u.IsServiceAccount
 			},
 		},
+	}
+
+	if opts.IncludeAISeatFilters {
+		testCases = append(testCases,
+			struct {
+				Name   string
+				Filter codersdk.UsersRequest
+				// If FilterF is true, we include it in the expected results
+				FilterF func(f codersdk.UsersRequest, user codersdk.User) bool
+			}{
+				Name: "HasAISeat",
+				Filter: codersdk.UsersRequest{
+					SearchQuery: "has-ai-seat:true",
+				},
+				FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+					return u.HasAISeat
+				},
+			},
+			struct {
+				Name   string
+				Filter codersdk.UsersRequest
+				// If FilterF is true, we include it in the expected results
+				FilterF func(f codersdk.UsersRequest, user codersdk.User) bool
+			}{
+				Name: "DoesNotHaveAISeat",
+				Filter: codersdk.UsersRequest{
+					SearchQuery: "has-ai-seat:false",
+				},
+				FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+					return !u.HasAISeat
+				},
+			},
+		)
 	}
 
 	for _, c := range testCases {

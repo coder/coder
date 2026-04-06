@@ -748,6 +748,26 @@ func TestSearchUsers(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HasAISeatTrue",
+			Query: "has-ai-seat:true",
+			Expected: database.GetUsersParams{
+				Status:    []database.UserStatus{},
+				HasAISeat: sql.NullBool{Bool: true, Valid: true},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "HasAISeatFalse",
+			Query: "has-ai-seat:false",
+			Expected: database.GetUsersParams{
+				Status:    []database.UserStatus{},
+				HasAISeat: sql.NullBool{Bool: false, Valid: true},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
 			Name:  "LoginType",
 			Query: "login_type:github",
 			Expected: database.GetUsersParams{
@@ -850,7 +870,7 @@ func TestSearchUsers(t *testing.T) {
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := searchquery.Users(c.Query)
+			values, errs := searchquery.UsersWithAISeat(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder

@@ -17,6 +17,15 @@ import {
 } from "#/testHelpers/storybook";
 import UsersPage from "./UsersPage";
 
+const MockUsersWithAISeats: User[] = MockUsers.map((user, index) => ({
+	...user,
+	has_ai_seat: index % 3 === 0,
+}));
+
+const MockUsersConsumingAISeats = MockUsersWithAISeats.filter(
+	(user) => user.has_ai_seat,
+);
+
 const parameters = {
 	queries: [
 		// This query loads users for the filter menu, not for the table
@@ -31,8 +40,16 @@ const parameters = {
 		{
 			key: usersKey({ limit: 25, offset: 0, q: "" }),
 			data: {
-				users: MockUsers,
+				users: MockUsersWithAISeats,
 				count: 60,
+			},
+		},
+		// Users after applying the AI seat filter
+		{
+			key: usersKey({ limit: 25, offset: 0, q: "has-ai-seat:true" }),
+			data: {
+				users: MockUsersConsumingAISeats,
+				count: MockUsersConsumingAISeats.length,
 			},
 		},
 		{
@@ -107,6 +124,36 @@ export const WithoutAIAddonColumn: Story = {
 		await expect(
 			canvas.queryByRole("columnheader", { name: /AI add-on/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const WithAIAddonFilter: Story = {
+	parameters: {
+		features: ["ai_governance_user_limit"],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const aiSeatButton = await canvas.findByRole("button", {
+			name: /select ai add-on status/i,
+		});
+
+		await user.click(aiSeatButton);
+		const options = await body.findAllByRole("option");
+		await expect(options.map((option) => option.textContent)).toEqual(
+			expect.arrayContaining(["Consuming AI seat", "Not consuming AI seat"]),
+		);
+
+		await user.click(
+			await body.findByRole("option", {
+				name: /^Consuming AI seat$/i,
+			}),
+		);
+		await expect(aiSeatButton).toHaveTextContent("Consuming AI seat");
+		await expect(
+			await canvas.findByDisplayValue(/has-ai-seat:true/i),
+		).toBeVisible();
 	},
 };
 

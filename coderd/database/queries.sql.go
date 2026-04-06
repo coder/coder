@@ -23215,22 +23215,40 @@ WHERE
 			login_type = ANY($12 :: login_type[])
 		ELSE true
 	END
-	-- Filter by service account.
-	AND CASE
-		WHEN $13 :: boolean IS NOT NULL THEN
-			is_service_account = $13 :: boolean
-		ELSE true
-	END
-	-- End of filters
+		-- Filter by service account.
+		AND CASE
+			WHEN $13 :: boolean IS NOT NULL THEN
+				is_service_account = $13 :: boolean
+			ELSE true
+		END
+		-- Filter by AI seat.
+		AND CASE
+			WHEN $14 :: boolean IS NOT NULL THEN
+				$14 :: boolean = (
+					users.status = 'active'::user_status
+					AND users.deleted = false
+					AND users.is_system = false
+					AND EXISTS (
+						SELECT
+							1
+						FROM
+							ai_seat_state ais
+						WHERE
+							ais.user_id = users.id
+					)
+				)
+			ELSE true
+		END
+		-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $14
+	LOWER(username) ASC OFFSET $15
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($15 :: int, 0)
+	NULLIF($16 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -23247,6 +23265,7 @@ type GetUsersParams struct {
 	GithubComUserID  int64        `db:"github_com_user_id" json:"github_com_user_id"`
 	LoginType        []LoginType  `db:"login_type" json:"login_type"`
 	IsServiceAccount sql.NullBool `db:"is_service_account" json:"is_service_account"`
+	HasAISeat        sql.NullBool `db:"has_ai_seat" json:"has_ai_seat"`
 	OffsetOpt        int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt         int32        `db:"limit_opt" json:"limit_opt"`
 }
@@ -23291,6 +23310,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
 		arg.IsServiceAccount,
+		arg.HasAISeat,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

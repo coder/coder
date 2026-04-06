@@ -96,13 +96,13 @@ export const useFilter = ({
 	};
 };
 
-const parseFilterQuery = (filterQuery: string): FilterValues => {
+export const parseFilterQuery = (filterQuery: string): FilterValues => {
 	if (filterQuery === "") {
 		return {};
 	}
 
 	const result: FilterValues = {};
-	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
+	const keyValuePair = /([\w-]+):"([^"]+)"|([\w-]+):(\S+)/g;
 
 	for (const match of filterQuery.matchAll(keyValuePair)) {
 		const key = match[1] ?? match[3];
@@ -115,7 +115,7 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 	return result;
 };
 
-const stringifyFilter = (filterValue: FilterValues): string => {
+export const stringifyFilter = (filterValue: FilterValues): string => {
 	let result = "";
 
 	for (const key in filterValue) {

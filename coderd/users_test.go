@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1821,18 +1822,28 @@ func TestGetUser(t *testing.T) {
 func TestGetUsersFilter(t *testing.T) {
 	t.Parallel()
 
+	entSet := entitlements.New()
+	entSet.Modify(func(e *codersdk.Entitlements) {
+		e.HasLicense = true
+		e.Features[codersdk.FeatureAIGovernanceUserLimit] = codersdk.Feature{
+			Enabled:     true,
+			Entitlement: codersdk.EntitlementEntitled,
+		}
+	})
+
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		OIDCConfig: &coderd.OIDCConfig{
 			AllowSignups: true,
 		},
 	})
+	api.Entitlements = entSet
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
+	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, coderdtest.UsersFilterOptions{IncludeAISeatFilters: true}, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
 		res, err := client.Users(testCtx, req)
 		require.NoError(t, err)
 		reduced := make([]codersdk.ReducedUser, len(res.Users))
@@ -1841,6 +1852,25 @@ func TestGetUsersFilter(t *testing.T) {
 		}
 		return reduced
 	})
+}
+
+func TestGetUsersFilterByAISeatRequiresEntitlement(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := client.Users(ctx, codersdk.UsersRequest{SearchQuery: "has-ai-seat:true"})
+	require.Error(t, err)
+
+	apiErr, ok := codersdk.AsError(err)
+	require.True(t, ok)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Contains(t, apiErr.Message, "Invalid user search query")
+	require.Contains(t, apiErr.Error(), `has-ai-seat: "has-ai-seat" is not a valid query param`)
 }
 
 func TestGetUsersPagination(t *testing.T) {

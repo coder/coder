@@ -372,7 +372,12 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.User, int64, bool) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")
-	params, errs := searchquery.Users(query)
+	usersSearch := searchquery.Users
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		usersSearch = searchquery.UsersWithAISeat
+	}
+
+	params, errs := usersSearch(query)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid user search query.",
@@ -391,6 +396,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		Search:           params.Search,
 		Name:             params.Name,
 		Status:           params.Status,
+		HasAISeat:        params.HasAISeat,
 		IsServiceAccount: params.IsServiceAccount,
 		RbacRole:         params.RbacRole,
 		LastSeenBefore:   params.LastSeenBefore,

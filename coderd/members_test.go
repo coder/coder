@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -148,7 +149,7 @@ func TestGetOrgMembersFilter(t *testing.T) {
 	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
+	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, coderdtest.UsersFilterOptions{}, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
 		res, err := client.OrganizationMembersPaginated(testCtx, first.OrganizationID, req)
 		require.NoError(t, err)
 		reduced := make([]codersdk.ReducedUser, len(res.Members))
@@ -157,6 +158,25 @@ func TestGetOrgMembersFilter(t *testing.T) {
 		}
 		return reduced
 	})
+}
+
+func TestGetOrgMembersFilterByAISeatUnsupported(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := client.OrganizationMembersPaginated(ctx, first.OrganizationID, codersdk.UsersRequest{SearchQuery: "has-ai-seat:true"})
+	require.Error(t, err)
+
+	apiErr, ok := codersdk.AsError(err)
+	require.True(t, ok)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Contains(t, apiErr.Message, "Invalid member search query")
+	require.Contains(t, apiErr.Error(), `has-ai-seat: "has-ai-seat" is not a valid query param`)
 }
 
 func TestGetOrgMembersPagination(t *testing.T) {
