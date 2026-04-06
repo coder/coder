@@ -117,6 +117,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const isEditing = Boolean(editingModel);
 	const isDefaultModel = isEditing && editingModel?.is_default === true;
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [showPricing, setShowPricing] = useState(true);
+	const [showProviderConfig, setShowProviderConfig] = useState(true);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
@@ -474,33 +476,74 @@ export const ModelForm: FC<ModelFormProps> = ({
 								)}
 							</div>
 						</div>
-						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-							<PricingModelConfigFields
-								provider={selectedProviderState.provider}
-								form={form}
-								fieldErrors={modelConfigFormBuildResult.fieldErrors}
-								disabled={isSaving}
-							/>
-						</div>
 					</div>
-					{/* Provider Configuration */}{" "}
-					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
-						<h3 className="m-0 text-xs font-medium text-content-secondary">
+
+					{/* Usage Tracking */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						{" "}
+						<button
+							type="button"
+							onClick={() => setShowPricing((v) => !v)}
+							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+						>
+							{showPricing ? (
+								<ChevronDownIcon className="h-3.5 w-3.5" />
+							) : (
+								<ChevronRightIcon className="h-3.5 w-3.5" />
+							)}
+							Usage Tracking
+						</button>
+						{showPricing && (
+							<div className="space-y-3 pt-3">
+								<p className="m-0 text-xs text-content-secondary">
+									Used by Coder to track usage and enforce spending limits.
+								</p>
+								<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+									<PricingModelConfigFields
+										provider={selectedProviderState.provider}
+										form={form}
+										fieldErrors={modelConfigFormBuildResult.fieldErrors}
+										disabled={isSaving}
+									/>
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* Provider Configuration */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						{" "}
+						<button
+							type="button"
+							onClick={() => setShowProviderConfig((v) => !v)}
+							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+						>
+							{showProviderConfig ? (
+								<ChevronDownIcon className="h-3.5 w-3.5" />
+							) : (
+								<ChevronRightIcon className="h-3.5 w-3.5" />
+							)}
 							Provider Configuration
-						</h3>
-						<ModelConfigFields
-							provider={selectedProviderState.provider}
-							form={form}
-							fieldErrors={modelConfigFormBuildResult.fieldErrors}
-							disabled={isSaving}
-						/>
+						</button>
+						{showProviderConfig && (
+							<div className="pt-3">
+								<ModelConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+							</div>
+						)}
 					</div>
+
 					{/* Advanced */}
 					<div className="border-0 border-t border-solid border-border pt-4">
+						{" "}
 						<button
 							type="button"
 							onClick={() => setShowAdvanced((v) => !v)}
-							className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
 						>
 							{showAdvanced ? (
 								<ChevronDownIcon className="h-3.5 w-3.5" />
