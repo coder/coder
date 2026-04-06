@@ -335,6 +335,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						type="text"
 						{...form.getFieldProps("displayName")}
 						disabled={isSaving}
+						spellCheck={false}
 						size={Math.max(1, form.values.displayName?.length || 0)}
 						className="m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 						placeholder={
@@ -369,7 +370,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 			{/* Form body */}
-			<form className="flex flex-1 flex-col" onSubmit={form.handleSubmit}>
+			<form
+				className="flex flex-1 flex-col"
+				onSubmit={form.handleSubmit}
+				spellCheck={false}
+				autoComplete="off"
+			>
 				<div className="space-y-6">
 					{/* Model ID + Context Limit */}
 					<div className="grid items-start gap-4 sm:grid-cols-2">
