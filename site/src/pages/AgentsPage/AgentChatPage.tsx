@@ -51,7 +51,9 @@ import {
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
+	selectTransportReady,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
@@ -665,6 +667,7 @@ const AgentChatPage: FC = () => {
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+	const transportReady = useChatSelector(store, selectTransportReady);
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord,
@@ -1083,7 +1086,17 @@ const AgentChatPage: FC = () => {
 		onRegenerateTitle(agentId);
 	};
 
-	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
+	// Gate on REST queries AND on the WebSocket snapshot for
+	// active chats. Without this, active chats briefly render
+	// without streaming tool output while the WebSocket
+	// connects and delivers the server's buffered state.
+	const isWaitingForTransport =
+		isActiveChatStatus(liveChatStatus) && !transportReady;
+	if (
+		chatQuery.isLoading ||
+		chatMessagesQuery.isLoading ||
+		isWaitingForTransport
+	) {
 		return (
 			<AgentChatPageLoadingView
 				titleElement={titleElement}

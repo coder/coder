@@ -142,6 +142,11 @@ export type ChatStoreState = {
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	// True once the WebSocket has connected and delivered its
+	// initial snapshot for the current chat. Gates rendering of
+	// active chats so the user sees a loading skeleton instead
+	// of an incomplete chat missing streaming tool output.
+	transportReady: boolean;
 };
 
 export type ChatStore = {
@@ -175,6 +180,7 @@ export type ChatStore = {
 		status: TypesGen.ChatStatus,
 	) => void;
 	resetTransientState: () => void;
+	setTransportReady: (ready: boolean) => void;
 };
 
 const createInitialState = (): ChatStoreState => ({
@@ -187,6 +193,7 @@ const createInitialState = (): ChatStoreState => ({
 	reconnectState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
+	transportReady: false,
 });
 
 export const createChatStore = (): ChatStore => {
@@ -503,7 +510,8 @@ export const createChatStore = (): ChatStore => {
 				state.streamError === null &&
 				state.retryState === null &&
 				state.reconnectState === null &&
-				state.subagentStatusOverrides.size === 0
+				state.subagentStatusOverrides.size === 0 &&
+				!state.transportReady
 			) {
 				return;
 			}
@@ -514,6 +522,16 @@ export const createChatStore = (): ChatStore => {
 				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
+				transportReady: false,
+			}));
+		},
+		setTransportReady: (ready: boolean) => {
+			if (state.transportReady === ready) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				transportReady: ready,
 			}));
 		},
 	};
@@ -534,6 +552,8 @@ export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
+export const selectTransportReady = (state: ChatStoreState) =>
+	state.transportReady;
 
 const selectLatestDurableMessage = (
 	state: ChatStoreState,
