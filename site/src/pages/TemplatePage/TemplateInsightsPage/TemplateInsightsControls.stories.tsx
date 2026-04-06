@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "@testing-library/react";
 import type { ComponentProps } from "react";
-import { userEvent } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { TemplateInsightsControls } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsControls> = {
