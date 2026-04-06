@@ -16,6 +16,7 @@ import {
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
+import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
@@ -118,7 +119,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					)}
 				</aside>
 				<main className="flex-1 min-w-0">
-					{session && (
+					{session ? (
 						<SessionTimeline
 							initiator={session.initiator}
 							threads={threads}
@@ -126,6 +127,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							isFetchingNextPage={isFetchingNextPage}
 							onFetchNextPage={onFetchNextPage}
 						/>
+					) : (
+						loading && <SessionTimelineSkeleton />
 					)}
 				</main>
 			</div>
