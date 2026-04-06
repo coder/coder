@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/invopop/jsonschema"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
@@ -384,7 +385,7 @@ type CreateChatRequest struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels        map[string]string `json:"labels,omitempty"`
-	DynamicTools  []mcp.Tool        `json:"dynamic_tools,omitempty"`
+	DynamicTools  []DynamicTool     `json:"dynamic_tools,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -1016,6 +1017,72 @@ type ChatStreamToolCall struct {
 	ToolCallID string `json:"tool_call_id"`
 	ToolName   string `json:"tool_name"`
 	Args       string `json:"args"`
+}
+
+// ToolCall represents a pending tool invocation from the chat
+// stream that the client must execute and submit back.
+type ToolCall struct {
+	ID   string
+	Name string
+	Args string
+}
+
+// ToolResponse holds the output of a dynamic tool execution.
+// IsError indicates a tool-level error the LLM should see, as
+// opposed to an infrastructure failure (returned as the error
+// return value).
+type ToolResponse struct {
+	Content string
+	IsError bool
+}
+
+// DynamicTool pairs a tool definition with a client-side handler.
+// Only Name, Description, and InputSchema are serialized; the
+// Handler stays local.
+type DynamicTool struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	InputSchema json.RawMessage `json:"inputSchema"`
+
+	// Handler executes the tool when the LLM invokes it.
+	// Not serialized — this only exists on the client side.
+	Handler func(ctx context.Context, call ToolCall) (ToolResponse, error) `json:"-"`
+}
+
+// NewDynamicTool creates a DynamicTool with a typed handler.
+// The JSON schema is derived from T using invopop/jsonschema.
+// The handler receives deserialized args and the ToolCall metadata.
+func NewDynamicTool[T any](
+	name, description string,
+	handler func(ctx context.Context, args T, call ToolCall) (ToolResponse, error),
+) DynamicTool {
+	reflector := jsonschema.Reflector{
+		DoNotReference:            true,
+		Anonymous:                 true,
+		AllowAdditionalProperties: true,
+	}
+	schema := reflector.Reflect(new(T))
+	schema.Version = ""
+	schemaJSON, err := json.Marshal(schema)
+	if err != nil {
+		panic(fmt.Sprintf("codersdk: failed to marshal schema for %q: %v", name, err))
+	}
+
+	return DynamicTool{
+		Name:        name,
+		Description: description,
+		InputSchema: schemaJSON,
+		Handler: func(ctx context.Context, call ToolCall) (ToolResponse, error) {
+			var parsed T
+			if err := json.Unmarshal([]byte(call.Args), &parsed); err != nil {
+				return ToolResponse{
+					Content: fmt.Sprintf("invalid parameters: %s", err),
+					IsError: true,
+				}, nil
+			}
+			return handler(ctx, parsed, call)
+		},
+	}
 }
 
 // ChatWatchEventKind represents the kind of event in the chat watch stream.
