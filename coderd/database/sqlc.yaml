@@ -247,6 +247,7 @@ sql:
           mcp_server_tool_snapshots: MCPServerToolSnapshots
           mcp_server_config_id: MCPServerConfigID
           mcp_server_ids: MCPServerIDs
+          max_file_links: MaxFileLinks
           icon_url: IconURL
           oauth2_client_id: OAuth2ClientID
           oauth2_client_secret: OAuth2ClientSecret

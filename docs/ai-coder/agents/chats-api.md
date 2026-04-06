@@ -134,6 +134,12 @@ edited message onward, truncating any messages that followed it.
 |-----------|-------------------|----------|----------------------------------|
 | `content` | `ChatInputPart[]` | yes      | The replacement message content. |
 
+The response is an `EditChatMessageResponse` with the edited `message`
+and an optional `warnings` array. When file references in the edited
+content cannot be linked (e.g. the per-chat file cap is reached), the
+edit still succeeds and the `warnings` array describes which files
+were not linked.
+
 ### Stream updates
 
 `GET /api/experimental/chats/{chat}/stream`
@@ -201,7 +207,9 @@ Each event is a JSON object with `kind` and `chat` fields:
 
 `GET /api/experimental/chats`
 
-Returns all chats owned by the authenticated user.
+Returns all chats owned by the authenticated user. The `files` field is
+populated on `POST /chats` and `GET /chats/{id}`. Other endpoints that
+return a `Chat` object omit it.
 
 | Query parameter | Type     | Required | Description                                                      |
 |-----------------|----------|----------|------------------------------------------------------------------|
@@ -212,7 +220,17 @@ Returns all chats owned by the authenticated user.
 
 `GET /api/experimental/chats/{chat}`
 
-Returns the `Chat` object (metadata only, no messages).
+Returns the `Chat` object (metadata only, no messages). The response
+includes a `files` field (`ChatFileMetadata[]`) containing metadata for
+files that have been successfully linked to the chat. File linking is
+best-effort; if linking fails, the file remains in message content but
+will be absent from this field.
+
+When file linking is skipped (e.g. the per-chat file cap is reached),
+`POST /chats` includes a `warnings` array on the `Chat` response and
+`POST /chats/{chat}/messages` includes a `warnings` array on the
+`CreateChatMessageResponse`. The `warnings` field is `omitempty` and
+absent when all files are linked successfully.
 
 ### Get chat messages
 
@@ -294,6 +312,10 @@ file, use `GET /api/experimental/chats/files/{file}`.
 
 Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
 validates actual file content regardless of the declared `Content-Type`.
+
+Files referenced in messages are automatically linked to the chat and
+appear in the `files` field on subsequent
+`GET /api/experimental/chats/{chat}` responses.
 
 ## Chat statuses
 

@@ -1128,6 +1128,14 @@ func (m queryMetricsStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFileMetadataByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatFileMetadataByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileMetadataByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatFilesByIDs(ctx, ids)
@@ -3773,6 +3781,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	r0, r1 := m.s.InsertWorkspaceResourceMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceResourceMetadata").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.LinkChatFiles(ctx, arg)
+	m.queryLatencies.WithLabelValues("LinkChatFiles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LinkChatFiles").Inc()
 	return r0, r1
 }
 

@@ -2889,6 +2889,56 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 	return i, err
 }
 
+const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
+SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at
+FROM chat_files cf
+JOIN chat_file_links cfl ON cfl.file_id = cf.id
+WHERE cfl.chat_id = $1::uuid
+ORDER BY cf.created_at ASC
+`
+
+type GetChatFileMetadataByChatIDRow struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Mimetype       string    `db:"mimetype" json:"mimetype"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+// GetChatFileMetadataByChatID returns lightweight file metadata for
+// all files linked to a chat. The data column is excluded to avoid
+// loading file content.
+func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatFileMetadataByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatFileMetadataByChatIDRow
+	for rows.Next() {
+		var i GetChatFileMetadataByChatIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Mimetype,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatFilesByIDs = `-- name: GetChatFilesByIDs :many
 SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = ANY($1::uuid[])
 `
@@ -6017,6 +6067,57 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const linkChatFiles = `-- name: LinkChatFiles :one
+WITH current AS (
+    SELECT COUNT(*) AS cnt
+    FROM chat_file_links
+    WHERE chat_id = $1::uuid
+),
+new_links AS (
+    SELECT $1::uuid AS chat_id, unnest($2::uuid[]) AS file_id
+),
+genuinely_new AS (
+    SELECT nl.chat_id, nl.file_id
+    FROM new_links nl
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chat_file_links cfl
+        WHERE cfl.chat_id = nl.chat_id AND cfl.file_id = nl.file_id
+    )
+),
+inserted AS (
+    INSERT INTO chat_file_links (chat_id, file_id)
+    SELECT gn.chat_id, gn.file_id
+    FROM genuinely_new gn, current c
+    WHERE c.cnt + (SELECT COUNT(*) FROM genuinely_new) <= $3::int
+    ON CONFLICT (chat_id, file_id) DO NOTHING
+    RETURNING file_id
+)
+SELECT
+    (SELECT COUNT(*)::int FROM genuinely_new) -
+    (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
+`
+
+type LinkChatFilesParams struct {
+	ChatID       uuid.UUID   `db:"chat_id" json:"chat_id"`
+	FileIds      []uuid.UUID `db:"file_ids" json:"file_ids"`
+	MaxFileLinks int32       `db:"max_file_links" json:"max_file_links"`
+}
+
+// LinkChatFiles inserts file associations into the chat_file_links
+// join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
+// is conditional: it only proceeds when the total number of links
+// (existing + genuinely new) does not exceed max_file_links. Returns
+// the number of genuinely new file IDs that were NOT inserted due to
+// the cap. A return value of 0 means all files were linked (or were
+// already linked). A positive value means the cap blocked that many
+// new links.
+func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, linkChatFiles, arg.ChatID, pq.Array(arg.FileIds), arg.MaxFileLinks)
+	var rejected_new_files int32
+	err := row.Scan(&rejected_new_files)
+	return rejected_new_files, err
 }
 
 const listChatUsageLimitGroupOverrides = `-- name: ListChatUsageLimitGroupOverrides :many

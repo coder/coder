@@ -3170,14 +3170,13 @@ class ExperimentalApiMethods {
 		chatId: string,
 		messageId: number,
 		req: TypesGen.EditChatMessageRequest,
-	): Promise<TypesGen.ChatMessage> => {
-		const response = await this.axios.patch<TypesGen.ChatMessage>(
+	): Promise<TypesGen.EditChatMessageResponse> => {
+		const response = await this.axios.patch<TypesGen.EditChatMessageResponse>(
 			`/api/experimental/chats/${chatId}/messages/${messageId}`,
 			req,
 		);
 		return response.data;
 	};
-
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}/interrupt`,
