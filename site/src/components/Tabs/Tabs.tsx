@@ -78,7 +78,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
 	type: triggerType = "button",
 	...props
 }) => {
-	const type = props.asChild ? undefined : (triggerType ?? "button");
+	const type = props.asChild ? undefined : triggerType;
 
 	return (
 		<TabsPrimitive.Trigger
