@@ -102,14 +102,16 @@ manually updated the workspace.
 
 ## Bulk operations
 
-Admins may apply bulk operations (update, delete, start, stop) in the
+Admins may apply bulk operations (update, delete, start, stop, cancel) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.
 
 The start and stop operations can only be applied to a set of workspaces which
-are all in the same state. For update and delete, the user will be prompted for
-confirmation before any action is taken.
+are all in the same state. The cancel operation is available when at least one
+selected workspace has an active build (starting, stopping, pending, or
+deleting). For update and delete, the user will be prompted for confirmation
+before any action is taken.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 

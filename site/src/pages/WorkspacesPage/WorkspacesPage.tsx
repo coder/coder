@@ -140,11 +140,13 @@ const WorkspacesPage: FC = () => {
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
+	const isOwner = me.roles.some((role) => role.name === "owner");
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
 			await refetch();
 			resetChecked();
 		},
+		canCancelAllBuilds: isOwner,
 	});
 
 	const checkedWorkspaces =
@@ -157,6 +159,7 @@ const WorkspacesPage: FC = () => {
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
 				canChangeVersions={permissions.updateTemplates}
+				canCancelAllBuilds={isOwner}
 				checkedWorkspaces={checkedWorkspaces}
 				chatsByWorkspace={chatsByWorkspaceQuery.data}
 				onCheckChange={(newWorkspaces) => {
@@ -184,6 +187,7 @@ const WorkspacesPage: FC = () => {
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
 				onBatchStopTransition={() => batchActions.stop(checkedWorkspaces)}
+				onBatchCancelTransition={() => batchActions.cancel(checkedWorkspaces)}
 				onBatchUpdateTransition={() => {
 					// Just because batch-updating can be really dangerous
 					// action for running workspaces, we're going to invalidate

@@ -2,10 +2,12 @@ import { useMutation } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
-import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
+import type { Response, Workspace, WorkspaceBuild } from "#/api/typesGenerated";
+import { canCancelWorkspaceBuild } from "#/modules/workspaces/actions";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
+	canCancelAllBuilds: boolean;
 }
 
 type UpdateAllPayload = Readonly<{
@@ -17,6 +19,7 @@ type UseBatchActionsResult = Readonly<{
 	isProcessing: boolean;
 	start: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	stop: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	cancel: (workspaces: readonly Workspace[]) => Promise<Response[]>;
 	delete: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	updateTemplateVersions: (
 		payload: UpdateAllPayload,
@@ -28,7 +31,7 @@ type UseBatchActionsResult = Readonly<{
 export function useBatchActions(
 	options: UseBatchActionsOptions,
 ): UseBatchActionsResult {
-	const { onSuccess } = options;
+	const { onSuccess, canCancelAllBuilds } = options;
 
 	const startAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
@@ -53,6 +56,31 @@ export function useBatchActions(
 		onSuccess,
 		onError: (error) => {
 			toast.error("Failed to stop workspaces.", {
+				description: getErrorDetail(error),
+			});
+		},
+	});
+
+	const cancelAllMutation = useMutation({
+		mutationFn: (workspaces: readonly Workspace[]) => {
+			return Promise.all(
+				workspaces
+					.filter((w) =>
+						canCancelWorkspaceBuild(w, { isOwner: canCancelAllBuilds }),
+					)
+					.map((w) => {
+						const { status } = w.latest_build;
+						const params =
+							status === "pending" || status === "running"
+								? { expect_status: status }
+								: undefined;
+						return API.cancelWorkspaceBuild(w.latest_build.id, params);
+					}),
+			);
+		},
+		onSuccess,
+		onError: (error) => {
+			toast.error("Failed to cancel some workspace builds.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -129,6 +157,7 @@ export function useBatchActions(
 		unfavorite: unfavoriteAllMutation.mutateAsync,
 		start: startAllMutation.mutateAsync,
 		stop: stopAllMutation.mutateAsync,
+		cancel: cancelAllMutation.mutateAsync,
 		delete: deleteAllMutation.mutateAsync,
 		updateTemplateVersions: updateAllMutation.mutateAsync,
 		isProcessing:
@@ -136,6 +165,7 @@ export function useBatchActions(
 			unfavoriteAllMutation.isPending ||
 			startAllMutation.isPending ||
 			stopAllMutation.isPending ||
+			cancelAllMutation.isPending ||
 			deleteAllMutation.isPending,
 	};
 }
