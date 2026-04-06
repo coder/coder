@@ -469,7 +469,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						<p className="m-0 text-xs text-content-secondary">
 							Used by Coder to track usage and enforce spending limits.
 						</p>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 							<PricingModelConfigFields
 								provider={selectedProviderState.provider}
 								form={form}
