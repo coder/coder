@@ -15,8 +15,8 @@ export const SectionHeader: FC<SectionHeaderProps> = ({
 }) => (
 	<>
 		<div className="flex items-start justify-between gap-4">
-			<div>
-				<div className="flex w-full items-center gap-2">
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center gap-2">
 					<h2 className="m-0 text-lg font-medium text-content-primary">
 						{label}
 					</h2>
