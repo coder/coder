@@ -642,6 +642,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	DataProtection                          DataProtectionConfig                 `json:"data_protection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -747,6 +748,12 @@ type UsageStatsConfig struct {
 
 type StatsCollectionConfig struct {
 	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
+}
+
+type DataProtectionConfig struct {
+	Enabled      serpent.Bool        `json:"enabled,omitempty" typescript:",notnull"`
+	Auditors     serpent.StringArray `json:"auditors,omitempty" typescript:",notnull"`
+	MinGroupSize serpent.Int64       `json:"min_group_size,omitempty" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -1458,6 +1465,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupDataProtection = serpent.Group{
+			Name:        "Data Protection",
+			Description: "Configure Data Protection Mode for compliance with employee data protection regulations (e.g., German labor law). When enabled, individual user identifiers are obfuscated in all reporting surfaces.",
+			YAML:        "dataProtection",
 		}
 	)
 
@@ -4014,6 +4026,35 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupRetention,
 			YAML:        "workspace_agent_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Data Protection Mode",
+			Description: "Enable Data Protection Mode. When enabled, individual user identifiers are obfuscated in reports and analytics. Designated auditors can still access unobfuscated data. Requires a server restart to change.",
+			Flag:        "data-protection-enabled",
+			Env:         "CODER_DATA_PROTECTION_ENABLED",
+			Default:     "false",
+			Value:       &c.DataProtection.Enabled,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "Data Protection Auditors",
+			Description: "Comma-separated list of email addresses of users designated as data protection auditors. Auditors can view unobfuscated user data in reports when Data Protection Mode is enabled. Changes require a server restart.",
+			Flag:        "data-protection-auditors",
+			Env:         "CODER_DATA_PROTECTION_AUDITORS",
+			Value:       &c.DataProtection.Auditors,
+			Group:       &deploymentGroupDataProtection,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Data Protection Min Group Size",
+			Description: "Minimum number of users in a report group before individual (obfuscated) data is shown. Groups smaller than this threshold are suppressed entirely to prevent indirect identification.",
+			Flag:        "data-protection-min-group-size",
+			Env:         "CODER_DATA_PROTECTION_MIN_GROUP_SIZE",
+			Default:     "5",
+			Value:       &c.DataProtection.MinGroupSize,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "minGroupSize",
 		},
 		{
 			Name: "Enable Authorization Recordings",

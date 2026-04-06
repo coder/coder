@@ -3,7 +3,9 @@ import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { chatCostSummary, chatCostUsers } from "#/api/queries/chats";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { user } from "#/api/queries/users";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -98,8 +100,13 @@ const AgentSettingsUsagePage: FC<AgentSettingsUsagePageProps> = ({ now }) => {
 		enabled: selectedUserId !== null,
 	});
 
+	const configQuery = useQuery(deploymentConfig());
+	const dataProtectionEnabled =
+		configQuery.data?.config?.data_protection?.enabled;
+
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
 			<AgentSettingsUsagePageView
 				dateRange={dateRange}
 				hasExplicitDateRange={hasExplicitDateRange}

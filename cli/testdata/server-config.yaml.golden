@@ -908,3 +908,17 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+# Configure Data Protection Mode for compliance with employee data protection
+# regulations (e.g., German labor law). When enabled, individual user identifiers
+# are obfuscated in all reporting surfaces.
+dataProtection:
+  # Enable Data Protection Mode. When enabled, individual user identifiers are
+  # obfuscated in reports and analytics. Designated auditors can still access
+  # unobfuscated data. Requires a server restart to change.
+  # (default: false, type: bool)
+  enabled: false
+  # Minimum number of users in a report group before individual (obfuscated) data is
+  # shown. Groups smaller than this threshold are suppressed entirely to prevent
+  # indirect identification.
+  # (default: 5, type: int)
+  minGroupSize: 5

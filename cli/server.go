@@ -70,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/devtunnel"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -676,6 +677,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Entitlements:          entitlements.New(),
 				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
+			options.DataProtection = dataprotection.NewConfig(
+				vals.DataProtection.Enabled.Value(),
+				vals.DataProtection.Auditors.Value(),
+				int(vals.DataProtection.MinGroupSize.Value()),
+			)
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
 			}

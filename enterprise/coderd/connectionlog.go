@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 	"net/netip"
 
@@ -77,8 +78,36 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logs := convertConnectionLogs(dblogs)
+
+	// Apply Data Protection Mode obfuscation to user identities
+	// in connection logs. This layers on top of the existing RBAC
+	// auditor gating because an RBAC auditor may be a team manager
+	// who should not see individual user data.
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg != nil && dpCfg.Enabled {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			for i := range logs {
+				if logs[i].WebInfo != nil && logs[i].WebInfo.User != nil {
+					u := logs[i].WebInfo.User
+					pid := dpCfg.ObfuscateUserID(u.ID)
+					u.ID = pid
+					u.Username = fmt.Sprintf("User %s", pid.String()[:8])
+					u.Name = ""
+					u.Email = ""
+					u.AvatarURL = ""
+				}
+				pid := dpCfg.ObfuscateUserID(logs[i].WorkspaceOwnerID)
+				logs[i].WorkspaceOwnerID = pid
+				logs[i].WorkspaceOwnerUsername = fmt.Sprintf("User %s", pid.String()[:8])
+			}
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
-		ConnectionLogs: convertConnectionLogs(dblogs),
+		ConnectionLogs: logs,
 		Count:          count,
 	})
 }
