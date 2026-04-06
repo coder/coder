@@ -41,7 +41,7 @@ func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 		ID:               deploymentID,
 		Name:             "primary",
 		DisplayName:      proxy.DisplayName,
-		IconURL:          proxy.IconUrl,
+		IconURL:          proxy.IconURL,
 		Healthy:          true,
 		PathAppURL:       api.AccessURL.String(),
 		WildcardHostname: appurl.SubdomainAppHost(api.AppHostname, api.AccessURL),

@@ -1,5 +1,5 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface PageHeaderProps {
 	actions?: ReactNode;

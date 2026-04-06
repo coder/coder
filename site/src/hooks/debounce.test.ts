@@ -105,10 +105,16 @@ describe(useDebouncedValue.name, () => {
 describe(`${useDebouncedFunction.name}`, () => {
 	function renderDebouncedFunction<Args extends unknown[]>(
 		callbackArg: (...args: Args) => void | Promise<void>,
-		time: number,
+		time: number | ((...args: Args) => number),
 	) {
 		return renderHook(
-			({ callback, time }: { callback: typeof callbackArg; time: number }) => {
+			({
+				callback,
+				time,
+			}: {
+				callback: typeof callbackArg;
+				time: number | ((...args: Args) => number);
+			}) => {
 				return useDebouncedFunction<Args>(callback, time);
 			},
 			{
@@ -116,27 +122,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 			},
 		);
 	}
-
-	describe("input validation", () => {
-		it("Should throw for non-nonnegative integer timeouts", () => {
-			const invalidInputs: readonly number[] = [
-				Number.NaN,
-				Number.NEGATIVE_INFINITY,
-				Number.POSITIVE_INFINITY,
-				Math.PI,
-				-42,
-			];
-
-			const dummyFunction = vi.fn();
-			for (const input of invalidInputs) {
-				expect(() => {
-					renderDebouncedFunction(dummyFunction, input);
-				}).toThrow(
-					`Invalid value ${input} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
-				);
-			}
-		});
-	});
 
 	describe("hook", () => {
 		it("Should provide stable function references across re-renders", () => {
@@ -154,7 +139,22 @@ describe(`${useDebouncedFunction.name}`, () => {
 			expect(oldCancel).toBe(newCancel);
 		});
 
-		it("Resets any pending debounces if the timer argument changes", async () => {
+		it("Should provide stable references with dynamic debounce", () => {
+			const time = 5000;
+			const { result, rerender } = renderDebouncedFunction(vi.fn(), () => time);
+
+			const { debounced: oldDebounced, cancelDebounce: oldCancel } =
+				result.current;
+
+			rerender({ callback: vi.fn(), time: () => time });
+			const { debounced: newDebounced, cancelDebounce: newCancel } =
+				result.current;
+
+			expect(oldDebounced).toBe(newDebounced);
+			expect(oldCancel).toBe(newCancel);
+		});
+
+		it("Does not reset any pending debounces if the timer argument changes", async () => {
 			const time = 5000;
 			const mockCallback = vi.fn();
 			const { result, rerender } = renderDebouncedFunction(mockCallback, time);
@@ -163,7 +163,7 @@ describe(`${useDebouncedFunction.name}`, () => {
 			rerender({ callback: mockCallback, time: time + 1 });
 
 			await vi.runAllTimersAsync();
-			expect(mockCallback).not.toBeCalled();
+			expect(mockCallback).toBeCalled();
 		});
 	});
 
@@ -171,6 +171,15 @@ describe(`${useDebouncedFunction.name}`, () => {
 		it("Resolve the debounce after specified milliseconds pass with no other calls", async () => {
 			const mockCallback = vi.fn();
 			const { result } = renderDebouncedFunction(mockCallback, 100);
+			result.current.debounced();
+
+			await vi.runOnlyPendingTimersAsync();
+			expect(mockCallback).toBeCalledTimes(1);
+		});
+
+		it("Resolve dynamic debounce", async () => {
+			const mockCallback = vi.fn();
+			const { result } = renderDebouncedFunction(mockCallback, () => 100);
 			result.current.debounced();
 
 			await vi.runOnlyPendingTimersAsync();

@@ -5,13 +5,14 @@ import (
 	"flag"
 	"log"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 var (
@@ -95,7 +96,7 @@ func readAuditDoc() ([]byte, error) {
 // Writes a markdown table of audit log resources to a buffer
 func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]byte, error) {
 	// We must sort the resources to ensure table ordering
-	sortedResourceNames := sortKeys(auditableResourcesMap)
+	sortedResourceNames := maps.SortedKeys(auditableResourcesMap)
 
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
@@ -134,7 +135,7 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 		_, _ = buffer.WriteString("|" + readableResourceName + "<br><i>" + auditActionsString + "</i>|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>" + "|")
 
 		// We must sort the field names to ensure sub-table ordering
-		sortedFieldNames := sortKeys(auditableResourcesMap[resourceName])
+		sortedFieldNames := maps.SortedKeys(auditableResourcesMap[resourceName])
 
 		for _, fieldName := range sortedFieldNames {
 			isTracked := auditableResourcesMap[resourceName][fieldName]
@@ -150,16 +151,5 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 }
 
 func writeAuditDoc(doc []byte) error {
-	// G306: Expect WriteFile permissions to be 0600 or less
-	/* #nosec G306 */
-	return os.WriteFile(auditDocFile, doc, 0o644)
-}
-
-func sortKeys[T any](stringMap map[string]T) []string {
-	var keyNames []string
-	for key := range stringMap {
-		keyNames = append(keyNames, key)
-	}
-	sort.Strings(keyNames)
-	return keyNames
+	return atomicwrite.File(auditDocFile, doc)
 }

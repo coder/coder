@@ -4,15 +4,16 @@ import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { API } from "api/api";
-import type {
-	UpdateTemplateMeta,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import express from "express";
 import capitalize from "lodash/capitalize";
 import * as ssh from "ssh2";
-import { TarWriter } from "utils/tar";
+import { API } from "#/api/api";
+import type {
+	UpdateTemplateMeta,
+	WorkspaceBuildParameter,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
+import { TarWriter } from "#/utils/tar";
 import {
 	agentPProfPort,
 	coderBinary,
@@ -178,53 +179,76 @@ export const verifyParameters = async (
 		waitUntil: "networkidle",
 	});
 
-	for (const buildParameter of expectedBuildParameters) {
-		const richParameter = richParameters.find(
-			(richParam) => richParam.name === buildParameter.name,
-		);
-		if (!richParameter) {
-			throw new Error(
-				"build parameter is expected to be present in rich parameter schema",
-			);
-		}
-
-		const parameterLabel = page.getByTestId(
-			`parameter-field-${richParameter.displayName}`,
-		);
-		await expect(parameterLabel).toBeVisible();
-
-		if (richParameter.options.length > 0) {
-			const parameterValue = parameterLabel.getByLabel(buildParameter.value);
-			const value = await parameterValue.isChecked();
-			expect(value).toBe(true);
-			continue;
-		}
-
-		switch (richParameter.type) {
-			case "bool":
-				{
-					const parameterField = parameterLabel.locator("input");
-					const value = await parameterField.isChecked();
-					expect(value.toString()).toEqual(buildParameter.value);
+	await Promise.all(
+		expectedBuildParameters.map(
+			async (buildParameter: WorkspaceBuildParameter) => {
+				const richParameter = richParameters.find(
+					(richParam) => richParam.name === buildParameter.name,
+				);
+				if (!richParameter) {
+					throw new Error(
+						"build parameter is expected to be present in rich parameter schema",
+					);
 				}
-				break;
-			case "string":
-			case "number":
-				{
-					const parameterField = parameterLabel.locator("input");
-					// Dynamic parameters can hydrate after initial render with
-					// stale or empty values. Retry with a longer timeout to
-					// allow the page to settle.
-					await expect(parameterField).toHaveValue(buildParameter.value, {
-						timeout: 15_000,
-					});
+
+				const parameterLabel = page.getByTestId(
+					`parameter-field-${richParameter.displayName}`,
+				);
+
+				await expect(parameterLabel).toBeVisible({
+					timeout: 10_000,
+				});
+
+				if (richParameter.options.length > 0) {
+					const parameterValue = parameterLabel.getByLabel(
+						buildParameter.value,
+					);
+					const value = await parameterValue.isChecked();
+					expect(value).toBe(true);
+					return;
 				}
-				break;
-			default:
-				// Some types like `list(string)` are not tested
-				throw new Error("not implemented yet");
-		}
-	}
+
+				switch (richParameter.type) {
+					case "bool":
+						{
+							// Use auto-retrying assertions to avoid capturing
+							// a stale default value before data hydration
+							// completes.
+							const parameterField = parameterLabel.locator("input");
+							if (buildParameter.value === "true") {
+								await expect(parameterField).toBeChecked({
+									timeout: 15_000,
+								});
+							} else if (buildParameter.value === "false") {
+								await expect(parameterField).not.toBeChecked({
+									timeout: 15_000,
+								});
+							} else {
+								throw new Error(
+									`Invalid boolean build parameter value: ${buildParameter.value}`,
+								);
+							}
+						}
+						break;
+					case "string":
+					case "number":
+						{
+							const parameterField = parameterLabel.locator("input").first();
+							// Dynamic parameters can hydrate after initial render with
+							// stale or empty values. Retry with a longer timeout to
+							// allow the page to settle.
+							await expect(parameterField).toHaveValue(buildParameter.value, {
+								timeout: 15_000,
+							});
+						}
+						break;
+					default:
+						// Some types like `list(string)` are not tested
+						throw new Error("not implemented yet");
+				}
+			},
+		),
+	);
 };
 
 /**
@@ -400,7 +424,8 @@ export const startWorkspaceWithEphemeralParameters = async (
 	await page.getByTestId("workspace-parameters").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: "Update and restart" }).click();
+
+	await page.getByRole("button", { name: /update and start/i }).click();
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1148,12 +1173,13 @@ export const updateTemplateSettings = async (
 	await page.getByRole("button", { name: /save/i }).click();
 
 	const name = templateSettingValues.name ?? templateName;
-	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
+	await expectUrl(page).toHavePathNameEndingWith(`/${name}/docs`);
 };
 
 export const updateWorkspace = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1171,12 +1197,19 @@ export const updateWorkspace = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await page.getByRole("button", { name: /update and restart/i }).click();
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 };
 
 export const updateWorkspaceParameters = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1186,7 +1219,14 @@ export const updateWorkspaceParameters = async (
 	});
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: /update and restart/i }).click();
+
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",

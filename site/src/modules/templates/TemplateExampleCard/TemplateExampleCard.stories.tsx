@@ -1,9 +1,9 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
 import { TemplateExampleCard } from "./TemplateExampleCard";
 
 const meta: Meta<typeof TemplateExampleCard> = {

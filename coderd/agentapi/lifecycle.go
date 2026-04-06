@@ -30,7 +30,7 @@ type LifecycleAPI struct {
 	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
+	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
 
 	TimeNowFn       func() time.Time // defaults to dbtime.Now()
 	Metrics         *LifecycleMetrics
@@ -122,7 +122,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, workspaceAgent.ID, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
@@ -134,9 +134,12 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	case database.WorkspaceAgentLifecycleStateReady,
 		database.WorkspaceAgentLifecycleStateStartTimeout,
 		database.WorkspaceAgentLifecycleStateStartError:
-		a.emitMetricsOnce.Do(func() {
-			a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
-		})
+		// Only emit metrics for the parent agent, this metric is not intended to measure devcontainer durations.
+		if !workspaceAgent.ParentID.Valid {
+			a.emitMetricsOnce.Do(func() {
+				a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
+			})
+		}
 	}
 
 	return req.Lifecycle, nil

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -194,7 +193,7 @@ func joinScopes(scopes []codersdk.APIKeyScope) string {
 		return ""
 	}
 	vals := slice.ToStrings(scopes)
-	sort.Strings(vals)
+	slices.Sort(vals)
 	return strings.Join(vals, ", ")
 }
 
@@ -206,7 +205,7 @@ func joinAllowList(entries []codersdk.APIAllowListTarget) string {
 	for i, entry := range entries {
 		vals[i] = entry.String()
 	}
-	sort.Strings(vals)
+	slices.Sort(vals)
 	return strings.Join(vals, ", ")
 }
 

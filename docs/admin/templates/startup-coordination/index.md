@@ -24,21 +24,7 @@ The goal of startup script coordination is to provide a single reliable source o
 
 ## Quick Start
 
-To start using workspace startup coordination, follow these steps:
-
-1. Set the environment variable `CODER_AGENT_SOCKET_SERVER_ENABLED=true` in your template to enable the agent socket server. The environment variable *must* be readable to the agent process. For example, in a template using the `kreuzwerker/docker` provider:
-
-  ```terraform
-  resource "docker_container" "workspace" {
-    image = "codercom/enterprise-base:ubuntu"
-    env = [
-      "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-      "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
-    ]
-  }
-  ```
-
-1. Add calls to `coder exp sync (start|complete)` in your startup scripts where required:
+To start using workspace startup coordination, add calls to `coder exp sync (start|complete)` in your startup scripts where required:
 
   ```bash
   trap 'coder exp sync complete my-script' EXIT

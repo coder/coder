@@ -516,7 +516,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, token.AccessToken)
-				require.True(t, time.Now().Before(token.Expiry))
+				require.True(t, dbtime.Now().Before(token.Expiry))
 
 				// Check that the token works.
 				newClient := codersdk.New(userClient.URL)

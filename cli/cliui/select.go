@@ -123,6 +123,10 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		initialModel.height = defaultSelectModelHeight
 	}
 
+	if idx := slices.Index(opts.Options, opts.Default); idx >= 0 {
+		initialModel.cursor = idx
+	}
+
 	initialModel.search.Prompt = ""
 	initialModel.search.Focus()
 
@@ -169,7 +173,6 @@ func (selectModel) Init() tea.Cmd {
 	return nil
 }
 
-//nolint:revive // The linter complains about modifying 'm' but this is typical practice for bubbletea
 func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -459,7 +462,6 @@ func (multiSelectModel) Init() tea.Cmd {
 	return nil
 }
 
-//nolint:revive // For same reason as previous Update definition
 func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 

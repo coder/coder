@@ -91,21 +91,41 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 
 	// Verify we have some expected Coder tools
 	var foundTools []string
-	for _, tool := range tools.Tools {
+	var userTool *mcp.Tool
+	var writeFileTool *mcp.Tool
+	for i := range tools.Tools {
+		tool := tools.Tools[i]
 		foundTools = append(foundTools, tool.Name)
+		switch tool.Name {
+		case toolsdk.ToolNameGetAuthenticatedUser:
+			userTool = &tools.Tools[i]
+		case toolsdk.ToolNameWorkspaceWriteFile:
+			writeFileTool = &tools.Tools[i]
+		}
 	}
 
 	// Check for some basic tools that should be available
 	assert.Contains(t, foundTools, toolsdk.ToolNameGetAuthenticatedUser, "Should have authenticated user tool")
+	require.NotNil(t, userTool)
+	require.NotNil(t, writeFileTool)
+	require.NotNil(t, userTool.Annotations.ReadOnlyHint)
+	require.NotNil(t, userTool.Annotations.DestructiveHint)
+	require.NotNil(t, userTool.Annotations.IdempotentHint)
+	require.NotNil(t, userTool.Annotations.OpenWorldHint)
+	assert.True(t, *userTool.Annotations.ReadOnlyHint)
+	assert.False(t, *userTool.Annotations.DestructiveHint)
+	assert.True(t, *userTool.Annotations.IdempotentHint)
+	assert.False(t, *userTool.Annotations.OpenWorldHint)
+	require.NotNil(t, writeFileTool.Annotations.ReadOnlyHint)
+	require.NotNil(t, writeFileTool.Annotations.DestructiveHint)
+	require.NotNil(t, writeFileTool.Annotations.IdempotentHint)
+	require.NotNil(t, writeFileTool.Annotations.OpenWorldHint)
+	assert.False(t, *writeFileTool.Annotations.ReadOnlyHint)
+	assert.True(t, *writeFileTool.Annotations.DestructiveHint)
+	assert.False(t, *writeFileTool.Annotations.IdempotentHint)
+	assert.False(t, *writeFileTool.Annotations.OpenWorldHint)
 
-	// Find and execute the authenticated user tool
-	var userTool *mcp.Tool
-	for _, tool := range tools.Tools {
-		if tool.Name == toolsdk.ToolNameGetAuthenticatedUser {
-			userTool = &tool
-			break
-		}
-	}
+	// Execute the authenticated user tool.
 	require.NotNil(t, userTool, "Expected to find "+toolsdk.ToolNameGetAuthenticatedUser+" tool")
 
 	// Execute the tool

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 type AutomaticUpdates string
@@ -786,6 +789,62 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 	}
 	var credentials ExternalAgentCredentials
 	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
+}
+
+// WorkspaceBuildUpdate contains information about a workspace build state change.
+// This is published via the /watch-all-workspacebuilds SSE endpoint when the
+// workspace-build-updates experiment is enabled.
+type WorkspaceBuildUpdate struct {
+	WorkspaceID   uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceName string    `json:"workspace_name"`
+	BuildID       uuid.UUID `json:"build_id" format:"uuid"`
+	// Transition is the workspace transition type: "start", "stop", or "delete".
+	Transition string `json:"transition"`
+	// JobStatus is the provisioner job status: "pending", "running",
+	// "succeeded", "canceling", "canceled", or "failed".
+	JobStatus   string `json:"job_status"`
+	BuildNumber int32  `json:"build_number"`
+}
+
+// WatchAllWorkspaceBuilds watches for workspace build updates across all workspaces.
+// This requires the workspace-build-updates experiment to be enabled.
+// The returned decoder should be closed by calling Close() when done to properly
+// clean up the WebSocket connection.
+func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (*wsjson.Decoder[WorkspaceBuildUpdate], error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	serverURL, err := c.URL.Parse("/api/experimental/watch-all-workspacebuilds")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
+	}
+
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient:      httpClient,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, ReadBodyAsError(res)
+	}
+
+	d := wsjson.NewDecoder[WorkspaceBuildUpdate](conn, websocket.MessageText, c.logger)
+	return d, nil
 }
 
 // WorkspaceAvailableUsers returns users available for workspace creation.

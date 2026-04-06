@@ -30,7 +30,7 @@ func (v *vpnRouter) Set(cfg *router.Config) error {
 }
 
 func (*vpnRouter) Close() error {
-	// There's no cleanup that we need to initiate from within the dylib.
+	// There's no cleanup that we need to initiate from within the tunnel.
 	return nil
 }
 

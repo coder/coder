@@ -103,7 +103,7 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options, workspace database.Workspace) *API {
+func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -156,7 +156,8 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.StatsAPI = &StatsAPI{
-		AgentFn:                   api.agent,
+		AgentID:                   agent.ID,
+		AgentName:                 agent.Name,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -175,16 +176,18 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.AppsAPI = &AppsAPI{
+		AgentID:                  agent.ID,
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
+		Workspace:                api.cachedWorkspaceFields,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 		Clock:                    opts.Clock,
 		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:   api.agent,
+		AgentID:   agent.ID,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Log:       opts.Log,
@@ -204,7 +207,8 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.ConnLogAPI = &ConnLogAPI{
-		AgentFn:          api.agent,
+		AgentID:          agent.ID,
+		AgentName:        agent.Name,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
@@ -222,7 +226,6 @@ func New(opts Options, workspace database.Workspace) *API {
 	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
-		AgentID:        opts.AgentID,
 		AgentFn:        api.agent,
 		Log:            opts.Log,
 		Clock:          opts.Clock,
@@ -297,8 +300,10 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
 	if err != nil {
+		// Do not clear the cache on transient DB errors. Stale data is
+		// preferable to no data, which forces callers to fall back to
+		// expensive queries like GetWorkspaceByAgentID.
 		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
-		a.cachedWorkspaceFields.Clear()
 		return
 	}
 
@@ -341,11 +346,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     &agent.ID,
+		AgentID:     &agentID,
 	})
 	return nil
 }

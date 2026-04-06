@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"time"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -146,6 +147,20 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			return nil, nil, xerrors.Errorf("start usage publisher: %w", err)
 		}
 		closers.Add(publisher)
+
+		// usageCron are heartbeat events to the usage table. These events are eventually sent
+		// to Tallyman.
+		usageCron := usage.NewCron(quartz.NewReal(), options.Logger.Named("usage-cron"), options.Database, *options.UsageInserter.Load())
+		// ai-seats heartbeats track the number of users that have used an AI feature.
+		// These users consume a seat for the AI addon to our License.
+		_ = usageCron.Register(usage.CronJob{
+			Name:     "ai-seats",
+			Interval: usage.AISeatsInterval,
+			Jitter:   10 * time.Minute,
+			Fn:       usage.AISeatsHeartbeat(options.Database),
+		})
+		usageCron.Start(ctx)
+		closers.Add(usageCron)
 
 		// In-memory aibridge daemon.
 		// TODO(@deansheather): the lifecycle of the aibridged server is

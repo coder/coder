@@ -156,7 +156,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 
 func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 	var events []FSEvent
-	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	if walkErr := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // best-effort
 		}
@@ -176,7 +176,10 @@ func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 		}
 		events = append(events, FSEvent{Op: OpCreate, Path: path, IsDir: false})
 		return nil
-	})
+	}); walkErr != nil {
+		fw.logger.Warn(context.Background(), "failed to walk directory",
+			slog.F("dir", dir), slog.Error(walkErr))
+	}
 	return events
 }
 

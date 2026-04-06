@@ -19,6 +19,7 @@ func (r *RootCmd) users() *serpent.Command {
 			r.userSingle(),
 			r.userDelete(),
 			r.userEditRoles(),
+			r.userOIDCClaims(),
 			r.createUserStatusCommand(codersdk.UserStatusActive),
 			r.createUserStatusCommand(codersdk.UserStatusSuspended),
 		},

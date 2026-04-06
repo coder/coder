@@ -25,15 +25,18 @@ type recorderTranslation struct {
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
-		Id:          req.ID,
-		ApiKeyId:    t.apiKeyID,
-		Client:      req.Client,
-		InitiatorId: req.InitiatorID,
-		Provider:    req.Provider,
-		Model:       req.Model,
-		UserAgent:   req.UserAgent,
-		Metadata:    marshalForProto(req.Metadata),
-		StartedAt:   timestamppb.New(req.StartedAt),
+		Id:                    req.ID,
+		ApiKeyId:              t.apiKeyID,
+		InitiatorId:           req.InitiatorID,
+		Provider:              req.Provider,
+		ProviderName:          req.ProviderName,
+		Model:                 req.Model,
+		UserAgent:             req.UserAgent,
+		Client:                req.Client,
+		ClientSessionId:       req.ClientSessionID,
+		Metadata:              marshalForProto(req.Metadata),
+		StartedAt:             timestamppb.New(req.StartedAt),
+		CorrelatingToolCallId: req.CorrelatingToolCallID,
 	})
 	return err
 }
@@ -63,18 +66,20 @@ func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridg
 		merged = aibridge.Metadata{}
 	}
 
-	// Merge the token usage values into metadata; later we might want to store some of these in their own fields.
+	// Merge remaining extra token types into metadata.
 	for k, v := range req.ExtraTokenTypes {
 		merged[k] = v
 	}
 
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-		InterceptionId: req.InterceptionID,
-		MsgId:          req.MsgID,
-		InputTokens:    req.Input,
-		OutputTokens:   req.Output,
-		Metadata:       marshalForProto(merged),
-		CreatedAt:      timestamppb.New(req.CreatedAt),
+		InterceptionId:        req.InterceptionID,
+		MsgId:                 req.MsgID,
+		InputTokens:           req.Input,
+		OutputTokens:          req.Output,
+		CacheReadInputTokens:  req.CacheReadInputTokens,
+		CacheWriteInputTokens: req.CacheWriteInputTokens,
+		Metadata:              marshalForProto(merged),
+		CreatedAt:             timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
@@ -93,6 +98,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
+		ToolCallId:      req.ToolCallID,
 		ServerUrl:       req.ServerURL,
 		Tool:            req.Tool,
 		Input:           string(serialized),
@@ -100,6 +106,16 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		InvocationError: invErr,
 		Metadata:        marshalForProto(req.Metadata),
 		CreatedAt:       timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+func (t *recorderTranslation) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
+	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+		InterceptionId: req.InterceptionID,
+		Content:        req.Content,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err
 }

@@ -127,3 +127,101 @@ func TestConvertStateGolden(t *testing.T) {
 		}
 	}
 }
+
+// TestConvertStateDeterministic verifies that ConvertState produces
+// identical output across multiple runs. This catches non-deterministic
+// map iteration in the implementation. Unlike TestConvertStateGolden,
+// this test does NOT sort the output — it relies on ConvertState itself
+// being deterministic.
+func TestConvertStateDeterministic(t *testing.T) {
+	t.Parallel()
+
+	testResourceDirectories := filepath.Join("testdata", "resources")
+	entries, err := os.ReadDir(testResourceDirectories)
+	require.NoError(t, err)
+
+	for _, testDirectory := range entries {
+		if !testDirectory.IsDir() {
+			continue
+		}
+
+		testFiles, err := os.ReadDir(filepath.Join(testResourceDirectories, testDirectory.Name()))
+		require.NoError(t, err)
+
+		for _, step := range []string{"plan", "state"} {
+			srcIdx := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
+				return strings.HasSuffix(entry.Name(), fmt.Sprintf(".tf%s.json", step))
+			})
+			dotIdx := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
+				return strings.HasSuffix(entry.Name(), fmt.Sprintf(".tf%s.dot", step))
+			})
+
+			if srcIdx == -1 || dotIdx == -1 {
+				continue
+			}
+
+			t.Run(step+"_"+testDirectory.Name(), func(t *testing.T) {
+				t.Parallel()
+				testDirectoryPath := filepath.Join(testResourceDirectories, testDirectory.Name())
+				planFile := filepath.Join(testDirectoryPath, testFiles[srcIdx].Name())
+				dotFile := filepath.Join(testDirectoryPath, testFiles[dotIdx].Name())
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				logger := slogtest.Make(t, nil)
+
+				tfStepRaw, err := os.ReadFile(planFile)
+				require.NoError(t, err)
+
+				var modules []*tfjson.StateModule
+				switch step {
+				case "plan":
+					var tfPlan tfjson.Plan
+					err = json.Unmarshal(tfStepRaw, &tfPlan)
+					require.NoError(t, err)
+					modules = []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}
+					if tfPlan.PriorState != nil {
+						modules = append(modules, tfPlan.PriorState.Values.RootModule)
+					}
+				case "state":
+					var tfState tfjson.State
+					err = json.Unmarshal(tfStepRaw, &tfState)
+					require.NoError(t, err)
+					modules = []*tfjson.StateModule{tfState.Values.RootModule}
+				default:
+					t.Fatalf("unknown step: %s", step)
+				}
+
+				dotFileRaw, err := os.ReadFile(dotFile)
+				require.NoError(t, err)
+
+				// Run ConvertState 10 times and verify all runs
+				// produce byte-identical JSON without any sorting.
+				// We apply deterministicAppIDs because plan files
+				// lack provider-assigned IDs, causing ConvertState
+				// to generate random UUIDs as a fallback.
+				//
+				// Note: json.Marshal sorts map keys, so this test
+				// cannot catch non-determinism in map-valued fields
+				// like Agent.Env. Those are populated from static
+				// testdata today, so this is not a practical gap.
+				const runs = 10
+				outputs := make([][]byte, runs)
+				for i := range runs {
+					state, err := terraform.ConvertState(ctx, modules, string(dotFileRaw), logger)
+					if err != nil {
+						// Error strings are deterministic.
+						outputs[i] = []byte(err.Error())
+						continue
+					}
+					deterministicAppIDs(state.Resources)
+					outputs[i], err = json.Marshal(state)
+					require.NoError(t, err, "run %d: marshal state", i)
+				}
+				for i := 1; i < runs; i++ {
+					require.Equal(t, string(outputs[0]), string(outputs[i]),
+						"ConvertState produced different output on run %d vs run 0", i)
+				}
+			})
+		}
+	}
+}

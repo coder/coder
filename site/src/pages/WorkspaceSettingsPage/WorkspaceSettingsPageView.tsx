@@ -1,6 +1,9 @@
-import type { Workspace } from "api/typesGenerated";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
 
 type WorkspaceSettingsPageViewProps = {
@@ -18,11 +21,7 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<PageHeader
-				css={{
-					paddingTop: 0,
-				}}
-			>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Workspace Settings</PageHeaderTitle>
 			</PageHeader>
 

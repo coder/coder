@@ -65,6 +65,9 @@ sql:
           - column: "provisioner_jobs.tags"
             go_type:
               type: "StringMap"
+          - column: "chats.labels"
+            go_type:
+              type: "StringMap"
           - column: "users.rbac_roles"
             go_type: "github.com/lib/pq.StringArray"
           - column: "templates.user_acl"
@@ -82,6 +85,12 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "tasks_with_status.workspace_user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "tasks_with_status.workspace_group_acl"
+            go_type:
+              type: "WorkspaceACL"
           - column: "workspaces.user_acl"
             go_type:
               type: "WorkspaceACL"
@@ -142,6 +151,17 @@ sql:
             go_type: "database/sql.NullTime"
           - column: "task_event_data.first_status_after_resume_at"
             go_type: "database/sql.NullTime"
+          - db_type: "pg_catalog.numeric"
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "Decimal"
+              package: "decimal"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "NullDecimal"
+              package: "decimal"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
@@ -186,6 +206,8 @@ sql:
           jwt: JWT
           user_acl: UserACL
           group_acl: GroupACL
+          workspace_user_acl: WorkspaceUserACL
+          workspace_group_acl: WorkspaceGroupACL
           user_acl_display_info: UserACLDisplayInfo
           group_acl_display_info: GroupACLDisplayInfo
           troubleshooting_url: TroubleshootingURL
@@ -216,6 +238,29 @@ sql:
           aibridge_tool_usage: AIBridgeToolUsage
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
+          aibridge_model_thought: AIBridgeModelThought
+          mcp_server_config: MCPServerConfig
+          mcp_server_configs: MCPServerConfigs
+          mcp_server_user_token: MCPServerUserToken
+          mcp_server_user_tokens: MCPServerUserTokens
+          mcp_server_tool_snapshot: MCPServerToolSnapshot
+          mcp_server_tool_snapshots: MCPServerToolSnapshots
+          mcp_server_config_id: MCPServerConfigID
+          mcp_server_ids: MCPServerIDs
+          icon_url: IconURL
+          oauth2_client_id: OAuth2ClientID
+          oauth2_client_secret: OAuth2ClientSecret
+          oauth2_client_secret_key_id: OAuth2ClientSecretKeyID
+          oauth2_auth_url: OAuth2AuthURL
+          oauth2_token_url: OAuth2TokenURL
+          oauth2_scopes: OAuth2Scopes
+          api_key_header: APIKeyHeader
+          api_key_value: APIKeyValue
+          api_key_value_key_id: APIKeyValueKeyID
+          custom_headers_key_id: CustomHeadersKeyID
+          tools_json: ToolsJSON
+          access_token_key_id: AccessTokenKeyID
+          refresh_token_key_id: RefreshTokenKeyID
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

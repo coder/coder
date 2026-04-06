@@ -1,18 +1,18 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
 	MockInterception,
 	MockInterceptionAnthropic,
 	MockInterceptionCopilot,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "components/Filter/storyHelpers";
-import {
-	mockInitialRenderResult,
-	mockSuccessResult,
-} from "components/PaginationWidget/PaginationContainer.mocks";
-import type { ComponentProps } from "react";
+} from "#/testHelpers/entities";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 type FilterProps = ComponentProps<typeof RequestLogsPageView>["filterProps"];
@@ -27,6 +27,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		user: MockMenu,
 		provider: MockMenu,
 		model: MockMenu,
+		client: MockMenu,
 	},
 });
 
@@ -48,12 +49,21 @@ type Story = StoryObj<typeof RequestLogsPageView>;
 export const Paywall: Story = {
 	args: {
 		isRequestLogsEntitled: false,
+		isRequestLogsEnabled: false,
+	},
+};
+
+export const NotEnabled: Story = {
+	args: {
+		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: false,
 	},
 };
 
 export const Loaded: Story = {
 	args: {
 		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: true,
 		interceptions,
 		filterProps: {
 			...defaultFilterProps,
@@ -65,6 +75,7 @@ export const Loaded: Story = {
 export const Empty: Story = {
 	args: {
 		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,
@@ -77,6 +88,7 @@ export const Loading: Story = {
 	args: {
 		isLoading: true,
 		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,

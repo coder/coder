@@ -78,6 +78,7 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 				Match:           host,
 				GitBranch:       gitBranch,
 				GitRemoteOrigin: gitRemoteOrigin,
+				ChatID:          inv.Environ.Get("CODER_CHAT_ID"),
 			})
 			if err != nil {
 				var apiError *codersdk.Error

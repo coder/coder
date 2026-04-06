@@ -26,6 +26,9 @@ on:
         default: "traiage"
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   traiage:
     name: Triage GitHub Issue with Claude Code
@@ -38,7 +41,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      actions: write
 
     steps:
       # This is only required for testing locally using nektos/act, so leaving commented out.

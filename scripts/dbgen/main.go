@@ -17,6 +17,8 @@ import (
 	"github.com/dave/dst/decorator/resolver/guess"
 	"golang.org/x/tools/imports"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 var (
@@ -245,7 +247,7 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 	if err != nil {
 		return xerrors.Errorf("process imports: %w", err)
 	}
-	return os.WriteFile(filePath, data, 0o600)
+	return atomicwrite.File(filePath, data)
 }
 
 // compileFuncDecl extracts the function declaration from the given code.

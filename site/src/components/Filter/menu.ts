@@ -1,6 +1,6 @@
-import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 
 export type UseFilterMenuOptions = {
 	id: string;

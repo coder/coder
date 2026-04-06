@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import { getExternalImageStylesFromUrl } from "theme/externalImages";
+import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
 export const ExternalImage: React.FC<React.ComponentPropsWithRef<"img">> = ({
 	...props

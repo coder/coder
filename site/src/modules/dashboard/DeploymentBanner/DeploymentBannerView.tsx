@@ -1,21 +1,3 @@
-import type {
-	DeploymentStats,
-	HealthcheckReport,
-	WorkspaceStatus,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
-import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
-import { RocketIcon } from "components/Icons/RocketIcon";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { Link } from "components/Link/Link";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -36,7 +18,25 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { getDisplayWorkspaceStatus } from "utils/workspace";
+import type {
+	DeploymentStats,
+	HealthcheckReport,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
+import { JetBrainsIcon } from "#/components/Icons/JetBrainsIcon";
+import { RocketIcon } from "#/components/Icons/RocketIcon";
+import { TerminalIcon } from "#/components/Icons/TerminalIcon";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { Link } from "#/components/Link/Link";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;
@@ -103,7 +103,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	return (
 		<div
 			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
-		 		overflow-x-auto whitespace-nowrap border-0 border-t border-solid border-border
+		 		overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border
 				bg-surface-primary pr-4 font-mono text-xs leading-none [scrollbar-width:thin]"
 		>
 			<TooltipProvider delayDuration={100}>
@@ -137,9 +137,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					>
 						{healthErrors.length > 0 ? (
 							<>
-								<HelpTooltipTitle>
+								<HelpPopoverTitle>
 									We have detected problems with your Coder deployment.
-								</HelpTooltipTitle>
+								</HelpPopoverTitle>
 								<div className="flex flex-col gap-1">
 									{healthErrors.map((error) => (
 										<HealthIssue key={error}>{error}</HealthIssue>

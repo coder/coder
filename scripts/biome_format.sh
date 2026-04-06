@@ -16,7 +16,7 @@ trap 'rm -f "$output_file"' EXIT
 
 if (
 	cd "$repo_root/site"
-	pnpm exec biome format --write "$target"
+	pnpm exec biome format --write --vcs-enabled=false "$target"
 ) >"$output_file" 2>&1; then
 	cat "$output_file"
 	exit 0

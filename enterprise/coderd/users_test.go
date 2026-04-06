@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -87,7 +88,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.False(t, sched1.UserSet)
 		require.Equal(t, defaultScheduleParsed.TimeParsed().Format(TimeFormatHHMM), sched1.Time)
 		require.Equal(t, defaultScheduleParsed.Location().String(), sched1.Timezone)
-		require.WithinDuration(t, defaultScheduleParsed.Next(time.Now()), sched1.Next, 15*time.Second)
+		require.WithinDuration(t, defaultScheduleParsed.Next(dbtime.Now()), sched1.Next, 15*time.Second)
 
 		// Set their quiet hours.
 		customQuietHoursSchedule := "CRON_TZ=Australia/Sydney 0 0 * * *"
@@ -110,7 +111,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.True(t, sched2.UserSet)
 		require.Equal(t, customScheduleParsed.TimeParsed().Format(TimeFormatHHMM), sched2.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched2.Timezone)
-		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
+		require.WithinDuration(t, customScheduleParsed.Next(dbtime.Now()), sched2.Next, 15*time.Second)
 
 		// Get quiet hours for a user that has them set.
 		sched3, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
@@ -119,7 +120,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.True(t, sched3.UserSet)
 		require.Equal(t, customScheduleParsed.TimeParsed().Format(TimeFormatHHMM), sched3.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched3.Timezone)
-		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
+		require.WithinDuration(t, customScheduleParsed.Next(dbtime.Now()), sched3.Next, 15*time.Second)
 
 		// Try setting a garbage schedule.
 		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{

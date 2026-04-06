@@ -151,7 +151,6 @@ resource "docker_container" "workspace" {
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
   env        = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_AGENT_SOCKET_SERVER_ENABLED=true"
     ]
 }
 
@@ -205,7 +204,6 @@ resource "coder_script" "pip-install" {
 
 A short summary of the changes:
 
-- We've added `CODER_AGENT_SOCKET_SERVER_ENABLED=true` to the environment variables of the Docker container in which the Coder agent runs.
 - We've broken the monolithic "setup" script into two separate scripts: one for the `apt` commands, and one for the `pip` commands.
   - In each script, we've added a `coder exp sync start $SCRIPT_NAME` command to mark the startup script as started.
   - We've also added an exit trap to ensure that we mark the startup scripts as completed. Without this, the `coder exp sync wait` command would eventually time out.

@@ -19,12 +19,14 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -190,6 +192,31 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("GetAPIKeyByIDInternalError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		id, secret, _ := randomAPIKeyParts()
+		r := httptest.NewRequest("GET", "/", nil)
+		rw := httptest.NewRecorder()
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, xerrors.New("db unavailable"))
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.NotEqual(t, httpmw.SignedOutErrorMessage, resp.Message)
+		require.Contains(t, resp.Detail, "Internal error fetching API key by id")
 	})
 
 	t.Run("UserLinkNotFound", func(t *testing.T) {

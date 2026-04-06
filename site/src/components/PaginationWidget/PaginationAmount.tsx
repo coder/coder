@@ -48,10 +48,12 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 
 					{totalRecords !== 0 && currentOffsetStart !== undefined && (
 						<div>
-							Showing <strong>{currentOffsetStart}</strong> to{" "}
+							Showing <strong>{currentOffsetStart.toLocaleString()}</strong> to{" "}
 							<strong>
-								{currentOffsetStart +
-									Math.min(limit - 1, totalRecords - currentOffsetStart)}
+								{(
+									currentOffsetStart +
+									Math.min(limit - 1, totalRecords - currentOffsetStart)
+								).toLocaleString()}
 							</strong>{" "}
 							of <strong>{totalRecords.toLocaleString()}</strong>{" "}
 							{paginationUnitLabel}

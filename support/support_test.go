@@ -162,14 +162,12 @@ func TestRun(t *testing.T) {
 			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		var sdkErr *codersdk.Error
-		require.NotNil(t, bun)
+		require.Nil(t, bun)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-		require.NotEmpty(t, bun)
-		require.NotEmpty(t, bun.Logs)
 	})
 
-	t.Run("MissingPrivilege", func(t *testing.T) {
+	t.Run("MemberNoWorkspace", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -179,11 +177,25 @@ func TestRun(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: memberClient,
-			Log:    testutil.Logger(t).Named("bundle"),
+			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
 		})
-		require.ErrorContains(t, err, "failed authorization check")
-		require.NotEmpty(t, bun)
-		require.NotEmpty(t, bun.Logs)
+		require.NoError(t, err)
+		require.NotNil(t, bun)
+		// Member should still get build info.
+		assertNotNilNotEmpty(t, bun.Deployment.BuildInfo, "deployment build info should be present")
+		// Experiments may be empty if none are configured, but should not error.
+		require.NotNil(t, bun.Deployment.Experiments, "deployment experiments should not be nil")
+		// Member should NOT get admin-only deployment information.
+		assert.Nil(t, bun.Deployment.Config, "member should not see deployment config")
+		assert.Nil(t, bun.Deployment.HealthReport, "member should not see health report")
+		// Member should still get network info from client-side checks.
+		assertNotNilNotEmpty(t, bun.Network.ConnectionInfo, "agent connection info should be present")
+		assertNotNilNotEmpty(t, bun.Network.Interfaces, "network interfaces should be present")
+		assertNotNilNotEmpty(t, bun.Network.Netcheck, "network netcheck should be present")
+		// No workspace specified.
+		assert.Empty(t, bun.Workspace.Workspace, "did not expect workspace to be present")
+		assert.Empty(t, bun.Agent, "did not expect agent to be present")
+		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
 	})
 }
 

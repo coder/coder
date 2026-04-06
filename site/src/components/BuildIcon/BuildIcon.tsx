@@ -1,6 +1,6 @@
-import type { WorkspaceTransition } from "api/typesGenerated";
 import { PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import type { ComponentProps } from "react";
+import type { WorkspaceTransition } from "#/api/typesGenerated";
 
 type SVGIcon = typeof PlayIcon;
 

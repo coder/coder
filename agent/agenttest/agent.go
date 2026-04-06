@@ -24,6 +24,7 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	var o agent.Options
 	log := testutil.Logger(t).Named("agent")
 	o.Logger = log
+	o.SocketPath = testutil.AgentSocketPath(t)
 
 	for _, opt := range opts {
 		opt(&o)

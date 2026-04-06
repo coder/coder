@@ -1,13 +1,13 @@
-import { checkAuthorization } from "api/queries/authCheck";
-import { Link } from "components/Link/Link";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { workspaceChecks } from "modules/workspaces/permissions";
-import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { Link } from "#/components/Link/Link";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import { workspaceChecks } from "#/modules/workspaces/permissions";
+import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
+import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const WorkspaceSharingPage: FC = () => {
@@ -15,8 +15,8 @@ const WorkspaceSharingPage: FC = () => {
 	const sharing = useWorkspaceSharing(workspace);
 
 	const checks = workspaceChecks(workspace);
-	const permissionsQuery = useQuery<WorkspacePermissions>({
-		...checkAuthorization({ checks }),
+	const permissionsQuery = useQuery({
+		...checkAuthorization<WorkspacePermissions>({ checks }),
 	});
 	const permissions = permissionsQuery.data;
 	const canUpdatePermissions = Boolean(permissions?.updateWorkspace);

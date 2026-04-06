@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { createContext, type FC, useContext } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { createContext, type FC, useContext } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 const statusIndicatorVariants = cva(
 	"font-medium inline-flex items-center gap-2",
@@ -14,7 +14,7 @@ const statusIndicatorVariants = cva(
 			variant: {
 				success: "text-content-success",
 				failed: "text-content-destructive",
-				inactive: "text-highlight-grey",
+				inactive: "text-content-secondary",
 				warning: "text-content-warning",
 				pending: "text-highlight-sky",
 			},
@@ -58,7 +58,7 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 		variant: {
 			success: "bg-content-success border-surface-green",
 			failed: "bg-content-destructive border-surface-destructive",
-			inactive: "bg-highlight-grey border-surface-grey",
+			inactive: "bg-content-secondary border-surface-grey",
 			warning: "bg-content-warning border-surface-orange",
 			pending: "bg-highlight-sky border-surface-sky",
 		},

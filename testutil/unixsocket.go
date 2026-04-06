@@ -22,7 +22,7 @@ import (
 //
 // On Linux, we also hit this limit on GitHub Actions runners where TMPDIR is
 // set to a long path like /home/runner/work/_temp/go-tmp/.
-func TempDirUnixSocket(t *testing.T) string {
+func TempDirUnixSocket(t testing.TB) string {
 	t.Helper()
 	// Windows doesn't have the same unix socket path length limits,
 	// and callers of this function are generally gated to !windows.
@@ -41,7 +41,7 @@ func TempDirUnixSocket(t *testing.T) string {
 	return dir
 }
 
-func AgentSocketPath(t *testing.T) string {
+func AgentSocketPath(t testing.TB) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf(`\\.\pipe\com.coder.agentsocket_test.%s.%s`, t.Name(), rand.Text())
 	}

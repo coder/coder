@@ -46,6 +46,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		autoUpdates          string
 		copyParametersFrom   string
 		useParameterDefaults bool
+		noWait               bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -372,6 +373,14 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
 
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout,
+					"\nThe %s workspace has been created and is building in the background.\n",
+					cliui.Keyword(workspace.Name),
+				)
+				return nil
+			}
+
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
 				return xerrors.Errorf("watch build: %w", err)
@@ -444,6 +453,12 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
 			Description: "Automatically accept parameter defaults when no value is provided.",
 			Value:       serpent.BoolOf(&useParameterDefaults),
+		},
+		serpent.Option{
+			Flag:        "no-wait",
+			Env:         "CODER_CREATE_NO_WAIT",
+			Description: "Return immediately after creating the workspace. The build will run in the background.",
+			Value:       serpent.BoolOf(&noWait),
 		},
 		cliui.SkipPromptOption(),
 	)

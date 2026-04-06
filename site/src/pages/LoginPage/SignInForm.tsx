@@ -1,8 +1,8 @@
-import type { AuthMethods } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { FC, ReactNode } from "react";
-import { getApplicationName } from "utils/appearance";
+import type { AuthMethods } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { getApplicationName } from "#/utils/appearance";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 
@@ -37,7 +37,7 @@ export const SignInForm: FC<SignInFormProps> = ({
 
 			{Boolean(error) && (
 				<div className="mb-8">
-					<ErrorAlert error={error} />
+					<ErrorAlert error={error} showDebugDetail={false} />
 				</div>
 			)}
 

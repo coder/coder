@@ -1,15 +1,3 @@
-import { isApiError } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
-import {
-	hasFirstUser,
-	login,
-	logout,
-	me,
-	updateProfile as updateProfileOptions,
-} from "api/queries/users";
-import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type Permissions, permissionChecks } from "modules/permissions";
 import {
 	createContext,
 	type FC,
@@ -19,6 +7,18 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import {
+	hasFirstUser,
+	login,
+	logout,
+	me,
+	updateProfile as updateProfileOptions,
+} from "#/api/queries/users";
+import type { UpdateUserProfileRequest, User } from "#/api/typesGenerated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { type Permissions, permissionChecks } from "#/modules/permissions";
 
 export type AuthContextValue = {
 	isLoading: boolean;
@@ -50,7 +50,10 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
 
 	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks: permissionChecks }),
+		...checkAuthorization<Permissions>(
+			{ checks: permissionChecks },
+			metadata.permissions,
+		),
 		enabled: userQuery.data !== undefined,
 	});
 
