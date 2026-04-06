@@ -312,7 +312,8 @@ const SegmentedField: FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex h-9 items-stretch rounded-md border border-solid border-border p-0.5",
+					"items-stretch rounded-md border border-solid border-border p-0.5",
+					options.length > 3 ? "grid grid-cols-2" : "flex h-9",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -326,7 +327,7 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
+								"h-8 flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
 								isActive
 									? "bg-surface-secondary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
@@ -531,9 +532,13 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				return (
 					<div
 						key={fieldKey}
-						className={
-							field.input_type === "json" ? "sm:col-span-full" : undefined
-						}
+						className={cn(
+							field.input_type === "json" && "sm:col-span-full",
+							field.input_type === "select" &&
+								field.type !== "boolean" &&
+								(field.enum?.length ?? 0) > 3 &&
+								"sm:col-span-full",
+						)}
 					>
 						<SchemaField
 							field={field}
