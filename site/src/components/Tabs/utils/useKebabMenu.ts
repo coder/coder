@@ -44,45 +44,48 @@ export const useKebabMenu = <T extends TabValue>({
 	const tabWidthByValueRef = useRef<Record<string, number>>({});
 	const [overflowTabValues, setTabValues] = useState<string[]>([]);
 
-	const recalculateOverflow = useCallback(() => {
-		if (!enabled || !isActive) {
-			// Keep this update idempotent to avoid render loops.
+	const recalculateOverflow = useCallback(
+		(availableWidth: number) => {
+			if (!enabled || !isActive) {
+				// Keep this update idempotent to avoid render loops.
+				setTabValues((currentValues) => {
+					if (currentValues.length === 0) {
+						return currentValues;
+					}
+					return [];
+				});
+				return;
+			}
+
+			const container = containerRef.current;
+			if (!container) {
+				return;
+			}
+
+			const tabWidthByValue = measureTabWidths({
+				tabs,
+				container,
+				previousTabWidthByValue: tabWidthByValueRef.current,
+			});
+			tabWidthByValueRef.current = tabWidthByValue;
+
+			const nextOverflowValues = calculateTabValues({
+				tabs,
+				availableWidth,
+				tabWidthByValue,
+				overflowTriggerWidth,
+			});
+
 			setTabValues((currentValues) => {
-				if (currentValues.length === 0) {
+				// Avoid state updates when the computed overflow did not change.
+				if (areStringArraysEqual(currentValues, nextOverflowValues)) {
 					return currentValues;
 				}
-				return [];
+				return nextOverflowValues;
 			});
-			return;
-		}
-
-		const container = containerRef.current;
-		if (!container) {
-			return;
-		}
-
-		const tabWidthByValue = measureTabWidths({
-			tabs,
-			container,
-			previousTabWidthByValue: tabWidthByValueRef.current,
-		});
-		tabWidthByValueRef.current = tabWidthByValue;
-
-		const nextOverflowValues = calculateTabValues({
-			tabs,
-			container,
-			tabWidthByValue,
-			overflowTriggerWidth,
-		});
-
-		setTabValues((currentValues) => {
-			// Avoid state updates when the computed overflow did not change.
-			if (areStringArraysEqual(currentValues, nextOverflowValues)) {
-				return currentValues;
-			}
-			return nextOverflowValues;
-		});
-	}, [enabled, isActive, overflowTriggerWidth, tabs]);
+		},
+		[enabled, isActive, overflowTriggerWidth, tabs],
+	);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -90,11 +93,13 @@ export const useKebabMenu = <T extends TabValue>({
 			return;
 		}
 
-		// Compute once on mount
-		recalculateOverflow();
-
-		// Recompute on container resize.
-		const observer = new ResizeObserver(recalculateOverflow);
+		// Recompute whenever ResizeObserver reports a container width change.
+		const observer = new ResizeObserver(([entry]) => {
+			if (!entry) {
+				return;
+			}
+			recalculateOverflow(entry.contentRect.width);
+		});
 		observer.observe(container);
 		return () => observer.disconnect();
 	}, [recalculateOverflow]);
@@ -129,12 +134,12 @@ export const useKebabMenu = <T extends TabValue>({
 
 const calculateTabValues = <T extends TabValue>({
 	tabs,
-	container,
+	availableWidth,
 	tabWidthByValue,
 	overflowTriggerWidth,
 }: {
 	tabs: readonly T[];
-	container: HTMLDivElement;
+	availableWidth: number;
 	tabWidthByValue: Readonly<Record<string, number>>;
 	overflowTriggerWidth: number;
 }): string[] => {
@@ -153,7 +158,6 @@ const calculateTabValues = <T extends TabValue>({
 
 	const alwaysVisibleTabs = tabs.slice(0, firstOptionalTabIndex);
 	const optionalTabs = tabs.slice(firstOptionalTabIndex);
-	const availableWidth = container.clientWidth;
 	const alwaysVisibleWidth = alwaysVisibleTabs.reduce((total, tab) => {
 		return total + (tabWidthByValueMap.get(tab.value) ?? 0);
 	}, 0);
