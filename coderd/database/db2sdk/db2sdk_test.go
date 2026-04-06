@@ -259,11 +259,13 @@ func TestAIBridgeInterception(t *testing.T) {
 			},
 			tokenUsages: []database.AIBridgeTokenUsage{
 				{
-					ID:                 uuid.New(),
-					InterceptionID:     interceptionID,
-					ProviderResponseID: "resp-123",
-					InputTokens:        100,
-					OutputTokens:       200,
+					ID:                    uuid.New(),
+					InterceptionID:        interceptionID,
+					ProviderResponseID:    "resp-123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
 					Metadata: pqtype.NullRawMessage{
 						RawMessage: json.RawMessage(`{"cache":"hit"}`),
 						Valid:      true,
@@ -413,6 +415,8 @@ func TestAIBridgeInterception(t *testing.T) {
 				require.Equal(t, tu.ProviderResponseID, result.TokenUsages[i].ProviderResponseID)
 				require.Equal(t, tu.InputTokens, result.TokenUsages[i].InputTokens)
 				require.Equal(t, tu.OutputTokens, result.TokenUsages[i].OutputTokens)
+				require.Equal(t, tu.CacheReadInputTokens, result.TokenUsages[i].CacheReadInputTokens)
+				require.Equal(t, tu.CacheWriteInputTokens, result.TokenUsages[i].CacheWriteInputTokens)
 			}
 
 			// Verify user prompts are converted correctly.

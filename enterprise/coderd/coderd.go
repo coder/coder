@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -144,10 +145,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	if options.ConnectionLogger == nil {
-		options.ConnectionLogger = connectionlog.NewConnectionLogger(
-			connectionlog.NewDBBackend(options.Database),
+		connLogger := connectionlog.New(
+			connectionlog.NewDBBatcher(ctx, options.Database, options.Logger),
 			connectionlog.NewSlogBackend(options.Logger),
 		)
+		options.ConnectionLogger = connLogger
 	}
 
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
@@ -820,6 +822,12 @@ func (api *API) Close() error {
 
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
+	}
+
+	// Close the connection logger to flush any remaining batched
+	// entries before shutting down the database connection.
+	if cl, ok := api.Options.ConnectionLogger.(io.Closer); ok {
+		_ = cl.Close()
 	}
 
 	return api.AGPL.Close()

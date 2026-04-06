@@ -2953,6 +2953,77 @@ describe("useChatStore", () => {
 			expect(textBlock).toBeDefined();
 		});
 	});
+
+	it("does not let a stale REST chatRecord.status override WS-delivered status", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-stale-rest-status";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		// Start with a "running" chatRecord so the WS opens.
+		const { result, rerender } = renderHook(
+			(props: { chatRecord: TypesGen.Chat }) => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: props.chatRecord,
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{
+				wrapper,
+				initialProps: {
+					chatRecord: makeChat(chatID),
+				},
+			},
+		);
+
+		// Wait for WS to connect.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		// Deliver a status event over WS so wsStatusReceivedRef is set.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		// Simulate a stale REST refetch returning "pending".
+		rerender({
+			chatRecord: { ...makeChat(chatID), status: "pending" },
+		});
+
+		// The store must ignore the stale REST value because the
+		// WS already delivered a status event for this chat.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+	});
 });
 
 describe("thinking indicator event ordering", () => {

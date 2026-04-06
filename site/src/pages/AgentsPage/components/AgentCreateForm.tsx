@@ -13,6 +13,7 @@ import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
@@ -26,6 +27,7 @@ import {
 	getSavedMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
+import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -187,11 +189,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
+		modelCatalog,
 	);
+	const modelSelectorHelp = getModelSelectorHelp({
+		isModelCatalogLoading,
+		hasModelOptions,
+		hasConfiguredModels,
+		hasUserFixableModelProviders,
+	});
 	useEffect(() => {
 		if (!initialLastModelConfigID) {
 			return;
@@ -367,6 +377,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onWorkspaceChange={handleWorkspaceChange}
 					isWorkspaceLoading={isWorkspacesLoading}
 				/>
+				{modelSelectorHelp ? (
+					<div className="px-3 pt-1 text-2xs text-content-secondary">
+						{modelSelectorHelp}
+					</div>
+				) : null}
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
 					Coder Agents is available via{" "}
 					<a

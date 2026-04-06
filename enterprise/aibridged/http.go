@@ -35,7 +35,10 @@ var (
 func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	logger := s.logger.With(slog.F("path", r.URL.Path))
+	logger := s.logger.With(
+		slog.F("method", r.Method),
+		slog.F("path", r.URL.Path),
+	)
 
 	// Extract and strip proxy request ID for cross-service log
 	// correlation. Absent for direct requests not routed through
@@ -55,7 +58,13 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
-		logger.Warn(ctx, "no auth key provided")
+		// Some clients (e.g. Claude) send a HEAD request
+		// without credentials to check connectivity.
+		if r.Method == http.MethodHead {
+			logger.Info(ctx, "unauthenticated HEAD request")
+		} else {
+			logger.Warn(ctx, "no auth key provided")
+		}
 		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
 		return
 	}

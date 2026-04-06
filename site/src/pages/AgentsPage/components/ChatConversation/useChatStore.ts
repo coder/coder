@@ -102,6 +102,14 @@ export const useChatStore = (
 	// messages are corrected when switching back to a chat whose
 	// queue was drained while the user was away.
 	const wsQueueUpdateReceivedRef = useRef(false);
+	// Tracks whether the WebSocket has delivered a status event for
+	// the current chat. Once true, the WS is the authoritative
+	// source for chatStatus and the REST-fetched chatRecord.status
+	// must not overwrite it. Without this guard, a React Query
+	// refetch (e.g. on window focus) can regress chatStatus to a
+	// stale value like "pending", causing shouldApplyMessagePart()
+	// to drop all incoming parts.
+	const wsStatusReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -185,12 +193,19 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
-		store.setChatStatus(chatRecord?.status ?? null);
+		// Only hydrate from REST when the WebSocket hasn't delivered
+		// a status event yet. Once the WS is the authoritative
+		// source, a stale REST refetch must not overwrite the
+		// fresher WS-delivered value.
+		if (!wsStatusReceivedRef.current) {
+			store.setChatStatus(chatRecord?.status ?? null);
+		}
 	}, [chatRecord?.status, store]);
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
+		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
 		if (!chatID) {
 			return;
@@ -496,6 +511,7 @@ export const useChatStore = (
 								continue;
 							}
 
+							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {

@@ -405,6 +405,8 @@ type ChatModelProviderUnavailableReason string
 const (
 	ChatModelProviderUnavailableMissingAPIKey ChatModelProviderUnavailableReason = "missing_api_key"
 	ChatModelProviderUnavailableFetchFailed   ChatModelProviderUnavailableReason = "fetch_failed"
+	// #nosec G101
+	ChatModelProviderUnavailableReasonUserAPIKeyRequired ChatModelProviderUnavailableReason = "user_api_key_required"
 )
 
 // ChatModel represents a model in the chat model catalog.
@@ -532,32 +534,57 @@ const (
 
 // ChatProviderConfig is an admin-managed provider configuration.
 type ChatProviderConfig struct {
-	ID          uuid.UUID                `json:"id" format:"uuid"`
-	Provider    string                   `json:"provider"`
-	DisplayName string                   `json:"display_name"`
-	Enabled     bool                     `json:"enabled"`
-	HasAPIKey   bool                     `json:"has_api_key"`
-	BaseURL     string                   `json:"base_url,omitempty"`
-	Source      ChatProviderConfigSource `json:"source"`
-	CreatedAt   time.Time                `json:"created_at,omitempty" format:"date-time"`
-	UpdatedAt   time.Time                `json:"updated_at,omitempty" format:"date-time"`
+	ID                         uuid.UUID                `json:"id" format:"uuid"`
+	Provider                   string                   `json:"provider"`
+	DisplayName                string                   `json:"display_name"`
+	Enabled                    bool                     `json:"enabled"`
+	HasAPIKey                  bool                     `json:"has_api_key"`
+	CentralAPIKeyEnabled       bool                     `json:"central_api_key_enabled"`
+	AllowUserAPIKey            bool                     `json:"allow_user_api_key"`
+	AllowCentralAPIKeyFallback bool                     `json:"allow_central_api_key_fallback"`
+	BaseURL                    string                   `json:"base_url,omitempty"`
+	Source                     ChatProviderConfigSource `json:"source"`
+	CreatedAt                  time.Time                `json:"created_at,omitempty" format:"date-time"`
+	UpdatedAt                  time.Time                `json:"updated_at,omitempty" format:"date-time"`
 }
 
 // CreateChatProviderConfigRequest creates a chat provider config.
 type CreateChatProviderConfigRequest struct {
-	Provider    string `json:"provider"`
-	DisplayName string `json:"display_name,omitempty"`
-	APIKey      string `json:"api_key,omitempty"`
-	BaseURL     string `json:"base_url,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
+	Provider                   string `json:"provider"`
+	DisplayName                string `json:"display_name,omitempty"`
+	APIKey                     string `json:"api_key,omitempty"`
+	BaseURL                    string `json:"base_url,omitempty"`
+	Enabled                    *bool  `json:"enabled,omitempty"`
+	CentralAPIKeyEnabled       *bool  `json:"central_api_key_enabled,omitempty"`
+	AllowUserAPIKey            *bool  `json:"allow_user_api_key,omitempty"`
+	AllowCentralAPIKeyFallback *bool  `json:"allow_central_api_key_fallback,omitempty"`
 }
 
 // UpdateChatProviderConfigRequest updates a chat provider config.
 type UpdateChatProviderConfigRequest struct {
-	DisplayName string  `json:"display_name,omitempty"`
-	APIKey      *string `json:"api_key,omitempty"`
-	BaseURL     *string `json:"base_url,omitempty"`
-	Enabled     *bool   `json:"enabled,omitempty"`
+	DisplayName                string  `json:"display_name,omitempty"`
+	APIKey                     *string `json:"api_key,omitempty"`
+	BaseURL                    *string `json:"base_url,omitempty"`
+	Enabled                    *bool   `json:"enabled,omitempty"`
+	CentralAPIKeyEnabled       *bool   `json:"central_api_key_enabled,omitempty"`
+	AllowUserAPIKey            *bool   `json:"allow_user_api_key,omitempty"`
+	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
+}
+
+// UserChatProviderConfig is a summary of a provider that allows
+// user-supplied keys, as seen from the current user's perspective.
+type UserChatProviderConfig struct {
+	ProviderID               uuid.UUID `json:"provider_id" format:"uuid"`
+	Provider                 string    `json:"provider"`
+	DisplayName              string    `json:"display_name"`
+	HasUserAPIKey            bool      `json:"has_user_api_key"`
+	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
+}
+
+// CreateUserChatProviderKeyRequest creates or replaces a user's API key
+// for a provider.
+type CreateUserChatProviderKeyRequest struct {
+	APIKey string `json:"api_key"`
 }
 
 // ChatModelConfig is an admin-managed model configuration.
@@ -1324,6 +1351,47 @@ func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID 
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), nil)
 	if err != nil {
 		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ListUserChatProviderConfigs returns user-scoped chat provider configs.
+func (c *ExperimentalClient) ListUserChatProviderConfigs(ctx context.Context) ([]UserChatProviderConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/user-provider-configs", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("list user chat provider configs: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var configs []UserChatProviderConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
+}
+
+// UpsertUserChatProviderKey creates or replaces a user API key for a provider.
+func (c *ExperimentalClient) UpsertUserChatProviderKey(ctx context.Context, providerID uuid.UUID, req CreateUserChatProviderKeyRequest) (UserChatProviderConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), req)
+	if err != nil {
+		return UserChatProviderConfig{}, xerrors.Errorf("upsert user chat provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatProviderConfig{}, ReadBodyAsError(res)
+	}
+	var config UserChatProviderConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// DeleteUserChatProviderKey deletes a user API key for a provider.
+func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, providerID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), nil)
+	if err != nil {
+		return xerrors.Errorf("delete user chat provider key: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {

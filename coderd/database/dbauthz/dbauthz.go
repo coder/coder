@@ -1627,6 +1627,13 @@ func (q *querier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg datab
 	return q.db.BatchUpdateWorkspaceNextStartAt(ctx, arg)
 }
 
+func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
+		return err
+	}
+	return q.db.BatchUpsertConnectionLogs(ctx, arg)
+}
+
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return 0, err
@@ -2135,6 +2142,17 @@ func (q *querier) DeleteUserChatCompactionThreshold(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.DeleteUserChatCompactionThreshold(ctx, arg)
+}
+
+func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.DeleteUserChatProviderKeyParams) error {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return err
+	}
+	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
 func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
@@ -3635,18 +3653,18 @@ func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database
 	return q.db.GetTailnetPeers(ctx, id)
 }
 
-func (q *querier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+func (q *querier) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsBatchRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
 	}
-	return q.db.GetTailnetTunnelPeerBindings(ctx, srcID)
+	return q.db.GetTailnetTunnelPeerBindingsBatch(ctx, ids)
 }
 
-func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+func (q *querier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerIDsBatchRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
 	}
-	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
+	return q.db.GetTailnetTunnelPeerIDsBatch(ctx, ids)
 }
 
 func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
@@ -4022,6 +4040,17 @@ func (q *querier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID)
 		return "", err
 	}
 	return q.db.GetUserChatCustomPrompt(ctx, userID)
+}
+
+func (q *querier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserChatProviderKeys(ctx, userID)
 }
 
 func (q *querier) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
@@ -6454,6 +6483,17 @@ func (q *querier) UpdateUserChatCustomPrompt(ctx context.Context, arg database.U
 	return q.db.UpdateUserChatCustomPrompt(ctx, arg)
 }
 
+func (q *querier) UpdateUserChatProviderKey(ctx context.Context, arg database.UpdateUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	return q.db.UpdateUserChatProviderKey(ctx, arg)
+}
+
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
 }
@@ -7032,13 +7072,6 @@ func (q *querier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl strin
 	return q.db.UpsertChatWorkspaceTTL(ctx, workspaceTtl)
 }
 
-func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
-		return database.ConnectionLog{}, err
-	}
-	return q.db.UpsertConnectionLog(ctx, arg)
-}
-
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -7179,6 +7212,17 @@ func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.UpsertTemplateUsageStats(ctx)
+}
+
+func (q *querier) UpsertUserChatProviderKey(ctx context.Context, arg database.UpsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	return q.db.UpsertUserChatProviderKey(ctx, arg)
 }
 
 func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {

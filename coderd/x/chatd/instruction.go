@@ -2,170 +2,29 @@ package chatd
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"io"
-	"net/http"
-	"path"
-	"regexp"
 	"strings"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
-
-const (
-	maxInstructionFileBytes = 64 * 1024
-)
-
-var markdownCommentPattern = regexp.MustCompile(`<!--[\s\S]*?-->`)
-
-// readHomeInstructionFile reads an instruction file from the
-// agent's home directory using home-relative path resolution.
-// This is the fallback for older agents that don't support
-// the context-config endpoint.
-func readHomeInstructionFile(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	homeDir string,
-	fileName string,
-) (content string, sourcePath string, truncated bool, err error) {
-	if conn == nil {
-		return "", "", false, nil
-	}
-
-	dirListing, err := conn.LS(ctx, "", workspacesdk.LSRequest{
-		Path:       []string{homeDir},
-		Relativity: workspacesdk.LSRelativityHome,
-	})
-	if err != nil {
-		if isCodersdkStatusCode(err, http.StatusNotFound) {
-			return "", "", false, nil
-		}
-		return "", "", false, xerrors.Errorf("list home instruction directory: %w", err)
-	}
-
-	var filePath string
-	for _, entry := range dirListing.Contents {
-		if entry.IsDir {
-			continue
-		}
-		if strings.EqualFold(strings.TrimSpace(entry.Name), fileName) {
-			filePath = strings.TrimSpace(entry.AbsolutePathString)
-			break
-		}
-	}
-	if filePath == "" {
-		return "", "", false, nil
-	}
-
-	return readInstructionFile(ctx, conn, filePath)
-}
-
-// readInstructionDirFile reads an instruction file from the given
-// absolute directory path. The directory is listed and scanned
-// for a file matching fileName (case-insensitive).
-func readInstructionDirFile(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	absDir string,
-	fileName string,
-) (content string, sourcePath string, truncated bool, err error) {
-	if conn == nil {
-		return "", "", false, nil
-	}
-
-	dirListing, err := conn.LS(ctx, "", workspacesdk.LSRequest{
-		Path:       []string{absDir},
-		Relativity: workspacesdk.LSRelativityRoot,
-	})
-	if err != nil {
-		if isCodersdkStatusCode(err, http.StatusNotFound) {
-			return "", "", false, nil
-		}
-		return "", "", false, xerrors.Errorf("list instruction directory: %w", err)
-	}
-
-	var filePath string
-	for _, entry := range dirListing.Contents {
-		if entry.IsDir {
-			continue
-		}
-		if strings.EqualFold(strings.TrimSpace(entry.Name), fileName) {
-			filePath = strings.TrimSpace(entry.AbsolutePathString)
-			break
-		}
-	}
-	if filePath == "" {
-		return "", "", false, nil
-	}
-
-	return readInstructionFile(ctx, conn, filePath)
-}
-
-// readInstructionFile reads and sanitizes an instruction file at the
-// given absolute path.
-func readInstructionFile(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	filePath string,
-) (content string, sourcePath string, truncated bool, err error) {
-	reader, _, err := conn.ReadFile(
-		ctx,
-		filePath,
-		0,
-		maxInstructionFileBytes+1,
-	)
-	if err != nil {
-		if isCodersdkStatusCode(err, http.StatusNotFound) {
-			return "", "", false, nil
-		}
-		return "", "", false, xerrors.Errorf("read instruction file: %w", err)
-	}
-	defer reader.Close()
-
-	raw, err := io.ReadAll(reader)
-	if err != nil {
-		return "", "", false, xerrors.Errorf("read instruction bytes: %w", err)
-	}
-
-	truncated = int64(len(raw)) > maxInstructionFileBytes
-	if truncated {
-		raw = raw[:maxInstructionFileBytes]
-	}
-
-	content = sanitizeInstructionMarkdown(string(raw))
-	if content == "" {
-		return "", "", truncated, nil
-	}
-
-	return content, filePath, truncated, nil
-}
-
-func sanitizeInstructionMarkdown(content string) string {
-	content = markdownCommentPattern.ReplaceAllString(content, "")
-	content = SanitizePromptText(content)
-	return strings.TrimSpace(content)
-}
 
 // formatSystemInstructions builds the <workspace-context> block from
-// agent metadata and zero or more instruction file sections.
+// agent metadata and zero or more context-file parts. Non-context-file
+// parts in the slice are silently skipped.
 func formatSystemInstructions(
 	operatingSystem, directory string,
-	sections []instructionFileSection,
+	parts []codersdk.ChatMessagePart,
 ) string {
-	hasSections := false
-	for _, s := range sections {
-		if s.content != "" {
-			hasSections = true
+	hasContent := false
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeContextFile && part.ContextFileContent != "" {
+			hasContent = true
 			break
 		}
 	}
-	if !hasSections && operatingSystem == "" && directory == "" {
+	if !hasContent && operatingSystem == "" && directory == "" {
 		return ""
 	}
 
@@ -181,29 +40,21 @@ func formatSystemInstructions(
 		_, _ = b.WriteString(directory)
 		_, _ = b.WriteString("\n")
 	}
-	for _, s := range sections {
-		if s.content == "" {
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeContextFile || part.ContextFileContent == "" {
 			continue
 		}
 		_, _ = b.WriteString("\nSource: ")
-		_, _ = b.WriteString(s.source)
-		if s.truncated {
+		_, _ = b.WriteString(part.ContextFilePath)
+		if part.ContextFileTruncated {
 			_, _ = b.WriteString(" (truncated to 64KiB)")
 		}
 		_, _ = b.WriteString("\n")
-		_, _ = b.WriteString(s.content)
+		_, _ = b.WriteString(part.ContextFileContent)
 		_, _ = b.WriteString("\n")
 	}
 	_, _ = b.WriteString("</workspace-context>")
 	return b.String()
-}
-
-// instructionFileSection is a single instruction file's content and
-// source path for rendering inside <workspace-context>.
-type instructionFileSection struct {
-	content   string
-	source    string
-	truncated bool
 }
 
 // instructionFromContextFiles reconstructs the formatted instruction
@@ -213,7 +64,7 @@ type instructionFileSection struct {
 func instructionFromContextFiles(
 	messages []database.ChatMessage,
 ) string {
-	var sections []instructionFileSection
+	var contextParts []codersdk.ChatMessagePart
 	var os, dir string
 	for _, msg := range messages {
 		if !msg.Content.Valid ||
@@ -235,15 +86,11 @@ func instructionFromContextFiles(
 				dir = part.ContextFileDirectory
 			}
 			if part.ContextFileContent != "" {
-				sections = append(sections, instructionFileSection{
-					content:   part.ContextFileContent,
-					source:    part.ContextFilePath,
-					truncated: part.ContextFileTruncated,
-				})
+				contextParts = append(contextParts, part)
 			}
 		}
 	}
-	return formatSystemInstructions(os, dir, sections)
+	return formatSystemInstructions(os, dir, contextParts)
 }
 
 // skillsFromParts reconstructs skill metadata from persisted
@@ -271,55 +118,25 @@ func skillsFromParts(
 				Name:        part.SkillName,
 				Description: part.SkillDescription,
 				Dir:         part.SkillDir,
+				MetaFile:    part.ContextFileSkillMetaFile,
 			})
 		}
 	}
 	return skills
 }
 
-// pwdInstructionFilePath returns the absolute path to the
-// instruction file in the given working directory, or empty if
-// directory is empty.
-func pwdInstructionFilePath(directory, fileName string) string {
-	if directory == "" || fileName == "" {
-		return ""
-	}
-	return path.Join(directory, fileName)
-}
-
-// skillMetaFileFromParts scans persisted context-file parts for
-// the stored skill meta file name. Uses last-wins semantics to
-// match contextFileAgentID, so after an agent change the newest
-// agent's value is returned.
-func skillMetaFileFromParts(
-	messages []database.ChatMessage,
-) string {
-	var result string
-	for _, msg := range messages {
-		if !msg.Content.Valid ||
-			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+// filterSkillParts returns stripped copies of skill-type parts from
+// the given slice. Internal fields are removed so the result is safe
+// for the cache column. Returns nil when no skill parts exist.
+func filterSkillParts(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	var out []codersdk.ChatMessagePart
+	for _, p := range parts {
+		if p.Type != codersdk.ChatMessagePartTypeSkill {
 			continue
 		}
-		var parts []codersdk.ChatMessagePart
-		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
-			continue
-		}
-		for _, part := range parts {
-			if part.Type != codersdk.ChatMessagePartTypeContextFile {
-				continue
-			}
-			if part.ContextFileSkillMetaFile != "" {
-				result = part.ContextFileSkillMetaFile
-			}
-		}
+		cp := p
+		cp.StripInternal()
+		out = append(out, cp)
 	}
-	return result
-}
-
-func isCodersdkStatusCode(err error, statusCode int) bool {
-	var sdkErr *codersdk.Error
-	if !xerrors.As(err, &sdkErr) {
-		return false
-	}
-	return sdkErr.StatusCode() == statusCode
+	return out
 }

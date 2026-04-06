@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+	archiveChatAndDeleteWorkspace,
 	isWorkspaceAutoCreated,
+	isWorkspaceNotFound,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./agentWorkspaceUtils";
@@ -42,6 +44,180 @@ describe("isWorkspaceAutoCreated", () => {
 	});
 });
 
+describe("isWorkspaceNotFound", () => {
+	it("returns true for Axios-style 404 Not Found errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Workspace not found" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(true);
+	});
+
+	it("returns true for Axios-style 410 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 410,
+				data: { message: "Workspace gone" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(true);
+	});
+
+	it("returns false for Axios-style non-404-or-410 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(false);
+	});
+
+	it("returns false for axios errors without a response (network error)", () => {
+		const error = {
+			isAxiosError: true,
+			response: undefined,
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(false);
+	});
+
+	it("returns false for plain Error objects", () => {
+		expect(isWorkspaceNotFound(new Error("Workspace not found"))).toBe(false);
+	});
+
+	it("returns false for non-error values", () => {
+		expect(isWorkspaceNotFound("nope")).toBe(false);
+		expect(isWorkspaceNotFound(null)).toBe(false);
+	});
+});
+
+describe("archiveChatAndDeleteWorkspace", () => {
+	it("archives and deletes when both succeed", async () => {
+		const callOrder: string[] = [];
+		const doArchive = vi.fn(async () => {
+			callOrder.push("archive");
+		});
+		const doDelete = vi.fn(async () => {
+			callOrder.push("delete");
+		});
+
+		await expect(
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
+		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doArchive).toHaveBeenCalledWith("chat-1");
+		expect(doDelete).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledWith("workspace-1");
+		expect(callOrder).toEqual(["archive", "delete"]);
+	});
+
+	it("succeeds when delete returns 404", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => {
+			throw {
+				isAxiosError: true,
+				response: {
+					status: 404,
+					data: { message: "Workspace not found" },
+				},
+			};
+		});
+
+		await expect(
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
+		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("succeeds when delete returns 410", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => {
+			throw {
+				isAxiosError: true,
+				response: {
+					status: 410,
+					data: { message: "Workspace gone" },
+				},
+			};
+		});
+
+		await expect(
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
+		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws when delete returns non-404-or-410 error", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+		const doDelete = vi.fn(async () => {
+			throw error;
+		});
+
+		await expect(
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
+		).rejects.toBe(error);
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws when archive fails without attempting delete", async () => {
+		const error = new Error("archive failed");
+		const doArchive = vi.fn(async () => {
+			throw error;
+		});
+		const doDelete = vi.fn(async () => undefined);
+
+		await expect(
+			archiveChatAndDeleteWorkspace(
+				"chat-1",
+				"workspace-1",
+				doArchive,
+				doDelete,
+			),
+		).rejects.toBe(error);
+		expect(doArchive).toHaveBeenCalledTimes(1);
+		expect(doDelete).not.toHaveBeenCalled();
+	});
+});
+
 describe("resolveArchiveAndDeleteAction", () => {
 	it.each([
 		{
@@ -70,15 +246,61 @@ describe("resolveArchiveAndDeleteAction", () => {
 		expect(result).toBe(expected);
 	});
 
-	it("propagates workspace fetch errors", async () => {
+	it("propagates non-404-or-410 workspace fetch errors", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+
 		await expect(
 			resolveArchiveAndDeleteAction(
 				async () => {
-					throw new Error("not found");
+					throw error;
 				},
 				() => "2026-01-01T00:00:00Z",
 			),
-		).rejects.toThrow("not found");
+		).rejects.toBe(error);
+	});
+
+	it("returns archive-only when the workspace fetch returns 404", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Workspace not found" },
+			},
+		};
+
+		await expect(
+			resolveArchiveAndDeleteAction(
+				async () => {
+					throw error;
+				},
+				() => "2026-01-01T00:00:00Z",
+			),
+		).resolves.toBe("archive-only");
+	});
+
+	it("returns archive-only when the workspace fetch returns 410", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 410,
+				data: { message: "Workspace gone" },
+			},
+		};
+
+		await expect(
+			resolveArchiveAndDeleteAction(
+				async () => {
+					throw error;
+				},
+				() => "2026-01-01T00:00:00Z",
+			),
+		).resolves.toBe("archive-only");
 	});
 });
 
