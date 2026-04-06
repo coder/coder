@@ -26,6 +26,20 @@ type OrganizationAutocompleteProps = {
 	id?: string;
 	required?: boolean;
 	check?: AuthorizationCheck;
+	/**
+	 * Pre-selects an organization by ID. When provided, the
+	 * displayed selection is derived from this prop. The parent
+	 * is responsible for updating this prop in response to user
+	 * selections via onChange.
+	 *
+	 * When combined with `check`, the ID must reference an org
+	 * the user is authorized for — if the org fails the check,
+	 * the button silently shows placeholder text without firing
+	 * onChange(null). The follow-up full-object refactor
+	 * (https://github.com/coder/internal/issues/1440) will
+	 * address this.
+	 */
+	organizationId?: string;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
@@ -33,6 +47,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	id,
 	required,
 	check,
+	organizationId,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [selected, setSelected] = useState<Organization | null>(null);
@@ -66,18 +81,31 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: [];
 	}
 
-	// Unfortunate: this useEffect sets a default org value
-	// if only one is available and is necessary as the autocomplete loads
-	// its own data. Until we refactor, proceed cautiously!
+	// In controlled mode, derive the displayed selection from the
+	// prop so we never need to sync prop → state via an effect.
+	// Note: when `check` is also provided, options may be empty
+	// until permissions load, causing a brief placeholder flash.
+	// The follow-up refactor (passing the full Organization object
+	// instead of just an ID) will eliminate this.
+	const displayedSelection = organizationId
+		? (options.find((o) => o.id === organizationId) ?? null)
+		: selected;
+
+	// Auto-select when only one option exists. Only active in
+	// uncontrolled mode — when the parent controls the value via
+	// organizationId it is responsible for the initial selection.
 	useEffect(() => {
+		if (organizationId) {
+			return;
+		}
 		const org = options[0];
-		if (options.length !== 1 || org === selected) {
+		if (options.length !== 1 || org.id === selected?.id) {
 			return;
 		}
 
 		setSelected(org);
 		onChange(org);
-	}, [options, selected, onChange]);
+	}, [options, selected, onChange, organizationId]);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -90,14 +118,16 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					data-testid="organization-autocomplete"
 					className="w-full justify-start gap-2 font-normal"
 				>
-					{selected ? (
+					{displayedSelection ? (
 						<>
 							<Avatar
 								size="sm"
-								src={selected.icon}
-								fallback={selected.display_name}
+								src={displayedSelection.icon}
+								fallback={displayedSelection.display_name}
 							/>
-							<span className="truncate">{selected.display_name}</span>
+							<span className="truncate">
+								{displayedSelection.display_name}
+							</span>
 						</>
 					) : (
 						<span className="text-content-secondary">
@@ -121,7 +151,12 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
 									onSelect={() => {
-										setSelected(org);
+										// Only update internal state in uncontrolled mode.
+										// In controlled mode, displayedSelection is derived
+										// from the organizationId prop.
+										if (!organizationId) {
+											setSelected(org);
+										}
 										onChange(org);
 										setOpen(false);
 									}}
@@ -134,7 +169,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 									<span className="truncate">
 										{org.display_name || org.name}
 									</span>
-									{selected?.id === org.id && (
+									{displayedSelection?.id === org.id && (
 										<Check className="ml-auto size-icon-sm shrink-0" />
 									)}
 								</CommandItem>
