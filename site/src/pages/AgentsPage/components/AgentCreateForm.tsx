@@ -6,6 +6,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -220,11 +221,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
-	// that the onSend callback always sees the latest values without
-	// the shared input component re-rendering on every change.
-	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	const selectedModelRef = useRef(selectedModel);
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
 	);
@@ -238,12 +234,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers ?? []);
 	})();
-	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
-	useEffect(() => {
-		selectedWorkspaceIdRef.current = selectedWorkspaceId;
-		selectedModelRef.current = selectedModel;
-		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
-	});
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -259,26 +249,28 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
-		submitDraft();
-		await onCreateChat({
-			message,
-			fileIDs,
-			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-			model: selectedModelRef.current || undefined,
-			mcpServerIds:
-				selectedMCPServerIdsRef.current.length > 0
-					? [...selectedMCPServerIdsRef.current]
-					: undefined,
-		}).catch((err) => {
-			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt, then rethrow
-			// so callers (handleSendWithAttachments) can preserve
-			// attachments on failure.
-			resetDraft();
-			throw err;
-		});
-	};
+	const handleSend = useEffectEvent(
+		async (message: string, fileIDs?: string[]) => {
+			submitDraft();
+			await onCreateChat({
+				message,
+				fileIDs,
+				workspaceId: selectedWorkspaceId ?? undefined,
+				model: selectedModel || undefined,
+				mcpServerIds:
+					effectiveMCPServerIds.length > 0
+						? [...effectiveMCPServerIds]
+						: undefined,
+			}).catch((err) => {
+				// Re-enable draft persistence so the user can edit
+				// and retry after a failed send attempt, then rethrow
+				// so callers (handleSendWithAttachments) can preserve
+				// attachments on failure.
+				resetDraft();
+				throw err;
+			});
+		},
+	);
 
 	const {
 		attachments,

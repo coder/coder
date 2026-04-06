@@ -1,12 +1,7 @@
-import {
-	type Dispatch,
-	type SetStateAction,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import type { UploadState } from "../components/AgentChatInput";
 
 /** @internal Exported for testing. */
@@ -157,17 +152,14 @@ export function useFileAttachments(
 	);
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
-	const previewUrlsRef = useRef(previewUrls);
-	useEffect(() => {
-		previewUrlsRef.current = previewUrls;
+	const revokePreviewUrls = useEffectEvent(() => {
+		for (const [, url] of previewUrls) {
+			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+		}
 	});
 	useEffect(() => {
-		return () => {
-			for (const [, url] of previewUrlsRef.current) {
-				if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-			}
-		};
-	}, []);
+		return () => revokePreviewUrls();
+	}, [revokePreviewUrls]);
 
 	const startUpload = (file: File) => {
 		if (!organizationId) {
@@ -310,9 +302,7 @@ export function useFileAttachments(
 	};
 
 	const resetAttachments = () => {
-		for (const [, url] of previewUrlsRef.current) {
-			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-		}
+		revokePreviewUrls();
 		setPreviewUrls(new Map());
 		setTextContents(new Map());
 		setUploadStates(new Map());

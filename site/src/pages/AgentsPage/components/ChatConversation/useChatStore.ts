@@ -123,19 +123,6 @@ export const useChatStore = (
 	// server.
 	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
-	// Compute the last REST-fetched message ID so the stream can
-	// skip messages the client already has. We use a ref so the
-	// socket effect can read the latest value without including
-	// chatMessages in its dependency array (which would cause
-	// unnecessary reconnections).
-	const lastMessageIdRef = useRef<number | undefined>(undefined);
-	useEffect(() => {
-		lastMessageIdRef.current =
-			chatMessages && chatMessages.length > 0
-				? chatMessages[chatMessages.length - 1].id
-				: undefined;
-	});
-
 	// Keep error-reason callbacks in refs so the WebSocket effect
 	// can call them without including them in its dependency array.
 	// This prevents the socket from tearing down when the parent
@@ -143,13 +130,34 @@ export const useChatStore = (
 	const setChatErrorReasonStable = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonStable = useEffectEvent(clearChatErrorReason);
 
+	// Wrap the socket creation in a useEffectEvent so we can
+	// read the latest chatMessages to compute the last known
+	// message ID without including chatMessages in the WS
+	// effect's dependency array (which would cause unnecessary
+	// reconnections).
+	const connectChatStream = useEffectEvent(
+		(chatID: string, localLastMessageId: number | undefined) => {
+			const restLastId =
+				chatMessages && chatMessages.length > 0
+					? chatMessages[chatMessages.length - 1].id
+					: undefined;
+			// On reconnect, use whichever is higher: the
+			// REST-fetched last ID or the last ID received over
+			// the previous WebSocket connection.
+			const effectiveLastId =
+				restLastId !== undefined && localLastMessageId !== undefined
+					? Math.max(restLastId, localLastMessageId)
+					: (localLastMessageId ?? restLastId);
+			return watchChat(chatID, effectiveLastId);
+		},
+	);
+
 	// True once the initial REST page has resolved for the current
-	// chat. The WebSocket effect gates on this so that
-	// lastMessageIdRef is populated before the socket opens;
+	// chat. The WebSocket effect gates on this so that the last
+	// REST message ID is available before the socket opens;
 	// otherwise the server replays the entire message history as
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
-
 	useEffect(() => {
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
@@ -347,6 +355,11 @@ export const useChatStore = (
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
 
+		// Tracks the highest message ID seen by the WebSocket
+		// handler. Combined with the REST-derived last ID in
+		// connectChatStream so reconnects skip already-seen
+		// messages even if the REST cache hasn't caught up yet.
+		let localLastMessageId: number | undefined;
 		// Parts buffer lives at the effect scope so it persists
 		// across WebSocket messages. A rAF-based flush coalesces
 		// parts from multiple WS messages into a single render,
@@ -479,10 +492,10 @@ export const useChatStore = (
 							pendingMessages.push(message);
 							if (
 								message.id !== undefined &&
-								(lastMessageIdRef.current === undefined ||
-									message.id > lastMessageIdRef.current)
+								(localLastMessageId === undefined ||
+									message.id > localLastMessageId)
 							) {
-								lastMessageIdRef.current = message.id;
+								localLastMessageId = message.id;
 							}
 							if (message.role === "assistant") {
 								needsStreamReset = true;
@@ -604,9 +617,7 @@ export const useChatStore = (
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
-				// Use the latest known message ID so the server only
-				// sends events the client hasn't seen yet.
-				const socket = watchChat(activeChatID, lastMessageIdRef.current);
+				const socket = connectChatStream(activeChatID, localLastMessageId);
 				socket.addEventListener("message", handleMessage);
 				return socket;
 			},
@@ -652,6 +663,7 @@ export const useChatStore = (
 		store,
 		setChatErrorReasonStable,
 		clearChatErrorReasonStable,
+		connectChatStream,
 	]);
 	return {
 		store,

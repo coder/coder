@@ -32,6 +32,7 @@ import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -435,32 +436,24 @@ const AgentsPage: FC = () => {
 		navigate("/agents");
 	};
 
-	// Track the active chat ID in a ref so the watchChats
-	// WebSocket handler can read it without re-subscribing on
-	// every navigation.
-	const activeChatIDRef = useRef(agentId);
-	const navigateAfterArchive = (archivedChatId: string) => {
-		const activeChatId = activeChatIDRef.current;
+	const navigateAfterArchive = useEffectEvent((archivedChatId: string) => {
 		if (
 			shouldNavigateAfterArchive(
-				activeChatId,
+				agentId,
 				archivedChatId,
 				// Read root_chat_id from the per-chat cache, which
 				// survives WebSocket eviction of sub-agents (only the
 				// parent's chatKey is removed). This must be read at
 				// callback time so it reflects the user's current
 				// location.
-				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+				agentId
+					? queryClient.getQueryData<TypesGen.Chat>(chatKey(agentId))
 							?.root_chat_id
 					: undefined,
 			)
 		) {
 			navigate("/agents");
 		}
-	};
-	useEffect(() => {
-		activeChatIDRef.current = agentId;
 	});
 
 	// Optimistically clear the unread indicator for the active
@@ -482,6 +475,174 @@ const AgentsPage: FC = () => {
 			return changed ? next : chats;
 		});
 	}, [agentId, queryClient]);
+	const handleChatListEvent = useEffectEvent(
+		(chatEvent: { kind: string; chat: TypesGen.Chat }) => {
+			const updatedChat = chatEvent.chat;
+			// Read the previous status from the infinite chat list
+			// cache before we write the update below. The per-chat
+			// query cache (chatKey) only exists for chats the user
+			// has opened, so reading from the list cache ensures
+			// prevStatus is available for background agents too.
+			const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+				(c) => c.id === updatedChat.id,
+			)?.status;
+			// Only play the chime for top-level chats, not sub-agents.
+			if (!updatedChat.parent_chat_id) {
+				maybePlayChime(prevStatus, updatedChat.status, updatedChat.id, agentId);
+			}
+
+			if (chatEvent.kind === "deleted") {
+				updateInfiniteChatsCache(queryClient, (chats) =>
+					chats.filter(
+						(c) => c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
+					),
+				);
+				queryClient.removeQueries({
+					queryKey: chatKey(updatedChat.id),
+					exact: true,
+				});
+				return;
+			}
+
+			if (chatEvent.kind === "diff_status_change") {
+				// Only refetch the diff file contents — the chat's
+				// diff_status field is already written into the
+				// chatKey and infinite-list caches below.
+				void queryClient.invalidateQueries({
+					queryKey: chatDiffContentsKey(updatedChat.id),
+					exact: true,
+				});
+			}
+			// Scope field updates by event kind so that
+			// status_change events (which may carry a stale title
+			// snapshot from before async title generation
+			// finished) don't clobber a title_change that already
+			// landed.
+			const isTitleEvent = chatEvent.kind === "title_change";
+			const isStatusEvent = chatEvent.kind === "status_change";
+			const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
+
+			// Cancel in-flight list and per-chat refetches so
+			// they cannot overwrite the cache update below with
+			// stale server data. This matters when a title_change
+			// event races with a refetch triggered by
+			// createChat.onSuccess or the onOpen invalidation:
+			// the refetch may have been issued before the async
+			// title generation finished, so its response carries
+			// the fallback title.
+			void cancelChatListRefetches(queryClient);
+			// Only cancel a per-chat refetch when the cache
+			// already has data. Cancelling a first-time fetch
+			// reverts the query to pending/idle with no data
+			// and no retry, which AgentChatPage shows as
+			// "Chat not found".
+			if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+				void queryClient.cancelQueries({
+					queryKey: chatKey(updatedChat.id),
+					exact: true,
+				});
+			}
+
+			// For "created" events, use a cross-page existence
+			// check and prepend only to the first page.
+			// updateInfiniteChatsCache runs the updater per
+			// page, so a naive prepend would duplicate the
+			// chat into every loaded page.
+			if (chatEvent.kind === "created") {
+				prependToInfiniteChatsCache(queryClient, updatedChat);
+			} else {
+				updateInfiniteChatsCache(queryClient, (chats) => {
+					let didUpdate = false;
+					const nextChats = chats.map((c) => {
+						if (c.id !== updatedChat.id) return c;
+						const nextStatus = isStatusEvent ? updatedChat.status : c.status;
+						const nextTitle = isTitleEvent ? updatedChat.title : c.title;
+						const nextDiffStatus = isDiffStatusEvent
+							? updatedChat.diff_status
+							: c.diff_status;
+						const nextWorkspaceId = updatedChat.workspace_id ?? c.workspace_id;
+						const nextUpdatedAt =
+							c.updated_at > updatedChat.updated_at
+								? c.updated_at
+								: updatedChat.updated_at;
+						// The server's pubsub path does not compute
+						// has_unread (it always sends false). For
+						// status_change events on non-active chats,
+						// optimistically mark as unread since the
+						// assistant produced new output.
+						const nextHasUnread =
+							isStatusEvent && updatedChat.id !== agentId ? true : c.has_unread;
+						if (
+							nextStatus === c.status &&
+							nextTitle === c.title &&
+							diffStatusEqual(nextDiffStatus, c.diff_status) &&
+							nextWorkspaceId === c.workspace_id &&
+							nextHasUnread === c.has_unread
+						) {
+							return c;
+						}
+						didUpdate = true;
+						return {
+							...c,
+							status: nextStatus,
+							title: nextTitle,
+							diff_status: nextDiffStatus,
+							workspace_id: nextWorkspaceId,
+							updated_at: nextUpdatedAt,
+							has_unread: nextHasUnread,
+						};
+					});
+					return didUpdate ? nextChats : chats;
+				});
+			}
+			queryClient.setQueryData<TypesGen.Chat | undefined>(
+				chatKey(updatedChat.id),
+				(previousChat) => {
+					if (!previousChat) {
+						return previousChat;
+					}
+					// Only create a new object if a field actually
+					// changed. Returning the same reference prevents
+					// react-query from notifying subscribers, avoiding
+					// unnecessary re-renders of AgentChatPage during
+					// streaming when repeated status_change events
+					// carry the same "running" status.
+					const nextStatus = isStatusEvent
+						? updatedChat.status
+						: previousChat.status;
+					const nextTitle = isTitleEvent
+						? updatedChat.title
+						: previousChat.title;
+					const nextDiffStatus = isDiffStatusEvent
+						? updatedChat.diff_status
+						: previousChat.diff_status;
+					const nextWorkspaceId =
+						updatedChat.workspace_id ?? previousChat.workspace_id;
+					const nextUpdatedAt =
+						previousChat.updated_at > updatedChat.updated_at
+							? previousChat.updated_at
+							: updatedChat.updated_at;
+
+					if (
+						nextStatus === previousChat.status &&
+						nextTitle === previousChat.title &&
+						diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
+						nextWorkspaceId === previousChat.workspace_id
+					) {
+						return previousChat;
+					}
+					return {
+						...previousChat,
+						status: nextStatus,
+						title: nextTitle,
+						diff_status: nextDiffStatus,
+						workspace_id: nextWorkspaceId,
+						updated_at: nextUpdatedAt,
+					};
+				},
+			);
+		},
+	);
 	useEffect(() => {
 		return createReconnectingWebSocket({
 			connect() {
@@ -499,182 +660,7 @@ const AgentsPage: FC = () => {
 					if (!isChatListSSEEvent(sse.data)) {
 						return;
 					}
-					const chatEvent = sse.data;
-					const updatedChat = chatEvent.chat;
-					// Read the previous status from the infinite chat list
-					// cache before we write the update below. The per-chat
-					// query cache (chatKey) only exists for chats the user
-					// has opened, so reading from the list cache ensures
-					// prevStatus is available for background agents too.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(c) => c.id === updatedChat.id,
-					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
-						maybePlayChime(
-							prevStatus,
-							updatedChat.status,
-							updatedChat.id,
-							activeChatIDRef.current,
-						);
-					}
-
-					if (chatEvent.kind === "deleted") {
-						updateInfiniteChatsCache(queryClient, (chats) =>
-							chats.filter(
-								(c) =>
-									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-							),
-						);
-						queryClient.removeQueries({
-							queryKey: chatKey(updatedChat.id),
-							exact: true,
-						});
-						return;
-					}
-
-					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
-						// diff_status field is already written into the
-						// chatKey and infinite-list caches below.
-						void queryClient.invalidateQueries({
-							queryKey: chatDiffContentsKey(updatedChat.id),
-							exact: true,
-						});
-					}
-					// Scope field updates by event kind so that
-					// status_change events (which may carry a stale title
-					// snapshot from before async title generation
-					// finished) don't clobber a title_change that already
-					// landed.
-					const isTitleEvent = chatEvent.kind === "title_change";
-					const isStatusEvent = chatEvent.kind === "status_change";
-					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
-
-					// Cancel in-flight list and per-chat refetches so
-					// they cannot overwrite the cache update below with
-					// stale server data. This matters when a title_change
-					// event races with a refetch triggered by
-					// createChat.onSuccess or the onOpen invalidation:
-					// the refetch may have been issued before the async
-					// title generation finished, so its response carries
-					// the fallback title.
-					void cancelChatListRefetches(queryClient);
-					// Only cancel a per-chat refetch when the cache
-					// already has data. Cancelling a first-time fetch
-					// reverts the query to pending/idle with no data
-					// and no retry, which AgentChatPage shows as
-					// "Chat not found".
-					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
-						void queryClient.cancelQueries({
-							queryKey: chatKey(updatedChat.id),
-							exact: true,
-						});
-					}
-
-					// For "created" events, use a cross-page existence
-					// check and prepend only to the first page.
-					// updateInfiniteChatsCache runs the updater per
-					// page, so a naive prepend would duplicate the
-					// chat into every loaded page.
-					if (chatEvent.kind === "created") {
-						prependToInfiniteChatsCache(queryClient, updatedChat);
-					} else {
-						updateInfiniteChatsCache(queryClient, (chats) => {
-							let didUpdate = false;
-							const nextChats = chats.map((c) => {
-								if (c.id !== updatedChat.id) return c;
-								const nextStatus = isStatusEvent
-									? updatedChat.status
-									: c.status;
-								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
-								const nextDiffStatus = isDiffStatusEvent
-									? updatedChat.diff_status
-									: c.diff_status;
-								const nextWorkspaceId =
-									updatedChat.workspace_id ?? c.workspace_id;
-								const nextUpdatedAt =
-									c.updated_at > updatedChat.updated_at
-										? c.updated_at
-										: updatedChat.updated_at;
-								// The server's pubsub path does not compute
-								// has_unread (it always sends false). For
-								// status_change events on non-active chats,
-								// optimistically mark as unread since the
-								// assistant produced new output.
-								const nextHasUnread =
-									isStatusEvent && updatedChat.id !== activeChatIDRef.current
-										? true
-										: c.has_unread;
-								if (
-									nextStatus === c.status &&
-									nextTitle === c.title &&
-									diffStatusEqual(nextDiffStatus, c.diff_status) &&
-									nextWorkspaceId === c.workspace_id &&
-									nextHasUnread === c.has_unread
-								) {
-									return c;
-								}
-								didUpdate = true;
-								return {
-									...c,
-									status: nextStatus,
-									title: nextTitle,
-									diff_status: nextDiffStatus,
-									workspace_id: nextWorkspaceId,
-									updated_at: nextUpdatedAt,
-									has_unread: nextHasUnread,
-								};
-							});
-							return didUpdate ? nextChats : chats;
-						});
-					}
-					queryClient.setQueryData<TypesGen.Chat | undefined>(
-						chatKey(updatedChat.id),
-						(previousChat) => {
-							if (!previousChat) {
-								return previousChat;
-							}
-							// Only create a new object if a field actually
-							// changed. Returning the same reference prevents
-							// react-query from notifying subscribers, avoiding
-							// unnecessary re-renders of AgentChatPage during
-							// streaming when repeated status_change events
-							// carry the same "running" status.
-							const nextStatus = isStatusEvent
-								? updatedChat.status
-								: previousChat.status;
-							const nextTitle = isTitleEvent
-								? updatedChat.title
-								: previousChat.title;
-							const nextDiffStatus = isDiffStatusEvent
-								? updatedChat.diff_status
-								: previousChat.diff_status;
-							const nextWorkspaceId =
-								updatedChat.workspace_id ?? previousChat.workspace_id;
-							const nextUpdatedAt =
-								previousChat.updated_at > updatedChat.updated_at
-									? previousChat.updated_at
-									: updatedChat.updated_at;
-
-							if (
-								nextStatus === previousChat.status &&
-								nextTitle === previousChat.title &&
-								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-								nextWorkspaceId === previousChat.workspace_id
-							) {
-								return previousChat;
-							}
-							return {
-								...previousChat,
-								status: nextStatus,
-								title: nextTitle,
-								diff_status: nextDiffStatus,
-								workspace_id: nextWorkspaceId,
-								updated_at: nextUpdatedAt,
-							};
-						},
-					);
+					handleChatListEvent(sse.data);
 				});
 				return ws;
 			},
@@ -682,7 +668,7 @@ const AgentsPage: FC = () => {
 				void invalidateChatListQueries(queryClient);
 			},
 		});
-	}, [queryClient]);
+	}, [queryClient, handleChatListEvent]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
