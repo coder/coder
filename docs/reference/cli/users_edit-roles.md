@@ -25,4 +25,20 @@ Bypass confirmation prompts.
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-A list of roles to give to the user. This removes any existing roles the user may have.
+A list of roles to give to the user. This replaces all existing roles. Use --add or --remove to modify roles incrementally.
+
+### --add
+
+|      |                           |
+|------|---------------------------|
+| Type | <code>string-array</code> |
+
+A list of roles to add to the user's existing roles. Cannot be used together with --roles.
+
+### --remove
+
+|      |                           |
+|------|---------------------------|
+| Type | <code>string-array</code> |
+
+A list of roles to remove from the user's existing roles. Cannot be used together with --roles.
