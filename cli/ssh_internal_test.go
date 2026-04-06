@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +24,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -254,9 +260,19 @@ func TestCoderConnectStdio(t *testing.T) {
 
 	stdioDone := make(chan struct{})
 	go func() {
-		err = runCoderConnectStdio(ctx, ln.Addr().String(), clientOutput, serverInput, stack)
-		assert.NoError(t, err)
-		close(stdioDone)
+		defer close(stdioDone)
+		conn, dialErr := net.Dial("tcp", ln.Addr().String())
+		if !assert.NoError(t, dialErr) {
+			return
+		}
+		pushErr := stack.push("tcp conn", conn)
+		if !assert.NoError(t, pushErr) {
+			return
+		}
+		agentssh.Bicopy(ctx, conn, &StdioRwc{
+			Reader: clientOutput,
+			Writer: serverInput,
+		})
 	}()
 
 	conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
@@ -446,5 +462,215 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		require.Error(t, err)
 		// Available agents should be sorted alphabetically.
 		assert.Contains(t, err.Error(), "available agents: [clark krypton zod]")
+	})
+}
+
+func TestIsRetryableError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "Nil",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "ContextCanceled",
+			err:      context.Canceled,
+			expected: false,
+		},
+		{
+			name:     "ContextDeadlineExceeded",
+			err:      context.DeadlineExceeded,
+			expected: false,
+		},
+		{
+			name:     "WrappedContextCanceled",
+			err:      xerrors.Errorf("wrapped: %w", context.Canceled),
+			expected: false,
+		},
+		{
+			name: "DNSError",
+			err: &net.DNSError{
+				Err:        "no such host",
+				Name:       "example.com",
+				IsNotFound: true,
+			},
+			expected: true,
+		},
+		{
+			name: "OpError",
+			err: &net.OpError{
+				Op:  "dial",
+				Net: "tcp",
+				Err: &os.SyscallError{},
+			},
+			expected: true,
+		},
+		{
+			name: "WrappedDNSError",
+			err: xerrors.Errorf("connect failed: %w", &net.DNSError{
+				Err:  "no such host",
+				Name: "example.com",
+			}),
+			expected: true,
+		},
+		{
+			name:     "SDKError500",
+			err:      codersdk.NewTestError(http.StatusInternalServerError, "GET", "/api"),
+			expected: true,
+		},
+		{
+			name:     "SDKError502",
+			err:      codersdk.NewTestError(http.StatusBadGateway, "GET", "/api"),
+			expected: true,
+		},
+		{
+			name:     "SDKError503",
+			err:      codersdk.NewTestError(http.StatusServiceUnavailable, "GET", "/api"),
+			expected: true,
+		},
+		{
+			name:     "SDKError401",
+			err:      codersdk.NewTestError(http.StatusUnauthorized, "GET", "/api"),
+			expected: false,
+		},
+		{
+			name:     "SDKError403",
+			err:      codersdk.NewTestError(http.StatusForbidden, "GET", "/api"),
+			expected: false,
+		},
+		{
+			name:     "SDKError404",
+			err:      codersdk.NewTestError(http.StatusNotFound, "GET", "/api"),
+			expected: false,
+		},
+		{
+			name:     "GenericError",
+			err:      xerrors.New("something went wrong"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, isRetryableError(tt.err))
+		})
+	}
+}
+
+func TestVerifyContainer(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+
+	newContainerClient := func(t *testing.T, statusCode int, resp codersdk.WorkspaceAgentListContainersResponse) *codersdk.Client {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(resp)
+		}))
+		t.Cleanup(srv.Close)
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		return codersdk.New(serverURL)
+	}
+
+	t.Run("EmptyName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Empty name short-circuits before making any HTTP calls.
+		serverURL, err := url.Parse(fakeServerURL)
+		require.NoError(t, err)
+		client := codersdk.New(serverURL)
+
+		var stderr bytes.Buffer
+		found, err := verifyContainer(ctx, client, agentID, "", &stderr)
+		require.NoError(t, err)
+		assert.True(t, found)
+	})
+
+	t.Run("FoundByFriendlyName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := newContainerClient(t, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{
+				{ID: "abc123", FriendlyName: "my-container"},
+			},
+		})
+
+		var stderr bytes.Buffer
+		found, err := verifyContainer(ctx, client, agentID, "my-container", &stderr)
+		require.NoError(t, err)
+		assert.True(t, found)
+	})
+
+	t.Run("FoundByID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := newContainerClient(t, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{
+				{ID: "abc123", FriendlyName: "my-container"},
+			},
+		})
+
+		var stderr bytes.Buffer
+		found, err := verifyContainer(ctx, client, agentID, "abc123", &stderr)
+		require.NoError(t, err)
+		assert.True(t, found)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := newContainerClient(t, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{
+				{ID: "abc123", FriendlyName: "other-container"},
+			},
+		})
+
+		var stderr bytes.Buffer
+		found, err := verifyContainer(ctx, client, agentID, "missing", &stderr)
+		require.NoError(t, err)
+		assert.False(t, found)
+		assert.Contains(t, stderr.String(), "Container not found")
+		assert.Contains(t, stderr.String(), "other-container")
+	})
+
+	t.Run("NoContainers", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := newContainerClient(t, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{},
+		})
+
+		var stderr bytes.Buffer
+		found, err := verifyContainer(ctx, client, agentID, "anything", &stderr)
+		require.NoError(t, err)
+		assert.False(t, found)
+		assert.Contains(t, stderr.String(), "No containers found")
+	})
+
+	t.Run("APIError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := newContainerClient(t, http.StatusInternalServerError, codersdk.WorkspaceAgentListContainersResponse{})
+
+		var stderr bytes.Buffer
+		_, err := verifyContainer(ctx, client, agentID, "my-container", &stderr)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "list containers")
 	})
 }
