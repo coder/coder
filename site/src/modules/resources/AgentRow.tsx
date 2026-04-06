@@ -493,6 +493,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<DropdownMenuTrigger asChild>
 															<button
 																type="button"
+																data-slot="tabs-trigger"
 																data-log-overflow-trigger
 																data-state={
 																	overflowLogTabValuesSet.has(selectedLogTab)
