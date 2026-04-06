@@ -4,6 +4,7 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	InfoIcon,
+	PencilIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
@@ -329,7 +330,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8"
 					/>
 				)}
-				<div className="min-w-0 flex-1">
+				<div className="group flex min-w-0 flex-1 items-center gap-1">
 					<input
 						type="text"
 						{...form.getFieldProps("displayName")}
@@ -339,7 +340,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
 					/>
-				</div>
+					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
+				</div>{" "}
 				{editingModel && (
 					<Tooltip>
 						<TooltipTrigger asChild>
