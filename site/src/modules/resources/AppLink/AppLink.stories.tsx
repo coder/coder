@@ -243,3 +243,22 @@ export const SlimWindowPopupBlocked: Story = {
 		expect(toastMessage).toBeInTheDocument();
 	},
 };
+
+export const InvalidExternalURL: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			url: "my-repo",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The link should render as a button (no href) since the URL is
+		// invalid and cannot be parsed.
+		const button = await canvas.findByRole("button");
+		expect(button).not.toHaveAttribute("href");
+	},
+};

@@ -795,6 +795,19 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		agent,
 	});
 
+	if (link.href === null) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an invalid URL`}
+				disabled
+				onClick={(e) => e.stopPropagation()}
+			>
+				<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+			</BaseIconLink>
+		);
+	}
+
 	return (
 		<BaseIconLink
 			key={app.id}
@@ -861,6 +874,7 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 type BaseIconLinkCommonProps = PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
+	disabled?: boolean;
 }>;
 
 type BaseIconLinkAnchorProps = BaseIconLinkCommonProps & {
@@ -878,11 +892,13 @@ type BaseIconLinkProps = BaseIconLinkAnchorProps | BaseIconLinkButtonProps;
 
 const BaseIconLink: FC<BaseIconLinkProps> = ({
 	isLoading,
+	disabled,
 	label,
 	children,
 	...rest
 }) => {
 	const loadingClass = isLoading ? "animate-pulse" : "";
+	const isDisabled = disabled || isLoading;
 
 	return (
 		<TooltipProvider>
@@ -893,7 +909,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 							variant="outline"
 							size="icon-lg"
 							asChild
-							disabled={isLoading}
+							disabled={isDisabled}
 						>
 							<a
 								target={rest.target}
@@ -917,7 +933,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 								e.stopPropagation();
 								rest.onClick(e);
 							}}
-							disabled={isLoading}
+							disabled={isDisabled}
 						>
 							{children}
 							<span className="sr-only">{label}</span>

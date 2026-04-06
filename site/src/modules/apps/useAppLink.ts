@@ -21,7 +21,7 @@ type UseAppLinkParams = {
 };
 
 type AppLink = {
-	href: string;
+	href: string | null;
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
 	hasToken: boolean;
@@ -101,7 +101,9 @@ export const useAppLink = (
 		switch (app.open_in) {
 			case "slim-window": {
 				e.preventDefault();
-				openAppInNewWindow(href);
+				if (href !== null) {
+					openAppInNewWindow(href);
+				}
 				return;
 			}
 		}

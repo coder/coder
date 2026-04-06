@@ -115,9 +115,17 @@ type GetAppHrefParams = {
 export const getAppHref = (
 	app: WorkspaceApp,
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
-): string => {
+): string | null => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
+		let appProtocol: string;
+		try {
+			appProtocol = new URL(app.url).protocol;
+		} catch {
+			// Template authors can provide invalid URLs (e.g. a bare
+			// string with no scheme). Rather than crashing the page,
+			// signal the invalid state so consumers can show an error.
+			return null;
+		}
 		const isAllowedProtocol =
 			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
 
