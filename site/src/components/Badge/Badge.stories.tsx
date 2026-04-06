@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Badges } from "components/Badges/Badges";
 import { Database, Settings, TriangleAlert } from "lucide-react";
+import { Badges } from "#/components/Badges/Badges";
 import { Badge } from "./Badge";
 
 const meta: Meta<typeof Badge> = {
