@@ -226,11 +226,33 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		case latestRC != nil:
 			prevVersion = latestRC
 			infof(w, "Latest RC tag: %s", latestRC.String())
-			suggested = version{
-				Major: latestRC.Major,
-				Minor: latestRC.Minor,
-				Patch: latestRC.Patch,
-				Pre:   fmt.Sprintf("rc.%d", latestRC.rcNumber()+1),
+
+			// Check if a final release already exists for this
+			// RC's minor series. If so, the series is complete
+			// and we should start the next minor's RC cycle.
+			seriesComplete := false
+			for _, t := range allTags {
+				if t.Major == latestRC.Major && t.Minor == latestRC.Minor && t.Pre == "" {
+					infof(w, "Final release %s already exists for this series, moving to next minor.", t.String())
+					seriesComplete = true
+					break
+				}
+			}
+
+			if seriesComplete {
+				suggested = version{
+					Major: latestRC.Major,
+					Minor: latestRC.Minor + 1,
+					Patch: 0,
+					Pre:   "rc.0",
+				}
+			} else {
+				suggested = version{
+					Major: latestRC.Major,
+					Minor: latestRC.Minor,
+					Patch: latestRC.Patch,
+					Pre:   fmt.Sprintf("rc.%d", latestRC.rcNumber()+1),
+				}
 			}
 		case latestMainline != nil:
 			infof(w, "No RC tags found. Latest mainline: %s", latestMainline.String())
