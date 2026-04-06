@@ -493,6 +493,21 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 // ── Main component ─────────────────────────────────────────────
 
+/** Whether a field should span the full grid width. */
+function isFullWidth(field: FieldSchema): boolean {
+	if (field.input_type === "json") {
+		return true;
+	}
+	if (
+		field.input_type === "select" &&
+		field.type !== "boolean" &&
+		(field.enum?.length ?? 0) > 3
+	) {
+		return true;
+	}
+	return false;
+}
+
 interface ModelConfigFieldsProps {
 	provider: string;
 	form: FormikContextType<ModelFormValues>;
@@ -523,21 +538,21 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 
+	// Sort full-width fields (json textareas, large segmented controls)
+	// to the end so compact fields fill the grid first.
+	const sorted = [...fields].sort(
+		(a, b) => (isFullWidth(a) ? 1 : 0) - (isFullWidth(b) ? 1 : 0),
+	);
+
 	return (
 		<div className="grid min-w-0 gap-3 sm:grid-cols-3">
-			{fields.map((field) => {
+			{sorted.map((field) => {
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
 				const errorKey = toFormFieldKey(resolved, field.json_name);
 				return (
 					<div
 						key={fieldKey}
-						className={cn(
-							field.input_type === "json" && "sm:col-span-full",
-							field.input_type === "select" &&
-								field.type !== "boolean" &&
-								(field.enum?.length ?? 0) > 3 &&
-								"sm:col-span-full",
-						)}
+						className={cn(isFullWidth(field) && "sm:col-span-full")}
 					>
 						<SchemaField
 							field={field}
