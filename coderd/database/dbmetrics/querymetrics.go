@@ -648,6 +648,14 @@ func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOrphanedChatFiles(ctx context.Context, before time.Time) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrphanedChatFiles(ctx, before)
+	m.queryLatencies.WithLabelValues("DeleteOrphanedChatFiles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrphanedChatFiles").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteProvisionerKey(ctx, id)

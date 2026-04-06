@@ -1630,6 +1630,74 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteOrphanedChatFiles(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clk := quartz.NewMock(t)
+	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	clk.Set(now).MustWait(ctx)
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider: "test", Model: "test", DisplayName: "Test", Enabled: true, Options: json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID: user.ID, LastModelConfigID: modelCfg.ID, Title: "test chat",
+	})
+	require.NoError(t, err)
+
+	referencedFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID: user.ID, OrganizationID: org.ID, Name: "ref.png", Mimetype: "image/png", Data: []byte("ref"),
+	})
+	require.NoError(t, err)
+
+	fileContent := fmt.Sprintf("[{\"type\":\"file\",\"media_type\":\"image/png\",\"file_id\":\"%s\"}]", referencedFile.ID)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID: chat.ID, CreatedBy: []uuid.UUID{user.ID}, ModelConfigID: []uuid.UUID{modelCfg.ID},
+		Role: []database.ChatMessageRole{database.ChatMessageRoleUser}, Content: []string{fileContent},
+		ContentVersion: []int16{1}, Visibility: []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens: []int64{0}, OutputTokens: []int64{0}, TotalTokens: []int64{0}, ReasoningTokens: []int64{0},
+		CacheCreationTokens: []int64{0}, CacheReadTokens: []int64{0}, ContextLimit: []int64{0},
+		Compressed: []bool{false}, TotalCostMicros: []int64{0}, RuntimeMs: []int64{0}, ProviderResponseID: []string{""},
+	})
+	require.NoError(t, err)
+
+	orphanedFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID: user.ID, OrganizationID: org.ID, Name: "orphan.png", Mimetype: "image/png", Data: []byte("orphan"),
+	})
+	require.NoError(t, err)
+
+	recentOrphanedFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID: user.ID, OrganizationID: org.ID, Name: "recent.png", Mimetype: "image/png", Data: []byte("recent"),
+	})
+	require.NoError(t, err)
+
+	// Backdate old files past the 24h threshold.
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chat_files SET created_at = $1 WHERE id = $2", now.Add(-48*time.Hour), orphanedFile.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chat_files SET created_at = $1 WHERE id = $2", now.Add(-48*time.Hour), referencedFile.ID)
+	require.NoError(t, err)
+
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	defer closer.Close()
+	<-done
+
+	_, err = db.GetChatFileByID(ctx, orphanedFile.ID)
+	require.Error(t, err, "orphaned file should be deleted after purge")
+	_, err = db.GetChatFileByID(ctx, referencedFile.ID)
+	require.NoError(t, err, "referenced file should still exist after purge")
+	_, err = db.GetChatFileByID(ctx, recentOrphanedFile.ID)
+	require.NoError(t, err, "recent orphaned file should still exist after purge")
+}
+
 // ptr is a helper to create a pointer to a value.
 func ptr[T any](v T) *T {
 	return &v

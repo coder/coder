@@ -2088,6 +2088,13 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 	}, q.db.DeleteOrganizationMember)(ctx, arg)
 }
 
+func (q *querier) DeleteOrphanedChatFiles(ctx context.Context, before time.Time) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOrphanedChatFiles(ctx, before)
+}
+
 func (q *querier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetProvisionerKeyByID, q.db.DeleteProvisionerKey)(ctx, id)
 }

@@ -144,6 +144,11 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
+	// Deletes chat_files rows older than the given threshold that are
+	// not referenced by any non-deleted chat message. File references
+	// live inside the JSONB content array of chat_messages as
+	// {"file_id": "<uuid>"} entries in file-type parts.
+	DeleteOrphanedChatFiles(ctx context.Context, before time.Time) (int64, error)
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteRuntimeConfig(ctx context.Context, key string) error

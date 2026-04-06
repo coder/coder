@@ -2870,6 +2870,30 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteOrphanedChatFiles = `-- name: DeleteOrphanedChatFiles :execrows
+DELETE FROM chat_files
+WHERE created_at < $1::timestamptz
+AND NOT EXISTS (
+    SELECT 1
+    FROM chat_messages cm,
+         jsonb_array_elements(cm.content) AS elem
+    WHERE (elem ->> 'file_id')::uuid = chat_files.id
+    AND cm.deleted = false
+)
+`
+
+// Deletes chat_files rows older than the given threshold that are
+// not referenced by any non-deleted chat message. File references
+// live inside the JSONB content array of chat_messages as
+// {"file_id": "<uuid>"} entries in file-type parts.
+func (q *sqlQuerier) DeleteOrphanedChatFiles(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOrphanedChatFiles, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getChatFileByID = `-- name: GetChatFileByID :one
 SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = $1::uuid
 `

@@ -34,6 +34,9 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
+	// Chat files not referenced by any chat message that are older
+	// than this threshold are considered orphaned and deleted.
+	maxOrphanedChatFileAge = 24 * time.Hour
 )
 
 // New creates a new periodically purging database instance.
@@ -213,12 +216,19 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		deleteOrphanedChatFilesBefore := start.Add(-maxOrphanedChatFileAge)
+		purgedChatFiles, err := tx.DeleteOrphanedChatFiles(ctx, deleteOrphanedChatFilesBefore)
+		if err != nil {
+			return xerrors.Errorf("failed to delete orphaned chat files: %w", err)
+		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
 			slog.F("aibridge_records", purgedAIBridgeRecords),
 			slog.F("connection_logs", purgedConnectionLogs),
 			slog.F("audit_logs", purgedAuditLogs),
+			slog.F("orphaned_chat_files", purgedChatFiles),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -232,6 +242,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
 			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+			i.recordsPurged.WithLabelValues("orphaned_chat_files").Add(float64(purgedChatFiles))
 		}
 
 		return nil
