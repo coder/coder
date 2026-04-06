@@ -1,11 +1,11 @@
 import { useTheme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { TrashIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { Stack } from "#/components/Stack/Stack";
 import {
@@ -110,15 +110,16 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 
 										<TableCell>
 											<span style={{ color: theme.palette.text.secondary }}>
-												<IconButton
+												<Button
 													onClick={() => {
 														onDelete(token);
 													}}
-													size="medium"
+													size="icon"
+													variant="destructive"
 													aria-label="Delete token"
 												>
 													<TrashIcon className="size-icon-sm" />
-												</IconButton>
+												</Button>
 											</span>
 										</TableCell>
 									</TableRow>
