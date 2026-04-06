@@ -27,7 +27,7 @@ export const LogLine: FC<LogLineProps> = ({ level, className, ...props }) => {
 				level === "error" &&
 					"bg-surface-error text-content-error [&_.dashed-line]:bg-border-error",
 				level === "debug" &&
-					"bg-surface-debug text-content-debug [&_.dashed-line]:bg-border-debug",
+					"bg-surface-sky text-content-sky [&_.dashed-line]:bg-border-sky",
 				level === "warn" &&
 					"bg-surface-warning text-content-warning [&_.dashed-line]:bg-border-warning",
 				className,
