@@ -7195,7 +7195,7 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
-//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+//nolint:tparallel // subtests share state via client, firstUser, modelConfig
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
 
@@ -7203,7 +7203,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
-	t.Run("EmptyByDefault", func(t *testing.T) {
+	t.Run("EmptyByDefault", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		thresholds, err := client.GetUserChatCompactionThresholds(ctx)
@@ -7211,7 +7211,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.Empty(t, thresholds.Thresholds)
 	})
 
-	t.Run("PutAndGet", func(t *testing.T) {
+	t.Run("PutAndGet", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7228,7 +7228,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("UpsertChangesValue", func(t *testing.T) {
+	t.Run("UpsertChangesValue", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7248,7 +7248,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("BoundaryValues", func(t *testing.T) {
+	t.Run("BoundaryValues", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7274,7 +7274,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 100, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("ValidationRejectsInvalid", func(t *testing.T) {
+	t.Run("ValidationRejectsInvalid", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -7288,7 +7288,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("Delete", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
@@ -7299,14 +7299,14 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.Empty(t, thresholds.Thresholds)
 	})
 
-	t.Run("DeleteIdempotent", func(t *testing.T) {
+	t.Run("DeleteIdempotent", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
 		require.NoError(t, err)
 	})
 
-	t.Run("NonExistentModelConfig", func(t *testing.T) {
+	t.Run("NonExistentModelConfig", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		fakeID := uuid.New()
@@ -7316,7 +7316,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("IsolatedPerUser", func(t *testing.T) {
+	t.Run("IsolatedPerUser", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
@@ -7376,6 +7376,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, err := client.GetChatTemplateAllowlist(ctx)
 		require.NoError(t, err)
@@ -7384,6 +7385,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("AdminCanSet", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ids := []string{tmpl1.ID.String(), tmpl2.ID.String()}
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: ids})
@@ -7395,6 +7397,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("AdminCanClear", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{}})
 		require.NoError(t, err)
@@ -7405,6 +7408,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("NonAdminReadFails", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
@@ -7414,6 +7418,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("NonAdminWriteFails", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
@@ -7424,6 +7429,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		anonClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		// Uses a random UUID — hits 401 before template validation.
@@ -7433,6 +7439,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("InvalidUUIDRejected", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{"not-a-uuid"}})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -7440,6 +7447,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("NonexistentTemplateRejected", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -7447,6 +7455,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("DeprecatedTemplateRejected", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{
 			TemplateIDs: []string{deprecatedTmpl.ID.String()},
@@ -7456,6 +7465,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("DeduplicatesIDs", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		id := tmpl1.ID.String()
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{
