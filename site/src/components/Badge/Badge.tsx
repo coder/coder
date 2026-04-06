@@ -16,18 +16,18 @@ const badgeVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"border border-solid border-surface-secondary bg-surface-secondary text-content-secondary shadow hover:bg-surface-tertiary",
+					"border-surface-secondary bg-surface-secondary text-content-secondary shadow",
 				warning:
-					"border border-solid border-border-warning bg-surface-orange text-content-warning shadow",
+					"border-border-warning bg-surface-orange text-content-warning shadow",
 				destructive:
-					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
+					"border-border-destructive bg-surface-red text-highlight-red shadow",
 				green:
-					"border border-solid border-border-green bg-surface-green text-highlight-green shadow",
+					"border-border-green bg-surface-green text-highlight-green shadow",
 				purple:
-					"border border-solid border-border-purple bg-surface-purple text-highlight-purple shadow",
+					"border-border-purple bg-surface-purple text-highlight-purple shadow",
 				magenta:
-					"border border-solid border-border-magenta bg-surface-magenta text-highlight-magenta shadow",
-				info: "border border-solid border-border-pending bg-surface-sky text-highlight-sky shadow",
+					"border-border-magenta bg-surface-magenta text-highlight-magenta shadow",
+				info: "border-border-pending bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
 				xs: "border-0 text-2xs font-normal h-[18px] [&_svg]:size-icon-xs rounded",

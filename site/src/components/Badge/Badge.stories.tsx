@@ -99,6 +99,38 @@ export const Green: Story = {
 	),
 };
 
+export const Purple: Story = {
+	render: () => (
+		<Badges>
+			<Badge variant="purple" size="xs">
+				Purple
+			</Badge>
+			<Badge variant="purple" size="sm">
+				Purple
+			</Badge>
+			<Badge variant="purple" size="md">
+				Purple
+			</Badge>
+		</Badges>
+	),
+};
+
+export const Magenta: Story = {
+	render: () => (
+		<Badges>
+			<Badge variant="magenta" size="xs">
+				Magenta
+			</Badge>
+			<Badge variant="magenta" size="sm">
+				Magenta
+			</Badge>
+			<Badge variant="magenta" size="md">
+				Magenta
+			</Badge>
+		</Badges>
+	),
+};
+
 export const SmallWithIcon: Story = {
 	render: () => (
 		<Badge variant="default" size="sm">
