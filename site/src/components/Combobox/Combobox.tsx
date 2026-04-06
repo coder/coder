@@ -1,6 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -16,7 +16,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { useDebouncedFunction } from "#/hooks/debounce";
 import { cn } from "#/utils/cn";
+
+const COMBOBOX_DEBOUNCE_MS = 300;
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -126,7 +129,55 @@ export const ComboboxContent = ({
 	);
 };
 
-export const ComboboxInput = CommandInput;
+type ComboboxInputProps = Omit<
+	React.ComponentPropsWithRef<typeof CommandInput>,
+	"onValueChange"
+> & {
+	onValueChange: NonNullable<
+		React.ComponentPropsWithRef<typeof CommandInput>["onValueChange"]
+	>;
+};
+
+export const ComboboxInput = ({
+	onValueChange,
+	value,
+	defaultValue,
+	onBlur,
+	...props
+}: ComboboxInputProps) => {
+	const [internalValue, setInternalValue] = useState<string>(
+		String(value ?? defaultValue ?? ""),
+	);
+	const externalValue = value === undefined ? undefined : String(value);
+	const lastExternalValueRef = useRef(externalValue);
+
+	if (externalValue !== lastExternalValueRef.current) {
+		lastExternalValueRef.current = externalValue;
+		setInternalValue(externalValue ?? "");
+	}
+
+	const { debounced, cancelDebounce } = useDebouncedFunction(
+		(nextValue: string) => {
+			onValueChange(nextValue);
+		},
+		COMBOBOX_DEBOUNCE_MS,
+	);
+
+	return (
+		<CommandInput
+			{...props}
+			onValueChange={(nextValue) => {
+				setInternalValue(nextValue);
+				debounced(nextValue);
+			}}
+			value={internalValue}
+			onBlur={(event) => {
+				cancelDebounce();
+				onBlur?.(event);
+			}}
+		/>
+	);
+};
 export const ComboboxList = CommandList;
 
 export const ComboboxItem = ({

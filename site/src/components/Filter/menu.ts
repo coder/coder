@@ -49,6 +49,10 @@ export const useFilterMenu = ({
 		enabled,
 	});
 	const searchOptions = useMemo(() => {
+		if (searchOptionsQuery.isFetching) {
+			return undefined;
+		}
+
 		const isDataLoaded =
 			searchOptionsQuery.isFetched && selectedOptionQuery.isFetched;
 
@@ -77,6 +81,7 @@ export const useFilterMenu = ({
 		query,
 		searchOptionsQuery.data,
 		searchOptionsQuery.isFetched,
+		searchOptionsQuery.isFetching,
 		selectedOption,
 	]);
 
