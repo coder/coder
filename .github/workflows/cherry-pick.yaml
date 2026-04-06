@@ -76,6 +76,12 @@ jobs:
           echo "Target branch: $RELEASE_BRANCH"
           echo "Backport branch: $BACKPORT_BRANCH"
 
+          # Check if backport branch already exists (idempotency for re-runs).
+          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
+            echo "Branch ${BACKPORT_BRANCH} already exists, skipping."
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -84,12 +90,23 @@ jobs:
 
           # Cherry-pick the merge commit. Use -x to record provenance and
           # -m1 to pick the first parent (the main branch side).
+          CONFLICT=false
           if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
+            CONFLICT=true
             echo "::warning::Cherry-pick to ${RELEASE_BRANCH} had conflicts."
 
-            # Stage conflicts so the PR can be opened for manual resolution.
-            git add -A
-            git -c core.editor=true cherry-pick --continue || true
+            # Abort the failed cherry-pick and create an empty commit with
+            # instructions so the PR can still be opened.
+            git cherry-pick --abort
+            git commit --allow-empty -m "cherry-pick of #${PR_NUMBER} failed — resolve conflicts manually
+
+          Cherry-pick of ${MERGE_SHA} onto ${RELEASE_BRANCH} had conflicts.
+          To resolve:
+            git fetch origin ${BACKPORT_BRANCH}
+            git checkout ${BACKPORT_BRANCH}
+            git cherry-pick -x -m1 ${MERGE_SHA}
+            # resolve conflicts
+            git push origin ${BACKPORT_BRANCH}"
           fi
 
           git push origin "$BACKPORT_BRANCH"
@@ -102,8 +119,13 @@ jobs:
           EOF
           )
 
+          TITLE="${PR_TITLE} (#${PR_NUMBER})"
+          if [ "$CONFLICT" = true ]; then
+            TITLE="[CONFLICT] ${TITLE}"
+          fi
+
           gh pr create \
             --base "$RELEASE_BRANCH" \
             --head "$BACKPORT_BRANCH" \
-            --title "${PR_TITLE} (#${PR_NUMBER})" \
+            --title "$TITLE" \
             --body "$BODY"
