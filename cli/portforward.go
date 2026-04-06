@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -193,6 +194,50 @@ func (r *RootCmd) portForward() *serpent.Command {
 			conn.AwaitReachable(ctx)
 			logger.Debug(ctx, "read to accept connections to forward")
 			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
+
+			// Watchdog: periodically verify the agent is still reachable. If
+			// the tailnet connection drops and does not recover (e.g. after a
+			// laptop sleep or network change), cancel the command context so
+			// the listeners close and the process exits instead of accepting
+			// connections into a dead backend. See coder/coder#10626.
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				const (
+					interval    = 5 * time.Second
+					timeout     = 10 * time.Second
+					maxFailures = 3
+				)
+				ticker := time.NewTicker(interval)
+				defer ticker.Stop()
+				failures := 0
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+					}
+					pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
+					reachable := conn.AwaitReachable(pingCtx)
+					pingCancel()
+					if reachable {
+						failures = 0
+						continue
+					}
+					if ctx.Err() != nil {
+						return
+					}
+					failures++
+					logger.Warn(ctx, "workspace agent unreachable",
+						slog.F("failures", failures), slog.F("max_failures", maxFailures))
+					if failures >= maxFailures {
+						_, _ = fmt.Fprintln(inv.Stderr, "Workspace agent unreachable, closing port-forward")
+						cancel()
+						return
+					}
+				}
+			}()
+
 			wg.Wait()
 			return closeErr
 		},
