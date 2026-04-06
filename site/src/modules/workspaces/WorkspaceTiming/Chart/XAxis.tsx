@@ -1,4 +1,10 @@
-import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
+import {
+	type FC,
+	type HTMLProps,
+	useCallback,
+	useLayoutEffect,
+	useRef,
+} from "react";
 import { cn } from "#/utils/cn";
 import { formatTime } from "./utils";
 
@@ -15,17 +21,41 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 	// The X axis should occupy all available space. If there is extra space,
 	// increase the column width accordingly. Use a CSS variable to propagate the
 	// value to the child components.
+	//
+	// A ResizeObserver supplements the synchronous measurement so that
+	// --x-axis-width stays correct when the available width changes *outside*
+	// React's render cycle (e.g. the MUI Collapse finishing its open animation,
+	// scrollbar appearance/disappearance, or window resize).
+	const tickCount = ticks.length;
+
+	const updateWidth = useCallback(
+		(el: HTMLElement) => {
+			// We always add one extra column to the grid to ensure that the last
+			// column is fully visible.
+			const avgWidth = el.clientWidth / (tickCount + 1);
+			const width = avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
+			el.style.setProperty("--x-axis-width", `${width}px`);
+		},
+		[tickCount],
+	);
+
 	useLayoutEffect(() => {
 		const rootEl = rootRef.current;
 		if (!rootEl) {
 			return;
 		}
-		// We always add one extra column to the grid to ensure that the last column
-		// is fully visible.
-		const avgWidth = rootEl.clientWidth / (ticks.length + 1);
-		const width = avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
-		rootEl.style.setProperty("--x-axis-width", `${width}px`);
-	}, [ticks]);
+
+		// Synchronous measurement prevents a flash of unstyled bars on first
+		// paint.
+		updateWidth(rootEl);
+
+		const observer = new ResizeObserver(() => {
+			updateWidth(rootEl);
+		});
+		observer.observe(rootEl);
+
+		return () => observer.disconnect();
+	}, [updateWidth]);
 
 	return (
 		<div

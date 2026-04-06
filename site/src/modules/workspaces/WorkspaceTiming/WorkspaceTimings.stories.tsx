@@ -49,6 +49,25 @@ export const ClickToOpen: Story = {
 		const canvas = within(canvasElement);
 		await user.click(canvas.getByText("Build timeline", { exact: false }));
 		await canvas.findByText("provisioning");
+
+		// Verify that --x-axis-width is set on the XAxis root after the
+		// Collapse animation so that bars render at proportional widths.
+		// Regression: https://github.com/coder/coder/issues/24055
+		await waitFor(() => {
+			const xAxisEl = canvasElement.querySelector("[style*='--x-axis-width']");
+			expect(xAxisEl).not.toBeNull();
+			const value = xAxisEl
+				?.computedStyleMap?.()
+				?.get?.("--x-axis-width")
+				?.toString();
+			// Fallback: read it from the inline style attribute directly.
+			const inlineValue =
+				xAxisEl instanceof HTMLElement
+					? xAxisEl.style.getPropertyValue("--x-axis-width")
+					: "";
+			const raw = value ?? inlineValue;
+			expect(raw).toBeTruthy();
+		});
 	},
 };
 
