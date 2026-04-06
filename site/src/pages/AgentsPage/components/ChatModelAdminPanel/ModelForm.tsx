@@ -330,7 +330,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8"
 					/>
 				)}
-				<div className="flex min-w-0 items-center gap-1">
+				<div className="inline-flex items-center gap-1">
+					{" "}
 					<input
 						type="text"
 						{...form.getFieldProps("displayName")}
