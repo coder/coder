@@ -42,6 +42,7 @@ Rules:
 - For each finding, include your practical judgment: is this worth fixing now, or is the current tradeoff acceptable? If there’s an obvious fix, mention it briefly.
 - Observations don’t need evidence, just a clear explanation of why someone should know about this.
 - Check the surrounding code for existing conventions. Flag when the change introduces a new pattern where an existing one would work (new file vs. extending existing, new naming scheme vs. established prefix, etc.).
+- Trace consumers of changed types and functions. When the diff adds fields to a struct, changes a function's return type, or introduces a new function that replaces or wraps an existing one, find all callers of the old type or function (use LSP references or grep). Check whether each caller handles the new semantics or silently uses stale logic. A new resolution function that coexists with the old one it was meant to replace is a class of bug: callers of the old function produce wrong results.
 - Note what the change does well. Good patterns are worth calling out so they get repeated.
 - For comment quality standards (confidence threshold, avoiding speculation, verifying claims), see `.claude/skills/code-review/SKILL.md` Comment Standards section.
 - If you find nothing, write a single line to the output file: “No findings.”
