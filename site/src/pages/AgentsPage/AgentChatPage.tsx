@@ -616,11 +616,17 @@ const AgentChatPage: FC = () => {
 	const chatMessagesList = (() => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages, then sort chronologically by ID.
+		// Collect all messages and deduplicate by ID.
+		// Cross-page duplication can occur when upsertCacheMessages
+		// writes a message into page 0 while the same ID still
+		// exists in a later page. Last occurrence wins so the
+		// most up-to-date content is preserved.
 		const all = pages.flatMap((p) => p.messages);
+		const byID = new Map(all.map((m) => [m.id, m]));
+		const deduped = Array.from(byID.values());
 		// Sort ascending by ID for chronological order.
-		all.sort((a, b) => a.id - b.id);
-		return all;
+		deduped.sort((a, b) => a.id - b.id);
+		return deduped;
 	})();
 
 	// Queued messages are only in the first page (most recent).
@@ -654,7 +660,7 @@ const AgentChatPage: FC = () => {
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
-	const { store, clearStreamError } = useChatStore({
+	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
@@ -891,6 +897,7 @@ const AgentChatPage: FC = () => {
 			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
+				upsertCacheMessages([response.message]);
 			}
 		}
 		if (selectedModelConfigID) {
@@ -935,10 +942,11 @@ const AgentChatPage: FC = () => {
 		store.setChatStatus("pending");
 		try {
 			const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
-			// Insert the promoted message into the store immediately
-			// so it appears in the timeline without waiting for the
-			// WebSocket to deliver it.
+			// Insert the promoted message into the store and cache
+			// immediately so it appears in the timeline without
+			// waiting for the WebSocket to deliver it.
 			store.upsertDurableMessage(promotedMessage);
+			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
 			store.setQueuedMessages(previousQueuedMessages);
 			store.setChatStatus(previousChatStatus);

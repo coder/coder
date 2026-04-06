@@ -701,3 +701,21 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 });
+
+describe("duplicate message deduplication", () => {
+	it("replaceMessages deduplicates orderedMessageIDs when input has duplicate IDs", () => {
+		const store = createChatStore();
+		const msg1 = makeMessage(1, "user", "hello");
+		const msg2 = makeMessage(2, "assistant", "hi");
+		// Simulate cross-page duplication: same ID appears twice.
+		const msg2Copy = makeMessage(2, "assistant", "hi");
+
+		store.replaceMessages([msg1, msg2, msg2Copy]);
+
+		const state = store.getSnapshot();
+		// Map deduplicates by key — only 2 unique entries.
+		expect(state.messagesByID.size).toBe(2);
+		// orderedMessageIDs MUST also have only 2 entries.
+		expect(state.orderedMessageIDs).toEqual([1, 2]);
+	});
+});
