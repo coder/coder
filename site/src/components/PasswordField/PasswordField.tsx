@@ -27,7 +27,7 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 	field,
 	value,
 	...props
-}: PasswordFieldProps) => {
+}) => {
 	const debouncedValue = useDebouncedValue(`${value}`, 500);
 	const validatePasswordQuery = useQuery({
 		queryKey: ["validatePassword", debouncedValue],
