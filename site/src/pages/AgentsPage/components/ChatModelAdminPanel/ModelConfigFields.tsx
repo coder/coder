@@ -504,28 +504,24 @@ const SchemaField: FC<SchemaFieldProps> = ({
 /**
  * How many grid columns a field should span in the 3-col layout.
  *   1 = default (inputs, booleans, small enums ≤3)
- *   2 = medium segmented controls (4–5 options)
- *   3 = full-width (6+ options, json textareas)
+ *   3 = full-width (4+ option enums, json textareas)
  */
-function colSpan(field: FieldSchema): 1 | 2 | 3 {
+function colSpan(field: FieldSchema): 1 | 3 {
 	if (field.input_type === "json") {
-		return 2;
+		return 3;
 	}
-	if (field.input_type === "select" && field.type !== "boolean") {
-		const count = field.enum?.length ?? 0;
-		if (count >= 6) {
-			return 3;
-		}
-		if (count >= 4) {
-			return 2;
-		}
+	if (
+		field.input_type === "select" &&
+		field.type !== "boolean" &&
+		(field.enum?.length ?? 0) > 3
+	) {
+		return 3;
 	}
 	return 1;
 }
 
-const colSpanClass: Record<1 | 2 | 3, string | undefined> = {
+const colSpanClass: Record<1 | 3, string | undefined> = {
 	1: undefined,
-	2: "sm:col-span-2",
 	3: "sm:col-span-full",
 };
 
