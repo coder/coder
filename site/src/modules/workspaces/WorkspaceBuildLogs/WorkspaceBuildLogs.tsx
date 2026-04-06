@@ -89,7 +89,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 						<div
 							className={cn(
 								"logs-header",
-								"flex items-center border-solid border-0 border-b border-border font-sans",
+								"flex items-center border-solid border-0 border-b last:border-b-0 border-border font-sans",
 								"bg-surface-primary text-xs font-semibold leading-none",
 								"first-of-type:pt-4",
 							)}
