@@ -333,18 +333,27 @@ export const ModelForm: FC<ModelFormProps> = ({
 					/>
 				)}
 				<div className="inline-flex items-center gap-1">
-					{" "}
-					<input
-						type="text"
-						{...form.getFieldProps("displayName")}
-						disabled={isSaving}
-						spellCheck={false}
-						size={Math.max(1, form.values.displayName?.length || 0)}
-						className="m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-						placeholder={
-							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
-						}
-					/>
+					<div className="relative inline-grid">
+						<span
+							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
+							aria-hidden="true"
+						>
+							{form.values.displayName ||
+								(isEditing
+									? (editingModel?.model ?? "Model name")
+									: "Model name")}
+						</span>
+						<input
+							type="text"
+							{...form.getFieldProps("displayName")}
+							disabled={isSaving}
+							spellCheck={false}
+							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+							placeholder={
+								isEditing ? (editingModel?.model ?? "Model name") : "Model name"
+							}
+						/>
+					</div>
 					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
 				{editingModel && (
