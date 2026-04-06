@@ -13,7 +13,7 @@ Factort's Droid agent can be configured to use AI Bridge by setting up custom mo
 {
   "customModels": [
     {
-      "model": "claude-4-5-opus",
+      "model": "claude-sonnet-4-5-20250929",
       "displayName": "Claude (Coder AI Bridge)",
       "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
       "apiKey": "<your-coder-session-token>",
