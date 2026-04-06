@@ -305,8 +305,6 @@ const SegmentedField: FC<
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 
-	const allOptions = [{ label: "Default", value: "" }, ...options];
-
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
 			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
@@ -318,25 +316,30 @@ const SegmentedField: FC<
 					fieldError && "border-content-destructive",
 				)}
 			>
-				{allOptions.map((opt) => (
-					<button
-						key={opt.value}
-						type="button"
-						role="radio"
-						aria-checked={currentValue === opt.value}
-						disabled={disabled}
-						className={cn(
-							"flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
-							currentValue === opt.value
-								? "bg-surface-secondary text-content-primary"
-								: "bg-transparent text-content-secondary hover:text-content-primary",
-							disabled && "pointer-events-none opacity-60",
-						)}
-						onClick={() => void form.setFieldValue(fieldKey, opt.value)}
-					>
-						{opt.label}
-					</button>
-				))}
+				{options.map((opt) => {
+					const isActive = currentValue === opt.value;
+					return (
+						<button
+							key={opt.value}
+							type="button"
+							role="radio"
+							aria-checked={isActive}
+							disabled={disabled}
+							className={cn(
+								"flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
+								isActive
+									? "bg-surface-secondary text-content-primary"
+									: "bg-transparent text-content-secondary hover:text-content-primary",
+								disabled && "pointer-events-none opacity-60",
+							)}
+							onClick={() =>
+								void form.setFieldValue(fieldKey, isActive ? "" : opt.value)
+							}
+						>
+							{opt.label}
+						</button>
+					);
+				})}
 			</div>
 			{fieldError && (
 				<p id={errorId} className="m-0 text-xs text-content-destructive">
