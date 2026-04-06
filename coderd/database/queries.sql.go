@@ -23707,12 +23707,10 @@ func (q *sqlQuerier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UU
 
 const getUserChatDebugLoggingEnabled = `-- name: GetUserChatDebugLoggingEnabled :one
 SELECT
-	COALESCE((
-		SELECT value = 'true'
-		FROM user_configs
-		WHERE user_id = $1
-			AND key = 'chat_debug_logging_enabled'
-	), false) :: boolean AS debug_logging_enabled
+	value = 'true' AS debug_logging_enabled
+FROM user_configs
+WHERE user_id = $1
+	AND key = 'chat_debug_logging_enabled'
 `
 
 func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error) {

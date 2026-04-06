@@ -215,12 +215,10 @@ DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
 
 -- name: GetUserChatDebugLoggingEnabled :one
 SELECT
-	COALESCE((
-		SELECT value = 'true'
-		FROM user_configs
-		WHERE user_id = @user_id
-			AND key = 'chat_debug_logging_enabled'
-	), false) :: boolean AS debug_logging_enabled;
+	value = 'true' AS debug_logging_enabled
+FROM user_configs
+WHERE user_id = @user_id
+	AND key = 'chat_debug_logging_enabled';
 
 -- name: UpsertUserChatDebugLoggingEnabled :exec
 INSERT INTO user_configs (user_id, key, value)
