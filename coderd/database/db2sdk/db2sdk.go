@@ -538,6 +538,12 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	switch {
 	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
 		workspaceAgent.Health.Reason = "agent is not running"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentConnecting:
+		// Note: the case above catches connecting+off as "not running".
+		// This case handles connecting agents with a non-off lifecycle
+		// (e.g. "created" or "starting"), where the agent binary has
+		// not yet established a connection to coderd.
+		workspaceAgent.Health.Reason = "agent has not yet connected"
 	case workspaceAgent.Status == codersdk.WorkspaceAgentTimeout:
 		workspaceAgent.Health.Reason = "agent is taking too long to connect"
 	case workspaceAgent.Status == codersdk.WorkspaceAgentDisconnected:
