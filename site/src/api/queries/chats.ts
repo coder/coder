@@ -991,6 +991,15 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
+const chatRuntimeSummaryKey = (params?: ChatCostDateParams) =>
+	[...chatsKey, "runtimeSummary", params] as const;
+
+export const chatRuntimeSummary = (params?: ChatCostDateParams) => ({
+	queryKey: chatRuntimeSummaryKey(params),
+	queryFn: () => API.experimental.getChatRuntimeSummary(params),
+	staleTime: 60_000,
+});
+
 export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
 	[...chatsKey, "costUsers", params] as const;
 

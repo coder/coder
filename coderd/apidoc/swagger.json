@@ -1103,6 +1103,36 @@
 				]
 			}
 		},
+		"/experimental/chats/runtime/summary": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Get chat runtime summary",
+				"operationId": "get-chat-runtime-summary",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Start date (RFC3339)",
+						"name": "start_date",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "End date (RFC3339)",
+						"name": "end_date",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatRuntimeSummary"
+						}
+					}
+				}
+			}
+		},
 		"/experimental/watch-all-workspacebuilds": {
 			"get": {
 				"produces": ["application/json"],
@@ -12956,6 +12986,46 @@
 			"type": "object",
 			"properties": {
 				"acquire_batch_size": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatRuntimeDay": {
+			"type": "object",
+			"properties": {
+				"date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"message_count": {
+					"type": "integer"
+				},
+				"total_runtime_ms": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatRuntimeSummary": {
+			"type": "object",
+			"properties": {
+				"daily": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatRuntimeDay"
+					}
+				},
+				"end_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"projected_yearly_runtime_ms": {
+					"type": "integer"
+				},
+				"start_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"total_runtime_ms": {
 					"type": "integer"
 				}
 			}

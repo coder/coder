@@ -380,6 +380,9 @@ const AgentSettingsUsagePage = lazy(
 const AgentSettingsInsightsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsInsightsPage"),
 );
+const AgentSettingsAgentHoursPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsAgentHoursPage"),
+);
 const AgentSettingsTemplatesPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsTemplatesPage"),
 );
@@ -715,6 +718,10 @@ export const router = createBrowserRouter(
 						<Route path="limits" element={<AgentSettingsLimitsPage />} />
 						<Route path="usage" element={<AgentSettingsUsagePage />} />
 						<Route path="insights" element={<AgentSettingsInsightsPage />} />
+						<Route
+							path="agent-hours"
+							element={<AgentSettingsAgentHoursPage />}
+						/>
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>
 					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}

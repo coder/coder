@@ -1878,6 +1878,28 @@ export interface ChatReasoningPart {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatRuntimeDay represents a single day's aggregated runtime.
+ */
+export interface ChatRuntimeDay {
+	readonly date: string;
+	readonly total_runtime_ms: number;
+	readonly message_count: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatRuntimeSummary is the response from the chat runtime summary endpoint.
+ */
+export interface ChatRuntimeSummary {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly total_runtime_ms: number;
+	readonly daily: readonly ChatRuntimeDay[];
+	readonly projected_yearly_runtime_ms: number;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**

@@ -727,6 +727,74 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+// @Summary Get chat runtime summary
+// @ID get-chat-runtime-summary
+// @Produce json
+// @Tags Chats
+// @Param start_date query string false "Start date (RFC3339)"
+// @Param end_date query string false "End date (RFC3339)"
+// @Success 200 {object} codersdk.ChatRuntimeSummary
+// @Router /experimental/chats/runtime/summary [get]
+func (api *API) chatRuntimeSummary(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Default date range: last 30 days.
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	rows, err := api.Database.GetChatRuntimeByDay(ctx, database.GetChatRuntimeByDayParams{
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	var totalRuntimeMs int64
+	daily := make([]codersdk.ChatRuntimeDay, 0, len(rows))
+	for _, row := range rows {
+		totalRuntimeMs += row.TotalRuntimeMs
+		daily = append(daily, codersdk.ChatRuntimeDay{
+			Date:           row.Date,
+			TotalRuntimeMs: row.TotalRuntimeMs,
+			MessageCount:   row.MessageCount,
+		})
+	}
+
+	// Project yearly runtime from the trailing period.
+	periodDays := endDate.Sub(startDate).Hours() / 24
+	var projectedYearly int64
+	if periodDays > 0 {
+		projectedYearly = int64(float64(totalRuntimeMs) / periodDays * 365)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatRuntimeSummary{
+		StartDate:                startDate,
+		EndDate:                  endDate,
+		TotalRuntimeMs:           totalRuntimeMs,
+		Daily:                    daily,
+		ProjectedYearlyRuntimeMs: projectedYearly,
+	})
+}
+
 func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {

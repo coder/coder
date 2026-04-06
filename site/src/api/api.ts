@@ -3474,6 +3474,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatRuntimeSummary = async (
+		params?: ChatCostDateParams,
+	): Promise<TypesGen.ChatRuntimeSummary> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/runtime/summary",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.ChatRuntimeSummary>(url);
+		return response.data;
+	};
+
 	getChatCostUsers = async (
 		params?: ChatCostUsersParams,
 	): Promise<TypesGen.ChatCostUsersResponse> => {

@@ -2023,6 +2023,52 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size` | integer | false    |              |             |
 
+## codersdk.ChatRuntimeDay
+
+```json
+{
+  "date": "2019-08-24T14:15:22Z",
+  "message_count": 0,
+  "total_runtime_ms": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `date`             | string  | false    |              |             |
+| `message_count`    | integer | false    |              |             |
+| `total_runtime_ms` | integer | false    |              |             |
+
+## codersdk.ChatRuntimeSummary
+
+```json
+{
+  "daily": [
+    {
+      "date": "2019-08-24T14:15:22Z",
+      "message_count": 0,
+      "total_runtime_ms": 0
+    }
+  ],
+  "end_date": "2019-08-24T14:15:22Z",
+  "projected_yearly_runtime_ms": 0,
+  "start_date": "2019-08-24T14:15:22Z",
+  "total_runtime_ms": 0
+}
+```
+
+### Properties
+
+| Name                          | Type                                                        | Required | Restrictions | Description |
+|-------------------------------|-------------------------------------------------------------|----------|--------------|-------------|
+| `daily`                       | array of [codersdk.ChatRuntimeDay](#codersdkchatruntimeday) | false    |              |             |
+| `end_date`                    | string                                                      | false    |              |             |
+| `projected_yearly_runtime_ms` | integer                                                     | false    |              |             |
+| `start_date`                  | string                                                      | false    |              |             |
+| `total_runtime_ms`            | integer                                                     | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
