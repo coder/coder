@@ -251,7 +251,8 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
-	MetadataBatcherOptions []metadatabatcher.Option
+	MetadataBatcherOptions   []metadatabatcher.Option
+	ConnectionBatcherOptions []agentapi.HeartbeatOption
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 	WorkspaceBuilderMetrics   *wsbuilder.Metrics
@@ -862,6 +863,17 @@ func New(options *Options) *API {
 	if err != nil {
 		api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
 	}
+
+	// Initialize the connection batcher for batching agent heartbeat writes.
+	connBatcherOpts := []agentapi.HeartbeatOption{
+		agentapi.WithHeartbeatLogger(options.Logger.Named("connection_batcher")),
+	}
+	connBatcherOpts = append(connBatcherOpts, options.ConnectionBatcherOptions...)
+	api.connectionBatcher = agentapi.NewHeartbeatBatcher(
+		api.ctx,
+		options.Database,
+		connBatcherOpts...,
+	)
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -2098,9 +2110,10 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter    *workspacestats.Reporter
-	metadataBatcher  *metadatabatcher.Batcher
-	lifecycleMetrics *agentapi.LifecycleMetrics
+	statsReporter     *workspacestats.Reporter
+	metadataBatcher   *metadatabatcher.Batcher
+	connectionBatcher *agentapi.HeartbeatBatcher
+	lifecycleMetrics  *agentapi.LifecycleMetrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -2178,6 +2191,9 @@ func (api *API) Close() error {
 	_ = api.statsReporter.Close()
 	if api.metadataBatcher != nil {
 		api.metadataBatcher.Close()
+	}
+	if api.connectionBatcher != nil {
+		api.connectionBatcher.Close()
 	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
