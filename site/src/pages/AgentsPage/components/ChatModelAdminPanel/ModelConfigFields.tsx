@@ -666,7 +666,9 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 								aria-describedby={fieldError ? errorId : undefined}
 							/>
 							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">/1M</span>
+								<span className="text-xs text-content-disabled">
+									USD/1M tokens
+								</span>
 							</InputGroupAddon>
 						</InputGroup>
 						{fieldError && (
