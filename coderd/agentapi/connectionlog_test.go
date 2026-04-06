@@ -152,7 +152,7 @@ func TestConnectionLog(t *testing.T) {
 					Int32: tt.status,
 					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
-				Ip:   expectedIP,
+				IP:   expectedIP,
 				Type: agentProtoConnectionTypeToConnectionLog(t, *tt.typ),
 				DisconnectReason: sql.NullString{
 					String: tt.reason,

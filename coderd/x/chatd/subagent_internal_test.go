@@ -122,13 +122,14 @@ func seedInternalChatDeps(
 
 	user := dbgen.User(t, db, database.User{})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		BaseUrl:     "",
-		ApiKeyKeyID: sql.NullString{},
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		BaseUrl:              "",
+		ApiKeyKeyID:          sql.NullString{},
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -1007,13 +1008,15 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		server.inflight.Wait()
+		server.drainInflight()
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 		// Trap the fallback poll ticker to know when the
-		// function has subscribed to pubsub and entered
-		// its select loop.
+		// function has entered the wait setup path. We still
+		// need an explicit subscription handshake below because
+		// the ticker can be created before SubscribeWithErr has
+		// finished registering the listener.
 		tickTrap := mClock.Trap().NewTicker("chatd", "subagent_poll")
 
 		type awaitResult struct {
@@ -1029,24 +1032,73 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 			resultCh <- awaitResult{chat, report, err}
 		}()
 
-		// Wait for the ticker to be created (confirms pubsub
-		// subscription is set up and select loop entered).
+		// Wait for the ticker to be created so the waiter has
+		// entered its setup path, then subscribe our own probe on
+		// the same channel. Because MemoryPubsub publishes only to
+		// listeners already present at Publish time, waiting for
+		// our probe to receive a message proves the waiter's
+		// subscription is also registered before we assert on the
+		// wake-up behavior.
 		tickTrap.MustWait(ctx).MustRelease(ctx)
 		tickTrap.Close()
 
-		// Transition child and publish. The pubsub notification
-		// wakes the function without needing a clock advance.
+		probeCh := make(chan struct{}, 1)
+		cancelProbe, err := ps.SubscribeWithErr(
+			coderdpubsub.ChatStreamNotifyChannel(child.ID),
+			func(_ context.Context, _ []byte, _ error) {
+				select {
+				case probeCh <- struct{}{}:
+				default:
+				}
+			},
+		)
+		require.NoError(t, err)
+		defer cancelProbe()
+
+		// Transition the child first, then publish once the
+		// durable completion state is observable. Pubsub only
+		// wakes the waiter; it does not guarantee the report is
+		// visible in the same instant as the notification.
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "pubsub result")
-		_ = ps.Publish(
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			chat, report, done, err := server.checkSubagentCompletion(ctx, child.ID)
+			require.NoError(c, err)
+			assert.True(c, done)
+			assert.Equal(c, child.ID, chat.ID)
+			assert.Equal(c, "pubsub result", report)
+		}, testutil.WaitMedium, testutil.IntervalFast)
+		require.NoError(t, ps.Publish(
 			coderdpubsub.ChatStreamNotifyChannel(child.ID),
 			[]byte("done"),
-		)
+		))
+		testutil.RequireReceive(ctx, t, probeCh)
 
 		result := testutil.RequireReceive(ctx, t, resultCh)
 		require.NoError(t, result.err)
 		assert.Equal(t, child.ID, result.chat.ID)
 		assert.Equal(t, "pubsub result", result.report)
+	})
+
+	t.Run("AlreadyWaitingNoReport", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// signalWake from CreateChat may trigger immediate processing.
+		// Wait for it to settle, then set the terminal state we need.
+		// This case should return immediately, so use the shared
+		// real-clock server instead of a mock clock.
+		server.drainInflight()
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+		gotChat, report, err := server.awaitSubagentCompletion(
+			ctx, parent.ID, child.ID, 5*time.Second,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, child.ID, gotChat.ID)
+		assert.Empty(t, report)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -1094,15 +1146,22 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, model)
 
-		// signalWake from CreateChat may have triggered background
-		// processing that transitions the child to "error". Wait
-		// for that to finish, then reset to "running" so the test
-		// exercises the context-cancellation path. Using "running"
-		// (not "pending") prevents re-acquisition by the shared
-		// server's background loop.
-		server.inflight.Wait()
+		// signalWake from CreateChat triggers background
+		// processing. drainInflight waits for in-flight goroutines
+		// but can't guarantee a pending DB row has been acquired
+		// yet — the child chat may still be pending if the second
+		// wake signal hasn't been consumed. Poll until the child
+		// reaches a terminal DB state so processChat has fully
+		// finished, then reset to running for the cancellation
+		// test.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			c, err := db.GetChatByID(ctx, child.ID)
+			if err != nil {
+				return false
+			}
+			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
+		}, testutil.IntervalFast)
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-
 		// Use a short-lived context instead of goroutine + sleep.
 		shortCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 		defer cancel()

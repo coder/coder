@@ -74,6 +74,8 @@ export const LargeTokenCounts: Story = {
 			token_usage_summary: {
 				input_tokens: 198_000,
 				output_tokens: 32_000,
+				cache_read_input_tokens: 150_000,
+				cache_write_input_tokens: 12_000,
 			},
 		},
 	},

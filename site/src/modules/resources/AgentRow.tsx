@@ -211,47 +211,49 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const logTabs = useMemo(
-		() =>
-			[
-				{
-					title: "All Logs",
-					value: "all",
-				},
-				...agent.log_sources
-					.filter((logSource) => {
-						return agentLogs.some(
-							(log) =>
-								log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-						);
-					})
-					.map((logSource) => ({
-						startIcon: logSource.icon ? (
-							<ExternalImage
-								src={logSource.icon}
-								alt=""
-								className="size-icon-xs shrink-0"
-							/>
-						) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-							<PlayIcon className="size-icon-xs shrink-0" />
-						) : null,
-						title: logSource.display_name,
-						value: logSource.id,
-					}))
-					.sort((a, b) => {
-						// Ensure that "Startup Script" is always the first tab.
-						const startupPriorityDiff =
-							Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
-							Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
-						return startupPriorityDiff || a.title.localeCompare(b.title);
-					}),
-			] as {
-				startIcon?: React.ReactNode;
-				title: string;
-				value: string;
-			}[],
-		[agent.log_sources, agentLogs],
-	);
+	const logTabs = useMemo(() => {
+		const sourceLogTabs = agent.log_sources
+			.filter((logSource) => {
+				// Remove the logSources that have no entries.
+				return agentLogs.some(
+					(log) =>
+						log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+				);
+			})
+			.map((logSource) => ({
+				// Show the icon for the log source if it has one.
+				// In the startup script case, we show a bespoke play icon.
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+			}));
+		const startupScriptLogTab = sourceLogTabs.find(
+			(tab) => tab.title === STARTUP_SCRIPT_DISPLAY_NAME,
+		);
+		const sortedSourceLogTabs = sourceLogTabs
+			.filter((tab) => tab !== startupScriptLogTab)
+			.sort((a, b) => a.title.localeCompare(b.title));
+		return [
+			{
+				title: "All Logs",
+				value: "all",
+			},
+			...(startupScriptLogTab ? [startupScriptLogTab] : []),
+			...sortedSourceLogTabs,
+		] as {
+			startIcon?: React.ReactNode;
+			title: string;
+			value: string;
+		}[];
+	}, [agent.log_sources, agentLogs]);
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
@@ -491,6 +493,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<DropdownMenuTrigger asChild>
 															<button
 																type="button"
+																data-slot="tabs-trigger"
 																data-log-overflow-trigger
 																data-state={
 																	overflowLogTabValuesSet.has(selectedLogTab)

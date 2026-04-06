@@ -416,6 +416,8 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const userChatProviderConfigsPath =
+	"/api/experimental/chats/user-provider-configs";
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
@@ -3396,6 +3398,34 @@ class ExperimentalApiMethods {
 	deleteChatModelConfig = async (modelConfigId: string): Promise<void> => {
 		await this.axios.delete(
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+		);
+	};
+
+	getUserChatProviderConfigs = async (): Promise<
+		TypesGen.UserChatProviderConfig[]
+	> => {
+		const response = await this.axios.get<TypesGen.UserChatProviderConfig[]>(
+			userChatProviderConfigsPath,
+		);
+		return response.data;
+	};
+
+	upsertUserChatProviderKey = async (
+		providerConfigId: string,
+		req: TypesGen.CreateUserChatProviderKeyRequest,
+	): Promise<TypesGen.UserChatProviderConfig> => {
+		const response = await this.axios.put<TypesGen.UserChatProviderConfig>(
+			`${userChatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteUserChatProviderKey = async (
+		providerConfigId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`${userChatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
 		);
 	};
 

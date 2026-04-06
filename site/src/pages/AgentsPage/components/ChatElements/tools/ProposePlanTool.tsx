@@ -2,6 +2,7 @@ import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -78,7 +79,12 @@ export const ProposePlanTool: React.FC<{
 				)}
 			</div>
 			{displayContent ? (
-				<Response>{displayContent}</Response>
+				<>
+					<Response>{displayContent}</Response>
+					<div className="flex">
+						<CopyButton text={displayContent} label="Copy plan" />
+					</div>
+				</>
 			) : (
 				!fetchLoading &&
 				!effectiveError && (

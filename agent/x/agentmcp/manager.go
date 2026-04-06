@@ -187,7 +187,11 @@ func (*Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Cl
 	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 
-	if err := c.Start(connectCtx); err != nil {
+	// Use the parent ctx (not connectCtx) so the subprocess outlives
+	// the connect/initialize handshake. connectCtx bounds only the
+	// Initialize call below. The subprocess is cleaned up when the
+	// Manager is closed or ctx is canceled.
+	if err := c.Start(ctx); err != nil {
 		_ = c.Close()
 		return nil, xerrors.Errorf("start %q: %w", cfg.Name, err)
 	}
