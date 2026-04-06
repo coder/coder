@@ -61,10 +61,17 @@ export const useKebabMenu = <T extends TabValue>({
 			return;
 		}
 
+		const tabWidthByValue = measureTabWidths({
+			tabs,
+			container,
+			previousTabWidthByValue: tabWidthByValueRef.current,
+		});
+		tabWidthByValueRef.current = tabWidthByValue;
+
 		const nextOverflowValues = calculateTabValues({
 			tabs,
 			container,
-			tabWidthByValueCache: tabWidthByValueRef.current,
+			tabWidthByValue,
 			overflowTriggerWidth,
 		});
 
@@ -123,28 +130,17 @@ export const useKebabMenu = <T extends TabValue>({
 const calculateTabValues = <T extends TabValue>({
 	tabs,
 	container,
-	tabWidthByValueCache,
+	tabWidthByValue,
 	overflowTriggerWidth,
 }: {
 	tabs: readonly T[];
 	container: HTMLDivElement;
-	tabWidthByValueCache: Record<string, number>;
+	tabWidthByValue: Readonly<Record<string, number>>;
 	overflowTriggerWidth: number;
 }): string[] => {
-	const getTabWidth = (tabValue: string): number => {
-		const tabElement = container.querySelector<HTMLElement>(
-			`[${DATA_ATTR_TAB_VALUE}="${tabValue}"]`,
-		);
-		if (tabElement) {
-			tabWidthByValueCache[tabValue] = tabElement.offsetWidth;
-		}
-		// Use cached width when a tab is currently hidden (not in the DOM).
-		return tabWidthByValueCache[tabValue] ?? 0;
-	};
-
-	const tabWidthByValue = new Map<string, number>();
+	const tabWidthByValueMap = new Map<string, number>();
 	for (const tab of tabs) {
-		tabWidthByValue.set(tab.value, getTabWidth(tab.value));
+		tabWidthByValueMap.set(tab.value, tabWidthByValue[tab.value] ?? 0);
 	}
 
 	const firstOptionalTabIndex = Math.min(
@@ -159,12 +155,12 @@ const calculateTabValues = <T extends TabValue>({
 	const optionalTabs = tabs.slice(firstOptionalTabIndex);
 	const availableWidth = container.clientWidth;
 	const alwaysVisibleWidth = alwaysVisibleTabs.reduce((total, tab) => {
-		return total + (tabWidthByValue.get(tab.value) ?? 0);
+		return total + (tabWidthByValueMap.get(tab.value) ?? 0);
 	}, 0);
 	const firstTabIndex = findFirstTabIndex({
 		optionalTabs,
 		optionalTabWidths: optionalTabs.map((tab) => {
-			return tabWidthByValue.get(tab.value) ?? 0;
+			return tabWidthByValueMap.get(tab.value) ?? 0;
 		}),
 		startingUsedWidth: alwaysVisibleWidth,
 		availableWidth,
@@ -178,6 +174,27 @@ const calculateTabValues = <T extends TabValue>({
 	return optionalTabs
 		.slice(firstTabIndex)
 		.map((overflowTab) => overflowTab.value);
+};
+
+const measureTabWidths = <T extends TabValue>({
+	tabs,
+	container,
+	previousTabWidthByValue,
+}: {
+	tabs: readonly T[];
+	container: HTMLDivElement;
+	previousTabWidthByValue: Readonly<Record<string, number>>;
+}): Record<string, number> => {
+	const nextTabWidthByValue = { ...previousTabWidthByValue };
+	for (const tab of tabs) {
+		const tabElement = container.querySelector<HTMLElement>(
+			`[${DATA_ATTR_TAB_VALUE}="${tab.value}"]`,
+		);
+		if (tabElement) {
+			nextTabWidthByValue[tab.value] = tabElement.offsetWidth;
+		}
+	}
+	return nextTabWidthByValue;
 };
 
 const findFirstTabIndex = ({
