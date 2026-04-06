@@ -10,7 +10,7 @@ type DownloadSelectedAgentLogsButtonProps = {
 	filenameSuffix: string;
 	logsText: string;
 	disabled?: boolean;
-	download?: (file: Blob, filename: string) => void;
+	download?: (file: Blob, filename: string) => void | Promise<void>;
 };
 
 export const DownloadSelectedAgentLogsButton: FC<
@@ -23,26 +23,26 @@ export const DownloadSelectedAgentLogsButton: FC<
 	download = saveAs,
 }) => {
 	const [isDownloading, setIsDownloading] = useState(false);
+	const handleDownload = async () => {
+		try {
+			setIsDownloading(true);
+			const file = new Blob([logsText], { type: "text/plain" });
+			await download(file, `${agentName}-${filenameSuffix}.txt`);
+		} catch (error) {
+			toast.error(`Failed to download "${agentName}" logs.`, {
+				description: getErrorDetail(error),
+			});
+		} finally {
+			setIsDownloading(false);
+		}
+	};
 
 	return (
 		<Button
 			variant="subtle"
 			size="sm"
 			disabled={disabled || isDownloading}
-			onClick={() => {
-				try {
-					setIsDownloading(true);
-					const file = new Blob([logsText], { type: "text/plain" });
-					download(file, `${agentName}-${filenameSuffix}.txt`);
-				} catch (error) {
-					console.error(error);
-					toast.error(`Failed to download "${agentName}" logs.`, {
-						description: getErrorDetail(error),
-					});
-				} finally {
-					setIsDownloading(false);
-				}
-			}}
+			onClick={handleDownload}
 		>
 			<DownloadIcon />
 			{isDownloading ? "Downloading..." : "Download logs"}
