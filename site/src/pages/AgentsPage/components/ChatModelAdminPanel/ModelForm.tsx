@@ -378,9 +378,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
-					{/* Essentials: Model ID, Context Limit, Pricing */}
+					{/* Model ID + Context Limit + Pricing */}
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
+							{" "}
 							<div className="grid gap-1.5">
 								<Label
 									htmlFor={modelField.id}
@@ -465,7 +466,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 											tokens
 										</span>
 									</InputGroupAddon>
-								</InputGroup>
+								</InputGroup>{" "}
 								{contextLimitField.error && (
 									<p className="m-0 text-xs text-content-destructive">
 										{contextLimitField.helperText}
@@ -482,8 +483,19 @@ export const ModelForm: FC<ModelFormProps> = ({
 							/>
 						</div>
 					</div>
-
-					{/* Configuration (provider-specific + advanced) */}
+					{/* Provider Configuration */}{" "}
+					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
+						<h3 className="m-0 text-xs font-medium text-content-secondary">
+							Provider Configuration
+						</h3>
+						<ModelConfigFields
+							provider={selectedProviderState.provider}
+							form={form}
+							fieldErrors={modelConfigFormBuildResult.fieldErrors}
+							disabled={isSaving}
+						/>
+					</div>
+					{/* Advanced */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
@@ -495,66 +507,58 @@ export const ModelForm: FC<ModelFormProps> = ({
 							) : (
 								<ChevronRightIcon className="h-3.5 w-3.5" />
 							)}
-							Configuration
+							Advanced
 						</button>
 						{showAdvanced && (
-							<div className="space-y-4 pt-3">
-								<ModelConfigFields
+							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
+								<GeneralModelConfigFields
 									provider={selectedProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
 								/>
-								<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-									<GeneralModelConfigFields
-										provider={selectedProviderState.provider}
-										form={form}
-										fieldErrors={modelConfigFormBuildResult.fieldErrors}
-										disabled={isSaving}
-									/>
-									<div className="flex min-w-0 flex-col gap-1.5">
-										<Label
-											htmlFor={compressionThresholdField.id}
-											className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
-										>
-											Compression Threshold
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<InfoIcon className="h-3 w-3 text-content-secondary" />
-												</TooltipTrigger>
-												<TooltipContent side="top" className="max-w-[240px]">
-													Percentage at which context is compressed.
-												</TooltipContent>
-											</Tooltip>
-										</Label>
-										<InputGroup
-											className={cn(
-												"h-9",
-												compressionThresholdField.error &&
-													"border-border-destructive",
-											)}
-										>
-											<InputGroupInput
-												id={compressionThresholdField.id}
-												name={compressionThresholdField.name}
-												className="h-9 text-[13px] placeholder:text-content-disabled"
-												placeholder="70"
-												value={compressionThresholdField.value}
-												onChange={compressionThresholdField.onChange}
-												onBlur={compressionThresholdField.onBlur}
-												disabled={isSaving}
-												aria-invalid={compressionThresholdField.error}
-											/>
-											<InputGroupAddon align="inline-end">
-												<span className="text-xs text-content-disabled">%</span>
-											</InputGroupAddon>
-										</InputGroup>
-										{compressionThresholdField.error && (
-											<p className="m-0 text-xs text-content-destructive">
-												{compressionThresholdField.helperText}
-											</p>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label
+										htmlFor={compressionThresholdField.id}
+										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+									>
+										Compression Threshold
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<InfoIcon className="h-3 w-3 text-content-secondary" />
+											</TooltipTrigger>
+											<TooltipContent side="top" className="max-w-[240px]">
+												Percentage at which context is compressed.
+											</TooltipContent>
+										</Tooltip>
+									</Label>
+									<InputGroup
+										className={cn(
+											"h-9",
+											compressionThresholdField.error &&
+												"border-border-destructive",
 										)}
-									</div>
+									>
+										<InputGroupInput
+											id={compressionThresholdField.id}
+											name={compressionThresholdField.name}
+											className="h-9 text-[13px] placeholder:text-content-disabled"
+											placeholder="70"
+											value={compressionThresholdField.value}
+											onChange={compressionThresholdField.onChange}
+											onBlur={compressionThresholdField.onBlur}
+											disabled={isSaving}
+											aria-invalid={compressionThresholdField.error}
+										/>
+										<InputGroupAddon align="inline-end">
+											<span className="text-xs text-content-disabled">%</span>
+										</InputGroupAddon>
+									</InputGroup>
+									{compressionThresholdField.error && (
+										<p className="m-0 text-xs text-content-destructive">
+											{compressionThresholdField.helperText}
+										</p>
+									)}
 								</div>
 							</div>
 						)}
