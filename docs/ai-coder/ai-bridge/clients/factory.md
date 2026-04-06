@@ -2,7 +2,7 @@
 
 Factort's Droid agent can be configured to use AI Bridge by setting up custom models for OpenAI and Anthropic.
 
-## Configuration
+## Centralized API Key
 
 1. Open `~/.factory/settings.json` (create it if it does not exist).
 2. Add a `customModels` entry for each provider you want to use with AI Bridge.
@@ -27,6 +27,40 @@ Factort's Droid agent can be configured to use AI Bridge by setting up custom mo
       "apiKey": "<your-coder-session-token>",
       "provider": "openai",
       "maxOutputTokens": 16384
+    }
+  ]
+}
+```
+
+## BYOK (Personal API Key)
+
+1. Open `~/.factory/settings.json` (create it if it does not exist).
+2. Add a `customModels` entry with your personal API key and the `X-Coder-AI-Governance-Token` header set to your Coder session token.
+
+```json
+{
+  "customModels": [
+    {
+      "model": "claude-sonnet-4-5-20250929",
+      "displayName": "Claude (Coder AI Bridge)",
+      "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
+      "apiKey": "<your-anthropic-api-key>",
+      "provider": "anthropic",
+      "maxOutputTokens": 8192,
+      "extraHeaders": {
+        "X-Coder-AI-Governance-Token": "<your-coder-session-token>"
+      }
+    },
+    {
+      "model": "gpt-5.2-codex",
+      "displayName": "GPT (Coder AI Bridge)",
+      "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1",
+      "apiKey": "<your-openai-api-key>",
+      "provider": "openai",
+      "maxOutputTokens": 16384,
+      "extraHeaders": {
+        "X-Coder-AI-Governance-Token": "<your-coder-session-token>"
+      }
     }
   ]
 }
