@@ -700,10 +700,11 @@ func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.P
 }
 
 type param struct {
-	name    string
-	ptype   string
-	value   string
-	mutable bool
+	name     string
+	ptype    string
+	value    string
+	mutable  bool
+	required bool
 }
 
 func TestCreateWithRichParameters(t *testing.T) {
@@ -946,6 +947,31 @@ func TestCreateWithRichParameters(t *testing.T) {
 			withDefaults: true,
 		},
 		{
+			// Empty string defaults should be accepted without
+			// prompting when --use-parameter-defaults is set.
+			// Regression test for #23170.
+			name: "UseParameterDefaultsAcceptsEmptyString",
+			setup: func() []string {
+				return []string{"--use-parameter-defaults"}
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				// All parameters have explicit defaults (including
+				// an empty string), so no interactive parameter
+				// prompts should appear.
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+			inputParameters: []param{
+				{name: "non_empty_param", ptype: "string", value: "hello", mutable: true},
+				{name: "empty_default_param", ptype: "string", value: "", mutable: true},
+			},
+			expectedParameters: []param{
+				{name: "non_empty_param", value: "hello"},
+				{name: "empty_default_param", value: ""},
+			},
+		},
+		{
 			name: "ValuesFromDefaultFlagsNoPrompt",
 			setup: func() []string {
 				// Provide the defaults on the command line.
@@ -1009,7 +1035,7 @@ cli_param: from file`)
 					value: "from template default",
 				},
 				{
-					name: "input_param",
+					name: "input_param", required: true,
 				},
 			},
 			expectedParameters: []param{
@@ -1049,11 +1075,16 @@ cli_param: from file`)
 				if tt.withDefaults {
 					defaultValue = param.value
 				}
+				// When withDefaults is false, all parameters have no
+				// default and are required. When withDefaults is true,
+				// use the param's explicit required field.
+				required := !tt.withDefaults || param.required
 				rparams = append(rparams, &proto.RichParameter{
 					Name:         param.name,
 					Type:         param.ptype,
 					Mutable:      param.mutable,
 					DefaultValue: defaultValue,
+					Required:     required,
 					Order:        int32(i), //nolint:gosec
 				})
 			}

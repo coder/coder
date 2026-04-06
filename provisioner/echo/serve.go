@@ -651,10 +651,19 @@ func ParameterTerraform(param *proto.RichParameter) (string, error) {
 			return string(s)
 		},
 		"hasDefault": func(v *proto.RichParameter) bool {
-			// Emit default when the value is explicitly non-empty,
-			// or when the parameter is ephemeral (ephemeral params
-			// always need a default, even if it's an empty string).
-			return v.DefaultValue != "" || v.Ephemeral
+			if v.DefaultValue != "" || v.Ephemeral {
+				return true
+			}
+			// Only emit an empty-string default for string-like types
+			// where "" is valid Terraform. For number and bool, an
+			// empty string default would be invalid.
+			if !v.Required {
+				switch v.Type {
+				case "string", "list(string)":
+					return true
+				}
+			}
+			return false
 		},
 	}).Parse(`
 data "coder_parameter" "{{ .Name }}" {
