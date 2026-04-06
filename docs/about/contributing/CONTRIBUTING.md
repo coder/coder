@@ -301,8 +301,8 @@ cherry-pick the merge commit onto each one, and open PRs for
 review.
 
 The label can be added before or after the PR is merged. Each backport
-PR reuses the original title with a version suffix (e.g.
-`fix(site): correct button alignment (2.32)`) so the change is
+PR reuses the original title (e.g.
+`fix(site): correct button alignment (#12345)`) so the change is
 meaningful in release notes.
 
 If the cherry-pick encounters conflicts, the backport PR is still
