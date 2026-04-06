@@ -345,6 +345,7 @@ type ChatInputPart struct {
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	Content       []ChatInputPart   `json:"content"`
+	SystemPrompt  string            `json:"system_prompt,omitempty"`
 	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`

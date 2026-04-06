@@ -2382,6 +2382,7 @@ export interface CreateChatProviderConfigRequest {
  */
 export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
+	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];

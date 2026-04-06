@@ -886,7 +886,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert chat: %w", err)
 		}
 
-		systemPrompt := strings.TrimSpace(opts.SystemPrompt)
+		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+		userPrompt := SanitizePromptText(opts.SystemPrompt)
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
@@ -908,16 +909,32 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			ChatID: insertedChat.ID,
 		}
 
-		if systemPrompt != "" {
-			systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(systemPrompt),
+		if deploymentPrompt != "" {
+			deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(deploymentPrompt),
 			})
 			if err != nil {
-				return xerrors.Errorf("marshal system prompt: %w", err)
+				return xerrors.Errorf("marshal deployment system prompt: %w", err)
 			}
 			appendChatMessage(&msgParams, newChatMessage(
 				database.ChatMessageRoleSystem,
-				systemContent,
+				deploymentContent,
+				database.ChatMessageVisibilityModel,
+				opts.ModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+
+		if userPrompt != "" {
+			userPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(userPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal user system prompt: %w", err)
+			}
+			appendChatMessage(&msgParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				userPromptContent,
 				database.ChatMessageVisibilityModel,
 				opts.ModelConfigID,
 				chatprompt.CurrentContentVersion,
@@ -5227,6 +5244,37 @@ func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid
 		return 0, false
 	}
 	return int32(val), true
+}
+
+// resolveDeploymentSystemPrompt builds the deployment-level system
+// prompt from the built-in default and the admin-configured custom
+// prompt stored in site_configs.
+func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
+	config, err := p.db.GetChatSystemPromptConfig(ctx)
+	if err != nil {
+		// Fail open: use the built-in default so chats always have
+		// some system guidance.
+		p.logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
+		return DefaultSystemPrompt
+	}
+
+	sanitizedCustom := SanitizePromptText(config.ChatSystemPrompt)
+	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
+		p.logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
+	}
+
+	var parts []string
+	if config.IncludeDefaultSystemPrompt {
+		parts = append(parts, DefaultSystemPrompt)
+	}
+	if sanitizedCustom != "" {
+		parts = append(parts, sanitizedCustom)
+	}
+	result := strings.Join(parts, "\n\n")
+	if result == "" {
+		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
+	}
+	return result
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the
