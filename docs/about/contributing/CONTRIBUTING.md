@@ -285,8 +285,8 @@ release, use one of these labels:
 Both labels can be added before or after the PR is merged. The
 automation detects the target `release/*` branches, cherry-picks the
 merge commit, and opens PRs for review. Each PR reuses the original
-title with a version suffix (e.g.
-`fix(site): correct button alignment (#12345) (2.32)`) so the change is
+title (e.g.
+`fix(site): correct button alignment (#12345)`) so the change is
 meaningful in release notes.
 
 If the cherry-pick encounters conflicts, the PR is still created with
