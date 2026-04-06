@@ -1199,18 +1199,18 @@ func (mr *MockStoreMockRecorder) DeleteUserChatProviderKey(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatProviderKey", reflect.TypeOf((*MockStore)(nil).DeleteUserChatProviderKey), ctx, arg)
 }
 
-// DeleteUserSecret mocks base method.
-func (m *MockStore) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
+// DeleteUserSecretByUserIDAndName mocks base method.
+func (m *MockStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUserSecret", ctx, id)
+	ret := m.ctrl.Call(m, "DeleteUserSecretByUserIDAndName", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteUserSecret indicates an expected call of DeleteUserSecret.
-func (mr *MockStoreMockRecorder) DeleteUserSecret(ctx, id any) *gomock.Call {
+// DeleteUserSecretByUserIDAndName indicates an expected call of DeleteUserSecretByUserIDAndName.
+func (mr *MockStoreMockRecorder) DeleteUserSecretByUserIDAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserSecret", reflect.TypeOf((*MockStore)(nil).DeleteUserSecret), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserSecretByUserIDAndName", reflect.TypeOf((*MockStore)(nil).DeleteUserSecretByUserIDAndName), ctx, arg)
 }
 
 // DeleteWebpushSubscriptionByUserIDAndEndpoint mocks base method.
@@ -4892,21 +4892,6 @@ func (mr *MockStoreMockRecorder) GetUserNotificationPreferences(ctx, userID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserNotificationPreferences", reflect.TypeOf((*MockStore)(nil).GetUserNotificationPreferences), ctx, userID)
 }
 
-// GetUserSecret mocks base method.
-func (m *MockStore) GetUserSecret(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserSecret", ctx, id)
-	ret0, _ := ret[0].(database.UserSecret)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserSecret indicates an expected call of GetUserSecret.
-func (mr *MockStoreMockRecorder) GetUserSecret(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecret", reflect.TypeOf((*MockStore)(nil).GetUserSecret), ctx, id)
-}
-
 // GetUserSecretByUserIDAndName mocks base method.
 func (m *MockStore) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	m.ctrl.T.Helper()
@@ -7382,10 +7367,10 @@ func (mr *MockStoreMockRecorder) ListUserChatCompactionThresholds(ctx, userID an
 }
 
 // ListUserSecrets mocks base method.
-func (m *MockStore) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+func (m *MockStore) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.ListUserSecretsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListUserSecrets", ctx, userID)
-	ret0, _ := ret[0].([]database.UserSecret)
+	ret0, _ := ret[0].([]database.ListUserSecretsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7394,6 +7379,21 @@ func (m *MockStore) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]da
 func (mr *MockStoreMockRecorder) ListUserSecrets(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserSecrets", reflect.TypeOf((*MockStore)(nil).ListUserSecrets), ctx, userID)
+}
+
+// ListUserSecretsWithValues mocks base method.
+func (m *MockStore) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserSecretsWithValues", ctx, userID)
+	ret0, _ := ret[0].([]database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserSecretsWithValues indicates an expected call of ListUserSecretsWithValues.
+func (mr *MockStoreMockRecorder) ListUserSecretsWithValues(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserSecretsWithValues", reflect.TypeOf((*MockStore)(nil).ListUserSecretsWithValues), ctx, userID)
 }
 
 // ListWorkspaceAgentPortShares mocks base method.
@@ -8824,19 +8824,19 @@ func (mr *MockStoreMockRecorder) UpdateUserRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRoles", reflect.TypeOf((*MockStore)(nil).UpdateUserRoles), ctx, arg)
 }
 
-// UpdateUserSecret mocks base method.
-func (m *MockStore) UpdateUserSecret(ctx context.Context, arg database.UpdateUserSecretParams) (database.UserSecret, error) {
+// UpdateUserSecretByUserIDAndName mocks base method.
+func (m *MockStore) UpdateUserSecretByUserIDAndName(ctx context.Context, arg database.UpdateUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserSecret", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdateUserSecretByUserIDAndName", ctx, arg)
 	ret0, _ := ret[0].(database.UserSecret)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateUserSecret indicates an expected call of UpdateUserSecret.
-func (mr *MockStoreMockRecorder) UpdateUserSecret(ctx, arg any) *gomock.Call {
+// UpdateUserSecretByUserIDAndName indicates an expected call of UpdateUserSecretByUserIDAndName.
+func (mr *MockStoreMockRecorder) UpdateUserSecretByUserIDAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserSecret", reflect.TypeOf((*MockStore)(nil).UpdateUserSecret), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserSecretByUserIDAndName", reflect.TypeOf((*MockStore)(nil).UpdateUserSecretByUserIDAndName), ctx, arg)
 }
 
 // UpdateUserStatus mocks base method.

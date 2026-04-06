@@ -152,7 +152,7 @@ type sqlcQuerier interface {
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
 	DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error
 	DeleteUserChatProviderKey(ctx context.Context, arg DeleteUserChatProviderKeyParams) error
-	DeleteUserSecret(ctx context.Context, id uuid.UUID) error
+	DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) error
 	DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error
 	DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error
 	DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error
@@ -594,7 +594,6 @@ type sqlcQuerier interface {
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
-	GetUserSecret(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
@@ -805,7 +804,13 @@ type sqlcQuerier interface {
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error)
-	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error)
+	// Returns metadata only (no value or value_key_id) for the
+	// REST API list and get endpoints.
+	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]ListUserSecretsRow, error)
+	// Returns all columns including the secret value. Used by the
+	// provisioner (build-time injection) and the agent manifest
+	// (runtime injection).
+	ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]UserSecret, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
@@ -942,7 +947,7 @@ type sqlcQuerier interface {
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
-	UpdateUserSecret(ctx context.Context, arg UpdateUserSecretParams) (UserSecret, error)
+	UpdateUserSecretByUserIDAndName(ctx context.Context, arg UpdateUserSecretByUserIDAndNameParams) (UserSecret, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)

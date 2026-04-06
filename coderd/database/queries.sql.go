@@ -22486,21 +22486,30 @@ INSERT INTO user_secrets (
     name,
     description,
     value,
+    value_key_id,
     env_name,
     file_path
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8
 ) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
 `
 
 type CreateUserSecretParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Value       string    `db:"value" json:"value"`
-	EnvName     string    `db:"env_name" json:"env_name"`
-	FilePath    string    `db:"file_path" json:"file_path"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Name        string         `db:"name" json:"name"`
+	Description string         `db:"description" json:"description"`
+	Value       string         `db:"value" json:"value"`
+	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	EnvName     string         `db:"env_name" json:"env_name"`
+	FilePath    string         `db:"file_path" json:"file_path"`
 }
 
 func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
@@ -22510,6 +22519,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 		arg.Name,
 		arg.Description,
 		arg.Value,
+		arg.ValueKeyID,
 		arg.EnvName,
 		arg.FilePath,
 	)
@@ -22529,41 +22539,24 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 	return i, err
 }
 
-const deleteUserSecret = `-- name: DeleteUserSecret :exec
+const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :exec
 DELETE FROM user_secrets
-WHERE id = $1
+WHERE user_id = $1 AND name = $2
 `
 
-func (q *sqlQuerier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteUserSecret, id)
+type DeleteUserSecretByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
 	return err
 }
 
-const getUserSecret = `-- name: GetUserSecret :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id FROM user_secrets
-WHERE id = $1
-`
-
-func (q *sqlQuerier) GetUserSecret(ctx context.Context, id uuid.UUID) (UserSecret, error) {
-	row := q.db.QueryRowContext(ctx, getUserSecret, id)
-	var i UserSecret
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Name,
-		&i.Description,
-		&i.Value,
-		&i.EnvName,
-		&i.FilePath,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ValueKeyID,
-	)
-	return i, err
-}
-
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id FROM user_secrets
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
 
@@ -22591,13 +22584,72 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 }
 
 const listUserSecrets = `-- name: ListUserSecrets :many
-SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id FROM user_secrets
+SELECT
+    id, user_id, name, description,
+    env_name, file_path,
+    created_at, updated_at
+FROM user_secrets
 WHERE user_id = $1
 ORDER BY name ASC
 `
 
-func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error) {
+type ListUserSecretsRow struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Returns metadata only (no value or value_key_id) for the
+// REST API list and get endpoints.
+func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]ListUserSecretsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUserSecrets, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserSecretsRow
+	for rows.Next() {
+		var i ListUserSecretsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.EnvName,
+			&i.FilePath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserSecretsWithValues = `-- name: ListUserSecretsWithValues :many
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+FROM user_secrets
+WHERE user_id = $1
+ORDER BY name ASC
+`
+
+// Returns all columns including the secret value. Used by the
+// provisioner (build-time injection) and the agent manifest
+// (runtime injection).
+func (q *sqlQuerier) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]UserSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSecretsWithValues, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -22630,33 +22682,46 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]U
 	return items, nil
 }
 
-const updateUserSecret = `-- name: UpdateUserSecret :one
+const updateUserSecretByUserIDAndName = `-- name: UpdateUserSecretByUserIDAndName :one
 UPDATE user_secrets
 SET
-    description = $2,
-    value = $3,
-    env_name = $4,
-    file_path = $5,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+    value       = CASE WHEN $1::bool THEN $2 ELSE value END,
+    value_key_id = CASE WHEN $1::bool THEN $3 ELSE value_key_id END,
+    description = CASE WHEN $4::bool THEN $5 ELSE description END,
+    env_name    = CASE WHEN $6::bool THEN $7 ELSE env_name END,
+    file_path   = CASE WHEN $8::bool THEN $9 ELSE file_path END,
+    updated_at  = CURRENT_TIMESTAMP
+WHERE user_id = $10 AND name = $11
 RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
 `
 
-type UpdateUserSecretParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Description string    `db:"description" json:"description"`
-	Value       string    `db:"value" json:"value"`
-	EnvName     string    `db:"env_name" json:"env_name"`
-	FilePath    string    `db:"file_path" json:"file_path"`
+type UpdateUserSecretByUserIDAndNameParams struct {
+	UpdateValue       bool           `db:"update_value" json:"update_value"`
+	Value             string         `db:"value" json:"value"`
+	ValueKeyID        sql.NullString `db:"value_key_id" json:"value_key_id"`
+	UpdateDescription bool           `db:"update_description" json:"update_description"`
+	Description       string         `db:"description" json:"description"`
+	UpdateEnvName     bool           `db:"update_env_name" json:"update_env_name"`
+	EnvName           string         `db:"env_name" json:"env_name"`
+	UpdateFilePath    bool           `db:"update_file_path" json:"update_file_path"`
+	FilePath          string         `db:"file_path" json:"file_path"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	Name              string         `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) UpdateUserSecret(ctx context.Context, arg UpdateUserSecretParams) (UserSecret, error) {
-	row := q.db.QueryRowContext(ctx, updateUserSecret,
-		arg.ID,
-		arg.Description,
+func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg UpdateUserSecretByUserIDAndNameParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, updateUserSecretByUserIDAndName,
+		arg.UpdateValue,
 		arg.Value,
+		arg.ValueKeyID,
+		arg.UpdateDescription,
+		arg.Description,
+		arg.UpdateEnvName,
 		arg.EnvName,
+		arg.UpdateFilePath,
 		arg.FilePath,
+		arg.UserID,
+		arg.Name,
 	)
 	var i UserSecret
 	err := row.Scan(
