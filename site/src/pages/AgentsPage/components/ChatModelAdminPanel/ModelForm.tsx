@@ -480,50 +480,59 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 					{/* Usage Tracking */}
 					<div className="border-0 border-t border-solid border-border pt-4">
-						{" "}
 						<button
 							type="button"
 							onClick={() => setShowPricing((v) => !v)}
-							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Usage Tracking
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Set per-token pricing so Coder can track costs and enforce
+									spending limits.
+								</p>
+							</div>
 							{showPricing ? (
-								<ChevronDownIcon className="h-3.5 w-3.5" />
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="h-3.5 w-3.5" />
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							)}
-							Usage Tracking
 						</button>
 						{showPricing && (
-							<div className="space-y-3 pt-3">
-								<p className="m-0 text-xs text-content-secondary">
-									Used by Coder to track usage and enforce spending limits.
-								</p>
-								<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-									<PricingModelConfigFields
-										provider={selectedProviderState.provider}
-										form={form}
-										fieldErrors={modelConfigFormBuildResult.fieldErrors}
-										disabled={isSaving}
-									/>
-								</div>
+							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
+								<PricingModelConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
 							</div>
 						)}
 					</div>
 
 					{/* Provider Configuration */}
 					<div className="border-0 border-t border-solid border-border pt-4">
-						{" "}
 						<button
 							type="button"
 							onClick={() => setShowProviderConfig((v) => !v)}
-							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Provider Configuration
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Tune provider-specific behavior like reasoning, tool calling,
+									and web search.
+								</p>
+							</div>
 							{showProviderConfig ? (
-								<ChevronDownIcon className="h-3.5 w-3.5" />
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="h-3.5 w-3.5" />
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							)}
-							Provider Configuration
 						</button>
 						{showProviderConfig && (
 							<div className="pt-3">
@@ -539,18 +548,25 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 					{/* Advanced */}
 					<div className="border-0 border-t border-solid border-border pt-4">
-						{" "}
 						<button
 							type="button"
 							onClick={() => setShowAdvanced((v) => !v)}
-							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Advanced
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Low-level parameters like temperature and penalties. Rarely
+									need changing.
+								</p>
+							</div>
 							{showAdvanced ? (
-								<ChevronDownIcon className="h-3.5 w-3.5" />
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="h-3.5 w-3.5" />
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							)}
-							Advanced
 						</button>
 						{showAdvanced && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
