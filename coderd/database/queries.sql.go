@@ -4530,7 +4530,8 @@ WITH chat_costs AS (
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
         COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
     WHERE c.owner_id = $1::uuid
@@ -4547,7 +4548,8 @@ SELECT
     cc.total_input_tokens,
     cc.total_output_tokens,
     cc.total_cache_read_tokens,
-    cc.total_cache_creation_tokens
+    cc.total_cache_creation_tokens,
+    cc.total_runtime_ms
 FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC
@@ -4568,6 +4570,7 @@ type GetChatCostPerChatRow struct {
 	TotalOutputTokens        int64     `db:"total_output_tokens" json:"total_output_tokens"`
 	TotalCacheReadTokens     int64     `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
 }
 
 // Per-root-chat cost breakdown for a single user within a date range.
@@ -4591,6 +4594,7 @@ func (q *sqlQuerier) GetChatCostPerChat(ctx context.Context, arg GetChatCostPerC
 			&i.TotalOutputTokens,
 			&i.TotalCacheReadTokens,
 			&i.TotalCacheCreationTokens,
+			&i.TotalRuntimeMs,
 		); err != nil {
 			return nil, err
 		}
@@ -4622,7 +4626,8 @@ SELECT
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM
     chat_messages cm
 JOIN
@@ -4657,6 +4662,7 @@ type GetChatCostPerModelRow struct {
 	TotalOutputTokens        int64     `db:"total_output_tokens" json:"total_output_tokens"`
 	TotalCacheReadTokens     int64     `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
 }
 
 // Per-model cost breakdown for a single user within a date range.
@@ -4681,6 +4687,7 @@ func (q *sqlQuerier) GetChatCostPerModel(ctx context.Context, arg GetChatCostPer
 			&i.TotalOutputTokens,
 			&i.TotalCacheReadTokens,
 			&i.TotalCacheCreationTokens,
+			&i.TotalRuntimeMs,
 		); err != nil {
 			return nil, err
 		}
@@ -4714,7 +4721,8 @@ WITH chat_cost_users AS (
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
         COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
     FROM
         chat_messages cm
     JOIN
@@ -4748,6 +4756,7 @@ SELECT
     total_output_tokens,
     total_cache_read_tokens,
     total_cache_creation_tokens,
+    total_runtime_ms,
     COUNT(*) OVER()::bigint AS total_count
 FROM
     chat_cost_users
@@ -4780,6 +4789,7 @@ type GetChatCostPerUserRow struct {
 	TotalOutputTokens        int64     `db:"total_output_tokens" json:"total_output_tokens"`
 	TotalCacheReadTokens     int64     `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
 	TotalCount               int64     `db:"total_count" json:"total_count"`
 }
 
@@ -4812,6 +4822,7 @@ func (q *sqlQuerier) GetChatCostPerUser(ctx context.Context, arg GetChatCostPerU
 			&i.TotalOutputTokens,
 			&i.TotalCacheReadTokens,
 			&i.TotalCacheCreationTokens,
+			&i.TotalRuntimeMs,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -4846,7 +4857,8 @@ SELECT
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM
     chat_messages cm
 JOIN
@@ -4872,6 +4884,7 @@ type GetChatCostSummaryRow struct {
 	TotalOutputTokens        int64 `db:"total_output_tokens" json:"total_output_tokens"`
 	TotalCacheReadTokens     int64 `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64 `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64 `db:"total_runtime_ms" json:"total_runtime_ms"`
 }
 
 // Aggregate cost summary for a single user within a date range.
@@ -4887,6 +4900,7 @@ func (q *sqlQuerier) GetChatCostSummary(ctx context.Context, arg GetChatCostSumm
 		&i.TotalOutputTokens,
 		&i.TotalCacheReadTokens,
 		&i.TotalCacheCreationTokens,
+		&i.TotalRuntimeMs,
 	)
 	return i, err
 }

@@ -717,6 +717,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		TotalOutputTokens:        summary.TotalOutputTokens,
 		TotalCacheReadTokens:     summary.TotalCacheReadTokens,
 		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
+		TotalRuntimeMs:           summary.TotalRuntimeMs,
 		ByModel:                  modelBreakdowns,
 		ByChat:                   chatBreakdowns,
 	}
@@ -3840,6 +3841,7 @@ func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) coders
 		TotalOutputTokens:        model.TotalOutputTokens,
 		TotalCacheReadTokens:     model.TotalCacheReadTokens,
 		TotalCacheCreationTokens: model.TotalCacheCreationTokens,
+		TotalRuntimeMs:           model.TotalRuntimeMs,
 	}
 }
 
@@ -3853,6 +3855,7 @@ func convertChatCostChatBreakdown(chat database.GetChatCostPerChatRow) codersdk.
 		TotalOutputTokens:        chat.TotalOutputTokens,
 		TotalCacheReadTokens:     chat.TotalCacheReadTokens,
 		TotalCacheCreationTokens: chat.TotalCacheCreationTokens,
+		TotalRuntimeMs:           chat.TotalRuntimeMs,
 	}
 }
 
@@ -3869,6 +3872,7 @@ func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.Cha
 		TotalOutputTokens:        user.TotalOutputTokens,
 		TotalCacheReadTokens:     user.TotalCacheReadTokens,
 		TotalCacheCreationTokens: user.TotalCacheCreationTokens,
+		TotalRuntimeMs:           user.TotalRuntimeMs,
 	}
 }
 

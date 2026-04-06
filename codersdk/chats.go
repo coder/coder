@@ -974,6 +974,7 @@ type ChatCostSummary struct {
 	TotalOutputTokens        int64                    `json:"total_output_tokens"`
 	TotalCacheReadTokens     int64                    `json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64                    `json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64                    `json:"total_runtime_ms"`
 	ByModel                  []ChatCostModelBreakdown `json:"by_model"`
 	ByChat                   []ChatCostChatBreakdown  `json:"by_chat"`
 	UsageLimit               *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
@@ -991,6 +992,7 @@ type ChatCostModelBreakdown struct {
 	TotalOutputTokens        int64     `json:"total_output_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
 // ChatCostChatBreakdown contains per-root-chat cost aggregation.
@@ -1003,6 +1005,7 @@ type ChatCostChatBreakdown struct {
 	TotalOutputTokens        int64     `json:"total_output_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
@@ -1018,6 +1021,7 @@ type ChatCostUserRollup struct {
 	TotalOutputTokens        int64     `json:"total_output_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
 // ChatCostUsersResponse is the response from the admin chat cost users endpoint.

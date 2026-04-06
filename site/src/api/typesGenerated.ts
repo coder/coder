@@ -1263,6 +1263,7 @@ export interface ChatCostChatBreakdown {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1280,6 +1281,7 @@ export interface ChatCostModelBreakdown {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1296,6 +1298,7 @@ export interface ChatCostSummary {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
 	readonly usage_limit?: ChatUsageLimitStatus;
@@ -1326,6 +1329,7 @@ export interface ChatCostUserRollup {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go

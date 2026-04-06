@@ -6079,7 +6079,7 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 		ContextLimit:        []int64{0, 0},
 		Compressed:          []bool{false, false},
 		TotalCostMicros:     []int64{500, 500},
-		RuntimeMs:           []int64{0, 0},
+		RuntimeMs:           []int64{1500, 2500},
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 2)
@@ -6112,16 +6112,19 @@ func assertChatCostSummary(t *testing.T, summary codersdk.ChatCostSummary, model
 	require.Equal(t, int64(0), summary.UnpricedMessageCount)
 	require.Equal(t, int64(200), summary.TotalInputTokens)
 	require.Equal(t, int64(100), summary.TotalOutputTokens)
+	require.Equal(t, int64(4000), summary.TotalRuntimeMs)
 
 	require.Len(t, summary.ByModel, 1)
 	require.Equal(t, modelConfigID, summary.ByModel[0].ModelConfigID)
 	require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
 	require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
+	require.Equal(t, int64(4000), summary.ByModel[0].TotalRuntimeMs)
 
 	require.Len(t, summary.ByChat, 1)
 	require.Equal(t, chatID, summary.ByChat[0].RootChatID)
 	require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
 	require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+	require.Equal(t, int64(4000), summary.ByChat[0].TotalRuntimeMs)
 }
 
 func TestChatCostSummary(t *testing.T) {

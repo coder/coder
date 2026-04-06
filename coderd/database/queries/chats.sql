@@ -883,7 +883,8 @@ SELECT
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM
     chat_messages cm
 JOIN
@@ -913,7 +914,8 @@ SELECT
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM
     chat_messages cm
 JOIN
@@ -948,7 +950,8 @@ WITH chat_costs AS (
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
         COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
     WHERE c.owner_id = @owner_id::uuid
@@ -965,7 +968,8 @@ SELECT
     cc.total_input_tokens,
     cc.total_output_tokens,
     cc.total_cache_read_tokens,
-    cc.total_cache_creation_tokens
+    cc.total_cache_creation_tokens,
+    cc.total_runtime_ms
 FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
@@ -991,7 +995,8 @@ WITH chat_cost_users AS (
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
         COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
     FROM
         chat_messages cm
     JOIN
@@ -1025,6 +1030,7 @@ SELECT
     total_output_tokens,
     total_cache_read_tokens,
     total_cache_creation_tokens,
+    total_runtime_ms,
     COUNT(*) OVER()::bigint AS total_count
 FROM
     chat_cost_users
