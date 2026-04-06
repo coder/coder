@@ -30,7 +30,7 @@ const badgeVariants = cva(
 				info: "border border-solid border-border-pending bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
-				xs: "border-0 text-2xs font-normal h-4.5 [&_svg]:size-icon-xs rounded",
+				xs: "border-0 text-2xs font-normal h-[18px] [&_svg]:size-icon-xs rounded",
 				sm: "text-2xs font-normal h-5.5 py-1 [&_svg]:size-icon-xs",
 				md: "text-xs font-normal py-1 [&_svg]:size-icon-xs",
 			},
