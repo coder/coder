@@ -194,7 +194,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
-	unixForwardHandler := newForwardedUnixHandler(logger)
+	unixForwardHandler := newForwardedUnixHandler(logger, config.BlockReversePortForwarding)
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
@@ -233,8 +233,15 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ReportConnection, newChan, &s.connCountJetBrains)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
-			"direct-streamlocal@openssh.com": directStreamLocalHandler,
-			"session":                        ssh.DefaultSessionHandler,
+			"direct-streamlocal@openssh.com": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+				if s.config.BlockLocalPortForwarding {
+					s.logger.Warn(ctx, "unix local port forward blocked")
+					_ = newChan.Reject(gossh.Prohibited, "local port forwarding is disabled")
+					return
+				}
+				directStreamLocalHandler(srv, conn, newChan, ctx)
+			},
+			"session": ssh.DefaultSessionHandler,
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
 			s.logger.Warn(ctx, "ssh connection failed",

@@ -1028,6 +1028,52 @@ func TestAgent_TCPRemoteForwardingBlocked(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestAgent_UnixLocalForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	tmpdir := testutil.TempDirUnixSocket(t)
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+
+	l, err := net.Listen("unix", remoteSocketPath)
+	require.NoError(t, err)
+	defer l.Close()
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.Dial("unix", remoteSocketPath)
+	require.Error(t, err)
+}
+
+func TestAgent_UnixRemoteForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	tmpdir := testutil.TempDirUnixSocket(t)
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.ListenUnix(remoteSocketPath)
+	require.Error(t, err)
+}
+
 func TestAgent_UnixLocalForwarding(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
