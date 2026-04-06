@@ -25,6 +25,7 @@ import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -348,7 +349,9 @@ const ProvisionerJobsPage = lazy(
 		),
 );
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
-const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
+const AgentChatPage = lazyWithRetry(
+	() => import("./pages/AgentsPage/AgentChatPage"),
+);
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),

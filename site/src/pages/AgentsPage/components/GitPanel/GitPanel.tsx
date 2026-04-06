@@ -20,6 +20,7 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { countDiffStatLines } from "../../localDiffStats";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
@@ -86,15 +87,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		const stats = new Map<string, DiffStats>();
 		for (const [root, repo] of repositories.entries()) {
 			if (!repo.unified_diff) continue;
-			let additions = 0;
-			let deletions = 0;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
+			const { additions, deletions } = countDiffStatLines(repo.unified_diff);
 			if (additions > 0 || deletions > 0) {
 				stats.set(root, { additions, deletions });
 			}
