@@ -1,0 +1,83 @@
+# compose.dogfood-test.yaml — Validate the dogfood image can build and test Coder.
+# Usage:
+#   docker compose -f compose.dogfood-test.yaml build
+#   docker compose -f compose.dogfood-test.yaml run --rm build
+#   docker compose -f compose.dogfood-test.yaml run --rm test
+services:
+  dogfood:
+    build:
+      context: dogfood/coder
+      dockerfile: Dockerfile
+    image: dogfood-test:latest
+
+  dogfood-base:
+    build:
+      context: dogfood/coder
+      dockerfile: Dockerfile
+      target: base
+    image: dogfood-test-base:latest
+
+  build:
+    image: dogfood-test:latest
+    depends_on:
+      dogfood:
+        condition: service_completed_successfully
+    network_mode: "host"
+    user: "root"
+    group_add:
+      - "${DOCKER_GROUP:-999}"
+    working_dir: /app
+    environment:
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+    volumes:
+      - .:/app
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    # Run as root for the build to avoid cache permission issues, but
+    # set HOME so Go tools behave.
+    command: >
+      sh -c '
+        chown -R 1000:1000 /home/coder &&
+        exec su -s /bin/bash -c "
+          export PATH=/usr/local/go/bin:/usr/local/nvm/versions/node/v22.19.0/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin:/home/coder/go/bin &&
+          make -j build 2>&1 &&
+          echo BUILD_OK
+        " coder
+      '
+
+  test:
+    image: dogfood-test:latest
+    depends_on:
+      dogfood:
+        condition: service_completed_successfully
+    network_mode: "host"
+    group_add:
+      - "${DOCKER_GROUP:-999}"
+    working_dir: /app
+    user: "coder"
+    environment:
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+    volumes:
+      - .:/app
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    command: >
+      sh -c '
+        echo "=== Checking essential tools ===" &&
+        which go && go version &&
+        which node && node --version &&
+        which pnpm && pnpm --version &&
+        which terraform && terraform --version &&
+        which protoc && protoc --version &&
+        which gotestsum &&
+        which golangci-lint && golangci-lint --version &&
+        which helm && helm version &&
+        which sqlc &&
+        which shfmt &&
+        which nfpm &&
+        which yq4 &&
+        which mockgen &&
+        which gh &&
+        echo "=== Tools OK ===" &&
+        echo "=== Running make gen (verifies codegen toolchain) ===" &&
+        make gen/mark-fresh &&
+        echo "=== gen OK ==="
+      '
