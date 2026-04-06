@@ -330,17 +330,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8"
 					/>
 				)}
-				<div className="group flex min-w-0 flex-1 items-center gap-1">
+				<div className="flex min-w-0 items-center gap-1">
 					<input
 						type="text"
 						{...form.getFieldProps("displayName")}
 						disabled={isSaving}
-						className="m-0 w-full rounded-md border border-solid border-transparent bg-transparent px-2 py-1 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary hover:border-border focus:border-border-active focus:ring-0"
+						size={Math.max(1, form.values.displayName?.length || 0)}
+						className="m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 						placeholder={
 							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
 					/>
-					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
+					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
 				{editingModel && (
 					<Tooltip>
