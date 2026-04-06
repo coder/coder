@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -8229,10 +8230,10 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Helper()
 
 		// Marshal dynamic tools into the chat row.
-		dynamicTools := []codersdk.DynamicTool{{
+		dynamicTools := []mcp.Tool{{
 			Name:        dynamicToolName,
 			Description: "a test dynamic tool",
-			Parameters:  json.RawMessage(`{"type":"object"}`),
+			InputSchema: mcp.ToolInputSchema{Type: "object"},
 		}}
 		dtJSON, err := json.Marshal(dynamicTools)
 		require.NoError(t, err)

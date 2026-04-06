@@ -18,6 +18,7 @@ import (
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -4262,8 +4263,8 @@ func (p *Server) runChat(
 	// server.
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range mcpTools {
-		if mcp, ok := t.(mcpclient.MCPToolIdentifier); ok {
-			toolNameToConfigID[t.Info().Name] = mcp.MCPServerConfigID()
+		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
+			toolNameToConfigID[t.Info().Name] = mcpTool.MCPServerConfigID()
 		}
 	}
 
@@ -4696,7 +4697,7 @@ func (p *Server) runChat(
 	// creation time. These appear in the LLM's tool list but
 	// are never executed by the chatloop — the client handles
 	// execution via POST /tool-results.
-	var dynamicToolDefs []codersdk.DynamicTool
+	var dynamicToolDefs []mcp.Tool
 	if chat.DynamicTools.Valid {
 		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
 			return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)

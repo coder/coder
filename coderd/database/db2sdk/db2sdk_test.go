@@ -553,7 +553,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			Valid:      true,
 		},
 		DynamicTools: pqtype.NullRawMessage{
-			RawMessage: json.RawMessage(`[{"name":"tool1"}]`),
+			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
 			Valid:      true,
 		},
 	}

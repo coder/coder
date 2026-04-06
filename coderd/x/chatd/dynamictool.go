@@ -2,11 +2,9 @@ package chatd
 
 import (
 	"context"
-	"encoding/json"
 
 	"charm.land/fantasy"
-
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // dynamicTool wraps a codersdk.DynamicTool as a fantasy.AgentTool.
@@ -23,10 +21,10 @@ type dynamicTool struct {
 	opts        fantasy.ProviderOptions
 }
 
-// dynamicToolsFromSDK converts codersdk.DynamicTool definitions
-// into fantasy.AgentTool implementations for inclusion in the
-// LLM tool list.
-func dynamicToolsFromSDK(tools []codersdk.DynamicTool) []fantasy.AgentTool {
+// dynamicToolsFromSDK converts mcp.Tool definitions into
+// fantasy.AgentTool implementations for inclusion in the LLM
+// tool list.
+func dynamicToolsFromSDK(tools []mcp.Tool) []fantasy.AgentTool {
 	if len(tools) == 0 {
 		return nil
 	}
@@ -35,25 +33,8 @@ func dynamicToolsFromSDK(tools []codersdk.DynamicTool) []fantasy.AgentTool {
 		dt := &dynamicTool{
 			name:        t.Name,
 			description: t.Description,
-		}
-		// Parse the JSON schema parameters into the map format
-		// that fantasy.ToolInfo expects.
-		if len(t.Parameters) > 0 {
-			var schema map[string]any
-			if err := json.Unmarshal(t.Parameters, &schema); err == nil {
-				// Extract "properties" and "required" from the
-				// JSON Schema object to match ToolInfo's format.
-				if props, ok := schema["properties"].(map[string]any); ok {
-					dt.parameters = props
-				}
-				if req, ok := schema["required"].([]any); ok {
-					for _, r := range req {
-						if s, ok := r.(string); ok {
-							dt.required = append(dt.required, s)
-						}
-					}
-				}
-			}
+			parameters:  t.InputSchema.Properties,
+			required:    t.InputSchema.Required,
 		}
 		result = append(result, dt)
 	}

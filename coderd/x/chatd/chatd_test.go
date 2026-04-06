@@ -1934,11 +1934,16 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	server := newActiveTestServer(t, db, ps)
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]codersdk.DynamicTool{{
-		Name:           "my_dynamic_tool",
-		Description:    "A test dynamic tool.",
-		Parameters:     json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}},"required":["input"]}`),
-		TimeoutSeconds: 30,
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		},
 	}})
 	require.NoError(t, err)
 

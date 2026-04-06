@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 
@@ -363,16 +364,6 @@ type ChatInputPart struct {
 	Content string `json:"content,omitempty"`
 }
 
-// DynamicTool defines a tool that is executed by the client, not
-// by chatd. Declared at chat creation time and immutable for the
-// lifetime of the chat.
-type DynamicTool struct {
-	Name           string          `json:"name"`
-	Description    string          `json:"description"`
-	Parameters     json.RawMessage `json:"parameters"`
-	TimeoutSeconds int             `json:"timeout_seconds,omitempty"`
-}
-
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
 type SubmitToolResultsRequest struct {
 	Results []ToolResult `json:"results"`
@@ -393,7 +384,7 @@ type CreateChatRequest struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels        map[string]string `json:"labels,omitempty"`
-	DynamicTools  []DynamicTool     `json:"dynamic_tools,omitempty"`
+	DynamicTools  []mcp.Tool        `json:"dynamic_tools,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.

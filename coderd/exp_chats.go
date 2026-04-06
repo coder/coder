@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -5806,7 +5807,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Unmarshal dynamic tools from the chat to build the set of
 	// dynamic tool names. Only tool calls targeting these names
 	// require client-submitted results.
-	var dynamicTools []codersdk.DynamicTool
+	var dynamicTools []mcp.Tool
 	if chat.DynamicTools.Valid {
 		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicTools); err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

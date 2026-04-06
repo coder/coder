@@ -2449,7 +2449,8 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
-	readonly dynamic_tools?: readonly DynamicTool[];
+	// external type "github.com/mark3labs/mcp-go/mcp.Tool", to include this type the package must be explicitly included in the parsing
+	readonly dynamic_tools?: readonly unknown[];
 }
 
 // From codersdk/users.go
@@ -3248,19 +3249,6 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
-}
-
-// From codersdk/chats.go
-/**
- * DynamicTool defines a tool that is executed by the client, not
- * by chatd. Declared at chat creation time and immutable for the
- * lifetime of the chat.
- */
-export interface DynamicTool {
-	readonly name: string;
-	readonly description: string;
-	readonly parameters: Record<string, string>;
-	readonly timeout_seconds?: number;
 }
 
 // From codersdk/chats.go
