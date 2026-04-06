@@ -9,7 +9,7 @@
 #
 # The created PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
-#   - Title:   <original PR title> (<version>)
+#   - Title:   <original PR title> (#<pr>) (<version>)
 #   - Body:    links back to the original PR and merge commit
 
 name: Cherry-pick to release
@@ -105,5 +105,5 @@ jobs:
           gh pr create \
             --base "$RELEASE_BRANCH" \
             --head "$BACKPORT_BRANCH" \
-            --title "${PR_TITLE} (${VERSION})" \
+            --title "${PR_TITLE} (#${PR_NUMBER}) (${VERSION})" \
             --body "$BODY"
