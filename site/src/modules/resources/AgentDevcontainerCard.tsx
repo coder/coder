@@ -274,12 +274,11 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							/>
 						)}
 
-					{showDevcontainerControls && (
+					{!isTransitioning && (
 						<AgentDevcontainerMoreActions
 							deleteDevContainer={deleteDevcontainerMutation.mutate}
 						/>
 					)}
-
 					<DevcontainerDeleteErrorDialog
 						open={deleteDevcontainerMutation.isError}
 						error={deleteDevcontainerMutation.error}

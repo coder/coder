@@ -53,9 +53,12 @@ export const HasError: Story = {
 	args: {
 		devcontainer: {
 			...MockWorkspaceAgentDevcontainer,
+			status: "error",
 			error: "unable to inject devcontainer with agent",
+			container: undefined,
 			agent: undefined,
 		},
+		subAgents: [],
 	},
 };
 
