@@ -2,7 +2,9 @@ import type { ComponentPropsWithRef, FC, ReactNode } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { cn } from "#/utils/cn";
-import { usePasswordValidator } from "./usePasswordValidator";
+import { useDebouncedValue } from "#/hooks/debounce";
+import { keepPreviousData, useQuery } from "react-query";
+import { API } from "#/api/api";
 
 type PasswordFieldProps = Omit<ComponentPropsWithRef<"input">, "value"> & {
 	label: string;
@@ -24,7 +26,13 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 	value,
 	...props
 }) => {
-	const { data } = usePasswordValidator(value);
+	const debouncedValue = useDebouncedValue(value, 500);
+	const { data } = useQuery({
+		queryKey: ["validatePassword", debouncedValue],
+		queryFn: () => API.validateUserPassword(debouncedValue),
+		placeholderData: keepPreviousData,
+		enabled: debouncedValue.length > 0,
+	});
 
 	const valid = data?.valid ?? true;
 	const isInvalid = !valid || error;
