@@ -2,11 +2,13 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
+import { Label } from "#/components/Label/Label";
 import { Stack } from "#/components/Stack/Stack";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -23,14 +25,17 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	onUpdate,
 }) => {
 	const theme = useTheme();
+	const hideLinkUnderlineId = useId();
 
 	const bannerForm = useFormik<{
 		message: string;
 		background_color: string;
+		hide_link_underline: boolean;
 	}>({
 		initialValues: {
 			message: banner.message ?? "",
 			background_color: banner.background_color ?? "#ABB8C3",
+			hide_link_underline: banner.hide_link_underline ?? false,
 		},
 		onSubmit: (banner) => onUpdate(banner),
 	});
@@ -45,6 +50,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}
+					hideLinkUnderline={bannerForm.values.hide_link_underline}
 				/>
 			</div>
 
@@ -128,6 +134,19 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 								</Button>
 							</div>
 						</Stack>
+					</div>
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id={hideLinkUnderlineId}
+							checked={bannerForm.values.hide_link_underline}
+							onCheckedChange={async (checked: boolean) => {
+								await bannerForm.setFieldValue(
+									"hide_link_underline",
+									Boolean(checked),
+								);
+							}}
+						/>
+						<Label htmlFor={hideLinkUnderlineId}>Hide link underline</Label>
 					</div>
 				</Stack>
 			</div>

@@ -5,11 +5,13 @@ import { readableForegroundColor } from "#/utils/colors";
 interface AnnouncementBannerViewProps {
 	message: string;
 	backgroundColor: string;
+	hideLinkUnderline?: boolean;
 }
 
 export const AnnouncementBannerView: FC<AnnouncementBannerViewProps> = ({
 	message,
 	backgroundColor,
+	hideLinkUnderline,
 }) => {
 	return (
 		<div
@@ -18,7 +20,7 @@ export const AnnouncementBannerView: FC<AnnouncementBannerViewProps> = ({
 			data-test-id="service-banner"
 		>
 			<div
-				className="mx-auto font-normal [&_a]:text-inherit [&_a]:underline"
+				className={`mx-auto font-normal [&_a]:text-inherit ${hideLinkUnderline ? "[&_a]:no-underline" : "[&_a]:underline"}`}
 				style={{ color: readableForegroundColor(backgroundColor) }}
 			>
 				<InlineMarkdown>{message}</InlineMarkdown>

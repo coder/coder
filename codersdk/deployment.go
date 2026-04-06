@@ -4236,9 +4236,10 @@ type UpdateAppearanceConfig struct {
 type ServiceBannerConfig = BannerConfig
 
 type BannerConfig struct {
-	Enabled         bool   `json:"enabled"`
-	Message         string `json:"message,omitempty"`
-	BackgroundColor string `json:"background_color,omitempty"`
+	Enabled           bool   `json:"enabled"`
+	Message           string `json:"message,omitempty"`
+	BackgroundColor   string `json:"background_color,omitempty"`
+	HideLinkUnderline bool   `json:"hide_link_underline,omitempty"`
 }
 
 // Appearance returns the configuration that modifies the visual

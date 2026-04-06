@@ -22,3 +22,18 @@ export const Preview: Story = {
 		backgroundColor: "#4cd473",
 	},
 };
+
+export const WithLink: Story = {
+	args: {
+		message: "System maintenance scheduled. [Learn more](https://example.com).",
+		backgroundColor: "#0693e3",
+	},
+};
+
+export const WithLinkNoUnderline: Story = {
+	args: {
+		message: "System maintenance scheduled. [Learn more](https://example.com).",
+		backgroundColor: "#0693e3",
+		hideLinkUnderline: true,
+	},
+};
