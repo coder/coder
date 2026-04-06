@@ -4067,6 +4067,21 @@ func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(ctx, updatedAt any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), ctx, updatedAt)
 }
 
+// GetRequiresActionChats mocks base method.
+func (m *MockStore) GetRequiresActionChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRequiresActionChats", ctx, staleThreshold)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRequiresActionChats indicates an expected call of GetRequiresActionChats.
+func (mr *MockStoreMockRecorder) GetRequiresActionChats(ctx, staleThreshold any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRequiresActionChats", reflect.TypeOf((*MockStore)(nil).GetRequiresActionChats), ctx, staleThreshold)
+}
+
 // GetRunningPrebuiltWorkspaces mocks base method.
 func (m *MockStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	m.ctrl.T.Helper()

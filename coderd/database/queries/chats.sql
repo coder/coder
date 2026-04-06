@@ -394,7 +394,8 @@ INSERT INTO chats (
     mode,
     status,
     mcp_server_ids,
-    labels
+    labels,
+    dynamic_tools
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -407,7 +408,8 @@ INSERT INTO chats (
     sqlc.narg('mode')::chat_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
-    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
+    sqlc.narg('dynamic_tools')::jsonb
 )
 RETURNING
     *;
@@ -636,6 +638,17 @@ FROM
 WHERE
     status = 'running'::chat_status
     AND heartbeat_at < @stale_threshold::timestamptz;
+
+-- name: GetRequiresActionChats :many
+-- Find chats stuck in requires_action for longer than the
+-- threshold. Used for timeout recovery of dynamic tool calls.
+SELECT
+    *
+FROM
+    chats
+WHERE
+    status = 'requires_action'::chat_status
+    AND updated_at < @stale_threshold::timestamptz;
 
 -- name: UpdateChatHeartbeat :execrows
 -- Bumps the heartbeat timestamp for a running chat so that other

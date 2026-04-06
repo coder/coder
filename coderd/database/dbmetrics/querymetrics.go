@@ -2192,6 +2192,14 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetRequiresActionChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRequiresActionChats(ctx, staleThreshold)
+	m.queryLatencies.WithLabelValues("GetRequiresActionChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetRequiresActionChats").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetRunningPrebuiltWorkspaces(ctx)
