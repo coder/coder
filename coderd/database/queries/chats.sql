@@ -637,17 +637,20 @@ WHERE
     status = 'running'::chat_status
     AND heartbeat_at < @stale_threshold::timestamptz;
 
--- name: UpdateChatHeartbeat :execrows
--- Bumps the heartbeat timestamp for a running chat so that other
--- replicas know the worker is still alive.
+-- name: UpdateChatHeartbeats :many
+-- Bumps the heartbeat timestamp for the given set of chat IDs,
+-- provided they are still running and owned by the specified
+-- worker. Returns the IDs that were actually updated so the
+-- caller can detect stolen or completed chats via set-difference.
 UPDATE
     chats
 SET
-    heartbeat_at = NOW()
+    heartbeat_at = @now::timestamptz
 WHERE
-    id = @id::uuid
+    id = ANY(@ids::uuid[])
     AND worker_id = @worker_id::uuid
-    AND status = 'running'::chat_status;
+    AND status = 'running'::chat_status
+RETURNING id;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT

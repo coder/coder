@@ -5767,15 +5767,15 @@ func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByI
 	return q.db.UpdateChatByID(ctx, arg)
 }
 
-func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateChatHeartbeatParams) (int64, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return 0, err
+func (q *querier) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
+	// The batch heartbeat is a system-level operation filtered by
+	// worker_id. Authorization is enforced by the AsChatd context
+	// at the call site rather than per-row, because checking each
+	// row individually would defeat the purpose of batching.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	return q.db.UpdateChatHeartbeat(ctx, arg)
+	return q.db.UpdateChatHeartbeats(ctx, arg)
 }
 
 func (q *querier) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateChatLabelsByIDParams) (database.Chat, error) {

@@ -21,6 +21,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -2071,6 +2072,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		workerID:              workerID,
 		chatHeartbeatInterval: time.Minute,
 		configCache:           newChatConfigCache(ctx, db, clock),
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
 	// Publish a stale "pending" notification on the control channel
@@ -2132,4 +2134,131 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	// resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
+
+// TestHeartbeatTick_StolenChatIsInterrupted verifies that when the
+// batch heartbeat UPDATE does not return a registered chat's ID
+// (because another replica stole it or it was completed), the
+// heartbeat tick cancels that chat's context with ErrInterrupted
+// while leaving surviving chats untouched.
+func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+
+	workerID := uuid.New()
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		clock:                 clock,
+		workerID:              workerID,
+		chatHeartbeatInterval: time.Minute,
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	// Create three chats with independent cancel functions.
+	chat1 := uuid.New()
+	chat2 := uuid.New()
+	chat3 := uuid.New()
+
+	_, cancel1 := context.WithCancelCause(ctx)
+	_, cancel2 := context.WithCancelCause(ctx)
+	ctx3, cancel3 := context.WithCancelCause(ctx)
+
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel1,
+		chatID:          chat1,
+		logger:          logger,
+	})
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel2,
+		chatID:          chat2,
+		logger:          logger,
+	})
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel3,
+		chatID:          chat3,
+		logger:          logger,
+	})
+
+	// The batch UPDATE returns only chat1 and chat2 —
+	// chat3 was "stolen" by another replica.
+	db.EXPECT().UpdateChatHeartbeats(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
+			require.Equal(t, workerID, params.WorkerID)
+			require.Len(t, params.IDs, 3)
+			// Return only chat1 and chat2 as surviving.
+			return []uuid.UUID{chat1, chat2}, nil
+		},
+	)
+
+	server.heartbeatTick(ctx)
+
+	// chat3's context should be canceled with ErrInterrupted.
+	require.ErrorIs(t, context.Cause(ctx3), chatloop.ErrInterrupted,
+		"stolen chat should be interrupted")
+
+	// chat3 should have been removed from the registry by
+	// unregister (in production this happens via defer in
+	// processChat). The heartbeat tick itself does not
+	// unregister — it only cancels. Verify the entry is
+	// still present (processChat's defer would clean it up).
+	server.heartbeatMu.Lock()
+	_, chat1Exists := server.heartbeatRegistry[chat1]
+	_, chat2Exists := server.heartbeatRegistry[chat2]
+	_, chat3Exists := server.heartbeatRegistry[chat3]
+	server.heartbeatMu.Unlock()
+
+	require.True(t, chat1Exists, "surviving chat1 should remain registered")
+	require.True(t, chat2Exists, "surviving chat2 should remain registered")
+	require.True(t, chat3Exists,
+		"stolen chat3 should still be in registry (processChat defer removes it)")
+}
+
+// TestHeartbeatTick_DBErrorDoesNotInterruptChats verifies that a
+// transient database failure causes the tick to log and return
+// without canceling any registered chats.
+func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		clock:                 clock,
+		workerID:              uuid.New(),
+		chatHeartbeatInterval: time.Minute,
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	chatID := uuid.New()
+	chatCtx, cancel := context.WithCancelCause(ctx)
+
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chatID,
+		logger:          logger,
+	})
+
+	// Simulate a transient DB error.
+	db.EXPECT().UpdateChatHeartbeats(gomock.Any(), gomock.Any()).Return(
+		nil, xerrors.New("connection reset"),
+	)
+
+	server.heartbeatTick(ctx)
+
+	// Chat should NOT be interrupted — the tick logged and
+	// returned early.
+	require.NoError(t, chatCtx.Err(),
+		"chat context should not be canceled on transient DB error")
 }
