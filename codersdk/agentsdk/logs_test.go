@@ -17,6 +17,44 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestSanitizeLogOutput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "valid",
+			in:   "hello world",
+			want: "hello world",
+		},
+		{
+			name: "invalid utf8",
+			in:   "test log\xc3\x28",
+			want: "test log❌(",
+		},
+		{
+			name: "nul byte",
+			in:   "before\x00after",
+			want: "before❌after",
+		},
+		{
+			name: "invalid utf8 and nul byte",
+			in:   "before\x00middle\xc3\x28after",
+			want: "before❌middle❌(after",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, agentsdk.SanitizeLogOutput(tt.in))
+		})
+	}
+}
+
 func TestStartupLogsWriter_Write(t *testing.T) {
 	t.Parallel()
 

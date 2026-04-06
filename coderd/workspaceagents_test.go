@@ -260,6 +260,50 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		require.Equal(t, "testing", logChunk[0].Output)
 		require.Equal(t, "testing2", logChunk[1].Output)
 	})
+	t.Run("SanitizesNulBytesAndTracksSanitizedLength", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		rawOutput := "before\x00after"
+		sanitizedOutput := agentsdk.SanitizeLogOutput(rawOutput)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{
+				{
+					CreatedAt: dbtime.Now(),
+					Output:    rawOutput,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
+		require.NoError(t, err)
+		require.EqualValues(t, len(sanitizedOutput), agent.LogsLength)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID, 0, true)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+
+		var logChunk []codersdk.WorkspaceAgentLog
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.Len(t, logChunk, 1)
+		require.Equal(t, sanitizedOutput, logChunk[0].Output)
+	})
 	t.Run("Close logs on outdated build", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
