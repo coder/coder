@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -246,7 +247,11 @@ func (s *Service) CreateStep(
 		ChatID:              params.ChatID,
 	}
 
-	for {
+	// Retry limit prevents unbounded spinning under pathological
+	// concurrency where multiple goroutines race to create steps
+	// for the same run.
+	const maxCreateStepRetries = 10
+	for attempt := 0; attempt < maxCreateStepRetries; attempt++ {
 		step, err := s.db.InsertChatDebugStep(chatdContext(ctx), insert)
 		if err == nil {
 			// Touch the parent run's updated_at so the stale-
@@ -290,6 +295,11 @@ func (s *Service) CreateStep(
 		}
 		insert.StepNumber = nextStepNumber
 	}
+
+	return database.ChatDebugStep{}, xerrors.Errorf(
+		"chatdebug: failed to create step after %d retries (run %s)",
+		maxCreateStepRetries, params.RunID,
+	)
 }
 
 // UpdateStep updates an existing debug step and emits a step update event.

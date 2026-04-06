@@ -31,6 +31,227 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestWaitForActiveChatStop(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	chatID := uuid.New()
+	active := server.registerActiveChat(chatID)
+
+	waitDone := make(chan struct{})
+	go func() {
+		defer close(waitDone)
+		server.waitForActiveChatStop(context.Background(), chatID, time.Second)
+	}()
+
+	select {
+	case <-waitDone:
+		t.Fatal("wait returned before active chat stopped")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	server.finishActiveChat(chatID, active)
+
+	select {
+	case <-waitDone:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("wait did not return after active chat stopped")
+	}
+}
+
+func TestWaitForActiveChatStop_WaitsForReplacementRun(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	chatID := uuid.New()
+	first := server.registerActiveChat(chatID)
+
+	waitDone := make(chan struct{})
+	go func() {
+		defer close(waitDone)
+		server.waitForActiveChatStop(context.Background(), chatID, time.Second)
+	}()
+
+	select {
+	case <-waitDone:
+		t.Fatal("wait returned before active chat stopped")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	second := server.registerActiveChat(chatID)
+	server.finishActiveChat(chatID, first)
+
+	select {
+	case <-waitDone:
+		t.Fatal("wait returned before replacement run stopped")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	server.finishActiveChat(chatID, second)
+
+	select {
+	case <-waitDone:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("wait did not return after replacement run stopped")
+	}
+}
+
+func TestArchiveChatWaitsForActiveChatStop(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	workerID := uuid.New()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	runningChat := database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+	}
+	archivedChat := runningChat
+	archivedChat.Archived = true
+	waitingChat := archivedChat
+	waitingChat.Status = database.ChatStatusWaiting
+	waitingChat.WorkerID = uuid.NullUUID{}
+
+	server := &Server{db: db, logger: logger}
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, opts *database.TxOptions) error {
+			require.Nil(t, opts)
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(runningChat, nil)
+	tx.EXPECT().ArchiveChatByID(gomock.Any(), chatID).Return([]database.Chat{archivedChat}, nil)
+	tx.EXPECT().UpdateChatStatus(gomock.Any(), database.UpdateChatStatusParams{
+		ID:          chatID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	}).Return(waitingChat, nil)
+
+	active := server.registerActiveChat(chatID)
+	archiveDone := make(chan error, 1)
+	go func() {
+		archiveDone <- server.ArchiveChat(ctx, runningChat)
+	}()
+
+	select {
+	case err := <-archiveDone:
+		require.NoError(t, err)
+		t.Fatal("archive returned before active chat stopped")
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	server.finishActiveChat(chatID, active)
+
+	select {
+	case err := <-archiveDone:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("archive did not return after active chat stopped")
+	}
+}
+
+func TestArchiveChatWaitsForEveryInterruptedChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	rootChatID := uuid.New()
+	childChatID := uuid.New()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	rootRunning := database.Chat{
+		ID:       rootChatID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}
+	childRunning := database.Chat{
+		ID:         childChatID,
+		RootChatID: uuid.NullUUID{UUID: rootChatID, Valid: true},
+		Status:     database.ChatStatusRunning,
+		WorkerID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		Archived:   true,
+	}
+	rootArchived := rootRunning
+	rootArchived.Archived = true
+	rootWaiting := rootArchived
+	rootWaiting.Status = database.ChatStatusWaiting
+	rootWaiting.WorkerID = uuid.NullUUID{}
+	childWaiting := childRunning
+	childWaiting.Status = database.ChatStatusWaiting
+	childWaiting.WorkerID = uuid.NullUUID{}
+
+	server := &Server{db: db, logger: logger}
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, opts *database.TxOptions) error {
+			require.Nil(t, opts)
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), rootChatID).Return(rootRunning, nil)
+	tx.EXPECT().ArchiveChatByID(gomock.Any(), rootChatID).Return([]database.Chat{rootArchived, childRunning}, nil)
+	tx.EXPECT().UpdateChatStatus(gomock.Any(), database.UpdateChatStatusParams{
+		ID:          rootChatID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	}).Return(rootWaiting, nil)
+	tx.EXPECT().UpdateChatStatus(gomock.Any(), database.UpdateChatStatusParams{
+		ID:          childChatID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	}).Return(childWaiting, nil)
+
+	rootActive := server.registerActiveChat(rootChatID)
+	childActive := server.registerActiveChat(childChatID)
+	archiveDone := make(chan error, 1)
+	go func() {
+		archiveDone <- server.ArchiveChat(ctx, rootRunning)
+	}()
+
+	select {
+	case err := <-archiveDone:
+		require.NoError(t, err)
+		t.Fatal("archive returned before interrupted chats stopped")
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	server.finishActiveChat(rootChatID, rootActive)
+
+	select {
+	case err := <-archiveDone:
+		require.NoError(t, err)
+		t.Fatal("archive returned before child chat stopped")
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	server.finishActiveChat(childChatID, childActive)
+
+	select {
+	case err := <-archiveDone:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("archive did not return after all interrupted chats stopped")
+	}
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 

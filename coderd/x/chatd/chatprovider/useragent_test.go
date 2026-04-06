@@ -48,7 +48,7 @@ func TestModelFromConfig_UserAgent(t *testing.T) {
 		BaseURLByProvider: map[string]string{"openai": serverURL},
 	}
 
-	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, expectedUA, nil)
+	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, expectedUA, nil, nil)
 	require.NoError(t, err)
 
 	// Make a real call so Fantasy sends an HTTP request to the
