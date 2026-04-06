@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	htmltemplate "html/template"
 	"net/http"
 	"net/url"
 	"strings"
@@ -146,12 +147,16 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
 		cancelQuery.Add("error", "access_denied")
+		cancelQuery.Add("error_description", "The resource owner or authorization server denied the request")
+		if params.state != "" {
+			cancelQuery.Add("state", params.state)
+		}
 		cancel.RawQuery = cancelQuery.Encode()
 
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon:     app.Icon,
 			AppName:     app.Name,
-			CancelURI:   cancel.String(),
+			CancelURI:   htmltemplate.URL(cancel.String()),
 			RedirectURI: r.URL.String(),
 			CSRFToken:   nosurf.Token(r),
 			Username:    ua.FriendlyName,
