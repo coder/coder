@@ -305,8 +305,8 @@ PR reuses the original title (e.g.
 `fix(site): correct button alignment (#12345)`) so the change is
 meaningful in release notes.
 
-If the cherry-pick encounters conflicts, the backport PR is still
-created with conflict markers so you can resolve them manually.
+If the cherry-pick encounters conflicts, the backport PR is still created
+with instructions for manual resolution — no conflict markers are committed.
 
 ### Breaking changes
 

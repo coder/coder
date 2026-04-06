@@ -104,21 +104,36 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Check if backport branch already exists (idempotency for re-runs).
+          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
+            echo "Backport branch ${BACKPORT_BRANCH} already exists, skipping."
+            exit 0
+          fi
+
           # Create the backport branch from the target release branch.
           git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_VERSION}"
 
           # Cherry-pick the merge commit. Use -x to record provenance and
           # -m1 to pick the first parent (the main branch side).
+          CONFLICTS=false
           if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
             echo "::warning::Cherry-pick to ${RELEASE_VERSION} had conflicts."
+            CONFLICTS=true
 
-            # Stage conflicts so the PR can be opened for manual resolution.
-            git add -A
-            git -c core.editor=true cherry-pick --continue || true
+            # Abort the failed cherry-pick and create an empty commit
+            # explaining the situation.
+            git cherry-pick --abort
+            git commit --allow-empty -m "Cherry-pick of #${PR_NUMBER} requires manual resolution
+
+          The automatic cherry-pick of ${MERGE_SHA} to ${RELEASE_VERSION} had conflicts.
+          Please cherry-pick manually:
+
+              git cherry-pick -x -m1 ${MERGE_SHA}"
           fi
 
           git push origin "$BACKPORT_BRANCH"
 
+          TITLE="${PR_TITLE} (#${PR_NUMBER})"
           BODY=$(cat <<EOF
           Backport of ${PR_URL}
 
@@ -127,8 +142,33 @@ jobs:
           EOF
           )
 
+          if [ "$CONFLICTS" = true ]; then
+            TITLE="${TITLE} (conflicts)"
+            BODY="${BODY}
+
+          > [!WARNING]
+          > The automatic cherry-pick had conflicts.
+          > Please resolve manually by cherry-picking the original merge commit:
+          >
+          > \`\`\`
+          > git fetch origin ${BACKPORT_BRANCH}
+          > git checkout ${BACKPORT_BRANCH}
+          > git reset --hard origin/${RELEASE_VERSION}
+          > git cherry-pick -x -m1 ${MERGE_SHA}
+          > # resolve conflicts, then push
+          > \`\`\`"
+          fi
+
+          # Check if a PR already exists for this branch (idempotency
+          # for re-runs).
+          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_VERSION" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
+            exit 0
+          fi
+
           gh pr create \
             --base "$RELEASE_VERSION" \
             --head "$BACKPORT_BRANCH" \
-            --title "${PR_TITLE} (#${PR_NUMBER})" \
+            --title "$TITLE" \
             --body "$BODY"
