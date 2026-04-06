@@ -3355,6 +3355,43 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	}
 }
 
+// publishChatActionRequired broadcasts an action_required event via
+// PostgreSQL pubsub so that global watchers can react to dynamic
+// tool calls without streaming each chat individually.
+func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloop.PendingToolCall) {
+	if p.pubsub == nil {
+		return
+	}
+	toolCalls := make([]codersdk.ChatStreamToolCall, 0, len(pending))
+	for _, tc := range pending {
+		toolCalls = append(toolCalls, codersdk.ChatStreamToolCall{
+			ToolCallID: tc.ToolCallID,
+			ToolName:   tc.ToolName,
+			Args:       tc.Args,
+		})
+	}
+	sdkChat := db2sdk.Chat(chat, nil)
+	event := coderdpubsub.ChatEvent{
+		Kind:      coderdpubsub.ChatEventKindActionRequired,
+		Chat:      sdkChat,
+		ToolCalls: toolCalls,
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		p.logger.Error(context.Background(), "failed to marshal chat action_required pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+		p.logger.Error(context.Background(), "failed to publish chat action_required pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	}
+}
+
 // PublishDiffStatusChange broadcasts a diff_status_change event for
 // the given chat so that watching clients know to re-fetch the diff
 // status. This is called from the HTTP layer after the diff status
@@ -3858,6 +3895,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			updatedChat.Title = title
 		}
 		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+
+		// When the chat is parked in requires_action, also
+		// publish an action_required event on the global
+		// pubsub so that watchers (e.g. a Slackbot) can
+		// react to dynamic tool calls without streaming
+		// each chat individually.
+		if status == database.ChatStatusRequiresAction && len(runResult.PendingDynamicToolCalls) > 0 {
+			p.publishChatActionRequired(updatedChat, runResult.PendingDynamicToolCalls)
+		}
 
 		if !wasInterrupted {
 			p.maybeSendPushNotification(cleanupCtx, updatedChat, status, lastError, runResult, logger)

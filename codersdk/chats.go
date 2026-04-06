@@ -1018,6 +1018,29 @@ type ChatStreamToolCall struct {
 	Args       string `json:"args"`
 }
 
+// ChatWatchEventKind represents the kind of event in the chat watch stream.
+type ChatWatchEventKind string
+
+const (
+	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
+	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
+)
+
+// ChatWatchEvent represents an event from the global chat watch stream.
+// It delivers lifecycle events (created, status change, title change)
+// for all of the authenticated user's chats. When Kind is
+// ActionRequired, ToolCalls contains the pending dynamic tool
+// invocations the client must execute and submit back.
+type ChatWatchEvent struct {
+	Kind      ChatWatchEventKind   `json:"kind"`
+	Chat      Chat                 `json:"chat"`
+	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+}
+
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
 	Type           ChatStreamEventType       `json:"type"`
@@ -1960,6 +1983,73 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 						Message: fmt.Sprintf("unknown chat stream event type %q", envelope.Type),
 					},
 				})
+				return
+			}
+		}
+	}()
+
+	return events, closeFunc(func() error {
+		streamCancel()
+		return nil
+	}), nil
+}
+
+// WatchChats streams lifecycle events for all of the authenticated
+// user's chats in real time. The returned channel emits
+// ChatWatchEvent values for status changes, title changes, creation,
+// deletion, diff-status changes, and action-required notifications.
+// Callers must close the returned io.Closer to release the websocket
+// connection when done.
+func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEvent, io.Closer, error) {
+	conn, err := c.Dial(
+		ctx,
+		"/api/experimental/chats/watch",
+		&websocket.DialOptions{CompressionMode: websocket.CompressionDisabled},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	events := make(chan ChatWatchEvent, 128)
+
+	go func() {
+		defer close(events)
+		defer streamCancel()
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		}()
+
+		for {
+			var envelope chatStreamEnvelope
+			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+				if streamCtx.Err() != nil {
+					return
+				}
+				switch websocket.CloseStatus(err) {
+				case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+					return
+				}
+				return
+			}
+
+			switch envelope.Type {
+			case ServerSentEventTypePing:
+				continue
+			case ServerSentEventTypeData:
+				var event ChatWatchEvent
+				if err := json.Unmarshal(envelope.Data, &event); err != nil {
+					return
+				}
+				select {
+				case <-streamCtx.Done():
+					return
+				case events <- event:
+				}
+			case ServerSentEventTypeError:
+				return
+			default:
 				return
 			}
 		}
