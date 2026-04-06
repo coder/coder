@@ -432,20 +432,27 @@ export const ModelForm: FC<ModelFormProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							</Label>
-							<Input
-								id={contextLimitField.id}
-								name={contextLimitField.name}
+							<InputGroup
 								className={cn(
-									"h-9 text-[13px] placeholder:text-content-disabled",
-									contextLimitField.error && "border-content-destructive",
+									"h-9",
+									contextLimitField.error && "border-border-destructive",
 								)}
-								placeholder="200000"
-								value={contextLimitField.value}
-								onChange={contextLimitField.onChange}
-								onBlur={contextLimitField.onBlur}
-								disabled={isSaving}
-								aria-invalid={contextLimitField.error}
-							/>
+							>
+								<InputGroupInput
+									id={contextLimitField.id}
+									name={contextLimitField.name}
+									className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+									placeholder="200000"
+									value={contextLimitField.value}
+									onChange={contextLimitField.onChange}
+									onBlur={contextLimitField.onBlur}
+									disabled={isSaving}
+									aria-invalid={contextLimitField.error}
+								/>
+								<InputGroupAddon align="inline-end">
+									<span className="text-xs text-content-disabled">tokens</span>
+								</InputGroupAddon>
+							</InputGroup>{" "}
 							{contextLimitField.error && (
 								<p className="m-0 text-xs text-content-destructive">
 									{contextLimitField.helperText}
