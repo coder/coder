@@ -35,7 +35,10 @@ Factort's Droid agent can be configured to use AI Bridge by setting up custom mo
 ## BYOK (Personal API Key)
 
 1. Open `~/.factory/settings.json` (create it if it does not exist).
-2. Add a `customModels` entry with your personal API key and the `X-Coder-AI-Governance-Token` header set to your Coder session token.
+2. Add a `customModels` entry for each provider you want to use with AI Bridge.
+3. Replace `coder.example.com` with your Coder deployment URL.
+4. Use your personal API key for `apiKey`.
+5. Set the `X-Coder-AI-Governance-Token` header to your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 ```json
 {
