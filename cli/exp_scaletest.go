@@ -519,6 +519,91 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
+// prebuildTemplateCleanupRunner deletes a single scaletest prebuilds template.
+// All prebuild workspaces must be deleted before this runs.
+type prebuildTemplateCleanupRunner struct {
+	client   *codersdk.Client
+	template codersdk.Template
+}
+
+var _ harness.Runnable = &prebuildTemplateCleanupRunner{}
+
+// Run implements Runnable.
+func (r *prebuildTemplateCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	if err := r.client.DeleteTemplate(ctx, r.template.ID); err != nil {
+		return xerrors.Errorf("delete template %q: %w", r.template.Name, err)
+	}
+	return nil
+}
+
+// getScaletestPrebuildWorkspaces returns all prebuild workspaces by querying
+// on owner (the prebuilds system user) and on name (substring "prebuild"),
+// merging and deduplicating the results. Both filters are used because a
+// workspace might only match one depending on how it was created.
+func getScaletestPrebuildWorkspaces(ctx context.Context, client *codersdk.Client) ([]codersdk.Workspace, error) {
+	const pageSize = 100
+
+	seen := make(map[uuid.UUID]struct{})
+	var result []codersdk.Workspace
+
+	// paginateWorkspaces appends all pages for the given filter, skipping
+	// workspaces already seen by a previous query.
+	paginateWorkspaces := func(filter codersdk.WorkspaceFilter) error {
+		for page := 0; ; page++ {
+			filter.Offset = page * pageSize
+			filter.Limit = pageSize
+			resp, err := client.Workspaces(ctx, filter)
+			if err != nil {
+				return xerrors.Errorf("list prebuild workspaces (page %d): %w", page, err)
+			}
+			for _, ws := range resp.Workspaces {
+				if _, ok := seen[ws.ID]; !ok {
+					seen[ws.ID] = struct{}{}
+					result = append(result, ws)
+				}
+			}
+			if len(resp.Workspaces) < pageSize {
+				break
+			}
+		}
+		return nil
+	}
+
+	// Query by owner first (the prebuilds system user), then by name substring
+	// to catch any workspaces that might not match on owner alone.
+	if err := paginateWorkspaces(codersdk.WorkspaceFilter{Owner: "prebuilds"}); err != nil {
+		return nil, err
+	}
+	if err := paginateWorkspaces(codersdk.WorkspaceFilter{Name: "prebuild"}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// getScaletestPrebuildsTemplates returns all templates that look like they were
+// created by the scaletest prebuilds command: they must have the scaletest
+// prefix and contain "prebuild" anywhere in the name.
+func getScaletestPrebuildsTemplates(ctx context.Context, client *codersdk.Client) ([]codersdk.Template, error) {
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		FuzzyName: "prebuild",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list templates: %w", err)
+	}
+
+	var result []codersdk.Template
+	for _, t := range templates {
+		if strings.HasPrefix(t.Name, loadtestutil.ScaleTestPrefix+"-") && strings.Contains(t.Name, "prebuild") {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}
+
 func (r *RootCmd) scaletestCleanup() *serpent.Command {
 	var template string
 	cleanupStrategy := newScaletestCleanupStrategy()
@@ -552,6 +637,71 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
 				if err != nil {
 					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
+			cliui.Infof(inv.Stdout, "Fetching scaletest prebuild workspaces...")
+			prebuildWorkspaces, err := getScaletestPrebuildWorkspaces(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			cliui.Errorf(inv.Stderr, "Found %d scaletest prebuild workspaces\n", len(prebuildWorkspaces))
+			if len(prebuildWorkspaces) != 0 {
+				cliui.Infof(inv.Stdout, "Deleting scaletest prebuild workspaces...")
+				prebuildWsHarness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, ws := range prebuildWorkspaces {
+					const testName = "cleanup-prebuild-workspace"
+					prebuildWsHarness.AddRun(testName, strconv.Itoa(i), workspacebuild.NewCleanupRunner(client, ws.ID))
+				}
+
+				prebuildWsCtx, prebuildWsCancel := cleanupStrategy.toContext(ctx)
+				defer prebuildWsCancel()
+				if err := prebuildWsHarness.Run(prebuildWsCtx); err != nil {
+					return xerrors.Errorf("run test harness to delete prebuild workspaces (harness failure, not a test failure): %w", err)
+				}
+
+				cliui.Infof(inv.Stdout, "Done deleting scaletest prebuild workspaces:")
+				prebuildWsRes := prebuildWsHarness.Results()
+				prebuildWsRes.PrintText(inv.Stderr)
+
+				if prebuildWsRes.TotalFail > 0 {
+					return xerrors.Errorf("failed to delete %d scaletest prebuild workspace(s)", prebuildWsRes.TotalFail)
+				}
+			}
+
+			cliui.Infof(inv.Stdout, "Fetching scaletest prebuilds templates...")
+			prebuildTemplates, err := getScaletestPrebuildsTemplates(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			cliui.Errorf(inv.Stderr, "Found %d scaletest prebuilds templates\n", len(prebuildTemplates))
+			if len(prebuildTemplates) != 0 {
+				cliui.Infof(inv.Stdout, "Deleting scaletest prebuilds templates...")
+				prebuildTplHarness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, t := range prebuildTemplates {
+					const testName = "cleanup-prebuilds-template"
+					prebuildTplHarness.AddRun(testName, strconv.Itoa(i), &prebuildTemplateCleanupRunner{
+						client:   client,
+						template: t,
+					})
+				}
+
+				prebuildTplCtx, prebuildTplCancel := cleanupStrategy.toContext(ctx)
+				defer prebuildTplCancel()
+				if err := prebuildTplHarness.Run(prebuildTplCtx); err != nil {
+					return xerrors.Errorf("run test harness to delete prebuilds templates (harness failure, not a test failure): %w", err)
+				}
+
+				cliui.Infof(inv.Stdout, "Done deleting scaletest prebuilds templates:")
+				prebuildTplRes := prebuildTplHarness.Results()
+				prebuildTplRes.PrintText(inv.Stderr)
+
+				if prebuildTplRes.TotalFail > 0 {
+					return xerrors.Errorf("failed to delete %d scaletest prebuilds template(s)", prebuildTplRes.TotalFail)
 				}
 			}
 
