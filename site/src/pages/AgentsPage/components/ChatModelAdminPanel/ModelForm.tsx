@@ -334,7 +334,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						type="text"
 						{...form.getFieldProps("displayName")}
 						disabled={isSaving}
-						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+						className="m-0 w-full rounded-md border border-solid border-transparent bg-transparent px-2 py-1 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary hover:border-border focus:border-border-active focus:ring-0"
 						placeholder={
 							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
