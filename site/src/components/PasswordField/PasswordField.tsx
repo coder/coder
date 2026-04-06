@@ -1,4 +1,4 @@
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { API } from "#/api/api";
 import { Input, type InputProps } from "#/components/Input/Input";
@@ -15,7 +15,6 @@ import type { FormHelpers } from "#/utils/formUtils";
 type PasswordFieldProps = InputProps & {
 	label: string;
 	field: FormHelpers;
-	helperText?: ReactNode;
 };
 /**
  * A password field component that validates the password against the API with
@@ -39,7 +38,7 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 
 	const displayHelper = !valid
 		? validatePasswordQuery.data?.details
-		: props.helperText;
+		: field.helperText;
 
 	return (
 		<div className="flex flex-col items-start gap-2">
@@ -48,8 +47,11 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 				{...props}
 				id={field.id}
 				type="password"
-				value={value}
+				value={field.value}
 				aria-invalid={!valid || undefined}
+				name={field.name}
+				onChange={field.onChange}
+				onBlur={field.onBlur}
 			/>
 			{displayHelper && (
 				<span
