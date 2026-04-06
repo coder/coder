@@ -129,6 +129,7 @@ export const AgentSettingsBehaviorPageView: FC<
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
+
 	const kylesophyForced = isKylesophyForced();
 	const [kylesophyEnabled, setLocalKylesophy] = useState(getKylesophyEnabled);
 

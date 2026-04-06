@@ -40,6 +40,7 @@ import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -80,6 +81,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	chatId?: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
@@ -119,6 +121,7 @@ interface AgentChatPageViewProps {
 	// Sidebar content data.
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
+	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		refresh: () => boolean;
@@ -171,6 +174,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	chatId,
 	chatTitle,
 	parentChat,
 	persistedError,
@@ -197,6 +201,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
+	debugLoggingEnabled,
 	gitWatcher,
 	canOpenEditors,
 	canOpenWorkspace,
@@ -265,6 +270,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
 	};
 
+	const shouldShowSidebar = showSidebarPanel;
+
 	// Compute local diff stats from git watcher unified diffs.
 
 	const workspaceRoute = workspace
@@ -298,13 +305,76 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
+	const sidebarTabIds = [
+		"git",
+		...(workspace && workspaceAgent ? ["terminal"] : []),
+		...(debugLoggingEnabled ? ["debug"] : []),
+	];
+	const allSidebarTabIds = new Set(sidebarTabIds);
+	if (desktopChatId) {
+		allSidebarTabIds.add("desktop");
+	}
+	const effectiveSidebarTabId =
+		sidebarTabId !== null && allSidebarTabIds.has(sidebarTabId)
+			? sidebarTabId
+			: (sidebarTabIds[0] ?? (desktopChatId ? "desktop" : null));
+	const sidebarTabs = [
+		{
+			id: "git",
+			label: "Git",
+			content: (
+				<GitPanel
+					prTab={
+						prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+					}
+					repositories={gitWatcher.repositories}
+					onRefresh={handleRefresh}
+					onCommit={handleCommit}
+					isExpanded={visualExpanded}
+					remoteDiffStats={diffStatusData}
+					chatInputRef={editing.chatInputRef}
+				/>
+			),
+		},
+		...(workspace && workspaceAgent
+			? [
+					{
+						id: "terminal",
+						label: "Terminal",
+						content: (
+							<TerminalPanel
+								chatId={agentId}
+								isVisible={
+									shouldShowSidebar && effectiveSidebarTabId === "terminal"
+								}
+								workspace={workspace}
+								workspaceAgent={workspaceAgent}
+							/>
+						),
+					},
+				]
+			: []),
+		...(debugLoggingEnabled
+			? [
+					{
+						id: "debug",
+						label: "Debug",
+						content: (
+							<DebugPanel
+								chatId={chatId ?? agentId}
+								enabled={shouldShowSidebar && effectiveSidebarTabId === "debug"}
+							/>
+						),
+					},
+				]
+			: []),
+	];
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 		</title>
 	);
-
-	const shouldShowSidebar = showSidebarPanel;
 
 	return (
 		<DesktopPanelContext value={desktopPanelCtx}>
@@ -444,45 +514,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					<SidebarTabView
 						activeTabId={sidebarTabId}
 						onActiveTabChange={setSidebarTabId}
-						tabs={[
-							{
-								id: "git",
-								label: "Git",
-								content: (
-									<GitPanel
-										prTab={
-											prNumber && agentId
-												? { prNumber, chatId: agentId }
-												: undefined
-										}
-										repositories={gitWatcher.repositories}
-										onRefresh={handleRefresh}
-										onCommit={handleCommit}
-										isExpanded={visualExpanded}
-										remoteDiffStats={diffStatusData}
-										chatInputRef={editing.chatInputRef}
-									/>
-								),
-							},
-							...(workspace && workspaceAgent
-								? [
-										{
-											id: "terminal",
-											label: "Terminal",
-											content: (
-												<TerminalPanel
-													chatId={agentId}
-													isVisible={
-														shouldShowSidebar && sidebarTabId === "terminal"
-													}
-													workspace={workspace}
-													workspaceAgent={workspaceAgent}
-												/>
-											),
-										},
-									]
-								: []),
-						]}
+						tabs={sidebarTabs}
 						onClose={() => onSetShowSidebarPanel(false)}
 						isExpanded={visualExpanded}
 						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}

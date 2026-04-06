@@ -489,6 +489,9 @@ const AgentChatPage: FC = () => {
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
+	// Debug panel is always available (config endpoint removed).
+	const debugLoggingEnabled = true;
+
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
 	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<
@@ -1114,6 +1117,7 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			chatId={chatQuery.data.id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			persistedError={persistedError}
@@ -1140,6 +1144,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
+			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			canOpenEditors={canOpenEditors}
 			canOpenWorkspace={canOpenWorkspace}
