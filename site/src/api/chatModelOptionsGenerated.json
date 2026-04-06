@@ -286,7 +286,8 @@
 					"type": "string",
 					"description": "Controls whether reasoning tokens are summarized in the response",
 					"required": false,
-					"input_type": "input"
+					"enum": ["auto", "concise", "detailed"],
+					"input_type": "select"
 				},
 				{
 					"json_name": "max_completion_tokens",
@@ -354,7 +355,8 @@
 					"type": "string",
 					"description": "Latency tier to use for processing the request",
 					"required": false,
-					"input_type": "input"
+					"enum": ["auto", "default", "flex", "scale", "priority"],
+					"input_type": "select"
 				},
 				{
 					"json_name": "structured_outputs",
