@@ -2,7 +2,7 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
 	addOrganizationMember,
@@ -11,12 +11,10 @@ import {
 	updateOrganizationMemberRoles,
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
-import type {
-	OrganizationMemberWithUserData,
-	User,
-} from "#/api/typesGenerated";
+import type { OrganizationMemberWithUserData } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
 import { Stack } from "#/components/Stack/Stack";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -24,6 +22,7 @@ import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import type { AddableUser } from "#/modules/users/AddUsersPopover";
 import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -37,6 +36,7 @@ const OrganizationMembersPage: FC = () => {
 	const { entitlements } = useDashboard();
 	const searchParamsResult = useSearchParams();
 	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
+	const [searchParams, setSearchParams] = useSearchParams();
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -46,6 +46,12 @@ const OrganizationMembersPage: FC = () => {
 	const membersQuery = usePaginatedQuery(
 		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
 	);
+
+	const useFilterResult = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: membersQuery.goToFirstPage,
+	});
 
 	const members = membersQuery.data?.members.map(
 		(member: OrganizationMemberWithUserData) => {
@@ -93,6 +99,9 @@ const OrganizationMembersPage: FC = () => {
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
 				canViewMembers={organizationPermissions.viewMembers}
+				filterProps={{
+					filter: useFilterResult,
+				}}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
@@ -107,8 +116,28 @@ const OrganizationMembersPage: FC = () => {
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
-				addMember={async (user: User) => {
-					await addMemberMutation.mutateAsync(user.id);
+				addMembers={async (usersToAdd: readonly AddableUser[]) => {
+					const addMutationPromises = usersToAdd.map((user) =>
+						addMemberMutation.mutateAsync(user.id),
+					);
+					const addAllMembersPromise = Promise.all(addMutationPromises);
+
+					toast.promise(addAllMembersPromise, {
+						loading:
+							usersToAdd.length === 1
+								? `Adding "${usersToAdd[0].username}" to organization "${organization.display_name}"...`
+								: `Adding ${usersToAdd.length} members to organization "${organization.display_name}"...`,
+						success:
+							usersToAdd.length === 1
+								? `Added "${usersToAdd[0].username}" to organization "${organization.display_name}".`
+								: `Added ${usersToAdd.length} members to organization "${organization.display_name}".`,
+						error: (error) => ({
+							message: getErrorMessage(error, "Failed to add members."),
+							description: getErrorDetail(error),
+						}),
+					});
+
+					await addAllMembersPromise;
 					void membersQuery.refetch();
 				}}
 				removeMember={setMemberToDelete}

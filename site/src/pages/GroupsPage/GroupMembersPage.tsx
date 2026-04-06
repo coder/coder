@@ -1,20 +1,25 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, removeMember } from "#/api/queries/groups";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	ReducedUser,
-} from "#/api/typesGenerated";
+import {
+	addMember,
+	groupMembersByOrganizationQueryKey,
+	removeMember,
+} from "#/api/queries/groups";
+import { organizationMembers } from "#/api/queries/organizations";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -24,7 +29,6 @@ import {
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
-import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	Table,
@@ -34,7 +38,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { isEveryoneGroup } from "#/modules/groups";
+import { AddUsersPopover } from "#/modules/users/AddUsersPopover";
+import { prepareQuery } from "#/utils/filters";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {
@@ -47,11 +54,28 @@ const GroupMembersPage: FC = () => {
 		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const addMembersMutation = useMutation(addMembers(queryClient, organization));
+	const addMemberMutation = useMutation(addMember());
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+	const [addUsersSearch, setAddUsersSearch] = useState("");
+	const debouncedSearch = useDebouncedValue(addUsersSearch, 400);
+
+	const addableMembersQuery = useQuery({
+		...organizationMembers(organization, {
+			q: prepareQuery(debouncedSearch),
+			limit: 50,
+		}),
+		select: (data) =>
+			data.members.map((member) => ({
+				...member,
+				id: member.user_id,
+			})),
+		enabled:
+			canUpdateGroup && Boolean(groupData) && !isEveryoneGroup(groupData),
+		placeholderData: keepPreviousData,
+	});
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -59,12 +83,45 @@ const GroupMembersPage: FC = () => {
 				<UsersFilter {...filterProps} />
 
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddUsersDialog
-						organizationId={groupData.organization_id}
-						onSubmit={async (users) => {
-							await addMembersMutation.mutateAsync({
-								groupId: groupData.id,
-								userIds: users.map((u) => u.user_id),
+					<AddUsersPopover
+						isLoading={addMemberMutation.isPending}
+						existingUserIds={new Set(members.map((m) => m.id))}
+						search={addUsersSearch}
+						onSearchChange={setAddUsersSearch}
+						usersQuery={addableMembersQuery}
+						onSubmit={async (usersToAdd) => {
+							const addPromises = usersToAdd.map((user) =>
+								addMemberMutation.mutateAsync({
+									groupId: groupData.id,
+									userId: user.id,
+								}),
+							);
+							const addAllPromise = Promise.all(addPromises);
+
+							toast.promise(addAllPromise, {
+								loading:
+									usersToAdd.length === 1
+										? `Adding "${usersToAdd[0].username}" to "${groupData.name}"...`
+										: `Adding ${usersToAdd.length} members to "${groupData.name}"...`,
+								success:
+									usersToAdd.length === 1
+										? `Added "${usersToAdd[0].username}" to "${groupData.name}" successfully.`
+										: `Added ${usersToAdd.length} members to "${groupData.name}" successfully.`,
+								error: (error) => ({
+									message: getErrorMessage(error, "Failed to add members."),
+									description: getErrorDetail(error),
+								}),
+							});
+
+							await addAllPromise;
+						}}
+						onSuccess={async () => {
+							// Only invalidate the group-members list we are updating.
+							await queryClient.invalidateQueries({
+								queryKey: groupMembersByOrganizationQueryKey(
+									organization,
+									groupData.name,
+								),
 							});
 						}}
 					/>
@@ -116,68 +173,6 @@ const GroupMembersPage: FC = () => {
 				</Table>
 			</PaginationContainer>
 		</div>
-	);
-};
-
-interface AddUsersDialogProps {
-	onSubmit: (users: OrganizationMemberWithUserData[]) => Promise<void>;
-	organizationId: string;
-}
-
-const AddUsersDialog: FC<AddUsersDialogProps> = ({
-	onSubmit,
-	organizationId,
-}) => {
-	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
-	const [submitting, setSubmitting] = useState(false);
-	const [filter, setFilter] = useState("");
-	const [selected, setSelected] = useState<OrganizationMemberWithUserData[]>(
-		[],
-	);
-	return (
-		<>
-			<Button size="lg" onClick={() => setAddUserDialogOpen(true)}>
-				<UserPlusIcon />
-				Add users
-			</Button>
-			<ConfirmDialog
-				open={addUserDialogOpen}
-				title="Add users"
-				disabled={submitting}
-				description={
-					<MultiMemberSelect
-						organizationId={organizationId}
-						filter={filter}
-						setFilter={setFilter}
-						onChange={(user, checked) => {
-							if (checked) {
-								setSelected([...selected, user]);
-							} else {
-								setSelected(selected.filter((s) => s.user_id !== user.user_id));
-							}
-						}}
-						selected={selected}
-					/>
-				}
-				hideCancel={false}
-				cancelText="Cancel"
-				confirmText="Add users"
-				onClose={() => setAddUserDialogOpen(false)}
-				onConfirm={async () => {
-					try {
-						setSubmitting(true);
-						await onSubmit(selected);
-						setAddUserDialogOpen(false);
-					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to add members."), {
-							description: getErrorDetail(error),
-						});
-					} finally {
-						setSubmitting(false);
-					}
-				}}
-			/>
-		</>
 	);
 };
 

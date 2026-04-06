@@ -10,7 +10,7 @@ import {
 	getGroupQueryKey,
 	groupPermissionsKey,
 } from "#/api/queries/groups";
-import { organizationMembersKey } from "#/api/queries/organizations";
+import { usersKey } from "#/api/queries/users";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -69,9 +69,9 @@ const permissionsQuery = (data: unknown, id?: string) => ({
 	data,
 });
 
-const membersQuery = (data: unknown) => ({
-	key: organizationMembersKey(MockDefaultOrganization.id, {
-		limit: 25,
+const usersQuery = (data: unknown) => ({
+	key: usersKey({
+		limit: 50,
 		q: "",
 	}),
 	data,
@@ -166,9 +166,7 @@ export const MembersError: Story = {
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canUpdateGroup: true,
 		});
-		spyOn(API, "getOrganizationPaginatedMembers").mockRejectedValue(
-			new Error("test members error"),
-		);
+		spyOn(API, "getUsers").mockRejectedValue(new Error("test members error"));
 	},
 	parameters: {
 		queries: [
@@ -181,7 +179,7 @@ export const MembersError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add users" }),
+			await canvas.findByRole("button", { name: /Add users/i }),
 		);
 	},
 };
@@ -192,13 +190,13 @@ export const NoMembers: Story = {
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [], count: 0 }),
 			permissionsQuery({ canUpdateGroup: true }),
-			membersQuery({ members: [] }),
+			usersQuery({ users: [], count: 0 }),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add users" }),
+			await canvas.findByRole("button", { name: /Add users/i }),
 		);
 	},
 };
@@ -212,15 +210,16 @@ export const FiltersByMembers: Story = {
 				count: MockGroup.members.length,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
-			membersQuery({
-				members: [MockOrganizationMember, MockOrganizationMember2],
+			usersQuery({
+				users: [MockOrganizationMember, MockOrganizationMember2],
+				count: 2,
 			}),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add users" }),
+			await canvas.findByRole("button", { name: /Add users/i }),
 		);
 	},
 };

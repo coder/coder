@@ -1,7 +1,8 @@
-import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { EllipsisVertical, TriangleAlert } from "lucide-react";
+import { type ComponentProps, type FC, useState } from "react";
+import { useQuery } from "react-query";
 import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { users } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -18,13 +19,13 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
@@ -34,10 +35,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import { useDebouncedValue } from "#/hooks/debounce";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import {
+	type AddableUser,
+	AddUsersPopover,
+} from "#/modules/users/AddUsersPopover";
 import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
+import { prepareQuery } from "#/utils/filters";
 import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
@@ -45,6 +51,7 @@ interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
 	canEditMembers: boolean;
 	canViewMembers: boolean;
+	filterProps: ComponentProps<typeof UsersFilter>;
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
@@ -54,7 +61,7 @@ interface OrganizationMembersPageViewProps {
 	membersQuery: PaginationResultInfo & {
 		isPlaceholderData: boolean;
 	};
-	addMember: (user: User) => Promise<void>;
+	addMembers: (users: readonly AddableUser[]) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
@@ -72,6 +79,7 @@ export const OrganizationMembersPageView: FC<
 	allAvailableRoles,
 	canEditMembers,
 	canViewMembers,
+	filterProps,
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
@@ -79,10 +87,21 @@ export const OrganizationMembersPageView: FC<
 	me,
 	membersQuery,
 	members,
-	addMember,
+	addMembers,
 	removeMember,
 	updateMemberRoles,
 }) => {
+	const [addUsersSearch, setAddUsersSearch] = useState("");
+	const debouncedSearch = useDebouncedValue(addUsersSearch, 400);
+	const addableUsersQuery = useQuery({
+		...users({
+			q: prepareQuery(debouncedSearch),
+			limit: 50,
+		}),
+		select: (data) => data.users,
+		enabled: canEditMembers,
+	});
+
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
@@ -92,12 +111,19 @@ export const OrganizationMembersPageView: FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				{canEditMembers && (
-					<AddOrganizationMember
-						isLoading={isAddingMember}
-						onSubmit={addMember}
-					/>
-				)}
+				<div className="flex flex-row flex-wrap items-start justify-between gap-4">
+					<UsersFilter {...filterProps} />
+					{canEditMembers && (
+						<AddUsersPopover
+							isLoading={isAddingMember}
+							onSubmit={addMembers}
+							existingUserIds={new Set(members?.map((m) => m.user_id) ?? [])}
+							search={addUsersSearch}
+							onSearchChange={setAddUsersSearch}
+							usersQuery={addableUsersQuery}
+						/>
+					)}
+				</div>
 
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
@@ -214,65 +240,5 @@ export const OrganizationMembersPageView: FC<
 				</PaginationContainer>
 			</div>
 		</div>
-	);
-};
-
-interface AddOrganizationMemberProps {
-	isLoading: boolean;
-	onSubmit: (user: User) => Promise<void>;
-}
-
-const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
-	isLoading,
-	onSubmit,
-}) => {
-	const [selectedUser, setSelectedUser] = useState<User | null>(null);
-
-	return (
-		<form
-			onSubmit={async (event) => {
-				event.preventDefault();
-
-				if (selectedUser) {
-					try {
-						await onSubmit(selectedUser);
-						setSelectedUser(null);
-					} catch (error) {
-						toast.error(
-							getErrorMessage(
-								error,
-								selectedUser
-									? `Failed to add "${selectedUser.username}" as a member.`
-									: "Failed to add member.",
-							),
-							{
-								description: getErrorDetail(error),
-							},
-						);
-					}
-				}
-			}}
-		>
-			<Stack direction="row" alignItems="center" spacing={1}>
-				<UserAutocomplete
-					className="w-[300px]"
-					value={selectedUser}
-					onChange={(newValue) => {
-						setSelectedUser(newValue);
-					}}
-				/>
-
-				<Button
-					disabled={!selectedUser || isLoading}
-					type="submit"
-					variant="outline"
-				>
-					<Spinner loading={isLoading}>
-						<UserPlusIcon className="size-icon-sm" />
-					</Spinner>
-					Add user
-				</Button>
-			</Stack>
-		</form>
 	);
 };
