@@ -354,11 +354,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								data-testid="onboarding_info.newsletter_releases"
 							/>
 							<div className="flex flex-col text-sm">
-								<span className="font-medium">
-									Release notes & security updates
-								</span>
+								<span className="font-medium">Release notes & updates</span>
 								<span className="text-content-secondary">
-									Monthly changelog, early access invites, and security notices
+									Monthly changelog and security notices
 								</span>
 							</div>
 						</label>
