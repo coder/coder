@@ -92,11 +92,14 @@ function capitalize(s: string): string {
 	return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function snakeToPrettyLabel(jsonName: string): string {
-	if (shortLabelOverrides[jsonName]) {
-		return shortLabelOverrides[jsonName];
+function snakeToPrettyLabel(field: FieldSchema): string {
+	if (field.label) {
+		return field.label;
 	}
-	return jsonName
+	if (shortLabelOverrides[field.json_name]) {
+		return shortLabelOverrides[field.json_name];
+	}
+	return field.json_name
 		.split(/[._]/)
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
@@ -421,7 +424,7 @@ const SchemaField: FC<SchemaFieldProps> = ({
 	fieldErrors,
 	disabled,
 }) => {
-	const label = snakeToPrettyLabel(field.json_name);
+	const label = snakeToPrettyLabel(field);
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 
 	switch (field.input_type) {
@@ -594,7 +597,7 @@ const GeneralFieldsGroup: FC<
 					.map(snakeToCamel)
 					.join(".");
 				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field.json_name);
+				const label = snakeToPrettyLabel(field);
 
 				return (
 					<InputField
@@ -637,7 +640,7 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					.map(snakeToCamel)
 					.join(".");
 				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field.json_name);
+				const label = snakeToPrettyLabel(field);
 				const errorId = `${fieldKey}-error`;
 				const fieldError = fieldErrors[camelName];
 				const fieldProps = form.getFieldProps(fieldKey);

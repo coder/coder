@@ -639,7 +639,7 @@ type ChatModelOpenAIProviderOptions struct {
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
 	WebSearchEnabled    *bool            `json:"web_search_enabled,omitempty" description:"Enable OpenAI web search tool for grounding responses with real-time information"`
 	SearchContextSize   *string          `json:"search_context_size,omitempty" description:"Amount of search context to use" enum:"low,medium,high"`
-	AllowedDomains      []string         `json:"allowed_domains,omitempty" description:"Restrict web search to these domains"`
+	AllowedDomains      []string         `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains"`
 }
 
 // ChatModelAnthropicThinkingOptions configures Anthropic thinking budget.
@@ -651,11 +651,11 @@ type ChatModelAnthropicThinkingOptions struct {
 type ChatModelAnthropicProviderOptions struct {
 	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
 	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
-	Effort                 *string                            `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high,max"`
+	Effort                 *string                            `json:"effort,omitempty" label:"Reasoning Effort" description:"Controls the level of reasoning effort" enum:"low,medium,high,max"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
-	AllowedDomains         []string                           `json:"allowed_domains,omitempty" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
-	BlockedDomains         []string                           `json:"blocked_domains,omitempty" description:"Block web search on these domains (cannot be used with allowed_domains)"`
+	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
+	BlockedDomains         []string                           `json:"blocked_domains,omitempty" label:"Web Search: Blocked Domains" description:"Block web search on these domains (cannot be used with allowed_domains)"`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
