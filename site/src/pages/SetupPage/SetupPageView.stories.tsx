@@ -14,6 +14,16 @@ type Story = StoryObj<typeof SetupPageView>;
 
 export const Ready: Story = {};
 
+export const WithGitHub: Story = {
+	args: {
+		authMethods: {
+			github: { enabled: true, default_provider_configured: false },
+			oidc: { enabled: false, signInText: "", iconUrl: "" },
+			password: { enabled: true },
+		},
+	},
+};
+
 export const FormError: Story = {
 	args: {
 		error: mockApiError({
