@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { ChangelogProvider } from "#/modules/changelog";
 import { MockNotifications } from "#/testHelpers/entities";
 import { InboxPopover } from "./InboxPopover";
 
@@ -11,11 +12,13 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6 h-[720px]">
-				<header className="flex justify-end">
-					<InboxPopover {...args} />
-				</header>
-			</div>
+			<ChangelogProvider>
+				<div className="w-full max-w-screen-xl p-6 h-[720px]">
+					<header className="flex justify-end">
+						<InboxPopover {...args} />
+					</header>
+				</div>
+			</ChangelogProvider>
 		);
 	},
 };

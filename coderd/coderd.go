@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
+	"github.com/coder/coder/v2/coderd/changelog"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -634,7 +635,7 @@ func New(options *Options) *API {
 		ProfileCollector: defaultProfileCollector{},
 		AISeatTracker:    aiseats.Noop{},
 	}
-
+	api.ChangelogStore = changelog.NewStore()
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -1905,6 +1906,15 @@ func New(options *Options) *API {
 			r.Post("/test", api.postTestNotification)
 			r.Post("/custom", api.postCustomNotification)
 		})
+		r.Route("/changelog", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.listChangelogEntries)
+			r.Get("/unread", api.unreadChangelogNotification)
+			r.Route("/assets", func(r chi.Router) {
+				r.Get("/*", api.changelogAsset)
+			})
+			r.Get("/{version}", api.changelogEntryByVersion)
+		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
@@ -2086,6 +2096,7 @@ type API struct {
 
 	metricsCache          *metricscache.Cache
 	updateChecker         *updatecheck.Checker
+	ChangelogStore        *changelog.Store
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 	workspaceAppServer    *workspaceapps.Server
 	agentProvider         workspaceapps.AgentProvider

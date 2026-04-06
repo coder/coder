@@ -3846,6 +3846,8 @@ CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
 
+CREATE INDEX notification_messages_changelog_version_user_idx ON notification_messages USING btree (notification_template_id, (((payload -> 'labels'::text) ->> 'version'::text)), user_id);
+
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
 CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);

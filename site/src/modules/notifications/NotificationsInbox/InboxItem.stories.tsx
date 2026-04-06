@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { ChangelogProvider } from "#/modules/changelog";
 import { MockNotification } from "#/testHelpers/entities";
 import { daysAgo } from "#/utils/time";
 import { InboxItem } from "./InboxItem";
@@ -9,9 +10,11 @@ const meta: Meta<typeof InboxItem> = {
 	component: InboxItem,
 	render: (args) => {
 		return (
-			<div className="max-w-[460px] border-solid border-border rounded">
-				<InboxItem {...args} />
-			</div>
+			<ChangelogProvider>
+				<div className="max-w-[460px] border-solid border-border rounded">
+					<InboxItem {...args} />
+				</div>
+			</ChangelogProvider>
 		);
 	},
 };

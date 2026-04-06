@@ -6,6 +6,7 @@ import { Outlet } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { ChangelogProvider, useChangelogToast } from "#/modules/changelog";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import { cn } from "#/utils/cn";
@@ -14,13 +15,19 @@ import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
 
+const ChangelogToast: FC = () => {
+	useChangelogToast();
+	return null;
+};
+
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
 
 	return (
-		<>
+		<ChangelogProvider>
+			<ChangelogToast />
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
 
@@ -105,7 +112,7 @@ export const DashboardLayout: FC = () => {
 					}
 				/>
 			</div>
-		</>
+		</ChangelogProvider>
 	);
 };
 

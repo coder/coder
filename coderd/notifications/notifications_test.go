@@ -1302,6 +1302,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateChangelog",
+			id:   notifications.TemplateChangelog,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"version": "2.30",
+					"summary": "Highlights of this release.",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
 			name: "TemplateTaskPaused",
 			id:   notifications.TemplateTaskPaused,
 			payload: types.MessagePayload{
@@ -1354,6 +1368,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			t.Run("smtp", func(t *testing.T) {
 				t.Parallel()
+				if tc.id == notifications.TemplateChangelog {
+					t.Skip("changelog notifications are inbox-only")
+				}
 
 				// Spin up the DB
 				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
@@ -1537,6 +1554,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			t.Run("webhook", func(t *testing.T) {
 				t.Parallel()
+				if tc.id == notifications.TemplateChangelog {
+					t.Skip("changelog notifications are inbox-only")
+				}
 
 				// Spin up the DB
 				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
