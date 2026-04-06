@@ -49,24 +49,31 @@ func run(lint bool) error {
 
 	var paths []string
 	if lint {
-		err := fs.WalkDir(examplesFS, "templates", func(path string, d fs.DirEntry, err error) error {
+		files, err := fs.ReadDir(examplesFS, "templates")
+		if err != nil {
+			return err
+		}
+
+		for _, f := range files {
+			if !f.IsDir() {
+				continue
+			}
+			if f.Name() != "x" {
+				paths = append(paths, filepath.Join("templates", f.Name()))
+				continue
+			}
+
+			experimentalTemplates, err := fs.ReadDir(examplesFS, filepath.Join("templates", f.Name()))
 			if err != nil {
 				return err
 			}
-			if !d.IsDir() {
-				return nil
+
+			for _, experimentalTemplate := range experimentalTemplates {
+				if !experimentalTemplate.IsDir() {
+					continue
+				}
+				paths = append(paths, filepath.Join("templates", f.Name(), experimentalTemplate.Name()))
 			}
-			if path == "templates" {
-				return nil
-			}
-			if !isTemplateExampleDir(examplesFS, path) {
-				return nil
-			}
-			paths = append(paths, path)
-			return fs.SkipDir
-		})
-		if err != nil {
-			return err
 		}
 	} else {
 		for _, comment := range src.Comments {
@@ -108,18 +115,6 @@ func run(lint bool) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	return enc.Encode(examples)
-}
-
-func isTemplateExampleDir(examplesFS fs.FS, name string) bool {
-	readmePath := path.Join(name, "README.md")
-	mainTFPath := path.Join(name, "main.tf")
-	if _, err := fs.Stat(examplesFS, readmePath); err != nil {
-		return false
-	}
-	if _, err := fs.Stat(examplesFS, mainTFPath); err != nil {
-		return false
-	}
-	return true
 }
 
 func parseTemplateExample(projectFS, examplesFS fs.FS, name string) (te *codersdk.TemplateExample, err error) {
