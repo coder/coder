@@ -3224,8 +3224,12 @@ func (p *Server) Subscribe(
 					// Pubsub will deliver a duplicate status
 					// later; the frontend deduplicates it
 					// (setChatStatus is idempotent).
+					// action_required is also transient and
+					// only published on the local stream, so
+					// it must be forwarded here.
 					if event.Type == codersdk.ChatStreamEventTypeMessagePart ||
-						event.Type == codersdk.ChatStreamEventTypeStatus {
+						event.Type == codersdk.ChatStreamEventTypeStatus ||
+						event.Type == codersdk.ChatStreamEventTypeActionRequired {
 						select {
 						case <-mergedCtx.Done():
 							return
