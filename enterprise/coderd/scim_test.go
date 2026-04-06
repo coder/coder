@@ -40,17 +40,17 @@ func makeScimUser(t testing.TB) coderd.SCIMUser {
 	return coderd.SCIMUser{
 		UserName: rstr,
 		Name: struct {
-			GivenName  string "json:\"givenName\""
-			FamilyName string "json:\"familyName\""
+			GivenName  string `json:"givenName"`
+			FamilyName string `json:"familyName"`
 		}{
 			GivenName:  rstr,
 			FamilyName: rstr,
 		},
 		Emails: []struct {
-			Primary bool   "json:\"primary\""
-			Value   string "json:\"value\" format:\"email\""
-			Type    string "json:\"type\""
-			Display string "json:\"display\""
+			Primary bool   `json:"primary"`
+			Value   string `json:"value" format:"email"`
+			Type    string `json:"type"`
+			Display string `json:"display"`
 		}{
 			{Primary: true, Value: fmt.Sprintf("%s@coder.com", rstr)},
 		},

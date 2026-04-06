@@ -1,4 +1,4 @@
-import type { SerpentOption } from "api/typesGenerated";
+import type { SerpentOption } from "#/api/typesGenerated";
 import { optionValue } from "./optionValue";
 
 const defaultOption: SerpentOption = {

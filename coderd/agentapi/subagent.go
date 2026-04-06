@@ -25,7 +25,6 @@ import (
 type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
-	AgentID        uuid.UUID
 	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
 
 	Log      slog.Logger
@@ -295,7 +294,12 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, a.AgentID)
+	parentAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get parent agent: %w", err)
+	}
+
+	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, parentAgent.ID)
 	if err != nil {
 		return nil, err
 	}

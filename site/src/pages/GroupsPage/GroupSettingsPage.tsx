@@ -1,9 +1,9 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { patchGroup } from "api/queries/groups";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { patchGroup } from "#/api/queries/groups";
 import type { GroupPageOutletContext } from "./GroupPage";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 

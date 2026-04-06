@@ -1,4 +1,4 @@
-import type { FC, PropsWithChildren } from "react";
+import { createContext, type FC, type PropsWithChildren } from "react";
 
 export type WorkerInitializationRenderOptions = {
 	theme?: {
@@ -17,6 +17,8 @@ export type SupportedLanguages = string;
 export const WorkerPoolContextProvider: FC<PropsWithChildren> = ({
 	children,
 }) => <>{children}</>;
+
+export const VirtualizerContext = createContext(undefined);
 
 export const FileDiff: FC = () => null;
 

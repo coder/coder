@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -46,7 +47,6 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
-	entchatd "github.com/coder/coder/v2/enterprise/coderd/chatd"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
+	entchatd "github.com/coder/coder/v2/enterprise/coderd/x/chatd"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
@@ -144,10 +145,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	if options.ConnectionLogger == nil {
-		options.ConnectionLogger = connectionlog.NewConnectionLogger(
-			connectionlog.NewDBBackend(options.Database),
+		connLogger := connectionlog.New(
+			connectionlog.NewDBBatcher(ctx, options.Database, options.Logger),
 			connectionlog.NewSlogBackend(options.Logger),
 		)
+		options.ConnectionLogger = connLogger
 	}
 
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
@@ -461,6 +463,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 
 				r.Get("/", api.groupByOrganization)
+				r.Get("/members", api.groupMembersByOrganization)
 			})
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
@@ -545,6 +548,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.group)
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
+				r.Get("/members", api.groupMembers)
 			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
@@ -818,6 +822,12 @@ func (api *API) Close() error {
 
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
+	}
+
+	// Close the connection logger to flush any remaining batched
+	// entries before shutting down the database connection.
+	if cl, ok := api.Options.ConnectionLogger.(io.Closer); ok {
+		_ = cl.Close()
 	}
 
 	return api.AGPL.Close()

@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -228,6 +228,6 @@ func resultPaths(results []filefinder.Result) []string {
 	for i, r := range results {
 		paths[i] = r.Path
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	return paths
 }

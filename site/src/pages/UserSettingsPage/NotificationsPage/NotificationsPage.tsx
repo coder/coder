@@ -1,4 +1,8 @@
-import { getErrorDetail } from "api/errors";
+import { type FC, Fragment, useEffect } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -7,20 +11,20 @@ import {
 	systemNotificationTemplates,
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
-} from "api/queries/notifications";
+} from "#/api/queries/notifications";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
-} from "api/queries/users";
-import type { NotificationTemplate } from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
-import { Switch } from "components/Switch/Switch";
+} from "#/api/queries/users";
+import type { NotificationTemplate } from "#/api/typesGenerated";
+import { Loader } from "#/components/Loader/Loader";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useAuthenticated } from "hooks";
+} from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	castNotificationMethod,
 	isTaskNotification,
@@ -28,13 +32,9 @@ import {
 	methodLabels,
 	notificationIsDisabled,
 	selectDisabledPreferences,
-} from "modules/notifications/utils";
-import type { Permissions } from "modules/permissions";
-import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router";
-import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+} from "#/modules/notifications/utils";
+import type { Permissions } from "#/modules/permissions";
+import { pageTitle } from "#/utils/page";
 import { Section } from "../Section";
 
 const NotificationsPage: FC = () => {

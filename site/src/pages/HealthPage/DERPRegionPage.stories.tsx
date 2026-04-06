@@ -1,5 +1,5 @@
-import { MockHealth } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockHealth } from "#/testHelpers/entities";
 import DERPRegionPage from "./DERPRegionPage";
 import { generateMeta } from "./storybook";
 

@@ -1,11 +1,11 @@
-import { API } from "api/api";
+import type { QueryClient, UseMutationOptions } from "react-query";
+import { API } from "#/api/api";
 import type {
 	NotificationPreference,
 	NotificationTemplate,
 	UpdateNotificationTemplateMethod,
 	UpdateUserNotificationPreferences,
-} from "api/typesGenerated";
-import type { QueryClient, UseMutationOptions } from "react-query";
+} from "#/api/typesGenerated";
 
 export const userNotificationPreferencesKey = (userId: string) => [
 	"users",

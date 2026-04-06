@@ -1,12 +1,12 @@
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { API } from "api/api";
-import type { DisplayApp } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { getVSCodeHref } from "modules/apps/apps";
 import { type FC, useRef, useState } from "react";
+import { API } from "#/api/api";
+import type { DisplayApp } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
+import { getVSCodeHref } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
@@ -78,21 +78,21 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 				}}
 			>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={() => {
 						selectVariant("vscode");
 					}}
 				>
-					<VSCodeIcon css={{ width: 12, height: 12 }} />
+					<VSCodeIcon className="w-3 h-3" />
 					{DisplayAppNameMap.vscode}
 				</MenuItem>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={() => {
 						selectVariant("vscode-insiders");
 					}}
 				>
-					<VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
+					<VSCodeInsidersIcon className="w-3 h-3" />
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>

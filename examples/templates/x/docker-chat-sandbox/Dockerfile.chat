@@ -1,0 +1,20 @@
+FROM codercom/enterprise-base:ubuntu
+
+USER root
+
+# Install bubblewrap and iptables for sandboxed agent execution.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends bubblewrap iptables && \
+    rm -rf /var/lib/apt/lists/*
+
+# Wrapper script that starts the agent inside a bwrap sandbox.
+# Everything the agent spawns (tool calls, SSH, etc.) inherits
+# the restricted namespace.
+COPY bwrap-agent.sh /usr/local/bin/bwrap-agent
+RUN chmod 755 /usr/local/bin/bwrap-agent
+
+# Run as root so bwrap can create mount namespaces without needing
+# user namespace support (which Docker blocks). The bwrap sandbox
+# itself provides filesystem isolation (read-only root).
+# The coder user home is still /home/coder (writable via bind mount).
+ENV HOME=/home/coder

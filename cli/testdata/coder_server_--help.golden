@@ -170,6 +170,12 @@ AI BRIDGE OPTIONS:
           exporting these records to external SIEM or observability systems.
 
 AI BRIDGE PROXY OPTIONS: 
+      --aibridge-proxy-allowed-private-cidrs string-array, $CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS
+          Comma-separated list of CIDR ranges that are permitted even though
+          they fall within blocked private/reserved IP ranges. By default all
+          private ranges are blocked to prevent SSRF attacks. Use this to allow
+          access to specific internal networks.
+
       --aibridge-proxy-enabled bool, $CODER_AIBRIDGE_PROXY_ENABLED (default: false)
           Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
           provider requests.

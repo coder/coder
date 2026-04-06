@@ -51,7 +51,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
-	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -63,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
-	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -94,6 +92,8 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -168,6 +168,7 @@ type Options struct {
 	ConnectionLogger               connectionlog.ConnectionLogger
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
+	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
@@ -767,43 +768,47 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
-	if maxChatsPerAcquire > math.MaxInt32 {
-		maxChatsPerAcquire = math.MaxInt32
-	}
-	if maxChatsPerAcquire < math.MinInt32 {
-		maxChatsPerAcquire = math.MinInt32
-	}
+	{ // Experimental: agents — chat daemon and git sync worker initialization.
+		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
+		if maxChatsPerAcquire > math.MaxInt32 {
+			maxChatsPerAcquire = math.MaxInt32
+		}
+		if maxChatsPerAcquire < math.MinInt32 {
+			maxChatsPerAcquire = math.MinInt32
+		}
 
-	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:             options.Logger.Named("chatd"),
-		Database:           options.Database,
-		ReplicaID:          api.ID,
-		SubscribeFn:        options.ChatSubscribeFn,
-		MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-		ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:          api.agentProvider.AgentConn,
-		CreateWorkspace:    api.chatCreateWorkspace,
-		StartWorkspace:     api.chatStartWorkspace,
-		Pubsub:             options.Pubsub,
-		WebpushDispatcher:  options.WebPushDispatcher,
-		UsageTracker:       options.WorkspaceUsageTracker,
-	})
-	gitSyncLogger := options.Logger.Named("gitsync")
-	refresher := gitsync.NewRefresher(
-		api.resolveGitProvider,
-		api.resolveChatGitAccessToken,
-		gitSyncLogger.Named("refresher"),
-		quartz.NewReal(),
-	)
-	api.gitSyncWorker = gitsync.NewWorker(options.Database,
-		refresher,
-		api.chatDaemon.PublishDiffStatusChange,
-		quartz.NewReal(),
-		gitSyncLogger,
-	)
-	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
-	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
+		api.chatDaemon = chatd.New(chatd.Config{
+			Logger:                         options.Logger.Named("chatd"),
+			Database:                       options.Database,
+			ReplicaID:                      api.ID,
+			SubscribeFn:                    options.ChatSubscribeFn,
+			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			AgentConn:                      api.agentProvider.AgentConn,
+			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+			CreateWorkspace:                api.chatCreateWorkspace,
+			StartWorkspace:                 api.chatStartWorkspace,
+			Pubsub:                         options.Pubsub,
+			WebpushDispatcher:              options.WebPushDispatcher,
+			UsageTracker:                   options.WorkspaceUsageTracker,
+		})
+		gitSyncLogger := options.Logger.Named("gitsync")
+		refresher := gitsync.NewRefresher(
+			api.resolveGitProvider,
+			api.resolveChatGitAccessToken,
+			gitSyncLogger.Named("refresher"),
+			quartz.NewReal(),
+		)
+		api.gitSyncWorker = gitsync.NewWorker(options.Database,
+			refresher,
+			api.chatDaemon.PublishDiffStatusChange,
+			quartz.NewReal(),
+			gitSyncLogger,
+		)
+		// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+		go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
+	}
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -1146,11 +1151,13 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		// Experimental(agents): chat API routes gated by ExperimentAgents.
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
+			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
@@ -1177,6 +1184,13 @@ func New(options *Options) *API {
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
+				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
+				r.Put("/user-compaction-thresholds/{modelConfig}", api.putUserChatCompactionThreshold)
+				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
+				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
+				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
+				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
+				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
@@ -1209,6 +1223,13 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
 				})
 			})
+			r.Route("/user-provider-configs", func(r chi.Router) {
+				r.Get("/", api.listUserChatProviderConfigs)
+				r.Route("/{providerConfig}", func(r chi.Router) {
+					r.Put("/", api.upsertUserChatProviderKey)
+					r.Delete("/", api.deleteUserChatProviderKey)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
@@ -1222,6 +1243,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
@@ -1515,7 +1537,6 @@ func New(options *Options) *API {
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
 				r.Post("/logout", api.postLogout)
-				r.Post("/me/session/token-to-cookie", api.postSessionTokenCookie)
 				r.Get("/oidc-claims", api.userOIDCClaims)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
@@ -2085,13 +2106,12 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// chatDaemon handles background processing of pending chats.
+	// Experimental(agents): chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// Experimental(agents): gitSyncWorker refreshes stale chat diff statuses in the background.
+	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
-	// gitSyncWorker refreshes stale chat diff statuses in the
-	// background.
-	gitSyncWorker *gitsync.Worker
 
 	// ProfileCollector abstracts the runtime/pprof and runtime/trace
 	// calls used by the /debug/profile endpoint. Tests override this

@@ -163,6 +163,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "agent_stat_refresh_interval": 0,
     "ai": {
       "aibridge_proxy": {
+        "allowed_private_cidrs": [
+          "string"
+        ],
         "cert_file": "string",
         "domain_allowlist": [
           "string"

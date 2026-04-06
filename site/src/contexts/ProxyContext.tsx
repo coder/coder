@@ -1,8 +1,3 @@
-import { API } from "api/api";
-import { cachedQuery } from "api/queries/util";
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	createContext,
 	type FC,
@@ -13,6 +8,11 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
+import { API } from "#/api/api";
+import { cachedQuery } from "#/api/queries/util";
+import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];

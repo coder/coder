@@ -1,5 +1,5 @@
-import { Avatar } from "components/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 
 interface AvatarDataProps {
 	title: ReactNode;

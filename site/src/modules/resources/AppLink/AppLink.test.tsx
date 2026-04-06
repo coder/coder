@@ -1,10 +1,10 @@
+import { screen } from "@testing-library/react";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
-} from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
+} from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { AppLink } from "./AppLink";
 
 const renderAppLink = (app: typeof MockWorkspaceApp) => {
@@ -21,5 +21,15 @@ describe("AppLink", () => {
 		const link = await screen.findByRole("link");
 		expect(link).toHaveAttribute("target", "_blank");
 		expect(link).toHaveAttribute("rel", "noreferrer");
+	});
+
+	// slim-window apps are opened programmatically via onClick /
+	// window.open(), so the anchor must not carry target or rel
+	// attributes that would interfere with that flow.
+	it("does not set target or rel for slim-window apps", async () => {
+		renderAppLink({ ...MockWorkspaceApp, open_in: "slim-window" });
+		const link = await screen.findByRole("link");
+		expect(link).not.toHaveAttribute("target");
+		expect(link).not.toHaveAttribute("rel");
 	});
 });

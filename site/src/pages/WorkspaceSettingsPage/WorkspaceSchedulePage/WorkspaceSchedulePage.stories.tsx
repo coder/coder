@@ -1,19 +1,22 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	reactRouterOutlet,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
+import { templateByNameKey } from "#/api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockPrebuiltWorkspace,
 	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
-} from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { templateByNameKey } from "api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
+} from "#/testHelpers/entities";
 import {
-	reactRouterOutlet,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 

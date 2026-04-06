@@ -1,7 +1,7 @@
-import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
 const meta: Meta<typeof UserDropdown> = {

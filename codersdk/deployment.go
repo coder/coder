@@ -88,7 +88,7 @@ var (
 func (a Addon) Features() []FeatureName {
 	switch a {
 	case AddonAIGovernance:
-		// Return all AI governance features.
+		// Return all AI Governance features.
 		var features []FeatureName
 		for _, featureName := range FeatureNames {
 			if featureName.IsAIGovernanceAddon() {
@@ -306,7 +306,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+// IsAIGovernanceAddon returns true if the feature is an AI Governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
 }
@@ -1251,7 +1251,11 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 }
 
 func removeTrailingVersionInfo(v string) string {
-	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+	// Strip build metadata (everything after '+').
+	v, _, _ = strings.Cut(v, "+")
+	// Strip '-devel' suffix if present.
+	v = strings.TrimSuffix(v, "-devel")
+	return v
 }
 
 func DefaultDocsURL() string {
@@ -3923,15 +3927,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "key_file",
 		},
 		{
-			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
-			Flag:        "aibridge-proxy-domain-allowlist",
-			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
-			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
-			Hidden:      true,
-			Group:       &deploymentGroupAIBridgeProxy,
-			YAML:        "domain_allowlist",
+			Name: "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. " +
+				"Requests to other domains will be tunneled directly without decryption. " +
+				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.",
+			Flag:    "aibridge-proxy-domain-allowlist",
+			Env:     "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:   &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridgeProxy,
+			YAML:    "domain_allowlist",
 		},
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",
@@ -3952,6 +3958,16 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "upstream_proxy_ca",
+		},
+		{
+			Name:        "AI Bridge Proxy Allowed Private CIDRs",
+			Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
+			Flag:        "aibridge-proxy-allowed-private-cidrs",
+			Env:         "CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS",
+			Value:       &c.AI.BridgeProxyConfig.AllowedPrivateCIDRs,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "allowed_private_cidrs",
 		},
 
 		// Retention settings
@@ -4058,15 +4074,16 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
-	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
-	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
-	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
-	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
-	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
-	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
-	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
-	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
+	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
+	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	MITMKeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist     serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
 }
 
 type ChatConfig struct {

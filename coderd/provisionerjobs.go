@@ -587,7 +587,7 @@ func (f *logFollower) follow() {
 			f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
-				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+				f.logger.Warn(f.ctx, "failed to close websocket", slog.Error(err))
 			}
 		}
 		return
@@ -614,7 +614,7 @@ func (f *logFollower) follow() {
 			f.logger.Error(f.ctx, "dropped or corrupted notification", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
-				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+				f.logger.Warn(f.ctx, "failed to close websocket", slog.Error(err))
 			}
 			return
 		case <-f.ctx.Done():
@@ -634,7 +634,7 @@ func (f *logFollower) follow() {
 					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
 					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))
 					if err != nil {
-						f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+						f.logger.Warn(f.ctx, "failed to close websocket", slog.Error(err))
 					}
 				}
 				return

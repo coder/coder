@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/badge}
  */
-import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "utils/cn";
+import { Slot } from "radix-ui";
+import { cn } from "#/utils/cn";
 
 const badgeVariants = cva(
 	`
@@ -49,6 +49,11 @@ const badgeVariants = cva(
 				variant: "default",
 				class: "hover:bg-surface-tertiary",
 			},
+			{
+				hover: true,
+				variant: "info",
+				class: "hover:bg-surface-info/20",
+			},
 		],
 		defaultVariants: {
 			variant: "default",
@@ -73,7 +78,7 @@ export const Badge: React.FC<BadgeProps> = ({
 	asChild = false,
 	...props
 }) => {
-	const Comp = asChild ? Slot : "div";
+	const Comp = asChild ? Slot.Root : "div";
 
 	return (
 		<Comp

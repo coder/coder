@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import {
 	MockAuthMethodsAll,
 	MockAuthMethodsExternal,
@@ -5,9 +7,7 @@ import {
 	MockAuthMethodsPasswordTermsOfService,
 	MockBuildInfo,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
 
 const meta: Meta<typeof LoginPageView> = {

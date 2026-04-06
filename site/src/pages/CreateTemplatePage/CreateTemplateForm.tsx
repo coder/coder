@@ -1,6 +1,13 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { provisionerDaemons } from "api/queries/organizations";
+import { useFormik } from "formik";
+import camelCase from "lodash/camelCase";
+import capitalize from "lodash/capitalize";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router";
+import * as Yup from "yup";
+import { provisionerDaemons } from "#/api/queries/organizations";
 import type {
 	CreateTemplateVersionRequest,
 	Organization,
@@ -10,40 +17,33 @@ import type {
 	TemplateExample,
 	TemplateVersionVariable,
 	VariableValue,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { Label } from "components/Label/Label";
-import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
-import camelCase from "lodash/camelCase";
-import capitalize from "lodash/capitalize";
-import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
-import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { useSearchParams } from "react-router";
-import { docs } from "utils/docs";
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { Label } from "#/components/Label/Label";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
+import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
+} from "#/utils/formUtils";
 import {
 	sortedDays,
 	type TemplateAutostartRequirementDaysValue,
 	type TemplateAutostopRequirementDaysValue,
-} from "utils/schedule";
-import * as Yup from "yup";
+} from "#/utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
@@ -435,7 +435,7 @@ const fillNameAndDisplayWithFilename = async (
 
 const ProvisionerWarning: FC = () => {
 	return (
-		<Alert severity="warning" css={{ marginBottom: 16 }} prominent>
+		<Alert severity="warning" className="mb-4" prominent>
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
 			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>

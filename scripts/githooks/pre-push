@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
 # Pre-push hook that runs tests and builds the site locally.
+# Classifies changed files (vs remote branch or merge-base)
+# and only runs relevant test targets. Falls back to the full
+# `make pre-push` when the Makefile changed, the diff range
+# can't be determined, or CODER_HOOK_RUN_ALL=1 is set.
+#
 # The pre-commit hook handles gen, fmt, lint, typos, and build.
 #
 # Opt in/out without modifying this file:
@@ -32,6 +37,13 @@ if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; th
 	git config --worktree core.hooksPath scripts/githooks
 fi
 
+# Drain stdin before any early exits so git doesn't see a
+# broken pipe. The push refs are used later for classification.
+push_refs=()
+while read -r local_ref local_oid remote_ref remote_oid; do
+	push_refs+=("$local_ref $local_oid $remote_ref $remote_oid")
+done
+
 # Explicit opt-in/opt-out via git config (overrides allowlist).
 run=false
 opt_in=$(git config --type=bool coder.pre-push 2>/dev/null || true)
@@ -55,7 +67,42 @@ fi
 
 rc=0
 if $run; then
-	make pre-push || rc=$?
+	if [[ ${CODER_HOOK_RUN_ALL:-} == 1 ]]; then
+		make pre-push || rc=$?
+	else
+		# Determine changed files from push refs.
+		zero="0000000000000000000000000000000000000000"
+		changed=""
+		fallback=false
+
+		for entry in "${push_refs[@]}"; do
+			read -r _local_ref local_oid _remote_ref remote_oid <<< "$entry"
+			if [[ $local_oid == "$zero" ]]; then
+				continue
+			fi
+			if [[ $remote_oid == "$zero" ]]; then
+				base=$(git merge-base "$local_oid" origin/main 2>/dev/null || true)
+				if [[ -z $base ]]; then
+					fallback=true
+					break
+				fi
+			else
+				base="$remote_oid"
+			fi
+			files=$(git diff --name-only "$base" "$local_oid" 2>/dev/null || true)
+			if [[ -n $files ]]; then
+				changed+=$'\n'"$files"
+			fi
+		done
+
+		if $fallback || [[ -z $changed ]]; then
+			make pre-push || rc=$?
+		elif echo "$changed" | grep -qE '\.(go|ts|tsx|sql|proto)$|^go\.(mod|sum)$|^site/|^Makefile$'; then
+			make pre-push || rc=$?
+		else
+			echo "pre-push: no Go/TS changes, skipping tests"
+		fi
+	fi
 fi
 
 # Hint is printed unconditionally so that AI agents that are not

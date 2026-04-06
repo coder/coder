@@ -16,10 +16,10 @@ AI Bridge interception data can be exported for external analysis, compliance re
 
 ### REST API
 
-You can retrieve AI Bridge interceptions via the Coder API with filtering and pagination support.
+You can retrieve AI Bridge sessions via the Coder API, with filtering and pagination support.
 
 ```sh
-curl -X GET "https://coder.example.com/api/v2/aibridge/interceptions?q=initiator:me" \
+curl -X GET "https://coder.example.com/api/v2/aibridge/sessions" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 

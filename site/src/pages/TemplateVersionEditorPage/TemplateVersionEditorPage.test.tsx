@@ -1,30 +1,29 @@
-import { AppProviders } from "App";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
+import { QueryClient } from "react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { AppProviders } from "#/App";
+import * as apiModule from "#/api/api";
+import { templateVersionVariablesKey } from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionVariable1,
 	MockTemplateVersionVariable2,
 	MockWorkspaceBuildLogs,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent, { type UserEvent } from "@testing-library/user-event";
-import * as apiModule from "api/api";
-import { templateVersionVariablesKey } from "api/queries/templates";
-import type { TemplateVersion } from "api/typesGenerated";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import WS from "jest-websocket-mock";
-import { HttpResponse, http } from "msw";
-import { QueryClient } from "react-query";
-import { createMemoryRouter, RouterProvider } from "react-router";
-import type { FileTree } from "utils/filetree";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
-import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {
 	findEntrypointFile,
 	getActivePath,
@@ -43,7 +42,7 @@ vi.mock(
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
 // required for these tests, we can safely mock it.
-vi.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({
 	MonacoEditor: (props: MonacoEditorProps) => (
 		<textarea
 			data-testid="monaco-editor"
@@ -188,7 +187,7 @@ test("Do not mark as active if promote is not checked", async () => {
 	await user.clear(nameField);
 	await user.type(nameField, "v1.0");
 	await user.click(
-		within(publishDialog).getByLabelText(Language.defaultCheckboxLabel),
+		within(publishDialog).getByLabelText("Promote to active version"),
 	);
 	await user.click(
 		within(publishDialog).getByRole("button", { name: "Publish" }),

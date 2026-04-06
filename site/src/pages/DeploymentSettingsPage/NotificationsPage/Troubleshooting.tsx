@@ -1,13 +1,19 @@
 import { useTheme } from "@emotion/react";
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 
-export const Troubleshooting: FC = () => {
+type TroubleshootingProps = {
+	canEdit?: boolean;
+};
+
+export const Troubleshooting: FC<TroubleshootingProps> = ({
+	canEdit = true,
+}) => {
 	const { mutate: sendTestNotificationApi, isPending } = useMutation({
 		mutationFn: API.postTestNotification,
 		onSuccess: () => toast.success("Test notification sent."),
@@ -35,7 +41,7 @@ export const Troubleshooting: FC = () => {
 					<Button
 						variant="outline"
 						size="sm"
-						disabled={isPending}
+						disabled={isPending || !canEdit}
 						onClick={() => {
 							sendTestNotificationApi();
 						}}

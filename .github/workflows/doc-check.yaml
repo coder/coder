@@ -240,6 +240,7 @@ jobs:
       - name: Create Coder Task for Documentation Check
         if: steps.check-secrets.outputs.skip != 'true'
         id: create_task
+        continue-on-error: true
         uses: ./.github/actions/create-task-action
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -254,8 +255,21 @@ jobs:
           github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
           comment-on-issue: false
 
+      - name: Handle Task Creation Failure
+        if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome != 'success'
+        run: |
+          {
+            echo "## Documentation Check Task"
+            echo ""
+            echo "⚠️ The external Coder task service was unavailable, so this"
+            echo "advisory documentation check did not run."
+            echo ""
+            echo "Maintainers can rerun the workflow or trigger it manually"
+            echo "after the service recovers."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Write Task Info
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         env:
           TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
@@ -273,7 +287,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Wait for Task Completion
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         id: wait_task
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
@@ -363,7 +377,7 @@ jobs:
           fi
 
       - name: Fetch Task Logs
-        if: always() && steps.check-secrets.outputs.skip != 'true'
+        if: always() && steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
@@ -376,7 +390,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Cleanup Task
-        if: always() && steps.check-secrets.outputs.skip != 'true'
+        if: always() && steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
@@ -390,6 +404,7 @@ jobs:
       - name: Write Final Summary
         if: always() && steps.check-secrets.outputs.skip != 'true'
         env:
+          CREATE_TASK_OUTCOME: ${{ steps.create_task.outcome }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
           TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
           RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
@@ -400,10 +415,15 @@ jobs:
             echo "---"
             echo "### Result"
             echo ""
-            echo "**Status:** ${TASK_MESSAGE:-Task completed}"
-            if [[ -n "${RESULT_URI}" ]]; then
-              echo "**Comment:** ${RESULT_URI}"
+            if [[ "${CREATE_TASK_OUTCOME}" == "success" ]]; then
+              echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+              if [[ -n "${RESULT_URI}" ]]; then
+                echo "**Comment:** ${RESULT_URI}"
+              fi
+              echo ""
+              echo "Task \`${TASK_NAME}\` has been cleaned up."
+            else
+              echo "**Status:** Skipped because the external Coder task"
+              echo "service was unavailable."
             fi
-            echo ""
-            echo "Task \`${TASK_NAME}\` has been cleaned up."
           } >> "${GITHUB_STEP_SUMMARY}"

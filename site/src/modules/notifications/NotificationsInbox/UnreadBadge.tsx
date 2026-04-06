@@ -1,5 +1,5 @@
 import type { FC, HTMLProps } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 type UnreadBadgeProps = {
 	count: number;

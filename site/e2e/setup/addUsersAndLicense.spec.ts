@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import { coderPort, license, premiumTestsRequired, users } from "../constants";
 import { expectUrl } from "../expectUrl";
 import { createUser } from "../helpers";

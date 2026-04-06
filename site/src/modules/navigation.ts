@@ -2,7 +2,7 @@
  * @fileoverview TODO: centralize navigation code here! URL constants, URL formatting, all of it
  */
 
-import { useEffectEvent } from "hooks/hookPolyfills";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import type { DashboardValue } from "./dashboard/DashboardProvider";
 import { useDashboard } from "./dashboard/useDashboard";
 

@@ -1,106 +1,52 @@
-import {
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceResource,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import { WorkspaceAlert } from "./WorkspaceAlert";
-
-const createUnhealthyWorkspace = (
-	agentOverrides: Partial<WorkspaceAgent>,
-	agentCount = 1,
-): Workspace => {
-	const agents = Array.from({ length: agentCount }, (_, i) => ({
-		...MockWorkspaceAgent,
-		id: `test-agent-${i}`,
-		name: `agent-${i}`,
-		health: { healthy: false },
-		...agentOverrides,
-	}));
-	return {
-		...MockWorkspace,
-		health: {
-			healthy: false,
-			failing_agents: agents.map((a) => a.id),
-		},
-		latest_build: {
-			...MockWorkspace.latest_build,
-			resources: [{ ...MockWorkspaceResource, agents }],
-		},
-	};
-};
 
 const meta: Meta<typeof WorkspaceAlert> = {
 	title: "pages/WorkspacePage/WorkspaceAlert",
 	component: WorkspaceAlert,
+	args: {
+		title: "Something went wrong",
+		detail:
+			"A useful description of what happened and what the user can do about it.",
+		troubleshootingURL: "https://coder.com/docs/troubleshoot",
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof WorkspaceAlert>;
 
-export const Disconnected: Story = {
+export const WarningProminent: Story = {
 	args: {
-		workspace: createUnhealthyWorkspace({ status: "disconnected" }),
-		troubleshootingURL: "https://coder.com/docs/troubleshoot",
+		severity: "warning",
+		prominent: true,
 	},
 };
 
-export const DisconnectedMultipleAgents: Story = {
+export const WarningSubtle: Story = {
 	args: {
-		workspace: createUnhealthyWorkspace({ status: "disconnected" }, 3),
-		troubleshootingURL: "https://coder.com/docs/troubleshoot",
+		severity: "warning",
+		prominent: false,
 	},
 };
 
-export const TimeoutWarning: Story = {
+export const InfoProminent: Story = {
 	args: {
-		workspace: createUnhealthyWorkspace({ status: "timeout" }),
-		troubleshootingURL: "https://coder.com/docs/troubleshoot",
+		severity: "info",
+		prominent: true,
 	},
 };
 
-export const StartupScriptFailed: Story = {
+export const InfoSubtle: Story = {
 	args: {
-		workspace: createUnhealthyWorkspace({
-			status: "connected",
-			lifecycle_state: "start_error",
-		}),
-		troubleshootingURL: "https://coder.com/docs/troubleshoot",
-	},
-};
-
-export const StartupScriptFailedMultipleAgents: Story = {
-	args: {
-		workspace: createUnhealthyWorkspace(
-			{
-				status: "connected",
-				lifecycle_state: "start_error",
-			},
-			2,
-		),
-		troubleshootingURL: "https://coder.com/docs/troubleshoot",
-	},
-};
-
-export const ShuttingDownInformational: Story = {
-	args: {
-		workspace: createUnhealthyWorkspace({
-			status: "connected",
-			lifecycle_state: "shutting_down",
-		}),
-	},
-};
-
-export const NotConnected: Story = {
-	args: {
-		workspace: createUnhealthyWorkspace({ status: "connecting" }),
+		severity: "info",
+		prominent: false,
 	},
 };
 
 export const WithoutTroubleshootingURL: Story = {
 	args: {
-		workspace: createUnhealthyWorkspace({ status: "disconnected" }),
+		severity: "warning",
+		prominent: true,
 		troubleshootingURL: undefined,
 	},
 };

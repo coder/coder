@@ -1,4 +1,10 @@
-import { API } from "api/api";
+import type {
+	MutationOptions,
+	QueryClient,
+	UseMutationOptions,
+	UseQueryOptions,
+} from "react-query";
+import { API } from "#/api/api";
 import type {
 	AuthorizationRequest,
 	GenerateAPIKeyResponse,
@@ -13,34 +19,19 @@ import type {
 	UserAppearanceSettings,
 	UserPreferenceSettings,
 	UsersRequest,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import {
 	defaultMetadataManager,
 	type MetadataState,
-} from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
-import type {
-	MutationOptions,
-	QueryClient,
-	UseMutationOptions,
-	UseQueryOptions,
-} from "react-query";
-import { prepareQuery } from "utils/filters";
+} from "#/hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
 	return ["users", req] as const;
 }
-
-export const userByNameKey = (username: string) => ["user", username] as const;
-
-export const userByName = (username: string): UseQueryOptions<User> => {
-	return {
-		queryKey: userByNameKey(username),
-		queryFn: () => API.getUser(username),
-	};
-};
 
 export function paginatedUsers(
 	searchParams: URLSearchParams,
@@ -161,6 +152,15 @@ export const me = (metadata: MetadataState<User>) => {
 		queryKey: meKey,
 		queryFn: API.getAuthenticatedUser,
 	});
+};
+
+const userKey = (usernameOrId: string) => ["user", usernameOrId];
+
+export const user = (usernameOrId: string) => {
+	return {
+		queryKey: userKey(usernameOrId),
+		queryFn: () => API.getUser(usernameOrId),
+	};
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {

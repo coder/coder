@@ -1,4 +1,4 @@
-import type { BuildInfoResponse } from "api/typesGenerated";
+import type { BuildInfoResponse } from "#/api/typesGenerated";
 
 let CACHED_BUILD_INFO: BuildInfoResponse | undefined;
 

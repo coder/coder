@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 
 const appsKey = ["oauth2-provider", "apps"];
 const userAppsKey = (userId: string) => appsKey.concat(userId);

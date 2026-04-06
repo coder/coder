@@ -65,6 +65,9 @@ sql:
           - column: "provisioner_jobs.tags"
             go_type:
               type: "StringMap"
+          - column: "chats.labels"
+            go_type:
+              type: "StringMap"
           - column: "users.rbac_roles"
             go_type: "github.com/lib/pq.StringArray"
           - column: "templates.user_acl"

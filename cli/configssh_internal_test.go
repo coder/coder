@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -376,8 +376,8 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			sort.Strings(tt.Expect)
-			sort.Strings(o.sshOptions)
+			slices.Sort(tt.Expect)
+			slices.Sort(o.sshOptions)
 			require.Equal(t, tt.Expect, o.sshOptions)
 		})
 	}

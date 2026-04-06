@@ -111,6 +111,7 @@
           "values": {
             "agent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
             "id": "0982d946-8a12-423a-a316-d4263f94a124",
+            "merge_strategy": "replace",
             "name": "DEVCONTAINER_ENV",
             "value": "devcontainer-value"
           },

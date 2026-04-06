@@ -9,7 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -105,8 +105,8 @@ func parseAndVerifyExamples() (examples []codersdk.TemplateExample, err error) {
 		}
 	}
 
-	sort.Strings(wantEmbedFiles)
-	sort.Strings(gotEmbedFiles)
+	slices.Sort(wantEmbedFiles)
+	slices.Sort(gotEmbedFiles)
 	want := strings.Join(wantEmbedFiles, ", ")
 	got := strings.Join(gotEmbedFiles, ", ")
 	if want != got {

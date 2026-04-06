@@ -39,11 +39,13 @@ const (
 // how much output is written.
 type HeadTailBuffer struct {
 	mu         sync.Mutex
+	cond       *sync.Cond
 	head       []byte
 	tail       []byte
 	tailPos    int
 	tailFull   bool
 	headFull   bool
+	closed     bool
 	totalBytes int
 	maxHead    int
 	maxTail    int
@@ -52,20 +54,24 @@ type HeadTailBuffer struct {
 // NewHeadTailBuffer creates a new HeadTailBuffer with the
 // default head and tail sizes.
 func NewHeadTailBuffer() *HeadTailBuffer {
-	return &HeadTailBuffer{
+	b := &HeadTailBuffer{
 		maxHead: MaxHeadBytes,
 		maxTail: MaxTailBytes,
 	}
+	b.cond = sync.NewCond(&b.mu)
+	return b
 }
 
 // NewHeadTailBufferSized creates a HeadTailBuffer with custom
 // head and tail sizes. This is useful for testing truncation
 // logic with smaller buffers.
 func NewHeadTailBufferSized(maxHead, maxTail int) *HeadTailBuffer {
-	return &HeadTailBuffer{
+	b := &HeadTailBuffer{
 		maxHead: maxHead,
 		maxTail: maxTail,
 	}
+	b.cond = sync.NewCond(&b.mu)
+	return b
 }
 
 // Write implements io.Writer. It is safe for concurrent use.
@@ -296,6 +302,15 @@ func truncateLines(s string) string {
 	return b.String()
 }
 
+// Close marks the buffer as closed and wakes any waiters.
+// This is called when the process exits.
+func (b *HeadTailBuffer) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.closed = true
+	b.cond.Broadcast()
+}
+
 // Reset clears the buffer, discarding all data.
 func (b *HeadTailBuffer) Reset() {
 	b.mu.Lock()
@@ -305,5 +320,7 @@ func (b *HeadTailBuffer) Reset() {
 	b.tailPos = 0
 	b.tailFull = false
 	b.headFull = false
+	b.closed = false
 	b.totalBytes = 0
+	b.cond.Broadcast()
 }

@@ -1,12 +1,14 @@
 import { useTheme } from "@emotion/react";
 import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
 import type { Breakpoint } from "@mui/system/createTheme";
+import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
 	isApiValidationError,
-} from "api/errors";
-import { Button } from "components/Button/Button";
+} from "#/api/errors";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -15,11 +17,9 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { SearchField } from "components/SearchField/SearchField";
-import { useDebouncedFunction } from "hooks/debounce";
-import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { useDebouncedFunction } from "#/hooks/debounce";
 
 type PresetFilter = {
 	name: string;
@@ -101,15 +101,13 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 		return {};
 	}
 
-	const pairs = filterQuery.split(" ");
 	const result: FilterValues = {};
+	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
 
-	for (const pair of pairs) {
-		const [key, value] = pair.split(":") as [
-			keyof FilterValues,
-			string | undefined,
-		];
-		if (value) {
+	for (const match of filterQuery.matchAll(keyValuePair)) {
+		const key = match[1] ?? match[3];
+		const value = match[2] ?? match[4];
+		if (key && value) {
 			result[key] = value;
 		}
 	}
@@ -123,7 +121,8 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			result += `${key}:${value} `;
+			const needsQuotes = value.includes(" ");
+			result += needsQuotes ? `${key}:"${value}" ` : `${key}:${value} `;
 		}
 	}
 
@@ -147,7 +146,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 };
 
 export const MenuSkeleton: FC = () => {
-	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
 type FilterProps = {

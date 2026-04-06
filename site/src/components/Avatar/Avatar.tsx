@@ -9,12 +9,11 @@
  * It was also simplified to make usage easier and reduce boilerplate.
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
-
 import { useTheme } from "@emotion/react";
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cva, type VariantProps } from "class-variance-authority";
-import { getExternalImageStylesFromUrl } from "theme/externalImages";
-import { cn } from "utils/cn";
+import { Avatar as AvatarPrimitive } from "radix-ui";
+import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
+import { cn } from "#/utils/cn";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
