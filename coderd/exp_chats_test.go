@@ -336,7 +336,7 @@ func TestPostChats(t *testing.T) {
 			},
 			WorkspaceID: &workspaceBuild.Workspace.ID,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
 			"Workspace not found or you do not have access to this resource",
@@ -373,7 +373,7 @@ func TestPostChats(t *testing.T) {
 			},
 			WorkspaceID: &workspaceBuild.Workspace.ID,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
 			"Workspace not found or you do not have access to this resource",
@@ -398,7 +398,7 @@ func TestPostChats(t *testing.T) {
 			},
 			WorkspaceID: &workspaceID,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
 			"Workspace not found or you do not have access to this resource",
