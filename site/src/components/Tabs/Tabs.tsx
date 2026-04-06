@@ -66,9 +66,15 @@ export const TabsList: FC<TabsListProps> = ({
 
 type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
 
-export const TabsTrigger: FC<TabsTriggerProps> = ({ ...props }) => {
+export const TabsTrigger: FC<TabsTriggerProps> = ({
+	type: triggerType = "button",
+	...props
+}) => {
+	const type = props.asChild ? undefined : triggerType;
+
 	return (
 		<TabsPrimitive.Trigger
+			type={type}
 			className={cn(
 				"border-none py-3 bg-transparent",
 				"text-inherit font-normal text-sm",
