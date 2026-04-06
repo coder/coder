@@ -451,7 +451,7 @@ const SchemaField: FC<SchemaFieldProps> = ({
 				);
 			}
 			const options: readonly string[] = field.enum ?? [];
-			const maxSegmented = 5;
+			const maxSegmented = 6;
 			if (options.length > 0 && options.length <= maxSegmented) {
 				return (
 					<SegmentedField
