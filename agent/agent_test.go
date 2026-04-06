@@ -2527,15 +2527,26 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 
 	// Query the containers API endpoint. This should fail because
 	// devcontainers have been disabled for the sub agent.
+	// Use Eventually since the agent HTTP API may not be serving
+	// immediately after the tailnet connection is reachable.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	_, err := conn.ListContainers(ctx)
-	require.Error(t, err)
+	var listErr string
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, err := conn.ListContainers(ctx)
+		if err == nil {
+			return false
+		}
+		listErr = err.Error()
+		// Ensure we get the specific sub-agent error, not a transient
+		// connection error from the API server still starting.
+		return strings.Contains(listErr, "Dev Container feature not supported.")
+	}, testutil.IntervalFast, "ListContainers should return the sub-agent 403 error")
 
-	// Verify the error message contains the expected text.
-	require.Contains(t, err.Error(), "Dev Container feature not supported.")
-	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
+	// Verify the full error message.
+	require.Contains(t, listErr, "Dev Container feature not supported.")
+	require.Contains(t, listErr, "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
 
 // TestAgent_DevcontainerPrebuildClaim tests that we correctly handle
