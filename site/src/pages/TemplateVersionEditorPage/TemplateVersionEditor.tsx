@@ -489,6 +489,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								{selectedTab && (
 									<Button
 										size="icon"
+										variant="subtle"
 										onClick={() => {
 											setSelectedTab(undefined);
 										}}
