@@ -53,7 +53,7 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("COALESCE(audit_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
+		sqltypes.UUIDVarMatcher("audit_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Audit logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
@@ -67,7 +67,7 @@ func AuditLogConverter() *sqltypes.VariableConverter {
 func ConnectionLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("COALESCE(connection_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
+		sqltypes.UUIDVarMatcher("connection_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Connection logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)

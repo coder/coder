@@ -584,6 +584,7 @@ func (q *sqlQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg CountAudi
 		arg.DateTo,
 		arg.BuildReason,
 		arg.RequestID,
+		arg.CountCap,
 	)
 	if err != nil {
 		return 0, err
@@ -720,6 +721,7 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 		arg.WorkspaceID,
 		arg.ConnectionID,
 		arg.Status,
+		arg.CountCap,
 	)
 	if err != nil {
 		return 0, err

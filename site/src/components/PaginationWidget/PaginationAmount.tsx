@@ -7,6 +7,7 @@ type PaginationHeaderProps = {
 	limit: number;
 	totalRecords: number | undefined;
 	currentOffsetStart: number | undefined;
+	countIsCapped?: boolean;
 
 	// Temporary escape hatch until Workspaces can be switched over to using
 	// PaginationContainer
@@ -18,6 +19,7 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 	limit,
 	totalRecords,
 	currentOffsetStart,
+	countIsCapped,
 	className,
 }) => {
 	const theme = useTheme();
@@ -52,10 +54,16 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 							<strong>
 								{(
 									currentOffsetStart +
-									Math.min(limit - 1, totalRecords - currentOffsetStart)
+									(countIsCapped
+										? limit - 1
+										: Math.min(limit - 1, totalRecords - currentOffsetStart))
 								).toLocaleString()}
 							</strong>{" "}
-							of <strong>{totalRecords.toLocaleString()}</strong>{" "}
+							of{" "}
+							<strong>
+								{totalRecords.toLocaleString()}
+								{countIsCapped && "+"}
+							</strong>{" "}
 							{paginationUnitLabel}
 						</div>
 					)}

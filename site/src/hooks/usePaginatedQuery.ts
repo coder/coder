@@ -144,16 +144,44 @@ export function usePaginatedQuery<
 		placeholderData: keepPreviousData,
 	});
 
-	const totalRecords = query.data?.count;
-	const totalPages =
-		totalRecords !== undefined ? Math.ceil(totalRecords / limit) : undefined;
+	const count = query.data?.count;
+	const countCap = query.data?.count_cap;
+	const countIsCapped =
+		countCap !== undefined &&
+		countCap > 0 &&
+		count !== undefined &&
+		count > countCap;
+	const totalRecords = countIsCapped ? countCap : count;
+	let totalPages =
+		totalRecords !== undefined
+			? Math.max(
+					Math.ceil(totalRecords / limit),
+					// True count is not known; let them navigate forward
+					// until they hit an empty page (checked below).
+					countIsCapped ? currentPage : 0,
+				)
+			: undefined;
+
+	// When the true count is unknown, the user can navigate past
+	// all actual data. If that happens, we need to redirect (via
+	// updatePageIfInvalid) to the last page guaranteed to be not
+	// empty.
+	const pageIsEmpty =
+		query.data != null &&
+		!Object.values(query.data).some((v) => Array.isArray(v) && v.length > 0);
+	if (pageIsEmpty) {
+		totalPages = count !== undefined ? Math.ceil(count / limit) : 1;
+	}
 
 	const hasNextPage =
-		totalRecords !== undefined && limit + currentPageOffset < totalRecords;
+		totalRecords !== undefined &&
+		((countIsCapped && !pageIsEmpty) ||
+			limit + currentPageOffset < totalRecords);
 	const hasPreviousPage =
 		totalRecords !== undefined &&
 		currentPage > 1 &&
-		currentPageOffset - limit < totalRecords;
+		((countIsCapped && !pageIsEmpty) ||
+			currentPageOffset - limit < totalRecords);
 
 	const queryClient = useQueryClient();
 	const prefetchPage = useEffectEvent((newPage: number) => {
@@ -224,10 +252,14 @@ export function usePaginatedQuery<
 	});
 
 	useEffect(() => {
-		if (!query.isFetching && totalPages !== undefined) {
+		if (
+			!query.isFetching &&
+			totalPages !== undefined &&
+			currentPage > totalPages
+		) {
 			void updatePageIfInvalid(totalPages);
 		}
-	}, [updatePageIfInvalid, query.isFetching, totalPages]);
+	}, [updatePageIfInvalid, query.isFetching, totalPages, currentPage]);
 
 	const onPageChange = (newPage: number) => {
 		// Page 1 is the only page that can be safely navigated to without knowing
@@ -236,7 +268,12 @@ export function usePaginatedQuery<
 			return;
 		}
 
-		const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages ?? 1);
+		// If the true count is unknown, we allow navigating past the
+		// known page range.
+		const upperBound = countIsCapped
+			? Number.MAX_SAFE_INTEGER
+			: (totalPages ?? 1);
+		const cleanedInput = clamp(Math.trunc(newPage), 1, upperBound);
 		if (Number.isNaN(cleanedInput)) {
 			return;
 		}
@@ -274,6 +311,7 @@ export function usePaginatedQuery<
 					totalRecords: totalRecords as number,
 					totalPages: totalPages as number,
 					currentOffsetStart: currentPageOffset + 1,
+					countIsCapped,
 				}
 			: {
 					isSuccess: false,
@@ -282,6 +320,7 @@ export function usePaginatedQuery<
 					totalRecords: undefined,
 					totalPages: undefined,
 					currentOffsetStart: undefined,
+					countIsCapped: false as const,
 				}),
 	};
 
@@ -323,6 +362,7 @@ export type PaginationResultInfo = {
 			totalRecords: undefined;
 			totalPages: undefined;
 			currentOffsetStart: undefined;
+			countIsCapped: false;
 	  }
 	| {
 			isSuccess: true;
@@ -331,6 +371,7 @@ export type PaginationResultInfo = {
 			totalRecords: number;
 			totalPages: number;
 			currentOffsetStart: number;
+			countIsCapped: boolean;
 	  }
 );
 
@@ -417,6 +458,7 @@ type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
  */
 export type PaginatedData = {
 	count: number;
+	count_cap?: number;
 };
 
 /**

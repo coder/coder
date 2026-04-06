@@ -149,94 +149,105 @@ VALUES (
 RETURNING *;
 
 -- name: CountAuditLogs :one
-SELECT COUNT(*)
-FROM audit_logs
-	LEFT JOIN users ON audit_logs.user_id = users.id
-	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
-	-- First join on workspaces to get the initial workspace create
-	-- to workspace build 1 id. This is because the first create is
-	-- is a different audit log than subsequent starts.
-	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
-	AND audit_logs.resource_id = workspaces.id
-	-- Get the reason from the build if the resource type
-	-- is a workspace_build
-	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
-	AND audit_logs.resource_id = wb_build.id
-	-- Get the reason from the build #1 if this is the first
-	-- workspace create.
-	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
-	AND audit_logs.action = 'create'
-	AND workspaces.id = wb_workspace.workspace_id
-	AND wb_workspace.build_number = 1
-WHERE
-	-- Filter resource_type
-	CASE
-		WHEN @resource_type::text != '' THEN resource_type = @resource_type::resource_type
-		ELSE true
-	END
-	-- Filter resource_id
-	AND CASE
-		WHEN @resource_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = @resource_id
-		ELSE true
-	END
-	-- Filter organization_id
-	AND CASE
-		WHEN @organization_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = @organization_id
-		ELSE true
-	END
-	-- Filter by resource_target
-	AND CASE
-		WHEN @resource_target::text != '' THEN resource_target = @resource_target
-		ELSE true
-	END
-	-- Filter action
-	AND CASE
-		WHEN @action::text != '' THEN action = @action::audit_action
-		ELSE true
-	END
-	-- Filter by user_id
-	AND CASE
-		WHEN @user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = @user_id
-		ELSE true
-	END
-	-- Filter by username
-	AND CASE
-		WHEN @username::text != '' THEN user_id = (
-			SELECT id
-			FROM users
-			WHERE lower(username) = lower(@username)
-				AND deleted = false
-		)
-		ELSE true
-	END
-	-- Filter by user_email
-	AND CASE
-		WHEN @email::text != '' THEN users.email = @email
-		ELSE true
-	END
-	-- Filter by date_from
-	AND CASE
-		WHEN @date_from::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= @date_from
-		ELSE true
-	END
-	-- Filter by date_to
-	AND CASE
-		WHEN @date_to::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= @date_to
-		ELSE true
-	END
-	-- Filter by build_reason
-	AND CASE
-		WHEN @build_reason::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = @build_reason
-		ELSE true
-	END
-	-- Filter request_id
-	AND CASE
-		WHEN @request_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = @request_id
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
-	-- @authorize_filter
-;
+SELECT COUNT(*) FROM (
+	SELECT 1
+	FROM audit_logs
+		LEFT JOIN users ON audit_logs.user_id = users.id
+		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+		-- First join on workspaces to get the initial workspace create
+		-- to workspace build 1 id. This is because the first create is
+		-- is a different audit log than subsequent starts.
+		LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+		AND audit_logs.resource_id = workspaces.id
+		-- Get the reason from the build if the resource type
+		-- is a workspace_build
+		LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+		AND audit_logs.resource_id = wb_build.id
+		-- Get the reason from the build #1 if this is the first
+		-- workspace create.
+		LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+		AND audit_logs.action = 'create'
+		AND workspaces.id = wb_workspace.workspace_id
+		AND wb_workspace.build_number = 1
+	WHERE
+		-- Filter resource_type
+		CASE
+			WHEN @resource_type::text != '' THEN resource_type = @resource_type::resource_type
+			ELSE true
+		END
+		-- Filter resource_id
+		AND CASE
+			WHEN @resource_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = @resource_id
+			ELSE true
+		END
+		-- Filter organization_id
+		AND CASE
+			WHEN @organization_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = @organization_id
+			ELSE true
+		END
+		-- Filter by resource_target
+		AND CASE
+			WHEN @resource_target::text != '' THEN resource_target = @resource_target
+			ELSE true
+		END
+		-- Filter action
+		AND CASE
+			WHEN @action::text != '' THEN action = @action::audit_action
+			ELSE true
+		END
+		-- Filter by user_id
+		AND CASE
+			WHEN @user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = @user_id
+			ELSE true
+		END
+		-- Filter by username
+		AND CASE
+			WHEN @username::text != '' THEN user_id = (
+				SELECT id
+				FROM users
+				WHERE lower(username) = lower(@username)
+					AND deleted = false
+			)
+			ELSE true
+		END
+		-- Filter by user_email
+		AND CASE
+			WHEN @email::text != '' THEN users.email = @email
+			ELSE true
+		END
+		-- Filter by date_from
+		AND CASE
+			WHEN @date_from::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= @date_from
+			ELSE true
+		END
+		-- Filter by date_to
+		AND CASE
+			WHEN @date_to::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= @date_to
+			ELSE true
+		END
+		-- Filter by build_reason
+		AND CASE
+			WHEN @build_reason::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = @build_reason
+			ELSE true
+		END
+		-- Filter request_id
+		AND CASE
+			WHEN @request_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = @request_id
+			ELSE true
+		END
+		-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
+		-- @authorize_filter
+	-- Avoid a slow scan on a large table with joins. The caller
+	-- passes the count cap and we add 1 so the frontend can detect
+	-- capping and show "... of N+". A cap of 0 means no limit (NULLIF
+	-- -> NULL + 1 = NULL).
+	-- NOTE: Parameterizing this so that we can easily change from,
+	-- e.g., 2000 to 5000. However, use literal NULL (or no LIMIT)
+	-- here if disabling the capping on a large table permanently.
+	-- This way the PG planner can plan parallel execution for
+	-- potential large wins.
+	LIMIT NULLIF(@count_cap::int, 0) + 1
+) AS limited_count;
 
 -- name: DeleteOldAuditLogConnectionEvents :exec
 DELETE FROM audit_logs

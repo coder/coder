@@ -18,6 +18,7 @@ export const mockPaginationResultBase: ResultBase = {
 	limit: 25,
 	hasNextPage: false,
 	hasPreviousPage: false,
+	countIsCapped: false,
 	goToPreviousPage: () => {},
 	goToNextPage: () => {},
 	goToFirstPage: () => {},
@@ -33,6 +34,7 @@ export const mockInitialRenderResult: PaginationResult = {
 	hasPreviousPage: false,
 	totalRecords: undefined,
 	totalPages: undefined,
+	countIsCapped: false,
 };
 
 export const mockSuccessResult: PaginationResult = {
