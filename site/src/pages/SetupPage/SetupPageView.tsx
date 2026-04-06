@@ -11,7 +11,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { Label } from "#/components/Label/Label";
-import { PasswordField } from "#/components/PasswordField/NewPasswordField";
+import { PasswordField } from "#/components/PasswordField/PasswordField";
 import {
 	Select,
 	SelectContent,
@@ -230,7 +230,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					{/* Password */}
 					<PasswordField
-						{...getFieldHelpers("password")}
+						field={getFieldHelpers("password")}
 						label="Password"
 						value={form.values.password}
 						autoComplete="new-password"
