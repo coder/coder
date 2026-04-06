@@ -196,6 +196,35 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
+	const sourceLogTabs = agent.log_sources
+		.filter((logSource) => {
+			// Remove the logSources that have no entries.
+			return agentLogs.some(
+				(log) =>
+					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+			);
+		})
+		.map((logSource) => ({
+			// Show the icon for the log source if it has one.
+			// In the startup script case, we show a bespoke play icon.
+			startIcon: logSource.icon ? (
+				<ExternalImage
+					src={logSource.icon}
+					alt=""
+					className="size-icon-xs shrink-0"
+				/>
+			) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+				<PlayIcon className="size-icon-xs shrink-0" />
+			) : null,
+			title: logSource.display_name,
+			value: logSource.id,
+		}));
+	const startupScriptLogTab = sourceLogTabs.find(
+		(tab) => tab.title === STARTUP_SCRIPT_DISPLAY_NAME,
+	);
+	const sortedSourceLogTabs = sourceLogTabs
+		.filter((tab) => tab !== startupScriptLogTab)
+		.sort((a, b) => a.title.localeCompare(b.title));
 	const logTabs: {
 		startIcon?: React.ReactNode;
 		title: string;
@@ -205,33 +234,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 			title: "All Logs",
 			value: "all",
 		},
-		...agent.log_sources
-			.filter((logSource) => {
-				return agentLogs.some(
-					(log) =>
-						log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-				);
-			})
-			.map((logSource) => ({
-				startIcon: logSource.icon ? (
-					<ExternalImage
-						src={logSource.icon}
-						alt=""
-						className="size-icon-xs shrink-0"
-					/>
-				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-					<PlayIcon className="size-icon-xs shrink-0" />
-				) : null,
-				title: logSource.display_name,
-				value: logSource.id,
-			}))
-			.sort((a, b) => {
-				// Ensure that "Startup Script" is always the first tab.
-				const startupPriorityDiff =
-					Number(a.title !== STARTUP_SCRIPT_DISPLAY_NAME) -
-					Number(b.title !== STARTUP_SCRIPT_DISPLAY_NAME);
-				return startupPriorityDiff || a.title.localeCompare(b.title);
-			}),
+		...(startupScriptLogTab ? [startupScriptLogTab] : []),
+		...sortedSourceLogTabs,
 	];
 	const selectedLogs =
 		selectedLogTab === "all"
