@@ -461,6 +461,24 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 
+					{/* Pricing */}
+					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
+						<h3 className="m-0 text-xs font-medium text-content-secondary">
+							Pricing
+						</h3>
+						<p className="m-0 text-xs text-content-secondary">
+							Used by Coder to track usage and enforce spending limits.
+						</p>
+						<div className="grid grid-cols-2 gap-3">
+							<PricingModelConfigFields
+								provider={selectedProviderState.provider}
+								form={form}
+								fieldErrors={modelConfigFormBuildResult.fieldErrors}
+								disabled={isSaving}
+							/>
+						</div>
+					</div>
+
 					{/* Provider Configuration */}
 					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
 						<h3 className="m-0 text-xs font-medium text-content-secondary">
@@ -473,25 +491,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 							disabled={isSaving}
 						/>
 					</div>
-
-					{/* Pricing */}
-					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
-						<h3 className="m-0 text-xs font-medium text-content-secondary">
-							Pricing
-						</h3>
-						<p className="m-0 text-xs text-content-secondary">
-							Used by Coder to track usage and enforce spending limits.
-						</p>
-						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-							<PricingModelConfigFields
-								provider={selectedProviderState.provider}
-								form={form}
-								fieldErrors={modelConfigFormBuildResult.fieldErrors}
-								disabled={isSaving}
-							/>
-						</div>
-					</div>
-
 					{/* Advanced */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
