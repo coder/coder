@@ -495,7 +495,8 @@
 						{
 							"title": "Headless Authentication",
 							"description": "Create and manage headless service accounts for automated systems and API integrations",
-							"path": "./admin/users/headless-auth.md"
+							"path": "./admin/users/headless-auth.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Groups \u0026 Roles",
