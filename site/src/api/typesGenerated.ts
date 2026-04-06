@@ -2244,6 +2244,38 @@ export interface ChatUsageLimitStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatWatchEvent represents an event from the global chat watch stream.
+ * It delivers lifecycle events (created, status change, title change)
+ * for all of the authenticated user's chats. When Kind is
+ * ActionRequired, ToolCalls contains the pending dynamic tool
+ * invocations the client must execute and submit back.
+ */
+export interface ChatWatchEvent {
+	readonly kind: ChatWatchEventKind;
+	readonly chat: Chat;
+	readonly tool_calls?: readonly ChatStreamToolCall[];
+}
+
+// From codersdk/chats.go
+export type ChatWatchEventKind =
+	| "action_required"
+	| "created"
+	| "deleted"
+	| "diff_status_change"
+	| "status_change"
+	| "title_change";
+
+export const ChatWatchEventKinds: ChatWatchEventKind[] = [
+	"action_required",
+	"created",
+	"deleted",
+	"diff_status_change",
+	"status_change",
+	"title_change",
+];
+
+// From codersdk/chats.go
+/**
  * ChatWorkspaceTTLResponse is the response for getting the chat
  * workspace TTL setting.
  */
@@ -2449,8 +2481,7 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
-	// external type "github.com/mark3labs/mcp-go/mcp.Tool", to include this type the package must be explicitly included in the parsing
-	readonly dynamic_tools?: readonly unknown[];
+	readonly dynamic_tools?: readonly DynamicTool[];
 }
 
 // From codersdk/users.go
@@ -3249,6 +3280,18 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
+}
+
+// From codersdk/chats.go
+/**
+ * DynamicTool pairs a tool definition with a client-side handler.
+ * Only Name, Description, and InputSchema are serialized; the
+ * Handler stays local.
+ */
+export interface DynamicTool {
+	readonly name: string;
+	readonly description?: string;
+	readonly inputSchema: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -7213,6 +7256,29 @@ export interface TokenConfig {
 export interface TokensFilter {
 	readonly include_all: boolean;
 	readonly include_expired: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ToolCall represents a pending tool invocation from the chat
+ * stream that the client must execute and submit back.
+ */
+export interface ToolCall {
+	readonly ID: string;
+	readonly Name: string;
+	readonly Args: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ToolResponse holds the output of a dynamic tool execution.
+ * IsError indicates a tool-level error the LLM should see, as
+ * opposed to an infrastructure failure (returned as the error
+ * return value).
+ */
+export interface ToolResponse {
+	readonly Content: string;
+	readonly IsError: boolean;
 }
 
 // From codersdk/chats.go
