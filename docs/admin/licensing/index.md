@@ -7,6 +7,14 @@ features, you can [request a trial](https://coder.com/trial) or
 
 ![Licenses screen shows license information and seat consumption](../../images/admin/licenses/licenses-screen.png)
 
+## Offline license validation
+
+Coder license keys are signed JWTs that are validated locally using cryptographic
+signatures. No outbound connection to Coder's servers is required for license
+validation. This means licenses work in
+[air-gapped and offline deployments](../../install/airgap.md) without any
+additional configuration.
+
 ## Adding your license key
 
 There are two ways to add a license to a Coder deployment:
