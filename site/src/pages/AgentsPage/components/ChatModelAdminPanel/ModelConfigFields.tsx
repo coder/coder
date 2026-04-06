@@ -501,20 +501,33 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 // ── Main component ─────────────────────────────────────────────
 
-/** Whether a field should span the full grid width. */
-function isFullWidth(field: FieldSchema): boolean {
+/**
+ * How many grid columns a field should span in the 3-col layout.
+ *   1 = default (inputs, booleans, small enums ≤3)
+ *   2 = medium segmented controls (4–5 options)
+ *   3 = full-width (6+ options, json textareas)
+ */
+function colSpan(field: FieldSchema): 1 | 2 | 3 {
 	if (field.input_type === "json") {
-		return true;
+		return 3;
 	}
-	if (
-		field.input_type === "select" &&
-		field.type !== "boolean" &&
-		(field.enum?.length ?? 0) > 3
-	) {
-		return true;
+	if (field.input_type === "select" && field.type !== "boolean") {
+		const count = field.enum?.length ?? 0;
+		if (count >= 6) {
+			return 3;
+		}
+		if (count >= 4) {
+			return 2;
+		}
 	}
-	return false;
+	return 1;
 }
+
+const colSpanClass: Record<1 | 2 | 3, string | undefined> = {
+	1: undefined,
+	2: "sm:col-span-2",
+	3: "sm:col-span-full",
+};
 
 interface ModelConfigFieldsProps {
 	provider: string;
@@ -546,11 +559,9 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 
-	// Sort full-width fields (json textareas, large segmented controls)
-	// to the end so compact fields fill the grid first.
-	const sorted = [...fields].sort(
-		(a, b) => (isFullWidth(a) ? 1 : 0) - (isFullWidth(b) ? 1 : 0),
-	);
+	// Sort wider fields to the end so compact fields fill the
+	// grid first, keeping the layout dense.
+	const sorted = [...fields].sort((a, b) => colSpan(a) - colSpan(b));
 
 	return (
 		<div className="grid min-w-0 gap-3 sm:grid-cols-3">
@@ -558,10 +569,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
 				const errorKey = toFormFieldKey(resolved, field.json_name);
 				return (
-					<div
-						key={fieldKey}
-						className={cn(isFullWidth(field) && "sm:col-span-full")}
-					>
+					<div key={fieldKey} className={colSpanClass[colSpan(field)]}>
 						<SchemaField
 							field={field}
 							fieldKey={fieldKey}
