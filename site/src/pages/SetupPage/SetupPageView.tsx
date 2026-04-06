@@ -358,7 +358,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									Release notes & security updates
 								</span>
 								<span className="text-content-secondary">
-									Monthly changelog, security updates, and more
+									Monthly changelog, early access invites, and security notices
 								</span>
 							</div>
 						</label>
@@ -381,7 +381,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								data-testid="onboarding_info.newsletter_marketing"
 							/>
 							<div className="flex flex-col text-sm">
-								<span className="font-medium">Coder news</span>
+								<span className="font-medium">Monthly Coder newsletter</span>
 								<span className="text-content-secondary">
 									Latest articles, workshops, events, and announcements
 								</span>
