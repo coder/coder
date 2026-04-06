@@ -193,12 +193,31 @@ func (r *Runner) measureCreation(ctx context.Context, logger slog.Logger) error 
 
 func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error {
 	deletionStartTime := time.Now().UTC()
-	const deletionPollInterval = 500 * time.Millisecond
-
-	targetNumWorkspaces := r.cfg.NumPresets * r.cfg.NumPresetPrebuilds
+	const (
+		deletionPollInterval = 500 * time.Millisecond
+		maxDeletionRetries   = 3
+	)
 
 	deletionCtx, cancel := context.WithTimeout(ctx, r.cfg.PrebuildWorkspaceTimeout)
 	defer cancel()
+
+	// Capture the actual workspace count at the start of the deletion phase.
+	// The reconciler may have created extra workspaces beyond the configured
+	// target (e.g. replacements for failed builds), so using targetNumWorkspaces
+	// as the denominator would undercount completed deletions.
+	initialWorkspaces, err := r.client.Workspaces(deletionCtx, codersdk.WorkspaceFilter{
+		Template: r.template.Name,
+	})
+	if err != nil {
+		return xerrors.Errorf("list workspaces at deletion start: %w", err)
+	}
+	initialWorkspaceCount := len(initialWorkspaces.Workspaces)
+
+	// retryCount tracks how many delete builds we've submitted per workspace.
+	// lastRetriedBuildID prevents submitting a second retry for the same failed
+	// build before the API reflects the new build.
+	retryCount := make(map[uuid.UUID]int)
+	lastRetriedBuildID := make(map[uuid.UUID]uuid.UUID)
 
 	tkr := r.cfg.Clock.TickerFunc(deletionCtx, deletionPollInterval, func() error {
 		workspaces, err := r.client.Workspaces(deletionCtx, codersdk.WorkspaceFilter{
@@ -211,20 +230,52 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 		createdCount := 0
 		runningCount := 0
 		failedCount := 0
+		exhaustedCount := 0
 
 		for _, ws := range workspaces.Workspaces {
-			if ws.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
-				createdCount++
-				switch ws.LatestBuild.Job.Status {
-				case codersdk.ProvisionerJobRunning:
+			if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionDelete {
+				// The reconciler hasn't submitted a delete build yet.
+				continue
+			}
+			createdCount++
+
+			switch ws.LatestBuild.Job.Status {
+			case codersdk.ProvisionerJobRunning, codersdk.ProvisionerJobPending:
+				runningCount++
+
+			case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
+				// Skip if we've already submitted a retry for this specific
+				// failed build and are waiting for the new build to appear.
+				if lastRetriedBuildID[ws.ID] == ws.LatestBuild.ID {
 					runningCount++
-				case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
-					failedCount++
+					continue
 				}
+
+				if retryCount[ws.ID] >= maxDeletionRetries {
+					exhaustedCount++
+					failedCount++
+					continue
+				}
+
+				retryCount[ws.ID]++
+				lastRetriedBuildID[ws.ID] = ws.LatestBuild.ID
+				logger.Warn(deletionCtx, "retrying failed workspace deletion",
+					slog.F("workspace_id", ws.ID),
+					slog.F("workspace_name", ws.Name),
+					slog.F("attempt", retryCount[ws.ID]),
+					slog.F("max_attempts", maxDeletionRetries),
+				)
+				_, retryErr := r.client.CreateWorkspaceBuild(deletionCtx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+					Transition: codersdk.WorkspaceTransitionDelete,
+				})
+				if retryErr != nil {
+					return xerrors.Errorf("retry workspace deletion (attempt %d): %w", retryCount[ws.ID], retryErr)
+				}
+				runningCount++
 			}
 		}
 
-		completedCount := targetNumWorkspaces - len(workspaces.Workspaces)
+		completedCount := initialWorkspaceCount - len(workspaces.Workspaces)
 		createdCount += completedCount
 
 		r.cfg.Metrics.SetDeletionJobsCreated(createdCount, r.template.Name)
@@ -236,9 +287,15 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 			return errTickerDone
 		}
 
+		// If every remaining workspace has exhausted all retries, fail
+		// immediately rather than waiting for the timeout.
+		if exhaustedCount > 0 && exhaustedCount == len(workspaces.Workspaces) {
+			return xerrors.Errorf("%d workspace(s) failed to delete after %d attempts", exhaustedCount, maxDeletionRetries+1)
+		}
+
 		return nil
 	}, "waitForPrebuildWorkspacesDeletion")
-	err := tkr.Wait()
+	err = tkr.Wait()
 	if !xerrors.Is(err, errTickerDone) {
 		r.cfg.Metrics.AddError(r.template.Name, "wait_for_workspace_deletion")
 		return xerrors.Errorf("wait for workspace deletion: %w", err)
