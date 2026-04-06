@@ -378,107 +378,101 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
-					{/* Model ID + Context Limit */}
-					<div className="grid items-start gap-4 sm:grid-cols-2">
-						<div className="grid gap-1.5">
-							<Label
-								htmlFor={modelField.id}
-								className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-							>
-								Model Identifier{" "}
-								<span className="text-xs font-bold text-content-destructive">
-									*
-								</span>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<InfoIcon className="h-3 w-3 text-content-secondary" />
-									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[240px]">
-										The model identifier sent to the provider API.
-									</TooltipContent>
-								</Tooltip>
-							</Label>
-							<Input
-								id={modelField.id}
-								name={modelField.name}
-								className={cn(
-									"h-9 text-[13px] placeholder:text-content-disabled",
-									modelField.error && "border-content-destructive",
-								)}
-								placeholder="e.g. gpt-5, claude-sonnet-4-5"
-								value={modelField.value}
-								onChange={modelField.onChange}
-								onBlur={modelField.onBlur}
-								disabled={isSaving}
-								aria-invalid={modelField.error}
-								aria-describedby={
-									modelField.error ? `${modelField.id}-error` : undefined
-								}
-							/>
-							{modelField.error && (
-								<p
-									id={`${modelField.id}-error`}
-									className="m-0 text-xs text-content-destructive"
+					{/* Essentials: Model ID, Context Limit, Pricing */}
+					<div className="space-y-4">
+						<div className="grid items-start gap-4 sm:grid-cols-2">
+							<div className="grid gap-1.5">
+								<Label
+									htmlFor={modelField.id}
+									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
 								>
-									{modelField.helperText}
-								</p>
-							)}
-						</div>
-						<div className="grid gap-1.5">
-							<Label
-								htmlFor={contextLimitField.id}
-								className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-							>
-								Context Limit{" "}
-								<span className="text-xs font-bold text-content-destructive">
-									*
-								</span>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<InfoIcon className="h-3 w-3 text-content-secondary" />
-									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[240px]">
-										Max tokens in the context window.
-									</TooltipContent>
-								</Tooltip>
-							</Label>
-							<InputGroup
-								className={cn(
-									"h-9",
-									contextLimitField.error && "border-border-destructive",
-								)}
-							>
-								<InputGroupInput
-									id={contextLimitField.id}
-									name={contextLimitField.name}
-									className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
-									placeholder="200000"
-									value={contextLimitField.value}
-									onChange={contextLimitField.onChange}
-									onBlur={contextLimitField.onBlur}
+									Model Identifier{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="h-3 w-3 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-[240px]">
+											The model identifier sent to the provider API.
+										</TooltipContent>
+									</Tooltip>
+								</Label>
+								<Input
+									id={modelField.id}
+									name={modelField.name}
+									className={cn(
+										"h-9 text-[13px] placeholder:text-content-disabled",
+										modelField.error && "border-content-destructive",
+									)}
+									placeholder="e.g. gpt-5, claude-sonnet-4-5"
+									value={modelField.value}
+									onChange={modelField.onChange}
+									onBlur={modelField.onBlur}
 									disabled={isSaving}
-									aria-invalid={contextLimitField.error}
+									aria-invalid={modelField.error}
+									aria-describedby={
+										modelField.error ? `${modelField.id}-error` : undefined
+									}
 								/>
-								<InputGroupAddon align="inline-end">
-									<span className="text-xs text-content-disabled">tokens</span>
-								</InputGroupAddon>
-							</InputGroup>{" "}
-							{contextLimitField.error && (
-								<p className="m-0 text-xs text-content-destructive">
-									{contextLimitField.helperText}
-								</p>
-							)}
+								{modelField.error && (
+									<p
+										id={`${modelField.id}-error`}
+										className="m-0 text-xs text-content-destructive"
+									>
+										{modelField.helperText}
+									</p>
+								)}
+							</div>
+							<div className="grid gap-1.5">
+								<Label
+									htmlFor={contextLimitField.id}
+									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
+								>
+									Context Limit{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="h-3 w-3 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-[240px]">
+											Max tokens in the context window.
+										</TooltipContent>
+									</Tooltip>
+								</Label>
+								<InputGroup
+									className={cn(
+										"h-9",
+										contextLimitField.error && "border-border-destructive",
+									)}
+								>
+									<InputGroupInput
+										id={contextLimitField.id}
+										name={contextLimitField.name}
+										className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+										placeholder="200000"
+										value={contextLimitField.value}
+										onChange={contextLimitField.onChange}
+										onBlur={contextLimitField.onBlur}
+										disabled={isSaving}
+										aria-invalid={contextLimitField.error}
+									/>
+									<InputGroupAddon align="inline-end">
+										<span className="text-xs text-content-disabled">
+											tokens
+										</span>
+									</InputGroupAddon>
+								</InputGroup>
+								{contextLimitField.error && (
+									<p className="m-0 text-xs text-content-destructive">
+										{contextLimitField.helperText}
+									</p>
+								)}
+							</div>
 						</div>
-					</div>
-
-					{/* Pricing */}
-					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
-						<h3 className="m-0 text-xs font-medium text-content-secondary">
-							Pricing
-						</h3>
-						<p className="m-0 text-xs text-content-secondary">
-							Used by Coder to track usage and enforce spending limits.
-						</p>
 						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 							<PricingModelConfigFields
 								provider={selectedProviderState.provider}
@@ -489,19 +483,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 
-					{/* Provider Configuration */}
-					<div className="space-y-3 border-0 border-t border-solid border-border pt-4">
-						<h3 className="m-0 text-xs font-medium text-content-secondary">
-							Provider Configuration
-						</h3>
-						<ModelConfigFields
-							provider={selectedProviderState.provider}
-							form={form}
-							fieldErrors={modelConfigFormBuildResult.fieldErrors}
-							disabled={isSaving}
-						/>
-					</div>
-					{/* Advanced */}
+					{/* Configuration (provider-specific + advanced) */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
@@ -513,58 +495,66 @@ export const ModelForm: FC<ModelFormProps> = ({
 							) : (
 								<ChevronRightIcon className="h-3.5 w-3.5" />
 							)}
-							Advanced
+							Configuration
 						</button>
 						{showAdvanced && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
-								<GeneralModelConfigFields
+							<div className="space-y-4 pt-3">
+								<ModelConfigFields
 									provider={selectedProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
 								/>
-								<div className="flex min-w-0 flex-col gap-1.5">
-									<Label
-										htmlFor={compressionThresholdField.id}
-										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
-									>
-										Compression Threshold
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<InfoIcon className="h-3 w-3 text-content-secondary" />
-											</TooltipTrigger>
-											<TooltipContent side="top" className="max-w-[240px]">
-												Percentage at which context is compressed.
-											</TooltipContent>
-										</Tooltip>
-									</Label>
-									<InputGroup
-										className={cn(
-											"h-9",
-											compressionThresholdField.error &&
-												"border-border-destructive",
+								<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+									<GeneralModelConfigFields
+										provider={selectedProviderState.provider}
+										form={form}
+										fieldErrors={modelConfigFormBuildResult.fieldErrors}
+										disabled={isSaving}
+									/>
+									<div className="flex min-w-0 flex-col gap-1.5">
+										<Label
+											htmlFor={compressionThresholdField.id}
+											className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+										>
+											Compression Threshold
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<InfoIcon className="h-3 w-3 text-content-secondary" />
+												</TooltipTrigger>
+												<TooltipContent side="top" className="max-w-[240px]">
+													Percentage at which context is compressed.
+												</TooltipContent>
+											</Tooltip>
+										</Label>
+										<InputGroup
+											className={cn(
+												"h-9",
+												compressionThresholdField.error &&
+													"border-border-destructive",
+											)}
+										>
+											<InputGroupInput
+												id={compressionThresholdField.id}
+												name={compressionThresholdField.name}
+												className="h-9 text-[13px] placeholder:text-content-disabled"
+												placeholder="70"
+												value={compressionThresholdField.value}
+												onChange={compressionThresholdField.onChange}
+												onBlur={compressionThresholdField.onBlur}
+												disabled={isSaving}
+												aria-invalid={compressionThresholdField.error}
+											/>
+											<InputGroupAddon align="inline-end">
+												<span className="text-xs text-content-disabled">%</span>
+											</InputGroupAddon>
+										</InputGroup>
+										{compressionThresholdField.error && (
+											<p className="m-0 text-xs text-content-destructive">
+												{compressionThresholdField.helperText}
+											</p>
 										)}
-									>
-										<InputGroupInput
-											id={compressionThresholdField.id}
-											name={compressionThresholdField.name}
-											className="h-9 text-[13px] placeholder:text-content-disabled"
-											placeholder="70"
-											value={compressionThresholdField.value}
-											onChange={compressionThresholdField.onChange}
-											onBlur={compressionThresholdField.onBlur}
-											disabled={isSaving}
-											aria-invalid={compressionThresholdField.error}
-										/>
-										<InputGroupAddon align="inline-end">
-											<span className="text-xs text-content-disabled">%</span>
-										</InputGroupAddon>
-									</InputGroup>
-									{compressionThresholdField.error && (
-										<p className="m-0 text-xs text-content-destructive">
-											{compressionThresholdField.helperText}
-										</p>
-									)}
+									</div>
 								</div>
 							</div>
 						)}
