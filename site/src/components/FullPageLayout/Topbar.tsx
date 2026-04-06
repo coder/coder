@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import {
 	cloneElement,
-	type ElementType,
 	type FC,
 	type HTMLAttributes,
 	type ReactElement,
