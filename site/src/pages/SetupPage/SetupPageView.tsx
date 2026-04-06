@@ -424,11 +424,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					)}
 
 					<div className="flex justify-end">
-						<Button
-							disabled={!form.isValid || isLoading}
-							type="submit"
-							data-testid="create"
-						>
+						<Button disabled={isLoading} type="submit" data-testid="create">
 							<Spinner loading={isLoading} />
 							Continue
 						</Button>
