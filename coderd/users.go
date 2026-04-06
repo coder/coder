@@ -475,6 +475,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
+
+		// Service accounts are a Premium feature.
+		if !api.Entitlements.Enabled(codersdk.FeatureServiceAccounts) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", codersdk.FeatureServiceAccounts.Humanize()),
+			})
+			return
+		}
 	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword

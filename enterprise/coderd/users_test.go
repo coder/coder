@@ -614,4 +614,168 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Len(t, memberedOrgs, 2)
 		require.ElementsMatch(t, []uuid.UUID{second.ID, third.ID}, []uuid.UUID{memberedOrgs[0].ID, memberedOrgs[1].ID})
 	})
+
+	t.Run("ServiceAccount/OK", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-ok",
+			UserLoginType:   codersdk.LoginTypeNone,
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
+		require.Empty(t, user.Email)
+		require.Equal(t, "service-acct-ok", user.Username)
+		require.Equal(t, codersdk.UserStatusDormant, user.Status)
+	})
+
+	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-email",
+			Email:           "should-not-have@email.com",
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Email cannot be set for service accounts")
+	})
+
+	t.Run("ServiceAccount/WithPassword", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-password",
+			Password:        "ShouldNotHavePassword123!",
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Password cannot be set for service accounts")
+	})
+
+	t.Run("ServiceAccount/WithInvalidLoginType", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-login-type",
+			UserLoginType:   codersdk.LoginTypePassword,
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Service accounts must use login type 'none'")
+	})
+
+	t.Run("ServiceAccount/DefaultLoginType", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-default-login",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+
+		found, err := client.User(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeNone, found.LoginType)
+		require.Empty(t, found.Email)
+	})
+
+	t.Run("ServiceAccount/MultipleWithoutEmail", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		user1, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-multi-1",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, user1.Email)
+
+		user2, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-multi-2",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, user2.Email)
+		require.NotEqual(t, user1.ID, user2.ID)
+	})
 }

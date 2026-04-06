@@ -123,6 +123,10 @@ func UsersPagination(
 	require.Contains(t, gotUsers[0].Name, "after")
 }
 
+type UsersFilterOptions struct {
+	CreateServiceAccounts bool
+}
+
 // UsersFilter creates a set of users to run various filters against for
 // testing.  It can be used to test filtering both users and group members.
 func UsersFilter(
@@ -130,10 +134,15 @@ func UsersFilter(
 	t *testing.T,
 	client *codersdk.Client,
 	db database.Store,
+	options *UsersFilterOptions,
 	setup func(users []codersdk.User),
 	fetch func(ctx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser,
 ) {
 	t.Helper()
+
+	if options == nil {
+		options = &UsersFilterOptions{}
+	}
 
 	firstUser, err := client.User(setupCtx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
@@ -211,11 +220,13 @@ func UsersFilter(
 	}
 
 	// Add some service accounts.
-	for range 3 {
-		_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.ServiceAccount = true
-		})
-		users = append(users, user)
+	if options.CreateServiceAccounts {
+		for range 3 {
+			_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.ServiceAccount = true
+			})
+			users = append(users, user)
+		}
 	}
 
 	hashedPassword, err := userpassword.Hash("SomeStrongPassword!")

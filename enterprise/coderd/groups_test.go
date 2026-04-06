@@ -1161,7 +1161,8 @@ func TestGetGroupMembersFilter(t *testing.T) {
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureTemplateRBAC:    1,
+				codersdk.FeatureServiceAccounts: 1,
 			},
 		},
 	})
@@ -1191,7 +1192,8 @@ func TestGetGroupMembersFilter(t *testing.T) {
 		require.NoError(t, err)
 		return res.Users
 	}
-	coderdtest.UsersFilter(setupCtx, t, client, db, setup, fetch)
+	options := &coderdtest.UsersFilterOptions{CreateServiceAccounts: true}
+	coderdtest.UsersFilter(setupCtx, t, client, db, options, setup, fetch)
 }
 
 func TestGetGroupMembersPagination(t *testing.T) {
