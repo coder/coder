@@ -509,7 +509,7 @@ const SchemaField: FC<SchemaFieldProps> = ({
  */
 function colSpan(field: FieldSchema): 1 | 2 | 3 {
 	if (field.input_type === "json") {
-		return 3;
+		return 2;
 	}
 	if (field.input_type === "select" && field.type !== "boolean") {
 		const count = field.enum?.length ?? 0;
