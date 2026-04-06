@@ -1591,6 +1591,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		APIKeyID:                   seed.APIKeyID,
 		InitiatorID:                takeFirst(seed.InitiatorID, uuid.New()),
 		Provider:                   takeFirst(seed.Provider, "provider"),
+		ProviderName:               takeFirst(seed.ProviderName, "provider-name"),
 		Model:                      takeFirst(seed.Model, "model"),
 		Metadata:                   takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),

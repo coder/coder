@@ -999,15 +999,16 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
 	})
 	intc := codersdk.AIBridgeInterception{
-		ID:          interception.ID,
-		Initiator:   MinimalUserFromVisibleUser(initiator),
-		Provider:    interception.Provider,
-		Model:       interception.Model,
-		Metadata:    jsonOrEmptyMap(interception.Metadata),
-		StartedAt:   interception.StartedAt,
-		TokenUsages: sdkTokenUsages,
-		UserPrompts: sdkUserPrompts,
-		ToolUsages:  sdkToolUsages,
+		ID:           interception.ID,
+		Initiator:    MinimalUserFromVisibleUser(initiator),
+		Provider:     interception.Provider,
+		ProviderName: interception.ProviderName,
+		Model:        interception.Model,
+		Metadata:     jsonOrEmptyMap(interception.Metadata),
+		StartedAt:    interception.StartedAt,
+		TokenUsages:  sdkTokenUsages,
+		UserPrompts:  sdkUserPrompts,
+		ToolUsages:   sdkToolUsages,
 	}
 	if interception.APIKeyID.Valid {
 		intc.APIKeyID = &interception.APIKeyID.String

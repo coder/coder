@@ -80,6 +80,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
       },
       "model": "string",
       "provider": "string",
+      "provider_name": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
