@@ -30,11 +30,9 @@ group names, and template to match your use case.
 
 ## Prerequisites
 
-- A running Coder deployment (v2.20+) with workspace sharing enabled. Sharing
+- A running Coder deployment (v2.32+) with workspace sharing enabled. Sharing
   is on by default for OSS; Premium deployments may require
   [admin configuration](../user-guides/shared-workspaces.md#policies).
-- A [Premium license](https://coder.com/pricing#compare-plans), because service
-  accounts are a Premium feature.
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
 - [OIDC authentication](../admin/users/oidc-auth/index.md) configured so
