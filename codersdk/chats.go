@@ -369,11 +369,27 @@ type UpdateChatRequest struct {
 	Labels   *map[string]string `json:"labels,omitempty"`
 }
 
+// ChatBusyBehavior controls what happens when a user sends a message
+// while the chat is already processing.
+type ChatBusyBehavior string
+
+const (
+	// ChatBusyBehaviorQueue queues the message for processing after
+	// the current run finishes.
+	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
+	// ChatBusyBehaviorInterrupt queues the message and interrupts
+	// the active run. The partial assistant response is persisted
+	// before the queued message is promoted, preserving correct
+	// conversation order.
+	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
+)
+
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart `json:"content"`
-	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Content       []ChatInputPart  `json:"content"`
+	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
+	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

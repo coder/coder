@@ -1830,6 +1830,20 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	switch req.BusyBehavior {
+	case codersdk.ChatBusyBehaviorInterrupt:
+		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
+	case codersdk.ChatBusyBehaviorQueue, "":
+		// Default to queue.
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid busy_behavior value.",
+			Detail:  `Must be "queue" or "interrupt".`,
+		})
+		return
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -1837,7 +1851,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			CreatedBy:     apiKey.UserID,
 			Content:       contentBlocks,
 			ModelConfigID: req.ModelConfigID,
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior:  busyBehavior,
 			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
