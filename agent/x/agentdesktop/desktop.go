@@ -105,6 +105,11 @@ type RecordingArtifact struct {
 	Reader io.ReadCloser
 	// Size is the byte length of the MP4 content.
 	Size int64
+	// ThumbnailReader is the JPEG thumbnail. May be nil if no
+	// thumbnail was produced. Callers must close it when done.
+	ThumbnailReader io.ReadCloser
+	// ThumbnailSize is the byte length of the thumbnail.
+	ThumbnailSize int64
 }
 
 // DisplayConfig describes a running desktop session.
