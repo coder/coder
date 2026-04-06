@@ -497,13 +497,12 @@ type sqlcQuerier interface {
 	GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
-	// Find chats stuck in requires_action for longer than the
-	// threshold. Used for timeout recovery of dynamic tool calls.
-	GetRequiresActionChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
-	// Find chats that appear stuck (running but heartbeat has expired).
-	// Used for recovery after coderd crashes or long hangs.
+	// Find chats that appear stuck and need recovery. This covers:
+	//   1. Running chats whose heartbeat has expired (worker crash).
+	//   2. Chats awaiting client action (requires_action) past the
+	//      timeout threshold (client disappeared).
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)

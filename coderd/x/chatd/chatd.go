@@ -5474,71 +5474,6 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
-	p.recoverStaleRunningChats(ctx)
-	p.recoverTimedOutDynamicToolChats(ctx)
-}
-
-// recoverTimedOutDynamicToolChats finds chats stuck in
-// requires_action and injects error tool results so the
-// chatloop can resume. The timeout is the max timeout_seconds
-// across the chat's dynamic tools (default 60s).
-func (p *Server) recoverTimedOutDynamicToolChats(ctx context.Context) {
-	// Use the same stale threshold as running chats for now.
-	// A more precise implementation would check per-tool
-	// timeout_seconds, but the stale-chat interval is a
-	// reasonable upper bound for the initial implementation.
-	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
-	staleChats, err := p.db.GetRequiresActionChats(ctx, staleAfter)
-	if err != nil {
-		p.logger.Error(ctx, "failed to get requires_action chats",
-			slog.Error(err))
-		return
-	}
-
-	recovered := 0
-	for _, chat := range staleChats {
-		p.logger.Info(ctx, "recovering timed-out dynamic tool chat",
-			slog.F("chat_id", chat.ID))
-
-		err := p.db.InTx(func(tx database.Store) error {
-			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
-			if lockErr != nil {
-				return xerrors.Errorf("lock chat for recovery: %w", lockErr)
-			}
-			if locked.Status != database.ChatStatusRequiresAction {
-				return nil
-			}
-			// Still in requires_action and updated_at is old
-			// enough — transition to pending so the chatloop
-			// picks it up. The chatloop will see the missing
-			// tool results and the LLM can handle the gap.
-			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:          chat.ID,
-				Status:      database.ChatStatusPending,
-				WorkerID:    uuid.NullUUID{},
-				StartedAt:   sql.NullTime{},
-				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{String: "Dynamic tool execution timed out", Valid: true},
-			})
-			if updateErr != nil {
-				return updateErr
-			}
-			recovered++
-			return nil
-		}, nil)
-		if err != nil {
-			p.logger.Error(ctx, "failed to recover timed-out dynamic tool chat",
-				slog.F("chat_id", chat.ID), slog.Error(err))
-		}
-	}
-
-	if recovered > 0 {
-		p.logger.Info(ctx, "recovered timed-out dynamic tool chats",
-			slog.F("count", recovered))
-	}
-}
-
-func (p *Server) recoverStaleRunningChats(ctx context.Context) {
 	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
 	if err != nil {
@@ -5548,7 +5483,9 @@ func (p *Server) recoverStaleRunningChats(ctx context.Context) {
 
 	recovered := 0
 	for _, chat := range staleChats {
-		p.logger.Info(ctx, "recovering stale chat", slog.F("chat_id", chat.ID))
+		p.logger.Info(ctx, "recovering stale chat",
+			slog.F("chat_id", chat.ID),
+			slog.F("status", chat.Status))
 
 		// Use a transaction with FOR UPDATE to avoid a TOCTOU race:
 		// between GetStaleChats (a bare SELECT) and here, the chat's
@@ -5560,24 +5497,33 @@ func (p *Server) recoverStaleRunningChats(ctx context.Context) {
 				return xerrors.Errorf("lock chat for recovery: %w", lockErr)
 			}
 
-			// Only recover chats that are still running.
-			// Between GetStaleChats and this lock, the chat
-			// may have completed normally.
-			if locked.Status != database.ChatStatusRunning {
+			switch locked.Status {
+			case database.ChatStatusRunning:
+				// Re-check: only recover if the chat is still stale.
+				// A valid heartbeat at or after the threshold means
+				// the chat was refreshed after our snapshot.
+				if locked.HeartbeatAt.Valid && !locked.HeartbeatAt.Time.Before(staleAfter) {
+					p.logger.Debug(ctx, "chat heartbeat refreshed since snapshot, skipping recovery",
+						slog.F("chat_id", chat.ID))
+					return nil
+				}
+			case database.ChatStatusRequiresAction:
+				// Nothing extra to check — updated_at was already
+				// verified by the query.
+			default:
+				// Status changed since our snapshot; skip.
 				p.logger.Debug(ctx, "chat status changed since snapshot, skipping recovery",
 					slog.F("chat_id", chat.ID),
 					slog.F("status", locked.Status))
 				return nil
 			}
 
-			// Re-check: only recover if the chat is still stale.
-			// A valid heartbeat that is at or after the stale
-			// threshold means the chat was refreshed after our
-			// initial snapshot — skip it.
-			if locked.HeartbeatAt.Valid && !locked.HeartbeatAt.Time.Before(staleAfter) {
-				p.logger.Debug(ctx, "chat heartbeat refreshed since snapshot, skipping recovery",
-					slog.F("chat_id", chat.ID))
-				return nil
+			lastError := sql.NullString{}
+			if locked.Status == database.ChatStatusRequiresAction {
+				lastError = sql.NullString{
+					String: "Dynamic tool execution timed out",
+					Valid:  true,
+				}
 			}
 
 			// Reset to pending so any replica can pick it up.
@@ -5587,7 +5533,7 @@ func (p *Server) recoverStaleRunningChats(ctx context.Context) {
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{},
+				LastError:   lastError,
 			})
 			if updateErr != nil {
 				return updateErr

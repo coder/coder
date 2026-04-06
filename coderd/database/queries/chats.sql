@@ -671,26 +671,19 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck (running but heartbeat has expired).
--- Used for recovery after coderd crashes or long hangs.
+-- Find chats that appear stuck and need recovery. This covers:
+--   1. Running chats whose heartbeat has expired (worker crash).
+--   2. Chats awaiting client action (requires_action) past the
+--      timeout threshold (client disappeared).
 SELECT
     *
 FROM
     chats
 WHERE
-    status = 'running'::chat_status
-    AND heartbeat_at < @stale_threshold::timestamptz;
-
--- name: GetRequiresActionChats :many
--- Find chats stuck in requires_action for longer than the
--- threshold. Used for timeout recovery of dynamic tool calls.
-SELECT
-    *
-FROM
-    chats
-WHERE
-    status = 'requires_action'::chat_status
-    AND updated_at < @stale_threshold::timestamptz;
+    (status = 'running'::chat_status
+        AND heartbeat_at < @stale_threshold::timestamptz)
+    OR (status = 'requires_action'::chat_status
+        AND updated_at < @stale_threshold::timestamptz);
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
