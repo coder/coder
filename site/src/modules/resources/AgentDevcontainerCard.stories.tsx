@@ -59,6 +59,26 @@ export const HasError: Story = {
 	},
 };
 
+export const HasErrorMenuOpen: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			error: "unable to inject devcontainer with agent",
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		await user.click(
+			canvas.getByRole("button", { name: "Dev Container actions" }),
+		);
+	},
+};
+
 export const NoPorts: Story = {};
 
 export const WithPorts: Story = {
