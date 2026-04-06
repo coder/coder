@@ -283,12 +283,13 @@ const SelectField: FC<
 	);
 };
 
-const BooleanField: FC<
+const SegmentedField: FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
 		label: string;
 		description?: string;
+		options: readonly { label: string; value: string }[];
 	}
 > = ({
 	form,
@@ -298,16 +299,13 @@ const BooleanField: FC<
 	errorKey,
 	label,
 	description,
+	options,
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 
-	const options = [
-		{ label: "Default", value: "" },
-		{ label: "On", value: "true" },
-		{ label: "Off", value: "false" },
-	] as const;
+	const allOptions = [{ label: "Default", value: "" }, ...options];
 
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
@@ -320,7 +318,7 @@ const BooleanField: FC<
 					fieldError && "border-content-destructive",
 				)}
 			>
-				{options.map((opt) => (
+				{allOptions.map((opt) => (
 					<button
 						key={opt.value}
 						type="button"
@@ -436,16 +434,33 @@ const SchemaField: FC<SchemaFieldProps> = ({
 		case "select": {
 			if (field.type === "boolean") {
 				return (
-					<BooleanField
+					<SegmentedField
 						{...ctx}
 						fieldKey={fieldKey}
 						errorKey={errorKey}
 						label={label}
 						description={field.description}
+						options={[
+							{ label: "On", value: "true" },
+							{ label: "Off", value: "false" },
+						]}
 					/>
 				);
 			}
 			const options: readonly string[] = field.enum ?? [];
+			const maxSegmented = 5;
+			if (options.length > 0 && options.length <= maxSegmented) {
+				return (
+					<SegmentedField
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={errorKey}
+						label={label}
+						description={field.description}
+						options={options.map((v) => ({ label: v, value: v }))}
+					/>
+				);
+			}
 			return (
 				<SelectField
 					{...ctx}
