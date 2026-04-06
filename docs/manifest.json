@@ -802,7 +802,8 @@
 						{
 							"title": "OAuth2 Provider",
 							"description": "Use Coder as an OAuth2 provider",
-							"path": "./admin/integrations/oauth2-provider.md"
+							"path": "./admin/integrations/oauth2-provider.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Dev Containers",
