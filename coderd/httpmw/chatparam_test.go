@@ -59,6 +59,7 @@ func TestChatParam(t *testing.T) {
 			ContextLimit:         128000,
 			CompressionThreshold: 70,
 			Options:              []byte("{}"),
+			AllowedGroupIds:      []uuid.UUID{},
 		})
 		require.NoError(t, err)
 

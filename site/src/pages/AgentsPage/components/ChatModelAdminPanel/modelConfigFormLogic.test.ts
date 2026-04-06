@@ -89,6 +89,7 @@ const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	compression_threshold: 80,
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
+	allowed_group_ids: [],
 };
 
 // ── buildInitialModelFormValues ────────────────────────────────
@@ -103,6 +104,7 @@ describe("buildInitialModelFormValues", () => {
 			compressionThreshold: "",
 			isDefault: false,
 			config: emptyModelConfigFormState,
+			allowedGroupIds: [],
 		});
 	});
 

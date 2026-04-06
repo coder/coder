@@ -2875,11 +2875,11 @@ func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.C
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
 }
 
-func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (q *querier) GetEnabledChatModelConfigs(ctx context.Context, userID uuid.UUID) ([]database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetEnabledChatModelConfigs(ctx)
+	return q.db.GetEnabledChatModelConfigs(ctx, userID)
 }
 
 func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
@@ -2889,11 +2889,11 @@ func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatP
 	return q.db.GetEnabledChatProviders(ctx)
 }
 
-func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetEnabledMCPServerConfigs(ctx)
+	return q.db.GetEnabledMCPServerConfigs(ctx, userID)
 }
 
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {

@@ -1804,7 +1804,7 @@ func (p *Server) resolveManualTitleModel(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, database.ChatModelConfig, error) {
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigs(ctx, uuid.Nil)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
@@ -3887,6 +3887,9 @@ func (p *Server) runChat(
 					slog.Error(err),
 				)
 			}
+			// Filter out configs the user is no longer allowed
+			// to access due to group restrictions.
+			mcpConfigs = filterAllowedMCPConfigs(ctx, p.db, chat.OwnerID, mcpConfigs)
 			return nil
 		})
 		g.Go(func() error {
@@ -4949,16 +4952,26 @@ func (p *Server) resolveModelConfig(
 		modelConfig, err := p.configCache.ModelConfigByID(
 			ctx, chat.LastModelConfigID,
 		)
-		if err == nil {
-			return modelConfig, nil
-		}
-		if !xerrors.Is(err, sql.ErrNoRows) {
+		switch {
+		case err == nil:
+			// Check group access for existing chats. If the user
+			// is no longer in an allowed group, treat it like a
+			// deleted model and fall back to the default.
+			if isUserAllowedByGroups(ctx, p.db, chat.OwnerID, modelConfig.AllowedGroupIds) {
+				return modelConfig, nil
+			}
+			p.logger.Info(ctx, "model config group-restricted from user, falling back to default",
+				slog.F("model_config_id", modelConfig.ID),
+				slog.F("owner_id", chat.OwnerID),
+			)
+		case !xerrors.Is(err, sql.ErrNoRows):
 			return database.ChatModelConfig{}, xerrors.Errorf(
 				"get chat model config %s: %w",
 				chat.LastModelConfigID, err,
 			)
 		}
-		// Model config was deleted, fall through to default.
+		// Model config was deleted or group-restricted,
+		// fall through to default.
 	}
 
 	defaultConfig, err := p.configCache.DefaultModelConfig(ctx)
@@ -4970,6 +4983,12 @@ func (p *Server) resolveModelConfig(
 		}
 		return database.ChatModelConfig{}, xerrors.Errorf(
 			"get default chat model config: %w", err,
+		)
+	}
+	// Also check group access on the default.
+	if !isUserAllowedByGroups(ctx, p.db, chat.OwnerID, defaultConfig.AllowedGroupIds) {
+		return database.ChatModelConfig{}, xerrors.New(
+			"no default chat model config is available",
 		)
 	}
 	return defaultConfig, nil
@@ -5523,4 +5542,89 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	}
 
 	return updated, nil
+}
+
+// isUserAllowedByGroups checks whether a user is permitted to access
+// a resource with the given allowed group IDs. An empty list means
+// the resource is available to everyone.
+func isUserAllowedByGroups(
+	ctx context.Context,
+	db database.Store,
+	userID uuid.UUID,
+	allowedGroupIDs []uuid.UUID,
+) bool {
+	if len(allowedGroupIDs) == 0 {
+		return true
+	}
+	// Use the system context because chatd runs as uuid.Nil subject
+	// and cannot read groups directly.
+	//nolint:gocritic // Chatd needs system context to check group membership.
+	groups, err := db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		HasMemberID: userID,
+	})
+	if err != nil {
+		return false
+	}
+	allowed := make(map[uuid.UUID]struct{}, len(allowedGroupIDs))
+	for _, id := range allowedGroupIDs {
+		allowed[id] = struct{}{}
+	}
+	for _, g := range groups {
+		if _, ok := allowed[g.Group.ID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// filterAllowedMCPConfigs removes MCP server configs that the user is
+// not allowed to access due to group restrictions.
+func filterAllowedMCPConfigs(
+	ctx context.Context,
+	db database.Store,
+	userID uuid.UUID,
+	configs []database.MCPServerConfig,
+) []database.MCPServerConfig {
+	if len(configs) == 0 {
+		return configs
+	}
+	// Check if any configs have group restrictions.
+	hasRestricted := false
+	for _, c := range configs {
+		if len(c.AllowedGroupIds) > 0 {
+			hasRestricted = true
+			break
+		}
+	}
+	if !hasRestricted {
+		return configs
+	}
+
+	// Load user's groups once.
+	//nolint:gocritic // System context needed for chatd.
+	groups, err := db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		HasMemberID: userID,
+	})
+	if err != nil {
+		return nil
+	}
+	userGroups := make(map[uuid.UUID]struct{}, len(groups))
+	for _, g := range groups {
+		userGroups[g.Group.ID] = struct{}{}
+	}
+
+	filtered := make([]database.MCPServerConfig, 0, len(configs))
+	for _, c := range configs {
+		if len(c.AllowedGroupIds) == 0 {
+			filtered = append(filtered, c)
+			continue
+		}
+		for _, gid := range c.AllowedGroupIds {
+			if _, ok := userGroups[gid]; ok {
+				filtered = append(filtered, c)
+				break
+			}
+		}
+	}
+	return filtered
 }

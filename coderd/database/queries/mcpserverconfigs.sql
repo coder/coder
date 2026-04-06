@@ -23,12 +23,26 @@ ORDER BY
     display_name ASC;
 
 -- name: GetEnabledMCPServerConfigs :many
+-- Returns enabled MCP server configs visible to the given user.
+-- When allowed_group_ids is empty the config is visible to everyone.
+-- Otherwise the user must be a member of at least one allowed group
+-- (union semantics). Pass uuid.Nil to bypass group filtering.
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
     enabled = TRUE
+    AND CASE
+        WHEN @user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN TRUE
+        WHEN allowed_group_ids = '{}' THEN TRUE
+        ELSE EXISTS (
+            SELECT 1
+            FROM group_members_expanded gme
+            WHERE gme.user_id = @user_id::uuid
+              AND gme.group_id = ANY(mcp_server_configs.allowed_group_ids)
+        )
+    END
 ORDER BY
     display_name ASC;
 
@@ -79,7 +93,8 @@ INSERT INTO mcp_server_configs (
     enabled,
     model_intent,
     created_by,
-    updated_by
+    updated_by,
+    allowed_group_ids
 ) VALUES (
     @display_name::text,
     @slug::text,
@@ -105,7 +120,8 @@ INSERT INTO mcp_server_configs (
     @enabled::boolean,
     @model_intent::boolean,
     @created_by::uuid,
-    @updated_by::uuid
+    @updated_by::uuid,
+    @allowed_group_ids::uuid[]
 )
 RETURNING
     *;
@@ -138,6 +154,7 @@ SET
     enabled = @enabled::boolean,
     model_intent = @model_intent::boolean,
     updated_by = @updated_by::uuid,
+    allowed_group_ids = @allowed_group_ids::uuid[],
     updated_at = NOW()
 WHERE
     id = @id::uuid

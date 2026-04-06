@@ -30,6 +30,10 @@ ORDER BY
     id DESC;
 
 -- name: GetEnabledChatModelConfigs :many
+-- Returns enabled model configs visible to the given user.
+-- When allowed_group_ids is empty the config is visible to everyone.
+-- Otherwise the user must be a member of at least one allowed group
+-- (union semantics). Pass uuid.Nil to bypass group filtering.
 SELECT
     cmc.*
 FROM
@@ -40,6 +44,16 @@ WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND cp.enabled = TRUE
+    AND CASE
+        WHEN @user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN TRUE
+        WHEN cmc.allowed_group_ids = '{}' THEN TRUE
+        ELSE EXISTS (
+            SELECT 1
+            FROM group_members_expanded gme
+            WHERE gme.user_id = @user_id::uuid
+              AND gme.group_id = ANY(cmc.allowed_group_ids)
+        )
+    END
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -57,7 +71,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    allowed_group_ids
 ) VALUES (
     @provider::text,
     @model::text,
@@ -68,7 +83,8 @@ INSERT INTO chat_model_configs (
     @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @options::jsonb
+    @options::jsonb,
+    @allowed_group_ids::uuid[]
 )
 RETURNING
     *;
@@ -86,6 +102,7 @@ SET
     context_limit = @context_limit::bigint,
     compression_threshold = @compression_threshold::integer,
     options = @options::jsonb,
+    allowed_group_ids = @allowed_group_ids::uuid[],
     updated_at = NOW()
 WHERE
     id = @id::uuid

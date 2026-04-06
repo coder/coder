@@ -5,7 +5,9 @@ import {
 	ChevronRightIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
+import { useQuery } from "react-query";
 import * as Yup from "yup";
+import { groups } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -111,7 +113,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const isDefaultModel = isEditing && editingModel?.is_default === true;
 	const [showPricing, setShowPricing] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [showAccessControl, setShowAccessControl] = useState(
+		(editingModel?.allowed_group_ids ?? []).length > 0,
+	);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	const groupsQuery = useQuery(groups());
+	const allGroups = groupsQuery.data ?? [];
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
@@ -145,6 +153,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const builtModelConfig = buildResult.modelConfig;
 
 			if (isEditing && editingModel) {
+				const allowedGroupIdsChanged =
+					JSON.stringify(values.allowedGroupIds) !==
+					JSON.stringify([...(editingModel.allowed_group_ids ?? [])]);
+
 				const req: TypesGen.UpdateChatModelConfigRequest = {
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
@@ -169,6 +181,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 					}),
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
+					...(allowedGroupIdsChanged && {
+						allowed_group_ids: values.allowedGroupIds,
+					}),
 				};
 
 				await onUpdateModel(editingModel.id, req);
@@ -193,6 +208,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 					}),
 					...(builtModelConfig && {
 						model_config: builtModelConfig,
+					}),
+					...(values.allowedGroupIds.length > 0 && {
+						allowed_group_ids: values.allowedGroupIds,
 					}),
 				};
 
@@ -538,6 +556,69 @@ export const ModelForm: FC<ModelFormProps> = ({
 											</p>
 										)}
 									</div>
+								</div>
+							)}
+						</div>
+
+						{/* Access Control — toggle */}
+						<div>
+							<button
+								type="button"
+								onClick={() => setShowAccessControl((v) => !v)}
+								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+							>
+								{showAccessControl ? (
+									<ChevronDownIcon className="h-4 w-4" />
+								) : (
+									<ChevronRightIcon className="h-4 w-4" />
+								)}
+								Access Control
+							</button>
+							{showAccessControl && (
+								<div className="mt-4 space-y-2">
+									<p className="m-0 text-xs text-content-secondary">
+										Restrict this model to specific groups. When no groups are
+										selected, the model is available to all users.
+									</p>
+									{groupsQuery.isLoading ? (
+										<p className="m-0 text-xs text-content-secondary">
+											Loading groups...
+										</p>
+									) : allGroups.length === 0 ? (
+										<p className="m-0 text-xs text-content-secondary">
+											No groups available.
+										</p>
+									) : (
+										<div className="max-h-48 space-y-1 overflow-y-auto rounded border border-solid border-border p-2">
+											{allGroups.map((g) => (
+												<label
+													key={g.id}
+													className="flex items-center gap-2 rounded p-1 text-sm hover:bg-surface-secondary"
+												>
+													<input
+														type="checkbox"
+														checked={form.values.allowedGroupIds.includes(g.id)}
+														onChange={(e) => {
+															const ids = form.values.allowedGroupIds;
+															if (e.target.checked) {
+																void form.setFieldValue("allowedGroupIds", [
+																	...ids,
+																	g.id,
+																]);
+															} else {
+																void form.setFieldValue(
+																	"allowedGroupIds",
+																	ids.filter((id) => id !== g.id),
+																);
+															}
+														}}
+														className="rounded"
+													/>
+													<span>{g.display_name || g.name}</span>
+												</label>
+											))}
+										</div>
+									)}
 								</div>
 							)}
 						</div>

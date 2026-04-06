@@ -600,6 +600,7 @@ type ChatModelConfig struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
 	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+	AllowedGroupIDs      []uuid.UUID          `json:"allowed_group_ids"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -808,6 +809,7 @@ type CreateChatModelConfigRequest struct {
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	AllowedGroupIDs      []uuid.UUID          `json:"allowed_group_ids,omitempty"`
 }
 
 // UpdateChatModelConfigRequest updates a chat model config.
@@ -820,6 +822,7 @@ type UpdateChatModelConfigRequest struct {
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	AllowedGroupIDs      *[]uuid.UUID         `json:"allowed_group_ids,omitempty"`
 }
 
 // ChatGitChange represents a git file change detected during a chat session.
