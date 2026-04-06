@@ -268,7 +268,9 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		workspaceUpdates := make(chan wspubsub.WorkspaceEventKind, 100)
 
 		workspace := database.Workspace{
-			ID: uuid.UUID{9},
+			ID:             uuid.UUID{9},
+			OwnerID:        uuid.UUID{1},
+			OrganizationID: uuid.UUID{2},
 			TaskID: uuid.NullUUID{
 				Valid: true,
 				UUID:  uuid.UUID{7},

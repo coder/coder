@@ -321,8 +321,8 @@ func (s *server) heartbeat(ctx context.Context) error {
 }
 
 func (s *server) defaultHeartbeat(ctx context.Context) error {
-	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
-	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+	//nolint:gocritic // Provisionerd updating its own heartbeat timestamp.
+	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsProvisionerd(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
 		ID:         s.ID,
 		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
 	})

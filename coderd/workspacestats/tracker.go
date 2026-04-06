@@ -125,8 +125,8 @@ func (tr *UsageTracker) flush(now time.Time) {
 	// Set a short-ish timeout for this. We don't want to hang forever.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	// nolint: gocritic // system function
-	authCtx := dbauthz.AsSystemRestricted(ctx)
+	//nolint:gocritic // workspace stats flusher actor
+	authCtx := dbauthz.AsWorkspaceStatsFlusher(ctx)
 	tr.flushLock.Lock()
 	defer tr.flushLock.Unlock()
 	if err := tr.s.BatchUpdateWorkspaceLastUsedAt(authCtx, database.BatchUpdateWorkspaceLastUsedAtParams{

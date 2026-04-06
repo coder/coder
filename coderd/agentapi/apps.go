@@ -164,12 +164,20 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
+	// Inject workspace RBAC into context so dbauthz can use the
+	// fast path instead of requiring system-level escalation.
+	var ctxErr error
+	ctx, ctxErr = a.Workspace.ContextInject(ctx)
+	if ctxErr != nil {
+		a.Log.Error(ctx, "failed to inject workspace RBAC, falling back to slow path",
+			slog.Error(ctxErr))
+	}
+
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
 	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // This is a system restricted operation.
-	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(ctx, app.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get latest workspace app status.",
@@ -178,8 +186,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
-	// nolint:gocritic // This is a system restricted operation.
-	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+	_, err = a.Database.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		WorkspaceID: ws.ID,

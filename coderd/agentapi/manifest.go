@@ -14,10 +14,10 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -31,6 +31,8 @@ type ManifestAPI struct {
 	DisableDirectConnections bool
 	DerpForceWebSockets      bool
 	WorkspaceID              uuid.UUID
+	Workspace                *CachedWorkspaceFields
+	Log                      slog.Logger
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -60,8 +62,16 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil
 	})
 	eg.Go(func() (err error) {
-		// nolint:gocritic // This is necessary to fetch agent scripts!
-		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		scriptCtx := ctx
+		if a.Workspace != nil {
+			var ctxErr error
+			scriptCtx, ctxErr = a.Workspace.ContextInject(ctx)
+			if ctxErr != nil {
+				a.Log.Error(ctx, "failed to inject workspace RBAC for scripts, falling back to slow path",
+					slog.Error(ctxErr))
+			}
+		}
+		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(scriptCtx, []uuid.UUID{workspaceAgent.ID})
 		return err
 	})
 	eg.Go(func() (err error) {

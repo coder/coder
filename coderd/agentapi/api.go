@@ -113,6 +113,13 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		mu:   sync.Mutex{},
 	}
 
+	// Initialize cached workspace fields before constructing sub-APIs
+	// that reference it (ManifestAPI, StatsAPI, AppsAPI, etc.).
+	api.cachedWorkspaceFields = &CachedWorkspaceFields{}
+	if !workspace.IsPrebuild() {
+		api.cachedWorkspaceFields.UpdateValues(workspace)
+	}
+
 	api.ManifestAPI = &ManifestAPI{
 		AccessURL:                opts.AccessURL,
 		AppHostname:              opts.AppHostname,
@@ -123,13 +130,8 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
-	}
-
-	// Don't cache details for prebuilds, though the cached fields will eventually be updated
-	// by the refresh routine once the prebuild workspace is claimed.
-	api.cachedWorkspaceFields = &CachedWorkspaceFields{}
-	if !workspace.IsPrebuild() {
-		api.cachedWorkspaceFields.UpdateValues(workspace)
+		Workspace:                api.cachedWorkspaceFields,
+		Log:                      opts.Log,
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{

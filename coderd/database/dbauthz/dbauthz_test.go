@@ -3855,10 +3855,12 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 }
 
 func (s *MethodTestSuite) TestSystemFunctions() {
-	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		appID := uuid.New()
-		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{}, nil).AnyTimes()
-		check.Args(appID).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{WorkspaceID: w.ID}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		check.Args(appID).Asserts(w, policy.ActionRead)
 	}))
 	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
@@ -4172,10 +4174,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().InsertTemplateVersionParameter(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.TemplateVersionParameter{TemplateVersionID: v.ID}), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertWorkspaceAppStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertWorkspaceAppStatusParams{ID: uuid.New(), State: "working"}
+	s.Run("InsertWorkspaceAppStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.InsertWorkspaceAppStatusParams{ID: uuid.New(), WorkspaceID: w.ID, State: "working"}
 		dbm.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), arg).Return(testutil.Fake(s.T(), gofakeit.New(0), database.WorkspaceAppStatus{ID: arg.ID, State: arg.State}), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceResourceParams{ID: uuid.New(), Transition: database.WorkspaceTransitionStart}
@@ -4360,10 +4364,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceUniqueOwnerCountByTemplateIDs(gomock.Any(), ids).Return([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ids := []uuid.UUID{uuid.New()}
+	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agentID := uuid.New()
+		ids := []uuid.UUID{agentID}
 		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentScript{}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(w, nil).AnyTimes()
+		check.Args(ids).Asserts(w, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentLogSourcesByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
@@ -5851,6 +5858,227 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 		result, err := q.GetWorkspaceAgentByID(ctx, agentID)
 		require.NoError(t, err)
 		require.Equal(t, agent, result)
+	})
+}
+
+// fastPathTestFixtures holds common test data for workspace RBAC
+// fast-path tests. Every fast-path test needs the same workspace,
+// identity, actor, and authorizer scaffolding.
+type fastPathTestFixtures struct {
+	ownerID    uuid.UUID
+	wsID       uuid.UUID
+	orgID      uuid.UUID
+	workspace  database.Workspace
+	wsIdentity database.WorkspaceIdentity
+	actor      rbac.Subject
+	authorizer *coderdtest.RecordingAuthorizer
+}
+
+func newFastPathTestFixtures() fastPathTestFixtures {
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+	return fastPathTestFixtures{
+		ownerID: ownerID,
+		wsID:    wsID,
+		orgID:   orgID,
+		workspace: database.Workspace{
+			ID:             wsID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		},
+		wsIdentity: database.WorkspaceIdentity{
+			ID:             wsID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		},
+		actor: rbac.Subject{
+			ID:     ownerID.String(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Groups: []string{orgID.String()},
+			Scope:  rbac.ScopeAll,
+		},
+		authorizer: &coderdtest.RecordingAuthorizer{
+			Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+		},
+	}
+}
+
+// authorizedCtx returns a context with the test actor set.
+func (f *fastPathTestFixtures) authorizedCtx() context.Context {
+	return dbauthz.As(context.Background(), f.actor)
+}
+
+// authorizedCtxWithRBAC returns a context with both the test actor
+// and cached workspace RBAC object set (for fast-path testing).
+func (f *fastPathTestFixtures) authorizedCtxWithRBAC(t *testing.T) context.Context {
+	t.Helper()
+	ctx := f.authorizedCtx()
+	ctx, err := dbauthz.WithWorkspaceRBAC(ctx, f.wsIdentity.RBACObject())
+	require.NoError(t, err)
+	return ctx
+}
+
+// denyAuthorizer returns an authorizer that rejects every check.
+func (*fastPathTestFixtures) denyAuthorizer() *coderdtest.RecordingAuthorizer {
+	return &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("unauthorized")),
+	}
+}
+
+// newQuerier creates a gomock store and dbauthz querier. The mock
+// already expects Wrappers().
+func (*fastPathTestFixtures) newQuerier(
+	t *testing.T,
+	authorizer rbac.Authorizer,
+	logOpts *slogtest.Options,
+) (*dbmock.MockStore, database.Store) {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+	mockDB := dbmock.NewMockStore(ctrl)
+	mockDB.EXPECT().Wrappers().Return([]string{})
+	q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, logOpts), coderdtest.AccessControlStorePointer())
+	return mockDB, q
+}
+
+func TestInsertWorkspaceAppStatus_FastPath(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtxWithRBAC(t)
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByID should NOT be called (fast path).
+		mockDB.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), database.InsertWorkspaceAppStatusParams{WorkspaceID: f.wsID}).Return(database.WorkspaceAppStatus{}, nil)
+
+		_, err := q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: f.wsID})
+		require.NoError(t, err)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtx()
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByID SHOULD be called (slow path).
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), f.wsID).Return(f.workspace, nil)
+		mockDB.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), database.InsertWorkspaceAppStatusParams{WorkspaceID: f.wsID}).Return(database.WorkspaceAppStatus{}, nil)
+
+		_, err := q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: f.wsID})
+		require.NoError(t, err)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtxWithRBAC(t)
+		mockDB, q := f.newQuerier(t, f.denyAuthorizer(), &slogtest.Options{IgnoreErrors: true})
+
+		// Fast path denied → falls through to slow path → also denied.
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), f.wsID).Return(f.workspace, nil)
+
+		_, err := q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: f.wsID})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
+	})
+}
+
+func TestGetWorkspaceAgentScriptsByAgentIDs_FastPath(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+	agentID := uuid.New()
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtxWithRBAC(t)
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByAgentID should NOT be called (fast path).
+		mockDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agentID}).Return([]database.WorkspaceAgentScript{}, nil)
+
+		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtx()
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByAgentID SHOULD be called (slow path).
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(f.workspace, nil)
+		mockDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agentID}).Return([]database.WorkspaceAgentScript{}, nil)
+
+		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtxWithRBAC(t)
+		mockDB, q := f.newQuerier(t, f.denyAuthorizer(), &slogtest.Options{IgnoreErrors: true})
+
+		// Fast path denied → falls through to slow path → also denied.
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(f.workspace, nil)
+
+		_, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
+	})
+}
+
+func TestGetLatestWorkspaceAppStatusByAppID_FastPath(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+	appID := uuid.New()
+	status := database.WorkspaceAppStatus{
+		ID:          uuid.New(),
+		WorkspaceID: f.wsID,
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtxWithRBAC(t)
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByID should NOT be called (fast path).
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
+
+		result, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, status, result)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtx()
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// Slow path: fetch status first, then look up workspace.
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), f.wsID).Return(f.workspace, nil)
+
+		result, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, status, result)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+		ctx := f.authorizedCtxWithRBAC(t)
+		mockDB, q := f.newQuerier(t, f.denyAuthorizer(), &slogtest.Options{IgnoreErrors: true})
+
+		// Fast path denied → falls through to slow path which
+		// fetches the status, then workspace, then also denied.
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), f.wsID).Return(f.workspace, nil)
+
+		_, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
 	})
 }
 
