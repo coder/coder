@@ -282,6 +282,22 @@ neq(input.object.owner, "");
 				p("'10d03e62-7703-4df5-a358-4f76577d4e2f' = id :: text") + " AND " + p("id :: text != ''") + " AND " + p("'' = ''"),
 			),
 		},
+		{
+			Name: "ChatOwnerMe",
+			Queries: []string{
+				`"me" = input.object.owner; input.object.owner != ""; input.object.org_owner = ""`,
+			},
+			ExpectedSQL:       p(p("'me' = owner_id :: text") + " AND " + p("owner_id :: text != ''") + " AND " + p("'' = ''")),
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
+			Name: "ChatOrgScopedNeverMatches",
+			Queries: []string{
+				`input.object.org_owner = "org-id"`,
+			},
+			ExpectedSQL:       p("'' = 'org-id'"),
+			VariableConverter: regosql.ChatConverter(),
+		},
 	}
 
 	for _, tc := range testCases {

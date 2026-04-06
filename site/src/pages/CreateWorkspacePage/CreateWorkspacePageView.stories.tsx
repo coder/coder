@@ -1,9 +1,9 @@
-import { chromatic } from "testHelpers/chromatic";
-import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DetailedError } from "api/errors";
-import type { PreviewParameter } from "api/typesGenerated";
 import { expect, screen, within } from "storybook/test";
+import { DetailedError } from "#/api/errors";
+import type { PreviewParameter } from "#/api/typesGenerated";
+import { chromatic } from "#/testHelpers/chromatic";
+import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -316,6 +316,18 @@ export const WithParameters: Story = {
 					"This story demonstrates a workspace creation form with presets and a variety of parameter types including text inputs, dropdowns, sliders, switches, radio buttons, multi-select, textarea, and checkboxes.",
 			},
 		},
+	},
+};
+
+export const WithTooLongPrefilledName: Story = {
+	args: {
+		defaultName: "this-name-is-way-too-long-and-exceeds-the-limit",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.findByText(/Workspace Name cannot be longer than 32 characters/i),
+		).resolves.toBeVisible();
 	},
 };
 

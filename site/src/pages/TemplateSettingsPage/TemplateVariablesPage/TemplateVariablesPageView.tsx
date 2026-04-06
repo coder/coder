@@ -1,13 +1,16 @@
+import type { ComponentProps, FC } from "react";
 import type {
 	CreateTemplateVersionRequest,
 	TemplateVersion,
 	TemplateVersionVariable,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import type { ComponentProps, FC } from "react";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { Stack } from "#/components/Stack/Stack";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
 interface TemplateVariablesPageViewProps {
@@ -44,11 +47,11 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 
 	return (
 		<>
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Template variables</PageHeaderTitle>
 			</PageHeader>
 			{hasError && (
-				<Stack css={{ marginBottom: 64 }}>
+				<Stack className="mb-16">
 					{Boolean(errors.buildError) && (
 						<ErrorAlert error={errors.buildError} />
 					)}

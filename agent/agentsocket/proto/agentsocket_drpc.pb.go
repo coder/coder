@@ -7,6 +7,7 @@ package proto
 import (
 	context "context"
 	errors "errors"
+	proto1 "github.com/coder/coder/v2/agent/proto"
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	proto "google.golang.org/protobuf/proto"
 	drpc "storj.io/drpc"
@@ -44,6 +45,7 @@ type DRPCAgentSocketClient interface {
 	SyncComplete(ctx context.Context, in *SyncCompleteRequest) (*SyncCompleteResponse, error)
 	SyncReady(ctx context.Context, in *SyncReadyRequest) (*SyncReadyResponse, error)
 	SyncStatus(ctx context.Context, in *SyncStatusRequest) (*SyncStatusResponse, error)
+	UpdateAppStatus(ctx context.Context, in *proto1.UpdateAppStatusRequest) (*proto1.UpdateAppStatusResponse, error)
 }
 
 type drpcAgentSocketClient struct {
@@ -110,6 +112,15 @@ func (c *drpcAgentSocketClient) SyncStatus(ctx context.Context, in *SyncStatusRe
 	return out, nil
 }
 
+func (c *drpcAgentSocketClient) UpdateAppStatus(ctx context.Context, in *proto1.UpdateAppStatusRequest) (*proto1.UpdateAppStatusResponse, error) {
+	out := new(proto1.UpdateAppStatusResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/UpdateAppStatus", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentSocketServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	SyncStart(context.Context, *SyncStartRequest) (*SyncStartResponse, error)
@@ -117,6 +128,7 @@ type DRPCAgentSocketServer interface {
 	SyncComplete(context.Context, *SyncCompleteRequest) (*SyncCompleteResponse, error)
 	SyncReady(context.Context, *SyncReadyRequest) (*SyncReadyResponse, error)
 	SyncStatus(context.Context, *SyncStatusRequest) (*SyncStatusResponse, error)
+	UpdateAppStatus(context.Context, *proto1.UpdateAppStatusRequest) (*proto1.UpdateAppStatusResponse, error)
 }
 
 type DRPCAgentSocketUnimplementedServer struct{}
@@ -145,9 +157,13 @@ func (s *DRPCAgentSocketUnimplementedServer) SyncStatus(context.Context, *SyncSt
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentSocketUnimplementedServer) UpdateAppStatus(context.Context, *proto1.UpdateAppStatusRequest) (*proto1.UpdateAppStatusResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentSocketDescription struct{}
 
-func (DRPCAgentSocketDescription) NumMethods() int { return 6 }
+func (DRPCAgentSocketDescription) NumMethods() int { return 7 }
 
 func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -205,6 +221,15 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncStatusRequest),
 					)
 			}, DRPCAgentSocketServer.SyncStatus, true
+	case 6:
+		return "/coder.agentsocket.v1.AgentSocket/UpdateAppStatus", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					UpdateAppStatus(
+						ctx,
+						in1.(*proto1.UpdateAppStatusRequest),
+					)
+			}, DRPCAgentSocketServer.UpdateAppStatus, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -304,6 +329,22 @@ type drpcAgentSocket_SyncStatusStream struct {
 }
 
 func (x *drpcAgentSocket_SyncStatusStream) SendAndClose(m *SyncStatusResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_UpdateAppStatusStream interface {
+	drpc.Stream
+	SendAndClose(*proto1.UpdateAppStatusResponse) error
+}
+
+type drpcAgentSocket_UpdateAppStatusStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_UpdateAppStatusStream) SendAndClose(m *proto1.UpdateAppStatusResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
 		return err
 	}

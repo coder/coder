@@ -67,7 +67,6 @@ coderd/
 | `make test` | Run all Go tests |
 | `make test RUN=TestFunctionName` | Run specific test |
 | `go test -v ./path/to/package -run TestFunctionName` | Run test with verbose output |
-| `make test-postgres` | Run tests with Postgres database |
 | `make test-race` | Run tests with Go race detector |
 | `make test-e2e` | Run end-to-end tests |
 

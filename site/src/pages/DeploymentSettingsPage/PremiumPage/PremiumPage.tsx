@@ -1,6 +1,6 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { pageTitle } from "utils/page";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { pageTitle } from "#/utils/page";
 import { PremiumPageView } from "./PremiumPageView";
 
 const PremiumPage: FC = () => {

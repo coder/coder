@@ -88,18 +88,32 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("test startup script is not supported on windows")
-	}
-
 	// Ensure that workspace agents can reinitialize against claimed prebuilds in non-default organizations:
 	for _, useDefaultOrg := range []bool{true, false} {
 		t.Run(fmt.Sprintf("useDefaultOrg=%t", useDefaultOrg), func(t *testing.T) {
 			t.Parallel()
 
-			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
+			// Create the temp file in os.TempDir() rather than t.TempDir().
+			// On Windows, t.TempDir() includes the test name which
+			// contains "=" (e.g. useDefaultOrg=true). The "=" in the
+			// path breaks both cmd.exe and powershell scripts, causing
+			// the startup script to exit 1 and the agent to never
+			// reach the ready lifecycle state.
+			tempAgentLog := testutil.CreateTemp(t, os.TempDir(), "testReinitializeAgent")
 
-			startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+			// Dump environment variables to a temp file so we can verify
+			// CODER_AGENT_TOKEN appears twice (once per init). On Windows
+			// the agent runs scripts via powershell.exe /c, so we must
+			// use PowerShell-native commands.
+			var startupScript string
+			if runtime.GOOS == "windows" {
+				startupScript = fmt.Sprintf(
+					`[System.Environment]::GetEnvironmentVariables().GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" } | Add-Content -Path '%s'; '---' | Add-Content -Path '%s'`,
+					tempAgentLog.Name(), tempAgentLog.Name(),
+				)
+			} else {
+				startupScript = fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+			}
 
 			db, ps := dbtestutil.NewDB(t)
 			// GIVEN a live enterprise API with the prebuilds feature enabled
@@ -184,7 +198,7 @@ func TestReinitializeAgent(t *testing.T) {
 			coderdtest.CreateTemplate(t, client, orgID, version.ID)
 
 			// Wait for prebuilds to create a prebuilt workspace
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			var prebuildID uuid.UUID
 			require.Eventually(t, func() bool {
 				agentAndBuild, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agentToken)
@@ -208,6 +222,7 @@ func TestReinitializeAgent(t *testing.T) {
 				"--agent-token", agentToken.String(),
 				"--agent-url", client.URL.String(),
 				"--log-dir", logDir,
+				"--socket-path", testutil.AgentSocketPath(t),
 			)
 			clitest.Start(t, inv)
 

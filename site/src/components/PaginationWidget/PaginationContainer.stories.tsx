@@ -86,6 +86,22 @@ export const FirstPageWithNoData: Story = {
 	},
 };
 
+export const FirstPageWithTonsOfData: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			isSuccess: true,
+			currentPage: 2,
+			currentOffsetStart: 1000,
+			totalRecords: 123_456,
+			totalPages: 1235,
+			hasPreviousPage: false,
+			hasNextPage: true,
+			isPlaceholderData: false,
+		},
+	},
+};
+
 export const TransitionFromFirstToSecondPage: Story = {
 	args: {
 		query: {

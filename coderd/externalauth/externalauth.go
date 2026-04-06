@@ -23,6 +23,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -82,6 +83,10 @@ type Config struct {
 	// a Git clone. e.g. "Username for 'https://github.com':"
 	// The regex would be `github\.com`..
 	Regex *regexp.Regexp
+	// APIBaseURL is the base URL for provider REST API calls
+	// (e.g., "https://api.github.com" for GitHub). Derived from
+	// defaults when not explicitly configured.
+	APIBaseURL string
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
@@ -90,14 +95,20 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	//
 	// MCPURL is the endpoint that clients must use to communicate with the associated
 	// MCP server.
 	MCPURL string
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	//
 	// MCPToolAllowRegex is a [regexp.Regexp] to match tools which are explicitly allowed to be
 	// injected into Coder AI Bridge upstream requests.
 	// In the case of conflicts, [MCPToolDenylistPattern] overrides items evaluated by this list.
 	// This field can be nil if unspecified in the config.
 	MCPToolAllowRegex *regexp.Regexp
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	//
 	// MCPToolDenyRegex is a [regexp.Regexp] to match tools which are explicitly NOT allowed to be
 	// injected into Coder AI Bridge upstream requests.
 	// In the case of conflicts, items evaluated by this list override [MCPToolAllowRegex].
@@ -106,12 +117,23 @@ type Config struct {
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
 }
 
+// Git returns a Provider for this config if the provider type
+// is a supported git hosting provider. Returns nil for non-git
+// providers (e.g. Slack, JFrog).
+func (c *Config) Git(client *http.Client) gitprovider.Provider {
+	norm := strings.ToLower(c.Type)
+	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
+		return nil
+	}
+	return gitprovider.New(norm, c.APIBaseURL, client)
+}
+
 // GenerateTokenExtra generates the extra token data to store in the database.
 func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage, error) {
 	if len(c.ExtraTokenKeys) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
-	extraMap := map[string]interface{}{}
+	extraMap := map[string]any{}
 	for _, key := range c.ExtraTokenKeys {
 		extraMap[key] = token.Extra(key)
 	}
@@ -139,8 +161,6 @@ func IsInvalidTokenError(err error) bool {
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
-// If an error is returned, the token is either invalid, or an error occurred.
-// Use 'IsInvalidTokenError(err)' to determine the difference.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
@@ -196,6 +216,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 				UpdatedAt:              dbtime.Now(),
 				ProviderID:             externalAuthLink.ProviderID,
 				UserID:                 externalAuthLink.UserID,
+				// Optimistic lock: only clear the token if it hasn't been
+				// updated by a concurrent caller that won the refresh race.
+				OldOauthRefreshToken: externalAuthLink.OAuthRefreshToken,
 			})
 			if dbExecErr != nil {
 				// This error should be rare.
@@ -729,6 +752,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
 			Regex:                         regex,
+			APIBaseURL:                    entry.APIBaseURL,
 			Type:                          entry.Type,
 			NoRefresh:                     entry.NoRefresh,
 			ValidateURL:                   entry.ValidateURL,
@@ -765,7 +789,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 
 // applyDefaultsToConfig applies defaults to the config entry.
 func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
-	configType := codersdk.EnhancedExternalAuthProvider(config.Type)
+	configType := codersdk.EnhancedExternalAuthProvider(strings.ToLower(config.Type))
 	if configType == "bitbucket" {
 		// For backwards compatibility, we need to support the "bitbucket" string.
 		configType = codersdk.EnhancedExternalAuthProviderBitBucketCloud
@@ -782,7 +806,7 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	}
 
 	// Dynamic defaults
-	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	switch configType {
 	case codersdk.EnhancedExternalAuthProviderGitHub:
 		copyDefaultSettings(config, gitHubDefaults(config))
 		return
@@ -862,6 +886,19 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.CodeChallengeMethodsSupported == nil {
 		config.CodeChallengeMethodsSupported = []string{string(promoauth.PKCEChallengeMethodSha256)}
+	}
+
+	// Set default API base URL for providers that need one.
+	if config.APIBaseURL == "" {
+		normType := strings.ToLower(config.Type)
+		switch codersdk.EnhancedExternalAuthProvider(normType) {
+		case codersdk.EnhancedExternalAuthProviderGitHub:
+			config.APIBaseURL = "https://api.github.com"
+		case codersdk.EnhancedExternalAuthProviderGitLab:
+			config.APIBaseURL = "https://gitlab.com/api/v4"
+		case codersdk.EnhancedExternalAuthProviderGitea:
+			config.APIBaseURL = "https://gitea.com/api/v1"
+		}
 	}
 }
 

@@ -1,11 +1,11 @@
-import { API } from "api/api";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { pageTitle } from "#/utils/page";
+import { useWorkspaceSettings } from "./useWorkspaceSettings";
 import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
-import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
 const WorkspaceSettingsPage: FC = () => {
@@ -15,7 +15,7 @@ const WorkspaceSettingsPage: FC = () => {
 	};
 	const workspaceName = params.workspace;
 	const username = params.username.replace("@", "");
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 
 	const mutation = useMutation({

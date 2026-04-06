@@ -43,6 +43,11 @@ type Group struct {
 	OrganizationDisplayName string      `json:"organization_display_name"`
 }
 
+type GroupMembersResponse struct {
+	Users []ReducedUser `json:"users"`
+	Count int           `json:"count"`
+}
+
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
@@ -130,10 +135,25 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
+type GroupRequest struct {
+	ExcludeMembers bool `json:"exclude_members"`
+}
+
+func (p GroupRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if p.ExcludeMembers {
+			q.Set("exclude_members", "true")
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+func (c *Client) Group(ctx context.Context, group uuid.UUID, req GroupRequest) (Group, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/groups/%s", group.String()),
 		nil,
+		req.asRequestOption(),
 	)
 	if err != nil {
 		return Group{}, xerrors.Errorf("make request: %w", err)
@@ -144,6 +164,25 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) GroupMembers(ctx context.Context, group uuid.UUID, req UsersRequest) (GroupMembersResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/members", group.String()),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return GroupMembersResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupMembersResponse{}, ReadBodyAsError(res)
+	}
+	var resp GroupMembersResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

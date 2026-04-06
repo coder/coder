@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { SharedWorkspaceActor } from "api/typesGenerated";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import type { SharedWorkspaceActor } from "#/api/typesGenerated";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 
 const mockUser = (

@@ -57,7 +57,7 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)) AND
+	(LOWER(username) = LOWER(@username) OR (@email != '' AND LOWER(email) = LOWER(@email))) AND
 	deleted = false
 LIMIT
 	1;
@@ -92,13 +92,15 @@ INSERT INTO
 		updated_at,
 		rbac_roles,
 		login_type,
-		status
+		status,
+		is_service_account
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
-		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status)
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status),
+		@is_service_account::bool
 	) RETURNING *;
 
 -- name: UpdateUserProfile :one
@@ -167,6 +169,49 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
+
+-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'chat_custom_prompt';
+
+-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'chat_custom_prompt', @chat_custom_prompt)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @chat_custom_prompt
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_custom_prompt'
+RETURNING *;
+
+-- name: ListUserChatCompactionThresholds :many
+SELECT user_id, key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+ORDER BY key;
+
+-- name: GetUserChatCompactionThreshold :one
+SELECT value AS threshold_percent FROM user_configs
+WHERE user_id = @user_id AND key = @key;
+
+-- name: UpdateUserChatCompactionThreshold :one
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id, @key, (@threshold_percent::int)::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = (@threshold_percent::int)::text
+RETURNING *;
+
+-- name: DeleteUserChatCompactionThreshold :exec
+DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
 
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
@@ -299,11 +344,12 @@ WHERE
 			created_at >= @created_after
 		ELSE true
 	END
-  	AND CASE
-  	    WHEN @include_system::bool THEN TRUE
-  	    ELSE
-			is_system = false
+	-- Filter by system type
+	AND CASE
+		WHEN @include_system::bool THEN TRUE
+		ELSE is_system = false
 	END
+	-- Filter by github.com user ID
 	AND CASE
 		WHEN @github_com_user_id :: bigint != 0 THEN
 			github_com_user_id = @github_com_user_id
@@ -313,6 +359,12 @@ WHERE
 	AND CASE
 		WHEN cardinality(@login_type :: login_type[]) > 0 THEN
 			login_type = ANY(@login_type :: login_type[])
+		ELSE true
+	END
+	-- Filter by service account.
+	AND CASE
+		WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
+			is_service_account = sqlc.narg('is_service_account') :: boolean
 		ELSE true
 	END
 	-- End of filters
@@ -366,9 +418,21 @@ SELECT
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
 				organization_members,
-				-- All org_members get the organization-member role for their orgs
+				-- All org members get an implied role for their orgs. Most members
+				-- get organization-member, but service accounts will get
+				-- organization-service-account instead. They're largely the same,
+				-- but having them be distinct means we can allow configuring
+				-- service-accounts to have slightly broader permissions–such as
+				-- for workspace sharing.
 				unnest(
-					array_append(roles, 'organization-member')
+					array_append(
+						roles,
+						CASE WHEN users.is_service_account THEN
+							'organization-service-account'
+						ELSE
+							'organization-member'
+						END
+					)
 				) AS org_roles
 			WHERE
 				user_id = users.id

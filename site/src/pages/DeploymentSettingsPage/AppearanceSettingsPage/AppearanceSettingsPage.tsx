@@ -1,12 +1,17 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { appearanceConfigKey, updateAppearance } from "api/queries/appearance";
-import type { UpdateAppearanceConfig } from "api/typesGenerated";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	appearanceConfigKey,
+	updateAppearance,
+} from "#/api/queries/appearance";
+import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 // ServiceBanner is unlike the other Deployment Settings pages because it
@@ -18,6 +23,8 @@ const AppearanceSettingsPage: FC = () => {
 	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 	const queryClient = useQueryClient();
 	const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
+	const { permissions } = useAuthenticated();
+	const canEditAppearance = permissions.editDeploymentConfig;
 
 	const onSaveAppearance = async (
 		newConfig: Partial<UpdateAppearanceConfig>,
@@ -47,14 +54,16 @@ const AppearanceSettingsPage: FC = () => {
 		<>
 			<title>{pageTitle("Appearance Settings")}</title>
 
-			<AppearanceSettingsPageView
-				appearance={appearance}
-				onSaveAppearance={onSaveAppearance}
-				isEntitled={
-					entitlements.features.appearance.entitlement !== "not_entitled"
-				}
-				isPremium={hasPremiumLicense}
-			/>
+			<RequirePermission isFeatureVisible={canEditAppearance}>
+				<AppearanceSettingsPageView
+					appearance={appearance}
+					onSaveAppearance={onSaveAppearance}
+					isEntitled={
+						entitlements.features.appearance.entitlement !== "not_entitled"
+					}
+					isPremium={hasPremiumLicense}
+				/>
+			</RequirePermission>
 		</>
 	);
 };

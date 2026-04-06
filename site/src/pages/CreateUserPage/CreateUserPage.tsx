@@ -1,17 +1,13 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { authMethods, createUser } from "api/queries/users";
-import { Margins } from "components/Margins/Margins";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { authMethods, createUser } from "#/api/queries/users";
+import { Margins } from "#/components/Margins/Margins";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { pageTitle } from "#/utils/page";
 import { CreateUserForm } from "./CreateUserForm";
-
-const _Language = {
-	unknownError: "Oops, an unknown error occurred.",
-};
 
 const CreateUserPage: FC = () => {
 	const navigate = useNavigate();
@@ -37,6 +33,7 @@ const CreateUserPage: FC = () => {
 							login_type: user.login_type,
 							password: user.password,
 							user_status: null,
+							service_account: user.service_account,
 						},
 						{
 							onSuccess: () => {

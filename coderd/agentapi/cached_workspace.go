@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -23,12 +24,14 @@ type CachedWorkspaceFields struct {
 	lock sync.RWMutex
 
 	identity database.WorkspaceIdentity
+	taskID   uuid.NullUUID
 }
 
 func (cws *CachedWorkspaceFields) Clear() {
 	cws.lock.Lock()
 	defer cws.lock.Unlock()
 	cws.identity = database.WorkspaceIdentity{}
+	cws.taskID = uuid.NullUUID{}
 }
 
 func (cws *CachedWorkspaceFields) UpdateValues(ws database.Workspace) {
@@ -42,6 +45,13 @@ func (cws *CachedWorkspaceFields) UpdateValues(ws database.Workspace) {
 	cws.identity.OwnerUsername = ws.OwnerUsername
 	cws.identity.TemplateName = ws.TemplateName
 	cws.identity.AutostartSchedule = ws.AutostartSchedule
+	cws.taskID = ws.TaskID
+}
+
+func (cws *CachedWorkspaceFields) TaskID() uuid.NullUUID {
+	cws.lock.RLock()
+	defer cws.lock.RUnlock()
+	return cws.taskID
 }
 
 // Returns the Workspace, true, unless the workspace has not been cached (nuked or was a prebuild).

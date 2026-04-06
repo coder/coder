@@ -23,7 +23,7 @@ const meta: Meta<typeof AIGovernanceSettingsPageView> = {
 				hidden: false,
 			},
 		],
-		featureAIBridgeEnabled: true,
+		featureAIBridgeEntitled: true,
 	},
 };
 
@@ -34,7 +34,7 @@ export const Page: Story = {};
 
 export const Paywall: Story = {
 	args: {
-		featureAIBridgeEnabled: false,
+		featureAIBridgeEntitled: false,
 		options: [],
 	},
 };

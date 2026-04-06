@@ -1334,8 +1334,7 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 			}).Do()
 
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
-			// nolint:gocritic
-			agentCtx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+			agentCtx := testutil.Context(t, testutil.WaitLong)
 			agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(agentCtx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
 			err = db.UpdateWorkspaceAgentLifecycleStateByID(agentCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{

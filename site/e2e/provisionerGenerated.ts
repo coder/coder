@@ -287,6 +287,12 @@ export interface DisplayApps {
 export interface Env {
   name: string;
   value: string;
+  /**
+   * merge_strategy controls how this env var is merged when multiple
+   * coder_env resources define the same name. Valid values: "replace"
+   * (default), "append", "prepend", "error".
+   */
+  mergeStrategy: string;
 }
 
 /** Script represents a script to be run on the workspace. */
@@ -1051,6 +1057,9 @@ export const Env = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
+    }
+    if (message.mergeStrategy !== "") {
+      writer.uint32(26).string(message.mergeStrategy);
     }
     return writer;
   },

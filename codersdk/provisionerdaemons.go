@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"slices"
 	"strings"
 	"time"
@@ -239,20 +238,14 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	if err != nil {
 		return nil, nil, err
 	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(followURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
-		HTTPClient:      httpClient,
+		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
+		},
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
@@ -325,16 +318,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		headers.Set(ProvisionerDaemonPSK, req.PreSharedKey)
 	}
 	if req.ProvisionerKey == "" && req.PreSharedKey == "" {
-		// use session token if we don't have a PSK or provisioner key.
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
-		}
-		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  SessionTokenCookie,
-			Value: c.SessionToken(),
-		}})
-		httpClient.Jar = jar
+		// Use session token if we don't have a PSK or provisioner key.
+		headers.Set(SessionTokenHeader, c.SessionToken())
 	}
 
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{

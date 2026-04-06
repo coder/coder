@@ -1,5 +1,5 @@
 import { ChevronDown as LucideChevronDown } from "lucide-react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ChevronDownIconProps
 	extends React.ComponentProps<typeof LucideChevronDown> {

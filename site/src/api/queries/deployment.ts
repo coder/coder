@@ -1,4 +1,4 @@
-import { API } from "api/api";
+import { API } from "#/api/api";
 import { disabledRefetchOptions } from "./util";
 
 export const deploymentConfigQueryKey = ["deployment", "config"];

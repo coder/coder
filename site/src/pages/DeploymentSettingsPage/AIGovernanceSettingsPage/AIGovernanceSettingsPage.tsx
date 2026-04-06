@@ -1,12 +1,16 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-import { pageTitle } from "utils/page";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
+import { pageTitle } from "#/utils/page";
 import { AIGovernanceSettingsPageView } from "./AIGovernanceSettingsPageView";
 
 const AIGovernanceSettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
+	const isAiBridgeEntitled =
+		entitlements.features.aibridge.entitlement === "entitled" ||
+		entitlements.features.aibridge.entitlement === "grace_period";
+	const isAIBridgeEnabled = entitlements.features.aibridge.enabled;
 
 	return (
 		<>
@@ -14,7 +18,8 @@ const AIGovernanceSettingsPage: FC = () => {
 
 			<AIGovernanceSettingsPageView
 				options={deploymentConfig.options}
-				featureAIBridgeEnabled={entitlements.features.aibridge.enabled}
+				featureAIBridgeEntitled={isAiBridgeEntitled}
+				featureAIBridgeEnabled={isAIBridgeEnabled}
 			/>
 		</>
 	);

@@ -90,11 +90,17 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if len(workspaces) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "All workspaces must be deleted before a template can be removed.",
-		})
-		return
+	// Allow deletion when only prebuild workspaces remain. Prebuilds
+	// are owned by the system user and will be cleaned up
+	// asynchronously by the prebuilds reconciler once the template's
+	// deleted flag is set.
+	for _, ws := range workspaces {
+		if ws.OwnerID != database.PrebuildsSystemUserID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "All workspaces must be deleted before a template can be removed.",
+			})
+			return
+		}
 	}
 	err = api.Database.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
 		ID:        template.ID,

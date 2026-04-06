@@ -1,11 +1,11 @@
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	BugIcon,
 	ExternalLinkIcon,
 	GitPullRequestArrowIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type TaskStatusLinkProps = {
 	uri: string;

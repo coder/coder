@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"expvar"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -42,7 +43,13 @@ import (
 	sharedhttpmw "github.com/coder/coder/v2/httpmw"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/derpmetrics"
 )
+
+// expDERPOnce guards the global expvar.Publish call for the DERP server.
+// expvar panics on duplicate registration, and tests may create multiple
+// servers in the same process.
+var expDERPOnce sync.Once
 
 type Options struct {
 	Logger      slog.Logger
@@ -196,6 +203,17 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("create DERP mesh tls config: %w", err)
 	}
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
+	// Publish DERP stats to expvar, available via the pprof
+	// debug server (--pprof-enable) at /debug/vars. This avoids
+	// exposing expvar on the public HTTP router.
+	expDERPOnce.Do(func() {
+		if expvar.Get("derp") == nil {
+			expvar.Publish("derp", derpServer.ExpVar())
+		}
+	})
+	if opts.PrometheusRegistry != nil {
+		opts.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(derpServer))
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 

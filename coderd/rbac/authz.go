@@ -82,6 +82,7 @@ const (
 	SubjectTypeDBPurge                      SubjectType = "dbpurge"
 	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
 	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
+	SubjectTypeChatd                        SubjectType = "chatd"
 )
 
 const (
@@ -294,6 +295,15 @@ func NewStrictCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	auth := NewAuthorizer(registry)
 	auth.strict = true
 	return Cacher(auth)
+}
+
+// NewStrictAuthorizer is for testing only. It skips the caching layer,
+// which is useful when every authorize call is unique (0% cache hit
+// rate) and the cache overhead dominates.
+func NewStrictAuthorizer(registry prometheus.Registerer) Authorizer {
+	auth := NewAuthorizer(registry)
+	auth.strict = true
+	return auth
 }
 
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
@@ -675,6 +685,15 @@ func ConfigWithACL() regosql.ConvertConfig {
 func ConfigWithoutACL() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
 		VariableConverter: regosql.NoACLConverter(),
+	}
+}
+
+// ConfigChats is the configuration for converting rego to SQL when
+// the target table is "chats", which has no organization_id or ACL
+// columns.
+func ConfigChats() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.ChatConverter(),
 	}
 }
 

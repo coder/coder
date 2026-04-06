@@ -25,9 +25,8 @@ func readRawKeychainCredential(t *testing.T, serviceName string) []byte {
 	return winCred.CredentialBlob
 }
 
+//nolint:paralleltest, tparallel // OS keyring is flaky under concurrent access
 func TestWindowsKeyring_WriteReadDelete(t *testing.T) {
-	t.Parallel()
-
 	const testURL = "http://127.0.0.1:1337"
 	srvURL, err := url.Parse(testURL)
 	require.NoError(t, err)

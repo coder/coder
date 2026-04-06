@@ -789,6 +789,11 @@ func TestTasks(t *testing.T) {
 			})
 			require.Error(t, err, "wanted error due to bad status")
 
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "not ready to accept input")
+
 			statusResponse = agentapisdk.StatusStable
 
 			//nolint:tparallel // Not intended to run in parallel.

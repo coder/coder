@@ -44,6 +44,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 
 		clitest.Start(t, inv)
@@ -76,6 +77,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 		// Set the subsystems for the agent.
 		inv.Environ.Set(agent.EnvAgentSubsystem, fmt.Sprintf("%s,%s", codersdk.AgentSubsystemExectrace, codersdk.AgentSubsystemEnvbox))
@@ -158,6 +160,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-header", "X-Testing=agent",
 			"--agent-header", "Cool-Header=Ethan was Here!",
 			"--agent-header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 		clitest.Start(t, agentInv)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
@@ -199,6 +202,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--pprof-address", "",
 			"--prometheus-address", "",
 			"--debug-address", "",
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 
 		clitest.Start(t, inv)

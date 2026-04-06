@@ -1,13 +1,13 @@
 import Link from "@mui/material/Link";
-import type { TemplateExample } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Stack } from "components/Stack/Stack";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Stack } from "#/components/Stack/Stack";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
+import { docs } from "#/utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
@@ -78,7 +78,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 							))}
 						</div>
 
-						<Button size="sm" asChild css={{ borderRadius: 9999 }}>
+						<Button size="sm" asChild className="rounded-full">
 							<RouterLink to="/starter-templates">
 								View all starter templates
 							</RouterLink>

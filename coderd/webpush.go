@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -28,11 +29,6 @@ import (
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -59,6 +55,9 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	if invalidator, ok := api.WebpushDispatcher.(webpush.SubscriptionCacheInvalidator); ok {
+		invalidator.InvalidateUser(user.ID)
+	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -77,23 +76,21 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.DeleteWebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
 	// Return NotFound if the subscription does not exist.
-	if existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID); err != nil && errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Webpush subscription not found.",
+	existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get webpush subscriptions.",
+			Detail:  err.Error(),
 		})
 		return
-	} else if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
+	}
+	if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
 		return s.Endpoint == req.Endpoint
 	}); idx == -1 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -118,6 +115,9 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
+	if invalidator, ok := api.WebpushDispatcher.(webpush.SubscriptionCacheInvalidator); ok {
+		invalidator.InvalidateUser(user.ID)
+	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -133,11 +133,6 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	// We need to authorize the user to send a push notification to themselves.
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceNotificationMessage.WithOwner(user.ID.String())) {

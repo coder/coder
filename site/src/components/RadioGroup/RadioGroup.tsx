@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 04/04/2025
  * @see {@link https://ui.shadcn.com/docs/components/radio-group}
  */
-import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { Circle } from "lucide-react";
-import { cn } from "utils/cn";
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
+import { cn } from "#/utils/cn";
 
 export const RadioGroup: React.FC<
 	React.ComponentPropsWithRef<typeof RadioGroupPrimitive.Root>

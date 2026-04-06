@@ -1,21 +1,5 @@
-import { Label } from "@radix-ui/react-label";
-import { Slot } from "@radix-ui/react-slot";
-import { templateVersion } from "api/queries/templates";
-import type { Workspace } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogTitle,
-} from "components/Dialog/Dialog";
-import { Spinner } from "components/Spinner/Spinner";
 import { TriangleAlert } from "lucide-react";
-import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
+import { Label, Slot } from "radix-ui";
 import {
 	type FC,
 	type ForwardedRef,
@@ -25,7 +9,22 @@ import {
 	useState,
 } from "react";
 import { useQueries } from "react-query";
-import { cn } from "utils/cn";
+import { templateVersion } from "#/api/queries/templates";
+import type { Workspace } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { cn } from "#/utils/cn";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,
@@ -201,14 +200,14 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 				<li>Any unsaved data will be lost.</li>
 			</ul>
 
-			<Label className="flex flex-row gap-3 items-center leading-tight pt-6">
+			<Label.Root className="flex flex-row gap-3 items-center leading-tight pt-6">
 				<Checkbox
 					ref={checkboxRef}
 					checked={acceptedRisks}
 					onCheckedChange={onAcceptedRisksChange}
 				/>
 				I acknowledge these risks.
-			</Label>
+			</Label.Root>
 		</div>
 	);
 };
@@ -219,7 +218,7 @@ type ContainerProps = Readonly<{
 }>;
 
 const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
-	const Wrapper = asChild ? Slot : "div";
+	const Wrapper = asChild ? Slot.Root : "div";
 	return (
 		<Wrapper className="max-h-[80vh] flex flex-col flex-nowrap">
 			{children}
@@ -487,7 +486,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 						{readyToUpdate.length > 0 && (
 							<WorkspacesListSection
 								headerText="Ready to update"
-								description="These workspaces will have their templates be updated to the latest version."
+								description="These workspaces will be updated to the latest template version."
 							>
 								{readyToUpdate.map((ws) => {
 									const matchedQuery = templateVersionQueries.find(

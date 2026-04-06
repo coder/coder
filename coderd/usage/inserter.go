@@ -14,6 +14,21 @@ type Inserter interface {
 	// The caller context must be authorized to create usage events in the
 	// database.
 	InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event usagetypes.DiscreteEvent) error
+
+	// InsertHeartbeatUsageEvent writes a heartbeat usage event to the database
+	// within the given transaction.
+	//
+	// The caller context must be authorized to create usage events in the database.
+	//
+	// The `id` should be a stable identifier for the event. Heartbeat events may be
+	// emitted by multiple replicas of the same daemon, so the same logical event
+	// may be submitted multiple times concurrently. For this reason the identifier
+	// must be deterministic and stateless, allowing duplicate submissions to be
+	// safely ignored.
+	//
+	// Inserts with the same `id` must be idempotent. The database enforces this by
+	// ignoring duplicate records.
+	InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, event usagetypes.HeartbeatEvent) error
 }
 
 // AGPLInserter is a no-op implementation of Inserter.
@@ -28,5 +43,11 @@ func NewAGPLInserter() Inserter {
 // InsertDiscreteUsageEvent is a no-op implementation of
 // InsertDiscreteUsageEvent.
 func (AGPLInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, _ usagetypes.DiscreteEvent) error {
+	return nil
+}
+
+// InsertHeartbeatUsageEvent is a no-op implementation of
+// InsertHeartbeatUsageEvent.
+func (AGPLInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, _ string, _ usagetypes.HeartbeatEvent) error {
 	return nil
 }

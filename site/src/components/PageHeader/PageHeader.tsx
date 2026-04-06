@@ -1,5 +1,5 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface PageHeaderProps {
 	actions?: ReactNode;
@@ -59,25 +59,5 @@ export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
 		<span className="text-sm text-content-secondary font-medium uppercase tracking-widest">
 			{children}
 		</span>
-	);
-};
-
-interface ResourcePageHeaderProps extends Omit<PageHeaderProps, "children"> {
-	displayName?: string;
-	name: string;
-}
-
-export const ResourcePageHeader: FC<ResourcePageHeaderProps> = ({
-	displayName,
-	name,
-	...props
-}) => {
-	const title = displayName || name;
-
-	return (
-		<PageHeader {...props}>
-			<PageHeaderTitle>{title}</PageHeaderTitle>
-			{name !== title && <PageHeaderSubtitle>{name}</PageHeaderSubtitle>}
-		</PageHeader>
 	);
 };

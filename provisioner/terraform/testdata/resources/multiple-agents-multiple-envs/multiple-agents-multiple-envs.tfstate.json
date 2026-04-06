@@ -104,6 +104,7 @@
           "values": {
             "agent_id": "fac6034b-1d42-4407-b266-265e35795241",
             "id": "fd793e28-41fb-4d56-8b22-6a4ad905245a",
+            "merge_strategy": "replace",
             "name": "ENV_1",
             "value": "Env 1"
           },
@@ -122,6 +123,7 @@
           "values": {
             "agent_id": "fac6034b-1d42-4407-b266-265e35795241",
             "id": "809a9f24-48c9-4192-8476-31bca05f2545",
+            "merge_strategy": "replace",
             "name": "ENV_2",
             "value": "Env 2"
           },
@@ -140,6 +142,7 @@
           "values": {
             "agent_id": "a02262af-b94b-4d6d-98ec-6e36b775e328",
             "id": "cb8f717f-0654-48a7-939b-84936be0096d",
+            "merge_strategy": "replace",
             "name": "ENV_3",
             "value": "Env 3"
           },

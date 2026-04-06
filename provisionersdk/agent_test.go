@@ -7,7 +7,6 @@
 package provisionersdk_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
@@ -48,13 +47,13 @@ func TestAgentScript(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		script := serveScript(t, bashEcho)
 
-		var output safeBuffer
+		output := testutil.NewWaitBuffer()
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
 		// nolint:gosec
 		cmd := exec.CommandContext(ctx, "sh", "-c", "sh -c '"+script+"'")
-		cmd.Stdout = &output
-		cmd.Stderr = &output
+		cmd.Stdout = output
+		cmd.Stderr = output
 		require.NoError(t, cmd.Start())
 
 		err := cmd.Wait()
@@ -83,14 +82,14 @@ func TestAgentScript(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		script := serveScript(t, unexpectedEcho)
 
-		var output safeBuffer
+		output := testutil.NewWaitBuffer()
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
 		// nolint:gosec
 		cmd := exec.CommandContext(ctx, "sh", "-c", "sh -c '"+script+"'")
 		cmd.WaitDelay = time.Second
-		cmd.Stdout = &output
-		cmd.Stderr = &output
+		cmd.Stdout = output
+		cmd.Stderr = output
 		require.NoError(t, cmd.Start())
 
 		done := make(chan error, 1)
@@ -127,9 +126,7 @@ func TestAgentScript(t *testing.T) {
 
 		t.Log(output.String())
 
-		require.Eventually(t, func() bool {
-			return bytes.Contains(output.Bytes(), []byte("ERROR: Downloaded agent binary returned unexpected version output"))
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		output.RequireWaitFor(ctx, t, "ERROR: Downloaded agent binary returned unexpected version output")
 	})
 }
 
@@ -154,34 +151,4 @@ func serveScript(t *testing.T, in string) string {
 	script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String()+"/")
 	script = strings.ReplaceAll(script, "${AUTH_TYPE}", "token")
 	return script
-}
-
-// safeBuffer is a concurrency-safe bytes.Buffer
-type safeBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (sb *safeBuffer) Write(p []byte) (n int, err error) {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.buf.Write(p)
-}
-
-func (sb *safeBuffer) Read(p []byte) (n int, err error) {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.buf.Read(p)
-}
-
-func (sb *safeBuffer) Bytes() []byte {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.buf.Bytes()
-}
-
-func (sb *safeBuffer) String() string {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.buf.String()
 }

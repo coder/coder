@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/coder/coder/v2/enterprise/cli"
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 	"github.com/coder/flog"
 	"github.com/coder/serpent"
 )
@@ -45,6 +46,10 @@ func prepareEnv() {
 		panic(err)
 	}
 	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("TMPDIR", "/tmp")
 	if err != nil {
 		panic(err)
 	}
@@ -89,6 +94,11 @@ func main() {
 		docsDir        = filepath.Join(workdir, "docs")
 		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	)
+
+	if d := os.Getenv("DOCS_DIR"); d != "" {
+		docsDir = d
+		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
+	}
 
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	if err != nil {
@@ -184,7 +194,7 @@ func main() {
 		flog.Fatalf("marshaling manifest: %v", err)
 	}
 
-	err = os.WriteFile(manifestPath, manifestByt, 0o600)
+	err = atomicwrite.File(manifestPath, manifestByt)
 	if err != nil {
 		flog.Fatalf("writing manifest: %v", err)
 	}

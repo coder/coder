@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -580,23 +579,15 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 		return nil, nil, err
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-
-	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-
 	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
 		CompressionMode: websocket.CompressionNoContextTakeover,
 		HTTPClient: &http.Client{
-			Jar:       jar,
 			Transport: c.HTTPClient.Transport,
+		},
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
 		},
 	})
 	if err != nil {
@@ -687,20 +678,14 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		return ch, closeFunc(func() error { return nil }), nil
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
-		HTTPClient:      httpClient,
+		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
+		},
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
@@ -711,4 +696,54 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}
 	d := wsjson.NewDecoder[[]WorkspaceAgentLog](conn, websocket.MessageText, c.logger)
 	return d.Chan(), d, nil
+}
+
+// WorkspaceAgentGitClientMessageType represents the type of a client
+// message sent to the git watch WebSocket.
+type WorkspaceAgentGitClientMessageType string
+
+const (
+	// WorkspaceAgentGitClientMessageTypeRefresh requests an immediate
+	// re-scan of all subscribed repositories.
+	WorkspaceAgentGitClientMessageTypeRefresh WorkspaceAgentGitClientMessageType = "refresh"
+)
+
+// WorkspaceAgentGitClientMessage is a message sent from the client to
+// the agent over the git watch WebSocket.
+type WorkspaceAgentGitClientMessage struct {
+	Type WorkspaceAgentGitClientMessageType `json:"type"`
+}
+
+// WorkspaceAgentGitServerMessageType represents the type of a server
+// message sent from the git watch WebSocket.
+type WorkspaceAgentGitServerMessageType string
+
+const (
+	// WorkspaceAgentGitServerMessageTypeChanges contains a delta of
+	// repository changes since the last emitted update.
+	WorkspaceAgentGitServerMessageTypeChanges WorkspaceAgentGitServerMessageType = "changes"
+	// WorkspaceAgentGitServerMessageTypeError signals a server-side
+	// error.
+	WorkspaceAgentGitServerMessageTypeError WorkspaceAgentGitServerMessageType = "error"
+)
+
+// WorkspaceAgentGitServerMessage is a message sent from the agent to
+// the client over the git watch WebSocket.
+type WorkspaceAgentGitServerMessage struct {
+	Type         WorkspaceAgentGitServerMessageType `json:"type"`
+	ScannedAt    *time.Time                         `json:"scanned_at,omitempty" format:"date-time"`
+	Repositories []WorkspaceAgentRepoChanges        `json:"repositories,omitempty"`
+	Message      string                             `json:"message,omitempty"`
+}
+
+// WorkspaceAgentRepoChanges describes the current state of a single
+// git repository's working tree. When Removed is true the repo root
+// directory or its .git subdirectory no longer exists; all other
+// fields (Branch, RemoteOrigin, UnifiedDiff) are empty/zero.
+type WorkspaceAgentRepoChanges struct {
+	RepoRoot     string `json:"repo_root"`
+	Branch       string `json:"branch"`
+	RemoteOrigin string `json:"remote_origin,omitempty"`
+	UnifiedDiff  string `json:"unified_diff,omitempty"`
+	Removed      bool   `json:"removed,omitempty"`
 }

@@ -110,6 +110,11 @@ type Config struct {
 	// X11DisplayOffset is the offset to add to the X11 display number.
 	// Default is 10.
 	X11DisplayOffset *int
+	// X11MaxPort overrides the highest port used for X11 forwarding
+	// listeners. Defaults to X11MaxPort (6200). Useful in tests
+	// to shrink the port range and reduce the number of sessions
+	// required.
+	X11MaxPort *int
 	// BlockFileTransfer restricts use of file transfer applications.
 	BlockFileTransfer bool
 	// ReportConnection.
@@ -158,6 +163,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		offset := X11DefaultDisplayOffset
 		config.X11DisplayOffset = &offset
 	}
+	if config.X11MaxPort == nil {
+		maxPort := X11MaxPort
+		config.X11MaxPort = &maxPort
+	}
 	if config.UpdateEnv == nil {
 		config.UpdateEnv = func(current []string) ([]string, error) { return current, nil }
 	}
@@ -201,6 +210,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			x11HandlerErrors: metrics.x11HandlerErrors,
 			fs:               fs,
 			displayOffset:    *config.X11DisplayOffset,
+			maxPort:          *config.X11MaxPort,
 			sessions:         make(map[*x11Session]struct{}),
 			connections:      make(map[net.Conn]struct{}),
 			network: func() X11Network {

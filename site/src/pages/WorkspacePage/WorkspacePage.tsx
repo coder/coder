@@ -1,20 +1,19 @@
-import { watchWorkspace } from "api/api";
-import { workspaceSharingSettings } from "api/queries/organizations";
-import { template as templateQueryOptions } from "api/queries/templates";
-import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
-import {
-	workspaceByOwnerAndName,
-	workspacePermissions,
-} from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
+import { watchWorkspace } from "#/api/api";
+import { template as templateQueryOptions } from "#/api/queries/templates";
+import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
+import {
+	workspaceByOwnerAndName,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 const WorkspacePage: FC = () => {
@@ -44,12 +43,6 @@ const WorkspacePage: FC = () => {
 	// Permissions
 	const permissionsQuery = useQuery(workspacePermissions(workspace));
 	const permissions = permissionsQuery.data;
-
-	const sharingSettingsQuery = useQuery({
-		...workspaceSharingSettings(workspace?.organization_id ?? ""),
-		enabled: !!workspace,
-	});
-	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
 
 	// Watch workspace changes
 	const updateWorkspaceData = useEffectEvent(
@@ -115,7 +108,7 @@ const WorkspacePage: FC = () => {
 
 	return pageError ? (
 		<Margins>
-			<ErrorAlert error={pageError} css={{ marginTop: 16, marginBottom: 16 }} />
+			<ErrorAlert error={pageError} className="my-4" />
 		</Margins>
 	) : isLoading ? (
 		<Loader />
@@ -124,7 +117,6 @@ const WorkspacePage: FC = () => {
 			workspace={workspace}
 			template={template}
 			permissions={permissions}
-			sharingDisabled={sharingDisabled}
 		/>
 	);
 };

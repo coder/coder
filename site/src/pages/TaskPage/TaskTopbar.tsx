@@ -1,17 +1,3 @@
-import type { Task, Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useClipboard } from "hooks";
 import {
 	ArrowLeftIcon,
 	CheckIcon,
@@ -21,12 +7,35 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import type { Task, Workspace } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
+import { ShareButton } from "../WorkspacePage/WorkspaceActions/ShareButton";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
 
-type TaskTopbarProps = { task: Task; workspace: Workspace };
+type TaskTopbarProps = {
+	task: Task;
+	workspace: Workspace;
+	canUpdatePermissions: boolean;
+};
 
-export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
+export const TaskTopbar: FC<TaskTopbarProps> = ({
+	task,
+	workspace,
+	canUpdatePermissions,
+}) => {
 	return (
 		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -80,6 +89,11 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 						<CopyPromptButton prompt={task.initial_prompt} />
 					</PopoverContent>
 				</Popover>
+
+				<ShareButton
+					workspace={workspace}
+					canUpdatePermissions={canUpdatePermissions}
+				/>
 
 				<Button asChild variant="outline" size="sm">
 					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>

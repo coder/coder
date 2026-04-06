@@ -1,6 +1,6 @@
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import type { FC } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 /**
  * CoderIcon represents the cloud with brackets Coder brand icon. It does not

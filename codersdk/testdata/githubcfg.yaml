@@ -22,6 +22,7 @@ externalAuthProviders:
     mcp_tool_allow_regex: .*
     mcp_tool_deny_regex: create_gist
     regex: ^https://example.com/.*$
+    api_base_url: ""
     display_name: GitHub
     display_icon: /static/icons/github.svg
     code_challenge_methods_supported:

@@ -18,4 +18,7 @@ var GoleakOptions []goleak.Option = []goleak.Option{
 	goleak.IgnoreTopFunction("gopkg.in/natefinch/lumberjack%2ev2.(*Logger).mill.func1"),
 	// The pq library appears to leave around a goroutine after Close().
 	goleak.IgnoreTopFunction("github.com/lib/pq.NewDialListener"),
+	// The go-winio library starts a process-level I/O completion port
+	// goroutine via sync.Once that is never terminated.
+	goleak.IgnoreAnyFunction("github.com/Microsoft/go-winio.ioCompletionProcessor"),
 }

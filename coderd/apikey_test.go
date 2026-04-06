@@ -48,8 +48,8 @@ func TestTokenCRUD(t *testing.T) {
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
 	// expires_at should default to 30 days
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
+	require.Greater(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*6))
+	require.Less(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*8))
 	require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
 	require.Len(t, keys[0].AllowList, 1)
 	require.Equal(t, "*:*", keys[0].AllowList[0].String())
@@ -194,8 +194,8 @@ func TestUserSetTokenDuration(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*6*24))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))
+	require.Greater(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*6*24))
+	require.Less(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*8*24))
 }
 
 func TestDefaultTokenDuration(t *testing.T) {
@@ -210,8 +210,8 @@ func TestDefaultTokenDuration(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
+	require.Greater(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*6))
+	require.Less(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*8))
 }
 
 func TestTokenUserSetMaxLifetime(t *testing.T) {
@@ -394,6 +394,55 @@ func TestSessionExpiry(t *testing.T) {
 	}
 }
 
+// TestSessionCookieMaxAge verifies that the session cookie is a persistent
+// cookie (has MaxAge set) rather than a session cookie. Standalone PWAs
+// run in their own browser process and mobile OSes purge in-memory
+// (session) cookies when that process is killed, so the cookie must be
+// persisted to disk.
+func TestSessionCookieMaxAge(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	client := coderdtest.New(t, nil)
+
+	// Create the first user (password-based login).
+	req := codersdk.CreateFirstUserRequest{
+		Email:    "testuser@coder.com",
+		Username: "testuser",
+		Password: "SomeSecurePassword!",
+	}
+	_, err := client.CreateFirstUser(ctx, req)
+	require.NoError(t, err)
+
+	// Login via the raw HTTP endpoint so we can inspect the Set-Cookie header.
+	loginURL, err := client.URL.Parse("/api/v2/users/login")
+	require.NoError(t, err)
+
+	res, err := client.Request(ctx, http.MethodPost, loginURL.String(), codersdk.LoginWithPasswordRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+
+	oneYear := int((365 * 24 * time.Hour).Seconds())
+	var found bool
+	for _, cookie := range res.Cookies() {
+		if cookie.Name == codersdk.SessionTokenCookie {
+			// MaxAge should be set to a long value so the browser
+			// persists the cookie to disk. The server handles real
+			// expiry via the API key's ExpiresAt field.
+			require.Equal(t, oneYear, cookie.MaxAge,
+				"Session cookie MaxAge should be set to 1 year for disk persistence")
+			found = true
+		}
+	}
+	require.True(t, found, "session cookie should be present in login response")
+}
+
 func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
 
@@ -518,7 +567,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is not expired.
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.After(time.Now()))
+		require.True(t, key.ExpiresAt.After(dbtime.Now()))
 
 		auditor.ResetLogs()
 
@@ -529,7 +578,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err = adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
 
 		// Verify audit log.
 		als := auditor.AuditLogs()
@@ -556,7 +605,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err := memberClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
 	})
 
 	t.Run("MemberCannotExpireOtherUsersToken", func(t *testing.T) {
@@ -607,7 +656,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Invariant: make sure it's actually expired
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.LessOrEqual(t, key.ExpiresAt, time.Now(), "key should be expired")
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 
 		// Expire it again - should succeed (idempotent).
 		err = adminClient.ExpireAPIKey(ctx, codersdk.Me, keyID)
@@ -636,7 +685,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify it's expired.
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
 
 		// Delete the expired token - should succeed.
 		err = adminClient.DeleteAPIKey(ctx, codersdk.Me, keyID)

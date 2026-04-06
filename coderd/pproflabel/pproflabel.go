@@ -34,6 +34,7 @@ const (
 	ServiceAgentMetricAggregator = "agent-metrics-aggregator"
 	// ServiceTallymanPublisher publishes usage events to coder/tallyman.
 	ServiceTallymanPublisher = "tallyman-publisher"
+	ServiceUsageEventCron    = "usage-event-cron"
 
 	RequestTypeTag = "coder_request_type"
 )

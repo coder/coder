@@ -131,6 +131,21 @@ func (mr *MockDRPCClientMockRecorder) RecordInterceptionEnded(ctx, in any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordInterceptionEnded", reflect.TypeOf((*MockDRPCClient)(nil).RecordInterceptionEnded), ctx, in)
 }
 
+// RecordModelThought mocks base method.
+func (m *MockDRPCClient) RecordModelThought(ctx context.Context, in *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordModelThought", ctx, in)
+	ret0, _ := ret[0].(*proto.RecordModelThoughtResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RecordModelThought indicates an expected call of RecordModelThought.
+func (mr *MockDRPCClientMockRecorder) RecordModelThought(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordModelThought", reflect.TypeOf((*MockDRPCClient)(nil).RecordModelThought), ctx, in)
+}
+
 // RecordPromptUsage mocks base method.
 func (m *MockDRPCClient) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
 	m.ctrl.T.Helper()

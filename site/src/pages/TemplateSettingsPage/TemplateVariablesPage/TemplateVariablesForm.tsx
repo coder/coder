@@ -1,21 +1,21 @@
+import { type FormikContextType, type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
 import type {
 	CreateTemplateVersionRequest,
 	TemplateVersion,
 	TemplateVersionVariable,
 	VariableValue,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
-import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import { type FormHelpers, getFormHelpers } from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 import {
 	SensitiveVariableHelperText,
 	TemplateVariableField,

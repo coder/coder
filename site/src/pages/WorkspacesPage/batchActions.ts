@@ -1,8 +1,8 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import type { Workspace, WorkspaceBuild } from "api/typesGenerated";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;

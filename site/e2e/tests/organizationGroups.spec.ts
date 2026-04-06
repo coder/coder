@@ -112,7 +112,7 @@ test("change quota settings", async ({ page }) => {
 	await login(page, orgUserAdmin);
 	await page.goto(`/organizations/${org.name}/groups/${group.name}`);
 
-	await page.getByRole("link", { name: "Settings", exact: true }).click();
+	await page.getByRole("link", { name: "Group settings" }).click();
 	await expectUrl(page).toHavePathName(
 		`/organizations/${org.name}/groups/${group.name}/settings`,
 	);
@@ -127,6 +127,6 @@ test("change quota settings", async ({ page }) => {
 	);
 
 	// ...and that setting should persist if we go back
-	await page.getByRole("link", { name: "Settings", exact: true }).click();
+	await page.getByRole("link", { name: "Group settings" }).click();
 	await expect(page.getByLabel("Quota Allowance")).toHaveValue("100");
 });

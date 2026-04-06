@@ -1,6 +1,9 @@
 package coderd_test
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -13,8 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -369,4 +375,253 @@ func TestDebugWebsocket(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 	})
+}
+
+// noopProfileCollector avoids calling process-global runtime functions
+// (CPU profiler, tracer) so that tests can run in parallel safely.
+type noopProfileCollector struct{}
+
+func (noopProfileCollector) StartCPUProfile(io.Writer) (func(), error) { return func() {}, nil }
+func (noopProfileCollector) StartTrace(io.Writer) (func(), error)      { return func() {}, nil }
+func (noopProfileCollector) LookupProfile(string, io.Writer) error     { return nil }
+func (noopProfileCollector) SetBlockProfileRate(int)                   {}
+func (noopProfileCollector) SetMutexProfileFraction(int) int           { return 0 }
+
+// Compile-time check.
+var _ coderd.ProfileCollector = noopProfileCollector{}
+
+// blockingProfileCollector blocks in StartCPUProfile until unblocked,
+// allowing deterministic testing of the concurrency guard.
+type blockingProfileCollector struct {
+	noopProfileCollector
+	started chan struct{} // closed when StartCPUProfile is entered
+	block   chan struct{} // StartCPUProfile blocks until this is closed
+}
+
+func (b *blockingProfileCollector) StartCPUProfile(io.Writer) (func(), error) {
+	close(b.started)
+	<-b.block
+	return func() {}, nil
+}
+
+func newTestAPI(t *testing.T) (*codersdk.Client, io.Closer, *coderd.API) {
+	t.Helper()
+	client, closer, api := coderdtest.NewWithAPI(t, nil)
+	api.ProfileCollector = noopProfileCollector{}
+	return client, closer, api
+}
+
+func TestDebugCollectProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Defaults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, closer, api := newTestAPI(t)
+		defer closer.Close()
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		asserter := coderdtest.AssertRBAC(t, api, client)
+
+		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+			// Use a very short duration so the test finishes quickly.
+			// The noop collector means no real profiling occurs.
+			Duration: 100 * time.Millisecond,
+		})
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+		require.NotEmpty(t, data, "archive should not be empty")
+
+		// Verify that the response is a valid tar.gz archive containing
+		// the expected profile files.
+		files := extractTarGzFiles(t, data)
+		require.Contains(t, files, "cpu.prof")
+		require.Contains(t, files, "heap.prof")
+		require.Contains(t, files, "allocs.prof")
+		require.Contains(t, files, "block.prof")
+		require.Contains(t, files, "mutex.prof")
+		require.Contains(t, files, "goroutine.prof")
+
+		// Verify the endpoint checks the correct RBAC permission.
+		asserter.AssertChecked(t, policy.ActionRead, rbac.ResourceDebugInfo)
+	})
+
+	t.Run("CustomProfiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, closer, _ := newTestAPI(t)
+		defer closer.Close()
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+			Duration: 100 * time.Millisecond,
+			Profiles: []string{"heap", "goroutine"},
+		})
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+
+		files := extractTarGzFiles(t, data)
+		require.Contains(t, files, "heap.prof")
+		require.Contains(t, files, "goroutine.prof")
+		// Should NOT contain profiles we didn't ask for.
+		require.NotContains(t, files, "cpu.prof")
+		require.NotContains(t, files, "allocs.prof")
+	})
+
+	t.Run("WithTraceAndCPU", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, closer, _ := newTestAPI(t)
+		defer closer.Close()
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+			Duration: 100 * time.Millisecond,
+			Profiles: []string{"cpu", "trace"},
+		})
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+
+		files := extractTarGzFiles(t, data)
+		require.Contains(t, files, "cpu.prof")
+		require.Contains(t, files, "trace.out")
+	})
+
+	t.Run("DurationTooLong", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?duration=5m", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("InvalidDuration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?duration=notaduration", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("InvalidProfile", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?profiles=nonexistent", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Create a non-admin user.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		res, err := memberClient.Request(ctx, "POST", "/api/v2/debug/profile", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+
+	t.Run("Conflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		blocker := &blockingProfileCollector{
+			started: make(chan struct{}),
+			block:   make(chan struct{}),
+		}
+
+		client, closer, api := coderdtest.NewWithAPI(t, nil)
+		defer closer.Close()
+		api.ProfileCollector = blocker
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Start a profile collection that will block inside
+		// StartCPUProfile until we explicitly unblock it.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+				Duration: 1 * time.Second,
+			})
+			if err == nil {
+				body.Close()
+			}
+		}()
+
+		// Wait deterministically for the first request to enter the
+		// collector — no time.Sleep needed.
+		testutil.TryReceive(ctx, t, blocker.started)
+
+		// The second request should get 409 Conflict.
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?duration=1s", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		// Unblock the first request and wait for it to finish.
+		close(blocker.block)
+		testutil.TryReceive(ctx, t, done)
+	})
+}
+
+// extractTarGzFiles extracts file names from a tar.gz archive.
+func extractTarGzFiles(t *testing.T, data []byte) map[string]bool {
+	t.Helper()
+
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	files := make(map[string]bool)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		files[hdr.Name] = true
+	}
+	return files
 }

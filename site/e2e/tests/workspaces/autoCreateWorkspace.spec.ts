@@ -69,5 +69,9 @@ test("show error if `match` parameter is invalid", async ({ page }) => {
 		},
 	);
 	await page.getByRole("button", { name: /confirm and create/i }).click();
-	await expect(page.getByText("Invalid match value")).toBeVisible();
+	await expect(
+		page.getByRole("alert").getByRole("heading", {
+			name: "Invalid match value",
+		}),
+	).toBeVisible();
 });

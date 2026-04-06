@@ -24,22 +24,19 @@ import (
 )
 
 type AppsAPI struct {
+	AgentID                  uuid.UUID
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
+	Workspace                *CachedWorkspaceFields
+	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
 	NotificationsEnqueuer    notifications.Enqueuer
 	Clock                    quartz.Clock
 }
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
-	workspaceAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	a.Log.Debug(ctx, "got batch app health update",
-		slog.F("agent_id", workspaceAgent.ID.String()),
+		slog.F("agent_id", a.AgentID.String()),
 		slog.F("updates", req.Updates),
 	)
 
@@ -47,9 +44,9 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
 
-	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, a.AgentID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", workspaceAgent.ID, err)
+		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", a.AgentID, err)
 	}
 
 	var newApps []database.WorkspaceApp
@@ -110,7 +107,7 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAppHealthUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAppHealthUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
@@ -149,12 +146,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
-	workspaceAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, err
-	}
 	app, err := a.Database.GetWorkspaceAppByAgentIDAndSlug(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: workspaceAgent.ID,
+		AgentID: a.AgentID,
 		Slug:    req.Slug,
 	})
 	if err != nil {
@@ -164,11 +157,10 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
-	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		return nil, codersdk.NewError(http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to get workspace.",
-			Detail:  err.Error(),
+	ws, ok := a.Workspace.AsWorkspaceIdentity()
+	if !ok {
+		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Workspace identity not cached.",
 		})
 	}
 
@@ -190,8 +182,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
-		WorkspaceID: workspace.ID,
-		AgentID:     workspaceAgent.ID,
+		WorkspaceID: ws.ID,
+		AgentID:     a.AgentID,
 		AppID:       app.ID,
 		State:       dbState,
 		Message:     cleaned,
@@ -208,7 +200,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
 		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to publish workspace update.",
@@ -217,14 +209,14 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		}
 	}
 
-	// Notify on state change to Working/Idle for AI tasks
-	a.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, dbState, workspace, workspaceAgent)
+	// Notify on state change to Working/Idle for AI tasks.
+	a.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, dbState)
 
 	if shouldBump(dbState, latestAppStatus) {
 		// We pass time.Time{} for nextAutostart since we don't have access to
 		// TemplateScheduleStore here. The activity bump logic handles this by
 		// defaulting to the template's activity_bump duration (typically 1 hour).
-		workspacestats.ActivityBumpWorkspace(ctx, a.Log, a.Database, workspace.ID, time.Time{})
+		workspacestats.ActivityBumpWorkspace(ctx, a.Log, a.Database, ws.ID, time.Time{})
 	}
 	// just return a blank response because it doesn't contain any settable fields at present.
 	return new(agentproto.UpdateAppStatusResponse), nil
@@ -261,8 +253,6 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 	appID uuid.UUID,
 	latestAppStatus database.WorkspaceAppStatus,
 	newAppStatus database.WorkspaceAppStatusState,
-	workspace database.Workspace,
-	agent database.WorkspaceAgent,
 ) {
 	var notificationTemplate uuid.UUID
 	switch newAppStatus {
@@ -279,8 +269,17 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
-	if !workspace.TaskID.Valid {
+	taskID := a.Workspace.TaskID()
+	if !taskID.Valid {
 		// Workspace has no task ID, do nothing.
+		return
+	}
+
+	// Only fetch fresh agent state for task workspaces, since we need
+	// the current lifecycle state to decide whether to send notifications.
+	agent, err := a.AgentFn(ctx)
+	if err != nil {
+		a.Log.Warn(ctx, "failed to get agent for AI task notification", slog.Error(err))
 		return
 	}
 
@@ -296,7 +295,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
-	task, err := a.Database.GetTaskByID(ctx, workspace.TaskID.UUID)
+	task, err := a.Database.GetTaskByID(ctx, taskID.UUID)
 	if err != nil {
 		a.Log.Warn(ctx, "failed to get task", slog.Error(err))
 		return
@@ -321,14 +320,20 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
+	ws, ok := a.Workspace.AsWorkspaceIdentity()
+	if !ok {
+		a.Log.Warn(ctx, "failed to get workspace identity for AI task notification")
+		return
+	}
+
 	if _, err := a.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
-		workspace.OwnerID,
+		ws.OwnerID,
 		notificationTemplate,
 		map[string]string{
 			"task":      task.Name,
-			"workspace": workspace.Name,
+			"workspace": ws.Name,
 		},
 		map[string]any{
 			// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
@@ -338,7 +343,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		},
 		"api-workspace-agent-app-status",
 		// Associate this notification with related entities
-		workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
+		ws.ID, ws.OwnerID, ws.OrganizationID, appID,
 	); err != nil {
 		a.Log.Warn(ctx, "failed to notify of task state", slog.Error(err))
 		return

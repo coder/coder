@@ -73,7 +73,6 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 
 			// CSRF only affects requests that automatically attach credentials via a cookie.
 			// If no cookie is present, then there is no risk of CSRF.
-			//nolint:govet
 			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
 			if xerrors.Is(err, http.ErrNoCookie) {
 				return true

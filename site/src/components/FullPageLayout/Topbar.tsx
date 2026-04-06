@@ -1,7 +1,5 @@
 import { useTheme } from "@emotion/react";
 import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	cloneElement,
 	type FC,
@@ -9,7 +7,9 @@ import {
 	type ReactElement,
 	type Ref,
 } from "react";
-import { cn } from "utils/cn";
+import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
+import { Button, type ButtonProps } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	className,
@@ -56,7 +56,7 @@ export const TopbarDivider: FC<
 };
 
 export const TopbarAvatar: FC<AvatarProps> = (props) => {
-	return <Avatar {...props} variant="icon" size="md" />;
+	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
 type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
