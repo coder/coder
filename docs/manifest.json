@@ -1151,7 +1151,7 @@
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
 									"path": "./ai-coder/ai-bridge/mcp.md",
-									"state": ["early access"]
+									"state": ["deprecated"]
 								},
 								{
 									"title": "AI Bridge Proxy",
