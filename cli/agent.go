@@ -53,6 +53,8 @@ func workspaceAgent() *serpent.Command {
 		slogJSONPath                   string
 		slogStackdriverPath            string
 		blockFileTransfer              bool
+		blockReversePortForwarding     bool
+		blockLocalPortForwarding       bool
 		agentHeaderCommand             string
 		agentHeader                    []string
 		devcontainers                  bool
@@ -319,10 +321,12 @@ func workspaceAgent() *serpent.Command {
 					SSHMaxTimeout:        sshMaxTimeout,
 					Subsystems:           subsystems,
 
-					PrometheusRegistry: prometheusRegistry,
-					BlockFileTransfer:  blockFileTransfer,
-					Execer:             execer,
-					Devcontainers:      devcontainers,
+					PrometheusRegistry:         prometheusRegistry,
+					BlockFileTransfer:          blockFileTransfer,
+					BlockReversePortForwarding: blockReversePortForwarding,
+					BlockLocalPortForwarding:   blockLocalPortForwarding,
+					Execer:                     execer,
+					Devcontainers:              devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
 						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
@@ -492,6 +496,20 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
 			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
+		},
+		{
+			Flag:        "block-reverse-port-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_REVERSE_PORT_FORWARDING",
+			Description: "Block reverse port forwarding through the SSH server (ssh -R).",
+			Value:       serpent.BoolOf(&blockReversePortForwarding),
+		},
+		{
+			Flag:        "block-local-port-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
+			Description: "Block local port forwarding through the SSH server (ssh -L).",
+			Value:       serpent.BoolOf(&blockLocalPortForwarding),
 		},
 		{
 			Flag:        "devcontainers-enable",

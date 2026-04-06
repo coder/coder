@@ -39,6 +39,12 @@ OPTIONS:
       --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
           Block file transfer using known applications: nc,rsync,scp,sftp.
 
+      --block-local-port-forwarding bool, $CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING (default: false)
+          Block local port forwarding through the SSH server (ssh -L).
+
+      --block-reverse-port-forwarding bool, $CODER_AGENT_BLOCK_REVERSE_PORT_FORWARDING (default: false)
+          Block reverse port forwarding through the SSH server (ssh -R).
+
       --boundary-log-proxy-socket-path string, $CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH (default: /tmp/boundary-audit.sock)
           The path for the boundary log proxy server Unix socket. Boundary
           should write audit logs to this socket.
