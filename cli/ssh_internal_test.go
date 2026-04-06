@@ -352,6 +352,88 @@ func newAsyncCloser(ctx context.Context, t *testing.T) *asyncCloser {
 	}
 }
 
+func TestIsRetryableError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "nil", err: nil, expected: false},
+		{name: "context.Canceled", err: context.Canceled, expected: false},
+		{name: "context.DeadlineExceeded", err: context.DeadlineExceeded, expected: false},
+		{
+			name:     "DNSError",
+			err:      &net.DNSError{Err: "no such host", Name: "example.com"},
+			expected: true,
+		},
+		{
+			name:     "OpError/ConnectionRefused",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: xerrors.New("connection refused")},
+			expected: true,
+		},
+		{
+			name:     "WrappedDNSError",
+			err:      xerrors.Errorf("get workspace: %w", &net.DNSError{Err: "server misbehaving", Name: "dev.coder.com"}),
+			expected: true,
+		},
+		{
+			name:     "SDK/500",
+			err:      codersdk.NewError(500, codersdk.Response{Message: "internal error"}),
+			expected: true,
+		},
+		{
+			name:     "SDK/502",
+			err:      codersdk.NewError(502, codersdk.Response{Message: "bad gateway"}),
+			expected: true,
+		},
+		{
+			name:     "SDK/503",
+			err:      codersdk.NewError(503, codersdk.Response{Message: "unavailable"}),
+			expected: true,
+		},
+		{
+			name:     "SDK/401",
+			err:      codersdk.NewError(401, codersdk.Response{Message: "unauthorized"}),
+			expected: false,
+		},
+		{
+			name:     "SDK/403",
+			err:      codersdk.NewError(403, codersdk.Response{Message: "forbidden"}),
+			expected: false,
+		},
+		{
+			name:     "SDK/404",
+			err:      codersdk.NewError(404, codersdk.Response{Message: "not found"}),
+			expected: false,
+		},
+		{
+			name:     "GenericError",
+			err:      xerrors.New("workspace is deleted"),
+			expected: false,
+		},
+		{
+			name:     "WrappedContextCanceled",
+			err:      xerrors.Errorf("fetch agent: %w", context.Canceled),
+			expected: false,
+		},
+		{
+			name:     "WrappedSDK503",
+			err:      xerrors.Errorf("dial agent: %w", codersdk.NewError(503, codersdk.Response{Message: "unavailable"})),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isRetryableError(tt.err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
 func Test_getWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 
