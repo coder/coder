@@ -24,9 +24,11 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 	value,
 	...props
 }) => {
-	const { valid, details } = usePasswordValidator(value);
+	const { data } = usePasswordValidator(value);
+
+	const valid = data?.valid ?? true;
 	const isInvalid = !valid || error;
-	const displayHelper = !valid ? details : helperText;
+	const displayHelper = !valid ? data?.details : helperText;
 
 	return (
 		<div className="flex flex-col items-start gap-1">

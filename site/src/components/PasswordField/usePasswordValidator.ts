@@ -10,8 +10,5 @@ export function usePasswordValidator(value: string) {
 		placeholderData: keepPreviousData,
 		enabled: debouncedValue.length > 0,
 	});
-	return {
-		valid: query.data?.valid ?? true,
-		details: query.data?.details,
-	};
+	return query;
 }
