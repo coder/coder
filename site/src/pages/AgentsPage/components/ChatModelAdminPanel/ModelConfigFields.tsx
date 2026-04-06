@@ -312,8 +312,7 @@ const SegmentedField: FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"items-stretch rounded-md border border-solid border-border p-0.5",
-					options.length > 3 ? "grid grid-cols-2" : "flex h-9",
+					"flex h-9 items-stretch rounded-md border border-solid border-border p-0.5",
 					fieldError && "border-content-destructive",
 				)}
 			>
