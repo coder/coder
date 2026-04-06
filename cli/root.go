@@ -1600,8 +1600,8 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 	return transport, nil
 }
 
-// printDeprecatedOptions loops through all command options, and prints
-// a warning for usage of deprecated options.
+// PrintDeprecatedOptions loops through all command options, and
+// prints a warning for usage of deprecated options.
 func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
@@ -1613,6 +1613,16 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 				}
 
 				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
+					continue
+				}
+
+				// Verify that this deprecated option was itself
+				// the source of the value. Serpent propagates
+				// ValueSource across all options that share the
+				// same Value pointer, so a new option being set
+				// can make a deprecated sibling appear set when
+				// it was not.
+				if !isDeprecatedOptionDirectlySet(inv, opt) {
 					continue
 				}
 
@@ -1634,6 +1644,35 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 
 			return next(inv)
 		}
+	}
+}
+
+// isDeprecatedOptionDirectlySet checks whether a deprecated option
+// was itself the source of its value, rather than inheriting
+// ValueSource from a sibling option that shares the same Value
+// pointer. This prevents false deprecation warnings when only the
+// replacement option is set.
+func isDeprecatedOptionDirectlySet(inv *serpent.Invocation, opt serpent.Option) bool {
+	switch opt.ValueSource {
+	case serpent.ValueSourceFlag:
+		if opt.Flag == "" {
+			return false
+		}
+		fl := inv.ParsedFlags().Lookup(opt.Flag)
+		return fl != nil && fl.Changed
+	case serpent.ValueSourceEnv:
+		if opt.Env == "" {
+			return false
+		}
+		_, exists := os.LookupEnv(opt.Env)
+		return exists
+	case serpent.ValueSourceYAML:
+		// There is no straightforward way to check whether a
+		// specific YAML key was present in the config file, so
+		// we conservatively assume the deprecated key was used.
+		return true
+	default:
+		return false
 	}
 }
 
