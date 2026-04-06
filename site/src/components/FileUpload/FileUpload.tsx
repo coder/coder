@@ -2,9 +2,9 @@ import { css, type Interpolation, type Theme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
+import { Button } from "#/components/Button/Button";
 import { Stack } from "#/components/Stack/Stack";
 import { useClickable } from "#/hooks/useClickable";
-import { Button } from "../Button/Button";
 
 interface FileUploadProps {
 	isUploading: boolean;
