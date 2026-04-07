@@ -4,14 +4,9 @@ import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { asNonEmptyString } from "./blockUtils";
 
-export const extractContextUsageFromMessage = (
-	message: TypesGen.ChatMessage,
-): AgentContextUsage | null => {
-	const usage = message.usage;
-	if (!usage) {
-		return null;
-	}
-
+export const extractContextUsageFromUsage = (
+	usage: TypesGen.ChatMessageUsage,
+): AgentContextUsage => {
 	const inputTokens = usage.input_tokens;
 	const outputTokens = usage.output_tokens;
 	const reasoningTokens = usage.reasoning_tokens;
@@ -40,6 +35,15 @@ export const extractContextUsageFromMessage = (
 		cacheCreationTokens,
 		reasoningTokens,
 	};
+};
+
+export const extractContextUsageFromMessage = (
+	message: TypesGen.ChatMessage,
+): AgentContextUsage | null => {
+	if (!message.usage) {
+		return null;
+	}
+	return extractContextUsageFromUsage(message.usage);
 };
 
 export const getLatestContextUsage = (

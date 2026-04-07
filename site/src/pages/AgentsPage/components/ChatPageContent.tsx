@@ -12,10 +12,11 @@ import {
 	type UploadState,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
-import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
+import { extractContextUsageFromUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasStreamState,
+	selectLatestContextUsage,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -208,47 +209,36 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	lastInjectedContext,
 	attachedWorkspace,
 }) => {
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
-	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
-	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
-		const message = messagesByID.get(orderedMessageIDs[index]);
-		if (message?.role === "user") {
-			lastEditableUserMessage = message;
-			break;
-		}
-	}
-
-	const handleEditLastUserMessage = lastEditableUserMessage
-		? () => {
-				const { text, fileBlocks } = getEditableUserMessagePayload(
-					lastEditableUserMessage,
-				);
-				onEditUserMessage(lastEditableUserMessage.id, text, fileBlocks);
-			}
-		: undefined;
-
-	const rawUsage = getLatestContextUsage(messages);
+	// Derive context usage from the store's cached field rather
+	// than subscribing to selectMessagesByID which changes on
+	// every streaming chunk.
+	const rawUsage = useChatSelector(store, selectLatestContextUsage);
 	const latestContextUsage = rawUsage
-		? { ...rawUsage, compressionThreshold, lastInjectedContext }
-		: rawUsage;
+		? {
+				...extractContextUsageFromUsage(rawUsage),
+				compressionThreshold,
+				lastInjectedContext,
+			}
+		: null;
+
+	// Read the last editable user message imperatively on keypress
+	// rather than subscribing. This avoids a re-render on every
+	// message update just to keep this value current.
+	const handleEditLastUserMessage = () => {
+		const snapshot = store.getSnapshot();
+		for (let i = snapshot.orderedMessageIDs.length - 1; i >= 0; i--) {
+			const msg = snapshot.messagesByID.get(snapshot.orderedMessageIDs[i]);
+			if (msg?.role === "user") {
+				const { text, fileBlocks } = getEditableUserMessagePayload(msg);
+				onEditUserMessage(msg.id, text, fileBlocks);
+				return;
+			}
+		}
+	};
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
 	const {

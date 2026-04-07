@@ -154,6 +154,8 @@ export type ChatStoreState = {
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	/** Cached token usage from the last message that carries it. */
+	latestContextUsage: TypesGen.ChatMessageUsage | null;
 };
 
 export type ChatStore = {
@@ -199,7 +201,25 @@ const createInitialState = (): ChatStoreState => ({
 	reconnectState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
+	latestContextUsage: null,
 });
+
+/**
+ * Walk the ordered messages backwards and return the first
+ * usage object found. Called inside setState to keep the
+ * derived field in sync with the message data.
+ */
+const deriveLatestContextUsage = (
+	state: ChatStoreState,
+): TypesGen.ChatMessageUsage | null => {
+	for (let i = state.orderedMessageIDs.length - 1; i >= 0; i--) {
+		const msg = state.messagesByID.get(state.orderedMessageIDs[i]);
+		if (msg?.usage) {
+			return msg.usage;
+		}
+	}
+	return null;
+};
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
@@ -236,6 +256,16 @@ export const createChatStore = (): ChatStore => {
 		const next = updater(state);
 		if (next === state) {
 			return;
+		}
+		// Re-derive cached usage when message data changes.
+		if (
+			next.messagesByID !== state.messagesByID ||
+			next.orderedMessageIDs !== state.orderedMessageIDs
+		) {
+			const usage = deriveLatestContextUsage(next);
+			if (usage !== next.latestContextUsage) {
+				next.latestContextUsage = usage;
+			}
 		}
 		state = next;
 		if (batchDepth > 0) {
@@ -546,6 +576,8 @@ export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
+export const selectLatestContextUsage = (state: ChatStoreState) =>
+	state.latestContextUsage;
 
 const selectLatestDurableMessage = (
 	state: ChatStoreState,
