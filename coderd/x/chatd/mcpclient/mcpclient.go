@@ -51,7 +51,7 @@ const toolCallTimeout = 60 * time.Second
 
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values.
-// Tools are sorted by their model-visible name so callers
+// Tools are sorted by their prefixed name so callers
 // receive a deterministic order. It skips servers that fail to
 // connect and logs warnings. The returned cleanup function
 // must be called to close all connections.
@@ -123,7 +123,7 @@ func ConnectAll(
 	// discarded.
 	_ = eg.Wait()
 
-	// Sort tools by their model-visible name so the order is
+	// Sort tools by their prefixed name so the order is
 	// deterministic regardless of goroutine completion order.
 	// Stable prompt construction depends on consistent tool
 	// ordering.
