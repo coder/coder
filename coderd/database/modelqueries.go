@@ -867,8 +867,6 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
 			&i.AIBridgeInterception.SessionID,
-			&i.AIBridgeInterception.CredentialKind,
-			&i.AIBridgeInterception.CredentialHint,
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
