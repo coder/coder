@@ -75,6 +75,35 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 	return nil
 }
 
+// ValidateRedirectURIScheme checks that a parsed redirect URI has a
+// non-empty scheme that is not dangerous (javascript, data, file, ftp)
+// and is not an unsupported URN. It returns an error describing why the
+// scheme is invalid, or nil when it is acceptable.
+func ValidateRedirectURIScheme(uri *url.URL, rawURI string) error {
+	if uri.Scheme == "" {
+		return xerrors.New("redirect URI must have a scheme")
+	}
+
+	// Handle special URNs (RFC 6749 section 3.1.2.1).
+	if uri.Scheme == "urn" {
+		if rawURI == "urn:ietf:wg:oauth:2.0:oob" {
+			return nil
+		}
+		return xerrors.New("redirect URI uses unsupported URN scheme")
+	}
+
+	// Block dangerous schemes for security (not allowed by RFCs
+	// for OAuth2).
+	dangerousSchemes := []string{"javascript", "data", "file", "ftp"}
+	for _, dangerous := range dangerousSchemes {
+		if strings.EqualFold(uri.Scheme, dangerous) {
+			return xerrors.Errorf("redirect URI uses dangerous scheme %s which is not allowed", dangerous)
+		}
+	}
+
+	return nil
+}
+
 // validateRedirectURIs validates redirect URIs according to RFC 7591, 8252
 func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod) error {
 	if len(uris) == 0 {
@@ -91,27 +120,14 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 			return xerrors.Errorf("redirect URI at index %d is not a valid URL: %w", i, err)
 		}
 
-		// Validate schemes according to RFC requirements
-		if uri.Scheme == "" {
-			return xerrors.Errorf("redirect URI at index %d must have a scheme", i)
+		if err := ValidateRedirectURIScheme(uri, uriStr); err != nil {
+			return xerrors.Errorf("redirect URI at index %d: %w", i, err)
 		}
 
-		// Handle special URNs (RFC 6749 section 3.1.2.1)
+		// The urn:ietf:wg:oauth:2.0:oob scheme passed validation
+		// above but needs no further checks.
 		if uri.Scheme == "urn" {
-			// Allow the out-of-band redirect URI for native apps
-			if uriStr == "urn:ietf:wg:oauth:2.0:oob" {
-				continue // This is valid for native apps
-			}
-			// Other URNs are not standard for OAuth2
-			return xerrors.Errorf("redirect URI at index %d uses unsupported URN scheme", i)
-		}
-
-		// Block dangerous schemes for security (not allowed by RFCs for OAuth2)
-		dangerousSchemes := []string{"javascript", "data", "file", "ftp"}
-		for _, dangerous := range dangerousSchemes {
-			if strings.EqualFold(uri.Scheme, dangerous) {
-				return xerrors.Errorf("redirect URI at index %d uses dangerous scheme %s which is not allowed", i, dangerous)
-			}
+			continue
 		}
 
 		// Determine if this is a public client based on token endpoint auth method

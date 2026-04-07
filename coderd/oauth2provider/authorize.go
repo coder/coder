@@ -153,10 +153,29 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		}
 		cancel.RawQuery = cancelQuery.Encode()
 
+		cancelURI := cancel.String()
+		if err := codersdk.ValidateRedirectURIScheme(cancel, cancelURI); err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Invalid Callback URL",
+				Description: "The application's registered callback URL has an invalid scheme.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
-			AppIcon:     app.Icon,
-			AppName:     app.Name,
-			CancelURI:   htmltemplate.URL(cancel.String()),
+			AppIcon: app.Icon,
+			AppName: app.Name,
+			// #nosec G203 -- The scheme is validated by
+			// codersdk.ValidateRedirectURIScheme above.
+			CancelURI:   htmltemplate.URL(cancelURI),
 			RedirectURI: r.URL.String(),
 			CSRFToken:   nosurf.Token(r),
 			Username:    ua.FriendlyName,
