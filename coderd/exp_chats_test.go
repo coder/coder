@@ -1089,6 +1089,60 @@ func TestListChatModels(t *testing.T) {
 		require.True(t, googleProvider.Available)
 	})
 
+	t.Run("MixedProviderConfigsKeepProviderAvailableWhenAnyConfigIsRunnable", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		defaultProvider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Central",
+			APIKey:      "central-api-key",
+		})
+		require.NoError(t, err)
+
+		userOnlyProvider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "openai",
+			DisplayName:          "OpenAI User Key",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:         "openai",
+			Model:            "gpt-4o-central",
+			ContextLimit:     &contextLimit,
+			ProviderConfigID: &defaultProvider.ID,
+		})
+		require.NoError(t, err)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:         "openai",
+			Model:            "gpt-4o-user-only",
+			ContextLimit:     &contextLimit,
+			ProviderConfigID: &userOnlyProvider.ID,
+		})
+		require.NoError(t, err)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var openAIProvider *codersdk.ChatModelProvider
+		for i := range models.Providers {
+			if models.Providers[i].Provider == "openai" {
+				openAIProvider = &models.Providers[i]
+				break
+			}
+		}
+		require.NotNil(t, openAIProvider)
+		require.True(t, openAIProvider.Available)
+		require.Empty(t, openAIProvider.UnavailableReason)
+		require.Len(t, openAIProvider.Models, 2)
+	})
+
 	t.Run("DisabledProvidersAndModelsAreFilteredOut", func(t *testing.T) {
 		t.Parallel()
 

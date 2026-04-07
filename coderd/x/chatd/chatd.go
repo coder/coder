@@ -5032,15 +5032,21 @@ func (p *Server) resolveProviderAPIKeysForModel(
 		if providerConfig.ID != modelConfig.ProviderConfigID.UUID {
 			continue
 		}
-		resolved := chatprovider.MergeProviderAPIKeys(baseKeys, []chatprovider.ConfiguredProvider{{
+		boundProvider := chatprovider.ConfiguredProvider{
 			Provider: providerConfig.Provider,
-			APIKey:   providerConfig.APIKey,
 			BaseURL:  providerConfig.BaseUrl,
-		}})
+		}
+		if providerConfig.CentralApiKeyEnabled {
+			boundProvider.APIKey = providerConfig.APIKey
+		}
+		resolved := chatprovider.MergeProviderAPIKeys(
+			baseKeys,
+			[]chatprovider.ConfiguredProvider{boundProvider},
+		)
 		// If the bound config provides an API key but no base URL,
 		// drop any inherited family base URL so requests go to the
 		// provider's default endpoint.
-		if strings.TrimSpace(providerConfig.APIKey) != "" &&
+		if strings.TrimSpace(boundProvider.APIKey) != "" &&
 			strings.TrimSpace(providerConfig.BaseUrl) == "" &&
 			resolved.BaseURLByProvider != nil {
 			delete(

@@ -178,7 +178,7 @@ const useProviderStates = (
 			hasCatalogAPIKey,
 			hasEffectiveAPIKey:
 				providerConfigsForProvider.length > 0
-					? providerConfigsForProvider.some((pc) => pc.has_api_key)
+					? providerConfigsForProvider.some((pc) => pc.has_effective_api_key)
 					: hasManagedAPIKey || hasCatalogAPIKey,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(providerConfigEntry),

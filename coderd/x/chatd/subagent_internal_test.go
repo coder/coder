@@ -299,6 +299,31 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			},
 		},
 		{
+			name: "CentralKeyDisabledKeepsInheritedKeyButUsesBoundBaseURL",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("abababab-abab-abab-abab-abababababab"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:                   uuid.MustParse("abababab-abab-abab-abab-abababababab"),
+				Provider:             "openai",
+				APIKey:               "stale-bound-key",
+				BaseUrl:              "https://bound.example.com",
+				CentralApiKeyEnabled: false,
+				AllowUserApiKey:      true,
+			}},
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "family-key",
+				Anthropic: "anthropic-key",
+				ByProvider: map[string]string{
+					"openai":    "family-key",
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{
+					"openai": "https://bound.example.com",
+				},
+			},
+		},
+		{
 			name: "DisabledBindingFallsBack",
 			model: database.ChatModelConfig{
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"), Valid: true},

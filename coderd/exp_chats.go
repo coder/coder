@@ -660,7 +660,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	_, providerAvailability := chatprovider.ResolveUserProviderKeys(
+	providerAvailability := resolveVisibleProviderAvailability(
 		deploymentKeys,
 		configuredProviders,
 		userKeys,
@@ -682,6 +682,63 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+func resolveVisibleProviderAvailability(
+	fallback chatprovider.ProviderAPIKeys,
+	configuredProviders []chatprovider.ConfiguredProvider,
+	userKeys []chatprovider.UserProviderKey,
+) map[string]chatprovider.ProviderAvailability {
+	availabilityByProvider := make(
+		map[string]chatprovider.ProviderAvailability,
+		len(configuredProviders),
+	)
+	for _, configuredProvider := range configuredProviders {
+		normalizedProvider := chatprovider.NormalizeProvider(
+			configuredProvider.Provider,
+		)
+		if normalizedProvider == "" {
+			continue
+		}
+
+		_, resolvedAvailability := chatprovider.ResolveUserProviderKeys(
+			fallback,
+			[]chatprovider.ConfiguredProvider{configuredProvider},
+			userKeys,
+		)
+		availabilityByProvider[normalizedProvider] = mergeProviderAvailability(
+			availabilityByProvider[normalizedProvider],
+			resolvedAvailability[normalizedProvider],
+		)
+	}
+
+	return availabilityByProvider
+}
+
+func mergeProviderAvailability(
+	current chatprovider.ProviderAvailability,
+	next chatprovider.ProviderAvailability,
+) chatprovider.ProviderAvailability {
+	if current.Available || next.Available {
+		return chatprovider.ProviderAvailability{Available: true}
+	}
+
+	switch {
+	case current.UnavailableReason == codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+		next.UnavailableReason == codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired:
+		return chatprovider.ProviderAvailability{
+			UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+		}
+	case current.UnavailableReason == codersdk.ChatModelProviderUnavailableFetchFailed,
+		next.UnavailableReason == codersdk.ChatModelProviderUnavailableFetchFailed:
+		return chatprovider.ProviderAvailability{
+			UnavailableReason: codersdk.ChatModelProviderUnavailableFetchFailed,
+		}
+	case current.UnavailableReason != "":
+		return current
+	default:
+		return next
+	}
 }
 
 func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {

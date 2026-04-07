@@ -810,6 +810,80 @@ export const ProviderApiKeyInputMasked: Story = {
 	},
 };
 
+export const ProviderNewConfigUsesCreateMode: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai-primary",
+				provider: "openai",
+				display_name: "OpenAI Primary",
+				has_api_key: true,
+			}),
+			createProviderConfig({
+				id: "provider-openai-secondary",
+				provider: "openai",
+				display_name: "OpenAI Secondary",
+				has_api_key: true,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "New config" }),
+		);
+		await expect(
+			await body.findByRole("button", { name: "Create provider config" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Save changes" }),
+		).not.toBeInTheDocument();
+		await userEvent.type(
+			await body.findByLabelText(/^API Key$/i),
+			"sk-new-config",
+		);
+		await userEvent.click(
+			body.getByRole("button", { name: "Create provider config" }),
+		);
+		await waitFor(() => {
+			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onUpdateProvider).not.toHaveBeenCalled();
+	},
+};
+
+export const ModelFormAllowsEffectiveProviderKeys: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai-effective-key",
+				provider: "openai",
+				display_name: "OpenAI",
+				has_api_key: false,
+				has_effective_api_key: true,
+				central_api_key_enabled: true,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+		await expect(
+			await body.findByLabelText(/Model Identifier/i),
+		).toBeInTheDocument();
+		expect(
+			body.queryByText(
+				"Set an API key for this provider on the Providers tab before adding models.",
+			),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ModelFormUserKeyOnlyProvider: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,

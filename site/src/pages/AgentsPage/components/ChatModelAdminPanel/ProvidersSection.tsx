@@ -114,6 +114,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	const providerFormConfig =
 		selectedConfig?.id === nilProviderConfigID ? undefined : selectedConfig;
 
+	const hasProviderFormConfigOverride =
+		newConfigParam !== null || providerFormConfig !== undefined;
+
 	if (view.mode === "detail" && detailProvider) {
 		const providerFormKey = [
 			detailProvider.provider,
@@ -184,7 +187,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				<ProviderForm
 					key={providerFormKey}
 					providerState={detailProvider}
-					{...(providerFormConfig
+					{...(hasProviderFormConfigOverride
 						? { providerConfig: providerFormConfig }
 						: {})}
 					providerConfigsUnavailable={providerConfigsUnavailable}
