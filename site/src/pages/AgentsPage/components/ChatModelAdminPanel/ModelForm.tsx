@@ -6,7 +6,7 @@ import {
 	InfoIcon,
 	PencilIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -57,6 +57,24 @@ import {
 import { ProviderIcon } from "./ProviderIcon";
 
 // ── Validation ──────────────────────────────────────────────────
+
+const getInitialSelectedConfigId = (
+	editingModel: TypesGen.ChatModelConfig | undefined,
+	selectedProviderConfigs: readonly TypesGen.ChatProviderConfig[],
+): string => {
+	if (editingModel?.provider_config_id) {
+		const boundConfig = selectedProviderConfigs.find(
+			(config) => config.id === editingModel.provider_config_id,
+		);
+		if (boundConfig) {
+			return boundConfig.id;
+		}
+	}
+	if (selectedProviderConfigs.length === 1) {
+		return selectedProviderConfigs[0].id;
+	}
+	return "";
+};
 
 const validationSchema = Yup.object({
 	model: Yup.string().trim().required("Model ID is required."),
@@ -121,23 +139,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const selectedProviderConfigs = selectedProviderState?.providerConfigs ?? [];
-	const getInitialSelectedConfigId = (): string => {
-		if (editingModel?.provider_config_id) {
-			const boundConfig = selectedProviderConfigs.find(
-				(config) => config.id === editingModel.provider_config_id,
-			);
-			if (boundConfig) {
-				return boundConfig.id;
-			}
-		}
-		if (selectedProviderConfigs.length === 1) {
-			return selectedProviderConfigs[0].id;
-		}
-		return "";
-	};
-	const [selectedConfigId, setSelectedConfigId] = useState<string>(
-		getInitialSelectedConfigId,
+	const [selectedConfigId, setSelectedConfigId] = useState<string>(() =>
+		getInitialSelectedConfigId(editingModel, selectedProviderConfigs),
 	);
+	useEffect(() => {
+		setSelectedConfigId(
+			getInitialSelectedConfigId(editingModel, selectedProviderConfigs),
+		);
+	}, [editingModel, selectedProviderConfigs]);
 	const canManageModels = Boolean(
 		selectedProviderState &&
 			selectedProviderConfigs.length > 0 &&

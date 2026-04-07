@@ -5162,6 +5162,9 @@ func resolveUserProviderAPIKeysForProviders(
 	providers []database.ChatProvider,
 	userKeys []chatprovider.UserProviderKey,
 ) chatprovider.ProviderAPIKeys {
+	if len(providers) == 0 {
+		return cloneProviderAPIKeys(fallback)
+	}
 	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),
 	)
