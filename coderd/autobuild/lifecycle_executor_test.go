@@ -62,9 +62,18 @@ func TestExecutorAutostartOK(t *testing.T) {
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
 	require.NoError(t, err)
+
+	// Use the server-computed next_start_at as the tick time. Using
+	// sched.Next(build.CreatedAt) can diverge when build creation and
+	// completion straddle an hour boundary (coder/internal#1456).
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ws, err := db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), workspace.ID)
+	require.NoError(t, err)
+	require.True(t, ws.NextStartAt.Valid, "expected next_start_at to be set after stop build completes")
+
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+		tickTime := ws.NextStartAt.Time
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -81,7 +90,6 @@ func TestExecutorAutostartOK(t *testing.T) {
 	assert.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
 	// Assert some template props. If this is not set correctly, the test
 	// will fail.
-	ctx := testutil.Context(t, testutil.WaitShort)
 	template, err := client.Template(ctx, workspace.TemplateID)
 	require.NoError(t, err)
 	require.Equal(t, template.AutostartRequirement.DaysOfWeek, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"})
@@ -124,8 +132,17 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 	require.NoError(t, err)
+
+	// Use the server-computed next_start_at as the tick time. Using
+	// sched.Next(build.CreatedAt) can diverge when build creation and
+	// completion straddle an hour boundary (coder/internal#1456).
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ws, err := db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), workspace.ID)
+	require.NoError(t, err)
+	require.True(t, ws.NextStartAt.Valid, "expected next_start_at to be set after stop build completes")
+
 	// Get both clients to perform a lifecycle execution tick
-	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	next := ws.NextStartAt.Time
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 
 	startCh := make(chan struct{})
