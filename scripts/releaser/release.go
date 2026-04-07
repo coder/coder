@@ -68,17 +68,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
-	// Match standard release branches (release/2.32, release/2.32.0)
-	// and RC branches (release/2.32-rc.0, release/2.32.0-rc.0).
-	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)(?:\.(\d+))?(?:-rc\.(\d+))?$`)
+	// Match release branches (release/2.32) and RC branches
+	// (release/2.32-rc.0).
+	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)(?:-rc\.(\d+))?$`)
 	m := branchRe.FindStringSubmatch(currentBranch)
 	if m == nil {
-		warnf(w, "Current branch %q is not a release branch (release/X.Y[.Z] or release/X.Y[.Z]-rc.N).", currentBranch)
+		warnf(w, "Current branch %q is not a release branch (release/X.Y or release/X.Y-rc.N).", currentBranch)
 		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
-			Text: "Enter the release branch to use (e.g. release/2.21, release/2.21.0, or release/2.21.0-rc.0)",
+			Text: "Enter the release branch to use (e.g. release/2.21 or release/2.21-rc.0)",
 			Validate: func(s string) error {
 				if !branchRe.MatchString(s) {
-					return xerrors.New("must be in format release/X.Y[.Z] or release/X.Y[.Z]-rc.N (e.g. release/2.21, release/2.21.0, or release/2.21.0-rc.0)")
+					return xerrors.New("must be in format release/X.Y or release/X.Y-rc.N (e.g. release/2.21 or release/2.21-rc.0)")
 				}
 				return nil
 			},
@@ -91,13 +91,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	branchMajor, _ := strconv.Atoi(m[1])
 	branchMinor, _ := strconv.Atoi(m[2])
-	branchPatch := 0
-	if m[3] != "" {
-		branchPatch, _ = strconv.Atoi(m[3])
-	}
 	branchRC := -1 // -1 means not an RC branch.
-	if m[4] != "" {
-		branchRC, _ = strconv.Atoi(m[4])
+	if m[3] != "" {
+		branchRC, _ = strconv.Atoi(m[3])
 	}
 	successf(w, "Using release branch: %s", currentBranch)
 
@@ -175,7 +171,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	var suggested version
 	if prevVersion == nil {
 		infof(w, "No previous release tag found on this branch.")
-		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: branchPatch}
+		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
 		if branchRC >= 0 {
 			suggested.Pre = fmt.Sprintf("rc.%d", branchRC)
 		}
