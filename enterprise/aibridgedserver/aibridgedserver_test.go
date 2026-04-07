@@ -387,7 +387,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:          "claude-4-opus",
 					Metadata:       metadataProto,
 					StartedAt:      timestamppb.Now(),
-					CredentialKind: "personal_api_key",
+					CredentialKind: "byok",
 					CredentialHint: "sk-a...efgh",
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
@@ -404,7 +404,7 @@ func TestRecordInterception(t *testing.T) {
 						Model:          req.GetModel(),
 						Metadata:       json.RawMessage(metadataJSON),
 						StartedAt:      req.StartedAt.AsTime().UTC(),
-						CredentialKind: "personal_api_key",
+						CredentialKind: "byok",
 						CredentialHint: "sk-a...efgh",
 					}).Return(database.AIBridgeInterception{
 						ID:             interceptionID,
@@ -413,7 +413,7 @@ func TestRecordInterception(t *testing.T) {
 						Provider:       req.GetProvider(),
 						Model:          req.GetModel(),
 						StartedAt:      req.StartedAt.AsTime().UTC(),
-						CredentialKind: "personal_api_key",
+						CredentialKind: "byok",
 						CredentialHint: "sk-a...efgh",
 					}, nil)
 				},
