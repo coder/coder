@@ -255,6 +255,8 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 		t.Cleanup(cleanup)
 
 		require.Len(t, tools, 3)
+		// Sorted by full prefixed name (slug__tool), so slug
+		// order determines the sequence, not the tool name.
 		assert.Equal(t,
 			[]string{"srv1__zebra", "srv2__alpha", "srv3__middle"},
 			toolNames(tools),
@@ -273,8 +275,8 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 			ctx,
 			logger,
 			[]database.MCPServerConfig{
-				makeConfig("other", other.URL),
-				makeConfig("multi", multi.URL),
+				makeConfig("zzz", multi.URL),
+				makeConfig("aaa", other.URL),
 			},
 			nil,
 		)
@@ -282,7 +284,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 
 		require.Len(t, tools, 3)
 		assert.Equal(t,
-			[]string{"multi__beta", "multi__zeta", "other__gamma"},
+			[]string{"aaa__gamma", "zzz__beta", "zzz__zeta"},
 			toolNames(tools),
 		)
 	})
