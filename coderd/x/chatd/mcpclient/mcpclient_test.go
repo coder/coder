@@ -63,6 +63,17 @@ func greetTool() mcpserver.ServerTool {
 	}
 }
 
+// makeTool returns a ServerTool with the given name and a
+// no-op handler that always returns "ok".
+func makeTool(name string) mcpserver.ServerTool {
+	return mcpserver.ServerTool{
+		Tool: mcp.NewTool(name),
+		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return mcp.NewToolResultText("ok"), nil
+		},
+	}
+}
+
 // makeConfig builds a database.MCPServerConfig suitable for tests.
 func makeConfig(slug, url string) database.MCPServerConfig {
 	return database.MCPServerConfig{
@@ -200,15 +211,6 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 
 func TestConnectAll_DeterministicOrder(t *testing.T) {
 	t.Parallel()
-
-	makeTool := func(name string) mcpserver.ServerTool {
-		return mcpserver.ServerTool{
-			Tool: mcp.NewTool(name),
-			Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return mcp.NewToolResultText("ok"), nil
-			},
-		}
-	}
 
 	t.Run("AcrossServers", func(t *testing.T) {
 		t.Parallel()

@@ -50,10 +50,11 @@ const connectTimeout = 10 * time.Second
 const toolCallTimeout = 60 * time.Second
 
 // ConnectAll connects to all configured MCP servers, discovers
-// their tools, and returns them as fantasy.AgentTool values. It
-// skips servers that fail to connect and logs warnings. The
-// returned cleanup function must be called to close all
-// connections.
+// their tools, and returns them as fantasy.AgentTool values.
+// Tools are sorted by their model-visible name so callers
+// receive a deterministic order. It skips servers that fail to
+// connect and logs warnings. The returned cleanup function
+// must be called to close all connections.
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
