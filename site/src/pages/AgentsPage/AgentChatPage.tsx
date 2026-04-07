@@ -646,35 +646,23 @@ const AgentChatPage: FC = () => {
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
-	// Destructure mutation results into individual properties so the
-	// React Compiler tracks stable primitives/functions instead of the
-	// whole result object (which TanStack Query recreates every render
-	// via object spread).
-	const sendMutation = useMutation(
-		createChatMessage(queryClient, agentId ?? ""),
-	);
+	// Destructure mutation results directly so the React Compiler
+	// tracks stable primitives/functions instead of the whole result
+	// object (TanStack Query v5 recreates it every render via object
+	// spread). Keeping no intermediate variable prevents future code
+	// from accidentally closing over the unstable object.
 	const { isPending: isSendPending, mutateAsync: sendMutateAsync } =
-		sendMutation;
-
-	const editMutation = useMutation(editChatMessage(queryClient, agentId ?? ""));
+		useMutation(createChatMessage(queryClient, agentId ?? ""));
 	const { isPending: isEditPending, mutateAsync: editMutateAsync } =
-		editMutation;
-
-	const interruptMutation = useMutation(
-		interruptChat(queryClient, agentId ?? ""),
-	);
+		useMutation(editChatMessage(queryClient, agentId ?? ""));
 	const { isPending: isInterruptPending, mutateAsync: interruptMutateAsync } =
-		interruptMutation;
-
-	const deleteQueuedMutation = useMutation(
+		useMutation(interruptChat(queryClient, agentId ?? ""));
+	const { mutateAsync: deleteQueuedMutateAsync } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-	const { mutateAsync: deleteQueuedMutateAsync } = deleteQueuedMutation;
-
-	const promoteQueuedMutation = useMutation(
+	const { mutateAsync: promoteQueuedMutateAsync } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-	const { mutateAsync: promoteQueuedMutateAsync } = promoteQueuedMutation;
 
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
@@ -1004,10 +992,10 @@ const AgentChatPage: FC = () => {
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
 
-	const generateKeyMutation = useMutation({
+	// See mutation destructuring comment above (React Compiler).
+	const { mutate: generateKeyMutate } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
-	const { mutate: generateKeyMutate } = generateKeyMutation;
 
 	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
 		if (!workspace || !workspaceAgent) {
