@@ -8,6 +8,7 @@ import { DetailedError } from "#/api/errors";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
+	PreviewParameter,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -22,6 +23,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -76,21 +78,32 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	// On page load, sends initial workspace build parameters to the websocket.
 	// This ensures the backend has the form's complete initial state,
 	// vital for rendering dynamic UI elements dependent on initial parameter values.
-	const sendInitialParameters = useEffectEvent(() => {
-		if (initialParamsSentRef.current) return;
-		if (autofillParameters.length === 0) return;
+	const sendInitialParameters = useEffectEvent(
+		(parameters: PreviewParameter[]) => {
+			if (initialParamsSentRef.current) return;
+			if (parameters.length === 0) return;
+			// Wait until build parameters have been fetched so we send the
+			// user's actual values instead of template defaults.
+			if (!latestBuildParameters) return;
 
-		const initialParamsToSend: Record<string, string> = {};
-		for (const param of autofillParameters) {
-			if (param.name && param.value) {
-				initialParamsToSend[param.name] = param.value;
+			const initialFormValues = getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			);
+			if (initialFormValues.length === 0) return;
+
+			const initialParamsToSend: Record<string, string> = {};
+			for (const param of initialFormValues) {
+				if (param.name && param.value) {
+					initialParamsToSend[param.name] = param.value;
+				}
 			}
-		}
-		if (Object.keys(initialParamsToSend).length === 0) return;
+			if (Object.keys(initialParamsToSend).length === 0) return;
 
-		sendMessage(initialParamsToSend);
-		initialParamsSentRef.current = true;
-	});
+			sendMessage(initialParamsToSend);
+			initialParamsSentRef.current = true;
+		},
+	);
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -104,12 +117,23 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			return;
 		}
 
-		setLatestResponse(response);
-
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
-			sendInitialParameters();
+			sendInitialParameters([...response.parameters]);
 		}
+
+		setLatestResponse(response);
 	});
+
+	// When the WebSocket first message arrives before the REST build
+	// parameters have loaded, sendInitialParameters bails out. This
+	// effect retriggers the send once both data sources are available.
+	useEffect(() => {
+		if (initialParamsSentRef.current) return;
+		if (!latestResponse?.parameters?.length) return;
+		if (!latestBuildParameters) return;
+
+		sendInitialParameters([...latestResponse.parameters]);
+	}, [latestResponse, latestBuildParameters, sendInitialParameters]);
 
 	useEffect(() => {
 		if (!templateVersionId && !workspace.latest_build.template_version_id)
