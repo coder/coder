@@ -37,7 +37,6 @@ type manifest struct {
 }
 
 func prepareEnv() {
-
 	// Unset CODER_ environment variables
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "CODER_") {
