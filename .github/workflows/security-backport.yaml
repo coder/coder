@@ -1,0 +1,354 @@
+name: security-backport
+
+on:
+  pull_request_target:
+    types:
+      - labeled
+      - unlabeled
+      - closed
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Pull request number to backport.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pull_request }}
+  cancel-in-progress: false
+
+env:
+  LATEST_BRANCH: release/2.31
+  STABLE_BRANCH: release/2.30
+  STABLE_1_BRANCH: release/2.29
+
+jobs:
+  label-policy:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Apply security backport label policy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          pr_number="$(jq -r '.pull_request.number' "${GITHUB_EVENT_PATH}")"
+          pr_json="$(gh pr view "${pr_number}" --json number,title,url,baseRefName,labels)"
+
+          PR_JSON="${pr_json}" \
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          pr = json.loads(os.environ["PR_JSON"])
+
+          pr_number = pr["number"]
+          labels = [label["name"] for label in pr.get("labels", [])]
+
+          def has(label: str) -> bool:
+              return label in labels
+
+          def ensure_label(label: str) -> None:
+              if not has(label):
+                  subprocess.run(
+                      ["gh", "pr", "edit", str(pr_number), "--add-label", label],
+                      check=False,
+                  )
+
+          def remove_label(label: str) -> None:
+              if has(label):
+                  subprocess.run(
+                      ["gh", "pr", "edit", str(pr_number), "--remove-label", label],
+                      check=False,
+                  )
+
+          def comment(body: str) -> None:
+              subprocess.run(
+                  ["gh", "pr", "comment", str(pr_number), "--body", body],
+                  check=True,
+              )
+
+          if not has("security:patch"):
+              remove_label("status:needs-severity")
+              sys.exit(0)
+
+          severity_labels = [
+              label
+              for label in ("severity:medium", "severity:high", "severity:critical")
+              if has(label)
+          ]
+          if len(severity_labels) == 0:
+              ensure_label("status:needs-severity")
+              comment(
+                  "This PR is labeled `security:patch` but is missing a severity "
+                  "label. Add one of `severity:medium`, `severity:high`, or "
+                  "`severity:critical` before backport automation can proceed."
+              )
+              sys.exit(0)
+
+          if len(severity_labels) > 1:
+              comment(
+                  "This PR has multiple severity labels. Keep exactly one of "
+                  "`severity:medium`, `severity:high`, or `severity:critical`."
+              )
+              sys.exit(1)
+
+          remove_label("status:needs-severity")
+
+          target_labels = [
+              label
+              for label in ("backport:stable", "backport:stable-1")
+              if has(label)
+          ]
+          has_none = has("backport:none")
+          if has_none and target_labels:
+              comment(
+                  "`backport:none` cannot be combined with other backport labels. "
+                  "Remove `backport:none` or remove the explicit backport targets."
+              )
+              sys.exit(1)
+
+          if not has_none and not target_labels:
+              ensure_label("backport:stable")
+              ensure_label("backport:stable-1")
+              comment(
+                  "Applied default backport labels `backport:stable` and "
+                  "`backport:stable-1` for a qualifying security patch."
+              )
+          PY
+
+  backport:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.merged == true
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve PR metadata
+        id: metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_PR_NUMBER: ${{ inputs.pull_request }}
+          LATEST_BRANCH: ${{ env.LATEST_BRANCH }}
+          STABLE_BRANCH: ${{ env.STABLE_BRANCH }}
+          STABLE_1_BRANCH: ${{ env.STABLE_1_BRANCH }}
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            pr_number="${INPUT_PR_NUMBER}"
+          else
+            pr_number="$(jq -r '.pull_request.number' "${GITHUB_EVENT_PATH}")"
+          fi
+
+          case "${pr_number}" in
+            ''|*[!0-9]*)
+              echo "A valid pull request number is required."
+              exit 1
+              ;;
+          esac
+
+          pr_json="$(gh pr view "${pr_number}" --json number,title,url,mergeCommit,baseRefName,labels,mergedAt,author)"
+
+          PR_JSON="${pr_json}" \
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          pr = json.loads(os.environ["PR_JSON"])
+          github_output = os.environ["GITHUB_OUTPUT"]
+
+          labels = [label["name"] for label in pr.get("labels", [])]
+          if "security:patch" not in labels:
+              print("Not a security patch PR; skipping.")
+              sys.exit(0)
+
+          severity_labels = [
+              label
+              for label in ("severity:medium", "severity:high", "severity:critical")
+              if label in labels
+          ]
+          if len(severity_labels) != 1:
+              raise SystemExit(
+                  "Merged security patch PR must have exactly one severity label."
+              )
+
+          if not pr.get("mergedAt"):
+              raise SystemExit(f"PR #{pr['number']} is not merged.")
+
+          if "backport:none" in labels:
+              target_pairs = []
+          else:
+              mapping = {
+                  "backport:stable": os.environ["STABLE_BRANCH"],
+                  "backport:stable-1": os.environ["STABLE_1_BRANCH"],
+              }
+              target_pairs = []
+              for label_name, branch in mapping.items():
+                  if label_name in labels and branch and branch != pr["baseRefName"]:
+                      target_pairs.append({"label": label_name, "branch": branch})
+
+          with open(github_output, "a", encoding="utf-8") as f:
+              f.write(f"pr_number={pr['number']}\n")
+              f.write(f"merge_sha={pr['mergeCommit']['oid']}\n")
+              f.write(f"title={pr['title']}\n")
+              f.write(f"url={pr['url']}\n")
+              f.write(f"author={pr['author']['login']}\n")
+              f.write(f"severity_label={severity_labels[0]}\n")
+              f.write(f"target_pairs={json.dumps(target_pairs)}\n")
+          PY
+
+      - name: Backport to release branches
+        if: ${{ steps.metadata.outputs.target_pairs != '[]' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.metadata.outputs.pr_number }}
+          MERGE_SHA: ${{ steps.metadata.outputs.merge_sha }}
+          PR_TITLE: ${{ steps.metadata.outputs.title }}
+          PR_URL: ${{ steps.metadata.outputs.url }}
+          PR_AUTHOR: ${{ steps.metadata.outputs.author }}
+          SEVERITY_LABEL: ${{ steps.metadata.outputs.severity_label }}
+          TARGET_PAIRS: ${{ steps.metadata.outputs.target_pairs }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin --prune
+
+          merge_parent_count="$(git rev-list --parents -n 1 "${MERGE_SHA}" | awk '{print NF-1}')"
+
+          failures=()
+          successes=()
+
+          while IFS=$'\t' read -r backport_label target_branch; do
+            [ -n "${target_branch}" ] || continue
+
+            safe_branch_name="${target_branch//\//-}"
+            head_branch="backport/${safe_branch_name}/pr-${PR_NUMBER}"
+
+            existing_pr="$(gh pr list \
+              --base "${target_branch}" \
+              --head "${head_branch}" \
+              --state all \
+              --json number,url \
+              --jq '.[0]')"
+            if [ -n "${existing_pr}" ] && [ "${existing_pr}" != "null" ]; then
+              pr_url="$(printf '%s' "${existing_pr}" | jq -r '.url')"
+              successes+=("${target_branch}:existing:${pr_url}")
+              continue
+            fi
+
+            git checkout -B "${head_branch}" "origin/${target_branch}"
+
+            if [ "${merge_parent_count}" -gt 1 ]; then
+              cherry_pick_args=(-m 1 "${MERGE_SHA}")
+            else
+              cherry_pick_args=("${MERGE_SHA}")
+            fi
+
+            if ! git cherry-pick -x "${cherry_pick_args[@]}"; then
+              git cherry-pick --abort || true
+              gh pr edit "${PR_NUMBER}" --add-label "backport:conflict" || true
+              gh pr comment "${PR_NUMBER}" --body \
+                "Automatic backport to \`${target_branch}\` conflicted. The original author or release manager should resolve it manually."
+              failures+=("${target_branch}:cherry-pick failed")
+              continue
+            fi
+
+            git push --force-with-lease origin "${head_branch}"
+
+            body_file="$(mktemp)"
+            printf '%s\n' \
+              "Automated backport of [#${PR_NUMBER}](${PR_URL})." \
+              "" \
+              "- Source PR: #${PR_NUMBER}" \
+              "- Source commit: ${MERGE_SHA}" \
+              "- Target branch: ${target_branch}" \
+              "- Severity: ${SEVERITY_LABEL}" \
+              > "${body_file}"
+
+            pr_url="$(gh pr create \
+              --base "${target_branch}" \
+              --head "${head_branch}" \
+              --title "${PR_TITLE} (backport to ${target_branch})" \
+              --body-file "${body_file}")"
+
+            backport_pr_number="$(gh pr list \
+              --base "${target_branch}" \
+              --head "${head_branch}" \
+              --state open \
+              --json number \
+              --jq '.[0].number')"
+
+            gh pr edit "${backport_pr_number}" \
+              --add-label "security:patch" \
+              --add-label "${SEVERITY_LABEL}" \
+              --add-label "${backport_label}" || true
+
+            successes+=("${target_branch}:created:${pr_url}")
+          done < <(
+            python3 - <<'PY'
+            import json
+            import os
+            for pair in json.loads(os.environ["TARGET_PAIRS"]):
+                print(f"{pair['label']}\t{pair['branch']}")
+            PY
+          )
+
+          summary_file="$(mktemp)"
+          {
+            echo "## Security backport summary"
+            echo
+            if [ "${#successes[@]}" -gt 0 ]; then
+              echo "### Created or existing"
+              for entry in "${successes[@]}"; do
+                echo "- ${entry}"
+              done
+              echo
+            fi
+            if [ "${#failures[@]}" -gt 0 ]; then
+              echo "### Failures"
+              for entry in "${failures[@]}"; do
+                echo "- ${entry}"
+              done
+            fi
+          } | tee -a "${GITHUB_STEP_SUMMARY}" > "${summary_file}"
+
+          gh pr comment "${PR_NUMBER}" --body-file "${summary_file}"
+
+          if [ "${#failures[@]}" -gt 0 ]; then
+            printf 'Backport failures:\n%s\n' "${failures[@]}" >&2
+            exit 1
+          fi

@@ -1,0 +1,214 @@
+name: security-patch-prs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1-5"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  patch:
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - gomod
+          - terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Patch Go dependencies
+        if: matrix.lane == 'gomod'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          go get -u=patch ./...
+          go mod tidy
+
+          # Guardrail: do not auto-edit replace directives.
+          if git diff --unified=0 -- go.mod | grep -E '^[+-]replace '; then
+            echo "Refusing to auto-edit go.mod replace directives"
+            exit 1
+          fi
+
+          # Guardrail: only go.mod / go.sum may change.
+          extra="$(git diff --name-only | grep -Ev '^(go\.mod|go\.sum)$' || true)"
+          test -z "$extra" || { echo "Unexpected files changed:"; echo "$extra"; exit 1; }
+
+      - name: Patch bundled Terraform
+        if: matrix.lane == 'terraform'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current="$(
+            grep -oE 'NewVersion\("[0-9]+\.[0-9]+\.[0-9]+"\)' \
+              provisioner/terraform/install.go \
+            | head -1 \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'
+          )"
+
+          series="$(echo "$current" | cut -d. -f1,2)"
+
+          latest="$(
+            curl -fsSL https://releases.hashicorp.com/terraform/index.json \
+            | jq -r --arg series "$series" '
+                .versions
+                | keys[]
+                | select(startswith($series + "."))
+              ' \
+            | sort -V \
+            | tail -1
+          )"
+
+          test -n "$latest"
+          [ "$latest" != "$current" ] || exit 0
+
+          CURRENT_TERRAFORM_VERSION="$current" \
+          LATEST_TERRAFORM_VERSION="$latest" \
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          current = os.environ["CURRENT_TERRAFORM_VERSION"]
+          latest = os.environ["LATEST_TERRAFORM_VERSION"]
+
+          updates = {
+              "scripts/Dockerfile.base": (
+                  f"terraform/{current}/",
+                  f"terraform/{latest}/",
+              ),
+              "provisioner/terraform/install.go": (
+                  f'NewVersion("{current}")',
+                  f'NewVersion("{latest}")',
+              ),
+              "install.sh": (
+                  f'TERRAFORM_VERSION="{current}"',
+                  f'TERRAFORM_VERSION="{latest}"',
+              ),
+          }
+
+          for path_str, (before, after) in updates.items():
+              path = Path(path_str)
+              content = path.read_text()
+              if before not in content:
+                  raise SystemExit(f"did not find expected text in {path_str}: {before}")
+              path.write_text(content.replace(before, after))
+          PY
+
+          # Guardrail: only the Terraform-version files may change.
+          extra="$(git diff --name-only | grep -Ev '^(scripts/Dockerfile.base|provisioner/terraform/install.go|install.sh)$' || true)"
+          test -z "$extra" || { echo "Unexpected files changed:"; echo "$extra"; exit 1; }
+
+      - name: Validate Go dependency patch
+        if: matrix.lane == 'gomod'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./...
+
+      - name: Validate Terraform patch
+        if: matrix.lane == 'terraform'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./provisioner/terraform/...
+          docker build -f scripts/Dockerfile.base .
+
+      - name: Skip PR creation when there are no changes
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet; then
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Commit changes
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "secpatch/${{ matrix.lane }}"
+          git add -A
+          git commit -m "security: patch ${{ matrix.lane }}"
+
+      - name: Push branch
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git push --force-with-lease \
+            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" \
+            "HEAD:refs/heads/secpatch/${{ matrix.lane }}"
+
+      - name: Create or update PR
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          branch="secpatch/${{ matrix.lane }}"
+          title="security: patch ${{ matrix.lane }}"
+          body="$(cat <<'EOF'
+          Automated security patch PR for `${{ matrix.lane }}`.
+
+          Scope:
+          - gomod: patch-level Go dependency updates only
+          - terraform: bundled Terraform patch updates only
+
+          Guardrails:
+          - no application-code edits
+          - no auto-editing of go.mod replace directives
+          - CI must pass
+          EOF
+          )"
+
+          existing_pr="$(gh pr list --head "${branch}" --base main --json number --jq '.[0].number // empty')"
+          if [[ -n "${existing_pr}" ]]; then
+            gh pr edit "${existing_pr}" \
+              --title "${title}" \
+              --body "${body}"
+            pr_number="${existing_pr}"
+          else
+            gh pr create \
+              --base main \
+              --head "${branch}" \
+              --title "${title}" \
+              --body "${body}"
+            pr_number="$(gh pr list --head "${branch}" --base main --json number --jq '.[0].number // empty')"
+          fi
+
+          for label in security dependencies automated-pr; do
+            if gh label list --json name --jq '.[].name' | grep -Fxq "${label}"; then
+              gh pr edit "${pr_number}" --add-label "${label}"
+            fi
+          done

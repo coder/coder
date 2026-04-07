@@ -31,7 +31,8 @@ updates:
         patterns:
           - "golang.org/x/*"
     ignore:
-      # Ignore patch updates for all dependencies
+      # Patch updates are handled by the security-patch-prs workflow so this
+      # lane stays focused on broader dependency updates.
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
@@ -56,7 +57,7 @@ updates:
     labels: []
     ignore:
       # We need to coordinate terraform updates with the version hardcoded in
-      # our Go code.
+      # our Go code. These are handled by the security-patch-prs workflow.
       - dependency-name: "terraform"
 
   - package-ecosystem: "npm"
@@ -117,11 +118,11 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore"
+    labels: []
     groups:
       coder-modules:
         patterns:
           - "coder/*/coder"
-    labels: []
     ignore:
       - dependency-name: "*"
         update-types:
