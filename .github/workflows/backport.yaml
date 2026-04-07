@@ -161,7 +161,7 @@ jobs:
 
           # Check if a PR already exists for this branch (idempotency
           # for re-runs).
-          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_VERSION" --json number --jq '.[0].number // empty')
+          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_VERSION" --state all --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
             exit 0
