@@ -1622,15 +1622,16 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 				// same Value pointer, so a new option being set
 				// can make a deprecated sibling appear set when
 				// it was not.
-				if !isDeprecatedOptionDirectlySet(inv, opt) {
+				source := deprecatedOptionDirectSource(inv, opt)
+				if source == serpent.ValueSourceNone {
 					continue
 				}
 
 				var warnStr strings.Builder
-				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
+				_, _ = warnStr.WriteString(translateSource(source, opt))
 				_, _ = warnStr.WriteString(" is deprecated, please use ")
 				for i, use := range opt.UseInstead {
-					_, _ = warnStr.WriteString(translateSource(opt.ValueSource, use))
+					_, _ = warnStr.WriteString(translateSource(source, use))
 					if i != len(opt.UseInstead)-1 {
 						_, _ = warnStr.WriteString(" and ")
 					}
@@ -1647,33 +1648,32 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 	}
 }
 
-// isDeprecatedOptionDirectlySet checks whether a deprecated option
-// was itself the source of its value, rather than inheriting
-// ValueSource from a sibling option that shares the same Value
-// pointer. This prevents false deprecation warnings when only the
-// replacement option is set.
-func isDeprecatedOptionDirectlySet(inv *serpent.Invocation, opt serpent.Option) bool {
-	switch opt.ValueSource {
-	case serpent.ValueSourceFlag:
-		if opt.Flag == "" {
-			return false
-		}
+// deprecatedOptionDirectSource returns the source by which a deprecated
+// option was directly set, ignoring any propagated ValueSource from
+// sibling options that share the same Value pointer.
+func deprecatedOptionDirectSource(inv *serpent.Invocation, opt serpent.Option) serpent.ValueSource {
+	if opt.Flag != "" {
 		fl := inv.ParsedFlags().Lookup(opt.Flag)
-		return fl != nil && fl.Changed
-	case serpent.ValueSourceEnv:
-		if opt.Env == "" {
-			return false
+		if fl != nil && fl.Changed {
+			return serpent.ValueSourceFlag
 		}
-		_, exists := os.LookupEnv(opt.Env)
-		return exists
-	case serpent.ValueSourceYAML:
+	}
+
+	if opt.Env != "" {
+		_, exists := inv.Environ.Lookup(opt.Env)
+		if exists {
+			return serpent.ValueSourceEnv
+		}
+	}
+
+	if opt.ValueSource == serpent.ValueSourceYAML {
 		// There is no straightforward way to check whether a
 		// specific YAML key was present in the config file, so
 		// we conservatively assume the deprecated key was used.
-		return true
-	default:
-		return false
+		return serpent.ValueSourceYAML
 	}
+
+	return serpent.ValueSourceNone
 }
 
 // translateSource provides the name of the source of the option, depending on the

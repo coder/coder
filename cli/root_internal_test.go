@@ -266,6 +266,22 @@ func TestPrintDeprecatedOptions(t *testing.T) {
 			"setting both env vars should still warn about the deprecated one")
 	})
 
+	t.Run("DeprecatedEnvAndNewFlag_Warning", func(t *testing.T) {
+		t.Setenv("CODER_TEST_OLD_OPTION", "val")
+
+		cmd := makeCmd(serpent.OptionSet{newOpt, deprecatedOpt})
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("--new-option", "val")
+		inv.Environ = serpent.ParseEnviron(os.Environ(), "")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, stderr.String(), "`CODER_TEST_OLD_OPTION` is deprecated",
+			"setting the deprecated env var should still warn even if the replacement flag overrides the value")
+		require.NotContains(t, stderr.String(), "`--old-option` is deprecated",
+			"the deprecated environment variable should not be misreported as a deprecated flag")
+	})
+
 	t.Run("FlagOnlyNew_NoWarning", func(t *testing.T) {
 		cmd := makeCmd(serpent.OptionSet{newOpt, deprecatedOpt})
 		var stderr bytes.Buffer
@@ -286,6 +302,21 @@ func TestPrintDeprecatedOptions(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, stderr.String(), "is deprecated",
 			"passing the deprecated flag should produce a warning")
+	})
+
+	t.Run("CODER_EMAIL_FROM_NoWarning", func(t *testing.T) {
+		t.Setenv("CODER_EMAIL_FROM", "noreply@example.com")
+
+		deploymentValues := new(codersdk.DeploymentValues)
+		cmd := makeCmd(deploymentValues.Options())
+		var stderr bytes.Buffer
+		inv := cmd.Invoke()
+		inv.Environ = serpent.ParseEnviron([]string{"CODER_EMAIL_FROM=noreply@example.com"}, "")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.NotContains(t, stderr.String(), "is deprecated",
+			"setting only CODER_EMAIL_FROM should not produce any deprecation warning")
 	})
 
 	t.Run("NothingSet_NoWarning", func(t *testing.T) {
