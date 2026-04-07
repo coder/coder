@@ -122,15 +122,16 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 
 func mcpConfigureClaudeCode() *serpent.Command {
 	var (
-		claudeAPIKey     string
-		claudeConfigPath string
-		claudeMDPath     string
-		systemPrompt     string
-		coderPrompt      string
-		appStatusSlug    string
-		testBinaryName   string
-		aiAgentAPIURL    url.URL
-		claudeUseBedrock string
+		claudeAPIKey       string
+		claudeConfigPath   string
+		claudeSettingsPath string
+		claudeMDPath       string
+		systemPrompt       string
+		coderPrompt        string
+		appStatusSlug      string
+		testBinaryName     string
+		aiAgentAPIURL      url.URL
+		claudeUseBedrock   string
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
@@ -176,6 +177,7 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				AllowedTools:     []string{`mcp__coder__coder_report_task`},
 				APIKey:           claudeAPIKey,
 				ConfigPath:       claudeConfigPath,
+				SettingsPath:     claudeSettingsPath,
 				ProjectDirectory: projectDirectory,
 				MCPServers: map[string]ClaudeConfigMCP{
 					"coder": {
@@ -217,6 +219,14 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				Flag:        "claude-config-path",
 				Value:       serpent.StringOf(&claudeConfigPath),
 				Default:     filepath.Join(os.Getenv("HOME"), ".claude.json"),
+			},
+			{
+				Name:        "claude-settings-path",
+				Description: "The path to the Claude settings file (settings.json).",
+				Env:         "CODER_MCP_CLAUDE_SETTINGS_PATH",
+				Flag:        "claude-settings-path",
+				Value:       serpent.StringOf(&claudeSettingsPath),
+				Default:     filepath.Join(os.Getenv("HOME"), ".claude", "settings.json"),
 			},
 			{
 				Name:        "claude-md-path",
@@ -772,6 +782,7 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 
 type ClaudeConfig struct {
 	ConfigPath       string
+	SettingsPath     string
 	ProjectDirectory string
 	APIKey           string
 	AllowedTools     []string
@@ -884,6 +895,52 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	if err != nil {
 		return xerrors.Errorf("failed to write claude config: %w", err)
 	}
+
+	if err := configureClaudeSettings(fs, cfg.SettingsPath); err != nil {
+		return xerrors.Errorf("failed to configure claude settings: %w", err)
+	}
+
+	return nil
+}
+
+func configureClaudeSettings(fs afero.Fs, settingsPath string) error {
+	if settingsPath == "" {
+		settingsPath = filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
+	}
+
+	settingsDir := filepath.Dir(settingsPath)
+	if err := fs.MkdirAll(settingsDir, 0o700); err != nil {
+		return xerrors.Errorf("failed to create claude settings directory: %w", err)
+	}
+
+	var settings map[string]any
+	_, err := fs.Stat(settingsPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return xerrors.Errorf("failed to stat claude settings: %w", err)
+		}
+		settings = make(map[string]any)
+	} else {
+		oldSettingsBytes, err := afero.ReadFile(fs, settingsPath)
+		if err != nil {
+			return xerrors.Errorf("failed to read claude settings: %w", err)
+		}
+		if err := json.Unmarshal(oldSettingsBytes, &settings); err != nil {
+			return xerrors.Errorf("failed to unmarshal claude settings: %w", err)
+		}
+	}
+
+	settings["skipDangerousModePermissionPrompt"] = true
+	settings["skipAutoPermissionPrompt"] = true
+
+	newSettingsBytes, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return xerrors.Errorf("failed to marshal claude settings: %w", err)
+	}
+	if err := afero.WriteFile(fs, settingsPath, newSettingsBytes, 0o600); err != nil {
+		return xerrors.Errorf("failed to write claude settings: %w", err)
+	}
+
 	return nil
 }
 
