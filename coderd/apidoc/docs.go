@@ -12498,6 +12498,9 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
                 "document": {
                     "type": "string"
                 },
@@ -12521,6 +12524,9 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
                 "encoding": {
                     "type": "string"
                 },
@@ -12571,6 +12577,9 @@ const docTemplate = `{
                 "json_web_token"
             ],
             "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
                 "json_web_token": {
                     "type": "string"
                 }

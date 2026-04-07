@@ -14,6 +14,7 @@ import (
 
 type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
+	AgentName    string `json:"agent_name,omitempty"`
 }
 
 // GoogleSessionTokenExchanger exchanges a Google instance JWT document for a Coder session token.
@@ -22,15 +23,18 @@ type GoogleSessionTokenExchanger struct {
 	serviceAccount string
 	gcpClient      *metadata.Client
 	client         *codersdk.Client
+	agentName      string
 }
 
-func WithGoogleInstanceIdentity(serviceAccount string, gcpClient *metadata.Client) SessionTokenSetup {
+func WithGoogleInstanceIdentity(serviceAccount string, gcpClient *metadata.Client, opts ...InstanceIdentityOption) SessionTokenSetup {
+	cfg := applyInstanceIdentityOptions(opts)
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &InstanceIdentitySessionTokenProvider{
 			TokenExchanger: &GoogleSessionTokenExchanger{
 				client:         client,
 				gcpClient:      gcpClient,
 				serviceAccount: serviceAccount,
+				agentName:      cfg.AgentName,
 			},
 		}
 	}
@@ -58,6 +62,7 @@ func (g *GoogleSessionTokenExchanger) exchange(ctx context.Context) (Authenticat
 	// request without the token to avoid re-entering this function
 	res, err := g.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
+		AgentName:    g.agentName,
 	})
 	if err != nil {
 		return AuthenticateResponse{}, err

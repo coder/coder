@@ -4,6 +4,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "document": "string",
   "signature": "string"
 }
@@ -11,10 +12,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `document`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `agent_name` | string | false    |              |             |
+| `document`   | string | true     |              |             |
+| `signature`  | string | true     |              |             |
 
 ## agentsdk.AuthenticateResponse
 
@@ -34,6 +36,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "encoding": "string",
   "signature": "string"
 }
@@ -41,10 +44,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `encoding`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `agent_name` | string | false    |              |             |
+| `encoding`   | string | true     |              |             |
+| `signature`  | string | true     |              |             |
 
 ## agentsdk.ExternalAuthResponse
 
@@ -90,6 +94,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "json_web_token": "string"
 }
 ```
@@ -98,6 +103,7 @@
 
 | Name             | Type   | Required | Restrictions | Description |
 |------------------|--------|----------|--------------|-------------|
+| `agent_name`     | string | false    |              |             |
 | `json_web_token` | string | true     |              |             |
 
 ## agentsdk.Log

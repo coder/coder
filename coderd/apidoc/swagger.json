@@ -11085,6 +11085,9 @@
 			"type": "object",
 			"required": ["document", "signature"],
 			"properties": {
+				"agent_name": {
+					"type": "string"
+				},
 				"document": {
 					"type": "string"
 				},
@@ -11105,6 +11108,9 @@
 			"type": "object",
 			"required": ["encoding", "signature"],
 			"properties": {
+				"agent_name": {
+					"type": "string"
+				},
 				"encoding": {
 					"type": "string"
 				},
@@ -11153,6 +11159,9 @@
 			"type": "object",
 			"required": ["json_web_token"],
 			"properties": {
+				"agent_name": {
+					"type": "string"
+				},
 				"json_web_token": {
 					"type": "string"
 				}

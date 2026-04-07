@@ -58,6 +58,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ```json
 {
+  "agent_name": "string",
   "document": "string",
   "signature": "string"
 }
@@ -105,6 +106,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ```json
 {
+  "agent_name": "string",
   "encoding": "string",
   "signature": "string"
 }
@@ -152,6 +154,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ```json
 {
+  "agent_name": "string",
   "json_web_token": "string"
 }
 ```
