@@ -288,6 +288,40 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 			toolNames(tools),
 		)
 	})
+
+	t.Run("TiebreakByConfigID", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		ts1 := newTestMCPServer(t, makeTool("b__z"))
+		ts2 := newTestMCPServer(t, makeTool("z"))
+
+		// Use fixed UUIDs so the tiebreaker order is
+		// predictable. Both servers produce the same prefixed
+		// name, a__b__z, due to the __ separator ambiguity.
+		cfg1 := makeConfig("a", ts1.URL)
+		cfg1.ID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+
+		cfg2 := makeConfig("a__b", ts2.URL)
+		cfg2.ID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+		tools, cleanup := mcpclient.ConnectAll(
+			ctx,
+			logger,
+			[]database.MCPServerConfig{cfg1, cfg2},
+			nil,
+		)
+		t.Cleanup(cleanup)
+
+		require.Len(t, tools, 2)
+		assert.Equal(t, []string{"a__b__z", "a__b__z"}, toolNames(tools))
+
+		id0 := tools[0].(mcpclient.MCPToolIdentifier).MCPServerConfigID()
+		id1 := tools[1].(mcpclient.MCPToolIdentifier).MCPServerConfigID()
+		assert.Equal(t, cfg2.ID, id0, "lower config ID should sort first")
+		assert.Equal(t, cfg1.ID, id1, "higher config ID should sort second")
+	})
 }
 
 func TestConnectAll_AuthHeaders(t *testing.T) {

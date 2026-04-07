@@ -123,12 +123,29 @@ func ConnectAll(
 	// discarded.
 	_ = eg.Wait()
 
-	// Sort tools by their prefixed name so the order is
-	// deterministic regardless of goroutine completion order.
-	// Stable prompt construction depends on consistent tool
-	// ordering.
+	// Sort tools by prefixed name for deterministic ordering
+	// regardless of goroutine completion order. Ties, possible
+	// when the __ separator produces ambiguous prefixed names,
+	// are broken by config ID. Stable prompt construction
+	// depends on consistent tool ordering.
 	slices.SortFunc(tools, func(a, b fantasy.AgentTool) int {
-		return cmp.Compare(a.Info().Name, b.Info().Name)
+		// All tools in this slice are mcpToolWrapper values
+		// created by connectOne above, so these checked
+		// assertions should always succeed. The config ID
+		// tiebreaker resolves the __ separator ambiguity
+		// documented at the top of this file.
+		aTool, ok := a.(MCPToolIdentifier)
+		if !ok {
+			panic(fmt.Sprintf("unexpected tool type %T", a))
+		}
+		bTool, ok := b.(MCPToolIdentifier)
+		if !ok {
+			panic(fmt.Sprintf("unexpected tool type %T", b))
+		}
+		return cmp.Or(
+			cmp.Compare(a.Info().Name, b.Info().Name),
+			cmp.Compare(aTool.MCPServerConfigID().String(), bTool.MCPServerConfigID().String()),
+		)
 	})
 
 	return tools, cleanup
