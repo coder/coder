@@ -79,6 +79,7 @@ import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { createDisplayDate } from "#/components/Timeline/utils";
 import {
 	Tooltip,
 	TooltipContent,
@@ -91,7 +92,6 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
-import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
@@ -869,18 +869,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	// When the list is empty, fall back to contextual empty-state links
 	// instead of a floating standalone icon.
 	const showFilterOnPinned = pinnedChats.length > 0;
-	const firstNonEmptyGroup = showFilterOnPinned
-		? undefined
-		: TIME_GROUPS.find((group) =>
-				visibleRootIDs.some((id) => {
-					const chat = chatById.get(id);
-					return (
-						chat !== undefined &&
-						getTimeGroup(chat.updated_at) === group &&
-						chat.pin_order === 0
-					);
-				}),
-			);
+
+	// Build ordered time groups from the visible chats.
+	const unpinnedChats = visibleRootIDs
+		.map((id) => chatById.get(id))
+		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
+	const timeGroupOrder: string[] = [];
+	const chatsByTimeGroup = new Map<string, Chat[]>();
+	for (const chat of unpinnedChats) {
+		const group = createDisplayDate(new Date(chat.updated_at));
+		let bucket = chatsByTimeGroup.get(group);
+		if (!bucket) {
+			bucket = [];
+			chatsByTimeGroup.set(group, bucket);
+			timeGroupOrder.push(group);
+		}
+		bucket.push(chat);
+	}
+	const firstNonEmptyGroup = showFilterOnPinned ? undefined : timeGroupOrder[0];
 	const filterDropdown = (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -1129,15 +1135,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													</div>
 												)}
 												{/* ── Time-grouped sections ── */}
-												{TIME_GROUPS.map((group) => {
-													const groupChats = visibleRootIDs
-														.map((id) => chatById.get(id))
-														.filter(
-															(chat): chat is Chat =>
-																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group &&
-																chat.pin_order === 0,
-														);
+												{timeGroupOrder.map((group) => {
+													const groupChats = chatsByTimeGroup.get(group) ?? [];
 													if (groupChats.length === 0) return null;
 													return (
 														<div
