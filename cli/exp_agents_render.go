@@ -48,31 +48,9 @@ func toolArgsSummary(toolName string, argsJSON string) string {
 
 	parsed, ok := parseToolSummaryValue(raw)
 	if ok {
-		normalized := normalizeToolName(toolName)
-		switch {
-		case normalized == "execute" || normalized == "execute_command" || normalized == "run_command":
-			if command := firstStringField(parsed, "command", "cmd", "script", "input"); command != "" {
-				return strconv.Quote(command)
-			}
-		case strings.Contains(normalized, "read_file") || strings.Contains(normalized, "write_file") || strings.Contains(normalized, "delete_file") || strings.Contains(normalized, "stat_file"):
-			if path := firstStringField(parsed, "path", "file_path", "filename"); path != "" {
-				return "(" + path + ")"
-			}
-		case normalized == "get_pull_request":
-			owner := firstStringField(parsed, "owner")
-			repo := firstStringField(parsed, "repo", "repository")
-			switch {
-			case owner != "" && repo != "":
-				return "(" + owner + "/" + repo + ")"
-			case repo != "":
-				return "(" + repo + ")"
-			}
-		case strings.Contains(normalized, "workspace"):
-			if workspace := firstStringField(parsed, "workspace_name", "name", "workspace"); workspace != "" {
-				return "(" + workspace + ")"
-			}
+		if summary := toolObjectSummary(toolName, parsed); summary != "" {
+			return summary
 		}
-
 		if value := firstShortStringValue(parsed); value != "" {
 			return strconv.Quote(value)
 		}
@@ -83,6 +61,35 @@ func toolArgsSummary(toolName string, argsJSON string) string {
 		return ""
 	}
 	return truncateToolSummary(compact, toolSummaryFallbackWidth)
+}
+
+func toolObjectSummary(toolName string, parsed any) string {
+	normalized := normalizeToolName(toolName)
+	switch {
+	case normalized == "execute" || normalized == "execute_command" || normalized == "run_command":
+		if command := firstStringField(parsed, "command", "cmd", "script", "input"); command != "" {
+			return strconv.Quote(command)
+		}
+	case strings.Contains(normalized, "read_file") || strings.Contains(normalized, "write_file") || strings.Contains(normalized, "delete_file") || strings.Contains(normalized, "stat_file"):
+		if path := firstStringField(parsed, "path", "file_path", "filename"); path != "" {
+			return "(" + path + ")"
+		}
+	case normalized == "get_pull_request":
+		owner := firstStringField(parsed, "owner")
+		repo := firstStringField(parsed, "repo", "repository")
+		switch {
+		case owner != "" && repo != "":
+			return "(" + owner + "/" + repo + ")"
+		case repo != "":
+			return "(" + repo + ")"
+		}
+	case strings.Contains(normalized, "workspace"):
+		if workspace := firstStringField(parsed, "workspace_name", "name", "workspace"); workspace != "" {
+			return "(" + workspace + ")"
+		}
+	}
+
+	return ""
 }
 
 func toolResultSummary(toolName, argsJSON, resultJSON string) string {
@@ -96,6 +103,9 @@ func toolResultSummary(toolName, argsJSON, resultJSON string) string {
 	}
 
 	if parsed, ok := parseToolSummaryValue(compact); ok {
+		if summary := toolObjectSummary(toolName, parsed); summary != "" {
+			return summary
+		}
 		if value := firstShortStringValue(parsed); value != "" {
 			return strconv.Quote(value)
 		}

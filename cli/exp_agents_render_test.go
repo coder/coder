@@ -327,6 +327,32 @@ func TestExpAgentsRender(t *testing.T) {
 		}
 	})
 
+	t.Run("ToolArgsSummary", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("CreateWorkspaceUsesNameField", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, "(my-workspace)", toolArgsSummary("coder_create_workspace", `{"name":"my-workspace"}`))
+		})
+
+		t.Run("CreateWorkspaceUsesWorkspaceNameField", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, "(my-ws)", toolArgsSummary("coder_create_workspace", `{"workspace_name":"my-ws","template":"docker"}`))
+		})
+	})
+
+	t.Run("ToolResultSummary", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("CreateWorkspaceUsesWorkspaceNameFromResult", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, "(created-ws)", toolResultSummary("coder_create_workspace", "", `{"workspace_name":"created-ws"}`))
+		})
+	})
+
 	t.Run("RenderToolCall", func(t *testing.T) {
 		t.Parallel()
 
@@ -429,6 +455,44 @@ func TestExpAgentsRender(t *testing.T) {
 			require.Contains(t, output, "sunny")
 			require.Contains(t, output, "…")
 			require.NotContains(t, output, "all afternoon")
+		})
+
+		t.Run("CreateWorkspaceSuccessShowsWorkspaceContext", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{
+				ToolName: "coder_create_workspace",
+				Args:     rawJSON(`{"name":"my-workspace"}`),
+				Result:   rawJSON(`{"workspace_name":"my-workspace","template":"docker"}`),
+			}, 60))
+			require.Contains(t, output, "✓ create workspace")
+			require.Contains(t, output, "(my-workspace)")
+		})
+
+		t.Run("CreateWorkspaceErrorShowsWorkspaceContext", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{
+				ToolName: "coder_create_workspace",
+				Args:     rawJSON(`{"name":"my-workspace"}`),
+				Result:   rawJSON(`{"error":"template not found"}`),
+				IsError:  true,
+			}, 60))
+			require.Contains(t, output, "✗ create workspace")
+			require.Contains(t, output, "(my-workspace)")
+		})
+
+		t.Run("MergedCreateWorkspaceResultKeepsArgsSummary", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{
+				ToolName:   "coder_create_workspace",
+				ToolCallID: "call-create-workspace",
+				Args:       rawJSON(`{"name":"merged-workspace"}`),
+				Result:     rawJSON(`{"workspace_name":"merged-workspace","status":"created"}`),
+			}, 60))
+			require.Contains(t, output, "✓ create workspace")
+			require.Contains(t, output, "(merged-workspace)")
 		})
 
 		t.Run("ContextCompactionRendersBanner", func(t *testing.T) {
