@@ -258,7 +258,7 @@ export function usePaginatedQuery<
 		) {
 			void updatePageIfInvalid(totalPages);
 		}
-		}, [query.isFetching, totalPages, currentPage]);
+	}, [query.isFetching, totalPages, currentPage]);
 
 	const onPageChange = (newPage: number) => {
 		// Page 1 is the only page that can be safely navigated to without knowing
