@@ -22,6 +22,8 @@ type tuiStyles struct {
 	assistantMsg  lipgloss.Style
 	reasoning     lipgloss.Style
 	toolCallStyle lipgloss.Style
+	toolPending   lipgloss.Style
+	toolSuccess   lipgloss.Style
 	compaction    lipgloss.Style
 	warningText   lipgloss.Style
 	criticalText  lipgloss.Style
@@ -48,6 +50,8 @@ func newTUIStyles() tuiStyles {
 		assistantMsg:  lipgloss.NewStyle(),
 		reasoning:     lipgloss.NewStyle().Faint(true).Italic(true),
 		toolCallStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		toolPending:   lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("3")),
+		toolSuccess:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		compaction:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5")),
 		warningText:   lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
 		criticalText:  lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),

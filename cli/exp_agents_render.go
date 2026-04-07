@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -11,30 +14,242 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const contextCompactionToolName = "context_compaction"
+const (
+	contextCompactionToolName = "context_compaction"
+	toolBlockIndent           = "  "
+	toolDetailIndent          = "    "
+	toolSummaryFallbackWidth  = 48
+)
+
+func humanizeToolName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.TrimPrefix(name, "coder_")
+	name = strings.TrimPrefix(name, "github__")
+	name = strings.ReplaceAll(name, "_", " ")
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" {
+		return "tool"
+	}
+	return name
+}
+
+func normalizeToolName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.TrimPrefix(name, "coder_")
+	name = strings.TrimPrefix(name, "github__")
+	return strings.ToLower(name)
+}
+
+func toolArgsSummary(toolName string, argsJSON string) string {
+	raw := strings.TrimSpace(argsJSON)
+	if raw == "" {
+		return ""
+	}
+
+	parsed, ok := parseToolSummaryValue(raw)
+	if ok {
+		normalized := normalizeToolName(toolName)
+		switch {
+		case normalized == "execute" || normalized == "execute_command" || normalized == "run_command":
+			if command := firstStringField(parsed, "command", "cmd", "script", "input"); command != "" {
+				return strconv.Quote(command)
+			}
+		case strings.Contains(normalized, "read_file") || strings.Contains(normalized, "write_file") || strings.Contains(normalized, "delete_file") || strings.Contains(normalized, "stat_file"):
+			if path := firstStringField(parsed, "path", "file_path", "filename"); path != "" {
+				return "(" + path + ")"
+			}
+		case normalized == "get_pull_request":
+			owner := firstStringField(parsed, "owner")
+			repo := firstStringField(parsed, "repo", "repository")
+			switch {
+			case owner != "" && repo != "":
+				return "(" + owner + "/" + repo + ")"
+			case repo != "":
+				return "(" + repo + ")"
+			}
+		case strings.Contains(normalized, "workspace"):
+			if workspace := firstStringField(parsed, "workspace_name", "name", "workspace"); workspace != "" {
+				return "(" + workspace + ")"
+			}
+		}
+
+		if value := firstShortStringValue(parsed); value != "" {
+			return strconv.Quote(value)
+		}
+	}
+
+	compact := compactTranscriptJSON(json.RawMessage(raw))
+	if compact == "" {
+		return ""
+	}
+	return truncateToolSummary(compact, toolSummaryFallbackWidth)
+}
+
+func toolResultSummary(toolName, argsJSON, resultJSON string) string {
+	if summary := toolArgsSummary(toolName, argsJSON); summary != "" {
+		return summary
+	}
+
+	compact := compactTranscriptJSON(json.RawMessage(resultJSON))
+	if compact == "" {
+		return "null"
+	}
+
+	if parsed, ok := parseToolSummaryValue(compact); ok {
+		if value := firstShortStringValue(parsed); value != "" {
+			return strconv.Quote(value)
+		}
+	}
+
+	return truncateToolSummary(compact, toolSummaryFallbackWidth)
+}
+
+func toolErrorSummary(resultJSON string) string {
+	raw := strings.TrimSpace(resultJSON)
+	if raw == "" {
+		return ""
+	}
+
+	if parsed, ok := parseToolSummaryValue(raw); ok {
+		if message := firstStringField(parsed, "error", "message", "detail", "stderr"); message != "" {
+			return strconv.Quote(message)
+		}
+		if value := firstShortStringValue(parsed); value != "" {
+			return strconv.Quote(value)
+		}
+	}
+
+	compact := compactTranscriptJSON(json.RawMessage(raw))
+	if compact == "" {
+		return ""
+	}
+	return truncateToolSummary(compact, toolSummaryFallbackWidth)
+}
+
+func parseToolSummaryValue(raw string) (any, bool) {
+	var value any
+	if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		return nil, false
+	}
+	return value, true
+}
+
+func firstStringField(value any, keys ...string) string {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	for _, key := range keys {
+		fieldValue, ok := object[key]
+		if !ok {
+			continue
+		}
+		if text := firstShortStringValue(fieldValue); text != "" {
+			return text
+		}
+	}
+
+	return ""
+}
+
+func firstShortStringValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		trimmed := strings.Join(strings.Fields(strings.TrimSpace(typed)), " ")
+		if trimmed == "" {
+			return ""
+		}
+		return trimmed
+	case []any:
+		for _, item := range typed {
+			if text := firstShortStringValue(item); text != "" {
+				return text
+			}
+		}
+	case map[string]any:
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			if text := firstShortStringValue(typed[key]); text != "" {
+				return text
+			}
+		}
+	}
+
+	return ""
+}
+
+func truncateToolSummary(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	if len([]rune(text)) <= maxWidth {
+		return text
+	}
+	return string([]rune(text)[:maxWidth-1]) + "…"
+}
+
+func renderToolLine(styles tuiStyles, labelStyle lipgloss.Style, icon, toolName, summary string, width int) string {
+	header := toolBlockIndent + labelStyle.Render(icon) + " " + humanizeToolName(toolName)
+	if summary == "" || width <= 0 {
+		return header
+	}
+
+	available := width - lipgloss.Width(header) - 1
+	preview := styles.truncate(summary, max(available, 0))
+	if preview == "" {
+		return header
+	}
+
+	return header + " " + styles.dimmedText.Render(preview)
+}
+
+func renderToolDetail(styles tuiStyles, label, value string, width int) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+
+	prefix := toolDetailIndent + label + ": "
+	contentWidth := 80
+	if width > 0 {
+		contentWidth = max(width-lipgloss.Width(prefix), 1)
+	}
+	wrapped := wrapPreservingNewlines(value, contentWidth)
+	lines := strings.Split(wrapped, "\n")
+	for i := range lines {
+		if i == 0 {
+			lines[i] = prefix + lines[i]
+			continue
+		}
+		lines[i] = strings.Repeat(" ", lipgloss.Width(prefix)) + lines[i]
+	}
+
+	return styles.dimmedText.Render(strings.Join(lines, "\n"))
+}
+
+func renderExpandedToolBlock(styles tuiStyles, labelStyle lipgloss.Style, icon, toolName, args, result string, width int) string {
+	lines := []string{toolBlockIndent + labelStyle.Render(icon) + " " + humanizeToolName(toolName)}
+	if argsLine := renderToolDetail(styles, "args", args, width); argsLine != "" {
+		lines = append(lines, argsLine)
+	}
+	if result != "" {
+		if resultLine := renderToolDetail(styles, "result", result, width); resultLine != "" {
+			lines = append(lines, resultLine)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
 
 func renderToolCall(styles tuiStyles, part codersdk.ChatMessagePart, width int) string {
 	if part.ToolName == contextCompactionToolName {
 		return renderCompaction(styles, width)
 	}
 
-	toolName := part.ToolName
-	if toolName == "" {
-		toolName = "tool"
-	}
-
-	label := styles.toolCallStyle.Render("🔧 " + toolName)
-	args := compactTranscriptJSON(part.Args)
-	if args == "" || width <= 0 {
-		return label
-	}
-
-	available := width - lipgloss.Width(label) - 1
-	preview := styles.truncate(args, max(available, 0))
-	if preview == "" {
-		return label
-	}
-	return label + " " + styles.dimmedText.Render(preview)
+	return renderToolLine(styles, styles.toolPending, "⏳", part.ToolName, toolArgsSummary(part.ToolName, compactTranscriptJSON(part.Args)), width)
 }
 
 func renderToolResult(styles tuiStyles, part codersdk.ChatMessagePart, width int) string {
@@ -42,33 +257,22 @@ func renderToolResult(styles tuiStyles, part codersdk.ChatMessagePart, width int
 		return renderCompaction(styles, width)
 	}
 
-	toolName := part.ToolName
-	if toolName == "" {
-		toolName = "tool"
-	}
-
 	icon := "✓"
-	labelStyle := styles.toolCallStyle
+	labelStyle := styles.toolSuccess
 	if part.IsError {
 		icon = "✗"
 		labelStyle = styles.errorText
 	}
 
-	label := labelStyle.Render(icon + " " + toolName)
-	result := compactTranscriptJSON(part.Result)
-	if result == "" {
-		result = "null"
+	argsJSON := compactTranscriptJSON(part.Args)
+	resultJSON := compactTranscriptJSON(part.Result)
+	summary := toolResultSummary(part.ToolName, argsJSON, resultJSON)
+	if part.IsError {
+		if errorSummary := toolErrorSummary(resultJSON); errorSummary != "" {
+			summary = errorSummary
+		}
 	}
-	if width <= 0 {
-		return label + " " + styles.dimmedText.Render(result)
-	}
-
-	available := width - lipgloss.Width(label) - 1
-	preview := styles.truncate(result, max(available, 0))
-	if preview == "" {
-		return label
-	}
-	return label + " " + styles.dimmedText.Render(preview)
+	return renderToolLine(styles, labelStyle, icon, part.ToolName, summary, width)
 }
 
 func renderCompaction(styles tuiStyles, width int) string {
@@ -316,7 +520,35 @@ func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
 			}
 		}
 	}
-	return blocks
+	return mergeConsecutiveToolBlocks(blocks)
+}
+
+func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
+	if len(blocks) < 2 {
+		return blocks
+	}
+
+	merged := make([]chatBlock, 0, len(blocks))
+	for i := 0; i < len(blocks); i++ {
+		current := blocks[i]
+		if current.kind == blockToolCall && i+1 < len(blocks) {
+			next := blocks[i+1]
+			if next.kind == blockToolResult && current.toolID != "" && current.toolID == next.toolID {
+				if next.toolName == "" {
+					next.toolName = current.toolName
+				}
+				if next.args == "" {
+					next.args = current.args
+				}
+				merged = append(merged, next)
+				i++
+				continue
+			}
+		}
+		merged = append(merged, current)
+	}
+
+	return merged
 }
 
 //nolint:revive // Signature keeps block expansion state explicit at the callsite.
@@ -346,30 +578,24 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, re
 		return styles.reasoning.Render(content)
 	case blockToolCall:
 		if !expanded {
-			return renderToolCall(styles, codersdk.ChatMessagePart{ToolName: block.toolName, Args: []byte(block.args)}, width)
+			return renderToolCall(styles, codersdk.ChatMessagePart{ToolName: block.toolName, Args: json.RawMessage(block.args)}, width)
 		}
-		lines := []string{styles.toolCallStyle.Render("🔧 " + block.toolName)}
-		if strings.TrimSpace(block.args) != "" {
-			lines = append(lines, wrapPreservingNewlines(block.args, width))
-		}
-		return strings.Join(lines, "\n")
+		return renderExpandedToolBlock(styles, styles.toolPending, "⏳", block.toolName, block.args, "", width)
 	case blockToolResult:
 		if !expanded {
-			return renderToolResult(styles, codersdk.ChatMessagePart{ToolName: block.toolName, Result: []byte(block.result), IsError: block.isError}, width)
+			return renderToolResult(styles, codersdk.ChatMessagePart{ToolName: block.toolName, Args: json.RawMessage(block.args), Result: json.RawMessage(block.result), IsError: block.isError}, width)
 		}
 		icon := "✓"
-		labelStyle := styles.toolCallStyle
+		labelStyle := styles.toolSuccess
 		if block.isError {
 			icon = "✗"
 			labelStyle = styles.errorText
 		}
-		lines := []string{labelStyle.Render(icon + " " + block.toolName)}
 		result := block.result
 		if strings.TrimSpace(result) == "" {
 			result = "null"
 		}
-		lines = append(lines, wrapPreservingNewlines(result, width))
-		return strings.Join(lines, "\n")
+		return renderExpandedToolBlock(styles, labelStyle, icon, block.toolName, block.args, result, width)
 	case blockCompaction:
 		return renderCompaction(styles, width)
 	default:

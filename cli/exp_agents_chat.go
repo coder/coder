@@ -261,6 +261,8 @@ func (m *chatViewModel) rebuildBlocks() {
 		}
 	}
 
+	m.blocks = mergeConsecutiveToolBlocks(m.blocks)
+
 	for _, qm := range m.queuedMessages {
 		for _, part := range qm.Content {
 			if part.Type == codersdk.ChatMessagePartTypeText && part.Text != "" {
@@ -359,7 +361,7 @@ func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) c
 				role:     role,
 				toolName: part.ToolName,
 				toolID:   part.ToolCallID,
-				args:     string(part.Args),
+				args:     compactTranscriptJSON(part.Args),
 			}
 		}
 		return chatBlock{
@@ -367,7 +369,7 @@ func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) c
 			role:     role,
 			toolName: part.ToolName,
 			toolID:   part.ToolCallID,
-			args:     string(part.Args),
+			args:     compactTranscriptJSON(part.Args),
 		}
 	case codersdk.ChatMessagePartTypeToolResult:
 		if part.ToolName == "context_compaction" {
@@ -376,7 +378,7 @@ func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) c
 				role:     role,
 				toolName: part.ToolName,
 				toolID:   part.ToolCallID,
-				result:   string(part.Result),
+				result:   compactTranscriptJSON(part.Result),
 				isError:  part.IsError,
 			}
 		}
@@ -385,7 +387,7 @@ func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) c
 			role:     role,
 			toolName: part.ToolName,
 			toolID:   part.ToolCallID,
-			result:   string(part.Result),
+			result:   compactTranscriptJSON(part.Result),
 			isError:  part.IsError,
 		}
 	case codersdk.ChatMessagePartTypeSource:

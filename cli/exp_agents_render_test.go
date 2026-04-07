@@ -145,6 +145,36 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 			},
 			{
+				name: "MergesConsecutiveToolCallAndResult",
+				messages: []codersdk.ChatMessage{
+					{
+						Role: codersdk.ChatMessageRoleAssistant,
+						Content: []codersdk.ChatMessagePart{{
+							Type:       codersdk.ChatMessagePartTypeToolCall,
+							ToolName:   "github__get_pull_request",
+							ToolCallID: "call-merge",
+							Args:       rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58036}`),
+						}},
+					},
+					{
+						Role: codersdk.ChatMessageRoleTool,
+						Content: []codersdk.ChatMessagePart{{
+							Type:       codersdk.ChatMessagePartTypeToolResult,
+							ToolName:   "github__get_pull_request",
+							ToolCallID: "call-merge",
+							Result:     rawJSON(`{"base":{"ref":"main"}}`),
+						}},
+					},
+				},
+				assert: func(t *testing.T, blocks []chatBlock) {
+					t.Helper()
+					require.Len(t, blocks, 1)
+					require.Equal(t, blockToolResult, blocks[0].kind)
+					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`, blocks[0].args)
+					require.Equal(t, `{"base":{"ref":"main"}}`, blocks[0].result)
+				},
+			},
+			{
 				name: "ContextCompactionToolCall",
 				messages: []codersdk.ChatMessage{{
 					Role: codersdk.ChatMessageRoleAssistant,
@@ -277,23 +307,28 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
-		longArgs := rawJSON(`{"city":"San Francisco","units":"fahrenheit"}`)
 
-		t.Run("ShowsToolNameWithPrefix", func(t *testing.T) {
+		t.Run("ShowsHumanizedToolNameAndContext", func(t *testing.T) {
 			t.Parallel()
 
-			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{ToolName: "weather"}, 40))
-			require.Contains(t, output, "🔧 weather")
+			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{
+				ToolName: "github__get_pull_request",
+				Args:     rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58036}`),
+			}, 60))
+			require.Contains(t, output, "  ⏳ get pull request")
+			require.Contains(t, output, "(openclaw/openclaw)")
 		})
 
-		t.Run("ShowsTruncatedArgsPreview", func(t *testing.T) {
+		t.Run("ShowsTruncatedCommandPreview", func(t *testing.T) {
 			t.Parallel()
 
-			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{ToolName: "weather", Args: longArgs}, 24))
-			require.Contains(t, output, "🔧 weather")
-			require.Contains(t, output, "city")
+			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{
+				ToolName: "coder_execute_command",
+				Args:     rawJSON(`{"command":"ls -la /tmp/with/a/very/long/path"}`),
+			}, 30))
+			require.Contains(t, output, "⏳ execute command")
+			require.Contains(t, output, `"ls -la`)
 			require.Contains(t, output, "…")
-			require.NotContains(t, output, "fahrenheit")
 		})
 
 		t.Run("ContextCompactionRendersBanner", func(t *testing.T) {
@@ -301,21 +336,21 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{ToolName: contextCompactionToolName}, 40))
 			require.Contains(t, output, "🗜️  Context compacted")
-			require.NotContains(t, output, "🔧")
+			require.NotContains(t, output, "⏳")
 		})
 
 		t.Run("EmptyToolNameFallsBackToTool", func(t *testing.T) {
 			t.Parallel()
 
 			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{Args: rawJSON(`{"x":1}`)}, 40))
-			require.Contains(t, output, "🔧 tool")
+			require.Contains(t, output, "⏳ tool")
 		})
 
 		t.Run("ZeroWidthReturnsJustLabel", func(t *testing.T) {
 			t.Parallel()
 
 			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{ToolName: "weather", Args: rawJSON(`{"x":1}`)}, 0))
-			require.Equal(t, "🔧 weather", output)
+			require.Equal(t, "  ⏳ weather", output)
 		})
 	})
 
@@ -324,18 +359,28 @@ func TestExpAgentsRender(t *testing.T) {
 
 		styles := newTUIStyles()
 
-		t.Run("SuccessShowsCheckPrefix", func(t *testing.T) {
+		t.Run("SuccessShowsCheckPrefixAndArgsContext", func(t *testing.T) {
 			t.Parallel()
 
-			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{ToolName: "weather", Result: rawJSON(`{"ok":true}`)}, 40))
-			require.Contains(t, output, "✓ weather")
+			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{
+				ToolName: "coder_execute_command",
+				Args:     rawJSON(`{"command":"ls -la"}`),
+				Result:   rawJSON(`{"ok":true}`),
+			}, 40))
+			require.Contains(t, output, "✓ execute command")
+			require.Contains(t, output, `"ls -la"`)
 		})
 
-		t.Run("ErrorShowsErrorStyle", func(t *testing.T) {
+		t.Run("ErrorShowsErrorStyleAndMessage", func(t *testing.T) {
 			t.Parallel()
 
-			output := renderToolResult(styles, codersdk.ChatMessagePart{ToolName: "weather", Result: rawJSON(`{"error":"boom"}`), IsError: true}, 40)
-			require.Contains(t, output, styles.errorText.Render("✗ weather"))
+			output := renderToolResult(styles, codersdk.ChatMessagePart{
+				ToolName: "coder_execute_command",
+				Result:   rawJSON(`{"error":"command not found"}`),
+				IsError:  true,
+			}, 40)
+			require.Contains(t, output, styles.errorText.Render("✗ execute command"))
+			require.Contains(t, plainText(output), `"command not found"`)
 		})
 
 		t.Run("ShowsCompactResultPreview", func(t *testing.T) {
@@ -343,7 +388,7 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{ToolName: "weather", Result: rawJSON(`{"forecast":"sunny and warm all afternoon"}`)}, 26))
 			require.Contains(t, output, "✓ weather")
-			require.Contains(t, output, "forecast")
+			require.Contains(t, output, "sunny")
 			require.Contains(t, output, "…")
 			require.NotContains(t, output, "all afternoon")
 		})
@@ -504,8 +549,8 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Parallel()
 
 			output := plainText(renderBlock(styles, chatBlock{kind: blockToolCall, toolName: "read_file", args: `{"path":"a.txt"}`}, false, 60))
-			require.Contains(t, output, "🔧 read_file")
-			require.Contains(t, output, `{"path":"a.txt"}`)
+			require.Contains(t, output, "⏳ read file")
+			require.Contains(t, output, "(a.txt)")
 			require.NotContains(t, output, "\n")
 		})
 
@@ -513,7 +558,8 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Parallel()
 
 			output := plainText(renderBlock(styles, chatBlock{kind: blockToolCall, toolName: "read_file", args: `{"path":"very/long/path.txt","recursive":true}`}, true, 60))
-			require.Contains(t, output, "🔧 read_file")
+			require.Contains(t, output, "⏳ read file")
+			require.Contains(t, output, "args:")
 			require.Contains(t, output, `{"path":"very/long/path.txt","recursive":true}`)
 			require.Contains(t, output, "\n")
 		})
@@ -521,16 +567,19 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Run("ToolResultCollapsedShowsOneLineSummary", func(t *testing.T) {
 			t.Parallel()
 
-			output := plainText(renderBlock(styles, chatBlock{kind: blockToolResult, toolName: "read_file", result: `{"ok":true}`}, false, 60))
-			require.Contains(t, output, "✓ read_file")
+			output := plainText(renderBlock(styles, chatBlock{kind: blockToolResult, toolName: "read_file", args: `{"path":"a.txt"}`, result: `{"ok":true}`}, false, 60))
+			require.Contains(t, output, "✓ read file")
+			require.Contains(t, output, "(a.txt)")
 			require.NotContains(t, output, "\n")
 		})
 
 		t.Run("ToolResultExpandedShowsFullResult", func(t *testing.T) {
 			t.Parallel()
 
-			output := plainText(renderBlock(styles, chatBlock{kind: blockToolResult, toolName: "read_file", result: `{"path":"a.txt","contents":"hello"}`}, true, 60))
-			require.Contains(t, output, "✓ read_file")
+			output := plainText(renderBlock(styles, chatBlock{kind: blockToolResult, toolName: "read_file", args: `{"path":"a.txt"}`, result: `{"path":"a.txt","contents":"hello"}`}, true, 60))
+			require.Contains(t, output, "✓ read file")
+			require.Contains(t, output, "args:")
+			require.Contains(t, output, "result:")
 			require.Contains(t, output, `{"path":"a.txt","contents":"hello"}`)
 			require.Contains(t, output, "\n")
 		})
