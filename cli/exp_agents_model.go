@@ -197,7 +197,8 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay = overlayNone
 		} else {
 			m.overlay = overlayDiffDrawer
-			if m.chat.chat != nil && m.chat.gitChanges == nil {
+			if m.chat.chat != nil && (m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil) {
+				m.chat.diffErr = nil
 				chatID := m.chat.chat.ID
 				return m, tea.Batch(
 					loadGitChangesCmd(m.ctx, m.client, chatID),
@@ -268,8 +269,13 @@ func (m expChatsTUIModel) View() string {
 			base += "\n" + renderModelPicker(m.styles, *m.catalog, selectedID, m.chat.modelPickerCursor, m.width, m.height)
 		}
 	case overlayDiffDrawer:
-		if m.chat.diffContents != nil {
+		switch {
+		case m.chat.diffErr != nil:
+			base += "\n" + renderDiffDrawerError(m.styles, m.chat.diffErr, m.width, m.height)
+		case m.chat.diffContents != nil:
 			base += "\n" + renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.gitChanges, m.width, m.height)
+		default:
+			base += "\n" + renderDiffDrawerLoading(m.styles, m.width, m.height)
 		}
 	}
 

@@ -144,6 +144,7 @@ type chatViewModel struct {
 	diffStatus   *codersdk.ChatDiffStatus
 	gitChanges   []codersdk.ChatGitChange
 	diffContents *codersdk.ChatDiffContents
+	diffErr      error
 
 	modelPickerFlat   []codersdk.ChatModel
 	modelPickerCursor int
@@ -568,6 +569,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		m.chat = &chat
 		m.chatStatus = chat.Status
 		m.diffStatus = chat.DiffStatus
+		m.gitChanges = nil
+		m.diffContents = nil
+		m.diffErr = nil
 		m.err = nil
 		m.loading = false
 		if len(m.messages) > 0 && !m.streaming {
@@ -608,6 +612,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		m.chat = &chat
 		m.chatStatus = chat.Status
 		m.diffStatus = chat.DiffStatus
+		m.gitChanges = nil
+		m.diffContents = nil
+		m.diffErr = nil
 		m.draft = false
 		m.err = nil
 		updated, cmd := m.startStream()
@@ -677,16 +684,20 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, nil
 
 	case gitChangesMsg:
-		if msg.err == nil {
-			m.gitChanges = msg.changes
+		if msg.err != nil {
+			m.diffErr = msg.err
+			return m, nil
 		}
+		m.gitChanges = msg.changes
 		return m, nil
 
 	case diffContentsMsg:
-		if msg.err == nil {
-			diff := msg.diff
-			m.diffContents = &diff
+		if msg.err != nil {
+			m.diffErr = msg.err
+			return m, nil
 		}
+		diff := msg.diff
+		m.diffContents = &diff
 		return m, nil
 
 	default:

@@ -296,6 +296,33 @@ func renderCompaction(styles tuiStyles, width int) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, banner)
 }
 
+func renderDiffDrawerLoading(styles tuiStyles, width, _ int) string {
+	return renderDiffDrawerState(styles, styles.dimmedText.Render("Loading diff…"), width)
+}
+
+func renderDiffDrawerError(styles tuiStyles, err error, width, _ int) string {
+	message := styles.errorText.Render("Failed to load diff.")
+	if err != nil {
+		message = styles.errorText.Render(wrapPreservingNewlines(err.Error(), max(width-6, 1)))
+	}
+	return renderDiffDrawerState(styles, message, width)
+}
+
+func renderDiffDrawerState(styles tuiStyles, body string, width int) string {
+	innerWidth := 80
+	if width > 0 {
+		innerWidth = max(width-6, 1)
+	}
+
+	sections := []string{
+		styles.title.Render("Diff"),
+		body,
+		styles.helpText.Render("Esc to close"),
+	}
+	frame := styles.overlayBorder.Width(innerWidth)
+	return frame.Render(strings.Join(sections, "\n\n"))
+}
+
 func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
 	innerWidth := 80
 	if width > 0 {
@@ -358,6 +385,7 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	}
 
 	lines := []string{styles.title.Render("Select Model")}
+	hasModels := false
 	flatIndex := 0
 	for _, provider := range catalog.Providers {
 		lines = append(lines, styles.subtitle.Render(provider.Provider))
@@ -378,6 +406,7 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 		}
 
 		for _, model := range provider.Models {
+			hasModels = true
 			name := model.DisplayName
 			if strings.TrimSpace(name) == "" {
 				name = model.Model
@@ -394,6 +423,11 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 			lines = append(lines, marker+rowStyle.Render(styles.truncate(name, max(innerWidth-2, 0))))
 			flatIndex++
 		}
+		lines = append(lines, "")
+	}
+
+	if !hasModels {
+		lines = append(lines, styles.dimmedText.Render("No models available."))
 		lines = append(lines, "")
 	}
 
