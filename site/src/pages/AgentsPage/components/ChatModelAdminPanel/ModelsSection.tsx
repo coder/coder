@@ -186,8 +186,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	// end users to bring their own key.
 	const addableProviders = providerStates.filter(
 		(ps) =>
-			ps.providerConfig &&
-			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
+			ps.providerConfigs.length > 0 &&
+			(ps.hasEffectiveAPIKey ||
+				ps.providerConfigs.some((pc) => pc.allow_user_api_key)),
 	);
 
 	const addButton = addableProviders.length > 0 && (

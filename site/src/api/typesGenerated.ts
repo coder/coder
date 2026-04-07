@@ -1664,6 +1664,7 @@ export interface ChatModelCallConfig {
 export interface ChatModelConfig {
 	readonly id: string;
 	readonly provider: string;
+	readonly provider_config_id?: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -1868,6 +1869,7 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
+	readonly has_effective_api_key: boolean;
 	readonly central_api_key_enabled: boolean;
 	readonly allow_user_api_key: boolean;
 	readonly allow_central_api_key_fallback: boolean;
@@ -2381,6 +2383,7 @@ export interface CreateChatMessageResponse {
  */
 export interface CreateChatModelConfigRequest {
 	readonly provider: string;
+	readonly provider_config_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -7214,6 +7217,7 @@ export interface UpdateChatDesktopEnabledRequest {
  */
 export interface UpdateChatModelConfigRequest {
 	readonly provider?: string;
+	readonly provider_config_id?: string | null;
 	readonly model?: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;

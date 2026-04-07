@@ -16,6 +16,7 @@ export type ProviderState = {
 	provider: string;
 	label: string;
 	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	providerConfigs: readonly TypesGen.ChatProviderConfig[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
@@ -33,13 +34,6 @@ type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 const envPresetProviders = new Set(["openai", "anthropic"]);
-
-const hasProviderAPIKey = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-): boolean => {
-	if (!providerConfig) return false;
-	return providerConfig.has_api_key;
-};
 
 const getProviderConfigSource = (
 	providerConfig: TypesGen.ChatProviderConfig | undefined,
@@ -115,12 +109,17 @@ const useProviderStates = (
 
 	const providerConfigsByProvider = new Map<
 		string,
-		TypesGen.ChatProviderConfig
+		TypesGen.ChatProviderConfig[]
 	>();
 	for (const pc of providerConfigsData ?? []) {
 		const normalized = normalizeProvider(pc.provider);
 		if (!normalized) continue;
-		providerConfigsByProvider.set(normalized, pc);
+		const existing = providerConfigsByProvider.get(normalized);
+		if (existing) {
+			existing.push(pc);
+		} else {
+			providerConfigsByProvider.set(normalized, [pc]);
+		}
 	}
 
 	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
@@ -136,7 +135,9 @@ const useProviderStates = (
 	}
 
 	return orderedProviders.map((provider) => {
-		const providerConfigEntry = providerConfigsByProvider.get(provider);
+		const providerConfigsForProvider =
+			providerConfigsByProvider.get(provider) ?? [];
+		const providerConfigEntry = providerConfigsForProvider[0];
 		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
 		const providerConfig = isDatabaseProviderConfig(
 			providerConfigEntry,
@@ -148,8 +149,9 @@ const useProviderStates = (
 		const catalogProviderSource = readOptionalString(
 			(catalogProvider as CatalogProvider & { source?: string })?.source,
 		);
-		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
+		const hasManagedAPIKey = providerConfigsForProvider.some(
+			(pc) => pc.has_api_key,
+		);
 		const hasCatalogAPIKey = catalogProvider
 			? providerHasCatalogAPIKey(catalogProvider)
 			: false;
@@ -162,19 +164,22 @@ const useProviderStates = (
 			envPresetProviders.has(provider) &&
 			(catalogProviderSource === "env" || hasCatalogAPIKey);
 		const isEnvPreset =
-			providerConfigSource === "env_preset" || isCatalogEnvPreset;
+			providerConfigsForProvider.some((pc) => pc.source === "env_preset") ||
+			isCatalogEnvPreset;
 
 		return {
 			provider,
 			label,
 			providerConfig,
+			providerConfigs: providerConfigsForProvider,
 			modelConfigs: modelConfigsForProvider,
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
-			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey
-				: hasManagedAPIKey || hasCatalogAPIKey,
+			hasEffectiveAPIKey:
+				providerConfigsForProvider.length > 0
+					? providerConfigsForProvider.some((pc) => pc.has_api_key)
+					: hasManagedAPIKey || hasCatalogAPIKey,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(providerConfigEntry),
 		};

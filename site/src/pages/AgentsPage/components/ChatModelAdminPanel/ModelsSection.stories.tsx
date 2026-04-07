@@ -5,23 +5,27 @@ import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 
+const existingProviderConfig: TypesGen.ChatProviderConfig = {
+	id: "provider-config-id",
+	provider: "openai",
+	display_name: "OpenAI",
+	enabled: true,
+	has_api_key: true,
+	has_effective_api_key: true,
+	central_api_key_enabled: true,
+	allow_user_api_key: false,
+	allow_central_api_key_fallback: false,
+	base_url: undefined,
+	source: "database",
+	created_at: "2025-01-01T00:00:00Z",
+	updated_at: "2025-01-01T00:00:00Z",
+};
+
 const providerState: ProviderState = {
 	provider: "openai",
 	label: "OpenAI",
-	providerConfig: {
-		id: "provider-config-id",
-		provider: "openai",
-		display_name: "OpenAI",
-		enabled: true,
-		has_api_key: true,
-		central_api_key_enabled: true,
-		allow_user_api_key: false,
-		allow_central_api_key_fallback: false,
-		base_url: undefined,
-		source: "database",
-		created_at: "2025-01-01T00:00:00Z",
-		updated_at: "2025-01-01T00:00:00Z",
-	},
+	providerConfig: existingProviderConfig,
+	providerConfigs: [existingProviderConfig],
 	modelConfigs: [],
 	catalogModelCount: 0,
 	hasManagedAPIKey: true,

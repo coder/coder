@@ -120,11 +120,29 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showPricing, setShowPricing] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-
+	const selectedProviderConfigs = selectedProviderState?.providerConfigs ?? [];
+	const getInitialSelectedConfigId = (): string => {
+		if (editingModel?.provider_config_id) {
+			const boundConfig = selectedProviderConfigs.find(
+				(config) => config.id === editingModel.provider_config_id,
+			);
+			if (boundConfig) {
+				return boundConfig.id;
+			}
+		}
+		if (selectedProviderConfigs.length === 1) {
+			return selectedProviderConfigs[0].id;
+		}
+		return "";
+	};
+	const [selectedConfigId, setSelectedConfigId] = useState<string>(
+		getInitialSelectedConfigId,
+	);
 	const canManageModels = Boolean(
-		selectedProviderState?.providerConfig &&
+		selectedProviderState &&
+			selectedProviderConfigs.length > 0 &&
 			(selectedProviderState.hasEffectiveAPIKey ||
-				selectedProviderState.providerConfig.allow_user_api_key),
+				selectedProviderConfigs.some((config) => config.allow_user_api_key)),
 	);
 
 	const form = useFormik<ModelFormValues>({
@@ -175,18 +193,29 @@ export const ModelForm: FC<ModelFormProps> = ({
 					...(values.isDefault !== editingModel.is_default && {
 						is_default: values.isDefault,
 					}),
+					...(selectedConfigId !== (editingModel.provider_config_id ?? "") && {
+						provider_config_id: selectedConfigId || null,
+					}),
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
 				};
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!selectedProviderState || selectedProviderConfigs.length === 0) {
+					return;
+				}
+				if (selectedProviderConfigs.length > 1 && !selectedConfigId) {
+					return;
+				}
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
 					model: trimmedModel,
 					enabled: true,
+					...(selectedConfigId && {
+						provider_config_id: selectedConfigId,
+					}),
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -221,6 +250,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const hasFieldErrors =
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
+	const requiresConfigSelection =
+		!isEditing && selectedProviderConfigs.length > 1 && !selectedConfigId;
 	const defaultModelDisableGuard = isDefaultModel && form.values.enabled;
 
 	// ── Provider select (shared across all form states) ───────
@@ -257,6 +288,50 @@ export const ModelForm: FC<ModelFormProps> = ({
 			</Select>
 		</div>
 	);
+	const unboundConfigValue = "__unbound__";
+	const configSelect =
+		selectedProviderConfigs.length > 1 ? (
+			<div className="grid gap-1.5">
+				<Label
+					htmlFor="configSelect"
+					className="text-[13px] font-medium text-content-primary"
+				>
+					Configuration
+				</Label>
+				<Select
+					value={selectedConfigId || (isEditing ? unboundConfigValue : "")}
+					onValueChange={(value) => {
+						setSelectedConfigId(value === unboundConfigValue ? "" : value);
+					}}
+				>
+					<SelectTrigger
+						id="configSelect"
+						className="h-10 max-w-[240px] text-[13px]"
+					>
+						<SelectValue placeholder="Select configuration" />
+					</SelectTrigger>
+					<SelectContent>
+						{isEditing && (
+							<SelectItem value={unboundConfigValue}>
+								No configuration
+							</SelectItem>
+						)}
+						{selectedProviderConfigs.map((config) => (
+							<SelectItem key={config.id} value={config.id}>
+								{config.display_name ||
+									config.base_url ||
+									config.id.slice(0, 8)}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{requiresConfigSelection && (
+					<p className="m-0 text-xs text-content-destructive">
+						Select a configuration before adding a model.
+					</p>
+				)}
+			</div>
+		) : null;
 
 	// No provider selected or configs unavailable.
 	if (!selectedProviderState || modelConfigsUnavailable) {
@@ -274,7 +349,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
-				<div className="space-y-3">{providerSelect}</div>
+				<div className="space-y-3">
+					{providerSelect}
+					{configSelect}
+				</div>
 			</div>
 		);
 	}
@@ -297,8 +375,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
+					{configSelect}
 					<p className="text-sm text-content-secondary">
-						{!selectedProviderState.providerConfig
+						{selectedProviderConfigs.length === 0
 							? "Create a managed provider config on the Providers tab before adding models."
 							: "Set an API key for this provider on the Providers tab before adding models."}
 					</p>
@@ -389,6 +468,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
+					{configSelect}
 					{/* Model ID + Context Limit + Pricing */}
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
@@ -659,7 +739,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 						<Button
 							size="lg"
 							type="submit"
-							disabled={isSaving || !form.isValid || hasFieldErrors}
+							disabled={
+								isSaving ||
+								!form.isValid ||
+								hasFieldErrors ||
+								requiresConfigSelection
+							}
 						>
 							{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
 							{isEditing ? "Save" : "Add model"}

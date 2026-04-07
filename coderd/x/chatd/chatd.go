@@ -1853,10 +1853,11 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		resolvedKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -1885,10 +1886,11 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		resolvedKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -4994,8 +4996,9 @@ func (p *Server) resolveChatModel(
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
 
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, dbConfig, keys)
 	model, err := chatprovider.ModelFromConfig(
-		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
+		dbConfig.Provider, dbConfig.Model, resolvedKeys, chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
 	if err != nil {
@@ -5003,7 +5006,52 @@ func (p *Server) resolveChatModel(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, keys, nil
+	return model, dbConfig, resolvedKeys, nil
+}
+
+func (p *Server) resolveProviderAPIKeysForModel(
+	ctx context.Context,
+	modelConfig database.ChatModelConfig,
+	baseKeys chatprovider.ProviderAPIKeys,
+) chatprovider.ProviderAPIKeys {
+	if !modelConfig.ProviderConfigID.Valid {
+		return baseKeys
+	}
+
+	providers, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load enabled providers for model binding",
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
+			slog.Error(err),
+		)
+		return baseKeys
+	}
+
+	for _, providerConfig := range providers {
+		if providerConfig.ID != modelConfig.ProviderConfigID.UUID {
+			continue
+		}
+		resolved := chatprovider.MergeProviderAPIKeys(baseKeys, []chatprovider.ConfiguredProvider{{
+			Provider: providerConfig.Provider,
+			APIKey:   providerConfig.APIKey,
+			BaseURL:  providerConfig.BaseUrl,
+		}})
+		// If the bound config provides an API key but no base URL,
+		// drop any inherited family base URL so requests go to the
+		// provider's default endpoint.
+		if strings.TrimSpace(providerConfig.APIKey) != "" &&
+			strings.TrimSpace(providerConfig.BaseUrl) == "" &&
+			resolved.BaseURLByProvider != nil {
+			delete(
+				resolved.BaseURLByProvider,
+				chatprovider.NormalizeProvider(providerConfig.Provider),
+			)
+		}
+		return resolved
+	}
+
+	return baseKeys
 }
 
 func (p *Server) resolveUserProviderAPIKeys(

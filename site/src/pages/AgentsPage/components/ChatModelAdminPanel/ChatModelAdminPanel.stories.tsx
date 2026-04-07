@@ -22,6 +22,8 @@ const createProviderConfig = (
 	display_name: overrides.display_name ?? "",
 	enabled: overrides.enabled ?? true,
 	has_api_key: overrides.has_api_key ?? false,
+	has_effective_api_key:
+		overrides.has_effective_api_key ?? overrides.has_api_key ?? false,
 	central_api_key_enabled: overrides.central_api_key_enabled ?? true,
 	allow_user_api_key: overrides.allow_user_api_key ?? false,
 	allow_central_api_key_fallback:
@@ -38,6 +40,7 @@ const createModelConfig = (
 ): TypesGen.ChatModelConfig => ({
 	id: overrides.id,
 	provider: overrides.provider,
+	provider_config_id: overrides.provider_config_id ?? undefined,
 	model: overrides.model,
 	display_name: overrides.display_name ?? overrides.model,
 	enabled: overrides.enabled ?? true,
@@ -89,10 +92,7 @@ const setupChatSpies = (state: {
 				base_url: req.base_url ?? "",
 				source: "database",
 			});
-			state.providerConfigs = [
-				...state.providerConfigs.filter((p) => p.provider !== req.provider),
-				created,
-			];
+			state.providerConfigs = [...state.providerConfigs, created];
 			return created;
 		},
 	);
@@ -144,6 +144,7 @@ const setupChatSpies = (state: {
 			const created = createModelConfig({
 				id: `model-${state.modelConfigs.length + 1}`,
 				provider: req.provider,
+				provider_config_id: req.provider_config_id,
 				model: req.model,
 				display_name: req.display_name || req.model,
 				enabled: req.enabled ?? true,
@@ -187,6 +188,10 @@ const setupChatSpies = (state: {
 			const updated = createModelConfig({
 				...current,
 				...req,
+				provider_config_id:
+					req.provider_config_id === null
+						? undefined
+						: (req.provider_config_id ?? current.provider_config_id),
 				id: current.id,
 				provider: current.provider,
 				model: current.model,
@@ -255,7 +260,7 @@ export const ProviderAccordionCards: Story = {
 		expect(body.queryByText("OpenAI")).not.toBeInTheDocument();
 
 		await userEvent.click(body.getByRole("button", { name: /OpenRouter/i }));
-		await expect(await body.findByLabelText("Base URL")).toBeInTheDocument();
+		await expect(body.getByLabelText("Base URL")).toBeInTheDocument();
 	},
 };
 
@@ -329,6 +334,102 @@ export const EnvPresetProviders: Story = {
 	},
 };
 
+export const MultiConfigProvider: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "openai-config-1",
+				provider: "openai",
+				display_name: "OpenAI (Production)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://api.openai.com/v1",
+				source: "database",
+			}),
+			createProviderConfig({
+				id: "openai-config-2",
+				provider: "openai",
+				display_name: "OpenAI (Staging)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://staging.openai.example.com/v1",
+				source: "database",
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-gpt4-staging",
+				provider: "openai",
+				provider_config_id: "openai-config-2",
+				model: "gpt-4.1",
+				display_name: "GPT-4.1 (Staging)",
+				enabled: true,
+				context_limit: 128000,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Provider should be visible in the list.
+		await expect(
+			await body.findByRole("button", { name: /OpenAI/i }),
+		).toBeInTheDocument();
+
+		// Click into the provider detail.
+		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
+
+		// The config selector should be visible since there are 2 configs.
+		await expect(await body.findByText("Configuration")).toBeInTheDocument();
+	},
+};
+
+export const MultiConfigModelBinding: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "openai-config-prod",
+				provider: "openai",
+				display_name: "OpenAI (Production)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://api.openai.com/v1",
+				source: "database",
+			}),
+			createProviderConfig({
+				id: "openai-config-staging",
+				provider: "openai",
+				display_name: "OpenAI (Staging)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://staging.openai.example.com/v1",
+				source: "database",
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-gpt4-staging",
+				provider: "openai",
+				provider_config_id: "openai-config-staging",
+				model: "gpt-4.1",
+				display_name: "GPT-4.1 (Staging)",
+				enabled: true,
+				context_limit: 128000,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The model should be visible in the list.
+		await expect(
+			await body.findByText("GPT-4.1 (Staging)"),
+		).toBeInTheDocument();
+	},
+};
+
 export const CreateAndUpdateProvider: Story = {
 	render: function CreateAndUpdateProvider(args) {
 		const [providerConfigsData, setProviderConfigsData] = useState(
@@ -350,10 +451,7 @@ export const CreateAndUpdateProvider: Story = {
 					base_url: req.base_url ?? "",
 					source: "database",
 				});
-				setProviderConfigsData((current) => [
-					...(current ?? []).filter((p) => p.provider !== req.provider),
-					created,
-				]);
+				setProviderConfigsData((current) => [...(current ?? []), created]);
 				return result;
 			};
 
