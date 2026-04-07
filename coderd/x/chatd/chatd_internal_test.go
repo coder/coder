@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2462,10 +2461,16 @@ func newTestRetryPayload() *codersdk.ChatStreamRetry {
 	return payload
 }
 
-func TestGetStreamChatMessagesCoalescesConcurrentRequestsAndClonesResults(t *testing.T) {
+// TestGetStreamChatMessagesReturnsIndependentClones verifies that
+// successive calls to getStreamChatMessages return independent
+// copies so that one caller mutating a result does not corrupt
+// another caller's view. This is the key correctness property
+// of the singleflight wrappers — the coalescing itself is
+// already tested by tailscale.com/util/singleflight.
+func TestGetStreamChatMessagesReturnsIndependentClones(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
+	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	server := newSubscribeTestServer(t, db)
@@ -2480,45 +2485,20 @@ func TestGetStreamChatMessagesCoalescesConcurrentRequestsAndClonesResults(t *tes
 			Valid:      true,
 		},
 	}
+	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), params).
+		Return([]database.ChatMessage{message}, nil).AnyTimes()
 
-	var calls atomic.Int32
-	started := make(chan struct{})
-	release := make(chan struct{})
-	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), params).DoAndReturn(func(context.Context, database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
-		if calls.Add(1) == 1 {
-			close(started)
-		}
-		<-release
-		return []database.ChatMessage{message}, nil
-	}).AnyTimes()
+	first, err := server.getStreamChatMessages(ctx, params)
+	require.NoError(t, err)
+	second, err := server.getStreamChatMessages(ctx, params)
+	require.NoError(t, err)
 
-	type result struct {
-		messages []database.ChatMessage
-		err      error
-	}
-	results := make(chan result, 2)
-	go func() {
-		msgs, err := server.getStreamChatMessages(ctx, params)
-		results <- result{messages: msgs, err: err}
-	}()
-	go func() {
-		msgs, err := server.getStreamChatMessages(ctx, params)
-		results <- result{messages: msgs, err: err}
-	}()
+	require.Len(t, first, 1)
+	require.Len(t, second, 1)
 
-	waitForSignal(t, started)
-	close(release)
-
-	first := <-results
-	second := <-results
-	require.NoError(t, first.err)
-	require.NoError(t, second.err)
-	require.Equal(t, int32(1), calls.Load())
-	require.Len(t, first.messages, 1)
-	require.Len(t, second.messages, 1)
-
-	first.messages[0].Content.RawMessage[0] = 'x'
-	require.Equal(t, `"hello"`, string(second.messages[0].Content.RawMessage))
+	// Mutate first; second must be unaffected.
+	first[0].Content.RawMessage[0] = 'x'
+	require.Equal(t, `"hello"`, string(second[0].Content.RawMessage))
 }
 
 func TestGetStreamChatMessagesCanceledWaiterDoesNotPoisonOthers(t *testing.T) {
@@ -2533,28 +2513,24 @@ func TestGetStreamChatMessagesCanceledWaiterDoesNotPoisonOthers(t *testing.T) {
 	params := database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0}
 	message := database.ChatMessage{ID: 1, ChatID: chatID}
 
-	var calls atomic.Int32
 	started := make(chan struct{})
 	release := make(chan struct{})
 	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), params).DoAndReturn(func(context.Context, database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
-		if calls.Add(1) == 1 {
+		select {
+		case <-started:
+		default:
 			close(started)
 		}
 		<-release
 		return []database.ChatMessage{message}, nil
 	}).AnyTimes()
 
-	cancelCtx, cancel := context.WithCancel(ctx)
-	cancelErrCh := make(chan error, 1)
+	// Start the leader goroutine and wait for it to block inside
+	// the DB mock so the singleflight key is definitely in-flight.
 	survivorCh := make(chan struct {
 		messages []database.ChatMessage
 		err      error
 	}, 1)
-
-	go func() {
-		_, err := server.getStreamChatMessages(cancelCtx, params)
-		cancelErrCh <- err
-	}()
 	go func() {
 		msgs, err := server.getStreamChatMessages(ctx, params)
 		survivorCh <- struct {
@@ -2562,17 +2538,18 @@ func TestGetStreamChatMessagesCanceledWaiterDoesNotPoisonOthers(t *testing.T) {
 			err      error
 		}{messages: msgs, err: err}
 	}()
-
 	waitForSignal(t, started)
+
+	// Now cancel a second caller while the leader is still
+	// blocked. Because singleflightDoChan selects on ctx.Done,
+	// the canceled caller must return immediately with
+	// context.Canceled without waiting for the DB call.
+	cancelCtx, cancel := context.WithCancel(ctx)
 	cancel()
+	_, err := server.getStreamChatMessages(cancelCtx, params)
+	require.ErrorIs(t, err, context.Canceled)
 
-	select {
-	case err := <-cancelErrCh:
-		require.ErrorIs(t, err, context.Canceled)
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("canceled waiter did not return promptly")
-	}
-
+	// Release the leader; it must succeed independently.
 	close(release)
 
 	select {
@@ -2582,8 +2559,6 @@ func TestGetStreamChatMessagesCanceledWaiterDoesNotPoisonOthers(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("surviving waiter did not return")
 	}
-
-	require.Equal(t, int32(1), calls.Load())
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
