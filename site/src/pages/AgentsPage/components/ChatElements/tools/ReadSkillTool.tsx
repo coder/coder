@@ -58,15 +58,10 @@ export const ReadSkillTool: React.FC<{
 					</div>
 				</ScrollArea>
 			)}
-			{files.length > 0 && (
-				<ul className="mt-1.5 flex flex-col gap-0.5 text-xs text-content-secondary">
-					{files.map((file) => (
-						<li key={file} className="truncate">
-							{file}
-						</li>
-					))}
-				</ul>
-			)}
-		</ToolCollapsible>
-	);
+				{files.length > 0 && (
+					<p className="mt-1.5 truncate text-xs text-content-secondary">
+						Supporting files: {files.join(", ")}
+					</p>
+				)}
+			</ToolCollapsible>	);
 };
