@@ -582,6 +582,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.loading = false
 			return m, nil
 		}
+		m.err = nil
 		m.messages = msg.messages
 		for i := len(m.messages) - 1; i >= 0; i-- {
 			if m.messages[i].Usage != nil {
@@ -640,6 +641,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 
 	case chatStreamEventMsg:
 		if msg.err != nil {
+			if !xerrors.Is(msg.err, io.EOF) {
+				m.err = msg.err
+			}
 			m.streaming = false
 			m.streamCloser = nil
 			m.streamEventCh = nil
@@ -647,6 +651,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 				m.reconnecting = true
 				(&m).syncViewportContent()
 				updated, cmd := m.startStream()
+				if updated.streaming {
+					updated.err = nil
+				}
 				return updated, startSpinner(updated, cmd)
 			}
 			return m, nil

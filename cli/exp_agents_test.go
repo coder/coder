@@ -248,6 +248,23 @@ func TestExpAgents(t *testing.T) {
 			require.False(t, updated.loading)
 		})
 
+		t.Run("ChatOpenedErrorThenRetrySucceeds", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, cmd := model.Update(chatOpenedMsg{err: xerrors.New("open failed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+
+			chat := testChat(codersdk.ChatStatusRunning)
+			updated, cmd = updated.Update(chatOpenedMsg{chat: chat})
+			require.NotNil(t, cmd)
+			require.NotNil(t, updated.chat)
+			require.Equal(t, chat.ID, updated.chat.ID)
+			require.Nil(t, updated.err)
+		})
+
 		t.Run("ChatHistoryStoresMessagesRebuildsBlocksAndTracksLastUsage", func(t *testing.T) {
 			t.Parallel()
 
@@ -286,6 +303,62 @@ func TestExpAgents(t *testing.T) {
 			require.NotNil(t, updated.err)
 			require.Equal(t, "history failed", updated.err.Error())
 			require.False(t, updated.loading)
+		})
+
+		t.Run("HistoryErrorThenRetrySucceeds", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, cmd := model.Update(chatHistoryMsg{err: xerrors.New("history failed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+
+			messages := []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "recovered"}),
+			}
+			updated, cmd = updated.Update(chatHistoryMsg{messages: messages})
+			require.Nil(t, cmd)
+			require.Equal(t, messages, updated.messages)
+			require.Len(t, updated.blocks, 1)
+			require.Nil(t, updated.err)
+		})
+
+		t.Run("ChatHistoryNilMessagesDoesNotPanic", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing"}),
+			}
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 1)
+
+			var updated chatViewModel
+			require.NotPanics(t, func() {
+				updated, _ = model.Update(chatHistoryMsg{messages: nil})
+			})
+			require.Nil(t, updated.messages)
+			require.Empty(t, updated.blocks)
+		})
+
+		t.Run("ChatHistoryEmptyMessagesIsHandled", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing"}),
+			}
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 1)
+
+			var updated chatViewModel
+			require.NotPanics(t, func() {
+				updated, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{}})
+			})
+			require.NotNil(t, updated.messages)
+			require.Empty(t, updated.messages)
+			require.Empty(t, updated.blocks)
 		})
 	})
 
@@ -409,6 +482,71 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, updated.reconnecting)
 		})
 
+		t.Run("StreamEventWithNilPartIsIgnored", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing"}),
+			}
+			model.rebuildBlocks()
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: nil,
+			}})
+			require.Nil(t, cmd)
+			require.Equal(t, model.messages, updated.messages)
+			require.Equal(t, model.blocks, updated.blocks)
+			require.False(t, updated.accumulator.isPending())
+		})
+
+		t.Run("StreamEventErrorShowsInView", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.loading = false
+
+			updated, cmd := model.Update(chatStreamEventMsg{err: xerrors.New("websocket closed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			require.Contains(t, updated.View(), "websocket closed")
+		})
+
+		t.Run("MultipleStreamErrorsOnlyShowLatest", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.loading = false
+
+			updated, _ := model.Update(chatStreamEventMsg{err: xerrors.New("first error")})
+			updated, cmd := updated.Update(chatStreamEventMsg{err: xerrors.New("second error")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			view := updated.View()
+			require.Contains(t, view, "second error")
+			require.NotContains(t, view, "first error")
+		})
+
+		t.Run("MessageDeduplicationWithAccumulatorPending", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, _ := model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
+			message := testMessage(12, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "final"})
+
+			updated, cmd := updated.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:    codersdk.ChatStreamEventTypeMessage,
+				Message: &message,
+			}})
+			require.Nil(t, cmd)
+			require.Len(t, updated.messages, 1)
+			require.False(t, updated.accumulator.isPending())
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "final", updated.blocks[0].text)
+		})
+
 		t.Run("EOFStopsStreamingAndAttemptsReconnectWhenInterruptible", func(t *testing.T) {
 			t.Parallel()
 
@@ -488,6 +626,52 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "send failed", updated.err.Error())
 			require.Equal(t, "keep me", updated.composer.Value())
 		})
+
+		t.Run("SendErrorAllowsRetry", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			model.loading = false
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat = &chat
+			model.chatStatus = chat.Status
+			model.composer.SetValue("keep me")
+
+			updated, cmd := model.Update(messageSentMsg{err: xerrors.New("send failed")})
+			require.Nil(t, cmd)
+			require.Equal(t, "keep me", updated.composer.Value())
+			require.Contains(t, updated.View(), "send failed")
+
+			updated.composer.SetValue("retry me")
+			retried, retryCmd := updated.sendMessage()
+			require.NotNil(t, retryCmd)
+			require.True(t, retried.autoFollow)
+			require.Empty(t, retried.composer.Value())
+			_, ok := mustMsg(t, retryCmd).(messageSentMsg)
+			require.True(t, ok)
+		})
+
+		t.Run("CreateChatErrorAllowsRetry", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			model.loading = false
+			model.draft = true
+			model.composer.SetValue("keep draft")
+
+			updated, cmd := model.Update(chatCreatedMsg{err: xerrors.New("create failed")})
+			require.Nil(t, cmd)
+			require.True(t, updated.draft)
+			require.Contains(t, updated.View(), "create failed")
+
+			updated.composer.SetValue("retry draft")
+			retried, retryCmd := updated.sendMessage()
+			require.NotNil(t, retryCmd)
+			require.True(t, retried.draft)
+			require.Empty(t, retried.composer.Value())
+			_, ok := mustMsg(t, retryCmd).(chatCreatedMsg)
+			require.True(t, ok)
+		})
 	})
 
 	t.Run("ChatView/SendMessageEnablesAutoFollow", func(t *testing.T) {
@@ -554,6 +738,33 @@ func TestExpAgents(t *testing.T) {
 			require.False(t, updated.interrupting)
 			require.NotNil(t, updated.err)
 			require.Equal(t, "interrupt failed", updated.err.Error())
+		})
+
+		t.Run("DoubleInterruptIsNoOp", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusRunning
+			model.interrupting = true
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlI})
+			require.Nil(t, cmd)
+			require.True(t, updated.interrupting)
+		})
+
+		t.Run("InterruptOnIdleChatIsNoOp", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusCompleted
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlI})
+			require.Nil(t, cmd)
+			require.False(t, updated.interrupting)
 		})
 	})
 
