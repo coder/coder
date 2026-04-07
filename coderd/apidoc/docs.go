@@ -9828,7 +9828,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-aws-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9867,7 +9867,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-azure-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9934,7 +9934,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-google-cloud-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,

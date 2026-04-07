@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/coder/coder/v2/coderd/awsidentity"
@@ -26,7 +29,7 @@ import (
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body agentsdk.AzureInstanceIdentityToken true "Instance identity token"
+// @Param request body agentsdk.AzureInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
 // @Router /workspaceagents/azure-instance-identity [post]
 func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
@@ -45,7 +48,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 		})
 		return
 	}
-	api.handleAuthInstanceID(rw, r, instanceID)
+	api.handleAuthInstanceID(rw, r, instanceID, req.AgentName)
 }
 
 // AWS supports instance identity verification:
@@ -58,7 +61,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body agentsdk.AWSInstanceIdentityToken true "Instance identity token"
+// @Param request body agentsdk.AWSInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
 // @Router /workspaceagents/aws-instance-identity [post]
 func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
@@ -75,7 +78,7 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 		})
 		return
 	}
-	api.handleAuthInstanceID(rw, r, identity.InstanceID)
+	api.handleAuthInstanceID(rw, r, identity.InstanceID, req.AgentName)
 }
 
 // Google Compute Engine supports instance identity verification:
@@ -88,7 +91,7 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body agentsdk.GoogleInstanceIdentityToken true "Instance identity token"
+// @Param request body agentsdk.GoogleInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
 // @Router /workspaceagents/google-instance-identity [post]
 func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
@@ -122,28 +125,92 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 		})
 		return
 	}
-	api.handleAuthInstanceID(rw, r, claims.Google.ComputeEngine.InstanceID)
+	api.handleAuthInstanceID(rw, r, claims.Google.ComputeEngine.InstanceID, req.AgentName)
 }
 
-func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
+func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string, agentName string) {
 	ctx := r.Context()
-	//nolint:gocritic // needed for auth instance id
-	agent, err := api.Database.GetWorkspaceAgentByInstanceID(dbauthz.AsSystemRestricted(ctx), instanceID)
-	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
+	// Instance identity auth happens before the agent has a session token, so
+	// these lookups must use a restricted system context.
+	//nolint:gocritic // Instance identity auth happens before agent auth.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	var agent database.WorkspaceAgent
+
+	if agentName != "" {
+		var err error
+		agent, err = api.Database.GetWorkspaceAgentByInstanceIDAndName(systemCtx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
+			AuthInstanceID: instanceID,
+			Name:           agentName,
 		})
-		return
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job agent.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		// Start with the legacy lookup so we stay anchored to a workspace build
+		// agent instead of template-version agents that share the same instance ID.
+		selectedAgent, err := api.Database.GetWorkspaceAgentByInstanceID(systemCtx, instanceID)
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job agent.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(systemCtx, []uuid.UUID{selectedAgent.ResourceID})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job agent.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		matchingAgents := make([]database.WorkspaceAgent, 0, len(resourceAgents))
+		for _, candidate := range resourceAgents {
+			if candidate.ParentID.Valid {
+				continue
+			}
+			if !candidate.AuthInstanceID.Valid || candidate.AuthInstanceID.String != instanceID {
+				continue
+			}
+			matchingAgents = append(matchingAgents, candidate)
+		}
+
+		if len(matchingAgents) > 1 {
+			names := make([]string, len(matchingAgents))
+			for i, candidate := range matchingAgents {
+				names[i] = candidate.Name
+			}
+			sort.Strings(names)
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf(
+					"Multiple agents found with instance ID %q. Set CODER_AGENT_NAME to one of: %s",
+					instanceID,
+					strings.Join(names, ", "),
+				),
+			})
+			return
+		}
+		agent = selectedAgent
 	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	//nolint:gocritic // needed for auth instance id
-	resource, err := api.Database.GetWorkspaceResourceByID(dbauthz.AsSystemRestricted(ctx), agent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, agent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job resource.",
@@ -151,8 +218,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	//nolint:gocritic // needed for auth instance id
-	job, err := api.Database.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), resource.JobID)
+	job, err := api.Database.GetProvisionerJobByID(systemCtx, resource.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -175,8 +241,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	//nolint:gocritic // needed for auth instance id
-	resourceHistory, err := api.Database.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), jobData.WorkspaceBuildID)
+	resourceHistory, err := api.Database.GetWorkspaceBuildByID(systemCtx, jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace build.",
@@ -187,8 +252,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
-	//nolint:gocritic // needed for auth instance id
-	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), resourceHistory.WorkspaceID)
+	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching the latest workspace build.",

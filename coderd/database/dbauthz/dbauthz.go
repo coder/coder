@@ -4272,20 +4272,6 @@ func (q *querier) GetWorkspaceAgentByInstanceIDAndName(ctx context.Context, arg 
 	return agent, nil
 }
 
-func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
-	agents, err := q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
-	if err != nil {
-		return nil, err
-	}
-	for _, agent := range agents {
-		_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return agents, nil
-}
-
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
 	if err != nil {
@@ -4373,6 +4359,20 @@ func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt tim
 
 func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
+}
+
+func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
+	agents, err := q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, agent := range agents {
+		_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
 }
 
 func (q *querier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {

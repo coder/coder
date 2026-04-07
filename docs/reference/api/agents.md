@@ -66,9 +66,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description             |
-|--------|------|----------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [agentsdk.AWSInstanceIdentityToken](schemas.md#agentsdkawsinstanceidentitytoken) | true     | Instance identity token |
+| Name   | In   | Type                                                                             | Required | Description                                                                                                           |
+|--------|------|----------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [agentsdk.AWSInstanceIdentityToken](schemas.md#agentsdkawsinstanceidentitytoken) | true     | Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID. |
 
 ### Example responses
 
@@ -114,9 +114,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ### Parameters
 
-| Name   | In   | Type                                                                                 | Required | Description             |
-|--------|------|--------------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [agentsdk.AzureInstanceIdentityToken](schemas.md#agentsdkazureinstanceidentitytoken) | true     | Instance identity token |
+| Name   | In   | Type                                                                                 | Required | Description                                                                                                           |
+|--------|------|--------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [agentsdk.AzureInstanceIdentityToken](schemas.md#agentsdkazureinstanceidentitytoken) | true     | Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID. |
 
 ### Example responses
 
@@ -161,9 +161,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description             |
-|--------|------|----------------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [agentsdk.GoogleInstanceIdentityToken](schemas.md#agentsdkgoogleinstanceidentitytoken) | true     | Instance identity token |
+| Name   | In   | Type                                                                                   | Required | Description                                                                                                           |
+|--------|------|----------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [agentsdk.GoogleInstanceIdentityToken](schemas.md#agentsdkgoogleinstanceidentitytoken) | true     | Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID. |
 
 ### Example responses
 
