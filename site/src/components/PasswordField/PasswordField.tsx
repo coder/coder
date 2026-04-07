@@ -44,14 +44,14 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 		<div className="flex flex-col items-start gap-2">
 			<Label htmlFor={field.id}>{label}</Label>
 			<Input
-				{...props}
 				id={field.id}
 				type="password"
-				value={field.value}
-				aria-invalid={!valid || undefined}
 				name={field.name}
+				value={field.value}
 				onChange={field.onChange}
 				onBlur={field.onBlur}
+				{...props}
+				aria-invalid={!valid || undefined}
 			/>
 			{displayHelper && (
 				<span
