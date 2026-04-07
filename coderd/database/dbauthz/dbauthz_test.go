@@ -5346,19 +5346,20 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
 			Returns(secret)
 	}))
-	s.Run("GetUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		secret := testutil.Fake(s.T(), faker, database.UserSecret{})
-		dbm.EXPECT().GetUserSecret(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
-		check.Args(secret.ID).
-			Asserts(secret, policy.ActionRead).
-			Returns(secret)
-	}))
 	s.Run("ListUserSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
-		dbm.EXPECT().ListUserSecrets(gomock.Any(), user.ID).Return([]database.UserSecret{secret}, nil).AnyTimes()
+		row := testutil.Fake(s.T(), faker, database.ListUserSecretsRow{UserID: user.ID})
+		dbm.EXPECT().ListUserSecrets(gomock.Any(), user.ID).Return([]database.ListUserSecretsRow{row}, nil).AnyTimes()
 		check.Args(user.ID).
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns([]database.ListUserSecretsRow{row})
+	}))
+	s.Run("ListUserSecretsWithValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		dbm.EXPECT().ListUserSecretsWithValues(gomock.Any(), user.ID).Return([]database.UserSecret{secret}, nil).AnyTimes()
+		check.Args(user.ID).
+			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.UserSecret{secret})
 	}))
 	s.Run("CreateUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -5370,22 +5371,21 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionCreate).
 			Returns(ret)
 	}))
-	s.Run("UpdateUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		secret := testutil.Fake(s.T(), faker, database.UserSecret{})
-		updated := testutil.Fake(s.T(), faker, database.UserSecret{ID: secret.ID})
-		arg := database.UpdateUserSecretParams{ID: secret.ID}
-		dbm.EXPECT().GetUserSecret(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
-		dbm.EXPECT().UpdateUserSecret(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+	s.Run("UpdateUserSecretByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		updated := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		arg := database.UpdateUserSecretByUserIDAndNameParams{UserID: user.ID, Name: "test"}
+		dbm.EXPECT().UpdateUserSecretByUserIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(secret, policy.ActionUpdate).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionUpdate).
 			Returns(updated)
 	}))
-	s.Run("DeleteUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		secret := testutil.Fake(s.T(), faker, database.UserSecret{})
-		dbm.EXPECT().GetUserSecret(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
-		dbm.EXPECT().DeleteUserSecret(gomock.Any(), secret.ID).Return(nil).AnyTimes()
-		check.Args(secret.ID).
-			Asserts(secret, policy.ActionRead, secret, policy.ActionDelete).
+	s.Run("DeleteUserSecretByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.DeleteUserSecretByUserIDAndNameParams{UserID: user.ID, Name: "test"}
+		dbm.EXPECT().DeleteUserSecretByUserIDAndName(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionDelete).
 			Returns()
 	}))
 }
