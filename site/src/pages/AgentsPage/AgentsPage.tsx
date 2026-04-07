@@ -322,6 +322,9 @@ const AgentsPage: FC = () => {
 		});
 	};
 
+	// Track the active chat ID in a ref so the watchChats
+	// WebSocket handler can read it without re-subscribing
+	// on every navigation.
 	const activeChatIDRef = useRef(agentId);
 	const navigateAfterArchive = (archivedChatId: string) => {
 		const activeChatId = activeChatIDRef.current;

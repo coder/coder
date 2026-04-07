@@ -1074,6 +1074,8 @@ const AgentChatPage: FC = () => {
 		agentId,
 	]);
 
+	// Primitives extracted from proxy/workspace so the compiler
+	// tracks stable strings, not object identity.
 	const proxyHost = proxy.preferredWildcardHostname;
 	const agentName = workspaceAgent?.name;
 	const wsName = workspace?.name;

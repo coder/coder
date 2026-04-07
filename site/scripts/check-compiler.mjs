@@ -27,6 +27,15 @@ const skipPatterns = [".test.", ".stories.", ".jest."];
 // Maximum length for truncated error messages in the report.
 const MAX_ERROR_LENGTH = 120;
 
+// Patterns that identify a function/closure value on the RHS of an
+// assignment. Primitives (strings, numbers, booleans) are fine without
+// memoization — `!==` compares them by value. Only reference types
+// (closures, objects, arrays) cause problems.
+const CLOSURE_RHS = /^\s*(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\s*\()/;
+
+// Matches a `$[N] !== name` fragment inside an `if (...)` guard.
+const DEP_CHECK = /\$\[\d+\]\s*!==\s*(\w+)/g;
+
 // ---------------------------------------------------------------------------
 // File collection
 // ---------------------------------------------------------------------------
@@ -151,13 +160,14 @@ function compileFile(file) {
 		// were compiled in this file.
 		const compiledCount = result?.code?.match(/const \$ = _c\(\d+\)/g)?.length ?? 0;
 
-		return {
-			compiled: compiledCount,
-			diagnostics: deduplicateDiagnostics(diagnostics),
-		};
-	} catch (e) {
+			return {
+				compiled: compiledCount,
+				code: result?.code ?? "",
+				diagnostics: deduplicateDiagnostics(diagnostics),
+			};	} catch (e) {
 		return {
 			compiled: 0,
+			code: "",
 			diagnostics: [{
 				line: 0,
 				// Truncate to keep the one-line report readable.
@@ -165,6 +175,70 @@ function compileFile(file) {
 			}],
 		};
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Scope-pruning detection
+//
+// The compiler's flattenScopesWithHooksOrUse pass silently drops
+// memoization scopes that span across hook calls. A closure whose
+// scope is pruned appears as a bare `const name = (...) =>` with
+// no `$[N]` guard, yet it may still be listed as a dependency in a
+// downstream JSX memoization block (`$[N] !== name`). That means
+// the JSX cache check fails every render because `name` is a new
+// function reference each time.
+//
+// findUnmemoizedClosureDeps detects this pattern in compiled output:
+// 1. Collect every name that appears in a `$[N] !== name` dep check.
+// 2. For each, check if the name is assigned a function value
+//    (arrow or function expression) outside any `$[N]` guard.
+// 3. If so, the closure is unmemoized but used as a reactive dep —
+//    it defeats the downstream memoization.
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan compiled output for closures that appear as dependencies in
+ * memoization guards but are not themselves memoized. Returns an
+ * array of `{ name, line }` objects for each finding.
+ */
+export function findUnmemoizedClosureDeps(code) {
+	if (!code) return [];
+
+	const lines = code.split("\n");
+
+	// Pass 1: collect every name used in a $[N] !== name dep check.
+	const depNames = new Set();
+	for (const line of lines) {
+		for (const m of line.matchAll(DEP_CHECK)) {
+			depNames.add(m[1]);
+		}
+	}
+	if (depNames.size === 0) return [];
+
+	// Pass 2: find closure definitions that are directly assigned a
+	// function value (not assigned from a temp like `const x = t1`).
+	// A memoized closure uses the temp pattern:
+	//   if ($[N] !== dep) { t1 = () => {...}; } else { t1 = $[N]; }
+	//   const name = t1;
+	// An unmemoized closure is assigned the function directly:
+	//   const name = () => {...};
+	const findings = [];
+	for (let i = 0; i < lines.length; i++) {
+		const match = lines[i].match(CLOSURE_RHS);
+		if (!match) continue;
+
+		const name = match[1];
+		if (!depNames.has(name)) continue;
+
+		// Compiler temporaries are named t0, t1, ... tN. If the
+		// variable name matches that pattern it's an intermediate,
+		// not a user-visible declaration.
+		if (/^t\d+$/.test(name)) continue;
+
+		findings.push({ name, line: i + 1 });
+	}
+
+	return findings;
 }
 
 // ---------------------------------------------------------------------------
@@ -216,17 +290,33 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 let totalCompiled = 0;
 const failures = [];
 
+const scopePruned = [];
+
 for (const file of files) {
-	const { compiled, diagnostics } = compileFile(file);
+	const { compiled, code, diagnostics } = compileFile(file);
 	totalCompiled += compiled;
 	if (diagnostics.length > 0) {
 		failures.push({ file, compiled, diagnostics });
+	}
+	const pruned = findUnmemoizedClosureDeps(code);
+	if (pruned.length > 0) {
+		scopePruned.push({ file, closures: pruned });
 	}
 }
 
 printReport(failures, totalCompiled, files.length, hadCollectionErrors);
 
-if (failures.length > 0 || hadCollectionErrors) {
+if (scopePruned.length > 0) {
+	console.log("\nUnmemoized closures used as reactive dependencies:");
+	console.log("(Move these after all hook calls — see PR #24098)\n");
+	for (const { file, closures } of scopePruned) {
+		for (const c of closures) {
+			console.log(`  ✗ ${shortPath(file)}:${c.line} — ${c.name}`);
+		}
+	}
+}
+
+if (failures.length > 0 || hadCollectionErrors || scopePruned.length > 0) {
 	process.exitCode = 1;
 }
 }
