@@ -1,8 +1,12 @@
-import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
+import type { ComponentProps, JSX } from "react";
 
-import type { JSX } from "react";
-export const DockerIcon = (props: SvgIconProps): JSX.Element => (
-	<SvgIcon {...props} viewBox="0 0 32 32">
+export const DockerIcon = (props: ComponentProps<"svg">): JSX.Element => (
+	<svg
+		fill="currentColor"
+		{...props}
+		viewBox="0 0 32 32"
+		xmlns="http://www.w3.org/2000/svg"
+	>
 		<path
 			d="M16.54,12.663H19.4v2.924h1.446a6.272,6.272,0,0,0,1.988-.333,5.091,5.091,0,0,0,.966-.436,3.584,3.584,0,0,1-.67-1.849,3.907,3.907,0,0,1,.7-2.753l.3-.348.358.288a4.558,4.558,0,0,1,1.795,2.892,4.375,4.375,0,0,1,3.319.309l.393.226-.207.4a4.141,4.141,0,0,1-4.157,1.983c-2.48,6.168-7.871,9.088-14.409,9.088-3.378,0-6.476-1.263-8.241-4.259l-.029-.049L2.7,20.227a8.316,8.316,0,0,1-.659-4.208l.04-.433H4.526V12.663H7.387V9.8h5.721V6.942H16.54v5.721Z"
 			style={{ fill: "#0096e6" }}
@@ -19,5 +23,5 @@ export const DockerIcon = (props: SvgIconProps): JSX.Element => (
 			d="M10.188,19.638a.684.684,0,1,1-.684.684A.684.684,0,0,1,10.188,19.638Zm0,.194a.489.489,0,0,1,.177.033.2.2,0,1,0,.275.269.49.49,0,1,1-.453-.3Z"
 			style={{ fill: "#fff" }}
 		/>
-	</SvgIcon>
+	</svg>
 );

@@ -1,8 +1,12 @@
-import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
+import type { ComponentProps, JSX } from "react";
 
-import type { JSX } from "react";
-export const JetBrainsIcon = (props: SvgIconProps): JSX.Element => (
-	<SvgIcon {...props} viewBox="0 0 100 100">
+export const JetBrainsIcon = (props: ComponentProps<"svg">): JSX.Element => (
+	<svg
+		fill="currentColor"
+		{...props}
+		viewBox="0 0 100 100"
+		xmlns="http://www.w3.org/2000/svg"
+	>
 		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180">
 			<path
 				d="m81.56 83.71-41.35-35a15 15 0 1 0 -14.47 25.7h.15l.39.12 52.16
@@ -64,5 +68,5 @@ export const JetBrainsIcon = (props: SvgIconProps): JSX.Element => (
 				/>
 			</g>
 		</svg>
-	</SvgIcon>
+	</svg>
 );
