@@ -1,15 +1,15 @@
 # GitHub Copilot
 
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
-This makes it compatible with [AI Bridge Proxy](../ai-bridge-proxy/index.md), which integrates with [AI Bridge](../index.md) for full access to auditing and governance features.
-To use Copilot with AI Bridge, make sure AI Bridge Proxy is properly configured, see [AI Bridge Proxy Setup](../ai-bridge-proxy/setup.md) for instructions.
+This makes it compatible with [AI Gateway Proxy](../ai-bridge-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.
+To use Copilot with AI Gateway, make sure AI Gateway Proxy is properly configured, see [AI Gateway Proxy Setup](../ai-bridge-proxy/setup.md) for instructions.
 
 Copilot uses **per-user tokens** tied to GitHub accounts rather than a shared API key.
 Users must still authenticate with GitHub to use Copilot.
 
 For general information about GitHub Copilot, see the [GitHub Copilot documentation](https://docs.github.com/en/copilot).
 
-For general client configuration requirements, see [AI Bridge Proxy Client Configuration](../ai-bridge-proxy/setup.md#client-configuration).
+For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-bridge-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
 ## Copilot CLI
@@ -24,7 +24,7 @@ Set the `HTTPS_PROXY` environment variable:
 export HTTPS_PROXY="https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
 ```
 
-Replace `<proxy-host>` with your AI Bridge Proxy hostname.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname.
 
 Note: if [TLS is not enabled](../ai-bridge-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
@@ -56,7 +56,7 @@ For installation instructions, see [Installing the GitHub Copilot extension in V
 ### Proxy configuration
 
 You can configure the proxy using environment variables or VS Code settings.
-For environment variables, see [AI Bridge Proxy client configuration](../ai-bridge-proxy/setup.md#configuring-the-proxy).
+For environment variables, see [AI Gateway Proxy client configuration](../ai-bridge-proxy/setup.md#configuring-the-proxy).
 
 Alternatively, you can configure the proxy directly in VS Code settings:
 
@@ -75,7 +75,7 @@ Or add directly to your `settings.json`:
 Note: if [TLS is not enabled](../ai-bridge-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
 The `http.proxy` setting is used for both HTTP and HTTPS requests.
-Replace `<proxy-host>` with your AI Bridge Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
 
 Restart VS Code for changes to take effect.
 
@@ -83,7 +83,7 @@ For more details, see [Configuring proxy settings for Copilot](https://docs.gith
 
 ### CA certificate trust
 
-Add the AI Bridge Proxy CA certificate to your operating system's trust store.
+Add the AI Gateway Proxy CA certificate to your operating system's trust store.
 By default, VS Code loads system certificates, controlled by the `http.systemCertificates` setting.
 
 See [Client Configuration CA certificate trust](../ai-bridge-proxy/setup.md#trusting-the-ca-certificate) for details on how to obtain the certificate file.
@@ -109,11 +109,11 @@ Configure the proxy in VS Code's remote settings:
 
 Note: if [TLS is not enabled](../ai-bridge-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
-Replace `<proxy-host>` with your AI Bridge Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
 
 #### CA certificate trust
 
-Since the Copilot extension runs inside the Coder workspace, add the [AI Bridge Proxy CA certificate](../ai-bridge-proxy/setup.md#trusting-the-ca-certificate) to the Coder workspace's system trust store.
+Since the Copilot extension runs inside the Coder workspace, add the [AI Gateway Proxy CA certificate](../ai-bridge-proxy/setup.md#trusting-the-ca-certificate) to the Coder workspace's system trust store.
 See [System trust store](../ai-bridge-proxy/setup.md#system-trust-store) for instructions on how to do this on Linux.
 
 Restart VS Code for changes to take effect.
@@ -140,7 +140,7 @@ For more details, see [Configuring proxy settings for Copilot](https://docs.gith
 
 ### CA certificate trust
 
-Add the AI Bridge Proxy CA certificate to your operating system's trust store.
+Add the AI Gateway Proxy CA certificate to your operating system's trust store.
 If the certificate is in the system trust store, no additional IDE configuration is needed.
 
 When [TLS is enabled](../ai-bridge-proxy/setup.md#proxy-tls-configuration) on the proxy, add the TLS certificate to the system trust store as well, or add it under `Accepted certificates` in the IDE settings below.

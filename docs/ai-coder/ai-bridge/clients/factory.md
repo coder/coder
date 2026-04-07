@@ -1,11 +1,11 @@
 # Factory
 
-Factort's Droid agent can be configured to use AI Bridge by setting up custom models for OpenAI and Anthropic.
+Factort's Droid agent can be configured to use AI Gateway by setting up custom models for OpenAI and Anthropic.
 
 ## Configuration
 
 1. Open `~/.factory/settings.json` (create it if it does not exist).
-2. Add a `customModels` entry for each provider you want to use with AI Bridge.
+2. Add a `customModels` entry for each provider you want to use with AI Gateway.
 3. Replace `coder.example.com` with your Coder deployment URL.
 4. Use a **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for `apiKey`.
 

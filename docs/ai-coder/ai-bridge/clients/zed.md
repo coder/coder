@@ -1,12 +1,12 @@
 # Zed
 
-Zed IDE supports AI Bridge via its `language_models` configuration in `settings.json`.
+Zed IDE supports AI Gateway via its `language_models` configuration in `settings.json`.
 
 ## Configuration
 
-To configure Zed to use AI Bridge, you need to edit your `settings.json` file. You can access this by pressing `Cmd/Ctrl + ,` or opening the command palette and searching for "Open Settings".
+To configure Zed to use AI Gateway, you need to edit your `settings.json` file. You can access this by pressing `Cmd/Ctrl + ,` or opening the command palette and searching for "Open Settings".
 
-You can configure both Anthropic and OpenAI providers to point to AI Bridge.
+You can configure both Anthropic and OpenAI providers to point to AI Gateway.
 
 ```json
 {
@@ -41,7 +41,7 @@ You can configure both Anthropic and OpenAI providers to point to AI Bridge.
 
 ## Authentication
 
-Zed requires an API key for these providers. For AI Bridge, this key is your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+Zed requires an API key for these providers. For AI Gateway, this key is your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 You can set this in two ways:
 

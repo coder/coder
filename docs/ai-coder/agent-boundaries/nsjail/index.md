@@ -1,6 +1,6 @@
 # nsjail Jail Type
 
-nsjail is Agent Boundaries' default jail type that uses Linux namespaces to
+nsjail is Agent Firewall's default jail type that uses Linux namespaces to
 provide process isolation. It creates unprivileged network namespaces to control
 and monitor network access for processes running under Boundary.
 
@@ -14,8 +14,8 @@ and permission requirements:
 ## Overview
 
 nsjail leverages Linux namespace technology to isolate processes at the network
-level. When Agent Boundaries runs with nsjail, it creates a separate network
-namespace for the isolated process, allowing Agent Boundaries to intercept and
+level. When Agent Firewall runs with nsjail, it creates a separate network
+namespace for the isolated process, allowing Agent Firewall to intercept and
 filter all network traffic according to the configured policy.
 
 This jail type requires Linux capabilities to create and manage network

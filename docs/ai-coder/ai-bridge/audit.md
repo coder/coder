@@ -1,6 +1,6 @@
 # Auditing AI Sessions
 
-AI Bridge groups intercepted requests into **sessions** and **threads** to show
+AI Gateway groups intercepted requests into **sessions** and **threads** to show
 the causal relationships between human prompts and agent actions. This
 structure gives auditors clear provenance over who initiated what, and why.
 
@@ -15,7 +15,7 @@ structure gives auditors clear provenance over who initiated what, and why.
 
 ## Human vs. Agent attribution
 
-AI Bridge distinguishes between human-initiated and agent-initiated requests
+AI Gateway distinguishes between human-initiated and agent-initiated requests
 using the `role` property:
 
 - A message with `role="user"` indicates a human-initiated action (i.e. prompt).
@@ -24,16 +24,16 @@ using the `role` property:
 
 The `user` role is currently overloaded by clients like Claude Code and Codex;
 they inject system instructions
-within `role="user"` blocks when using agents. AI Bridge applies a heuristic
+within `role="user"` blocks when using agents. AI Gateway applies a heuristic
 of storing only the **last** prompt from a block of `role="user"` messages.
 
 > [!NOTE]
-> AI Bridge cannot declare with certainty whether a request was human- or
+> AI Gateway cannot declare with certainty whether a request was human- or
 > agent-initiated.
 
 ## LLM reasoning capture
 
-AI Bridge captures model reasoning and thinking content when available. Both
+AI Gateway captures model reasoning and thinking content when available. Both
 Anthropic (extended thinking) and OpenAI (reasoning summaries) support this
 feature. Reasoning data gives auditors insight into **why** a tool was called,
 not just what was called.
@@ -77,7 +77,7 @@ When investigating an incident (policy violation, destructive action, etc.):
 
 ## What we store
 
-AI Bridge captures the following data from each request/response:
+AI Gateway captures the following data from each request/response:
 
 - Last user prompt
 - Token usage
@@ -105,5 +105,5 @@ session data is kept.
 ## Next steps
 
 - [Monitoring](./monitoring.md) — Dashboards, data export, and tracing
-- [Setup](./setup.md) — Configure AI Bridge and data retention
+- [Setup](./setup.md) — Configure AI Gateway and data retention
 - [Reference](./reference.md) — API and technical reference

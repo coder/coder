@@ -1,27 +1,27 @@
 # Claude Code
 
-Claude Code can be configured using environment variables. All modes require a **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Bridge.
+Claude Code can be configured using environment variables. All modes require a **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
 
 ## Centralized API Key
 
 ```bash
-# AI Bridge base URL.
+# AI Gateway base URL.
 export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 
-# Your Coder session token, used for authentication with AI Bridge.
+# Your Coder session token, used for authentication with AI Gateway.
 export ANTHROPIC_AUTH_TOKEN="<your-coder-session-token>"
 ```
 
 ## BYOK (Personal API Key)
 
 ```bash
-# AI Bridge base URL.
+# AI Gateway base URL.
 export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 
 # Your personal Anthropic API key, forwarded to Anthropic.
 export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
 
-# Your Coder session token, used for authentication with AI Bridge.
+# Your Coder session token, used for authentication with AI Gateway.
 export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-session-token>"
 
 # Ensure no auth token is set so Claude Code uses the API key instead.
@@ -31,10 +31,10 @@ unset ANTHROPIC_AUTH_TOKEN
 ## BYOK (Claude Subscription)
 
 ```bash
-# AI Bridge base URL.
+# AI Gateway base URL.
 export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 
-# Your Coder session token, used for authentication with AI Bridge.
+# Your Coder session token, used for authentication with AI Gateway.
 export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-session-token>"
 
 # Ensure no auth token is set so Claude Code uses subscription login instead.
@@ -46,7 +46,7 @@ account.
 
 ## Pre-configuring in Templates
 
-Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Bridge base URL into the workspace environment.
+Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Gateway base URL into the workspace environment.
 
 ```hcl
 module "claude-code" {
@@ -77,7 +77,7 @@ module "claude-code" {
   workdir        = "/path/to/project"  # Set to your project directory
   ai_prompt      = data.coder_task.me.prompt
 
-  # Route through AI Bridge (Premium feature)
+  # Route through AI Gateway (Premium feature)
   enable_aibridge = true
 }
 ```

@@ -1,10 +1,10 @@
 # OpenCode
 
-OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Bridge by setting custom base URLs for each provider.
+OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Gateway by setting custom base URLs for each provider.
 
 ## Configuration
 
-You can configure OpenCode to connect to AI Bridge by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
+You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
 
 ```json
 {
@@ -26,7 +26,7 @@ You can configure OpenCode to connect to AI Bridge by setting the following conf
 
 ## Authentication
 
-To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and replace `<your-coder-session-token>` in `~/.local/share/opencode/auth.json`
+To authenticate with AI Gateway, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and replace `<your-coder-session-token>` in `~/.local/share/opencode/auth.json`
 
 ```json
 {

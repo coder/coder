@@ -1,6 +1,6 @@
 # Monitoring
 
-AI Bridge records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -12,11 +12,11 @@ These logs and metrics can be used to determine usage patterns, track costs, and
 
 ## Exporting Data
 
-AI Bridge interception data can be exported for external analysis, compliance reporting, or integration with log aggregation systems.
+AI Gateway interception data can be exported for external analysis, compliance reporting, or integration with log aggregation systems.
 
 ### REST API
 
-You can retrieve AI Bridge sessions via the Coder API, with filtering and pagination support.
+You can retrieve AI Gateway sessions via the Coder API, with filtering and pagination support.
 
 ```sh
 curl -X GET "https://coder.example.com/api/v2/aibridge/sessions" \
@@ -74,22 +74,22 @@ See `coder aibridge interceptions list --help` for all options.
 
 ## Data Retention
 
-AI Bridge data is retained for **60 days by default**. Configure the retention
+AI Gateway data is retained for **60 days by default**. Configure the retention
 period to balance storage costs with your organization's compliance and analysis
 needs.
 
 For configuration options and details, see [Data Retention](./setup.md#data-retention)
-in the AI Bridge setup guide.
+in the AI Gateway setup guide.
 
 ## Tracing
 
-AI Bridge supports tracing via [OpenTelemetry](https://opentelemetry.io/),
+AI Gateway supports tracing via [OpenTelemetry](https://opentelemetry.io/),
 providing visibility into request processing, upstream API calls, and MCP server
 interactions.
 
 ### Enabling Tracing
 
-AI Bridge tracing is enabled when tracing is enabled for the Coder server.
+AI Gateway tracing is enabled when tracing is enabled for the Coder server.
 To enable tracing set `CODER_TRACE_ENABLE` environment variable or
 [--trace](https://coder.com/docs/reference/cli/server#--trace) CLI flag:
 
@@ -103,7 +103,7 @@ coder server --trace
 
 ### What is Traced
 
-AI Bridge creates spans for the following operations:
+AI Gateway creates spans for the following operations:
 
 | Span Name                                   | Description                                          |
 |---------------------------------------------|------------------------------------------------------|

@@ -1,7 +1,7 @@
 # nsjail on Kubernetes
 
 This page describes the runtime and permission requirements for running Agent
-Boundaries with the **nsjail** jail type on **Kubernetes**.
+Firewall with the **nsjail** jail type on **Kubernetes**.
 
 ## Runtime & Permission Requirements for Running Boundary in Kubernetes
 

@@ -1,10 +1,10 @@
 # Codex CLI
 
-Codex CLI can be configured to use AI Bridge by setting up a custom model provider.
+Codex CLI can be configured to use AI Gateway by setting up a custom model provider.
 
 ## Centralized API Key
 
-To configure Codex CLI to use AI Bridge, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
+To configure Codex CLI to use AI Gateway, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
 model_provider = "aibridge"
@@ -16,7 +16,7 @@ env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 ```
 
-To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
+To authenticate with AI Gateway, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
 
 ```bash
 export OPENAI_API_KEY="<your-coder-session-token>"
@@ -45,7 +45,7 @@ Set both environment variables:
 # Your personal OpenAI API key, forwarded to OpenAI.
 export OPENAI_API_KEY="<your-openai-api-key>"
 
-# Your Coder session token, used for authentication with AI Bridge.
+# Your Coder session token, used for authentication with AI Gateway.
 export CODER_SESSION_TOKEN="<your-coder-session-token>"
 ```
 
@@ -70,7 +70,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_SESSION_TOKEN" }
 Set your Coder session token and ensure `OPENAI_API_KEY` is not set:
 
 ```bash
-# Your Coder session token, used for authentication with AI Bridge.
+# Your Coder session token, used for authentication with AI Gateway.
 export CODER_SESSION_TOKEN="<your-coder-session-token>"
 
 # Ensure no OpenAI API key is set so Codex uses ChatGPT login instead.

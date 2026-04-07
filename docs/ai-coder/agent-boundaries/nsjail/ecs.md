@@ -1,9 +1,9 @@
 # nsjail on ECS
 
-This page describes the runtime and permission requirements for running
-Boundary with the **nsjail** jail type on **Amazon ECS**.
+This page describes the runtime and permission requirements for running Agent
+Firewall with the **nsjail** jail type on **Amazon ECS**.
 
-## Runtime & Permission Requirements for Running Boundary in ECS
+## Runtime & Permission Requirements for Running Agent Firewall in ECS
 
 The setup for ECS is similar to [nsjail on Kubernetes](./k8s.md); that environment
 is better explored and tested, so the Kubernetes page is a useful reference. On
@@ -15,9 +15,9 @@ following examples use **ECS with Self Managed Node Groups** (EC2 launch type).
 ### Example 1: ECS + Self Managed Node Groups + Amazon Linux
 
 On **Amazon Linux** nodes with ECS, the default Docker seccomp profile enforced
-by ECS blocks the syscalls needed for Boundary. Because it is difficult to
+by ECS blocks the syscalls needed for Agent Firewall. Because it is difficult to
 disable or modify the seccomp profile on ECS, you must grant `SYS_ADMIN` (along
-with `NET_ADMIN`) so that Boundary can create namespaces and run nsjail.
+with `NET_ADMIN`) so that Agent Firewall can create namespaces and run nsjail.
 
 **Task definition (Terraform) — `linuxParameters`:**
 

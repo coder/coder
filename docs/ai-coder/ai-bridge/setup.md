@@ -1,6 +1,6 @@
 # Setup
 
-AI Bridge runs inside the Coder control plane (`coderd`), requiring no separate compute to deploy or scale. Once enabled, `coderd` runs the `aibridged` in-memory and brokers traffic to your configured AI providers on behalf of authenticated users.
+AI Gateway runs inside the Coder control plane (`coderd`), requiring no separate compute to deploy or scale. Once enabled, `coderd` runs the `aibridged` in-memory and brokers traffic to your configured AI providers on behalf of authenticated users.
 
 **Required**:
 
@@ -10,7 +10,7 @@ AI Bridge runs inside the Coder control plane (`coderd`), requiring no separate 
 
 ## Activation
 
-You will need to enable AI Bridge explicitly:
+You will need to enable AI Gateway explicitly:
 
 ```sh
 export CODER_AIBRIDGE_ENABLED=true
@@ -21,13 +21,13 @@ coder server --aibridge-enabled=true
 
 ## Configure Providers
 
-AI Bridge proxies requests to upstream LLM APIs. Configure at least one provider before exposing AI Bridge to end users.
+AI Gateway proxies requests to upstream LLM APIs. Configure at least one provider before exposing AI Gateway to end users.
 
 <div class="tabs">
 
 ### OpenAI
 
-Set the following when routing [OpenAI-compatible](https://coder.com/docs/reference/cli/server#--aibridge-openai-key) traffic through AI Bridge:
+Set the following when routing [OpenAI-compatible](https://coder.com/docs/reference/cli/server#--aibridge-openai-key) traffic through AI Gateway:
 
 - `CODER_AIBRIDGE_OPENAI_KEY` or `--aibridge-openai-key`
 - `CODER_AIBRIDGE_OPENAI_BASE_URL` or `--aibridge-openai-base-url`
@@ -40,7 +40,7 @@ If you'd like to create an [OpenAI key](https://platform.openai.com/api-keys) wi
 
 ### Anthropic
 
-Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--aibridge-anthropic-key) traffic through AI Bridge:
+Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--aibridge-anthropic-key) traffic through AI Gateway:
 
 - `CODER_AIBRIDGE_ANTHROPIC_KEY` or `--aibridge-anthropic-key`
 - `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`
@@ -51,7 +51,7 @@ Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys)
 
 ### Amazon Bedrock
 
-Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference/cli/server#--aibridge-bedrock-region) traffic through AI Bridge:
+Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference/cli/server#--aibridge-bedrock-region) traffic through AI Gateway:
 
 - `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`
 - `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`
@@ -62,7 +62,7 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 > [!NOTE]
 > `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` may be used instead of `CODER_AIBRIDGE_BEDROCK_REGION`/`--aibridge-bedrock-region`
 if you would like to specify a URL which does not follow the form of `https://bedrock-runtime.<region>.amazonaws.com` - for example if using a
-proxy between AI Bridge and AWS Bedrock.
+proxy between AI Gateway and AWS Bedrock.
 
 #### Obtaining Bedrock credentials
 
@@ -79,7 +79,7 @@ proxy between AI Bridge and AWS Bedrock.
    - Under **Access keys**, click **Create access key**.
    - Select **"Application running outside AWS"** as the use case.
    - Click **Next**.
-   - Add a description like "Coder AI Bridge token".
+   - Add a description like "Coder AI Gateway token".
    - Click **Create access key**.
    - Save both the access key ID and secret access key securely.
 
@@ -94,7 +94,7 @@ proxy between AI Bridge and AWS Bedrock.
 
 ### Additional providers and Model Proxies
 
-AI Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+AI Gateway can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
 
 </div>
 
@@ -103,7 +103,7 @@ AI Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or
 
 ## Data Retention
 
-AI Bridge records prompts, token usage, tool invocations, and model reasoning for auditing and
+AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
 monitoring purposes. By default, this data is retained for **60 days**.
 
 Configure retention using `--aibridge-retention` or `CODER_AIBRIDGE_RETENTION`:
@@ -126,7 +126,7 @@ For duration formats, how retention works, and best practices, see the
 
 ## Structured Logging
 
-AI Bridge can emit structured logs for every interception record, making it
+AI Gateway can emit structured logs for every interception record, making it
 straightforward to export data to external SIEM or observability platforms.
 
 Enable with `--aibridge-structured-logging` or `CODER_AIBRIDGE_STRUCTURED_LOGGING`:
@@ -149,5 +149,5 @@ stderr) or [`--log-json`](../../reference/cli/server.md#--log-json). For machine
 ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
 emitted as JSON.
 
-Filter for AI Bridge records in your logging pipeline by matching on the
+Filter for AI Gateway records in your logging pipeline by matching on the
 `"interception log"` message.

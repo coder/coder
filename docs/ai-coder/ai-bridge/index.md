@@ -1,12 +1,12 @@
-# AI Bridge
+# AI Gateway
 
 ![AI bridge diagram](../../images/aibridge/aibridge_diagram.png)
 
-AI Bridge is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
+AI Gateway is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
 and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
-the upstream APIs, AI Bridge can record user prompts, token usage, and tool invocations.
+the upstream APIs, AI Gateway can record user prompts, token usage, and tool invocations.
 
-AI Bridge solves 3 key problems:
+AI Gateway solves 3 key problems:
 
 1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
    Users use their Coder session or API tokens to authenticate with `coderd` (Coder control plane), and
@@ -16,9 +16,9 @@ AI Bridge solves 3 key problems:
 1. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
    use.
 
-## When to use AI Bridge
+## When to use AI Gateway
 
-As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Bridge enables organizations to manage AI tooling access for thousands of engineers from a single control plane.
+As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Gateway enables organizations to manage AI tooling access for thousands of engineers from a single control plane.
 
 If you are an administrator or devops leader looking to:
 
@@ -28,12 +28,12 @@ If you are an administrator or devops leader looking to:
 - Investigate opportunities for AI automation
 - Uncover high-leverage use cases last
 
-AI Bridge is best suited for organizations facing these centralized management and observability challenges.
+AI Gateway is best suited for organizations facing these centralized management and observability challenges.
 
 ## Next steps
 
-- [Set up AI Bridge](./setup.md) on your Coder deployment
-- [Configure AI clients](./clients/index.md) to use AI Bridge
+- [Set up AI Gateway](./setup.md) on your Coder deployment
+- [Configure AI clients](./clients/index.md) to use AI Gateway
 - [Configure MCP servers](./mcp.md) for tool access
 - [Audit AI sessions](./audit.md)
 - [Monitor usage and metrics](./monitoring.md) and [configure data retention](./setup.md#data-retention)

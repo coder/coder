@@ -2,11 +2,11 @@
 
 Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
-Mux can be configured to route OpenAI- and Anthropic-compatible traffic through AI Bridge by setting a custom provider base URL and using a Coder-issued token for authentication.
+Mux can be configured to route OpenAI- and Anthropic-compatible traffic through AI Gateway by setting a custom provider base URL and using a Coder-issued token for authentication.
 
 ## Prerequisites
 
-- AI Bridge is enabled on your Coder deployment.
+- AI Gateway is enabled on your Coder deployment.
 - A **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** or long-lived API key.
 
 ## Configuration
@@ -52,7 +52,7 @@ export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 
 ## Running Mux in a Coder workspace
 
-If you want to run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Bridge via environment variables on the agent:
+If you want to run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
 
 ```tf
 data "coder_workspace" "me" {}

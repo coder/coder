@@ -1006,8 +1006,8 @@
 							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
-							"title": "Security \u0026 Boundaries",
-							"description": "Learn about security and boundaries when running AI coding agents in Coder",
+							"title": "Security \u0026 Agent Firewall",
+							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
 						},
 						{
@@ -1024,8 +1024,8 @@
 					"state": ["premium"],
 					"children": [
 						{
-							"title": "Agent Boundaries",
-							"description": "Understanding Agent Boundaries in Coder Tasks",
+							"title": "Agent Firewall",
+							"description": "Understanding Agent Firewall in Coder Tasks",
 							"path": "./ai-coder/agent-boundaries/index.md",
 							"state": ["premium"],
 							"children": [
@@ -1058,7 +1058,7 @@
 								},
 								{
 									"title": "Rules Engine",
-									"description": "Documentation for the Boundary rules engine",
+									"description": "Documentation for the Agent Firewall rules engine",
 									"path": "./ai-coder/agent-boundaries/rules-engine.md"
 								},
 								{
@@ -1069,7 +1069,7 @@
 							]
 						},
 						{
-							"title": "AI Bridge",
+							"title": "AI Gateway",
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-bridge/index.md",
 							"icon_path": "./images/icons/api.svg",
@@ -1077,91 +1077,91 @@
 							"children": [
 								{
 									"title": "Setup",
-									"description": "How to set up and configure AI Bridge",
+									"description": "How to set up and configure AI Gateway",
 									"path": "./ai-coder/ai-bridge/setup.md"
 								},
 								{
 									"title": "Client Configuration",
-									"description": "How to configure your AI coding tools to use AI Bridge",
+									"description": "How to configure your AI coding tools to use AI Gateway",
 									"path": "./ai-coder/ai-bridge/clients/index.md",
 									"children": [
 										{
 											"title": "Claude Code",
-											"description": "Configure Claude Code to use AI Bridge",
+											"description": "Configure Claude Code to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
 										},
 										{
 											"title": "Codex",
-											"description": "Configure Codex to use AI Bridge",
+											"description": "Configure Codex to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/codex.md"
 										},
 										{
 											"title": "Mux",
-											"description": "Configure Mux to use AI Bridge",
+											"description": "Configure Mux to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/mux.md"
 										},
 										{
 											"title": "OpenCode",
-											"description": "Configure OpenCode to use AI Bridge",
+											"description": "Configure OpenCode to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/opencode.md"
 										},
 										{
 											"title": "Factory",
-											"description": "Configure Factory to use AI Bridge",
+											"description": "Configure Factory to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/factory.md"
 										},
 										{
 											"title": "Cline",
-											"description": "Configure Cline to use AI Bridge",
+											"description": "Configure Cline to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/cline.md"
 										},
 										{
 											"title": "Kilo Code",
-											"description": "Configure Kilo Code to use AI Bridge",
+											"description": "Configure Kilo Code to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
 										},
 										{
 											"title": "Roo Code",
-											"description": "Configure Roo Code to use AI Bridge",
+											"description": "Configure Roo Code to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
 										},
 										{
 											"title": "VS Code",
-											"description": "Configure VS Code to use AI Bridge",
+											"description": "Configure VS Code to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/vscode.md"
 										},
 										{
 											"title": "JetBrains",
-											"description": "Configure JetBrains IDEs to use AI Bridge",
+											"description": "Configure JetBrains IDEs to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
 										},
 										{
 											"title": "Zed",
-											"description": "Configure Zed to use AI Bridge",
+											"description": "Configure Zed to use AI Gateway",
 											"path": "./ai-coder/ai-bridge/clients/zed.md"
 										},
 										{
 											"title": "GitHub Copilot",
-											"description": "Configure GitHub Copilot to use AI Bridge via AI Bridge Proxy",
+											"description": "Configure GitHub Copilot to use AI Gateway via AI Gateway Proxy",
 											"path": "./ai-coder/ai-bridge/clients/copilot.md"
 										}
 									]
 								},
 								{
 									"title": "MCP Tools Injection",
-									"description": "How to configure MCP servers for tools injection through AI Bridge",
+									"description": "How to configure MCP servers for tools injection through AI Gateway",
 									"path": "./ai-coder/ai-bridge/mcp.md",
 									"state": ["early access"]
 								},
 								{
-									"title": "AI Bridge Proxy",
+									"title": "AI Gateway Proxy",
 									"description": "Proxy for AI coding tools without base URL override support",
 									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
 									"state": ["premium"],
 									"children": [
 										{
 											"title": "Setup",
-											"description": "How to set up and configure AI Bridge Proxy",
+											"description": "How to set up and configure AI Gateway Proxy",
 											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
 										}
 									]
@@ -1173,12 +1173,12 @@
 								},
 								{
 									"title": "Monitoring",
-									"description": "How to monitor AI Bridge",
+									"description": "How to monitor AI Gateway",
 									"path": "./ai-coder/ai-bridge/monitoring.md"
 								},
 								{
 									"title": "Reference",
-									"description": "Technical reference for AI Bridge",
+									"description": "Technical reference for AI Gateway",
 									"path": "./ai-coder/ai-bridge/reference.md"
 								}
 							]

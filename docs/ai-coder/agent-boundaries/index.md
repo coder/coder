@@ -1,27 +1,27 @@
-# Agent Boundaries
+# Agent Firewall
 
-Agent Boundaries are process-level firewalls that restrict and audit what
+Agent Firewall are process-level firewalls that restrict and audit what
 autonomous programs, such as AI agents, can access and use.
 
-![Screenshot of Agent Boundaries blocking a process](../../images/guides/ai-agents/boundary.png)Example
-of Agent Boundaries blocking a process.
+![Screenshot of Agent Firewall blocking a process](../../images/guides/ai-agents/boundary.png)Example
+of Agent Firewall blocking a process.
 
 ## Supported Agents
 
-Agent Boundaries support the securing of any terminal-based agent, including
+Agent Firewall support the securing of any terminal-based agent, including
 your own custom agents.
 
 ## Features
 
-Agent Boundaries offer network policy enforcement, which blocks domains and HTTP
+Agent Firewall offer network policy enforcement, which blocks domains and HTTP
 verbs to prevent exfiltration, and writes logs to the workspace.
 
-Agent Boundaries also stream audit logs to Coder's control plane for centralized
+Agent Firewall also stream audit logs to Coder's control plane for centralized
 monitoring of HTTP requests.
 
-## Getting Started with Agent Boundaries
+## Getting Started with Agent Firewall
 
-The easiest way to use Agent Boundaries is through existing Coder modules, such
+The easiest way to use Agent Firewall is through existing Coder modules, such
 as the
 [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It
 can also be ran directly in the terminal by installing the
@@ -32,10 +32,10 @@ can also be ran directly in the terminal by installing the
 > [!NOTE]
 > For information about version requirements and compatibility, see the [Version Requirements](./version.md) documentation.
 
-Agent Boundaries is configured using a `config.yaml` file. This allows you to
+Agent Firewall is configured using a `config.yaml` file. This allows you to
 maintain allow lists and share detailed policies with teammates.
 
-In your Terraform module, enable Agent Boundaries with minimal configuration:
+In your Terraform module, enable Agent Firewall with minimal configuration:
 
 ```tf
 module "claude-code" {
@@ -63,7 +63,7 @@ log_level: warn
 
 For a basic recommendation of what to allow for agents, see the
 [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
-For a comprehensive example of a production Agent Boundaries configuration, see
+For a comprehensive example of a production Agent Firewall configuration, see
 the
 [Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
 
@@ -85,9 +85,9 @@ resource "coder_script" "boundary_config_setup" {
 }
 ```
 
-Agent Boundaries automatically reads `config.yaml` from
+Agent Firewall automatically reads `config.yaml` from
 `~/.config/coder_boundary/` when it starts, so everyone who launches Agent
-Boundaries manually inside the workspace picks up the same configuration without
+Firewall manually inside the workspace picks up the same configuration without
 extra flags. This is especially convenient for managing extensive allow lists in
 version control.
 
@@ -108,8 +108,8 @@ version control.
   `landjail`. See [Jail Types](#jail-types) for a detailed comparison.
 - `log_dir` defines where boundary writes log files.
 - `log_level` defines the verbosity at which requests are logged. Agent
-  Boundaries uses the following verbosity levels:
-  - `WARN`: logs only requests that have been blocked by Agent Boundaries
+  Firewall uses the following verbosity levels:
+  - `WARN`: logs only requests that have been blocked by Agent Firewall
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
 - `no_user_namespace` disables creation of a user namespace inside the jail.
@@ -124,7 +124,7 @@ version control.
 For detailed information about the rules engine and how to construct allowlist
 rules, see the [rules engine documentation](./rules-engine.md).
 
-You can also run Agent Boundaries directly in your workspace and configure it
+You can also run Agent Firewall directly in your workspace and configure it
 per template. You can do so by installing the
 [binary](https://github.com/coder/boundary) into the workspace image or at
 start-up. You can do so with the following command:
@@ -135,7 +135,7 @@ curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | ba
 
 ## Jail Types
 
-Agent Boundaries supports two different jail types for process isolation, each
+Agent Firewall supports two different jail types for process isolation, each
 with different characteristics and requirements:
 
 1. **nsjail** - Uses Linux namespaces for isolation. This is the default jail
@@ -168,31 +168,31 @@ environments where namespace capabilities are limited or unavailable.
 
 ## Audit Logs
 
-Agent Boundaries stream audit logs to the Coder control plane, providing
+Agent Firewall stream audit logs to the Coder control plane, providing
 centralized visibility into HTTP requests made within workspaces—whether from AI
 agents or ad-hoc commands run with `boundary`.
 
 Audit logs are independent of application logs:
 
-- **Audit logs** record Agent Boundaries' policy decisions: whether each HTTP
+- **Audit logs** record Agent Firewall's policy decisions: whether each HTTP
   request was allowed or denied based on the allowlist rules. These are always
-  sent to the control plane regardless of Agent Boundaries' configured log
+  sent to the control plane regardless of Agent Firewall's configured log
   level.
-- **Application logs** are Agent Boundaries' operational logs written locally to
+- **Application logs** are Agent Firewall's operational logs written locally to
   the workspace. These include startup messages, internal errors, and debugging
   information controlled by the `log_level` setting.
 
-For example, if a request to `api.example.com` is allowed by Agent Boundaries
+For example, if a request to `api.example.com` is allowed by Agent Firewall
 but the remote server returns a 500 error, the audit log records
-`decision=allow` because Agent Boundaries permitted the request. The HTTP
+`decision=allow` because Agent Firewall permitted the request. The HTTP
 response status is not tracked in audit logs.
 
 > [!NOTE]
-> Requires Coder v2.30+ and Agent Boundaries v0.5.2+.
+> Requires Coder v2.30+ and Agent Firewall v0.5.2+.
 
 ### Audit Log Contents
 
-Each Agent Boundaries audit log entry includes:
+Each Agent Firewall audit log entry includes:
 
 | Field                 | Description                                                                             |
 |-----------------------|-----------------------------------------------------------------------------------------|
@@ -209,7 +209,7 @@ Each Agent Boundaries audit log entry includes:
 
 ### Viewing Audit Logs
 
-Agent Boundaries audit logs are emitted as structured log entries from the Coder
+Agent Firewall audit logs are emitted as structured log entries from the Coder
 server. You can collect and analyze these logs using any log aggregation system
 such as Grafana Loki.
 

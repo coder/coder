@@ -1,11 +1,11 @@
 # Client Configuration
 
-Once AI Bridge is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Bridge.
+Once AI Gateway is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Gateway.
 
-There are two ways to connect AI tools to AI Bridge:
+There are two ways to connect AI tools to AI Gateway:
 
 - Base URL configuration (Recommended): Most AI tools allow customizing the base URL for API requests. This is the preferred approach when supported.
-- AI Bridge Proxy: For tools that don't support base URL configuration, [AI Bridge Proxy](../ai-bridge-proxy/index.md) can intercept traffic and forward it to AI Bridge.
+- AI Gateway Proxy: For tools that don't support base URL configuration, [AI Gateway Proxy](../ai-bridge-proxy/index.md) can intercept traffic and forward it to AI Gateway.
 
 ## Base URLs
 
@@ -20,14 +20,14 @@ Replace `coder.example.com` with your actual Coder deployment URL.
 
 ## Authentication
 
-Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
+Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Gateway using their **Coder session token** or **API key**:
 
 - **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
 - **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
 > [!NOTE]
-> Only Coder-issued tokens can authenticate users against AI Bridge.
-> AI Bridge will use provider-specific API keys to [authenticate against upstream AI services](https://coder.com/docs/ai-coder/ai-bridge/setup#configure-providers).
+> Only Coder-issued tokens can authenticate users against AI Gateway.
+> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](https://coder.com/docs/ai-coder/ai-bridge/setup#configure-providers).
 
 Again, the exact environment variable or setting naming may differ from tool to tool. See a list of [supported clients](#all-supported-clients) below and consult your tool's documentation for details.
 
@@ -45,22 +45,22 @@ Alternatively, [generate a long-lived API token](../../../admin/users/sessions-t
 
 ## Bring Your Own Key (BYOK)
 
-In addition to centralized key management, AI Bridge supports **Bring Your
+In addition to centralized key management, AI Gateway supports **Bring Your
 Own Key** (BYOK) mode. Users can provide their own LLM API keys or use
 provider subscriptions (such as Claude Pro/Max or ChatGPT Plus/Pro) while
-AI Bridge continues to provide observability and governance.
+AI Gateway continues to provide observability and governance.
 
 ![BYOK authentication flow](../../../images/aibridge/clients/byok_auth_flow.png)
 
 In BYOK mode, users need two credentials:
 
-- A **Coder session token** to authenticate with AI Bridge.
-- Their **own LLM credential** (personal API key or subscription token) which AI Bridge forwards
+- A **Coder session token** to authenticate with AI Gateway.
+- Their **own LLM credential** (personal API key or subscription token) which AI Gateway forwards
   to the upstream provider.
 
 BYOK and centralized modes can be used together. When a user provides
-their own credential, AI Bridge forwards it directly. When no user
-credential is present, AI Bridge falls back to the admin-configured
+their own credential, AI Gateway forwards it directly. When no user
+credential is present, AI Gateway falls back to the admin-configured
 provider key. This lets organizations offer centralized keys as a default
 while allowing individual users to bring their own.
 
@@ -68,7 +68,7 @@ See individual client pages for configuration details.
 
 ## Compatibility
 
-The table below shows tested AI clients and their compatibility with AI Bridge.
+The table below shows tested AI clients and their compatibility with AI Gateway.
 
 | Client                           | OpenAI | Anthropic | Notes                                                                                                                                                  |
 |----------------------------------|--------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -83,7 +83,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.                                                                                                              |
 | [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key".                                                                                                           |
 | [Zed](./zed.md)                  | ✅      | ✅         |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Bridge Proxy](../ai-bridge-proxy/index.md). Uses per-user GitHub tokens.                                                                  |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Gateway Proxy](../ai-bridge-proxy/index.md). Uses per-user GitHub tokens.                                                                  |
 | WindSurf                         | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 | Cursor                           | ❌      | ❌         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
 | Sourcegraph Amp                  | ❌      | ❌         | No option to override base URL.                                                                                                                        |
@@ -92,15 +92,15 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | Antigravity                      | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 |
 
-*Legend: ✅ supported, ⚙️ requires AI Bridge Proxy, ❌ not supported, - not applicable.*
+*Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*
 
 ## Configuring In-Workspace Tools
 
-AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
+AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Gateway.
 
-While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Bridge base URL into the workspace environment.
+While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Gateway base URL into the workspace environment.
 
-In this example, Claude Code respects these environment variables and will route all requests via AI Bridge.
+In this example, Claude Code respects these environment variables and will route all requests via AI Gateway.
 
 ```hcl
 data "coder_workspace_owner" "me" {}
@@ -121,9 +121,9 @@ resource "coder_agent" "dev" {
 
 ## External and Desktop Clients
 
-You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Bridge.
+You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Gateway.
 
-The configuration is the same: point the tool to the AI Bridge [base URL](#base-urls) and use a Coder API key for authentication.
+The configuration is the same: point the tool to the AI Gateway [base URL](#base-urls) and use a Coder API key for authentication.
 
 Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 

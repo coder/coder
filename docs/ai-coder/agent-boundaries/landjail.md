@@ -1,11 +1,11 @@
 # landjail Jail Type
 
-landjail is Agent Boundaries' alternative jail type that uses Landlock V4 for
+landjail is Agent Firewall's alternative jail type that uses Landlock V4 for
 network isolation.
 
 ## Overview
 
-Agent Boundaries uses Landlock V4 to enforce network restrictions:
+Agent Firewall uses Landlock V4 to enforce network restrictions:
 
 - All `bind` syscalls are forbidden
 - All `connect` syscalls are forbidden except to the port that is used by http

@@ -1,6 +1,6 @@
 # Kilo Code
 
-Kilo Code allows you to configure providers via the UI and can be set up to use AI Bridge.
+Kilo Code allows you to configure providers via the UI and can be set up to use AI Gateway.
 
 ## Configuration
 

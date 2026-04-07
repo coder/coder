@@ -1,10 +1,10 @@
 # Cline
 
-Cline supports both OpenAI and Anthropic models and can be configured to use AI Bridge by setting providers.
+Cline supports both OpenAI and Anthropic models and can be configured to use AI Gateway by setting providers.
 
 ## Configuration
 
-To configure Cline to use AI Bridge, follow these steps:
+To configure Cline to use AI Gateway, follow these steps:
 ![Cline Settings](../../../images/aibridge/clients/cline-setup.png)
 
 <div class="tabs">

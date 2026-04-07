@@ -4,13 +4,13 @@
 
 `coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
 
-![AI Bridge implementation details](../../images/aibridge/aibridge-implementation-details.png)
+![AI Gateway implementation details](../../images/aibridge/aibridge-implementation-details.png)
 
 ## Supported APIs
 
 API support is broken down into two categories:
 
-- **Intercepted**: requests are intercepted, audited, and augmented - full AI Bridge functionality
+- **Intercepted**: requests are intercepted, audited, and augmented - full AI Gateway functionality
 - **Passthrough**: requests are proxied directly to the upstream, no auditing or augmentation takes place
 
 Where relevant, both streaming and non-streaming requests are supported.
@@ -38,4 +38,4 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for AI Bridge](https://github.com/coder/aibridge). If you encounter issues with AI Bridge, please reach out to us via [Discord](https://discord.gg/coder).
+To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for AI Gateway](https://github.com/coder/aibridge). If you encounter issues with AI Gateway, please reach out to us via [Discord](https://discord.gg/coder).

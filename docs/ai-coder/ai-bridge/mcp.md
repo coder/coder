@@ -1,18 +1,18 @@
 # MCP
 
 > [!WARNING]
-> Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+> Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
-AI Bridge can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
+AI Gateway can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
 
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently.
 >
 > [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
-AI Bridge makes use of [External Auth](../../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Bridge to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
+AI Gateway makes use of [External Auth](../../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
@@ -20,7 +20,7 @@ For example, GitHub has a [remote MCP server](https://github.com/github/github-m
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=...
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
-# Tell AI Bridge where it can find this service's remote MCP server.
+# Tell AI Gateway where it can find this service's remote MCP server.
 CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
 ```
 
@@ -50,13 +50,13 @@ In the above example, if you prompted your AI model with "list your available gi
 > 2. bmcp_github_list_gists
 > ```
 
-AI Bridge marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
+AI Gateway marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
 
 ## Tool Injection
 
-If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Bridge has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it sees is the result of this loop. See [Implementation Details](./reference.md#implementation-details).
+If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Gateway has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it sees is the result of this loop. See [Implementation Details](./reference.md#implementation-details).
 
-In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Bridge, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
+In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 
 If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS=true` set, Coder's MCP tools will be injected into intercepted requests.
 
