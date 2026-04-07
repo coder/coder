@@ -36,7 +36,6 @@ typ = "typ"
 styl = "styl"
 edn = "edn"
 Inferrable = "Inferrable"
-IIFEs = "IIFEs"
 IIF = "IIF"
 
 [files]
