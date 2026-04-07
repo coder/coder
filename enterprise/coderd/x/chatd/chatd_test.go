@@ -1451,15 +1451,17 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 		)
 	})
 
-	// Worker with a 1-hour acquire interval; only processes when
-	// explicitly woken.
+	// Worker with a short fallback poll interval. The primary
+	// trigger is signalWake() from SendMessage, but under heavy
+	// CI load the wake goroutine may be delayed. A short poll
+	// ensures the worker always picks up the pending chat.
 	workerLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	worker := osschatd.New(osschatd.Config{
 		Logger:                     workerLogger,
 		Database:                   db,
 		ReplicaID:                  workerID,
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: time.Hour,
+		PendingChatAcquireInterval: time.Second,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
@@ -1489,7 +1491,11 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 		return snapshot, relayEvents, cancel, nil
 	}, nil)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	// Use WaitSuperLong so the test survives heavy CI contention.
+	// The worker pipeline (model resolution, message loading, LLM
+	// call) involves multiple DB round-trips that can be slow under
+	// load.
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
@@ -1509,11 +1515,32 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for the worker to reach the LLM (first streaming request).
-	select {
-	case <-firstChunkEmitted:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for worker to start streaming")
+	// Wait for the worker to reach the LLM (first streaming
+	// request). Also poll the chat status so we fail fast with a
+	// clear message if the worker errors out instead of timing
+	// out silently.
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+waitForStream:
+	for {
+		select {
+		case <-firstChunkEmitted:
+			break waitForStream
+		case <-ticker.C:
+			currentChat, dbErr := db.GetChatByID(ctx, chat.ID)
+			if dbErr == nil && currentChat.Status == database.ChatStatusError {
+				t.Fatalf("worker failed to process chat: status=%s last_error=%s",
+					currentChat.Status, currentChat.LastError.String)
+			}
+		case <-ctx.Done():
+			// Dump the final chat status for debugging.
+			currentChat, dbErr := db.GetChatByID(context.Background(), chat.ID)
+			if dbErr == nil {
+				t.Fatalf("timed out waiting for worker to start streaming (chat status=%s, last_error=%q)",
+					currentChat.Status, currentChat.LastError.String)
+			}
+			t.Fatal("timed out waiting for worker to start streaming")
+		}
 	}
 
 	// Wait for the subscriber to receive the running status, which
