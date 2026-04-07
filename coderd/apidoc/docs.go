@@ -13152,6 +13152,9 @@ const docTemplate = `{
                 },
                 "count": {
                     "type": "integer"
+                },
+                "count_cap": {
+                    "type": "integer"
                 }
             }
         },
@@ -13458,6 +13461,9 @@ const docTemplate = `{
                     }
                 },
                 "count": {
+                    "type": "integer"
+                },
+                "count_cap": {
                     "type": "integer"
                 }
             }

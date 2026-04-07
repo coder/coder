@@ -289,7 +289,8 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
       "workspace_owner_username": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
