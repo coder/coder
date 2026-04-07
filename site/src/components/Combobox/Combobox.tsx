@@ -1,6 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { type KeyboardEvent, createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -16,10 +16,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { useDebouncedFunction } from "#/hooks/debounce";
 import { cn } from "#/utils/cn";
-
-const COMBOBOX_DEBOUNCE_MS = 300;
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -129,67 +126,8 @@ export const ComboboxContent = ({
 	);
 };
 
-type ComboboxInputProps = Omit<
-	React.ComponentPropsWithRef<typeof CommandInput>,
-	"onValueChange" | "value" | "defaultValue"
-> & {
-	onValueChange: (value: string) => void;
-	value?: string;
-	defaultValue?: string;
-};
+export const ComboboxInput = CommandInput;
 
-export const ComboboxInput: React.FC<ComboboxInputProps> = ({
-	onValueChange,
-	value,
-	defaultValue,
-	onBlur,
-	onKeyDown,
-	...props
-}) => {
-	const [internalValue, setInternalValue] = useState<string>(
-		value ?? defaultValue ?? "",
-	);
-	const externalValue = value;
-	const lastExternalValueRef = useRef(externalValue);
-
-	if (externalValue !== lastExternalValueRef.current) {
-		lastExternalValueRef.current = externalValue;
-		setInternalValue(externalValue ?? "");
-	}
-
-	const { debounced, cancelDebounce } = useDebouncedFunction(
-		(nextValue: string) => {
-			onValueChange(nextValue);
-		},
-		COMBOBOX_DEBOUNCE_MS,
-	);
-
-	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		// Flush the pending debounce immediately on Enter so that
-		// parent onKeyDown handlers see up-to-date state.
-		if (event.key === "Enter") {
-			cancelDebounce();
-			onValueChange(internalValue);
-		}
-		onKeyDown?.(event);
-	};
-
-	return (
-		<CommandInput
-			{...props}
-			onValueChange={(nextValue) => {
-				setInternalValue(nextValue);
-				debounced(nextValue);
-			}}
-			value={internalValue}
-			onBlur={(event) => {
-				cancelDebounce();
-				onBlur?.(event);
-			}}
-			onKeyDown={handleKeyDown}
-		/>
-	);
-};
 export const ComboboxList = CommandList;
 
 export const ComboboxItem = ({
