@@ -27,6 +27,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
+	initialParamsAcknowledged: boolean;
 	isSubmitting: boolean;
 	submitLabel: string;
 	onCancel: () => void;
@@ -45,6 +46,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	parameters,
 	diagnostics,
 	canChangeVersions,
+	initialParamsAcknowledged,
 	isSubmitting,
 	submitLabel,
 	onSubmit,
@@ -104,6 +106,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
 		setFieldValue: form.setFieldValue,
+		initialParamsAcknowledged,
 	});
 
 	// True when the form holds values the backend hasn't evaluated

@@ -9,12 +9,18 @@ type UseSyncFormParametersProps = {
 		field: string,
 		value: TypesGen.WorkspaceBuildParameter[],
 	) => void;
+	// When false the WebSocket has not yet returned a response that
+	// reflects the initial form values we sent (autofill / previous
+	// build). Preserve existing form values so the sync hook does not
+	// overwrite them with stale server defaults.
+	initialParamsAcknowledged?: boolean;
 };
 
 export function useSyncFormParameters({
 	parameters,
 	formValues,
 	setFieldValue,
+	initialParamsAcknowledged = true,
 }: UseSyncFormParametersProps) {
 	// Form values only needs to be updated when parameters change
 	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
@@ -36,7 +42,13 @@ export function useSyncFormParameters({
 			// hook from overwriting autofilled values (from the
 			// previous build) with empty strings before the server
 			// has had a chance to process them.
-			if (!param.value.valid) {
+			//
+			// Also preserve the form value when the server has not yet
+			// acknowledged the initial parameters we sent. The first
+			// WS response (id -1) carries template defaults which
+			// would overwrite autofilled values from a previous build
+			// or URL search params.
+			if (!param.value.valid || !initialParamsAcknowledged) {
 				const existingValue = currentFormValuesMap.get(param.name);
 				if (existingValue !== undefined) {
 					return { name: param.name, value: existingValue };
@@ -60,5 +72,5 @@ export function useSyncFormParameters({
 		if (isChanged) {
 			setFieldValue("rich_parameter_values", newParameterValues);
 		}
-	}, [parameters, setFieldValue]);
+	}, [parameters, setFieldValue, initialParamsAcknowledged]);
 }

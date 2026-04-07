@@ -294,22 +294,19 @@ const CreateWorkspacePage: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
-	// The initial WS response (id: -1) contains only template defaults.
-	// Keep the loader visible until a response reflecting the user's
-	// actual parameter values arrives (id >= 0).
-	const awaitingUserValues =
-		latestResponse !== null &&
-		latestResponse.id < 0 &&
-		latestResponse.parameters.length > 0 &&
-		!wsError;
-
 	const shouldShowLoader =
 		!templateQuery.data ||
 		isLoadingFormData ||
 		isLoadingExternalAuth ||
 		autoCreateReady ||
-		(!latestResponse && !wsError) ||
-		awaitingUserValues;
+		(!latestResponse && !wsError);
+
+	// True once the WebSocket has returned a response that reflects
+	// the initial parameter values we sent (id >= 0), or when we
+	// never sent initial params at all.
+	const initialParamsAcknowledged =
+		!initialParamsSentRef.current ||
+		(latestResponse !== null && latestResponse.id >= 0);
 
 	return (
 		<>
@@ -354,6 +351,7 @@ const CreateWorkspacePage: FC = () => {
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}
+					initialParamsAcknowledged={initialParamsAcknowledged}
 					sendMessage={sendMessage}
 					onCancel={() => {
 						navigate(-1);

@@ -84,6 +84,7 @@ interface CreateWorkspacePageViewProps {
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
+	initialParamsAcknowledged?: boolean;
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
@@ -112,6 +113,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	startPollingExternalAuth,
 	owner,
 	setOwner,
+	initialParamsAcknowledged = true,
 }) => {
 	const [suggestedName, setSuggestedName] = useState(generateWorkspaceName);
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
@@ -361,6 +363,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
 		setFieldValue: form.setFieldValue,
+		initialParamsAcknowledged,
 	});
 
 	const disabled =
