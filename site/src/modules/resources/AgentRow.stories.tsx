@@ -76,6 +76,8 @@ const defaultAgentMetadata = [
 	},
 ];
 
+const fixedLogTimestamp = "2021-05-05T00:00:00.000Z";
+
 const logs = [
 	"\x1b[91mCloning Git repository...",
 	"\x1b[2;37;41mStarting Docker Daemon...",
@@ -87,7 +89,7 @@ const logs = [
 	level: "info",
 	output: line,
 	source_id: M.MockWorkspaceAgentLogSource.id,
-	created_at: new Date().toISOString(),
+	created_at: fixedLogTimestamp,
 }));
 
 const installScriptLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -102,21 +104,21 @@ const tabbedLogs = [
 		level: "info",
 		output: "startup: preparing workspace",
 		source_id: M.MockWorkspaceAgentLogSource.id,
-		created_at: new Date().toISOString(),
+		created_at: fixedLogTimestamp,
 	},
 	{
 		id: 101,
 		level: "info",
 		output: "install: pnpm install",
 		source_id: installScriptLogSource.id,
-		created_at: new Date().toISOString(),
+		created_at: fixedLogTimestamp,
 	},
 	{
 		id: 102,
 		level: "info",
 		output: "install: setup complete",
 		source_id: installScriptLogSource.id,
-		created_at: new Date().toISOString(),
+		created_at: fixedLogTimestamp,
 	},
 ];
 
@@ -153,7 +155,7 @@ const overflowLogs = overflowLogSources.map((source, index) => ({
 	level: "info",
 	output: `${source.display_name}: line`,
 	source_id: source.id,
-	created_at: new Date().toISOString(),
+	created_at: fixedLogTimestamp,
 }));
 
 const meta: Meta<typeof AgentRow> = {
