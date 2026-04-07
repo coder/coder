@@ -4,12 +4,12 @@ import {
 	type RefCallback,
 	type RefObject,
 	useEffect,
+	useEffectEvent,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 import { Button } from "#/components/Button/Button";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { cn } from "#/utils/cn";
 
 // ===========================================================================
@@ -155,18 +155,18 @@ function useStickToBottom(): StickToBottomInstance {
 		}
 	});
 
-	const suppressNextResize = useEffectEvent(() => {
+	const suppressNextResize = () => {
 		stateRef.current.suppressNextResize = true;
-	});
+	};
 
-	const capturePrependSnapshot = useEffectEvent(() => {
+	const capturePrependSnapshot = () => {
 		const s = stateRef.current;
 		if (s.scrollElement) {
 			s.pendingPrepend = {
 				scrollHeight: s.scrollElement.scrollHeight,
 			};
 		}
-	});
+	};
 
 	// -----------------------------------------------------------------------
 	// Event handlers
@@ -489,6 +489,7 @@ function useStickToBottom(): StickToBottomInstance {
 	});
 
 	// -----------------------------------------------------------------------
+	// -----------------------------------------------------------------------
 	// Mouse tracking (instance-scoped)
 	// -----------------------------------------------------------------------
 
@@ -508,7 +509,7 @@ function useStickToBottom(): StickToBottomInstance {
 			document.removeEventListener("mouseup", onUp);
 			document.removeEventListener("click", onUp);
 		};
-	}, []);
+	});
 
 	// Reset touch counter on tab switch. The browser may not
 	// fire touchend/touchcancel when the user switches away
@@ -525,7 +526,7 @@ function useStickToBottom(): StickToBottomInstance {
 		return () => {
 			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
-	}, []);
+	});
 
 	// Cleanup on unmount.
 	useEffect(() => {
@@ -546,13 +547,7 @@ function useStickToBottom(): StickToBottomInstance {
 				s.viewportObserver.disconnect();
 			}
 		};
-	}, [
-		handleScroll,
-		handleWheel,
-		handleTouchStart,
-		handleTouchEnd,
-		handlePointerDown,
-	]);
+	});
 
 	// Post-render consistency check. If we believe we're pinned
 	// to the bottom but the physical scroll position disagrees,
@@ -624,7 +619,6 @@ const ChatScrollContainer: FC<{
 		scrollContainerRef.current = el;
 		scrollToBottomRef.current = el ? () => scrollToBottom("instant") : null;
 	});
-
 	// -------------------------------------------------------------------
 	// Pagination sentinel (IntersectionObserver)
 	// -------------------------------------------------------------------
