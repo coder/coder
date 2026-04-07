@@ -1,5 +1,5 @@
 import { SearchIcon, XIcon } from "lucide-react";
-import { type Ref, useLayoutEffect, useRef } from "react";
+import { type Ref, useEffectEvent, useLayoutEffect, useRef } from "react";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -11,7 +11,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 
 export type SearchFieldProps = {
 	value: string;
@@ -45,7 +44,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({
 	});
 	useLayoutEffect(() => {
 		focusOnMount();
-	}, [focusOnMount]);
+	}, []);
 
 	const handleClear = () => {
 		if (onClear) {

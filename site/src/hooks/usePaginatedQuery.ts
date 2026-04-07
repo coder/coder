@@ -1,5 +1,5 @@
 import clamp from "lodash/clamp";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import {
 	keepPreviousData,
 	type QueryFunctionContext,
@@ -10,7 +10,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { useEffectEvent } from "./hookPolyfills";
 
 const DEFAULT_RECORDS_PER_PAGE = 25;
 
@@ -173,13 +172,13 @@ export function usePaginatedQuery<
 		if (hasNextPage) {
 			void prefetchPage(currentPage + 1);
 		}
-	}, [prefetchPage, currentPage, hasNextPage]);
+	}, [currentPage, hasNextPage]);
 
 	useEffect(() => {
 		if (hasPreviousPage) {
 			void prefetchPage(currentPage - 1);
 		}
-	}, [prefetchPage, currentPage, hasPreviousPage]);
+	}, [currentPage, hasPreviousPage]);
 
 	// Mainly here to catch user if they navigate to a page directly via URL;
 	// totalPages parameterized to insulate function from fetch status changes
@@ -227,7 +226,7 @@ export function usePaginatedQuery<
 		if (!query.isFetching && totalPages !== undefined) {
 			void updatePageIfInvalid(totalPages);
 		}
-	}, [updatePageIfInvalid, query.isFetching, totalPages]);
+	}, [query.isFetching, totalPages]);
 
 	const onPageChange = (newPage: number) => {
 		// Page 1 is the only page that can be safely navigated to without knowing

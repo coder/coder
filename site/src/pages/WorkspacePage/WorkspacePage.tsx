@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useEffectEvent } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
@@ -13,7 +13,6 @@ import type { Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 const WorkspacePage: FC = () => {
@@ -99,7 +98,7 @@ const WorkspacePage: FC = () => {
 		});
 
 		return () => socket.close();
-	}, [updateWorkspaceData, workspaceId, workspaceName]);
+	}, [workspaceId, workspaceName]);
 
 	// Page statuses
 	const pageError =
