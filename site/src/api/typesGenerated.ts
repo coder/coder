@@ -3288,9 +3288,10 @@ export interface DynamicParametersResponse {
 
 // From codersdk/chats.go
 /**
- * DynamicTool pairs a tool definition with a client-side handler.
- * Only Name, Description, and InputSchema are serialized; the
- * Handler stays local.
+ * DynamicTool describes a client-declared tool definition. On the
+ * client side, the Handler callback executes the tool when the LLM
+ * invokes it. On the server side, only Name, Description, and
+ * InputSchema are used (Handler is not serialized).
  */
 export interface DynamicTool {
 	readonly name: string;
@@ -7295,6 +7296,10 @@ export interface TokensFilter {
  */
 export interface ToolResult {
 	readonly tool_call_id: string;
+	/**
+	 * Output must be valid JSON. The handler validates this
+	 * and returns 400 if invalid.
+	 */
 	readonly output: string;
 	readonly is_error: boolean;
 }

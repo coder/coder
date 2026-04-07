@@ -5806,7 +5806,10 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
 
+	// Cap the raw request body to prevent excessive memory use.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.SubmitToolResultsRequest
+
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -5864,11 +5867,16 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Extract the tool-call IDs that target dynamic tools.
 	pendingCallIDs := make(map[string]bool)
 	parts, parseErr := chatprompt.ParseContent(lastAssistant)
-	if parseErr == nil {
-		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeToolCall && dynamicToolNames[part.ToolName] {
-				pendingCallIDs[part.ToolCallID] = true
-			}
+	if parseErr != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to parse assistant message.",
+			Detail:  parseErr.Error(),
+		})
+		return
+	}
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeToolCall && dynamicToolNames[part.ToolName] {
+			pendingCallIDs[part.ToolCallID] = true
 		}
 	}
 
@@ -5876,6 +5884,13 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// exactly — no missing results and no unexpected ones.
 	submittedIDs := make(map[string]bool, len(req.Results))
 	for _, result := range req.Results {
+		if submittedIDs[result.ToolCallID] {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Duplicate tool_call_id in results.",
+				Detail:  fmt.Sprintf("Duplicate tool call ID %q.", result.ToolCallID),
+			})
+			return
+		}
 		submittedIDs[result.ToolCallID] = true
 	}
 	for id := range pendingCallIDs {
@@ -5887,6 +5902,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	for id := range submittedIDs {
 		if !pendingCallIDs[id] {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

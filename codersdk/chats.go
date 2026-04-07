@@ -371,8 +371,10 @@ type SubmitToolResultsRequest struct {
 // ToolResult is the client's response to a dynamic tool call.
 type ToolResult struct {
 	ToolCallID string `json:"tool_call_id"`
-	Output     string `json:"output"`
-	IsError    bool   `json:"is_error"`
+	// Output must be valid JSON. The handler validates this
+	// and returns 400 if invalid.
+	Output  string `json:"output"`
+	IsError bool   `json:"is_error"`
 }
 
 // CreateChatRequest is the request to create a new chat.
@@ -1037,9 +1039,10 @@ type DynamicToolResponse struct {
 	IsError bool   `json:"is_error"`
 }
 
-// DynamicTool pairs a tool definition with a client-side handler.
-// Only Name, Description, and InputSchema are serialized; the
-// Handler stays local.
+// DynamicTool describes a client-declared tool definition. On the
+// client side, the Handler callback executes the tool when the LLM
+// invokes it. On the server side, only Name, Description, and
+// InputSchema are used (Handler is not serialized).
 type DynamicTool struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`

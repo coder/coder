@@ -4777,7 +4777,13 @@ func (p *Server) runChat(
 		}
 	}
 
-	tools = append(tools, dynamicToolsFromSDK(p.logger, dynamicToolDefs)...)
+	var filteredDefs []codersdk.DynamicTool
+	for _, dt := range dynamicToolDefs {
+		if dynamicToolNames[dt.Name] {
+			filteredDefs = append(filteredDefs, dt)
+		}
+	}
+	tools = append(tools, dynamicToolsFromSDK(p.logger, filteredDefs)...)
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool
@@ -4826,9 +4832,11 @@ func (p *Server) runChat(
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
 
-		ModelConfig:      callConfig,
-		ProviderOptions:  providerOptions,
-		ProviderTools:    providerTools,
+		ModelConfig:     callConfig,
+		ProviderOptions: providerOptions,
+		ProviderTools:   providerTools,
+		// dynamicToolNames now contains only names that don't
+		// collide with built-in/MCP tools.
 		DynamicToolNames: dynamicToolNames,
 
 		ContextLimitFallback: modelConfigContextLimit,
@@ -5592,10 +5600,20 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				}
 			}
 
-			// Reset to pending so any replica can pick it up.
+			recoverStatus := database.ChatStatusPending
+			if locked.Status == database.ChatStatusRequiresAction {
+				// Timed-out requires_action chats have dangling
+				// tool calls with no matching results. Setting
+				// them back to pending would replay incomplete
+				// tool calls to the LLM, so mark them as errors.
+				recoverStatus = database.ChatStatusError
+			}
+
+			// Reset so any replica can pick it up (pending) or
+			// the client sees the failure (error).
 			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 				ID:          chat.ID,
-				Status:      database.ChatStatusPending,
+				Status:      recoverStatus,
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},

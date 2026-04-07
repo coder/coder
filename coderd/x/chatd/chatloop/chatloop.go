@@ -51,6 +51,7 @@ var (
 // (text, reasoning, tool calls) and tool result blocks. The
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
+
 // PendingToolCall describes a tool call that targets a dynamic
 // tool. These calls are not executed by the chatloop; instead
 // they are persisted so the caller can fulfill them externally.
@@ -435,7 +436,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// have (assistant + built-in results) and exit so
 				// the caller can execute them externally.
 				if len(dynamicCalls) > 0 {
-					var pending []PendingToolCall
+					pending := make([]PendingToolCall, 0, len(dynamicCalls))
 					for _, dc := range dynamicCalls {
 						pending = append(pending, PendingToolCall{
 							ToolCallID: dc.ToolCallID,
