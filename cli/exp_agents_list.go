@@ -25,6 +25,7 @@ type chatListModel struct {
 	styles    tuiStyles
 	chats     []codersdk.Chat
 	cursor    int
+	offset    int
 	loading   bool
 	err       error
 	search    textinput.Model
@@ -92,6 +93,51 @@ func (m *chatListModel) clampCursor() {
 	}
 }
 
+func (m chatListModel) visibleChatCount() int {
+	overhead := 3
+	if m.searching {
+		overhead += 2
+	}
+
+	visibleCount := m.height - overhead
+	if visibleCount < 3 {
+		visibleCount = 3
+	}
+	return visibleCount
+}
+
+func (m chatListModel) visibleWindow(total int) (start int, end int) {
+	if total == 0 {
+		return 0, 0
+	}
+
+	visibleCount := m.visibleChatCount()
+	start = max(m.offset, 0)
+	maxOffset := max(total-visibleCount, 0)
+	if start > maxOffset {
+		start = maxOffset
+	}
+	if m.cursor < start {
+		start = m.cursor
+	}
+	if m.cursor >= start+visibleCount {
+		start = m.cursor - visibleCount + 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	if start > maxOffset {
+		start = maxOffset
+	}
+	end = min(start+visibleCount, total)
+	return start, end
+}
+
+func (m *chatListModel) ensureCursorVisible() {
+	offset, _ := m.visibleWindow(len(m.filteredChats()))
+	m.offset = offset
+}
+
 func (m chatListModel) Init() tea.Cmd {
 	return m.spinner.Tick
 }
@@ -103,6 +149,7 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.ensureCursorVisible()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -117,6 +164,7 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 		m.err = msg.err
 		m.loading = false
 		m.clampCursor()
+		m.ensureCursorVisible()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -126,18 +174,22 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 				if m.search.Value() != "" {
 					m.search.SetValue("")
 					m.clampCursor()
+					m.offset = 0
 					return m, nil
 				}
 				m.search.Blur()
 				m.searching = false
+				m.ensureCursorVisible()
 				return m, nil
 			case "enter":
 				m.search.Blur()
 				m.searching = false
+				m.ensureCursorVisible()
 				return m, nil
 			default:
 				m.search, cmd = m.search.Update(msg)
 				m.clampCursor()
+				m.offset = 0
 				return m, cmd
 			}
 		}
@@ -146,14 +198,17 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 		case "/", "ctrl+f":
 			m.searching = true
 			m.search.Focus()
+			m.ensureCursorVisible()
 			return m, nil
 		case "up", "k":
 			m.cursor--
 			m.clampCursor()
+			m.ensureCursorVisible()
 			return m, nil
 		case "down", "j":
 			m.cursor++
 			m.clampCursor()
+			m.ensureCursorVisible()
 			return m, nil
 		case "enter":
 			selected := m.selectedChat()
@@ -213,7 +268,9 @@ func (m chatListModel) View() string {
 	}
 
 	statusWidth := 12
-	for i, chat := range filtered {
+	start, end := m.visibleWindow(len(filtered))
+	for i := start; i < end; i++ {
+		chat := filtered[i]
 		prefix := "  "
 		rowStyle := m.styles.normalItem
 		if i == m.cursor {

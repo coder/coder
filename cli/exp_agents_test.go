@@ -2,6 +2,7 @@ package cli //nolint:testpackage // Tests unexported chat TUI reducers.
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/url"
 	"testing"
@@ -973,6 +974,55 @@ func TestExpAgents(t *testing.T) {
 					}
 				})
 			}
+		})
+
+		t.Run("ViewKeepsSelectedChatVisible", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+			model.width = 80
+			model.height = 8
+			model.chats = make([]codersdk.Chat, 8)
+			for i := range model.chats {
+				chat := testChat(codersdk.ChatStatusWaiting)
+				chat.Title = fmt.Sprintf("chat %02d", i)
+				model.chats[i] = chat
+			}
+
+			for range 6 {
+				var cmd tea.Cmd
+				model, cmd = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+				require.Nil(t, cmd)
+			}
+
+			require.Equal(t, 6, model.cursor)
+			require.Equal(t, 2, model.offset)
+
+			listView := plainText(model.View())
+			require.Contains(t, listView, "> chat 06")
+			require.NotContains(t, listView, "chat 00")
+			require.NotContains(t, listView, "chat 01")
+
+			parent := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			parent.currentView = viewList
+			parent.width = 80
+			parent.height = 8
+			parent.list = model
+
+			parentView := plainText(parent.View())
+			require.Contains(t, parentView, "Coder Chats")
+			require.Contains(t, parentView, "> chat 06")
+
+			for range 5 {
+				var cmd tea.Cmd
+				model, cmd = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+				require.Nil(t, cmd)
+			}
+
+			require.Equal(t, 1, model.cursor)
+			require.Equal(t, 1, model.offset)
+			require.Contains(t, plainText(model.View()), "> chat 01")
 		})
 
 		t.Run("SlashFocusesSearch", func(t *testing.T) {
