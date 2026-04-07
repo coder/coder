@@ -136,6 +136,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	var agent database.WorkspaceAgent
 
+	agentName = strings.TrimSpace(agentName)
 	if agentName != "" {
 		var err error
 		agent, err = api.Database.GetWorkspaceAgentByInstanceIDAndName(systemCtx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
@@ -196,6 +197,13 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 				continue
 			}
 			matchingAgents = append(matchingAgents, candidate)
+		}
+
+		if len(matchingAgents) == 0 {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
+			})
+			return
 		}
 
 		if len(matchingAgents) > 1 {

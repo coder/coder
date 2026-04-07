@@ -162,6 +162,54 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		require.Contains(t, apiErr.Message, "alpha, beta")
 	})
 
+	t.Run("Ambiguous/WhitespaceAgentNameTreatedAsUnset", func(t *testing.T) {
+		t.Parallel()
+
+		instanceID := newTestInstanceID(t)
+		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
+		client, _ := setupInstanceIDWorkspace(t, &coderdtest.Options{
+			AWSCertificates: certificates,
+		}, workspaceAgentsForInstanceID(instanceID, "alpha", "beta"))
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		signatureReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
+		require.NoError(t, err)
+		signatureRes, err := metadataClient.Do(signatureReq)
+		require.NoError(t, err)
+		defer signatureRes.Body.Close()
+		signature, err := io.ReadAll(signatureRes.Body)
+		require.NoError(t, err)
+
+		documentReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
+		require.NoError(t, err)
+		documentRes, err := metadataClient.Do(documentReq)
+		require.NoError(t, err)
+		defer documentRes.Body.Close()
+		document, err := io.ReadAll(documentRes.Body)
+		require.NoError(t, err)
+
+		reqBody, err := json.Marshal(map[string]string{
+			"signature":  string(signature),
+			"document":   string(document),
+			"agent_name": "   ",
+		})
+		require.NoError(t, err)
+
+		res, err := client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", reqBody)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+		err = codersdk.ReadBodyAsError(res)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "CODER_AGENT_NAME")
+		require.Contains(t, apiErr.Message, "alpha, beta")
+	})
+
 	t.Run("Ambiguous/MultipleAgentsWithSelector", func(t *testing.T) {
 		t.Parallel()
 
