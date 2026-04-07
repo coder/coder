@@ -24963,6 +24963,69 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 	return i, err
 }
 
+const getWorkspaceAgentByInstanceIDAndName = `-- name: GetWorkspaceAgentByInstanceIDAndName :one
+SELECT
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+FROM
+	workspace_agents
+WHERE
+	auth_instance_id = $1 :: TEXT
+	AND name = $2 :: TEXT
+	-- Filter out deleted agents.
+	AND deleted = FALSE
+	-- Filter out sub agents, they do not authenticate with auth_instance_id.
+	AND parent_id IS NULL
+ORDER BY
+	created_at DESC
+`
+
+type GetWorkspaceAgentByInstanceIDAndNameParams struct {
+	AuthInstanceID string `db:"auth_instance_id" json:"auth_instance_id"`
+	Name           string `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentByInstanceIDAndName(ctx context.Context, arg GetWorkspaceAgentByInstanceIDAndNameParams) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceIDAndName, arg.AuthInstanceID, arg.Name)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.Architecture,
+		&i.EnvironmentVariables,
+		&i.OperatingSystem,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+		&i.Directory,
+		&i.Version,
+		&i.LastConnectedReplicaID,
+		&i.ConnectionTimeoutSeconds,
+		&i.TroubleshootingURL,
+		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.ExpandedDirectory,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+		&i.StartedAt,
+		&i.ReadyAt,
+		pq.Array(&i.Subsystems),
+		pq.Array(&i.DisplayApps),
+		&i.APIVersion,
+		&i.DisplayOrder,
+		&i.ParentID,
+		&i.APIKeyScope,
+		&i.Deleted,
+	)
+	return i, err
+}
+
 const getWorkspaceAgentLifecycleStateByID = `-- name: GetWorkspaceAgentLifecycleStateByID :one
 SELECT
 	lifecycle_state,
@@ -25162,6 +25225,79 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context
 			&i.DisplayName,
 			&i.WorkspaceAgentID,
 			&i.WorkspaceAgentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentsByInstanceID = `-- name: GetWorkspaceAgentsByInstanceID :many
+SELECT
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+FROM
+	workspace_agents
+WHERE
+	auth_instance_id = $1 :: TEXT
+	-- Filter out deleted agents.
+	AND deleted = FALSE
+	-- Filter out sub agents, they do not authenticate with auth_instance_id.
+	AND parent_id IS NULL
+ORDER BY
+	created_at DESC
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByInstanceID, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+			&i.Version,
+			&i.LastConnectedReplicaID,
+			&i.ConnectionTimeoutSeconds,
+			&i.TroubleshootingURL,
+			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.ExpandedDirectory,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+			&i.StartedAt,
+			&i.ReadyAt,
+			pq.Array(&i.Subsystems),
+			pq.Array(&i.DisplayApps),
+			&i.APIVersion,
+			&i.DisplayOrder,
+			&i.ParentID,
+			&i.APIKeyScope,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}

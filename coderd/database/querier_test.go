@@ -6924,6 +6924,276 @@ func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
 	})
 }
 
+func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+	})
+
+	resources := make([]database.WorkspaceResource, 0, count)
+	for i := 0; i < count; i++ {
+		resources = append(resources, dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		}))
+	}
+
+	return resources
+}
+
+func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB, agentID uuid.UUID) {
+	t.Helper()
+
+	_, err := sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = TRUE WHERE id = $1", agentID)
+	require.NoError(t, err)
+}
+
+func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsAllMatchingRootAgents", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newerAgent.ID, olderAgent.ID}, []uuid.UUID{agents[0].ID, agents[1].ID})
+	})
+
+	t.Run("ExcludesDeletedAndSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		rootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt.Add(-time.Hour),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: rootAgent.ID, Valid: true},
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedRootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedRootAgent.ID)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, rootAgent.ID, agents[0].ID)
+		assert.False(t, agents[0].ParentID.Valid)
+	})
+
+	t.Run("OrdersNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, newerAgent.ID, agents[0].ID)
+		assert.Equal(t, olderAgent.ID, agents[1].ID)
+	})
+}
+
+func TestGetWorkspaceAgentByInstanceIDAndName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsNamedRootAgent", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+
+		targetAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			Name:       "target-agent",
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			Name:       "other-agent",
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agent, err := db.GetWorkspaceAgentByInstanceIDAndName(ctx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
+			AuthInstanceID: authInstanceID,
+			Name:           targetAgent.Name,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, targetAgent.ID, agent.ID)
+		assert.Equal(t, targetAgent.Name, agent.Name)
+	})
+
+	t.Run("ReturnsNewestHistoricalMatch", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			Name:       "historical-agent",
+			CreatedAt:  olderCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			Name:       "historical-agent",
+			CreatedAt:  newerCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agent, err := db.GetWorkspaceAgentByInstanceIDAndName(ctx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
+			AuthInstanceID: authInstanceID,
+			Name:           newerAgent.Name,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, newerAgent.ID, agent.ID)
+	})
+
+	t.Run("ExcludesDeletedAndSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		name := "named-agent"
+		baseCreatedAt := dbtime.Now()
+
+		rootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			Name:       name,
+			CreatedAt:  baseCreatedAt.Add(-time.Hour),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: rootAgent.ID, Valid: true},
+			ResourceID: resources[0].ID,
+			Name:       name,
+			CreatedAt:  baseCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedRootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			Name:       name,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedRootAgent.ID)
+
+		agent, err := db.GetWorkspaceAgentByInstanceIDAndName(ctx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
+			AuthInstanceID: authInstanceID,
+			Name:           name,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, rootAgent.ID, agent.ID)
+		assert.False(t, agent.ParentID.Valid)
+	})
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)

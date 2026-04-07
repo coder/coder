@@ -4260,6 +4260,32 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
+func (q *querier) GetWorkspaceAgentByInstanceIDAndName(ctx context.Context, arg database.GetWorkspaceAgentByInstanceIDAndNameParams) (database.WorkspaceAgent, error) {
+	agent, err := q.db.GetWorkspaceAgentByInstanceIDAndName(ctx, arg)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return agent, nil
+}
+
+func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
+	agents, err := q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, agent := range agents {
+		_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
+}
+
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
 	if err != nil {
