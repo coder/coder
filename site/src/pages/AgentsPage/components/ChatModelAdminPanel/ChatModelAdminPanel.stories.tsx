@@ -509,16 +509,7 @@ export const CreateAndUpdateProvider: Story = {
 	},
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: nilProviderConfigID,
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "supported",
-				enabled: false,
-				has_api_key: false,
-			}),
-		],
+		providerConfigsData: [],
 		modelCatalogData: {
 			providers: [
 				{
