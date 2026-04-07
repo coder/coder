@@ -244,6 +244,10 @@ type sqlcQuerier interface {
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error)
+	// GetChatFileMetadataByChatID returns lightweight file metadata for
+	// all files linked to a chat. The data column is excluded to avoid
+	// loading file content.
+	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
@@ -778,6 +782,15 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	// LinkChatFiles inserts file associations into the chat_file_links
+	// join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
+	// is conditional: it only proceeds when the total number of links
+	// (existing + genuinely new) does not exceed max_file_links. Returns
+	// the number of genuinely new file IDs that were NOT inserted due to
+	// the cap. A return value of 0 means all files were linked (or were
+	// already linked). A positive value means the cap blocked that many
+	// new links.
+	LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations

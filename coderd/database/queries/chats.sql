@@ -567,6 +567,43 @@ WHERE
 RETURNING
     *;
 
+-- name: LinkChatFiles :one
+-- LinkChatFiles inserts file associations into the chat_file_links
+-- join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
+-- is conditional: it only proceeds when the total number of links
+-- (existing + genuinely new) does not exceed max_file_links. Returns
+-- the number of genuinely new file IDs that were NOT inserted due to
+-- the cap. A return value of 0 means all files were linked (or were
+-- already linked). A positive value means the cap blocked that many
+-- new links.
+WITH current AS (
+    SELECT COUNT(*) AS cnt
+    FROM chat_file_links
+    WHERE chat_id = @chat_id::uuid
+),
+new_links AS (
+    SELECT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
+),
+genuinely_new AS (
+    SELECT nl.chat_id, nl.file_id
+    FROM new_links nl
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chat_file_links cfl
+        WHERE cfl.chat_id = nl.chat_id AND cfl.file_id = nl.file_id
+    )
+),
+inserted AS (
+    INSERT INTO chat_file_links (chat_id, file_id)
+    SELECT gn.chat_id, gn.file_id
+    FROM genuinely_new gn, current c
+    WHERE c.cnt + (SELECT COUNT(*) FROM genuinely_new) <= @max_file_links::int
+    ON CONFLICT (chat_id, file_id) DO NOTHING
+    RETURNING file_id
+)
+SELECT
+    (SELECT COUNT(*)::int FROM genuinely_new) -
+    (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
+
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
 -- to prevent multiple replicas from acquiring the same chat.

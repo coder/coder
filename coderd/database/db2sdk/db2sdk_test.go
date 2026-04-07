@@ -561,14 +561,26 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ChatID: input.ID,
 	}
 
-	got := db2sdk.Chat(input, diffStatus)
+	fileRows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             uuid.New(),
+			OwnerID:        input.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "test.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+	}
+
+	got := db2sdk.Chat(input, diffStatus, fileRows)
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
 	// HasUnread is populated by ChatRows (which joins the
-	// read-cursor query), not by Chat, so it is expected
-	// to remain zero here.
-	skip := map[string]bool{"HasUnread": true}
+	// read-cursor query), not by Chat. Warnings is a transient
+	// field populated by handlers, not the converter. Both are
+	// expected to remain zero here.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
@@ -579,6 +591,112 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			field.Name,
 		)
 	}
+}
+
+func TestChat_FileMetadataConversion(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	fileID := uuid.New()
+	now := dbtime.Now()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           ownerID,
+		LastModelConfigID: uuid.New(),
+		Title:             "file metadata test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	rows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             fileID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+			Name:           "screenshot.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+	}
+
+	result := db2sdk.Chat(chat, nil, rows)
+
+	require.Len(t, result.Files, 1)
+	f := result.Files[0]
+	require.Equal(t, fileID, f.ID)
+	require.Equal(t, ownerID, f.OwnerID, "OwnerID must be mapped from DB row")
+	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
+	require.Equal(t, "screenshot.png", f.Name)
+	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, now, f.CreatedAt)
+
+	// Verify JSON serialization uses snake_case for mime_type.
+	data, err := json.Marshal(f)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"mime_type"`)
+	require.NotContains(t, string(data), `"mimetype"`)
+}
+
+func TestChat_NilFilesOmitted(t *testing.T) {
+	t.Parallel()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "no files",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         dbtime.Now(),
+		UpdatedAt:         dbtime.Now(),
+	}
+
+	result := db2sdk.Chat(chat, nil, nil)
+	require.Empty(t, result.Files)
+}
+
+func TestChat_MultipleFiles(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	file1 := uuid.New()
+	file2 := uuid.New()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "multi file test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	rows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             file1,
+			OwnerID:        chat.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "a.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+		{
+			ID:             file2,
+			OwnerID:        chat.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "b.txt",
+			Mimetype:       "text/plain",
+			CreatedAt:      now,
+		},
+	}
+
+	result := db2sdk.Chat(chat, nil, rows)
+	require.Len(t, result.Files, 2)
+	require.Equal(t, "a.png", result.Files[0].Name)
+	require.Equal(t, "b.txt", result.Files[1].Name)
 }
 
 func TestChatQueuedMessage_MalformedContent(t *testing.T) {

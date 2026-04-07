@@ -1269,6 +1269,11 @@ CREATE TABLE chat_diff_statuses (
     head_branch text
 );
 
+CREATE TABLE chat_file_links (
+    chat_id uuid NOT NULL,
+    file_id uuid NOT NULL
+);
+
 CREATE TABLE chat_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -3344,6 +3349,9 @@ ALTER TABLE ONLY boundary_usage_stats
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
+
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
@@ -3734,6 +3742,8 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
+
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
@@ -4035,6 +4045,12 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_file_id_fkey FOREIGN KEY (file_id) REFERENCES chat_files(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

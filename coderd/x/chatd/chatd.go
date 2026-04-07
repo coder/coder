@@ -3204,7 +3204,11 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil) // we have diffStatus already converted
+	// diffStatus is applied below. File metadata is intentionally
+	// omitted from pubsub events to avoid an extra DB query per
+	// publish. Clients must merge pubsub updates, not replace
+	// cached file metadata.
+	sdkChat := db2sdk.Chat(chat, nil, nil)
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -4525,6 +4529,27 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
+				// Cap enforcement and dedup are handled atomically
+				// in SQL. rejected > 0 = cap exceeded.
+				rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chatSnapshot.ID,
+					MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+					FileIds:      []uuid.UUID{row.ID},
+				})
+				switch {
+				case err != nil:
+					p.logger.Error(ctx, "failed to link file to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.Error(err),
+					)
+				case rejected > 0:
+					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.F("max_file_links", codersdk.MaxChatFileIDs),
+					)
+				}
 				return row.ID, nil
 			},
 		}))

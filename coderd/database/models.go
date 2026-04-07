@@ -4218,6 +4218,11 @@ type ChatFile struct {
 	Data           []byte    `db:"data" json:"data"`
 }
 
+type ChatFileLink struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	FileID uuid.UUID `db:"file_id" json:"file_id"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
