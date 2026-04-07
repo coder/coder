@@ -2162,19 +2162,19 @@ func (mr *MockStoreMockRecorder) GetChatMessageByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByID", reflect.TypeOf((*MockStore)(nil).GetChatMessageByID), ctx, id)
 }
 
-// GetChatMessageSummariesByChat mocks base method.
-func (m *MockStore) GetChatMessageSummariesByChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesByChatRow, error) {
+// GetChatMessageSummariesPerChat mocks base method.
+func (m *MockStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatMessageSummariesByChat", ctx, createdAfter)
-	ret0, _ := ret[0].([]database.GetChatMessageSummariesByChatRow)
+	ret := m.ctrl.Call(m, "GetChatMessageSummariesPerChat", ctx, createdAfter)
+	ret0, _ := ret[0].([]database.GetChatMessageSummariesPerChatRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatMessageSummariesByChat indicates an expected call of GetChatMessageSummariesByChat.
-func (mr *MockStoreMockRecorder) GetChatMessageSummariesByChat(ctx, createdAfter any) *gomock.Call {
+// GetChatMessageSummariesPerChat indicates an expected call of GetChatMessageSummariesPerChat.
+func (mr *MockStoreMockRecorder) GetChatMessageSummariesPerChat(ctx, createdAfter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageSummariesByChat", reflect.TypeOf((*MockStore)(nil).GetChatMessageSummariesByChat), ctx, createdAfter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageSummariesPerChat", reflect.TypeOf((*MockStore)(nil).GetChatMessageSummariesPerChat), ctx, createdAfter)
 }
 
 // GetChatMessagesByChatID mocks base method.

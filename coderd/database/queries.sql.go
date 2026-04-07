@@ -5185,7 +5185,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 	return i, err
 }
 
-const getChatMessageSummariesByChat = `-- name: GetChatMessageSummariesByChat :many
+const getChatMessageSummariesPerChat = `-- name: GetChatMessageSummariesPerChat :many
 SELECT
     cm.chat_id,
     COUNT(*)::bigint AS message_count,
@@ -5208,7 +5208,7 @@ WHERE c.created_at > $1
 GROUP BY cm.chat_id
 `
 
-type GetChatMessageSummariesByChatRow struct {
+type GetChatMessageSummariesPerChatRow struct {
 	ChatID                   uuid.UUID `db:"chat_id" json:"chat_id"`
 	MessageCount             int64     `db:"message_count" json:"message_count"`
 	UserMessageCount         int64     `db:"user_message_count" json:"user_message_count"`
@@ -5228,15 +5228,15 @@ type GetChatMessageSummariesByChatRow struct {
 
 // Aggregates message-level metrics per chat for chats created after
 // the given timestamp. Used for telemetry snapshot collection.
-func (q *sqlQuerier) GetChatMessageSummariesByChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesByChatRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessageSummariesByChat, createdAfter)
+func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessageSummariesPerChat, createdAfter)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetChatMessageSummariesByChatRow
+	var items []GetChatMessageSummariesPerChatRow
 	for rows.Next() {
-		var i GetChatMessageSummariesByChatRow
+		var i GetChatMessageSummariesPerChatRow
 		if err := rows.Scan(
 			&i.ChatID,
 			&i.MessageCount,
@@ -5573,7 +5573,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 }
 
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
-SELECT id, provider, model, display_name, context_limit, enabled, is_default
+SELECT id, provider, model, context_limit, enabled, is_default
 FROM chat_model_configs
 `
 
@@ -5581,7 +5581,6 @@ type GetChatModelConfigsForTelemetryRow struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	Provider     string    `db:"provider" json:"provider"`
 	Model        string    `db:"model" json:"model"`
-	DisplayName  string    `db:"display_name" json:"display_name"`
 	ContextLimit int64     `db:"context_limit" json:"context_limit"`
 	Enabled      bool      `db:"enabled" json:"enabled"`
 	IsDefault    bool      `db:"is_default" json:"is_default"`
@@ -5601,7 +5600,6 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 			&i.ID,
 			&i.Provider,
 			&i.Model,
-			&i.DisplayName,
 			&i.ContextLimit,
 			&i.Enabled,
 			&i.IsDefault,

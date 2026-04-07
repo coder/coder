@@ -104,6 +104,14 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessageSummariesPerChat(ctx, createdAfter)
+	m.queryLatencies.WithLabelValues("GetChatMessageSummariesPerChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessageSummariesPerChat").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireChats(ctx, arg)
@@ -1173,14 +1181,6 @@ func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (da
 	r0, r1 := m.s.GetChatMessageByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatMessageByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessageByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatMessageSummariesByChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesByChatRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatMessageSummariesByChat(ctx, createdAfter)
-	m.queryLatencies.WithLabelValues("GetChatMessageSummariesByChat").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessageSummariesByChat").Inc()
 	return r0, r1
 }
 

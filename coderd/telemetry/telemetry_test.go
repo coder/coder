@@ -1636,6 +1636,7 @@ func TestChatsTelemetry(t *testing.T) {
 		Title:             "Root Chat",
 		Status:            database.ChatStatusRunning,
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -1721,7 +1722,8 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Nil(t, foundRoot.RootChatID)
 	require.NotNil(t, foundRoot.WorkspaceID)
 	assert.Equal(t, ws.ID, *foundRoot.WorkspaceID)
-	assert.Equal(t, modelCfg.ID, foundRoot.ModelConfigID)
+	assert.Equal(t, modelCfg.ID, foundRoot.LastModelConfigID)
+	assert.Equal(t, "computer_use", foundRoot.Mode)
 
 	// Child chat assertions.
 	assert.Equal(t, childChat.ID, foundChild.ID)
@@ -1753,7 +1755,7 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(80), rootSummary.TotalCacheCreationTokens) // 50+0+30+0+0
 	assert.Equal(t, int64(65), rootSummary.TotalCacheReadTokens)     // 0+25+0+40+0
 	assert.Equal(t, int64(7500), rootSummary.TotalCostMicros)        // 1000+2000+1500+3000+0
-	assert.Equal(t, int64(1400), rootSummary.TotalRuntimeMS)         // 0+500+0+800+100
+	assert.Equal(t, int64(1400), rootSummary.TotalRuntimeMs)         // 0+500+0+800+100
 	assert.Equal(t, int64(1), rootSummary.DistinctModelCount)
 	assert.Equal(t, int64(0), rootSummary.CompressedMessageCount)
 
@@ -1767,7 +1769,7 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(200), childSummary.TotalOutputTokens)   // 0+200
 	assert.Equal(t, int64(50), childSummary.TotalReasoningTokens) // 0+50
 	assert.Equal(t, int64(13000), childSummary.TotalCostMicros)   // 5000+8000
-	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMS)     // 0+1200
+	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMs)     // 0+1200
 	assert.Equal(t, int64(1), childSummary.DistinctModelCount)
 	assert.Equal(t, int64(1), childSummary.CompressedMessageCount)
 

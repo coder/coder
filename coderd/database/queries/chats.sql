@@ -1256,7 +1256,7 @@ SELECT
 FROM chats
 WHERE created_at > @created_after;
 
--- name: GetChatMessageSummariesByChat :many
+-- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for chats created after
 -- the given timestamp. Used for telemetry snapshot collection.
 SELECT
@@ -1282,5 +1282,5 @@ GROUP BY cm.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many
 -- Returns all model configurations for telemetry snapshot collection.
-SELECT id, provider, model, display_name, context_limit, enabled, is_default
+SELECT id, provider, model, context_limit, enabled, is_default
 FROM chat_model_configs;

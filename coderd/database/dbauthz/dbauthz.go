@@ -1516,6 +1516,14 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
+	// Telemetry queries are called from system contexts only.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessageSummariesPerChat(ctx, createdAfter)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -2634,14 +2642,6 @@ func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.Ch
 		return database.ChatMessage{}, err
 	}
 	return msg, nil
-}
-
-func (q *querier) GetChatMessageSummariesByChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesByChatRow, error) {
-	// Telemetry queries are called from system contexts only.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatMessageSummariesByChat(ctx, createdAfter)
 }
 
 func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {

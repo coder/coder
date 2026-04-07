@@ -788,7 +788,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		summaries, err := r.options.Database.GetChatMessageSummariesByChat(ctx, createdAfter)
+		summaries, err := r.options.Database.GetChatMessageSummariesPerChat(ctx, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("get chat message summaries: %w", err)
 		}
@@ -2153,14 +2153,14 @@ func ConvertTask(task database.Task) Task {
 // ConvertChat converts a database chat row to a telemetry Chat.
 func ConvertChat(dbChat database.GetChatsCreatedAfterRow) Chat {
 	c := Chat{
-		ID:            dbChat.ID,
-		OwnerID:       dbChat.OwnerID,
-		CreatedAt:     dbChat.CreatedAt,
-		UpdatedAt:     dbChat.UpdatedAt,
-		Status:        string(dbChat.Status),
-		HasParent:     dbChat.HasParent,
-		Archived:      dbChat.Archived,
-		ModelConfigID: dbChat.LastModelConfigID,
+		ID:                dbChat.ID,
+		OwnerID:           dbChat.OwnerID,
+		CreatedAt:         dbChat.CreatedAt,
+		UpdatedAt:         dbChat.UpdatedAt,
+		Status:            string(dbChat.Status),
+		HasParent:         dbChat.HasParent,
+		Archived:          dbChat.Archived,
+		LastModelConfigID: dbChat.LastModelConfigID,
 	}
 	if dbChat.RootChatID.Valid {
 		c.RootChatID = &dbChat.RootChatID.UUID
@@ -2176,7 +2176,7 @@ func ConvertChat(dbChat database.GetChatsCreatedAfterRow) Chat {
 
 // ConvertChatMessageSummary converts a database chat message
 // summary row to a telemetry ChatMessageSummary.
-func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesByChatRow) ChatMessageSummary {
+func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow) ChatMessageSummary {
 	return ChatMessageSummary{
 		ChatID:                   dbRow.ChatID,
 		MessageCount:             dbRow.MessageCount,
@@ -2190,7 +2190,7 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesByChatRow) 
 		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
 		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
 		TotalCostMicros:          dbRow.TotalCostMicros,
-		TotalRuntimeMS:           dbRow.TotalRuntimeMs,
+		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
 		DistinctModelCount:       dbRow.DistinctModelCount,
 		CompressedMessageCount:   dbRow.CompressedMessageCount,
 	}
@@ -2333,17 +2333,17 @@ type BoundaryUsageSummary struct {
 // Chat contains anonymized metadata about a chat for telemetry.
 // Titles and message content are excluded to avoid PII leakage.
 type Chat struct {
-	ID            uuid.UUID  `json:"id"`
-	OwnerID       uuid.UUID  `json:"owner_id"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	Status        string     `json:"status"`
-	HasParent     bool       `json:"has_parent"`
-	RootChatID    *uuid.UUID `json:"root_chat_id"`
-	WorkspaceID   *uuid.UUID `json:"workspace_id"`
-	Mode          string     `json:"mode"`
-	Archived      bool       `json:"archived"`
-	ModelConfigID uuid.UUID  `json:"model_config_id"`
+	ID                uuid.UUID  `json:"id"`
+	OwnerID           uuid.UUID  `json:"owner_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Status            string     `json:"status"`
+	HasParent         bool       `json:"has_parent"`
+	RootChatID        *uuid.UUID `json:"root_chat_id"`
+	WorkspaceID       *uuid.UUID `json:"workspace_id"`
+	Mode              string     `json:"mode"`
+	Archived          bool       `json:"archived"`
+	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
 }
 
 // ChatMessageSummary contains per-chat aggregated message metrics
@@ -2361,7 +2361,7 @@ type ChatMessageSummary struct {
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
 	TotalCostMicros          int64     `json:"total_cost_micros"`
-	TotalRuntimeMS           int64     `json:"total_runtime_ms"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 	DistinctModelCount       int64     `json:"distinct_model_count"`
 	CompressedMessageCount   int64     `json:"compressed_message_count"`
 }
