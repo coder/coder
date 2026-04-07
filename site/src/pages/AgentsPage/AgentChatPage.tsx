@@ -651,16 +651,19 @@ const AgentChatPage: FC = () => {
 	// object (TanStack Query v5 recreates it every render via object
 	// spread). Keeping no intermediate variable prevents future code
 	// from accidentally closing over the unstable object.
-	const { isPending: isSendPending, mutateAsync: sendMutateAsync } =
-		useMutation(createChatMessage(queryClient, agentId ?? ""));
-	const { isPending: isEditPending, mutateAsync: editMutateAsync } =
-		useMutation(editChatMessage(queryClient, agentId ?? ""));
-	const { isPending: isInterruptPending, mutateAsync: interruptMutateAsync } =
-		useMutation(interruptChat(queryClient, agentId ?? ""));
-	const { mutateAsync: deleteQueuedMutateAsync } = useMutation(
+	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
+		createChatMessage(queryClient, agentId ?? ""),
+	);
+	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
+		editChatMessage(queryClient, agentId ?? ""),
+	);
+	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
+		interruptChat(queryClient, agentId ?? ""),
+	);
+	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-	const { mutateAsync: promoteQueuedMutateAsync } = useMutation(
+	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
@@ -844,7 +847,7 @@ const AgentChatPage: FC = () => {
 			setPendingEditMessageId(editedMessageID);
 			scrollToBottomRef.current?.();
 			try {
-				await editMutateAsync({
+				await editMessage({
 					messageId: editedMessageID,
 					req: request,
 				});
@@ -875,9 +878,9 @@ const AgentChatPage: FC = () => {
 		// For queued sends the WebSocket status events handle
 		// clearing; for non-queued sends we clear explicitly
 		// below. Clearing eagerly causes a visible cutoff.
-		let response: Awaited<ReturnType<typeof sendMutateAsync>>;
+		let response: Awaited<ReturnType<typeof sendMessage>>;
 		try {
-			response = await sendMutateAsync(request);
+			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
 			throw error;
@@ -913,7 +916,7 @@ const AgentChatPage: FC = () => {
 		if (!agentId || isInterruptPending) {
 			return;
 		}
-		void interruptMutateAsync();
+		void interrupt();
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -922,7 +925,7 @@ const AgentChatPage: FC = () => {
 			previousQueuedMessages.filter((message) => message.id !== id),
 		);
 		try {
-			await deleteQueuedMutateAsync(id);
+			await deleteQueuedMessage(id);
 		} catch (error) {
 			store.setQueuedMessages(previousQueuedMessages);
 			throw error;
@@ -943,7 +946,7 @@ const AgentChatPage: FC = () => {
 		store.clearStreamError();
 		store.setChatStatus("pending");
 		try {
-			const promotedMessage = await promoteQueuedMutateAsync(id);
+			const promotedMessage = await promoteQueuedMessage(id);
 			// Insert the promoted message into the store and cache
 			// immediately so it appears in the timeline without
 			// waiting for the WebSocket to deliver it.
@@ -993,7 +996,7 @@ const AgentChatPage: FC = () => {
 			: undefined;
 
 	// See mutation destructuring comment above (React Compiler).
-	const { mutate: generateKeyMutate } = useMutation({
+	const { mutate: generateKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
 
@@ -1008,7 +1011,7 @@ const AgentChatPage: FC = () => {
 		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
 		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
 
-		generateKeyMutate(undefined, {
+		generateKey(undefined, {
 			onSuccess: ({ key }) => {
 				location.href = getVSCodeHref(editor, {
 					owner: workspace.owner_name,
