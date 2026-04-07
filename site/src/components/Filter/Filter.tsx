@@ -306,7 +306,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 				{(learnMoreLink || learnMoreLink2) && <DropdownMenuSeparator />}
 				{learnMoreLink && (
 					<DropdownMenuItem asChild>
-						<a href={learnMoreLink} target="_blank">
+						<a href={learnMoreLink} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							View advanced filtering
 						</a>
@@ -314,7 +314,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
 					<DropdownMenuItem asChild>
-						<a href={learnMoreLink2} target="_blank">
+						<a href={learnMoreLink2} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							{learnMoreLabel2}
 						</a>
