@@ -274,7 +274,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							/>
 						)}
 
-					{showDevcontainerControls && (
+					{devcontainer.status !== "deleting" && (
 						<AgentDevcontainerMoreActions
 							deleteDevContainer={deleteDevcontainerMutation.mutate}
 						/>
