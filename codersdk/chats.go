@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/invopop/jsonschema"
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 

@@ -3370,7 +3370,8 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 			Args:       tc.Args,
 		})
 	}
-	sdkChat := db2sdk.Chat(chat, nil)
+	sdkChat := db2sdk.Chat(chat, nil, nil)
+
 	event := coderdpubsub.ChatEvent{
 		Kind:      coderdpubsub.ChatEventKindActionRequired,
 		Chat:      sdkChat,
