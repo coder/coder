@@ -110,7 +110,9 @@ func ConnectAll(
 			}
 
 			mu.Lock()
-			clients = append(clients, mcpClient)
+			if mcpClient != nil {
+				clients = append(clients, mcpClient)
+			}
 			tools = append(tools, serverTools...)
 			mu.Unlock()
 			return nil

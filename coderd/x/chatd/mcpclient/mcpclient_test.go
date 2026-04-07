@@ -209,6 +209,27 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 	assert.Contains(t, names, "beta__greet")
 }
 
+func TestConnectAll_NoToolsAfterFiltering(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("filtered", ts.URL)
+	cfg.ToolAllowList = []string{"greet"}
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx,
+		logger,
+		[]database.MCPServerConfig{cfg},
+		nil,
+	)
+
+	require.Empty(t, tools)
+	assert.NotPanics(t, cleanup)
+}
+
 func TestConnectAll_DeterministicOrder(t *testing.T) {
 	t.Parallel()
 
