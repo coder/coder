@@ -155,6 +155,48 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	// Error-reason state and callbacks are defined before the archive
+	// mutations so the React Compiler can build reactive scopes for
+	// the onSuccess callbacks that reference clearChatErrorReason.
+	// When a closure is defined after the hook that uses it, the
+	// compiler's flattenScopesWithHooksOrUse pass prunes the scope.
+	const [chatErrorReasons, setChatErrorReasons] = useState<
+		Record<string, ChatDetailError>
+	>({});
+	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
+		const trimmedMessage = reason.message.trim();
+		if (!chatId || !trimmedMessage) {
+			return;
+		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
+		setChatErrorReasons((current) => {
+			const existing = current[chatId];
+			if (chatDetailErrorsEqual(existing, nextReason)) {
+				return current;
+			}
+			return {
+				...current,
+				[chatId]: nextReason,
+			};
+		});
+	};
+	const clearChatErrorReason = (chatId: string) => {
+		if (!chatId) {
+			return;
+		}
+		setChatErrorReasons((current) => {
+			if (!(chatId in current)) {
+				return current;
+			}
+			const next = { ...current };
+			delete next[chatId];
+			return next;
+		});
+	};
+
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
@@ -245,46 +287,10 @@ const AgentsPage: FC = () => {
 		readonly string[]
 	>([]);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, ChatDetailError>
-	>({});
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
-		if (!chatId || !trimmedMessage) {
-			return;
-		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
-		setChatErrorReasons((current) => {
-			const existing = current[chatId];
-			if (chatDetailErrorsEqual(existing, nextReason)) {
-				return current;
-			}
-			return {
-				...current,
-				[chatId]: nextReason,
-			};
-		});
-	};
-	const clearChatErrorReason = (chatId: string) => {
-		if (!chatId) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (!(chatId in current)) {
-				return current;
-			}
-			const next = { ...current };
-			delete next[chatId];
-			return next;
-		});
-	};
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -320,6 +326,32 @@ const AgentsPage: FC = () => {
 			},
 		});
 	};
+
+	// activeChatIDRef and navigateAfterArchive are placed before the
+	// archive-and-delete callbacks so the React Compiler can build
+	// reactive scopes for closures that capture navigateAfterArchive.
+	const activeChatIDRef = useRef(agentId);
+	const navigateAfterArchive = (archivedChatId: string) => {
+		const activeChatId = activeChatIDRef.current;
+		if (
+			shouldNavigateAfterArchive(
+				activeChatId,
+				archivedChatId,
+				// Read root_chat_id from the per-chat cache, which
+				// survives WebSocket eviction of sub-agents (only the
+				// parent's chatKey is removed). This must be read at
+				// callback time so it reflects the user's current
+				// location.
+				activeChatId
+					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+							?.root_chat_id
+					: undefined,
+			)
+		) {
+			navigate("/agents");
+		}
+	};
+
 	const requestArchiveAndDeleteWorkspace = async (
 		chatId: string,
 		workspaceId: string,
@@ -435,30 +467,6 @@ const AgentsPage: FC = () => {
 		navigate("/agents");
 	};
 
-	// Track the active chat ID in a ref so the watchChats
-	// WebSocket handler can read it without re-subscribing on
-	// every navigation.
-	const activeChatIDRef = useRef(agentId);
-	const navigateAfterArchive = (archivedChatId: string) => {
-		const activeChatId = activeChatIDRef.current;
-		if (
-			shouldNavigateAfterArchive(
-				activeChatId,
-				archivedChatId,
-				// Read root_chat_id from the per-chat cache, which
-				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatKey is removed). This must be read at
-				// callback time so it reflects the user's current
-				// location.
-				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
-							?.root_chat_id
-					: undefined,
-			)
-		) {
-			navigate("/agents");
-		}
-	};
 	useEffect(() => {
 		activeChatIDRef.current = agentId;
 	});
