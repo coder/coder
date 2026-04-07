@@ -1,4 +1,4 @@
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { BookOpenIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
@@ -27,6 +27,7 @@ export const ReadSkillTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
+					<BookOpenIcon className="h-4 w-4 shrink-0 text-content-secondary" />
 					<span className={cn("text-sm", "text-content-secondary")}>
 						{isRunning ? `Reading ${label}…` : `Read ${label}`}
 					</span>
