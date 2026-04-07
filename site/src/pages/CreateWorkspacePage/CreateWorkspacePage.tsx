@@ -148,6 +148,13 @@ const CreateWorkspacePage: FC = () => {
 			return;
 		}
 
+		// Skip stale responses. If we've already sent a newer request,
+		// this response contains outdated parameter values that would
+		// overwrite the user's more recent input.
+		if (response.id < wsResponseId.current) {
+			return;
+		}
+
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
 			sendInitialParameters([...response.parameters]);
 		}
@@ -287,12 +294,22 @@ const CreateWorkspacePage: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
+	// The initial WS response (id: -1) contains only template defaults.
+	// Keep the loader visible until a response reflecting the user's
+	// actual parameter values arrives (id >= 0).
+	const awaitingUserValues =
+		latestResponse !== null &&
+		latestResponse.id < 0 &&
+		latestResponse.parameters.length > 0 &&
+		!wsError;
+
 	const shouldShowLoader =
 		!templateQuery.data ||
 		isLoadingFormData ||
 		isLoadingExternalAuth ||
 		autoCreateReady ||
-		(!latestResponse && !wsError);
+		(!latestResponse && !wsError) ||
+		awaitingUserValues;
 
 	return (
 		<>
