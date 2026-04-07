@@ -222,11 +222,15 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
--- name: GetChatSpendTotal :one
-SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_cost_micros
+-- name: GetChatTreeSpendTotal :one
+-- Returns the total spend across a chat tree (root + all descendants).
+SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_cost
 FROM chat_messages
-WHERE chat_id = @chat_id
-  AND total_cost_micros IS NOT NULL;
+WHERE chat_id IN (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.id = @root_chat_id OR chats.root_chat_id = @root_chat_id
+);
 
 -- name: GetChatMessagesByChatID :many
 SELECT

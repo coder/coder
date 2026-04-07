@@ -1319,6 +1319,98 @@ func TestSendMessageRejectsWhenChatSpendLimitReached(t *testing.T) {
 	require.Equal(t, int64(100), limitErr.ConsumedMicros)
 }
 
+func TestSendMessageOnChildRejectsWhenTreeSpendLimitReached(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "chat-tree-spend-limit-root",
+		LastModelConfigID: model.ID,
+		SpendLimitMicros:  sql.NullInt64{Int64: 1000, Valid: true},
+	})
+	require.NoError(t, err)
+
+	childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "chat-tree-spend-limit-child",
+		LastModelConfigID: model.ID,
+		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		SpendLimitMicros:  sql.NullInt64{},
+	})
+	require.NoError(t, err)
+
+	insertChatMessage(ctx, t, db, rootChat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 1000)
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       childChat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "chat_lifetime", limitErr.Scope)
+	require.Equal(t, int64(1000), limitErr.LimitMicros)
+	require.Equal(t, int64(1000), limitErr.ConsumedMicros)
+}
+
+func TestSendMessageOnRootRejectsWhenChildSpendPushesOverLimit(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "chat-tree-spend-limit-root-send",
+		LastModelConfigID: model.ID,
+		SpendLimitMicros:  sql.NullInt64{Int64: 1000, Valid: true},
+	})
+	require.NoError(t, err)
+
+	childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "chat-tree-spend-limit-child-send",
+		LastModelConfigID: model.ID,
+		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		SpendLimitMicros:  sql.NullInt64{},
+	})
+	require.NoError(t, err)
+
+	insertChatMessage(ctx, t, db, childChat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 1000)
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       rootChat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "chat_lifetime", limitErr.Scope)
+	require.Equal(t, int64(1000), limitErr.LimitMicros)
+	require.Equal(t, int64(1000), limitErr.ConsumedMicros)
+}
+
 func TestEditMessageRejectsWhenChatSpendLimitReached(t *testing.T) {
 	t.Parallel()
 

@@ -1240,14 +1240,6 @@ func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uui
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatSpendTotal(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatSpendTotal(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatSpendTotal").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSpendTotal").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatSystemPrompt(ctx)
@@ -1269,6 +1261,14 @@ func (m queryMetricsStore) GetChatTemplateAllowlist(ctx context.Context) (string
 	r0, r1 := m.s.GetChatTemplateAllowlist(ctx)
 	m.queryLatencies.WithLabelValues("GetChatTemplateAllowlist").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTemplateAllowlist").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatTreeSpendTotal(ctx context.Context, rootChatID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTreeSpendTotal(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("GetChatTreeSpendTotal").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTreeSpendTotal").Inc()
 	return r0, r1
 }
 

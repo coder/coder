@@ -2704,14 +2704,6 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
-func (q *querier) GetChatSpendTotal(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return 0, err
-	}
-	return q.db.GetChatSpendTotal(ctx, chatID)
-}
-
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check
@@ -2745,6 +2737,14 @@ func (q *querier) GetChatTemplateAllowlist(ctx context.Context) (string, error) 
 		return "", err
 	}
 	return q.db.GetChatTemplateAllowlist(ctx)
+}
+
+func (q *querier) GetChatTreeSpendTotal(ctx context.Context, rootChatID uuid.UUID) (int64, error) {
+	_, err := q.GetChatByID(ctx, rootChatID)
+	if err != nil {
+		return 0, err
+	}
+	return q.db.GetChatTreeSpendTotal(ctx, rootChatID)
 }
 
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {

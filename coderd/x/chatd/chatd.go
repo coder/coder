@@ -1031,10 +1031,8 @@ func (p *Server) SendMessage(
 		}
 
 		// Enforce usage limits before queueing or inserting.
-		if lockedChat.SpendLimitMicros.Valid {
-			if limitErr := p.checkChatSpendLimit(ctx, tx, lockedChat.ID, lockedChat.SpendLimitMicros.Int64); limitErr != nil {
-				return limitErr
-			}
+		if limitErr := p.checkChatTreeSpendLimit(ctx, tx, lockedChat); limitErr != nil {
+			return limitErr
 		}
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr
@@ -1158,21 +1156,55 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func (p *Server) checkChatSpendLimit(ctx context.Context, store database.Store, chatID uuid.UUID, limitMicros int64) error {
-	spent, err := store.GetChatSpendTotal(ctx, chatID)
+// checkChatTreeSpendLimit resolves the root chat's lifetime spend limit
+// and checks whether the tree's total spend has reached or exceeded it.
+// It fails open (allows the message) on any lookup error.
+func (p *Server) checkChatTreeSpendLimit(ctx context.Context, store database.Store, chat database.Chat) error {
+	// Resolve root chat ID: prefer RootChatID, then ParentChatID, then own ID.
+	rootChatID := chat.ID
+	if chat.RootChatID.Valid {
+		rootChatID = chat.RootChatID.UUID
+	} else if chat.ParentChatID.Valid {
+		rootChatID = chat.ParentChatID.UUID
+	}
+
+	// Read the spend limit. For root chats use the passed-in chat directly;
+	// for child chats fetch the root row.
+	var limitMicros int64
+	if rootChatID == chat.ID {
+		if !chat.SpendLimitMicros.Valid {
+			return nil
+		}
+		limitMicros = chat.SpendLimitMicros.Int64
+	} else {
+		rootChat, err := store.GetChatByID(ctx, rootChatID)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to look up root chat for spend-limit check, allowing message",
+				slog.F("root_chat_id", rootChatID),
+				slog.Error(err),
+			)
+			return nil
+		}
+		if !rootChat.SpendLimitMicros.Valid {
+			return nil
+		}
+		limitMicros = rootChat.SpendLimitMicros.Int64
+	}
+
+	spent, err := store.GetChatTreeSpendTotal(ctx, rootChatID)
 	if err != nil {
-		p.logger.Warn(ctx, "chat spend lookup failed, allowing message",
-			slog.F("chat_id", chatID),
+		p.logger.Warn(ctx, "failed to look up tree spend total, allowing message",
+			slog.F("root_chat_id", rootChatID),
 			slog.Error(err),
 		)
 		return nil
 	}
+
 	if spent >= limitMicros {
 		return &UsageLimitExceededError{
 			Scope:          "chat_lifetime",
 			LimitMicros:    limitMicros,
 			ConsumedMicros: spent,
-			PeriodEnd:      nil,
 		}
 	}
 	return nil
@@ -1234,10 +1266,8 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
-		if lockedChat.SpendLimitMicros.Valid {
-			if limitErr := p.checkChatSpendLimit(ctx, tx, lockedChat.ID, lockedChat.SpendLimitMicros.Int64); limitErr != nil {
-				return limitErr
-			}
+		if limitErr := p.checkChatTreeSpendLimit(ctx, tx, lockedChat); limitErr != nil {
+			return limitErr
 		}
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr
@@ -1498,10 +1528,8 @@ func (p *Server) PromoteQueued(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
-		if lockedChat.SpendLimitMicros.Valid {
-			if limitErr := p.checkChatSpendLimit(ctx, tx, lockedChat.ID, lockedChat.SpendLimitMicros.Int64); limitErr != nil {
-				return limitErr
-			}
+		if limitErr := p.checkChatTreeSpendLimit(ctx, tx, lockedChat); limitErr != nil {
+			return limitErr
 		}
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr

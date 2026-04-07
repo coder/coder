@@ -5433,18 +5433,22 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 	return items, nil
 }
 
-const getChatSpendTotal = `-- name: GetChatSpendTotal :one
-SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_cost_micros
+const getChatTreeSpendTotal = `-- name: GetChatTreeSpendTotal :one
+SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_cost
 FROM chat_messages
-WHERE chat_id = $1
-  AND total_cost_micros IS NOT NULL
+WHERE chat_id IN (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.id = $1 OR chats.root_chat_id = $1
+)
 `
 
-func (q *sqlQuerier) GetChatSpendTotal(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getChatSpendTotal, chatID)
-	var total_cost_micros int64
-	err := row.Scan(&total_cost_micros)
-	return total_cost_micros, err
+// Returns the total spend across a chat tree (root + all descendants).
+func (q *sqlQuerier) GetChatTreeSpendTotal(ctx context.Context, rootChatID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getChatTreeSpendTotal, rootChatID)
+	var total_cost int64
+	err := row.Scan(&total_cost)
+	return total_cost, err
 }
 
 const getChatUsageLimitConfig = `-- name: GetChatUsageLimitConfig :one
