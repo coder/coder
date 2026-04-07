@@ -2,6 +2,7 @@ package cli //nolint:testpackage // Tests unexported chat TUI reducers.
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -41,7 +42,7 @@ func TestExpAgents(t *testing.T) {
 			model := newExpChatsTUIModel(context.Background(), nil, &chatID, nil, nil)
 
 			batch := mustBatchMsg(t, model.Init())
-			require.Len(t, batch, 2)
+			require.Len(t, batch, 3)
 			require.Equal(t, viewChat, model.currentView)
 		})
 
@@ -163,7 +164,7 @@ func TestExpAgents(t *testing.T) {
 			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, viewChat, updated.currentView)
 			require.True(t, updated.chat.loading)
-			require.Len(t, mustBatchMsg(t, cmd), 2)
+			require.Len(t, mustBatchMsg(t, cmd), 3)
 		})
 
 		t.Run("OpenDraftChatSwitchesToDraftMode", func(t *testing.T) {
@@ -226,7 +227,7 @@ func TestExpAgents(t *testing.T) {
 			chat.DiffStatus = diffStatus
 
 			updated, cmd := model.Update(chatOpenedMsg{chat: chat})
-			require.Nil(t, cmd)
+			require.NotNil(t, cmd)
 			require.NotNil(t, updated.chat)
 			require.Equal(t, chat.ID, updated.chat.ID)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
@@ -357,7 +358,7 @@ func TestExpAgents(t *testing.T) {
 				Type:   codersdk.ChatStreamEventTypeStatus,
 				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
 			}})
-			require.Nil(t, cmd)
+			require.NotNil(t, cmd)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
 			require.NotNil(t, updated.chat)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chat.Status)
@@ -404,7 +405,7 @@ func TestExpAgents(t *testing.T) {
 				Type:  codersdk.ChatStreamEventTypeRetry,
 				Retry: &codersdk.ChatStreamRetry{Attempt: 2},
 			}})
-			require.Nil(t, cmd)
+			require.NotNil(t, cmd)
 			require.True(t, updated.reconnecting)
 		})
 
@@ -572,54 +573,6 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, updated.composerFocused)
 		})
 
-		t.Run("UpDownMoveSelectedBlockWithinBounds", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.composerFocused = false
-			model.blocks = []chatBlock{{kind: blockText}, {kind: blockText}, {kind: blockText}}
-			model.selectedBlock = 1
-
-			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
-			require.Equal(t, 0, updated.selectedBlock)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
-			require.Equal(t, 0, updated.selectedBlock)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			require.Equal(t, 1, updated.selectedBlock)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			require.Equal(t, 2, updated.selectedBlock)
-		})
-
-		t.Run("EnterAndSpaceToggleExpandedBlocks", func(t *testing.T) {
-			t.Parallel()
-
-			for name, key := range map[string]tea.KeyMsg{
-				"Enter": {Type: tea.KeyEnter},
-				"Space": {Type: tea.KeySpace},
-			} {
-				name := name
-				key := key
-				t.Run(name, func(t *testing.T) {
-					t.Parallel()
-
-					model := newTestChatViewModel(nil)
-					model.composerFocused = false
-					model.blocks = []chatBlock{{kind: blockText}}
-					model.selectedBlock = 0
-
-					updated, _ := model.Update(key)
-					require.True(t, updated.expandedBlocks[0])
-
-					updated, _ = updated.Update(key)
-					require.False(t, updated.expandedBlocks[0])
-				})
-			}
-		})
-
 		t.Run("CtrlPSendsToggleModelPickerMsg", func(t *testing.T) {
 			t.Parallel()
 
@@ -675,6 +628,159 @@ func TestExpAgents(t *testing.T) {
 		})
 	})
 
+	t.Run("ChatView/Navigation", func(t *testing.T) {
+		t.Parallel()
+
+		overflowingMessages := func(count int) []codersdk.ChatMessage {
+			messages := make([]codersdk.ChatMessage, 0, count)
+			for i := 0; i < count; i++ {
+				role := codersdk.ChatMessageRoleUser
+				if i%2 == 1 {
+					role = codersdk.ChatMessageRoleAssistant
+				}
+				messages = append(messages, testMessage(
+					int64(i+1),
+					role,
+					codersdk.ChatMessagePart{
+						Type: codersdk.ChatMessagePartTypeText,
+						Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
+					},
+				))
+			}
+			return messages
+		}
+
+		newScrollableModel := func(t *testing.T) chatViewModel {
+			t.Helper()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model.messages = overflowingMessages(10)
+			model.rebuildBlocks()
+			model.composerFocused = false
+			model.autoFollow = true
+			(&model).syncViewportContent()
+			model.viewport.GotoBottom()
+			return model
+		}
+
+		t.Run("UnfocusedArrowKeysScrollViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			before := model.viewport.YOffset
+			require.True(t, model.viewport.AtBottom())
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.False(t, updated.autoFollow)
+			require.Less(t, updated.viewport.YOffset, before)
+
+			for i := 0; i < 20 && !updated.viewport.AtBottom(); i++ {
+				updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+
+			require.True(t, updated.viewport.AtBottom())
+			require.True(t, updated.autoFollow)
+		})
+
+		t.Run("PageKeysScrollHalfViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			before := model.viewport.YOffset
+			halfView := model.viewport.Height / 2
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+			require.False(t, updated.autoFollow)
+			require.InDelta(t, float64(before-halfView), float64(updated.viewport.YOffset), 1)
+
+			before = updated.viewport.YOffset
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+			require.InDelta(t, float64(before+halfView), float64(updated.viewport.YOffset), 1)
+		})
+
+		t.Run("HomeEndJumpToEdges", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyHome})
+			require.Equal(t, 0, updated.viewport.YOffset)
+			require.False(t, updated.autoFollow)
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnd})
+			require.True(t, updated.viewport.AtBottom())
+			require.True(t, updated.autoFollow)
+		})
+
+		t.Run("RunningChatShowsSpinnerIndicator", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.width = 80
+			model.accumulator = streamAccumulator{pending: true, role: codersdk.ChatMessageRoleAssistant}
+
+			(&model).syncViewportContent()
+			require.Contains(t, model.lastTranscript, "Thinking")
+		})
+
+		t.Run("ReconnectingChatShowsReconnectIndicator", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.width = 80
+			model.reconnecting = true
+
+			(&model).syncViewportContent()
+			require.Contains(t, model.lastTranscript, "Reconnecting")
+		})
+
+		t.Run("FinalizedHistorySuppressesPendingToolDuplicate", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.messages = []codersdk.ChatMessage{testMessage(
+				1,
+				codersdk.ChatMessageRoleAssistant,
+				codersdk.ChatMessagePart{
+					Type:       codersdk.ChatMessagePartTypeToolCall,
+					ToolCallID: "tool-1",
+					ToolName:   "search",
+					Args:       json.RawMessage(`{"q":"hello"}`),
+				},
+				codersdk.ChatMessagePart{
+					Type:       codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID: "tool-1",
+					ToolName:   "search",
+					Result:     json.RawMessage(`{"ok":true}`),
+				},
+			)}
+			model.accumulator = streamAccumulator{
+				pending: true,
+				role:    codersdk.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					{
+						Type:       codersdk.ChatMessagePartTypeToolCall,
+						ToolCallID: "tool-1",
+						ToolName:   "search",
+						Args:       json.RawMessage(`{"q":"hello"}`),
+					},
+					{
+						Type:       codersdk.ChatMessagePartTypeToolResult,
+						ToolCallID: "tool-1",
+						ToolName:   "search",
+						Result:     json.RawMessage(`{"ok":true}`),
+					},
+				},
+			}
+
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 1)
+			require.Equal(t, blockToolResult, model.blocks[0].kind)
+			require.Equal(t, "tool-1", model.blocks[0].toolID)
+		})
+	})
+
 	t.Run("ChatView/ViewportAndComposer", func(t *testing.T) {
 		t.Parallel()
 
@@ -704,34 +810,6 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, model.autoFollow)
 		})
 
-		t.Run("ViewportNavigationScrolls", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.autoFollow = false
-			model.messages = overflowingMessages(8)
-			model.rebuildBlocks()
-
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-			model.viewport.SetYOffset(0)
-
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
-			require.False(t, model.composerFocused)
-
-			for i := 0; i < len(model.blocks)-1; i++ {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-			}
-
-			require.Greater(t, model.viewport.YOffset, 0)
-
-			for i := 0; i < len(model.blocks)-1; i++ {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-			}
-
-			require.Equal(t, 0, model.selectedBlock)
-			require.Equal(t, 0, model.viewport.YOffset)
-		})
-
 		t.Run("HistoryLoadsAtBottom", func(t *testing.T) {
 			t.Parallel()
 
@@ -757,50 +835,6 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, model.autoFollow)
 			require.True(t, model.viewport.AtBottom())
 			require.GreaterOrEqual(t, model.viewport.YOffset, yBefore)
-		})
-
-		t.Run("ManualBrowsePausesFollow", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
-
-			for model.selectedBlock < len(model.blocks)-1 {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-			}
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-
-			require.False(t, model.autoFollow)
-
-			yBefore := model.viewport.YOffset
-			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent(strings.Repeat("new content ", 20))})
-
-			require.False(t, model.autoFollow)
-			require.Equal(t, yBefore, model.viewport.YOffset)
-		})
-
-		t.Run("ResumeFollowAtBottom", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
-
-			for model.selectedBlock < len(model.blocks)-1 {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-			}
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-			require.False(t, model.autoFollow)
-
-			for model.selectedBlock < len(model.blocks)-1 {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-			}
-
-			require.True(t, model.autoFollow)
-			require.True(t, model.viewport.AtBottom())
 		})
 
 		t.Run("ComposerWidthConstrained", func(t *testing.T) {

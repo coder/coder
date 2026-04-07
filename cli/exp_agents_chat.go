@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -112,6 +113,7 @@ type chatViewModel struct {
 	draft               bool
 	composer            textinput.Model
 	viewport            viewport.Model
+	spinner             spinner.Model
 	accumulator         streamAccumulator
 	width               int
 	height              int
@@ -159,6 +161,9 @@ func newChatViewModel(
 	composer.Prompt = "> "
 	composer.Focus()
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+
 	model := chatViewModel{
 		ctx:             ctx,
 		client:          client,
@@ -171,6 +176,7 @@ func newChatViewModel(
 		autoFollow:      true,
 		composer:        composer,
 		viewport:        viewport.New(0, 0),
+		spinner:         s,
 	}
 	model.setComposerWidth()
 	return model
@@ -195,8 +201,14 @@ func (m chatViewModel) isInterruptible() bool {
 }
 
 func (m chatViewModel) Init() tea.Cmd {
-	_ = m
-	return nil
+	return m.spinner.Tick
+}
+
+func (m chatViewModel) spinnerActive() bool {
+	return m.reconnecting ||
+		m.accumulator.isPending() ||
+		m.chatStatus == codersdk.ChatStatusPending ||
+		m.chatStatus == codersdk.ChatStatusRunning
 }
 
 // sendMessage trims the composer, builds the content, and dispatches
@@ -264,7 +276,19 @@ func (m *chatViewModel) rebuildBlocks() {
 	m.blocks = messagesToBlocks(m.messages)
 
 	if m.accumulator.isPending() {
+		finalizedToolIDs := make(map[string]struct{}, len(m.blocks))
+		for _, block := range m.blocks {
+			if block.toolID == "" {
+				continue
+			}
+			finalizedToolIDs[block.toolID] = struct{}{}
+		}
 		for _, part := range m.accumulator.parts {
+			if (part.Type == codersdk.ChatMessagePartTypeToolCall || part.Type == codersdk.ChatMessagePartTypeToolResult) && part.ToolCallID != "" {
+				if _, ok := finalizedToolIDs[part.ToolCallID]; ok {
+					continue
+				}
+			}
 			block := partToBlock(part, m.accumulator.role)
 			m.blocks = append(m.blocks, block)
 		}
@@ -334,10 +358,10 @@ func (m *chatViewModel) syncViewportContent() {
 		m.getOrCreateMarkdownRenderer(wrapWidth),
 	)
 
-	if m.accumulator.isPending() || m.reconnecting {
-		indicator := "▍"
+	if m.reconnecting || m.accumulator.isPending() || m.chatStatus == codersdk.ChatStatusPending || m.chatStatus == codersdk.ChatStatusRunning {
+		indicator := m.spinner.View() + " Thinking..."
 		if m.reconnecting {
-			indicator = "reconnecting…"
+			indicator = m.spinner.View() + " Reconnecting..."
 		}
 		transcript += "\n" + m.styles.dimmedText.Render(indicator)
 	}
@@ -348,31 +372,6 @@ func (m *chatViewModel) syncViewportContent() {
 	}
 	if m.autoFollow {
 		m.viewport.GotoBottom()
-	}
-}
-
-func (m *chatViewModel) ensureSelectedBlockVisible() {
-	if len(m.blocks) == 0 || m.selectedBlock < 0 || m.selectedBlock >= len(m.blocks) {
-		return
-	}
-	m.syncViewportContent()
-
-	wrapWidth := m.width
-	if wrapWidth <= 0 {
-		wrapWidth = 80
-	}
-	renderer := m.getOrCreateMarkdownRenderer(wrapWidth)
-
-	topLine := 0
-	for i := 0; i < m.selectedBlock; i++ {
-		rendered := renderBlock(m.styles, m.blocks[i], m.expandedBlocks[i], wrapWidth, renderer)
-		topLine += strings.Count(rendered, "\n") + 1
-	}
-
-	if topLine < m.viewport.YOffset {
-		m.viewport.SetYOffset(topLine)
-	} else if topLine >= m.viewport.YOffset+m.viewport.Height {
-		m.viewport.SetYOffset(topLine - m.viewport.Height + 1)
 	}
 }
 
@@ -453,6 +452,17 @@ func (m *chatViewModel) addMessageIfNew(msg codersdk.ChatMessage) bool {
 }
 
 func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
+	wasSpinnerActive := m.spinnerActive()
+	startSpinner := func(updated chatViewModel, cmd tea.Cmd) tea.Cmd {
+		if wasSpinnerActive || !updated.spinnerActive() {
+			return cmd
+		}
+		if cmd == nil {
+			return updated.spinner.Tick
+		}
+		return tea.Batch(cmd, updated.spinner.Tick)
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -466,6 +476,15 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		(&m).setComposerWidth()
 		(&m).syncViewportContent()
 		return m, nil
+
+	case spinner.TickMsg:
+		if !m.spinnerActive() {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		(&m).syncViewportContent()
+		return m, cmd
 
 	case tea.KeyMsg:
 		if msg.String() == "tab" {
@@ -508,26 +527,32 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 
 		switch msg.String() {
 		case "up", "k":
-			if m.selectedBlock > 0 {
-				m.selectedBlock--
-				m.autoFollow = false
-			}
-			(&m).ensureSelectedBlockVisible()
+			m.viewport.LineUp(3)
+			m.autoFollow = false
 			return m, nil
 		case "down", "j":
-			if m.selectedBlock < len(m.blocks)-1 {
-				m.selectedBlock++
-			}
-			if m.selectedBlock >= len(m.blocks)-1 {
+			m.viewport.LineDown(3)
+			if m.viewport.AtBottom() {
 				m.autoFollow = true
 			}
-			(&m).ensureSelectedBlockVisible()
 			return m, nil
-		case "enter", " ":
-			if m.selectedBlock >= 0 && m.selectedBlock < len(m.blocks) {
-				m.expandedBlocks[m.selectedBlock] = !m.expandedBlocks[m.selectedBlock]
+		case "pgup":
+			m.viewport.HalfViewUp()
+			m.autoFollow = false
+			return m, nil
+		case "pgdown":
+			m.viewport.HalfViewDown()
+			if m.viewport.AtBottom() {
+				m.autoFollow = true
 			}
-			(&m).ensureSelectedBlockVisible()
+			return m, nil
+		case "home":
+			m.viewport.GotoTop()
+			m.autoFollow = false
+			return m, nil
+		case "end":
+			m.viewport.GotoBottom()
+			m.autoFollow = true
 			return m, nil
 		}
 
@@ -546,9 +571,10 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		m.err = nil
 		m.loading = false
 		if len(m.messages) > 0 && !m.streaming {
-			return m.startStream()
+			updated, cmd := m.startStream()
+			return updated, startSpinner(updated, cmd)
 		}
-		return m, nil
+		return m, startSpinner(m, nil)
 
 	case chatHistoryMsg:
 		if msg.err != nil {
@@ -567,9 +593,10 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		m.rebuildBlocks()
 		m.loading = false
 		if m.chat != nil && !m.streaming {
-			return m.startStream()
+			updated, cmd := m.startStream()
+			return updated, startSpinner(updated, cmd)
 		}
-		return m, nil
+		return m, startSpinner(m, nil)
 
 	case chatCreatedMsg:
 		if msg.err != nil {
@@ -582,7 +609,8 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		m.diffStatus = chat.DiffStatus
 		m.draft = false
 		m.err = nil
-		return m.startStream()
+		updated, cmd := m.startStream()
+		return updated, startSpinner(updated, cmd)
 
 	case messageSentMsg:
 		if msg.err != nil {
@@ -596,7 +624,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.queuedMessages = []codersdk.ChatQueuedMessage{*msg.resp.QueuedMessage}
 		}
 		m.rebuildBlocks()
-		return m, nil
+		return m, startSpinner(m, nil)
 
 	case chatInterruptedMsg:
 		m.interrupting = false
@@ -607,7 +635,8 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		chat := msg.chat
 		m.chat = &chat
 		m.chatStatus = chat.Status
-		return m, nil
+		(&m).syncViewportContent()
+		return m, startSpinner(m, nil)
 
 	case chatStreamEventMsg:
 		if msg.err != nil {
@@ -617,11 +646,13 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			if m.isInterruptible() && m.chat != nil {
 				m.reconnecting = true
 				(&m).syncViewportContent()
-				return m.startStream()
+				updated, cmd := m.startStream()
+				return updated, startSpinner(updated, cmd)
 			}
 			return m, nil
 		}
-		return m.handleStreamEvent(msg.event)
+		updated, cmd := m.handleStreamEvent(msg.event)
+		return updated, startSpinner(updated, cmd)
 
 	case modelsListedMsg:
 		if msg.err != nil {
@@ -681,6 +712,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 			if m.chat != nil {
 				m.chat.Status = event.Status.Status
 			}
+			(&m).syncViewportContent()
 		}
 
 	case codersdk.ChatStreamEventTypeQueueUpdate:
@@ -748,9 +780,9 @@ func (m chatViewModel) View() string {
 		shortHelpParts = append(shortHelpParts, "↵ send")
 		compactHelpParts = append(compactHelpParts, "↵")
 	} else {
-		longHelpParts = append(longHelpParts, "↑↓: navigate", "enter: expand/collapse")
-		shortHelpParts = append(shortHelpParts, "↑↓ nav", "↵ toggle")
-		compactHelpParts = append(compactHelpParts, "↑↓", "↵")
+		longHelpParts = append(longHelpParts, "↑↓: scroll", "pgup/pgdn: page", "home/end: jump")
+		shortHelpParts = append(shortHelpParts, "↑↓ scroll", "pg page", "home/end")
+		compactHelpParts = append(compactHelpParts, "↑↓", "pg", "home/end")
 	}
 	if m.isInterruptible() {
 		longHelpParts = append(longHelpParts, "ctrl+i: interrupt")

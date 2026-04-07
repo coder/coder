@@ -73,6 +73,7 @@ func newExpChatsTUIModel(
 func (m expChatsTUIModel) Init() tea.Cmd {
 	if m.initialChatID != nil {
 		return tea.Batch(
+			m.chat.Init(),
 			openChatCmd(m.ctx, m.client, *m.initialChatID),
 			loadChatHistoryCmd(m.ctx, m.client, *m.initialChatID),
 		)
@@ -161,6 +162,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chat.height = m.height
 		m.chat, _ = m.chat.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
 		return m, tea.Batch(
+			m.chat.Init(),
 			openChatCmd(m.ctx, m.client, msg.chatID),
 			loadChatHistoryCmd(m.ctx, m.client, msg.chatID),
 		)
