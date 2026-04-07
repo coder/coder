@@ -23042,7 +23042,7 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 	return i, err
 }
 
-const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :exec
+const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :execrows
 DELETE FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
@@ -23052,9 +23052,12 @@ type DeleteUserSecretByUserIDAndNameParams struct {
 	Name   string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) error {
-	_, err := q.db.ExecContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
-	return err
+func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one

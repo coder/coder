@@ -168,7 +168,7 @@ type sqlcQuerier interface {
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
 	DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error
 	DeleteUserChatProviderKey(ctx context.Context, arg DeleteUserChatProviderKeyParams) error
-	DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) error
+	DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (int64, error)
 	DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error
 	DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error
 	DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error

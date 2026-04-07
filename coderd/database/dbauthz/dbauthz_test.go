@@ -5413,10 +5413,10 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	s.Run("DeleteUserSecretByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.DeleteUserSecretByUserIDAndNameParams{UserID: user.ID, Name: "test"}
-		dbm.EXPECT().DeleteUserSecretByUserIDAndName(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteUserSecretByUserIDAndName(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionDelete).
-			Returns()
+			Returns(int64(1))
 	}))
 }
 

@@ -1608,6 +1608,15 @@ func New(options *Options) *API {
 
 						r.Get("/gitsshkey", api.gitSSHKey)
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
+						r.Route("/secrets", func(r chi.Router) {
+							r.Post("/", api.postUserSecret)
+							r.Get("/", api.getUserSecrets)
+							r.Route("/{name}", func(r chi.Router) {
+								r.Get("/", api.getUserSecret)
+								r.Patch("/", api.patchUserSecret)
+								r.Delete("/", api.deleteUserSecret)
+							})
+						})
 						r.Route("/notifications", func(r chi.Router) {
 							r.Route("/preferences", func(r chi.Router) {
 								r.Get("/", api.userNotificationPreferences)

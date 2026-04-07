@@ -728,12 +728,12 @@ func (m queryMetricsStore) DeleteUserChatProviderKey(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) error {
+func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.DeleteUserSecretByUserIDAndName(ctx, arg)
+	r0, r1 := m.s.DeleteUserSecretByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteUserSecretByUserIDAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserSecretByUserIDAndName").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {

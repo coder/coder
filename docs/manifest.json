@@ -1527,6 +1527,10 @@
 							"path": "./reference/api/schemas.md"
 						},
 						{
+							"title": "Secrets",
+							"path": "./reference/api/secrets.md"
+						},
+						{
 							"title": "Tasks",
 							"path": "./reference/api/tasks.md"
 						},

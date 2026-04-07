@@ -2169,10 +2169,10 @@ func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.De
 	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
-func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) error {
+func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
