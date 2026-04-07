@@ -1,12 +1,11 @@
 # Headless Authentication
 
 > [!NOTE]
-> Creating service accounts with the `--service-account` flag or the **None** login
-type in the UI requires a [Premium license](https://coder.com/pricing).
+> Creating service accounts requires a [Premium license](https://coder.com/pricing).
 
 Service accounts are headless user accounts that cannot use the web UI to log in
 to Coder. This is useful for creating accounts for automated systems, such as
-CI/CD pipelines or for users who only consume Coder via another client/API.
+CI/CD pipelines or for users who only consume Coder via another client/API. Service accounts do not have passwords or associated email addresses.
 
 You must have the User Admin role or above to create service accounts.
 
@@ -16,10 +15,7 @@ You must have the User Admin role or above to create service accounts.
 
 ## CLI
 
-Use the `--service-account` flag to create a dedicated service account.
-This flag is a Premium feature and automatically sets the login type to `none`,
-prevents setting an email or password, and applies additional server-side
-validations:
+Use the `--service-account` flag to create a dedicated service account:
 
 ```sh
 coder users create \
@@ -27,11 +23,11 @@ coder users create \
   --service-account
 ```
 
+
 ## UI
 
-Navigate to **Users** > **Create user** in the top bar, then select
-**Service account** as the login type. This option is only available with
-a Premium license.
+Navigate to **Deployment** > **Users** > **Create user**, then select
+**Service account** as the login type.
 
 ![Create a user via the UI](../../images/admin/users/headless-user.png)
 
