@@ -174,10 +174,66 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 		server := &Server{}
 		resolved := server.resolveProviderAPIKeysForModel(
 			context.Background(),
+			uuid.Nil,
 			database.ChatModelConfig{},
 			baseKeys,
 		)
 		require.Equal(t, baseKeys, resolved)
+	})
+
+	t.Run("NoBindingUsesFamilyPrecedence", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{
+			{
+				ID:                   uuid.MustParse("01010101-0101-0101-0101-010101010101"),
+				Provider:             "openai",
+				APIKey:               "oldest-key",
+				BaseUrl:              "https://oldest.example.com",
+				CentralApiKeyEnabled: true,
+				CreatedAt:            time.Unix(1, 0).UTC(),
+			},
+			{
+				ID:                   uuid.MustParse("02020202-0202-0202-0202-020202020202"),
+				Provider:             "openai",
+				AllowUserApiKey:      true,
+				CentralApiKeyEnabled: false,
+				BaseUrl:              "https://newest.example.com",
+				CreatedAt:            time.Unix(2, 0).UTC(),
+			},
+		}, nil)
+
+		server := &Server{
+			db:          db,
+			configCache: newChatConfigCache(context.Background(), db, quartz.NewMock(t)),
+		}
+		resolved := server.resolveProviderAPIKeysForModel(
+			context.Background(),
+			uuid.Nil,
+			database.ChatModelConfig{Provider: "openai"},
+			chatprovider.ProviderAPIKeys{
+				OpenAI: "",
+				ByProvider: map[string]string{
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{
+					"openai":    "https://newest.example.com",
+					"anthropic": "https://anthropic.example.com",
+				},
+			},
+		)
+
+		require.Equal(t, chatprovider.ProviderAPIKeys{
+			OpenAI: "oldest-key",
+			ByProvider: map[string]string{
+				"openai": "oldest-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai": "https://oldest.example.com",
+			},
+		}, resolved)
 	})
 
 	t.Run("CacheErrorFallsBack", func(t *testing.T) {
@@ -193,6 +249,7 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 		}
 		resolved := server.resolveProviderAPIKeysForModel(
 			context.Background(),
+			uuid.Nil,
 			database.ChatModelConfig{
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("99999999-9999-9999-9999-999999999999"), Valid: true},
 			},
@@ -397,6 +454,7 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			}
 			resolved := server.resolveProviderAPIKeysForModel(
 				context.Background(),
+				uuid.Nil,
 				tt.model,
 				baseKeys,
 			)

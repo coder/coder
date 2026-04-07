@@ -1853,7 +1853,7 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
-	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, chat.OwnerID, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
@@ -1886,7 +1886,7 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
-	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, chat.OwnerID, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
@@ -4996,7 +4996,7 @@ func (p *Server) resolveChatModel(
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
 
-	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, dbConfig, keys)
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, chat.OwnerID, dbConfig, keys)
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, resolvedKeys, chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
@@ -5011,11 +5011,37 @@ func (p *Server) resolveChatModel(
 
 func (p *Server) resolveProviderAPIKeysForModel(
 	ctx context.Context,
+	ownerID uuid.UUID,
 	modelConfig database.ChatModelConfig,
 	baseKeys chatprovider.ProviderAPIKeys,
 ) chatprovider.ProviderAPIKeys {
 	if !modelConfig.ProviderConfigID.Valid {
-		return baseKeys
+		if p.configCache == nil || p.db == nil {
+			return baseKeys
+		}
+		providers, err := p.configCache.EnabledProviders(ctx)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to load enabled providers for unbound model",
+				slog.F("model_config_id", modelConfig.ID),
+				slog.F("provider", modelConfig.Provider),
+				slog.Error(err),
+			)
+			return baseKeys
+		}
+		resolved, err := p.resolveUserProviderAPIKeysForProviders(
+			ctx,
+			ownerID,
+			database.ChatProvidersByFamilyPrecedence(providers),
+		)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to resolve family-default provider keys",
+				slog.F("model_config_id", modelConfig.ID),
+				slog.F("provider", modelConfig.Provider),
+				slog.Error(err),
+			)
+			return baseKeys
+		}
+		return resolved
 	}
 
 	providers, err := p.configCache.EnabledProviders(ctx)
@@ -5073,17 +5099,11 @@ func (p *Server) resolveProviderAPIKeysForModel(
 	return baseKeys
 }
 
-func (p *Server) resolveUserProviderAPIKeys(
+func (p *Server) resolveUserProviderAPIKeysForProviders(
 	ctx context.Context,
 	ownerID uuid.UUID,
+	providers []database.ChatProvider,
 ) (chatprovider.ProviderAPIKeys, error) {
-	providers, err := p.configCache.EnabledProviders(ctx)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-			"get enabled chat providers: %w",
-			err,
-		)
-	}
 	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),
 	)
@@ -5140,6 +5160,20 @@ func (p *Server) resolveUserProviderAPIKeys(
 	}
 	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
 	return keys, nil
+}
+
+func (p *Server) resolveUserProviderAPIKeys(
+	ctx context.Context,
+	ownerID uuid.UUID,
+) (chatprovider.ProviderAPIKeys, error) {
+	providers, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			"get enabled chat providers: %w",
+			err,
+		)
+	}
+	return p.resolveUserProviderAPIKeysForProviders(ctx, ownerID, providers)
 }
 
 // resolveModelConfig looks up the chat's model config by its

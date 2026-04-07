@@ -57,3 +57,65 @@ func TestShouldCleanUnboundModelsAfterProviderDelete(t *testing.T) {
 		))
 	})
 }
+
+func TestEffectiveChatProviderConfigHasAPIKey(t *testing.T) {
+	t.Parallel()
+
+	fallback := chatprovider.ProviderAPIKeys{
+		ByProvider: map[string]string{"openai": "deployment-key"},
+	}
+
+	cases := []struct {
+		name     string
+		provider database.ChatProvider
+		fallback chatprovider.ProviderAPIKeys
+		want     bool
+	}{
+		{
+			name: "CentralDisabledIgnoresStoredKey",
+			provider: database.ChatProvider{
+				Provider:             "openai",
+				APIKey:               "stored-key",
+				CentralApiKeyEnabled: false,
+			},
+			fallback: fallback,
+			want:     false,
+		},
+		{
+			name: "CentralDisabledIgnoresFallbackKey",
+			provider: database.ChatProvider{
+				Provider:             "openai",
+				CentralApiKeyEnabled: false,
+			},
+			fallback: fallback,
+			want:     false,
+		},
+		{
+			name: "CentralEnabledUsesStoredKey",
+			provider: database.ChatProvider{
+				Provider:             "openai",
+				APIKey:               "stored-key",
+				CentralApiKeyEnabled: true,
+			},
+			fallback: chatprovider.ProviderAPIKeys{},
+			want:     true,
+		},
+		{
+			name: "CentralEnabledUsesFallbackKey",
+			provider: database.ChatProvider{
+				Provider:             "openai",
+				CentralApiKeyEnabled: true,
+			},
+			fallback: fallback,
+			want:     true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, effectiveChatProviderConfigHasAPIKey(tc.provider, tc.fallback))
+		})
+	}
+}

@@ -5842,11 +5842,14 @@ func (api *API) effectiveChatProviderAPIKeys(ctx context.Context) (chatprovider.
 }
 
 func effectiveChatProviderConfigHasAPIKey(provider database.ChatProvider, fallback chatprovider.ProviderAPIKeys) bool {
+	if !provider.CentralApiKeyEnabled {
+		return false
+	}
 	normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
 	if normalizedProvider == "" {
 		return false
 	}
-	return chatprovider.MergeProviderAPIKeys(fallback, []chatprovider.ConfiguredProvider{{Provider: provider.Provider, APIKey: provider.APIKey, BaseURL: provider.BaseUrl}}).APIKey(normalizedProvider) != ""
+	return chatprovider.MergeProviderAPIKeys(fallback, []chatprovider.ConfiguredProvider{{Provider: provider.Provider, APIKey: chatProviderCentralAPIKey(provider), BaseURL: provider.BaseUrl}}).APIKey(normalizedProvider) != ""
 }
 
 func chatProviderConfigHasAPIKey(provider database.ChatProvider) bool {
