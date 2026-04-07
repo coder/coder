@@ -21,9 +21,17 @@ type openDraftChatMsg struct{}
 
 type refreshChatsMsg struct{}
 
+type chatDisplayRow struct {
+	chat       codersdk.Chat
+	isSubagent bool
+	childCount int
+	isExpanded bool
+}
+
 type chatListModel struct {
 	styles    tuiStyles
 	chats     []codersdk.Chat
+	expanded  map[uuid.UUID]bool
 	cursor    int
 	offset    int
 	loading   bool
@@ -44,15 +52,20 @@ func newChatListModel(styles tuiStyles) chatListModel {
 	s.Spinner = spinner.Dot
 
 	return chatListModel{
-		styles:  styles,
-		loading: true,
-		search:  search,
-		spinner: s,
+		styles:   styles,
+		expanded: make(map[uuid.UUID]bool),
+		loading:  true,
+		search:   search,
+		spinner:  s,
 	}
 }
 
+func (m chatListModel) searchQuery() string {
+	return strings.TrimSpace(strings.ToLower(m.search.Value()))
+}
+
 func (m chatListModel) filteredChats() []codersdk.Chat {
-	query := strings.TrimSpace(strings.ToLower(m.search.Value()))
+	query := m.searchQuery()
 	if query == "" {
 		return m.chats
 	}
@@ -71,25 +84,147 @@ func (m chatListModel) filteredChats() []codersdk.Chat {
 	return filtered
 }
 
-func (m chatListModel) selectedChat() *codersdk.Chat {
+func (m chatListModel) displayRows() []chatDisplayRow {
 	filtered := m.filteredChats()
-	if len(filtered) == 0 || m.cursor < 0 || m.cursor >= len(filtered) {
+	if len(filtered) == 0 {
 		return nil
 	}
-	return &filtered[m.cursor]
+
+	matched := make(map[uuid.UUID]struct{}, len(filtered))
+	childrenOf := make(map[uuid.UUID][]codersdk.Chat)
+	for _, chat := range filtered {
+		matched[chat.ID] = struct{}{}
+		if chat.ParentChatID != nil {
+			childrenOf[*chat.ParentChatID] = append(childrenOf[*chat.ParentChatID], chat)
+		}
+	}
+
+	roots := make([]codersdk.Chat, 0, len(filtered))
+	for _, chat := range m.chats {
+		if chat.ParentChatID != nil {
+			continue
+		}
+		if _, ok := matched[chat.ID]; ok {
+			roots = append(roots, chat)
+			continue
+		}
+		if len(childrenOf[chat.ID]) > 0 {
+			roots = append(roots, chat)
+		}
+	}
+
+	rows := make([]chatDisplayRow, 0, len(filtered))
+	queryActive := m.searchQuery() != ""
+	for _, root := range roots {
+		children := childrenOf[root.ID]
+		isExpanded := m.expanded[root.ID]
+		if queryActive && len(children) > 0 {
+			isExpanded = true
+		}
+
+		rows = append(rows, chatDisplayRow{
+			chat:       root,
+			childCount: len(children),
+			isExpanded: isExpanded,
+		})
+		if !isExpanded {
+			continue
+		}
+		for _, child := range children {
+			rows = append(rows, chatDisplayRow{
+				chat:       child,
+				isSubagent: true,
+			})
+		}
+	}
+
+	return rows
+}
+
+func (m chatListModel) selectedRow() (chatDisplayRow, bool) {
+	rows := m.displayRows()
+	if len(rows) == 0 || m.cursor < 0 || m.cursor >= len(rows) {
+		return chatDisplayRow{}, false
+	}
+	return rows[m.cursor], true
+}
+
+func (m *chatListModel) moveCursorToChat(chatID uuid.UUID) {
+	rows := m.displayRows()
+	for i, row := range rows {
+		if row.chat.ID == chatID {
+			m.cursor = i
+			return
+		}
+	}
+}
+
+func (m *chatListModel) expandSelectedRow() bool {
+	row, ok := m.selectedRow()
+	if !ok || row.isSubagent || row.childCount == 0 || row.isExpanded {
+		return false
+	}
+	m.expanded[row.chat.ID] = true
+	return true
+}
+
+func (m *chatListModel) collapseSelectedRow() bool {
+	row, ok := m.selectedRow()
+	if !ok {
+		return false
+	}
+	if row.isSubagent {
+		if row.chat.ParentChatID == nil {
+			return false
+		}
+		parentID := *row.chat.ParentChatID
+		m.expanded[parentID] = false
+		m.moveCursorToChat(parentID)
+		return true
+	}
+	if row.childCount == 0 || !m.expanded[row.chat.ID] {
+		return false
+	}
+	m.expanded[row.chat.ID] = false
+	return true
+}
+
+func (m *chatListModel) toggleSelectedRowExpansion() bool {
+	row, ok := m.selectedRow()
+	if !ok {
+		return false
+	}
+	if row.isSubagent {
+		return m.collapseSelectedRow()
+	}
+	if row.childCount == 0 {
+		return false
+	}
+	if row.isExpanded {
+		return m.collapseSelectedRow()
+	}
+	return m.expandSelectedRow()
+}
+
+func (m chatListModel) selectedChat() *codersdk.Chat {
+	row, ok := m.selectedRow()
+	if !ok {
+		return nil
+	}
+	return &row.chat
 }
 
 func (m *chatListModel) clampCursor() {
-	filtered := m.filteredChats()
-	if len(filtered) == 0 {
+	rows := m.displayRows()
+	if len(rows) == 0 {
 		m.cursor = 0
 		return
 	}
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
-	if m.cursor >= len(filtered) {
-		m.cursor = len(filtered) - 1
+	if m.cursor >= len(rows) {
+		m.cursor = len(rows) - 1
 	}
 }
 
@@ -134,7 +269,7 @@ func (m chatListModel) visibleWindow(total int) (start int, end int) {
 }
 
 func (m *chatListModel) ensureCursorVisible() {
-	offset, _ := m.visibleWindow(len(m.filteredChats()))
+	offset, _ := m.visibleWindow(len(m.displayRows()))
 	m.offset = offset
 }
 
@@ -210,6 +345,24 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 			m.clampCursor()
 			m.ensureCursorVisible()
 			return m, nil
+		case "right", "l":
+			if m.expandSelectedRow() {
+				m.clampCursor()
+				m.ensureCursorVisible()
+			}
+			return m, nil
+		case "left", "h":
+			if m.collapseSelectedRow() {
+				m.clampCursor()
+				m.ensureCursorVisible()
+			}
+			return m, nil
+		case "x":
+			if m.toggleSelectedRowExpansion() {
+				m.clampCursor()
+				m.ensureCursorVisible()
+			}
+			return m, nil
 		case "enter":
 			selected := m.selectedChat()
 			if selected == nil {
@@ -245,13 +398,13 @@ func (m chatListModel) View() string {
 		return m.styles.errorText.Render(m.err.Error()) + "\n" + m.styles.helpText.Render("Press r to retry")
 	}
 
-	filtered := m.filteredChats()
-	lines := make([]string, 0, len(filtered)+3)
+	rows := m.displayRows()
+	lines := make([]string, 0, len(rows)+3)
 	if m.searching {
 		lines = append(lines, m.styles.searchInput.Render(m.search.View()))
 	}
 
-	if len(filtered) == 0 {
+	if len(rows) == 0 {
 		if strings.TrimSpace(m.search.Value()) != "" {
 			lines = append(lines, m.styles.dimmedText.Render("No matches."))
 		} else {
@@ -268,35 +421,55 @@ func (m chatListModel) View() string {
 	}
 
 	statusWidth := 12
-	start, end := m.visibleWindow(len(filtered))
+	start, end := m.visibleWindow(len(rows))
 	for i := start; i < end; i++ {
-		chat := filtered[i]
-		prefix := "  "
+		row := rows[i]
+		rowPrefix := "  "
 		rowStyle := m.styles.normalItem
 		if i == m.cursor {
-			prefix = "> "
+			rowPrefix = "> "
 			rowStyle = m.styles.selectedItem
 		}
+		if row.isSubagent {
+			rowPrefix += "  "
+		} else if row.childCount > 0 {
+			if row.isExpanded {
+				rowPrefix += "▼ "
+			} else {
+				rowPrefix += "▶ "
+			}
+		}
 
-		titleWidth := max(m.width-statusWidth-18, 20)
-		title := m.styles.truncate(chat.Title, titleWidth)
-		status := m.styles.statusColor(chat.Status).Render(string(chat.Status))
-		row := fmt.Sprintf("%s%s %s %s", prefix, rowStyle.Render(title), status, m.styles.dimmedText.Render(timeAgo(chat.UpdatedAt)))
-		lines = append(lines, row)
+		extraText := ""
+		extra := ""
+		if row.childCount > 0 {
+			extraText = fmt.Sprintf(" (%d subagents)", row.childCount)
+			extra = m.styles.dimmedText.Render(extraText)
+		}
 
-		if chat.Status == codersdk.ChatStatusError && chat.LastError != nil {
+		titleWidth := max(m.width-statusWidth-18-len(rowPrefix)-len(extraText), 20)
+		title := m.styles.truncate(row.chat.Title, titleWidth)
+		status := m.styles.statusColor(row.chat.Status).Render(string(row.chat.Status))
+		rowText := fmt.Sprintf("%s%s %s %s%s", rowPrefix, rowStyle.Render(title), status, m.styles.dimmedText.Render(timeAgo(row.chat.UpdatedAt)), extra)
+		lines = append(lines, rowText)
+
+		if row.chat.Status == codersdk.ChatStatusError && row.chat.LastError != nil {
 			errWidth := max(m.width-4, 20)
-			lines = append(lines, "    "+m.styles.dimmedText.Render(m.styles.truncate(*chat.LastError, errWidth)))
+			errPrefix := "    "
+			if row.isSubagent {
+				errPrefix += "  "
+			}
+			lines = append(lines, errPrefix+m.styles.dimmedText.Render(m.styles.truncate(*row.chat.LastError, errWidth)))
 		}
 	}
 
 	lines = append(lines, "")
 	help := fitHelpText(
 		m.width,
-		"↑/k: up • ↓/j: down • enter: open • /: search • n: new chat • r: refresh • q: quit",
-		"↑/k up • ↓/j down • ↵ open • / search • n new • r refresh • q quit",
-		"↑↓ nav • ↵ open • / search • n new • q quit",
-		"↑↓ • ↵ • / • n • q",
+		"↑/k: up • ↓/j: down • →/l: expand • ←/h: collapse • x: toggle • enter: open • /: search • n: new chat • r: refresh • q: quit",
+		"↑/k up • ↓/j down • →/l expand • ←/h collapse • x toggle • ↵ open • / search • n new • q quit",
+		"↑↓ nav • →← fold • x toggle • ↵ open • / search • n new • q quit",
+		"↑↓ • →← • x • ↵ • / • n • q",
 	)
 	lines = append(lines, m.styles.helpText.Render(help))
 	return strings.Join(lines, "\n")

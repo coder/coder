@@ -1104,6 +1104,131 @@ func TestExpAgents(t *testing.T) {
 			require.False(t, updated.loading)
 		})
 
+		t.Run("DisplayRowsHideSubagentsUntilExpanded", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			parent := testChat(codersdk.ChatStatusRunning)
+			parent.Title = "Parent chat"
+			childA := testChat(codersdk.ChatStatusWaiting)
+			childA.Title = "Subagent A"
+			childA.ParentChatID = &parent.ID
+			childB := testChat(codersdk.ChatStatusPending)
+			childB.Title = "Subagent B"
+			childB.ParentChatID = &parent.ID
+			root := testChat(codersdk.ChatStatusCompleted)
+			root.Title = "Standalone chat"
+
+			model.chats = []codersdk.Chat{parent, childA, childB, root}
+
+			rows := model.displayRows()
+			require.Len(t, rows, 2)
+			require.Equal(t, parent.ID, rows[0].chat.ID)
+			require.Equal(t, 2, rows[0].childCount)
+			require.False(t, rows[0].isExpanded)
+			require.Equal(t, root.ID, rows[1].chat.ID)
+			require.False(t, rows[1].isSubagent)
+
+			output := plainText(model.View())
+			require.Contains(t, output, "▶ Parent chat")
+			require.Contains(t, output, "(2 subagents)")
+			require.NotContains(t, output, childA.Title)
+			require.NotContains(t, output, childB.Title)
+		})
+
+		t.Run("ExpandCollapseAndOpenSubagents", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+			model.width = 100
+			model.height = 10
+
+			parent := testChat(codersdk.ChatStatusRunning)
+			parent.Title = "Parent chat"
+			child := testChat(codersdk.ChatStatusWaiting)
+			child.Title = "Subagent chat"
+			child.ParentChatID = &parent.ID
+			root := testChat(codersdk.ChatStatusCompleted)
+			root.Title = "Standalone chat"
+			model.chats = []codersdk.Chat{parent, child, root}
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+			require.Nil(t, cmd)
+			require.True(t, updated.expanded[parent.ID])
+			require.Len(t, updated.displayRows(), 3)
+			require.Contains(t, plainText(updated.View()), "    Subagent chat")
+
+			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			require.Nil(t, cmd)
+			require.Equal(t, 1, updated.cursor)
+			selected := updated.selectedChat()
+			require.NotNil(t, selected)
+			require.Equal(t, child.ID, selected.ID)
+
+			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			msg := mustMsg(t, cmd)
+			openMsg, ok := msg.(openSelectedChatMsg)
+			require.True(t, ok)
+			require.Equal(t, child.ID, openMsg.chatID)
+
+			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyLeft})
+			require.Nil(t, cmd)
+			require.False(t, updated.expanded[parent.ID])
+			require.Equal(t, 0, updated.cursor)
+			require.Len(t, updated.displayRows(), 2)
+		})
+
+		t.Run("ToggleKeyExpandsAndCollapsesParent", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			parent := testChat(codersdk.ChatStatusRunning)
+			parent.Title = "Parent chat"
+			child := testChat(codersdk.ChatStatusWaiting)
+			child.Title = "Subagent chat"
+			child.ParentChatID = &parent.ID
+			model.chats = []codersdk.Chat{parent, child}
+
+			updated, cmd := model.Update(keyRunes("x"))
+			require.Nil(t, cmd)
+			require.True(t, updated.expanded[parent.ID])
+			require.Len(t, updated.displayRows(), 2)
+
+			updated, cmd = updated.Update(keyRunes("x"))
+			require.Nil(t, cmd)
+			require.False(t, updated.expanded[parent.ID])
+			require.Len(t, updated.displayRows(), 1)
+		})
+
+		t.Run("SearchIncludesMatchingSubagentUnderParent", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			parent := testChat(codersdk.ChatStatusRunning)
+			parent.Title = "Parent chat"
+			child := testChat(codersdk.ChatStatusWaiting)
+			child.Title = "Subagent needle"
+			child.ParentChatID = &parent.ID
+			other := testChat(codersdk.ChatStatusCompleted)
+			other.Title = "Other root"
+			model.chats = []codersdk.Chat{parent, child, other}
+			model.search.SetValue("needle")
+
+			rows := model.displayRows()
+			require.Len(t, rows, 2)
+			require.Equal(t, parent.ID, rows[0].chat.ID)
+			require.True(t, rows[0].isExpanded)
+			require.Equal(t, child.ID, rows[1].chat.ID)
+			require.True(t, rows[1].isSubagent)
+		})
+
 		t.Run("NavigationKeysMoveCursorWithinBounds", func(t *testing.T) {
 			t.Parallel()
 
