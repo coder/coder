@@ -423,6 +423,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UnpinChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("SoftDeleteBoundChatModelConfigsByProviderConfigID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		providerConfigID := uuid.New()
+		dbm.EXPECT().SoftDeleteBoundChatModelConfigsByProviderConfigID(gomock.Any(), providerConfigID).Return(int64(2), nil).AnyTimes()
+		check.Args(providerConfigID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(int64(2))
+	}))
 	s.Run("SoftDeleteChatMessagesAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.SoftDeleteChatMessagesAfterIDParams{
@@ -443,6 +448,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), msg.ID).Return(nil).AnyTimes()
 		check.Args(msg.ID).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("SoftDeleteUnboundChatModelConfigsByProvider", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		provider := "openai"
+		dbm.EXPECT().SoftDeleteUnboundChatModelConfigsByProvider(gomock.Any(), provider).Return(int64(1), nil).AnyTimes()
+		check.Args(provider).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
@@ -552,6 +562,14 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		dbm.EXPECT().GetChatCostSummary(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()), policy.ActionRead).Returns(row)
+	}))
+	s.Run("CountChatProvidersByProviderExcludingID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.CountChatProvidersByProviderExcludingIDParams{
+			Provider: "openai",
+			ID:       uuid.New(),
+		}
+		dbm.EXPECT().CountChatProvidersByProviderExcludingID(gomock.Any(), arg).Return(int32(3), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(int32(3))
 	}))
 	s.Run("CountEnabledModelsWithoutPricing", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().CountEnabledModelsWithoutPricing(gomock.Any()).Return(int64(3), nil).AnyTimes()
