@@ -535,6 +535,7 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 
 	persistedAssistantCtxErr := xerrors.New("unset")
 	var persistedContent []fantasy.Content
+	var persistedStep PersistedStep
 
 	err := Run(ctx, RunOptions{
 		Model: model,
@@ -548,6 +549,7 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		PersistStep: func(persistCtx context.Context, step PersistedStep) error {
 			persistedAssistantCtxErr = persistCtx.Err()
 			persistedContent = append([]fantasy.Content(nil), step.Content...)
+			persistedStep = step
 			return nil
 		},
 	})
@@ -587,6 +589,12 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	require.True(t, foundText)
 	require.True(t, foundToolCall)
 	require.True(t, foundToolResult)
+
+	// The interrupted tool was flushed mid-stream (never reached
+	// StreamPartTypeToolCall), so it has no call timestamp.
+	// But the synthetic error result must have a result timestamp.
+	require.Contains(t, persistedStep.ToolResultCreatedAt, "interrupt-tool-1",
+		"interrupted tool result must have a result timestamp")
 }
 
 type loopTestModel struct {
@@ -727,6 +735,7 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 	}
 
 	var persistStepCalls int
+	var persistedSteps []PersistedStep
 	err := Run(context.Background(), RunOptions{
 		Model: model,
 		Messages: []fantasy.Message{
@@ -736,8 +745,9 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 			newNoopTool("read_file"),
 		},
 		MaxSteps: 5,
-		PersistStep: func(_ context.Context, _ PersistedStep) error {
+		PersistStep: func(_ context.Context, step PersistedStep) error {
 			persistStepCalls++
+			persistedSteps = append(persistedSteps, step)
 			return nil
 		},
 	})
@@ -778,6 +788,17 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 	}
 	require.True(t, foundAssistantToolCall, "second call prompt should contain assistant tool call from step 0")
 	require.True(t, foundToolResult, "second call prompt should contain tool result message")
+
+	// The first persisted step (tool-call step) must carry
+	// accurate timestamps for duration computation.
+	require.Len(t, persistedSteps, 2)
+	toolStep := persistedSteps[0]
+	require.Contains(t, toolStep.ToolCallCreatedAt, "tc-1",
+		"tool-call step must record when the model emitted the call")
+	require.Contains(t, toolStep.ToolResultCreatedAt, "tc-1",
+		"tool-call step must record when the tool result was produced")
+	require.False(t, toolStep.ToolResultCreatedAt["tc-1"].Before(toolStep.ToolCallCreatedAt["tc-1"]),
+		"tool-result timestamp must be >= tool-call timestamp")
 }
 
 func TestRun_PersistStepErrorPropagates(t *testing.T) {

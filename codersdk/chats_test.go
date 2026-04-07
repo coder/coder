@@ -329,6 +329,42 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	})
 }
 
+func TestChatMessagePart_CreatedAt_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RoundTrips", func(t *testing.T) {
+		t.Parallel()
+		ts := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+			CreatedAt:  &ts,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.True(t, ts.Equal(*decoded.CreatedAt))
+	})
+
+	t.Run("OmittedWhenNil", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"created_at"`)
+	})
+}
+
 func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
 	t.Parallel()
 

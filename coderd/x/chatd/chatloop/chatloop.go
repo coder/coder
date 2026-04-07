@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
@@ -75,6 +77,16 @@ type PersistedStep struct {
 	// ErrDynamicToolCall so the caller can execute them
 	// externally and resume the loop.
 	PendingDynamicToolCalls []PendingToolCall
+	// ToolCallCreatedAt maps tool-call IDs to the time
+	// the model emitted each tool call. Applied by the
+	// persistence layer to set CreatedAt on persisted
+	// tool-call ChatMessageParts.
+	ToolCallCreatedAt map[string]time.Time
+	// ToolResultCreatedAt maps tool-call IDs to the time
+	// each tool result was produced (or interrupted).
+	// Applied by the persistence layer to set CreatedAt
+	// on persisted tool-result ChatMessageParts.
+	ToolResultCreatedAt map[string]time.Time
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -149,12 +161,14 @@ type ProviderTool struct {
 // step. Since we own the stream consumer, all content is tracked
 // directly here — no shadow draft state needed.
 type stepResult struct {
-	content          []fantasy.Content
-	usage            fantasy.Usage
-	providerMetadata fantasy.ProviderMetadata
-	finishReason     fantasy.FinishReason
-	toolCalls        []fantasy.ToolCallContent
-	shouldContinue   bool
+	content             []fantasy.Content
+	usage               fantasy.Usage
+	providerMetadata    fantasy.ProviderMetadata
+	finishReason        fantasy.FinishReason
+	toolCalls           []fantasy.ToolCallContent
+	shouldContinue      bool
+	toolCallCreatedAt   map[string]time.Time
+	toolResultCreatedAt map[string]time.Time
 }
 
 // toResponseMessages converts step content into messages suitable
@@ -421,10 +435,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, func(tr fantasy.ToolResultContent) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+					// Use the per-tool completion time captured
+					// inside the goroutine for accurate duration.
+					if result.toolResultCreatedAt == nil {
+						result.toolResultCreatedAt = make(map[string]time.Time)
+					}
+					result.toolResultCreatedAt[tr.ToolCallID] = completedAt
+					ssePart := chatprompt.PartFromContent(tr)
+					ssePart.CreatedAt = &completedAt
 					publishMessagePart(
 						codersdk.ChatMessageRoleTool,
-						chatprompt.PartFromContent(tr),
+						ssePart,
 					)
 				})
 				for _, tr := range toolResults {
@@ -498,11 +520,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:            result.content,
-				Usage:              result.usage,
-				ContextLimit:       contextLimit,
-				ProviderResponseID: extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
-				Runtime:            time.Since(stepStart),
+				Content:             result.content,
+				Usage:               result.usage,
+				ContextLimit:        contextLimit,
+				ProviderResponseID:  extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				Runtime:             time.Since(stepStart),
+				ToolCallCreatedAt:   result.toolCallCreatedAt,
+				ToolResultCreatedAt: result.toolResultCreatedAt,
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -835,9 +859,20 @@ func processStepStream(
 			// Clean up active tool call tracking.
 			delete(activeToolCalls, part.ID)
 
+			// Record when the model emitted this tool call
+			// so the persisted part carries an accurate
+			// timestamp for duration computation.
+			now := dbtime.Now()
+			if result.toolCallCreatedAt == nil {
+				result.toolCallCreatedAt = make(map[string]time.Time)
+			}
+			result.toolCallCreatedAt[part.ID] = now
+
+			ssePart := chatprompt.PartFromContent(tc)
+			ssePart.CreatedAt = &now
 			publishMessagePart(
 				codersdk.ChatMessageRoleAssistant,
-				chatprompt.PartFromContent(tc),
+				ssePart,
 			)
 
 		case fantasy.StreamPartTypeSource:
@@ -867,9 +902,18 @@ func processStepStream(
 					ProviderMetadata: part.ProviderMetadata,
 				}
 				result.content = append(result.content, tr)
+
+				now := dbtime.Now()
+				if result.toolResultCreatedAt == nil {
+					result.toolResultCreatedAt = make(map[string]time.Time)
+				}
+				result.toolResultCreatedAt[part.ID] = now
+
+				ssePart := chatprompt.PartFromContent(tr)
+				ssePart.CreatedAt = &now
 				publishMessagePart(
 					codersdk.ChatMessageRoleTool,
-					chatprompt.PartFromContent(tr),
+					ssePart,
 				)
 			}
 		case fantasy.StreamPartTypeFinish:
@@ -938,7 +982,7 @@ func executeTools(
 	allTools []fantasy.AgentTool,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
-	onResult func(fantasy.ToolResultContent),
+	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
 		return nil
@@ -971,6 +1015,7 @@ func executeTools(
 	}
 
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
+	completedAt := make([]time.Time, len(localToolCalls))
 	var wg sync.WaitGroup
 	wg.Add(len(localToolCalls))
 	for i, tc := range localToolCalls {
@@ -986,6 +1031,10 @@ func executeTools(
 						},
 					}
 				}
+				// Record when this tool completed (or panicked).
+				// Captured per-goroutine so parallel tools get
+				// accurate individual completion times.
+				completedAt[i] = dbtime.Now()
 			}()
 			results[i] = executeSingleTool(ctx, toolMap, tc)
 		}(i, tc)
@@ -995,8 +1044,8 @@ func executeTools(
 	// Publish results in the original tool-call order so SSE
 	// subscribers see a deterministic event sequence.
 	if onResult != nil {
-		for _, tr := range results {
-			onResult(tr)
+		for i, tr := range results {
+			onResult(tr, completedAt[i])
 		}
 	}
 	return results
@@ -1132,6 +1181,18 @@ func persistInterruptedStep(
 		}
 	}
 
+	// Copy existing timestamps and add result timestamps for
+	// interrupted tool calls so the frontend can show partial
+	// duration.
+	toolCallCreatedAt := maps.Clone(result.toolCallCreatedAt)
+	if toolCallCreatedAt == nil {
+		toolCallCreatedAt = make(map[string]time.Time)
+	}
+	toolResultCreatedAt := maps.Clone(result.toolResultCreatedAt)
+	if toolResultCreatedAt == nil {
+		toolResultCreatedAt = make(map[string]time.Time)
+	}
+
 	// Build combined content: all accumulated content + synthetic
 	// interrupted results for any unanswered tool calls.
 	content := make([]fantasy.Content, 0, len(result.content))
@@ -1152,12 +1213,15 @@ func persistInterruptedStep(
 				Error: xerrors.New(interruptedToolResultErrorMessage),
 			},
 		})
+		toolResultCreatedAt[tc.ToolCallID] = dbtime.Now()
 		answeredToolCalls[tc.ToolCallID] = struct{}{}
 	}
 
 	persistCtx := context.WithoutCancel(ctx)
 	if err := opts.PersistStep(persistCtx, PersistedStep{
-		Content: content,
+		Content:             content,
+		ToolCallCreatedAt:   toolCallCreatedAt,
+		ToolResultCreatedAt: toolResultCreatedAt,
 	}); err != nil {
 		if opts.OnInterruptedPersistError != nil {
 			opts.OnInterruptedPersistError(err)

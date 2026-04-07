@@ -2129,6 +2129,12 @@ export interface ChatToolCallPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * CreatedAt records when this part was produced. Present on
+	 * tool-call and tool-result parts so the frontend can compute
+	 * tool execution duration.
+	 */
+	readonly created_at?: string;
 }
 
 // From codersdk/chats.go
@@ -2145,6 +2151,12 @@ export interface ChatToolResultPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * CreatedAt records when this part was produced. Present on
+	 * tool-call and tool-result parts so the frontend can compute
+	 * tool execution duration.
+	 */
+	readonly created_at?: string;
 }
 
 // From codersdk/chats.go

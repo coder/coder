@@ -4665,6 +4665,13 @@ func (p *Server) runChat(
 						part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
 					}
 				}
+				// Apply recorded timestamps so persisted
+				// tool-call parts carry accurate CreatedAt.
+				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID != "" && step.ToolCallCreatedAt != nil {
+					if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
+						part.CreatedAt = &ts
+					}
+				}
 				sdkParts = append(sdkParts, part)
 			}
 			finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
@@ -4681,6 +4688,13 @@ func (p *Server) runChat(
 			if trPart.ToolName != "" {
 				if configID, ok := toolNameToConfigID[trPart.ToolName]; ok {
 					trPart.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+				}
+			}
+			// Apply recorded timestamps so persisted
+			// tool-result parts carry accurate CreatedAt.
+			if trPart.ToolCallID != "" && step.ToolResultCreatedAt != nil {
+				if ts, ok := step.ToolResultCreatedAt[trPart.ToolCallID]; ok {
+					trPart.CreatedAt = &ts
 				}
 			}
 			var marshalErr error
