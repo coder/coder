@@ -344,9 +344,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onArchiveAndDeleteWorkspace={
 								handleArchiveAndDeleteWorkspaceAction
 							}
-							{...(handleRegenerateTitle
-								? { onRegenerateTitle: handleRegenerateTitle }
-								: {})}
+							onRegenerateTitle={handleRegenerateTitle}
 							isRegeneratingTitle={isRegeneratingTitle}
 							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 							hasWorkspace={Boolean(workspace)}
