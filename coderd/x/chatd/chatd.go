@@ -25,6 +25,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -175,6 +176,13 @@ type Server struct {
 	// gives each chat independent locking — concurrent chats
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
+
+	// stream*Fetches coalesce concurrent chat stream snapshot and
+	// catch-up reads. They are not caches: once a shared fetch
+	// completes, future reads hit the database again.
+	streamMessageFetches singleflight.Group[string, []database.ChatMessage]
+	streamQueueFetches   singleflight.Group[string, []database.ChatQueuedMessage]
+	streamChatFetches    singleflight.Group[string, database.Chat]
 
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
@@ -4244,6 +4252,99 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 	}
 }
 
+func cloneChatForStream(chat database.Chat) database.Chat {
+	chat.MCPServerIDs = slices.Clone(chat.MCPServerIDs)
+	chat.Labels = maps.Clone(chat.Labels)
+	chat.LastInjectedContext.RawMessage = slices.Clone(chat.LastInjectedContext.RawMessage)
+	return chat
+}
+
+func cloneChatMessagesForStream(messages []database.ChatMessage) []database.ChatMessage {
+	cloned := slices.Clone(messages)
+	for i := range cloned {
+		cloned[i].Content.RawMessage = slices.Clone(cloned[i].Content.RawMessage)
+	}
+	return cloned
+}
+
+func cloneQueuedMessagesForStream(messages []database.ChatQueuedMessage) []database.ChatQueuedMessage {
+	cloned := slices.Clone(messages)
+	for i := range cloned {
+		cloned[i].Content = slices.Clone(cloned[i].Content)
+	}
+	return cloned
+}
+
+// streamFetchContext preserves request-scoped auth and trace values while
+// removing cancellation so one disconnecting subscriber does not poison
+// other waiters sharing the same singleflight entry.
+func streamFetchContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
+}
+
+func (p *Server) getStreamChatMessages(
+	ctx context.Context,
+	params database.GetChatMessagesByChatIDParams,
+) ([]database.ChatMessage, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	messages, err := singleflightDoChan(
+		ctx,
+		&p.streamMessageFetches,
+		fmt.Sprintf("chat-messages:%s:after:%d", params.ChatID, params.AfterID),
+		func() ([]database.ChatMessage, error) {
+			return p.db.GetChatMessagesByChatID(streamFetchContext(ctx), params)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return cloneChatMessagesForStream(messages), nil
+}
+
+func (p *Server) getStreamQueuedMessages(
+	ctx context.Context,
+	chatID uuid.UUID,
+) ([]database.ChatQueuedMessage, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	queued, err := singleflightDoChan(
+		ctx,
+		&p.streamQueueFetches,
+		fmt.Sprintf("chat-queue:%s", chatID),
+		func() ([]database.ChatQueuedMessage, error) {
+			return p.db.GetChatQueuedMessages(streamFetchContext(ctx), chatID)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return cloneQueuedMessagesForStream(queued), nil
+}
+
+func (p *Server) getStreamChat(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	chat, err := singleflightDoChan(
+		ctx,
+		&p.streamChatFetches,
+		fmt.Sprintf("chat:%s", chatID),
+		func() (database.Chat, error) {
+			return p.db.GetChatByID(streamFetchContext(ctx), chatID)
+		},
+	)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return cloneChatForStream(chat), nil
+}
+
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -4352,7 +4453,7 @@ func (p *Server) Subscribe(
 	// caller already has messages up to that ID (e.g. from the REST
 	// endpoint), so we only fetch newer ones to avoid sending
 	// duplicate data.
-	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+	messages, err := p.getStreamChatMessages(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chatID,
 		AfterID: afterMessageID,
 	})
@@ -4378,7 +4479,7 @@ func (p *Server) Subscribe(
 	}
 
 	// Load initial queue.
-	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
+	queued, err := p.getStreamQueuedMessages(ctx, chatID)
 	if err != nil {
 		p.logger.Error(ctx, "failed to load initial queued messages",
 			slog.Error(err),
@@ -4398,7 +4499,7 @@ func (p *Server) Subscribe(
 	}
 
 	// Get initial chat state to determine if we need a relay.
-	chat, chatErr := p.db.GetChatByID(ctx, chatID)
+	chat, chatErr := p.getStreamChat(ctx, chatID)
 
 	// Include the current chat status in the snapshot so the
 	// frontend can gate message_part processing correctly from
@@ -4512,7 +4613,7 @@ func (p *Server) Subscribe(
 							}
 							lastMessageID = event.Message.ID
 						}
-					} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+					} else if newMessages, msgErr := p.getStreamChatMessages(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
 						AfterID: lastMessageID,
 					}); msgErr != nil {
@@ -4600,7 +4701,7 @@ func (p *Server) Subscribe(
 					}
 				}
 				if notify.QueueUpdate {
-					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(mergedCtx, chatID)
+					queuedMsgs, queueErr := p.getStreamQueuedMessages(mergedCtx, chatID)
 					if queueErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
 							slog.F("chat_id", chatID),
