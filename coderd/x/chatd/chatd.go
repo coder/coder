@@ -4672,6 +4672,14 @@ func (p *Server) runChat(
 						part.CreatedAt = &ts
 					}
 				}
+				// Provider-executed tool results appear in
+				// assistantBlocks rather than toolResults,
+				// so apply their timestamps here as well.
+				if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID != "" && step.ToolResultCreatedAt != nil {
+					if ts, ok := step.ToolResultCreatedAt[part.ToolCallID]; ok {
+						part.CreatedAt = &ts
+					}
+				}
 				sdkParts = append(sdkParts, part)
 			}
 			finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))

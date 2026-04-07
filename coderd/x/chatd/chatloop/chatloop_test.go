@@ -595,6 +595,8 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	// But the synthetic error result must have a result timestamp.
 	require.Contains(t, persistedStep.ToolResultCreatedAt, "interrupt-tool-1",
 		"interrupted tool result must have a result timestamp")
+	require.NotContains(t, persistedStep.ToolCallCreatedAt, "interrupt-tool-1",
+		"interrupted tool should have no call timestamp (never reached StreamPartTypeToolCall)")
 }
 
 type loopTestModel struct {
@@ -1202,6 +1204,77 @@ func TestRun_InterruptedDuringToolExecutionPersistsStep(t *testing.T) {
 	require.True(t, foundReasoning, "persisted content should include reasoning from the stream")
 	require.True(t, foundToolCall, "persisted content should include the tool call")
 	require.True(t, foundToolResult, "persisted content should include the tool result (error from cancellation)")
+}
+
+// TestRun_ProviderExecutedToolResultTimestamps verifies that
+// provider-executed tool results (e.g. web search) have their
+// timestamps recorded in PersistedStep.ToolResultCreatedAt so
+// the persistence layer can stamp CreatedAt on the parts.
+func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
+	t.Parallel()
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			// Simulate a provider-executed tool call and result
+			// (e.g. Anthropic web search) followed by a text
+			// response — all in a single stream.
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+				{
+					Type:             fantasy.StreamPartTypeToolCall,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ToolCallInput:    `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				// Provider-executed tool result — emitted by
+				// the provider, not our tool runner.
+				{
+					Type:             fantasy.StreamPartTypeToolResult,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				},
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "search done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, persistedSteps, 1)
+
+	step := persistedSteps[0]
+
+	// Provider-executed tool call should have a call timestamp.
+	require.Contains(t, step.ToolCallCreatedAt, "ws-1",
+		"provider-executed tool call must record its timestamp")
+
+	// Provider-executed tool result should have a result
+	// timestamp so the frontend can compute duration.
+	require.Contains(t, step.ToolResultCreatedAt, "ws-1",
+		"provider-executed tool result must record its timestamp")
+
+	require.False(t,
+		step.ToolResultCreatedAt["ws-1"].Before(step.ToolCallCreatedAt["ws-1"]),
+		"tool-result timestamp must be >= tool-call timestamp")
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal
