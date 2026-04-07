@@ -1,4 +1,8 @@
-import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import type {
+	InfiniteData,
+	QueryClient,
+	UseInfiniteQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
@@ -7,7 +11,7 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
 	const sorted = workspaceIds.toSorted();
@@ -602,11 +606,65 @@ type EditChatMessageMutationArgs = {
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onSuccess: () => {
-		// Editing truncates all messages after the edited one on the
-		// server. The WebSocket can insert/update messages but cannot
-		// remove stale ones, so a full messages refetch is required.
-		// Use exact matching to avoid cascading to unrelated queries
+	onMutate: async ({ messageId }: EditChatMessageMutationArgs) => {
+		// Cancel in-flight refetches so they don't overwrite the
+		// optimistic update before the mutation completes.
+		await queryClient.cancelQueries({
+			queryKey: chatMessagesKey(chatId),
+			exact: true,
+		});
+
+		const previousData = queryClient.getQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse>
+		>(chatMessagesKey(chatId));
+
+		// Optimistically remove the edited message and everything
+		// after it. The server soft-deletes these and inserts a
+		// replacement with a new ID. Without this, the WebSocket
+		// handler's upsertCacheMessages adds new messages to the
+		// React Query cache without removing the soft-deleted ones,
+		// causing deleted messages to flash back into view until
+		// the full REST refetch resolves.
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatId), (current) => {
+			if (!current?.pages?.length) {
+				return current;
+			}
+			return {
+				...current,
+				pages: current.pages.map((page) => ({
+					...page,
+					messages: page.messages.filter((m) => m.id < messageId),
+				})),
+			};
+		});
+
+		return { previousData };
+	},
+	onError: (
+		_error: unknown,
+		_variables: EditChatMessageMutationArgs,
+		context:
+			| {
+					previousData?:
+						| InfiniteData<TypesGen.ChatMessagesResponse>
+						| undefined;
+			  }
+			| undefined,
+	) => {
+		// Restore the cache on failure so the user sees the
+		// original messages again.
+		if (context?.previousData) {
+			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+		}
+	},
+	onSettled: () => {
+		// Always reconcile with the server regardless of whether
+		// the mutation succeeded or failed. On success this picks
+		// up the replacement message; on failure it confirms the
+		// restore from onError matches the server state. Use exact
+		// matching to avoid cascading to unrelated queries
 		// (diff-status, diff-contents, cost summaries, etc.).
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
@@ -801,6 +859,47 @@ export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
 	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
 		API.experimental.getChatModelConfigs(),
+});
+
+export const userChatProviderConfigsKey = [
+	"user-chat-provider-configs",
+] as const;
+
+export const userChatProviderConfigs = () => ({
+	queryKey: userChatProviderConfigsKey,
+	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
+		API.experimental.getUserChatProviderConfigs(),
+});
+
+type UpsertUserChatProviderKeyArgs = {
+	providerConfigId: string;
+	req: TypesGen.CreateUserChatProviderKeyRequest;
+};
+
+export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
+		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.experimental.deleteUserChatProviderKey(providerConfigId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
 });
 
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {

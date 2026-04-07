@@ -1,5 +1,12 @@
 import { ChevronLeftIcon, InfoIcon } from "lucide-react";
-import { type FC, type FormEvent, useId, useState } from "react";
+import {
+	type CSSProperties,
+	type FC,
+	type FormEvent,
+	type ReactNode,
+	useId,
+	useState,
+} from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -13,6 +20,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,9 +30,10 @@ import { formatProviderLabel } from "../../utils/modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
+import { normalizeProviderPolicyDefaults } from "./providerPolicyDefaults";
 
 // Sentinel value used to represent an existing API key that the
-// backend won't reveal. If the user hasn't touched the field,
+// backend will not reveal. If the user has not touched the field,
 // we know nothing changed.
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
@@ -64,11 +73,20 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			? "https://api.example.com"
 			: "https://api.example.com/v1";
 
+	const normalizedProviderConfig = providerConfig
+		? normalizeProviderPolicyDefaults(providerConfig)
+		: undefined;
+
 	// Initial values are snapshotted when the provider config changes
 	// so we can detect dirty state.
 	const [initialValues] = useState(() => ({
 		displayName: readOptionalString(providerConfig?.display_name) ?? "",
-		baseURL: baseURL,
+		baseURL,
+		centralAPIKeyEnabled:
+			normalizedProviderConfig?.central_api_key_enabled ?? true,
+		allowUserAPIKey: normalizedProviderConfig?.allow_user_api_key ?? false,
+		allowCentralAPIKeyFallback:
+			normalizedProviderConfig?.allow_central_api_key_fallback ?? false,
 	}));
 
 	const [displayName, setDisplayName] = useState(initialValues.displayName);
@@ -77,26 +95,57 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
+	const [centralAPIKeyEnabled, setCentralAPIKeyEnabled] = useState(
+		initialValues.centralAPIKeyEnabled,
+	);
+	const [allowUserAPIKey, setAllowUserAPIKey] = useState(
+		initialValues.allowUserAPIKey,
+	);
+	const [allowCentralAPIKeyFallback, setAllowCentralAPIKeyFallback] = useState(
+		initialValues.allowCentralAPIKeyFallback,
+	);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
-	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
+	const shouldShowAPIKeyField = centralAPIKeyEnabled;
+	const shouldShowFallbackToggle = centralAPIKeyEnabled && allowUserAPIKey;
+	const effectiveInitialFallback =
+		initialValues.centralAPIKeyEnabled &&
+		initialValues.allowUserAPIKey &&
+		initialValues.allowCentralAPIKeyFallback;
+	const effectiveFallback =
+		shouldShowFallbackToggle && allowCentralAPIKeyFallback;
+	// Require a key whenever central-key usage is enabled and there is no
+	// stored deployment key yet. This covers both create and update flows,
+	// including toggling central-key usage on for an existing provider.
+	const requiresAPIKey =
+		!isAPIKeyEnvManaged &&
+		centralAPIKeyEnabled &&
+		!providerState.hasManagedAPIKey;
 
-	// The actual API key value to submit — ignore the placeholder.
 	const effectiveApiKey =
 		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
+	const hasCredentialSource = centralAPIKeyEnabled || allowUserAPIKey;
+	const deleteProviderDescription = normalizedProviderConfig?.allow_user_api_key
+		? "Are you sure you want to delete this provider? Any personal API " +
+			"keys that users have saved for this provider will also be " +
+			"permanently deleted. This action is irreversible."
+		: "Are you sure you want to delete this provider? This action is irreversible.";
 
-	// Dirty detection: has anything changed from the initial state?
 	const isDirty =
 		displayName.trim() !== initialValues.displayName ||
 		effectiveApiKey !== "" ||
-		baseURLValue.trim() !== initialValues.baseURL.trim();
+		baseURLValue.trim() !== initialValues.baseURL.trim() ||
+		centralAPIKeyEnabled !== initialValues.centralAPIKeyEnabled ||
+		allowUserAPIKey !== initialValues.allowUserAPIKey ||
+		effectiveFallback !== effectiveInitialFallback;
 
 	const canSave =
 		!providerConfigsUnavailable &&
 		!isProviderMutationPending &&
 		!isAPIKeyEnvManaged &&
 		isDirty &&
+		hasCredentialSource &&
 		(!requiresAPIKey || effectiveApiKey);
 
 	const handleSubmit = async (event: FormEvent) => {
@@ -104,8 +153,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		if (
 			providerConfigsUnavailable ||
 			isProviderMutationPending ||
-			isAPIKeyEnvManaged
+			isAPIKeyEnvManaged ||
+			!hasCredentialSource
 		) {
+			return;
+		}
+
+		if (requiresAPIKey && !effectiveApiKey) {
 			return;
 		}
 
@@ -120,13 +174,23 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				...(trimmedDisplayName !== currentDisplayName && {
 					display_name: trimmedDisplayName,
 				}),
-				...(effectiveApiKey && { api_key: effectiveApiKey }),
+				...(centralAPIKeyEnabled &&
+					effectiveApiKey && { api_key: effectiveApiKey }),
 				...(trimmedBaseURL !== currentBaseURL && {
 					base_url: trimmedBaseURL,
 				}),
+				...(centralAPIKeyEnabled !== initialValues.centralAPIKeyEnabled && {
+					central_api_key_enabled: centralAPIKeyEnabled,
+				}),
+				...(allowUserAPIKey !== initialValues.allowUserAPIKey && {
+					allow_user_api_key: allowUserAPIKey,
+				}),
+				...(effectiveFallback !== effectiveInitialFallback && {
+					allow_central_api_key_fallback: effectiveFallback,
+				}),
 			};
 
-			if (!req.display_name && !req.api_key && !req.base_url) {
+			if (Object.keys(req).length === 0) {
 				return;
 			}
 
@@ -138,13 +202,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				return;
 			}
 		} else {
-			if (!effectiveApiKey) {
-				return;
-			}
-
 			const req: TypesGen.CreateChatProviderConfigRequest = {
 				provider,
-				api_key: effectiveApiKey,
+				...(centralAPIKeyEnabled && { api_key: effectiveApiKey }),
+				central_api_key_enabled: centralAPIKeyEnabled,
+				allow_user_api_key: allowUserAPIKey,
+				allow_central_api_key_fallback: effectiveFallback,
 				...(trimmedDisplayName && {
 					display_name: trimmedDisplayName,
 				}),
@@ -161,11 +224,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 
 		setApiKeyTouched(false);
+		setApiKey(API_KEY_PLACEHOLDER);
 	};
 
 	const handleApiKeyFocus = () => {
 		// Clear the placeholder on first focus so the user starts
-		// with a blank field and Chrome doesn't try to autofill.
+		// with a blank field and Chrome does not try to autofill.
 		if (!apiKeyTouched && apiKey === API_KEY_PLACEHOLDER) {
 			setApiKey("");
 			setApiKeyTouched(true);
@@ -180,20 +244,20 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			<button
 				type="button"
 				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
 			</button>
 
-			{/* Provider header — editable name */}
+			{/* Provider header, editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />
 				<div className="min-w-0 flex-1">
 					<input
 						type="text"
 						value={displayName || formatProviderLabel(provider)}
-						onChange={(e) => setDisplayName(e.target.value)}
+						onChange={(event) => setDisplayName(event.target.value)}
 						disabled={isDisabled || isAPIKeyEnvManaged}
 						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 						placeholder={formatProviderLabel(provider)}
@@ -226,33 +290,36 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					data-form-type="other"
 				>
 					<div className="space-y-5">
-						<ProviderField
-							label="API Key"
-							htmlFor={apiKeyInputId}
-							required={!providerConfig}
-							description="Secret key used to authenticate requests to this provider."
-						>
-							<Input
-								id={apiKeyInputId}
-								name="provider_api_token"
-								type="text"
-								autoComplete="off"
-								data-1p-ignore
-								data-lpignore="true"
-								data-form-type="other"
-								data-bwignore
-								style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
-								className="h-9 font-mono text-[13px]"
-								placeholder="sk-..."
-								value={apiKey}
-								onFocus={handleApiKeyFocus}
-								onChange={(e) => {
-									setApiKey(e.target.value);
-									setApiKeyTouched(true);
-								}}
-								disabled={isDisabled}
-							/>
-						</ProviderField>
+						{shouldShowAPIKeyField && (
+							<ProviderField
+								label="API Key"
+								htmlFor={apiKeyInputId}
+								required={requiresAPIKey}
+								description="Secret key used to authenticate requests to this provider."
+							>
+								<Input
+									id={apiKeyInputId}
+									name="provider_api_token"
+									type="password"
+									autoComplete="off"
+									data-1p-ignore
+									data-lpignore="true"
+									data-form-type="other"
+									data-bwignore
+									style={{ WebkitTextSecurity: "disc" } as CSSProperties}
+									className="h-9 font-mono text-[13px]"
+									placeholder="sk-..."
+									required={requiresAPIKey}
+									value={apiKey}
+									onFocus={handleApiKeyFocus}
+									onChange={(event) => {
+										setApiKey(event.target.value);
+										setApiKeyTouched(true);
+									}}
+									disabled={isDisabled}
+								/>
+							</ProviderField>
+						)}
 
 						<ProviderField
 							label="Base URL"
@@ -266,13 +333,54 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								placeholder={baseURLPlaceholder}
 								autoComplete="off"
 								value={baseURLValue}
-								onChange={(e) => setBaseURLValue(e.target.value)}
+								onChange={(event) => setBaseURLValue(event.target.value)}
 								disabled={isDisabled}
 							/>
 						</ProviderField>
+
+						<div className="space-y-3 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4">
+							<div className="space-y-1">
+								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+									Key policy
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Control which credential sources this provider can use.
+								</p>
+							</div>
+							<div className="space-y-3">
+								<ProviderToggleField
+									label="Central API key"
+									description="Use a deployment-managed API key for this provider"
+									checked={centralAPIKeyEnabled}
+									onCheckedChange={setCentralAPIKeyEnabled}
+									disabled={isDisabled}
+								/>
+								<ProviderToggleField
+									label="Allow user API keys"
+									description="Let users provide their own API keys for this provider"
+									checked={allowUserAPIKey}
+									onCheckedChange={setAllowUserAPIKey}
+									disabled={isDisabled}
+								/>
+								{shouldShowFallbackToggle && (
+									<ProviderToggleField
+										label="Use central key as fallback"
+										description="When a user has not saved a personal key, fall back to the central API key"
+										checked={effectiveFallback}
+										onCheckedChange={setAllowCentralAPIKeyFallback}
+										disabled={isDisabled}
+									/>
+								)}
+							</div>
+							{!hasCredentialSource && (
+								<p className="m-0 text-xs text-content-destructive">
+									At least one credential source must be enabled
+								</p>
+							)}
+						</div>
 					</div>
 
-					{/* Footer — pushed to bottom */}
+					{/* Footer, pushed to bottom */}
 					<div className="mt-auto pt-6">
 						<hr className="mb-4 border-0 border-t border-solid border-border" />
 						<div className="flex items-center justify-between">
@@ -309,10 +417,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					<DialogContent variant="destructive">
 						<DialogHeader>
 							<DialogTitle>Delete provider</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete this provider? This action is
-								irreversible.
-							</DialogDescription>
+							<DialogDescription>{deleteProviderDescription}</DialogDescription>
 						</DialogHeader>
 						<DialogFooter>
 							<Button
@@ -340,14 +445,55 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 };
 
-// ── Field wrapper ──────────────────────────────────────────────
+interface ProviderToggleFieldProps {
+	label: string;
+	description: string;
+	checked: boolean;
+	onCheckedChange: (checked: boolean) => void;
+	disabled?: boolean;
+}
 
+const ProviderToggleField: FC<ProviderToggleFieldProps> = ({
+	label,
+	description,
+	checked,
+	onCheckedChange,
+	disabled,
+}) => {
+	const labelId = useId();
+	const descriptionId = useId();
+
+	return (
+		<div className="flex items-start justify-between gap-4">
+			<div className="min-w-0 space-y-1">
+				<p
+					id={labelId}
+					className="m-0 text-sm font-medium text-content-primary"
+				>
+					{label}
+				</p>
+				<p id={descriptionId} className="m-0 text-xs text-content-secondary">
+					{description}
+				</p>
+			</div>
+			<Switch
+				checked={checked}
+				onCheckedChange={onCheckedChange}
+				disabled={disabled}
+				aria-labelledby={labelId}
+				aria-describedby={descriptionId}
+			/>
+		</div>
+	);
+};
+
+// Field wrapper.
 interface ProviderFieldProps {
 	label: string;
 	htmlFor?: string;
 	required?: boolean;
 	description?: string;
-	children: React.ReactNode;
+	children: ReactNode;
 }
 
 export const ProviderField: FC<ProviderFieldProps> = ({

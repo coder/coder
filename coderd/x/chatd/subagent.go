@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -12,11 +13,13 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -166,22 +169,89 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				}
 
 				parent := currentChat()
-				targetChat, report, err := p.awaitSubagentCompletion(
-					ctx,
-					parent.ID,
-					targetChatID,
-					timeout,
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+
+				// Authorize: the target chat must be a descendant
+				// of the current (parent) chat.
+				isDescendant, descErr := isSubagentDescendant(ctx, p.db, parent.ID, targetChatID)
+				if descErr != nil {
+					return fantasy.NewTextErrorResponse(
+						fmt.Sprintf("failed to verify subagent relationship: %v", descErr)), nil
+				}
+				if !isDescendant {
+					return fantasy.NewTextErrorResponse(
+						"target chat is not a subagent of the current chat"), nil
 				}
 
-				return toolJSONResponse(map[string]any{
+				// Check if the target is a computer_use subagent
+				// and start a desktop recording. Failures are
+				// best-effort warnings — recording never blocks
+				// the wait_agent flow.
+				var recordingID string
+				var agentConn workspacesdk.AgentConn
+
+				targetChatInfo, lookupErr := p.db.GetChatByID(ctx, targetChatID)
+				if lookupErr != nil && !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for recording",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
+				}
+				isComputerUseChat := lookupErr == nil && targetChatInfo.Mode.Valid &&
+					targetChatInfo.Mode.ChatMode == database.ChatModeComputerUse &&
+					targetChatInfo.AgentID.Valid
+				canRecord := isComputerUseChat && p.agentConnFn != nil
+
+				if canRecord {
+					conn, closeFn, connErr := p.agentConnFn(ctx, targetChatInfo.AgentID.UUID)
+					if connErr == nil {
+						agentConn = conn
+						defer closeFn()
+
+						recordingID = targetChatID.String()
+						startErr := conn.StartDesktopRecording(ctx,
+							workspacesdk.StartDesktopRecordingRequest{RecordingID: recordingID})
+						if startErr != nil {
+							p.logger.Warn(ctx, "failed to start desktop recording",
+								slog.Error(startErr))
+							recordingID = "" // Don't try to stop.
+						}
+					} else {
+						p.logger.Warn(ctx, "failed to get agent conn for recording",
+							slog.Error(connErr))
+					}
+				}
+
+				targetChat, report, awaitErr := p.awaitSubagentCompletion(
+					ctx, parent.ID, targetChatID, timeout,
+				)
+
+				// On timeout/error, leave the recording running on
+				// the agent so the next wait_agent call continues
+				// it seamlessly.
+				if awaitErr != nil {
+					return fantasy.NewTextErrorResponse(awaitErr.Error()), nil
+				}
+
+				// Only stop and store the recording on success.
+				var storedFileID string
+				if recordingID != "" && agentConn != nil {
+					// Use a fresh context for cleanup so a canceled
+					// parent context doesn't prevent recording storage.
+					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
+					defer stopCancel()
+					storedFileID = p.stopAndStoreRecording(stopCtx, agentConn,
+						recordingID, parent.OwnerID, parent.WorkspaceID)
+				}
+				resp := map[string]any{
 					"chat_id": targetChatID.String(),
 					"title":   targetChat.Title,
 					"report":  report,
 					"status":  string(targetChat.Status),
-				}), nil
+				}
+				if storedFileID != "" {
+					resp["recording_file_id"] = storedFileID
+				}
+				return toolJSONResponse(resp), nil
 			},
 		),
 		fantasy.NewAgentTool(

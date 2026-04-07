@@ -999,15 +999,16 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
 	})
 	intc := codersdk.AIBridgeInterception{
-		ID:          interception.ID,
-		Initiator:   MinimalUserFromVisibleUser(initiator),
-		Provider:    interception.Provider,
-		Model:       interception.Model,
-		Metadata:    jsonOrEmptyMap(interception.Metadata),
-		StartedAt:   interception.StartedAt,
-		TokenUsages: sdkTokenUsages,
-		UserPrompts: sdkUserPrompts,
-		ToolUsages:  sdkToolUsages,
+		ID:           interception.ID,
+		Initiator:    MinimalUserFromVisibleUser(initiator),
+		Provider:     interception.Provider,
+		ProviderName: interception.ProviderName,
+		Model:        interception.Model,
+		Metadata:     jsonOrEmptyMap(interception.Metadata),
+		StartedAt:    interception.StartedAt,
+		TokenUsages:  sdkTokenUsages,
+		UserPrompts:  sdkUserPrompts,
+		ToolUsages:   sdkToolUsages,
 	}
 	if interception.APIKeyID.Valid {
 		intc.APIKeyID = &interception.APIKeyID.String
@@ -1036,8 +1037,10 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 		StartedAt: row.StartedAt,
 		Threads:   row.Threads,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
-			InputTokens:  row.InputTokens,
-			OutputTokens: row.OutputTokens,
+			InputTokens:           row.InputTokens,
+			OutputTokens:          row.OutputTokens,
+			CacheReadInputTokens:  row.CacheReadInputTokens,
+			CacheWriteInputTokens: row.CacheWriteInputTokens,
 		},
 	}
 	// Ensure non-nil slices for JSON serialization.
@@ -1061,13 +1064,15 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
 	return codersdk.AIBridgeTokenUsage{
-		ID:                 usage.ID,
-		InterceptionID:     usage.InterceptionID,
-		ProviderResponseID: usage.ProviderResponseID,
-		InputTokens:        usage.InputTokens,
-		OutputTokens:       usage.OutputTokens,
-		Metadata:           jsonOrEmptyMap(usage.Metadata),
-		CreatedAt:          usage.CreatedAt,
+		ID:                    usage.ID,
+		InterceptionID:        usage.InterceptionID,
+		ProviderResponseID:    usage.ProviderResponseID,
+		InputTokens:           usage.InputTokens,
+		OutputTokens:          usage.OutputTokens,
+		CacheReadInputTokens:  usage.CacheReadInputTokens,
+		CacheWriteInputTokens: usage.CacheWriteInputTokens,
+		Metadata:              jsonOrEmptyMap(usage.Metadata),
+		CreatedAt:             usage.CreatedAt,
 	}
 }
 
@@ -1178,9 +1183,11 @@ func AIBridgeSessionThreads(
 		PageStartedAt: pageStartedAt,
 		PageEndedAt:   pageEndedAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionThreadsTokenUsage{
-			InputTokens:  session.InputTokens,
-			OutputTokens: session.OutputTokens,
-			Metadata:     sessionTokenMeta,
+			InputTokens:           session.InputTokens,
+			OutputTokens:          session.OutputTokens,
+			CacheReadInputTokens:  session.CacheReadInputTokens,
+			CacheWriteInputTokens: session.CacheWriteInputTokens,
+			Metadata:              sessionTokenMeta,
 		},
 		Threads: threads,
 	}
@@ -1313,17 +1320,19 @@ func buildAIBridgeThread(
 
 // aggregateTokenUsage sums token usage rows and aggregates metadata.
 func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridgeSessionThreadsTokenUsage {
-	var inputTokens, outputTokens int64
+	var inputTokens, outputTokens, cacheRead, cacheWrite int64
 	for _, tu := range tokens {
 		inputTokens += tu.InputTokens
 		outputTokens += tu.OutputTokens
-		// TODO: once https://github.com/coder/aibridge/issues/150 lands we
-		// should aggregate the other token types.
+		cacheRead += tu.CacheReadInputTokens
+		cacheWrite += tu.CacheWriteInputTokens
 	}
 	return codersdk.AIBridgeSessionThreadsTokenUsage{
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
-		Metadata:     aggregateTokenMetadata(tokens),
+		InputTokens:           inputTokens,
+		OutputTokens:          outputTokens,
+		CacheReadInputTokens:  cacheRead,
+		CacheWriteInputTokens: cacheWrite,
+		Metadata:              aggregateTokenMetadata(tokens),
 	}
 }
 
@@ -1519,7 +1528,10 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
-func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+// When diffStatus is non-nil the response includes diff metadata.
+// When files is non-empty the response includes file metadata;
+// pass nil to omit the files field (e.g. list endpoints).
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1572,6 +1584,19 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if len(files) > 0 {
+		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
+		for _, row := range files {
+			chat.Files = append(chat.Files, codersdk.ChatFileMetadata{
+				ID:             row.ID,
+				OwnerID:        row.OwnerID,
+				OrganizationID: row.OrganizationID,
+				Name:           row.Name,
+				MimeType:       row.Mimetype,
+				CreatedAt:      row.CreatedAt,
+			})
+		}
+	}
 	if c.LastInjectedContext.Valid {
 		var parts []codersdk.ChatMessagePart
 		// Internal fields are stripped at write time in
@@ -1595,9 +1620,9 @@ func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]da
 	for i, row := range rows {
 		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus)
+			result[i] = Chat(row.Chat, &diffStatus, nil)
 		} else {
-			result[i] = Chat(row.Chat, nil)
+			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatusesByChatID != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus

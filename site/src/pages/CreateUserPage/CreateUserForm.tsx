@@ -1,6 +1,6 @@
-import * as SelectPrimitive from "@radix-ui/react-select";
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
 import type { FC } from "react";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";

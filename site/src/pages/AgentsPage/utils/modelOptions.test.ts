@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ChatModelConfig, ChatModelsResponse } from "#/api/typesGenerated";
 import {
+	formatProviderLabel,
 	getModelOptionsFromConfigs,
+	getModelSelectorPlaceholder,
 	getNormalizedModelRef,
+	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./modelOptions";
 
@@ -56,6 +59,72 @@ describe("getNormalizedModelRef", () => {
 		expect(
 			getNormalizedModelRef({ provider: " OpenAI ", model: " gpt-4o " }),
 		).toEqual({ provider: "openai", model: "gpt-4o" });
+	});
+});
+
+describe("hasUserFixableProviders", () => {
+	it("returns true when a provider needs a user API key", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "user_api_key_required",
+				models: [],
+			},
+		]);
+
+		expect(hasUserFixableProviders(catalog)).toBe(true);
+	});
+
+	it("returns false when providers are only admin-fixable", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "missing_api_key",
+				models: [],
+			},
+		]);
+
+		expect(hasUserFixableProviders(catalog)).toBe(false);
+	});
+});
+
+describe("formatProviderLabel", () => {
+	it("formats OpenAI compatible providers", () => {
+		expect(formatProviderLabel("openai-compatible")).toBe("OpenAI-compatible");
+	});
+});
+
+describe("getModelSelectorPlaceholder", () => {
+	it("returns user guidance when only user-configured keys are missing", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "user_api_key_required",
+				models: [],
+			},
+		]);
+
+		expect(getModelSelectorPlaceholder([], false, true, catalog)).toBe(
+			"Configure API Keys",
+		);
+	});
+
+	it("keeps the generic unavailable placeholder for admin fixes", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "missing_api_key",
+				models: [],
+			},
+		]);
+
+		expect(getModelSelectorPlaceholder([], false, true, catalog)).toBe(
+			"No Models Available",
+		);
 	});
 });
 

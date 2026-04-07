@@ -270,6 +270,7 @@ func TestIntegration(t *testing.T) {
 	require.EqualValues(t, tokens[0].InputTokens, 45)
 	require.EqualValues(t, tokens[0].OutputTokens, 15)
 	require.EqualValues(t, gjson.Get(string(tokens[0].Metadata.RawMessage), "prompt_cached").Int(), 15)
+	require.EqualValues(t, 15, tokens[0].CacheReadInputTokens)
 
 	tools, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)

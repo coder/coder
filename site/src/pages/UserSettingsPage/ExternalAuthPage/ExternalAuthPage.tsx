@@ -70,9 +70,12 @@ const ExternalAuthPage: FC = () => {
 				entity="application"
 				onCancel={() => setAppToUnlink(undefined)}
 				onConfirm={async () => {
+					if (!appToUnlink) {
+						return;
+					}
 					try {
 						const unlinkResp = await unlinkAppMutation.mutateAsync(
-							appToUnlink?.id!,
+							appToUnlink.id,
 						);
 						// setAppToUnlink closes the modal
 						setAppToUnlink(undefined);

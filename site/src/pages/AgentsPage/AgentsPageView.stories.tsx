@@ -70,6 +70,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,
 	total_cache_creation_tokens: 5_432,
+	total_runtime_ms: 0,
 	by_model: [
 		{
 			model_config_id: defaultModelConfigID,
@@ -82,6 +83,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 200_000,
 			total_cache_read_tokens: 7_654,
 			total_cache_creation_tokens: 3_210,
+			total_runtime_ms: 0,
 		},
 	],
 	by_chat: [
@@ -94,6 +96,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 80_000,
 			total_cache_read_tokens: 4_321,
 			total_cache_creation_tokens: 1_234,
+			total_runtime_ms: 0,
 		},
 	],
 };
@@ -115,6 +118,7 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 			total_output_tokens: 45_000,
 			total_cache_read_tokens: 6_789,
 			total_cache_creation_tokens: 2_468,
+			total_runtime_ms: 0,
 		},
 	],
 };

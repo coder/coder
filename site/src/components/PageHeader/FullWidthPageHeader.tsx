@@ -1,5 +1,5 @@
-import { type CSSObject, useTheme } from "@emotion/react";
 import type { FC, PropsWithChildren, ReactNode } from "react";
+import { cn } from "#/utils/cn";
 
 interface FullWidthPageHeaderProps {
 	children?: ReactNode;
@@ -10,36 +10,15 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 	children,
 	sticky = true,
 }) => {
-	const theme = useTheme();
 	return (
 		<header
 			data-testid="header"
-			css={[
-				{
-					...(theme.typography.body2 as CSSObject),
-					padding: 24,
-					background: theme.palette.background.default,
-					borderBottom: `1px solid ${theme.palette.divider}`,
-					display: "flex",
-					alignItems: "center",
-					gap: 48,
-
-					zIndex: 10,
-					flexWrap: "wrap",
-
-					[theme.breakpoints.down("lg")]: {
-						position: "unset",
-						alignItems: "flex-start",
-					},
-					[theme.breakpoints.down("md")]: {
-						flexDirection: "column",
-					},
-				},
-				sticky && {
-					position: "sticky",
-					top: 0,
-				},
-			]}
+			className={cn(
+				"bg-surface-primary border-0 border-b border-solid border-border",
+				"text-sm p-6 flex items-center gap-12 flex-wrap z-10",
+				"lg:items-center flex-col lg:flex-row",
+				sticky && "sticky top-0",
+			)}
 		>
 			{children}
 		</header>
@@ -47,19 +26,7 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 };
 
 const _PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-	return (
-		<div
-			css={{
-				marginLeft: "auto",
-				[theme.breakpoints.down("md")]: {
-					marginLeft: "unset",
-				},
-			}}
-		>
-			{children}
-		</div>
-	);
+	return <div className="ml-auto md:ml-0">{children}</div>;
 };
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
@@ -67,16 +34,7 @@ export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
 };
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
 	return (
-		<span
-			css={{
-				fontSize: 14,
-				color: theme.palette.text.secondary,
-				display: "block",
-			}}
-		>
-			{children}
-		</span>
+		<span className="text-sm text-content-secondary block">{children}</span>
 	);
 };
