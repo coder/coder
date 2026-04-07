@@ -406,10 +406,10 @@ func Test_batcherFlush(t *testing.T) {
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
 
-		scheduledTrap := clock.Trap().TimerReset("connectionLogBatcher", "scheduledFlush")
-		defer scheduledTrap.Close()
+		capacityTrap := clock.Trap().TimerReset("connectionLogBatcher", "capacityFlush")
+		defer capacityTrap.Close()
 
-		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
+		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(1))
 
 		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
 
@@ -434,10 +434,9 @@ func Test_batcherFlush(t *testing.T) {
 			}).
 			AnyTimes()
 
-		// Send event and trigger flush — fails, queues.
+		// Send event — capacity flush triggers immediately.
 		require.NoError(t, b.Upsert(ctx, evt))
-		clock.Advance(defaultFlushInterval).MustWait(ctx)
-		scheduledTrap.MustWait(ctx).MustRelease(ctx)
+		capacityTrap.MustWait(ctx).MustRelease(ctx)
 
 		// Close triggers shutdown. The retry worker drains
 		// retryCh and writes the batch via writeBatch.
