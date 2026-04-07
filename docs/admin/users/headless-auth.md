@@ -23,7 +23,6 @@ coder users create \
   --service-account
 ```
 
-
 ## UI
 
 Navigate to **Deployment** > **Users** > **Create user**, then select
