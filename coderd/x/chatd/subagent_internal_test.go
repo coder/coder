@@ -236,6 +236,63 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 		}, resolved)
 	})
 
+	t.Run("BoundProviderKeepsItsUserKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ownerID := uuid.MustParse("03030303-0303-0303-0303-030303030303")
+		boundProviderID := uuid.MustParse("04040404-0404-0404-0404-040404040404")
+		db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{
+			{
+				ID:              boundProviderID,
+				Provider:        "openai",
+				AllowUserApiKey: true,
+				BaseUrl:         "https://bound.example.com",
+				CreatedAt:       time.Unix(1, 0).UTC(),
+			},
+			{
+				ID:        uuid.MustParse("05050505-0505-0505-0505-050505050505"),
+				Provider:  "openai",
+				BaseUrl:   "https://sibling.example.com",
+				CreatedAt: time.Unix(2, 0).UTC(),
+			},
+		}, nil)
+		db.EXPECT().GetUserChatProviderKeys(gomock.Any(), ownerID).Return([]database.UserChatProviderKey{
+			{
+				ChatProviderID: boundProviderID,
+				APIKey:         "user-key",
+			},
+		}, nil)
+
+		server := &Server{
+			db:          db,
+			configCache: newChatConfigCache(context.Background(), db, quartz.NewMock(t)),
+		}
+		resolved := server.resolveProviderAPIKeysForModel(
+			context.Background(),
+			ownerID,
+			database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: boundProviderID, Valid: true},
+			},
+			chatprovider.ProviderAPIKeys{
+				BaseURLByProvider: map[string]string{
+					"openai": "https://sibling.example.com",
+				},
+			},
+		)
+
+		require.Equal(t, chatprovider.ProviderAPIKeys{
+			OpenAI: "user-key",
+			ByProvider: map[string]string{
+				"openai": "user-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai": "https://bound.example.com",
+			},
+		}, resolved)
+	})
+
 	t.Run("CacheErrorFallsBack", func(t *testing.T) {
 		t.Parallel()
 
