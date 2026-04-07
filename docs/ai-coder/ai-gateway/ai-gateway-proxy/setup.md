@@ -108,7 +108,7 @@ chmod 400 ca.key
 openssl req -new -x509 -days 3650 \
   -key ca.key \
   -out ca.crt \
-  -subj "/CN=AI Bridge Proxy CA"
+  -subj "/CN=AI Gateway Proxy CA"
 ```
 
 Configure AI Gateway Proxy with both files:

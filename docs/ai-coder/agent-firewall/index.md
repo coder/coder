@@ -1,27 +1,27 @@
 # Agent Firewall
 
-Agent Firewall are process-level firewalls that restrict and audit what
+Agent Firewall is a process-level firewall that restricts and audits what
 autonomous programs, such as AI agents, can access and use.
 
 ![Screenshot of Agent Firewall blocking a process](../../images/guides/ai-agents/boundary.png)Example
 of Agent Firewall blocking a process.
 
 > [!NOTE]
-> Agent Firewall was previously known as "Agent Boundaries." Some
+> Agent Firewall was previously known as "Agent Boundaries". Some
 > configuration options and internal references still use the old name
 > and will be updated in a future release.
 
 ## Supported Agents
 
-Agent Firewall support the securing of any terminal-based agent, including
+Agent Firewall supports the securing of any terminal-based agent, including
 your own custom agents.
 
 ## Features
 
-Agent Firewall offer network policy enforcement, which blocks domains and HTTP
+Agent Firewall offers network policy enforcement, which blocks domains and HTTP
 verbs to prevent exfiltration, and writes logs to the workspace.
 
-Agent Firewall also stream audit logs to Coder's control plane for centralized
+Agent Firewall also streams audit logs to Coder's control plane for centralized
 monitoring of HTTP requests.
 
 ## Getting Started with Agent Firewall
@@ -173,7 +173,7 @@ environments where namespace capabilities are limited or unavailable.
 
 ## Audit Logs
 
-Agent Firewall stream audit logs to the Coder control plane, providing
+Agent Firewall streams audit logs to the Coder control plane, providing
 centralized visibility into HTTP requests made within workspaces—whether from AI
 agents or ad-hoc commands run with `boundary`.
 

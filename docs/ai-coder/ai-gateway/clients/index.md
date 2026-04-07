@@ -27,7 +27,7 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 
 > [!NOTE]
 > Only Coder-issued tokens can authenticate users against AI Gateway.
-> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](https://coder.com/docs/ai-coder/ai-bridge/setup#configure-providers).
+> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](../setup.md#configure-providers).
 
 Again, the exact environment variable or setting naming may differ from tool to tool. See a list of [supported clients](#all-supported-clients) below and consult your tool's documentation for details.
 

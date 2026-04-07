@@ -42,7 +42,7 @@ Anthropic. It solves three key problems:
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts,
 token usage, and tool invocations. For more information, read our documentation
-[here](https://coder.com/docs/ai-coder/ai-bridge).
+[here](../../ai-coder/ai-gateway/index.md).
 
 ### Agent Firewall
 
