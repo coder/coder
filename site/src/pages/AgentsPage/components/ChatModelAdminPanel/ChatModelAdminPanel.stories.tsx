@@ -727,21 +727,21 @@ export const ProviderWithUserKeysOnly: Story = {
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(await body.findByRole("button", { name: /Google/i }));
-		await expect(
-			body.getByRole("switch", { name: "Central API key" }),
-		).not.toBeChecked();
-		await expect(
-			body.getByRole("switch", { name: "Allow user API keys" }),
-		).toBeChecked();
+		const centralAPIKeySwitch = await body.findByRole("switch", {
+			name: "Central API key",
+		});
+		const allowUserAPIKeysSwitch = await body.findByRole("switch", {
+			name: "Allow user API keys",
+		});
+		await expect(centralAPIKeySwitch).not.toBeChecked();
+		await expect(allowUserAPIKeysSwitch).toBeChecked();
 		expect(body.queryByLabelText(/^API Key$/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("switch", { name: "Use central key as fallback" }),
 		).not.toBeInTheDocument();
 
 		const saveButton = body.getByRole("button", { name: "Save changes" });
-		await userEvent.click(
-			body.getByRole("switch", { name: "Central API key" }),
-		);
+		await userEvent.click(centralAPIKeySwitch);
 		await expect(await body.findByLabelText(/^API Key$/i)).toBeRequired();
 		expect(saveButton).toBeDisabled();
 
