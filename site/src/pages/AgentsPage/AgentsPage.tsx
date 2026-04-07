@@ -155,11 +155,6 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	// Error-reason state and callbacks are defined before the archive
-	// mutations so the React Compiler can build reactive scopes for
-	// the onSuccess callbacks that reference clearChatErrorReason.
-	// When a closure is defined after the hook that uses it, the
-	// compiler's flattenScopesWithHooksOrUse pass prunes the scope.
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -327,9 +322,6 @@ const AgentsPage: FC = () => {
 		});
 	};
 
-	// activeChatIDRef and navigateAfterArchive are placed before the
-	// archive-and-delete callbacks so the React Compiler can build
-	// reactive scopes for closures that capture navigateAfterArchive.
 	const activeChatIDRef = useRef(agentId);
 	const navigateAfterArchive = (archivedChatId: string) => {
 		const activeChatId = activeChatIDRef.current;

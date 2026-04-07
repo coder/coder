@@ -1074,11 +1074,6 @@ const AgentChatPage: FC = () => {
 		agentId,
 	]);
 
-	// Placed after all hook calls so the React Compiler can build a
-	// reactive scope for the closure. When hooks appear between a
-	// closure's definition and its usage the compiler's
-	// flattenScopesWithHooksOrUse pass prunes the scope, producing
-	// a new function identity every render.
 	const proxyHost = proxy.preferredWildcardHostname;
 	const agentName = workspaceAgent?.name;
 	const wsName = workspace?.name;
