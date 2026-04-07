@@ -40,6 +40,8 @@ const expectReconnectSchedule = (
 	);
 };
 
+const deterministicRandom = () => 0.5;
+
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
@@ -95,6 +97,7 @@ describe("createReconnectingWebSocket", () => {
 			baseMs: 1000,
 			maxMs: 10000,
 			factor: 2,
+			random: deterministicRandom,
 		});
 
 		expect(connect).toHaveBeenCalledTimes(1);
@@ -128,6 +131,93 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(4);
 	});
 
+	it("applies the minimum jitter bound when random returns 0", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: 0.3,
+			random: () => 0,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 700 });
+
+		vi.advanceTimersByTime(699);
+		expect(connect).toHaveBeenCalledTimes(1);
+		vi.advanceTimersByTime(1);
+		expect(connect).toHaveBeenCalledTimes(2);
+	});
+
+	it("applies the maximum jitter bound when random returns 1", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: 0.3,
+			random: () => 1,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1300 });
+
+		vi.advanceTimersByTime(1299);
+		expect(connect).toHaveBeenCalledTimes(1);
+		vi.advanceTimersByTime(1);
+		expect(connect).toHaveBeenCalledTimes(2);
+	});
+
+	it("preserves legacy exact timing when jitter is disabled", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: 0,
+			random: () => 1,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+
+		vi.advanceTimersByTime(999);
+		expect(connect).toHaveBeenCalledTimes(1);
+		vi.advanceTimersByTime(1);
+		expect(connect).toHaveBeenCalledTimes(2);
+	});
+
 	it("caps backoff delay at maxMs", () => {
 		let activeSocket = createMockSocket();
 		const connect = vi.fn(() => {
@@ -140,6 +230,7 @@ describe("createReconnectingWebSocket", () => {
 			baseMs: 1000,
 			maxMs: 5000,
 			factor: 2,
+			random: deterministicRandom,
 		});
 
 		// Disconnect enough times that the uncapped delay would exceed
@@ -170,6 +261,7 @@ describe("createReconnectingWebSocket", () => {
 			baseMs: 1000,
 			maxMs: 10000,
 			factor: 2,
+			random: deterministicRandom,
 		});
 
 		// Disconnect twice to bump the attempt counter.
@@ -300,14 +392,17 @@ describe("createReconnectingWebSocket", () => {
 		expect(onOpen).toHaveBeenCalledWith(socket);
 	});
 
-	it("uses default backoff values when none provided", () => {
+	it("uses default backoff values when backoff options are omitted", () => {
 		let activeSocket = createMockSocket();
 		const connect = vi.fn(() => {
 			activeSocket = createMockSocket();
 			return activeSocket;
 		});
 
-		createReconnectingWebSocket({ connect });
+		createReconnectingWebSocket({
+			connect,
+			random: deterministicRandom,
+		});
 
 		// Default: baseMs=1000, factor=2, maxMs=10000.
 		activeSocket.emit("close");
