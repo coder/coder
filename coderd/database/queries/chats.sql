@@ -1220,3 +1220,17 @@ LIMIT 1;
 UPDATE chats
 SET last_read_message_id = @last_read_message_id::bigint
 WHERE id = @id::uuid;
+
+-- name: GetActiveChatsByAgentID :many
+SELECT *
+FROM chats
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    AND status IN ('waiting', 'running', 'paused', 'pending')
+ORDER BY updated_at DESC;
+
+-- name: SoftDeleteContextFileMessages :exec
+UPDATE chat_messages SET deleted = true
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND content::jsonb @> '[{"type": "context-file"}]';

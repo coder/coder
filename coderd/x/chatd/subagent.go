@@ -474,7 +474,71 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
+	// Copy context-file messages from the parent so the child
+	// inherits the same instruction context without re-fetching
+	// from the workspace agent independently.
+	if err := p.copyParentContextFiles(ctx, parent, child); err != nil {
+		p.logger.Warn(ctx, "failed to copy parent context files to child chat",
+			slog.F("parent_chat_id", parent.ID),
+			slog.F("child_chat_id", child.ID),
+			slog.Error(err),
+		)
+	}
+
 	return child, nil
+}
+
+// copyParentContextFiles reads all context-file messages from the
+// parent chat and inserts copies into the child chat. This ensures
+// sub-agents inherit the same instruction and skill context as
+// their parent without independently re-fetching from the agent.
+func (p *Server) copyParentContextFiles(
+	ctx context.Context,
+	parent database.Chat,
+	child database.Chat,
+) error {
+	parentMessages, err := p.db.GetChatMessagesForPromptByChatID(ctx, parent.ID)
+	if err != nil {
+		return xerrors.Errorf("get parent messages: %w", err)
+	}
+
+	for _, msg := range parentMessages {
+		if !msg.Content.Valid {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+
+		// Only copy messages that contain context-file parts.
+		hasContextFile := false
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeContextFile {
+				hasContextFile = true
+				break
+			}
+		}
+		if !hasContextFile {
+			continue
+		}
+
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: child.ID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			msg.Role,
+			msg.Content,
+			msg.Visibility,
+			child.LastModelConfigID,
+			msg.ContentVersion,
+		))
+		if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
+			return xerrors.Errorf("insert context-file message: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (p *Server) sendSubagentMessage(

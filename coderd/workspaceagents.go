@@ -2392,3 +2392,183 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 	}
 	return sdk
 }
+
+// @Summary Add chat context
+// @ID add-chat-context
+// @Security CoderSessionToken
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param request body agentsdk.AddChatContextRequest true "Add chat context request"
+// @Success 200 {object} agentsdk.AddChatContextResponse
+// @Router /workspaceagents/me/chat-context [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.AddChatContextRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.Parts) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No context parts provided.",
+		})
+		return
+	}
+
+	chatID := req.ChatID
+	if chatID == uuid.Nil {
+		// Auto-resolve: find active chats for this agent.
+		chats, err := api.Database.GetActiveChatsByAgentID(ctx, workspaceAgent.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to list active chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		switch len(chats) {
+		case 0:
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "No active chats found for this agent.",
+			})
+			return
+		case 1:
+			chatID = chats[0].ID
+		default:
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Multiple active chats (%d) found for this agent. Specify a chat ID.", len(chats)),
+			})
+			return
+		}
+	}
+
+	// Stamp each part with the agent identity.
+	for i := range req.Parts {
+		req.Parts[i].ContextFileAgentID = uuid.NullUUID{
+			UUID:  workspaceAgent.ID,
+			Valid: true,
+		}
+		if req.Parts[i].ContextFileOS == "" {
+			req.Parts[i].ContextFileOS = workspaceAgent.OperatingSystem
+		}
+		if req.Parts[i].ContextFileDirectory == "" {
+			req.Parts[i].ContextFileDirectory = workspaceAgent.Directory
+		}
+	}
+
+	contentJSON, err := json.Marshal(req.Parts)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to marshal context parts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Look up the chat to get the owner for created_by and model config.
+	chat, err := api.Database.GetChatByID(ctx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Chat not found.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	_, err = api.Database.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+		Content:             []string{string(contentJSON)},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to insert context message.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AddChatContextResponse{
+		ChatID: chatID,
+		Count:  len(req.Parts),
+	})
+}
+
+// @Summary Clear chat context
+// @ID clear-chat-context
+// @Security CoderSessionToken
+// @Tags Agents
+// @Accept json
+// @Produce json
+// @Param request body agentsdk.ClearChatContextRequest true "Clear chat context request"
+// @Success 200 {object} agentsdk.ClearChatContextResponse
+// @Router /workspaceagents/me/chat-context [delete]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ClearChatContextRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	chatID := req.ChatID
+	if chatID == uuid.Nil {
+		chats, err := api.Database.GetActiveChatsByAgentID(ctx, workspaceAgent.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to list active chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		switch len(chats) {
+		case 0:
+			// No active chats — nothing to clear.
+			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
+				Count: 0,
+			})
+			return
+		case 1:
+			chatID = chats[0].ID
+		default:
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Multiple active chats (%d) found for this agent. Specify a chat ID.", len(chats)),
+			})
+			return
+		}
+	}
+
+	err := api.Database.SoftDeleteContextFileMessages(ctx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to clear context messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
+		ChatID: chatID,
+	})
+}
