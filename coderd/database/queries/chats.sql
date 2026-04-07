@@ -222,6 +222,12 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: GetChatSpendTotal :one
+SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_cost_micros
+FROM chat_messages
+WHERE chat_id = @chat_id
+  AND total_cost_micros IS NOT NULL;
+
 -- name: GetChatMessagesByChatID :many
 SELECT
     *
@@ -394,7 +400,8 @@ INSERT INTO chats (
     mode,
     status,
     mcp_server_ids,
-    labels
+    labels,
+    spend_limit_micros
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -407,7 +414,8 @@ INSERT INTO chats (
     sqlc.narg('mode')::chat_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
-    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
+    sqlc.narg('spend_limit_micros')::bigint
 )
 RETURNING
     *;

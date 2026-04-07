@@ -981,7 +981,7 @@ func TestWorker(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
-		Title:             "integration-test",
+		Title:             "integration-test", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 

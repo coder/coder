@@ -914,7 +914,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		Title:             "existing-limit-chat",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: model.ID, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1209,7 +1209,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		RootChatID:        uuid.NullUUID{},
 		LastModelConfigID: model.ID,
 		Title:             "other-spend",
-		Mode:              database.NullChatMode{},
+		Mode:              database.NullChatMode{}, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1456,7 +1456,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		Title:             "stale-recovery-periodic",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: model.ID, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1502,7 +1502,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		Title:             "stale-recovery-periodic-2",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: model.ID, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1541,7 +1541,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		Title:             "orphaned-chat",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: model.ID, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1584,7 +1584,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		Title:             "waiting-chat",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: model.ID, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1627,7 +1627,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		Title:             "error-persisted",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: model.ID, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 

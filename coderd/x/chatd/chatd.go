@@ -880,7 +880,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
-			},
+			}, SpendLimitMicros: sql.NullInt64{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

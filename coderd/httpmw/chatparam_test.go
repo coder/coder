@@ -69,7 +69,7 @@ func TestChatParam(t *testing.T) {
 			ParentChatID:      uuid.NullUUID{},
 			RootChatID:        uuid.NullUUID{},
 			LastModelConfigID: modelConfig.ID,
-			Title:             "Test chat",
+			Title:             "Test chat", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 

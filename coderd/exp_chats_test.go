@@ -626,7 +626,7 @@ func TestPostChats(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "existing-limit-chat",
+			Title:             "existing-limit-chat", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -679,7 +679,7 @@ func TestListChats(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "member chat only",
+			Title:             "member chat only", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -768,7 +768,7 @@ func TestListChats(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "member chat",
+			Title:             "member chat", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -1257,7 +1257,7 @@ func TestWatchChats(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "diff status watch test",
+			Title:             "diff status watch test", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -1387,7 +1387,7 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "watch child 1",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -1397,7 +1397,7 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "watch child 2",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -3475,7 +3475,7 @@ func TestArchiveChat(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 1",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -3485,7 +3485,7 @@ func TestArchiveChat(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 2",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -3592,7 +3592,7 @@ func TestUnarchiveChat(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 1",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -3602,7 +3602,7 @@ func TestUnarchiveChat(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 2",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5228,7 +5228,7 @@ func TestInterruptChat(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "interrupt route test",
+			Title:             "interrupt route test", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5308,7 +5308,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "chat with update denied",
+			Title:             "chat with update denied", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5417,7 +5417,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "chat with lock held",
+			Title:             "chat with lock held", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5458,7 +5458,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "pending chat without worker",
+			Title:             "pending chat without worker", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5574,7 +5574,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "get diff status route no cache",
+			Title:             "get diff status route no cache", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5587,7 +5587,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "get diff status route cached",
+			Title:             "get diff status route cached", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5694,7 +5694,7 @@ func TestGetChatDiffContents(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "diff contents with cached repository reference",
+			Title:             "diff contents with cached repository reference", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5791,7 +5791,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "delete queued message route test",
+			Title:             "delete queued message route test", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5843,7 +5843,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "delete queued invalid id",
+			Title:             "delete queued invalid id", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5878,7 +5878,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued message route test",
+			Title:             "promote queued message route test", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -5949,7 +5949,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued usage limit",
+			Title:             "promote queued usage limit", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -6024,7 +6024,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued invalid id",
+			Title:             "promote queued invalid id", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -6607,7 +6607,7 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "test chat",
+		Title:             "test chat", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -6728,7 +6728,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           member.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "member chat",
+		Title:             "member chat", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -6797,7 +6797,7 @@ func TestChatCostUsers(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "admin chat",
+		Title:             "admin chat", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
@@ -6825,7 +6825,7 @@ func TestChatCostUsers(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           member.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "member chat",
+		Title:             "member chat", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
@@ -6909,7 +6909,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "date range test",
+		Title:             "date range test", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -6975,7 +6975,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "unpriced test",
+		Title:             "unpriced test", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -8043,7 +8043,7 @@ func TestGetChatsByWorkspace(t *testing.T) {
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             title,
-			WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
+			WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		return chat

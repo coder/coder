@@ -3,6 +3,7 @@ package chatprompt_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -1486,7 +1487,7 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
-		Title:             "nul-roundtrip-test",
+		Title:             "nul-roundtrip-test", SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1984,7 +1985,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
-			Title:             "media-roundtrip-" + callID,
+			Title:             "media-roundtrip-" + callID, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, chatErr)
 

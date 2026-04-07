@@ -38,7 +38,7 @@ func TestStartWorkspace(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-no-workspace",
+			Title:             "test-no-workspace", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -82,7 +82,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-already-running",
+			Title:             "test-already-running", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -161,7 +161,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-running-preferred-agent",
+			Title:             "test-running-preferred-agent", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -221,7 +221,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-running-no-agent",
+			Title:             "test-running-no-agent", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -284,7 +284,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-running-selection-error",
+			Title:             "test-running-selection-error", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -341,7 +341,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-stopped-workspace",
+			Title:             "test-stopped-workspace", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -410,7 +410,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-deleted-workspace",
+			Title:             "test-deleted-workspace", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 

@@ -1418,7 +1418,9 @@ CREATE TABLE chats (
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
-    last_injected_context jsonb
+    last_injected_context jsonb,
+    spend_limit_micros bigint,
+    CONSTRAINT chats_spend_limit_micros_positive CHECK ((spend_limit_micros > 0))
 );
 
 CREATE TABLE connection_logs (

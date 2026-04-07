@@ -4180,6 +4180,7 @@ type Chat struct {
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	SpendLimitMicros    sql.NullInt64         `db:"spend_limit_micros" json:"spend_limit_micros"`
 }
 
 type ChatDiffStatus struct {

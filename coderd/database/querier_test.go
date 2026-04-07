@@ -1289,7 +1289,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             fmt.Sprintf("owner chat %d", i+1),
+			Title:             fmt.Sprintf("owner chat %d", i+1), SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 	}
@@ -1300,7 +1300,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             fmt.Sprintf("member chat %d", i+1),
+			Title:             fmt.Sprintf("member chat %d", i+1), SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 	}
@@ -1422,7 +1422,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 				Status:            database.ChatStatusWaiting,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
-				Title:             fmt.Sprintf("pagination chat %d", i+1),
+				Title:             fmt.Sprintf("pagination chat %d", i+1), SpendLimitMicros: sql.NullInt64{},
 			})
 			require.NoError(t, err)
 		}
@@ -9765,7 +9765,7 @@ func TestInsertChatMessages(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
-			Title:             "test-chat-" + uuid.NewString(),
+			Title:             "test-chat-" + uuid.NewString(), SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -9936,7 +9936,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-chat-" + uuid.NewString(),
+			Title:             "test-chat-" + uuid.NewString(), SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		return chat
@@ -10311,7 +10311,7 @@ func TestGetPRInsights(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
-			Title:             title,
+			Title:             title, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		return chat
@@ -10449,7 +10449,7 @@ func TestGetPRInsights(t *testing.T) {
 			LastModelConfigID: mcID,
 			Title:             title,
 			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: true}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		return chat
@@ -10838,7 +10838,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
-			Title:             title,
+			Title:             title, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		return chat
@@ -11024,7 +11024,7 @@ func TestChatLabels(t *testing.T) {
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
-			},
+			}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		require.Equal(t, database.StringMap{"github.repo": "coder/coder", "env": "prod"}, chat.Labels)
@@ -11043,7 +11043,7 @@ func TestChatLabels(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             "no-labels-chat",
+			Title:             "no-labels-chat", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		// Default should be an empty map, not nil.
@@ -11059,7 +11059,7 @@ func TestChatLabels(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             "update-labels-chat",
+			Title:             "update-labels-chat", SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 		require.Empty(t, chat.Labels)
@@ -11104,7 +11104,7 @@ func TestChatLabels(t *testing.T) {
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
-			},
+			}, SpendLimitMicros: sql.NullInt64{},
 		})
 		require.NoError(t, err)
 
@@ -11141,7 +11141,7 @@ func TestChatLabels(t *testing.T) {
 				Labels: pqtype.NullRawMessage{
 					RawMessage: labelsJSON,
 					Valid:      true,
-				},
+				}, SpendLimitMicros: sql.NullInt64{},
 			})
 			require.NoError(t, err)
 		}
@@ -11224,7 +11224,7 @@ func TestChatHasUnread(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
-		Title:             "test-chat-" + uuid.NewString(),
+		Title:             "test-chat-" + uuid.NewString(), SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 

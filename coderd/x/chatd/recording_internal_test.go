@@ -3,6 +3,7 @@ package chatd
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"strings"
@@ -59,7 +60,7 @@ func createComputerUseParentChild(
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		LastModelConfigID: model.ID,
 		Title:             parentTitle,
-		Status:            database.ChatStatusPending,
+		Status:            database.ChatStatusPending, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -75,7 +76,7 @@ func createComputerUseParentChild(
 		LastModelConfigID: model.ID,
 		Title:             childTitle,
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
-		Status:            database.ChatStatusPending,
+		Status:            database.ChatStatusPending, SpendLimitMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
