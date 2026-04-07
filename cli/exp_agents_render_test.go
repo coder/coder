@@ -327,6 +327,84 @@ func TestExpAgentsRender(t *testing.T) {
 		}
 	})
 
+	t.Run("MergeConsecutiveToolBlocks", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("MergesAdjacentEmptyToolIDCallAndResult", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{
+					kind:     blockToolCall,
+					role:     codersdk.ChatMessageRoleAssistant,
+					toolName: "read_file",
+					args:     `{"path":"main.go"}`,
+				},
+				{
+					kind:     blockToolResult,
+					role:     codersdk.ChatMessageRoleTool,
+					toolName: "read_file",
+					result:   `{"content":"hello"}`,
+				},
+			}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Len(t, merged, 1)
+			require.Equal(t, chatBlock{
+				kind:     blockToolResult,
+				role:     codersdk.ChatMessageRoleTool,
+				toolName: "read_file",
+				args:     `{"path":"main.go"}`,
+				result:   `{"content":"hello"}`,
+			}, merged[0])
+		})
+
+		t.Run("DoesNotMergeDifferentEmptyToolNames", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", args: `{"path":"main.go"}`},
+				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "list_dir", result: `{"entries":[]}`},
+			}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Equal(t, blocks, merged)
+		})
+
+		t.Run("DoesNotMergeNonAdjacentEmptyToolID", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", args: `{"path":"main.go"}`},
+				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "still thinking"},
+				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", result: `{"content":"hello"}`},
+			}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Equal(t, blocks, merged)
+		})
+
+		t.Run("ExistingToolIDMergeStillWorks", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-1", args: `{"path":"main.go"}`},
+				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-1", result: `{"content":"hello"}`},
+			}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Len(t, merged, 1)
+			require.Equal(t, chatBlock{
+				kind:     blockToolResult,
+				role:     codersdk.ChatMessageRoleTool,
+				toolName: "read_file",
+				toolID:   "call-1",
+				args:     `{"path":"main.go"}`,
+				result:   `{"content":"hello"}`,
+			}, merged[0])
+		})
+	})
+
 	t.Run("ToolArgsSummary", func(t *testing.T) {
 		t.Parallel()
 

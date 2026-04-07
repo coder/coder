@@ -578,7 +578,35 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 		merged = append(merged, block)
 	}
 
-	return merged
+	if len(merged) < 2 {
+		return merged
+	}
+
+	fallbackMerged := make([]chatBlock, 0, len(merged))
+	for i := 0; i < len(merged); i++ {
+		block := merged[i]
+		if i+1 < len(merged) {
+			next := merged[i+1]
+			if block.kind == blockToolCall && block.toolID == "" &&
+				next.kind == blockToolResult && next.toolID == "" &&
+				block.toolName == next.toolName {
+				result := next
+				toolName := block.toolName
+				if toolName == "" {
+					toolName = result.toolName
+				}
+				result.kind = blockToolResult
+				result.toolName = toolName
+				result.args = block.args
+				fallbackMerged = append(fallbackMerged, result)
+				i++
+				continue
+			}
+		}
+		fallbackMerged = append(fallbackMerged, block)
+	}
+
+	return fallbackMerged
 }
 
 //nolint:revive // Signature keeps block expansion state explicit at the callsite.
