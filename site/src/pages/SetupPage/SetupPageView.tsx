@@ -1,24 +1,28 @@
-import Autocomplete from "@mui/material/Autocomplete";
-import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import type { ChangeEvent, FC } from "react";
+import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { FormFields, VerticalForm } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { Label } from "#/components/Label/Label";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
-import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
+import {
+	type FormHelpers,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
@@ -63,6 +67,10 @@ const validationSchema = Yup.object({
 				),
 			}),
 	}),
+	onboarding_info: Yup.object().shape({
+		newsletter_marketing: Yup.bool(),
+		newsletter_releases: Yup.bool(),
+	}),
 });
 
 const numberOfDevelopersOptions = [
@@ -72,6 +80,65 @@ const numberOfDevelopersOptions = [
 	"1001-2500",
 	"2500+",
 ];
+
+const Field: FC<{
+	label: string;
+	id: string;
+	error?: boolean;
+	helperText?: ReactNode;
+	className?: string;
+	children: ReactNode;
+}> = ({ label, id, error, helperText, className, children }) => (
+	<div className={cn("flex flex-col gap-2", className)}>
+		<Label htmlFor={id}>{label}</Label>
+		{children}
+		{helperText && (
+			<span
+				className={cn(
+					"text-xs text-left",
+					error ? "text-content-destructive" : "text-content-secondary",
+				)}
+			>
+				{helperText}
+			</span>
+		)}
+	</div>
+);
+
+type SelectFieldProps = FormHelpers & {
+	label: string;
+	className?: string;
+	onValueChange: (value: string) => void;
+	placeholder?: string;
+	children: ReactNode;
+};
+
+const SelectField: FC<SelectFieldProps> = ({
+	label,
+	id,
+	error,
+	helperText,
+	className,
+	value,
+	onValueChange,
+	placeholder,
+	children,
+}) => (
+	<Field
+		label={label}
+		id={id}
+		error={error}
+		helperText={helperText}
+		className={className}
+	>
+		<Select value={String(value ?? "")} onValueChange={onValueChange}>
+			<SelectTrigger id={id}>
+				<SelectValue placeholder={placeholder} />
+			</SelectTrigger>
+			<SelectContent>{children}</SelectContent>
+		</Select>
+	</Field>
+);
 
 interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
@@ -103,13 +170,15 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					country: "",
 					developers: "",
 				},
+				onboarding_info: {
+					newsletter_marketing: false,
+					newsletter_releases: false,
+				},
 			},
 			validationSchema,
 			onSubmit,
-			// With validate on blur set to true, the form lights up red whenever
-			// you click out of it. This is a bit jarring. We instead validate
-			// on submit and change.
 			validateOnBlur: false,
+			validateOnMount: true,
 		});
 	const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(
 		form,
@@ -117,29 +186,26 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	);
 
 	return (
-		<SignInLayout>
-			<header className="text-center mb-8">
-				<CoderIcon className="w-12 h-12" />
-				<h1 className="font-normal m-0 mt-4">
-					Welcome to <strong>Coder</strong>
-				</h1>
-				<div
-					css={(theme) => ({
-						marginTop: 12,
-						color: theme.palette.text.secondary,
-					})}
-				>
-					Let&lsquo;s create your first admin user account
-				</div>
-			</header>
-			<VerticalForm onSubmit={form.handleSubmit}>
-				<FormFields>
+		<div className="grow basis-0 min-h-screen flex justify-center items-center py-12">
+			<div className="flex flex-col w-full max-w-[500px] px-4">
+				<header className="mb-8">
+					<CoderIcon className="w-12 h-12 text-content-primary" />
+					<h1 className="text-2xl font-normal mt-4 mb-0">
+						Welcome to <strong>Coder</strong>
+					</h1>
+					<p className="mt-3 mb-0 text-sm text-content-secondary font-normal">
+						Set up your admin account and start building secure, reproducible
+						dev environments.
+					</p>
+				</header>
+
+				<form onSubmit={form.handleSubmit} className="flex flex-col gap-6">
 					{authMethods?.github.enabled && (
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
-									<ExternalImage src="/icon/github.svg" />
-									Continue with GitHub
+									<ExternalImage src="/icon/github.svg?blackWithColor" />
+									GitHub
 								</a>
 							</Button>
 							<div className="flex items-center gap-4">
@@ -151,164 +217,192 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							</div>
 						</>
 					)}
-					<TextField
-						{...getFieldHelpers("email")}
-						onChange={(event) => {
-							const email = event.target.value;
-							const username = usernameFromEmail(email);
-							form.setFieldValue("username", username);
-							onChangeTrimmed(form)(event as ChangeEvent<HTMLInputElement>);
-						}}
-						autoComplete="email"
-						fullWidth
+
+					{/* Email */}
+					<FormField
 						label="Email"
+						field={getFieldHelpers("email")}
+						autoComplete="email"
+						onChange={onChangeTrimmed(form, (email) => {
+							form.setFieldValue("username", usernameFromEmail(email));
+						})}
 					/>
+
+					{/* Password */}
 					<PasswordField
-						{...getFieldHelpers("password")}
-						autoComplete="current-password"
-						fullWidth
+						field={getFieldHelpers("password")}
 						label="Password"
+						value={form.values.password}
+						autoComplete="new-password"
 					/>
+
+					{/* Premium trial toggle */}
 					<label
 						htmlFor="trial"
-						className="flex cursor-pointer items-start gap-1 -mt-1 mb-2"
+						className="flex cursor-pointer gap-2 items-start"
 					>
 						<Checkbox
 							id="trial"
 							name="trial"
 							checked={form.values.trial}
-							onChange={form.handleChange}
+							onCheckedChange={(checked) =>
+								form.setFieldValue("trial", checked === true)
+							}
 							data-testid="trial"
-							size="small"
+							className="mt-0.5"
 						/>
-
-						<div className="text-sm pt-1">
-							<span className="block font-semibold">
-								Start a free trial of Enterprise
+						<div className="flex flex-col items-start gap-0.5">
+							<span className="text-sm font-semibold">
+								Start a 30-day trial of Premium
 							</span>
-							<span
-								css={(theme) => ({
-									display: "block",
-									fontSize: 13,
-									color: theme.palette.text.secondary,
-									lineHeight: "1.6",
-								})}
-							>
+							<span className="text-xs text-content-secondary leading-relaxed">
 								Get access to high availability, template RBAC, audit logging,
 								quotas, and more.
 							</span>
-							<Link
+							<a
 								href="https://coder.com/pricing"
 								target="_blank"
-								className="mt-1 inline-block text-[13px]"
+								rel="noreferrer"
+								className="text-xs text-content-link hover:underline mt-0.5"
 							>
-								Read more
-							</Link>
+								Learn more
+							</a>
 						</div>
 					</label>
 
+					{/* Conditional trial info fields */}
 					{form.values.trial && (
-						<>
-							<Stack spacing={1.5} direction="row">
-								<TextField
-									{...getFieldHelpers("trial_info.first_name")}
-									id="trial_info.first_name"
-									name="trial_info.first_name"
-									fullWidth
+						<div className="flex flex-col gap-4">
+							<div className="grid grid-cols-2 gap-3">
+								<FormField
 									label="First name"
+									field={getFieldHelpers("trial_info.first_name")}
 								/>
-								<TextField
-									{...getFieldHelpers("trial_info.last_name")}
-									id="trial_info.last_name"
-									name="trial_info.last_name"
-									fullWidth
+								<FormField
 									label="Last name"
+									field={getFieldHelpers("trial_info.last_name")}
 								/>
-							</Stack>
-							<TextField
-								{...getFieldHelpers("trial_info.company_name")}
-								id="trial_info.company_name"
-								name="trial_info.company_name"
-								fullWidth
-								label="Company"
-							/>
-							<TextField
-								{...getFieldHelpers("trial_info.job_title")}
-								id="trial_info.job_title"
-								name="trial_info.job_title"
-								fullWidth
-								label="Job title"
-							/>
-							<TextField
-								{...getFieldHelpers("trial_info.phone_number")}
-								id="trial_info.phone_number"
-								name="trial_info.phone_number"
-								fullWidth
-								label="Phone number"
-							/>
-							<Autocomplete
-								autoHighlight
-								options={countries}
-								renderOption={(props, country) => (
-									<li {...props}>{`${country.flag} ${country.name}`}</li>
-								)}
-								getOptionLabel={(option) => option.name}
-								onChange={(_, newValue) =>
-									form.setFieldValue("trial_info.country", newValue?.name)
-								}
-								className="[&:not(:has(label))]:m-0"
-								renderInput={(params) => (
-									<TextField
-										{...params}
-										{...getFieldHelpers("trial_info.country")}
-										id="trial_info.country"
-										name="trial_info.country"
-										label="Country"
-										fullWidth
-										inputProps={{
-											...params.inputProps,
-										}}
-										InputLabelProps={{ shrink: true }}
-									/>
-								)}
-							/>
-							<TextField
-								{...getFieldHelpers("trial_info.developers")}
-								id="trial_info.developers"
-								name="trial_info.developers"
-								fullWidth
-								label="Number of developers"
-								select
-							>
-								{numberOfDevelopersOptions.map((opt) => (
-									<MenuItem key={opt} value={opt}>
-										{opt}
-									</MenuItem>
-								))}
-							</TextField>
-							<div
-								css={(theme) => ({
-									color: theme.palette.text.secondary,
-									fontSize: 11,
-									textAlign: "center",
-									marginTop: -5,
-									lineHeight: 1.5,
-								})}
-							>
-								Complete the form to receive your trial license and be contacted
-								about Coder products and solutions. The information you provide
-								will be treated in accordance with the{" "}
-								<Link
-									href="https://coder.com/legal/privacy-policy"
-									target="_blank"
-								>
-									Coder Privacy Policy
-								</Link>
-								. Opt-out at any time.
 							</div>
-						</>
+
+							<div className="grid grid-cols-2 gap-3">
+								<FormField
+									label="Company"
+									field={getFieldHelpers("trial_info.company_name")}
+								/>
+								<SelectField
+									label="Number of developers"
+									{...getFieldHelpers("trial_info.developers")}
+									onValueChange={(value: string) =>
+										form.setFieldValue("trial_info.developers", value)
+									}
+									placeholder="Select..."
+								>
+									{numberOfDevelopersOptions.map((opt) => (
+										<SelectItem key={opt} value={opt}>
+											{opt}
+										</SelectItem>
+									))}
+								</SelectField>
+							</div>
+							<FormField
+								label="Job title"
+								field={getFieldHelpers("trial_info.job_title")}
+							/>
+
+							<div className="grid grid-cols-2 gap-3">
+								<FormField
+									label="Phone number"
+									field={getFieldHelpers("trial_info.phone_number")}
+								/>
+								<SelectField
+									label="Country"
+									{...getFieldHelpers("trial_info.country")}
+									onValueChange={(value: string) =>
+										form.setFieldValue("trial_info.country", value)
+									}
+									placeholder="Select..."
+								>
+									{countries.map((c) => (
+										<SelectItem key={c.name} value={c.name}>
+											{c.flag} {c.name}
+										</SelectItem>
+									))}
+								</SelectField>
+							</div>
+						</div>
 					)}
 
+					{/* Sign up for updates */}
+					<div className="flex flex-col gap-3">
+						<span className="text-sm font-semibold">Sign up for updates</span>
+
+						<label
+							htmlFor="onboarding_info.newsletter_releases"
+							className="flex cursor-pointer gap-2 items-start"
+						>
+							<Checkbox
+								id="onboarding_info.newsletter_releases"
+								checked={
+									form.values.onboarding_info?.newsletter_releases ?? false
+								}
+								onCheckedChange={(checked) =>
+									form.setFieldValue(
+										"onboarding_info.newsletter_releases",
+										checked === true,
+									)
+								}
+								data-testid="onboarding_info.newsletter_releases"
+							/>
+							<div className="flex flex-col text-sm">
+								<span className="font-medium">Release notes & updates</span>
+								<span className="text-content-secondary">
+									Monthly changelog and security notices
+								</span>
+							</div>
+						</label>
+
+						<label
+							htmlFor="onboarding_info.newsletter_marketing"
+							className="flex cursor-pointer gap-2 items-start"
+						>
+							<Checkbox
+								id="onboarding_info.newsletter_marketing"
+								checked={
+									form.values.onboarding_info?.newsletter_marketing ?? false
+								}
+								onCheckedChange={(checked) =>
+									form.setFieldValue(
+										"onboarding_info.newsletter_marketing",
+										checked === true,
+									)
+								}
+								data-testid="onboarding_info.newsletter_marketing"
+							/>
+							<div className="flex flex-col text-sm">
+								<span className="font-medium">Monthly Coder newsletter</span>
+								<span className="text-content-secondary">
+									Latest articles, workshops, events, and announcements
+								</span>
+							</div>
+						</label>
+
+						{/* Privacy policy notice */}
+						<p className="text-xs text-content-secondary leading-relaxed">
+							Subscribe for the latest product and news updates from Coder. The
+							information you provide will be treated in accordance with the{" "}
+							<a
+								href="https://coder.com/legal/privacy-policy"
+								target="_blank"
+								rel="noreferrer"
+								className="text-content-link hover:underline"
+							>
+								Coder Privacy Policy
+							</a>
+							.
+						</p>
+					</div>
+
+					{/* Error alert */}
 					{isAxiosError(error) && error.response?.data?.message && (
 						<Alert severity="error" prominent>
 							<AlertTitle>{error.response.data.message}</AlertTitle>
@@ -316,26 +410,31 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								<AlertDescription>
 									{error.response.data.detail}
 									<br />
-									<Link target="_blank" href="https://coder.com/contact/sales">
+									<a
+										target="_blank"
+										rel="noreferrer"
+										href="https://coder.com/contact/sales"
+										className="text-content-link hover:underline"
+									>
 										Contact Sales
-									</Link>
+									</a>
 								</AlertDescription>
 							)}
 						</Alert>
 					)}
 
-					<Button
-						className="w-full"
-						disabled={isLoading}
-						type="submit"
-						data-testid="create"
-						size="lg"
-					>
-						<Spinner loading={isLoading} />
-						Continue with email
-					</Button>
-				</FormFields>
-			</VerticalForm>
-		</SignInLayout>
+					<div className="flex justify-end">
+						<Button disabled={isLoading} type="submit" data-testid="create">
+							<Spinner loading={isLoading} />
+							Continue
+						</Button>
+					</div>
+				</form>
+
+				<div className="text-xs text-content-secondary pt-6">
+					&copy; {new Date().getFullYear()} Coder Technologies, Inc.
+				</div>
+			</div>
+		</div>
 	);
 };

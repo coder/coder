@@ -1502,6 +1502,7 @@ type Snapshot struct {
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
 	BoundaryUsageSummary                 *BoundaryUsageSummary                 `json:"boundary_usage_summary"`
+	FirstUserOnboarding                  *FirstUserOnboarding                  `json:"first_user_onboarding"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1549,6 +1550,14 @@ type User struct {
 	GithubComUserID int64               `json:"github_com_user_id"`
 	// Omitempty for backwards compatibility.
 	LoginType string `json:"login_type,omitempty"`
+}
+
+// FirstUserOnboarding contains optional newsletter preference data
+// collected during first user setup. This is sent once when the first
+// user is created.
+type FirstUserOnboarding struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 type Group struct {

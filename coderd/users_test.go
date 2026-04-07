@@ -116,6 +116,77 @@ func TestFirstUser(t *testing.T) {
 	})
 }
 
+func TestFirstUser_OnboardingTelemetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OnboardingInfoFlowsToSnapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		fTelemetry := newFakeTelemetryReporter(ctx, t, 10)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: fTelemetry,
+		})
+
+		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email:    "admin@coder.com",
+			Username: "admin",
+			Password: "SomeSecurePassword!",
+			OnboardingInfo: &codersdk.CreateFirstUserOnboardingInfo{
+				NewsletterMarketing: false,
+				NewsletterReleases:  true,
+			},
+		})
+		require.NoError(t, err)
+
+		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
+		require.NotNil(t, snapshot.FirstUserOnboarding)
+		require.False(t, snapshot.FirstUserOnboarding.NewsletterMarketing)
+		require.True(t, snapshot.FirstUserOnboarding.NewsletterReleases)
+	})
+
+	t.Run("NilWhenOnboardingInfoOmitted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		fTelemetry := newFakeTelemetryReporter(ctx, t, 10)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: fTelemetry,
+		})
+
+		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email:    "admin@coder.com",
+			Username: "admin",
+			Password: "SomeSecurePassword!",
+			// No OnboardingInfo — simulates old CLI or OIDC flow.
+		})
+		require.NoError(t, err)
+
+		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
+		require.Nil(t, snapshot.FirstUserOnboarding)
+	})
+
+	t.Run("EmptyOnboardingInfoIsNonNilWithZeroFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		fTelemetry := newFakeTelemetryReporter(ctx, t, 10)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: fTelemetry,
+		})
+		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email: "admin@coder.com", Username: "admin",
+			Password:       "SomeSecurePassword!",
+			OnboardingInfo: &codersdk.CreateFirstUserOnboardingInfo{},
+		})
+		require.NoError(t, err)
+		snapshot := testutil.TryReceive(ctx, t, fTelemetry.snapshots)
+		require.NotNil(t, snapshot.FirstUserOnboarding,
+			"non-nil OnboardingInfo must produce non-nil telemetry")
+		require.False(t, snapshot.FirstUserOnboarding.NewsletterMarketing)
+		require.False(t, snapshot.FirstUserOnboarding.NewsletterReleases)
+	})
+}
+
 func TestPostLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidUser", func(t *testing.T) {
