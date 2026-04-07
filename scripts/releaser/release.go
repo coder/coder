@@ -207,6 +207,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	var prevVersion *version
 	var suggested version
+	var changelogBaseRef string
 
 	if onMain {
 		// On main, suggest the next RC. Find the latest RC tag
@@ -276,6 +277,34 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 				v := t
 				prevVersion = &v
 				break
+			}
+		}
+
+		// changelogBaseRef is the git ref used as the starting
+		// point for release notes. When a tag exists in this
+		// minor series we use it directly. For the first release
+		// on a new minor no matching tag exists, so we compute
+		// the merge-base with the previous minor's release branch
+		// instead. This works even when that branch has no tags
+		// yet. As a last resort we fall back to the latest
+		// reachable tag from a previous minor.
+		if prevVersion == nil {
+			prevReleaseBranch := fmt.Sprintf("release/%d.%d", branchMajor, branchMinor-1)
+			if err := gitRun("fetch", "--quiet", "origin", prevReleaseBranch); err != nil {
+				warnf(w, "Could not fetch %s: %v", prevReleaseBranch, err)
+			}
+			if mb, mbErr := gitOutput("merge-base", "HEAD", "origin/"+prevReleaseBranch); mbErr == nil && mb != "" {
+				changelogBaseRef = mb
+				infof(w, "Using merge-base with %s as changelog base: %s", prevReleaseBranch, mb[:12])
+			} else {
+				// No previous release branch; fall back to the
+				// latest reachable tag from a previous minor.
+				for _, t := range mergedTags {
+					if t.Major == branchMajor && t.Minor < branchMinor {
+						changelogBaseRef = t.String()
+						break
+					}
+				}
 			}
 		}
 
@@ -510,9 +539,14 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Generate release notes ---
 	infof(w, "Generating release notes...")
 
-	commitRange := "HEAD"
-	if prevVersion != nil {
+	var commitRange string
+	switch {
+	case prevVersion != nil:
 		commitRange = prevVersion.String() + "..HEAD"
+	case changelogBaseRef != "":
+		commitRange = changelogBaseRef + "..HEAD"
+	default:
+		commitRange = "HEAD"
 	}
 
 	commits, err := commitLog(commitRange)
@@ -625,9 +659,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// Compare link.
+	compareBase := changelogBaseRef
 	if prevVersion != nil {
+		compareBase = prevVersion.String()
+	}
+	if compareBase != "" {
 		fmt.Fprintf(&notes, "\nCompare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n",
-			prevVersion, newVersion, owner, repo, prevVersion, newVersion)
+			compareBase, newVersion, owner, repo, compareBase, newVersion)
 	}
 
 	// Container image.
