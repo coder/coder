@@ -1202,7 +1202,6 @@ export interface Chat {
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
 	readonly files?: readonly ChatFileMetadata[];
-	readonly dynamic_tools?: readonly DynamicTool[];
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream

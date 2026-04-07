@@ -73,7 +73,6 @@ type Chat struct {
 	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string  `json:"labels"`
 	Files             []ChatFileMetadata `json:"files,omitempty"`
-	DynamicTools      []DynamicTool      `json:"dynamic_tools,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
