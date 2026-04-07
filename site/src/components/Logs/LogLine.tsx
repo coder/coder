@@ -16,7 +16,12 @@ type LogLineProps = {
 	level: LogLevel;
 } & HTMLAttributes<HTMLPreElement>;
 
-export const LogLine: FC<LogLineProps> = ({ level, className, ...props }) => {
+export const LogLine: FC<LogLineProps> = ({
+	level,
+	className,
+	style,
+	...props
+}) => {
 	return (
 		<pre
 			{...props}
@@ -33,7 +38,10 @@ export const LogLine: FC<LogLineProps> = ({ level, className, ...props }) => {
 				className,
 			)}
 			style={{
-				padding: `0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
+				...style,
+				padding:
+					style?.padding ??
+					`0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
 			}}
 		/>
 	);
