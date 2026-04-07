@@ -51,7 +51,7 @@ export const PaginationHeader: FC<PaginationHeaderProps> = ({
 
 					{totalRecords !== 0 && currentOffsetStart !== undefined && (
 						<div>
-							Showing <strong>{currentOffsetStart}</strong> to{" "}
+							Showing <strong>{currentOffsetStart.toLocaleString()}</strong> to{" "}
 							<strong>
 								{(
 									currentOffsetStart +
