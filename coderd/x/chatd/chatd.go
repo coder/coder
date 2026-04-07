@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -150,6 +151,12 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
+
+	// heartbeatMu guards heartbeatRegistry.
+	heartbeatMu sync.Mutex
+	// heartbeatRegistry maps chat IDs to their cancel functions
+	// and workspace state for the centralized heartbeat loop.
+	heartbeatRegistry map[uuid.UUID]*heartbeatEntry
 
 	// wakeCh is signaled by SendMessage, EditMessage, CreateChat,
 	// and PromoteQueued so the run loop calls processOnce
@@ -704,6 +711,17 @@ type chatStreamState struct {
 	// period expires so cross-replica relays can still
 	// snapshot the buffer.
 	bufferRetainedAt time.Time
+}
+
+// heartbeatEntry tracks a single chat's cancel function and workspace
+// state for the centralized heartbeat loop. Instead of spawning a
+// per-chat goroutine, processChat registers an entry here and the
+// single heartbeatLoop goroutine handles all chats.
+type heartbeatEntry struct {
+	cancelWithCause context.CancelCauseFunc
+	chatID          uuid.UUID
+	workspaceID     uuid.NullUUID
+	logger          slog.Logger
 }
 
 // resetDropCounters zeroes the rate-limiting state for both buffer
@@ -2420,8 +2438,8 @@ func New(cfg Config) *Server {
 		clock:                          clk,
 		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                         make(chan struct{}, 1),
+		heartbeatRegistry:              make(map[uuid.UUID]*heartbeatEntry),
 	}
-
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
 
@@ -2460,6 +2478,9 @@ func (p *Server) start(ctx context.Context) {
 	// Recover stale chats on startup and periodically thereafter
 	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
+
+	// Single heartbeat loop for all chats on this replica.
+	go p.heartbeatLoop(ctx)
 
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
@@ -2728,6 +2749,97 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	}
 	p.chatStreams.Delete(chatID)
 	p.workspaceMCPToolsCache.Delete(chatID)
+}
+
+// registerHeartbeat enrolls a chat in the centralized batch
+// heartbeat loop. Must be called after chatCtx is created.
+func (p *Server) registerHeartbeat(entry *heartbeatEntry) {
+	p.heartbeatMu.Lock()
+	defer p.heartbeatMu.Unlock()
+	if _, exists := p.heartbeatRegistry[entry.chatID]; exists {
+		p.logger.Warn(context.Background(),
+			"duplicate heartbeat registration, skipping",
+			slog.F("chat_id", entry.chatID))
+		return
+	}
+	p.heartbeatRegistry[entry.chatID] = entry
+}
+
+// unregisterHeartbeat removes a chat from the centralized
+// heartbeat loop when chat processing finishes.
+func (p *Server) unregisterHeartbeat(chatID uuid.UUID) {
+	p.heartbeatMu.Lock()
+	defer p.heartbeatMu.Unlock()
+	delete(p.heartbeatRegistry, chatID)
+}
+
+// heartbeatLoop runs in a single goroutine, issuing one batch
+// heartbeat query per interval for all registered chats.
+func (p *Server) heartbeatLoop(ctx context.Context) {
+	ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "batch-heartbeat")
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			p.heartbeatTick(ctx)
+		}
+	}
+}
+
+// heartbeatTick issues a single batch UPDATE for all running chats
+// owned by this worker. Chats missing from the result set are
+// interrupted (stolen by another replica or already completed).
+func (p *Server) heartbeatTick(ctx context.Context) {
+	// Snapshot the registry under the lock.
+	p.heartbeatMu.Lock()
+	snapshot := maps.Clone(p.heartbeatRegistry)
+	p.heartbeatMu.Unlock()
+
+	if len(snapshot) == 0 {
+		return
+	}
+
+	// Collect the IDs we believe we own.
+	ids := slices.Collect(maps.Keys(snapshot))
+
+	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
+	// access for batch-updating heartbeats.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	updatedIDs, err := p.db.UpdateChatHeartbeats(chatdCtx, database.UpdateChatHeartbeatsParams{
+		IDs:      ids,
+		WorkerID: p.workerID,
+		Now:      p.clock.Now(),
+	})
+	if err != nil {
+		p.logger.Error(ctx, "batch heartbeat failed", slog.Error(err))
+		return
+	}
+
+	// Build a set of IDs that were successfully updated.
+	updated := make(map[uuid.UUID]struct{}, len(updatedIDs))
+	for _, id := range updatedIDs {
+		updated[id] = struct{}{}
+	}
+
+	// Interrupt registered chats that were not in the result
+	// (stolen by another replica or already completed).
+	for id, entry := range snapshot {
+		if _, ok := updated[id]; !ok {
+			entry.logger.Warn(ctx, "chat not in batch heartbeat result, interrupting")
+			entry.cancelWithCause(chatloop.ErrInterrupted)
+			continue
+		}
+		// Bump workspace usage for surviving chats.
+		newWsID := p.trackWorkspaceUsage(ctx, entry.chatID, entry.workspaceID, entry.logger)
+		// Update workspace ID in the registry for next tick.
+		p.heartbeatMu.Lock()
+		if current, exists := p.heartbeatRegistry[id]; exists {
+			current.workspaceID = newWsID
+		}
+		p.heartbeatMu.Unlock()
+	}
 }
 
 func (p *Server) Subscribe(
@@ -3204,7 +3316,11 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil) // we have diffStatus already converted
+	// diffStatus is applied below. File metadata is intentionally
+	// omitted from pubsub events to avoid an extra DB query per
+	// publish. Clients must merge pubsub updates, not replace
+	// cached file metadata.
+	sdkChat := db2sdk.Chat(chat, nil, nil)
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -3571,33 +3687,17 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
-	// Periodically update the heartbeat so other replicas know this
-	// worker is still alive. The goroutine stops when chatCtx is
-	// canceled (either by completion or interruption).
-	go func() {
-		ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "heartbeat")
-		defer ticker.Stop()
-		for {
-			select {
-			case <-chatCtx.Done():
-				return
-			case <-ticker.C:
-				rows, err := p.db.UpdateChatHeartbeat(chatCtx, database.UpdateChatHeartbeatParams{
-					ID:       chat.ID,
-					WorkerID: p.workerID,
-				})
-				if err != nil {
-					logger.Warn(chatCtx, "failed to update chat heartbeat", slog.Error(err))
-					continue
-				}
-				if rows == 0 {
-					cancel(chatloop.ErrInterrupted)
-					return
-				}
-				chat.WorkspaceID = p.trackWorkspaceUsage(chatCtx, chat.ID, chat.WorkspaceID, logger)
-			}
-		}
-	}()
+	// Register with the centralized heartbeat loop instead of
+	// running a per-chat goroutine. The loop issues a single batch
+	// UPDATE for all chats on this worker and detects stolen chats
+	// via set-difference.
+	p.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chat.ID,
+		workspaceID:     chat.WorkspaceID,
+		logger:          logger,
+	})
+	defer p.unregisterHeartbeat(chat.ID)
 
 	// Start buffering stream events BEFORE publishing the running
 	// status. This closes a race where a subscriber sees
@@ -4525,6 +4625,27 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
+				// Cap enforcement and dedup are handled atomically
+				// in SQL. rejected > 0 = cap exceeded.
+				rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chatSnapshot.ID,
+					MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+					FileIds:      []uuid.UUID{row.ID},
+				})
+				switch {
+				case err != nil:
+					p.logger.Error(ctx, "failed to link file to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.Error(err),
+					)
+				case rejected > 0:
+					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.F("max_file_links", codersdk.MaxChatFileIDs),
+					)
+				}
 				return row.ID, nil
 			},
 		}))

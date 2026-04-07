@@ -255,7 +255,7 @@ export const ProviderAccordionCards: Story = {
 		expect(body.queryByText("OpenAI")).not.toBeInTheDocument();
 
 		await userEvent.click(body.getByRole("button", { name: /OpenRouter/i }));
-		await expect(body.getByLabelText("Base URL")).toBeInTheDocument();
+		await expect(await body.findByLabelText("Base URL")).toBeInTheDocument();
 	},
 };
 
@@ -461,6 +461,9 @@ export const CreateAndUpdateProvider: Story = {
 
 		await waitFor(() => {
 			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
+		});
+		await waitFor(() => {
+			expect(body.getByRole("button", { name: "Save changes" })).toBeDisabled();
 		});
 		expect(args.onCreateProvider).toHaveBeenCalledWith(
 			expect.objectContaining({

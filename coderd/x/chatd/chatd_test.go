@@ -474,7 +474,7 @@ func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 	require.Equal(t, 1, userMessages, "expected queued message to stay queued after archive")
 }
 
-func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
+func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -501,19 +501,24 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := db.UpdateChatHeartbeat(ctx, database.UpdateChatHeartbeatParams{
-		ID:       chat.ID,
+	// Wrong worker_id should return no IDs.
+	ids, err := db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:      []uuid.UUID{chat.ID},
 		WorkerID: uuid.New(),
+		Now:      time.Now(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(0), rows)
+	require.Empty(t, ids)
 
-	rows, err = db.UpdateChatHeartbeat(ctx, database.UpdateChatHeartbeatParams{
-		ID:       chat.ID,
+	// Correct worker_id should return the chat's ID.
+	ids, err = db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:      []uuid.UUID{chat.ID},
 		WorkerID: workerID,
+		Now:      time.Now(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(1), rows)
+	require.Len(t, ids, 1)
+	require.Equal(t, chat.ID, ids[0])
 }
 
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {

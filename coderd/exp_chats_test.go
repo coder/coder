@@ -3227,6 +3227,153 @@ func TestGetChat(t *testing.T) {
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
+
+	t.Run("FilesHydrated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "hydrated.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with a text + file part.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "check file hydration"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET the chat — files must be hydrated with all metadata fields.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		f := chatResult.Files[0]
+		require.Equal(t, uploadResp.ID, f.ID)
+		require.Equal(t, firstUser.UserID, f.OwnerID)
+		require.NotEqual(t, uuid.Nil, f.OrganizationID)
+		require.Equal(t, "image/png", f.MimeType)
+		require.Equal(t, "hydrated.png", f.Name)
+		require.NotZero(t, f.CreatedAt)
+	})
+
+	// ToolCreatedFilesLinked exercises the DB path that chatd uses
+	// when a tool (e.g. propose_plan) creates a file: InsertChatFile
+	// then LinkChatFiles. This is a DB-level test because driving
+	// the full chatd tool-call pipeline requires an LLM mock.
+	t.Run("ToolCreatedFilesLinked", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a chat via the API so all metadata is set up.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "tool file test"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Mimic what chatd's StoreFile closure does:
+		// 1. InsertChatFile
+		// 2. LinkChatFiles
+		//nolint:gocritic // Using AsChatd to mimic the chatd background worker.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "plan.md",
+			Mimetype:       "text/markdown",
+			Data:           []byte("# Plan"),
+		})
+		require.NoError(t, err)
+
+		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(0), rejected, "0 rejected = all files linked")
+
+		// Verify via the API that the file appears in the chat.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		f := chatResult.Files[0]
+		require.Equal(t, fileRow.ID, f.ID)
+		require.Equal(t, firstUser.UserID, f.OwnerID)
+		require.Equal(t, firstUser.OrganizationID, f.OrganizationID)
+		require.Equal(t, "plan.md", f.Name)
+		require.Equal(t, "text/markdown", f.MimeType)
+
+		// Fill up to the cap by inserting more files via the
+		// chatd DB path, then verify the cap is enforced.
+		for i := 1; i < codersdk.MaxChatFileIDs; i++ {
+			extra, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+				OwnerID:        firstUser.UserID,
+				OrganizationID: firstUser.OrganizationID,
+				Name:           fmt.Sprintf("file%d.md", i),
+				Mimetype:       "text/markdown",
+				Data:           []byte("data"),
+			})
+			require.NoError(t, err)
+			_, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+				ChatID:       chat.ID,
+				MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+				FileIds:      []uuid.UUID{extra.ID},
+			})
+			require.NoError(t, err)
+		}
+
+		// Chat should now have exactly MaxChatFileIDs files.
+		chatResult, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+
+		// Attempt to add one more file — should be rejected (0 rows).
+		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "overflow.md",
+			Mimetype:       "text/markdown",
+			Data:           []byte("too many"),
+		})
+		require.NoError(t, err)
+		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{overflow.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(1), rejected, "cap should reject the 21st file")
+
+		// Re-appending an already-linked ID at cap should succeed
+		// (dedup means no array growth).
+		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+		// ON CONFLICT DO NOTHING returns 0 rows when the link
+		// already exists, which is fine — the file is still linked.
+		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
+
+		// Count should still be exactly MaxChatFileIDs.
+		chatResult, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+	})
 }
 
 func TestArchiveChat(t *testing.T) {
@@ -4373,6 +4520,14 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// With no text, chatTitleFromMessage("") returns "New Chat".
 		require.Equal(t, "New Chat", chat.Title)
+		require.Len(t, chat.Files, 1)
+		f := chat.Files[0]
+		require.Equal(t, uploadResp.ID, f.ID)
+		require.Equal(t, firstUser.UserID, f.OwnerID)
+		require.NotEqual(t, uuid.Nil, f.OrganizationID)
+		require.Equal(t, "image/png", f.MimeType)
+		require.Equal(t, "test.png", f.Name)
+		require.NotZero(t, f.CreatedAt)
 	})
 
 	t.Run("InvalidFileID", func(t *testing.T) {
@@ -4406,6 +4561,189 @@ func TestChatMessageWithFiles(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid input part.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "does not exist")
+	})
+
+	t.Run("FilesLinkedOnSend", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a text-only chat (no files initially).
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "no files yet"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "linked.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Send a message with the file.
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "here is a file"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET the chat — file should be linked.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
+		require.Equal(t, "linked.png", chatResult.Files[0].Name)
+	})
+
+	t.Run("DedupFileIDs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "dedup.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with a file.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "first mention"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// Send another message with the SAME file.
+		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "same file again"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, msgResp.Warnings, "dedup below cap should not produce warnings")
+
+		// GET — should have exactly 1 file (deduped by SQL DISTINCT).
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1, "duplicate file IDs should be deduped")
+		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
+	})
+
+	t.Run("FileCapExceeded", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+
+		// Upload MaxChatFileIDs files.
+		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
+		for i := range codersdk.MaxChatFileIDs {
+			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("file%d.png", i), bytes.NewReader(pngData))
+			require.NoError(t, err)
+			fileIDs = append(fileIDs, resp.ID)
+		}
+
+		// Create a chat using all MaxChatFileIDs files.
+		parts := []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "max files"},
+		}
+		for _, fid := range fileIDs {
+			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
+		}
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
+		require.NoError(t, err)
+		require.Empty(t, chat.Warnings, "creating a chat at exactly the cap should not warn")
+		require.Len(t, chat.Files, codersdk.MaxChatFileIDs, "all files should be linked on creation")
+
+		// Upload one more file.
+		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Sending a message with the extra file should succeed
+		// (message goes through) but the file should NOT be linked
+		// (cap enforced in SQL). The response includes a warning.
+		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
+			},
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, msgResp.Warnings, "response should warn about unlinked files")
+		require.Contains(t, msgResp.Warnings[0], "file linking skipped")
+
+		// The extra file should NOT appear in the chat's files.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
+			"file count should not exceed the cap")
+
+		// Sending a message referencing an already-linked file
+		// should succeed with no warnings (dedup, no array growth).
+		msgResp2, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[0]},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, msgResp2.Warnings, "re-referencing an existing file should not warn")
+	})
+
+	t.Run("FileCapOnCreate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+
+		// Upload MaxChatFileIDs + 1 files.
+		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs+1)
+		for i := range codersdk.MaxChatFileIDs + 1 {
+			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("create%d.png", i), bytes.NewReader(pngData))
+			require.NoError(t, err)
+			fileIDs = append(fileIDs, resp.ID)
+		}
+
+		// Create a chat with all files (one over the cap).
+		parts := []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "over cap on create"},
+		}
+		for _, fid := range fileIDs {
+			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
+		}
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
+		require.NoError(t, err, "chat creation should succeed even when cap is exceeded")
+		require.NotEmpty(t, chat.Warnings, "response should warn about unlinked files")
+		require.Contains(t, chat.Warnings[0], "file linking skipped")
+
+		// Only MaxChatFileIDs files should actually be linked.
+		// With SQL-level batch rejection, ALL files are rejected
+		// when the result would exceed the cap. Since we're
+		// sending MaxChatFileIDs+1 files, the deduped count is
+		// 21 > 20, so 0 rows are affected and all files are
+		// unlinked.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, chatResult.Files, "no files should be linked when batch exceeds cap")
 	})
 }
 
@@ -4453,11 +4791,11 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 		// The edited message is soft-deleted and a new one is inserted,
 		// so the returned ID will differ from the original.
-		require.NotEqual(t, userMessageID, edited.ID)
-		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Role)
+		require.NotEqual(t, userMessageID, edited.Message.ID)
+		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Message.Role)
 
 		foundEditedText := false
-		for _, part := range edited.Content {
+		for _, part := range edited.Message.Content {
 			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "hello after edit" {
 				foundEditedText = true
 			}
@@ -4545,11 +4883,11 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 		// The edited message is soft-deleted and a new one is inserted,
 		// so the returned ID will differ from the original.
-		require.NotEqual(t, userMessageID, edited.ID)
+		require.NotEqual(t, userMessageID, edited.Message.ID)
 
 		// Assert the edit response preserves the file_id.
 		var foundText, foundFile bool
-		for _, part := range edited.Content {
+		for _, part := range edited.Message.Content {
 			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
 				foundText = true
 			}
@@ -4691,6 +5029,112 @@ func TestPatchChatMessage(t *testing.T) {
 		err = codersdk.ReadBodyAsError(res)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid chat message ID.", sdkErr.Message)
+	})
+
+	t.Run("FilesLinkedOnEdit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a text-only chat.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "before file edit"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "edit-linked.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Find the user message ID.
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// Edit the message to include the file.
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "after file edit"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET the chat — file should be linked.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		f := chatResult.Files[0]
+		require.Equal(t, uploadResp.ID, f.ID)
+		require.Equal(t, "edit-linked.png", f.Name)
+		require.Equal(t, "image/png", f.MimeType)
+	})
+
+	t.Run("CapExceededOnEdit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a chat with MaxChatFileIDs files already linked.
+		parts := []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
+		}
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		for i := range codersdk.MaxChatFileIDs {
+			up, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("cap-%d.png", i), bytes.NewReader(pngData))
+			require.NoError(t, err)
+			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: up.ID})
+		}
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
+		require.NoError(t, err)
+		require.Empty(t, chat.Warnings, "all files should link on create")
+
+		// Find the user message.
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// Upload one more file and try to link via edit.
+		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "edit with extra file"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
+			},
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, edited.Warnings, "edit should surface cap warning")
+		require.Contains(t, edited.Warnings[0], "file linking skipped")
+
+		// Verify the cap is still enforced.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
+			"file count should not exceed the cap")
 	})
 }
 

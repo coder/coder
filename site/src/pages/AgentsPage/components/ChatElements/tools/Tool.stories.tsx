@@ -1342,6 +1342,12 @@ export const ReadSkillCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Read skill deep-review/)).toBeInTheDocument();
+		// Expand the collapsible to verify markdown body renders.
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(canvas.getByText("Deep Review Skill")).toBeInTheDocument();
+		});
 	},
 };
 
@@ -1393,6 +1399,12 @@ export const ReadSkillFileCompleted: Story = {
 		expect(
 			canvas.getByText(/Read deep-review\/roles\/security-reviewer\.md/),
 		).toBeInTheDocument();
+		// Expand the collapsible to verify markdown content renders.
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(canvas.getByText("Security Reviewer Role")).toBeInTheDocument();
+		});
 	},
 };
 

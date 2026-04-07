@@ -212,6 +212,7 @@ type AuditLogsRequest struct {
 type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
 	Count     int64      `json:"count"`
+	CountCap  int64      `json:"count_cap"`
 }
 
 type CreateTestAuditLogRequest struct {
