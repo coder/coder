@@ -1700,9 +1700,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 		_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    "openai",
-			DisplayName: "OpenAI",
-			Enabled:     true,
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 		mc, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
