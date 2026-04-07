@@ -182,9 +182,15 @@ func writeDocs(sections [][]byte) error {
 		Children    []route  `json:"children,omitempty"`
 	}
 
+	type redirect struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+
 	type manifest struct {
-		Versions []string `json:"versions,omitempty"`
-		Routes   []route  `json:"routes,omitempty"`
+		Versions  []string   `json:"versions,omitempty"`
+		Redirects []redirect `json:"redirects,omitempty"`
+		Routes    []route    `json:"routes,omitempty"`
 	}
 
 	manifestPath := path.Join(docsDirectory, "manifest.json")

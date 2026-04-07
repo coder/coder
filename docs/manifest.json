@@ -1,37 +1,125 @@
 {
 	"versions": ["main"],
-		"redirects": [
-			{"from": "./ai-coder/ai-bridge/index.md", "to": "./ai-coder/ai-gateway/index.md"},
-			{"from": "./ai-coder/ai-bridge/setup.md", "to": "./ai-coder/ai-gateway/setup.md"},
-			{"from": "./ai-coder/ai-bridge/monitoring.md", "to": "./ai-coder/ai-gateway/monitoring.md"},
-			{"from": "./ai-coder/ai-bridge/audit.md", "to": "./ai-coder/ai-gateway/audit.md"},
-			{"from": "./ai-coder/ai-bridge/reference.md", "to": "./ai-coder/ai-gateway/reference.md"},
-			{"from": "./ai-coder/ai-bridge/mcp.md", "to": "./ai-coder/ai-gateway/mcp.md"},
-			{"from": "./ai-coder/ai-bridge/clients/index.md", "to": "./ai-coder/ai-gateway/clients/index.md"},
-			{"from": "./ai-coder/ai-bridge/clients/claude-code.md", "to": "./ai-coder/ai-gateway/clients/claude-code.md"},
-			{"from": "./ai-coder/ai-bridge/clients/codex.md", "to": "./ai-coder/ai-gateway/clients/codex.md"},
-			{"from": "./ai-coder/ai-bridge/clients/copilot.md", "to": "./ai-coder/ai-gateway/clients/copilot.md"},
-			{"from": "./ai-coder/ai-bridge/clients/cline.md", "to": "./ai-coder/ai-gateway/clients/cline.md"},
-			{"from": "./ai-coder/ai-bridge/clients/factory.md", "to": "./ai-coder/ai-gateway/clients/factory.md"},
-			{"from": "./ai-coder/ai-bridge/clients/jetbrains.md", "to": "./ai-coder/ai-gateway/clients/jetbrains.md"},
-			{"from": "./ai-coder/ai-bridge/clients/kilo-code.md", "to": "./ai-coder/ai-gateway/clients/kilo-code.md"},
-			{"from": "./ai-coder/ai-bridge/clients/mux.md", "to": "./ai-coder/ai-gateway/clients/mux.md"},
-			{"from": "./ai-coder/ai-bridge/clients/opencode.md", "to": "./ai-coder/ai-gateway/clients/opencode.md"},
-			{"from": "./ai-coder/ai-bridge/clients/roo-code.md", "to": "./ai-coder/ai-gateway/clients/roo-code.md"},
-			{"from": "./ai-coder/ai-bridge/clients/vscode.md", "to": "./ai-coder/ai-gateway/clients/vscode.md"},
-			{"from": "./ai-coder/ai-bridge/clients/zed.md", "to": "./ai-coder/ai-gateway/clients/zed.md"},
-			{"from": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md", "to": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md"},
-			{"from": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md", "to": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md"},
-			{"from": "./ai-coder/agent-boundaries/index.md", "to": "./ai-coder/agent-firewall/index.md"},
-			{"from": "./ai-coder/agent-boundaries/landjail.md", "to": "./ai-coder/agent-firewall/landjail.md"},
-			{"from": "./ai-coder/agent-boundaries/rules-engine.md", "to": "./ai-coder/agent-firewall/rules-engine.md"},
-			{"from": "./ai-coder/agent-boundaries/version.md", "to": "./ai-coder/agent-firewall/version.md"},
-			{"from": "./ai-coder/agent-boundaries/nsjail/index.md", "to": "./ai-coder/agent-firewall/nsjail/index.md"},
-			{"from": "./ai-coder/agent-boundaries/nsjail/docker.md", "to": "./ai-coder/agent-firewall/nsjail/docker.md"},
-			{"from": "./ai-coder/agent-boundaries/nsjail/k8s.md", "to": "./ai-coder/agent-firewall/nsjail/k8s.md"},
-			{"from": "./ai-coder/agent-boundaries/nsjail/ecs.md", "to": "./ai-coder/agent-firewall/nsjail/ecs.md"}
-		],
-		"routes": [		{
+	"redirects": [
+		{
+			"from": "./ai-coder/ai-bridge/index.md",
+			"to": "./ai-coder/ai-gateway/index.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/setup.md",
+			"to": "./ai-coder/ai-gateway/setup.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/monitoring.md",
+			"to": "./ai-coder/ai-gateway/monitoring.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/audit.md",
+			"to": "./ai-coder/ai-gateway/audit.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/reference.md",
+			"to": "./ai-coder/ai-gateway/reference.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/mcp.md",
+			"to": "./ai-coder/ai-gateway/mcp.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/index.md",
+			"to": "./ai-coder/ai-gateway/clients/index.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/claude-code.md",
+			"to": "./ai-coder/ai-gateway/clients/claude-code.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/codex.md",
+			"to": "./ai-coder/ai-gateway/clients/codex.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/copilot.md",
+			"to": "./ai-coder/ai-gateway/clients/copilot.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/cline.md",
+			"to": "./ai-coder/ai-gateway/clients/cline.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/factory.md",
+			"to": "./ai-coder/ai-gateway/clients/factory.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/jetbrains.md",
+			"to": "./ai-coder/ai-gateway/clients/jetbrains.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/kilo-code.md",
+			"to": "./ai-coder/ai-gateway/clients/kilo-code.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/mux.md",
+			"to": "./ai-coder/ai-gateway/clients/mux.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/opencode.md",
+			"to": "./ai-coder/ai-gateway/clients/opencode.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/roo-code.md",
+			"to": "./ai-coder/ai-gateway/clients/roo-code.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/vscode.md",
+			"to": "./ai-coder/ai-gateway/clients/vscode.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/clients/zed.md",
+			"to": "./ai-coder/ai-gateway/clients/zed.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
+			"to": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md"
+		},
+		{
+			"from": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md",
+			"to": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/index.md",
+			"to": "./ai-coder/agent-firewall/index.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/landjail.md",
+			"to": "./ai-coder/agent-firewall/landjail.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/rules-engine.md",
+			"to": "./ai-coder/agent-firewall/rules-engine.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/version.md",
+			"to": "./ai-coder/agent-firewall/version.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/nsjail/index.md",
+			"to": "./ai-coder/agent-firewall/nsjail/index.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/nsjail/docker.md",
+			"to": "./ai-coder/agent-firewall/nsjail/docker.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/nsjail/k8s.md",
+			"to": "./ai-coder/agent-firewall/nsjail/k8s.md"
+		},
+		{
+			"from": "./ai-coder/agent-boundaries/nsjail/ecs.md",
+			"to": "./ai-coder/agent-firewall/nsjail/ecs.md"
+		}
+	],
+	"routes": [
+		{
 			"title": "About",
 			"description": "Coder docs",
 			"path": "./README.md",

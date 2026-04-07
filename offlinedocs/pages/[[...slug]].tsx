@@ -48,7 +48,8 @@ type Route = {
 	description?: string;
 	children?: Route[];
 };
-type Manifest = { versions: string[]; routes: Route[] };
+type Redirect = { from: string; to: string };
+type Manifest = { versions: string[]; redirects?: Redirect[]; routes: Route[] };
 type NavItem = { title: string; path: UrlPath; children?: NavItem[] };
 type Nav = NavItem[];
 

@@ -23,13 +23,21 @@ type route struct {
 	Children    []route  `json:"children,omitempty"`
 }
 
+// redirect maps an old documentation path to a new one.
+type redirect struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
 // manifest describes the entire documentation index.
 type manifest struct {
-	Versions []string `json:"versions,omitempty"`
-	Routes   []route  `json:"routes,omitempty"`
+	Versions  []string   `json:"versions,omitempty"`
+	Redirects []redirect `json:"redirects,omitempty"`
+	Routes    []route    `json:"routes,omitempty"`
 }
 
 func prepareEnv() {
+
 	// Unset CODER_ environment variables
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "CODER_") {
