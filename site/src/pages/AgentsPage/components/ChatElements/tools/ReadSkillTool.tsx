@@ -14,12 +14,11 @@ import type { ToolStatus } from "./utils";
 export const ReadSkillTool: React.FC<{
 	label: string;
 	body: string;
-	files: string[];
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ label, body, files, status, isError, errorMessage }) => {
-	const hasContent = body.length > 0 || files.length > 0;
+}> = ({ label, body, status, isError, errorMessage }) => {
+	const hasContent = body.length > 0;
 	const isRunning = status === "running";
 
 	return (
@@ -58,10 +57,5 @@ export const ReadSkillTool: React.FC<{
 					</div>
 				</ScrollArea>
 			)}
-				{files.length > 0 && (
-					<p className="mt-1.5 truncate text-xs text-content-secondary">
-						Supporting files: {files.join(", ")}
-					</p>
-				)}
 			</ToolCollapsible>	);
 };

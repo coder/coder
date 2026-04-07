@@ -221,14 +221,11 @@ const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
 	const rec = asRecord(result);
 	const body = rec ? asString(rec.body) : "";
-	const rawFiles = rec && Array.isArray(rec.files) ? rec.files : [];
-	const files = rawFiles.map((f) => (typeof f === "string" ? f : ""));
 
 	return (
 		<ReadSkillTool
 			label={skillName ? `skill ${skillName}` : "skill"}
 			body={body}
-			files={files}
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
@@ -256,7 +253,6 @@ const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 		<ReadSkillTool
 			label={label}
 			body={content}
-			files={[]}
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
