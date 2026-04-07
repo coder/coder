@@ -1495,9 +1495,16 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, clientConn)
 
-	// Proxy agent → client.
+	// Proxy agent → client. When the agent reports a branch or
+	// remote origin that differs from what we last saw, mark the
+	// chat's diff status as stale so the gitsync worker refreshes
+	// PR metadata from the git provider.
 	agentCh := agentStream.Chan()
-	var wg sync.WaitGroup
+	var (
+		wg             sync.WaitGroup
+		lastSeenBranch string
+		lastSeenOrigin string
+	)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1511,6 +1518,28 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 				if !ok {
 					cancel()
 					return
+				}
+				if msg.Type == codersdk.WorkspaceAgentGitServerMessageTypeChanges && api.gitSyncWorker != nil {
+					if len(msg.Repositories) > 0 {
+						repo := msg.Repositories[0]
+						branch := strings.TrimSpace(repo.Branch)
+						origin := strings.TrimSpace(repo.RemoteOrigin)
+						if branch != "" && origin != "" && (branch != lastSeenBranch || origin != lastSeenOrigin) {
+							lastSeenBranch = branch
+							lastSeenOrigin = origin
+							// AsChatd is used here because the git watch proxy
+							// runs in the context of the chat daemon, consistent
+							// with the external auth handler's MarkStale calls.
+							//nolint:gocritic // AsChatd matches the authorization used by the gitsync worker.
+							api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
+								ChatID:      chat.ID,
+								WorkspaceID: chat.WorkspaceID.UUID,
+								OwnerID:     chat.OwnerID,
+								Branch:      branch,
+								Origin:      origin,
+							})
+						}
+					}
 				}
 				if err := clientStream.Send(msg); err != nil {
 					logger.Debug(ctx, "failed to forward agent message to client", slog.Error(err))
