@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2459,6 +2460,251 @@ func newTestRetryPayload() *codersdk.ChatStreamRetry {
 	}
 	payload.RetryingAt = time.Unix(1_700_000_000, 0).UTC()
 	return payload
+}
+
+func TestGetStreamChatMessagesCoalescesConcurrentRequestsAndClonesResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	params := database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0}
+	message := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte(`"hello"`),
+			Valid:      true,
+		},
+	}
+
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), params).DoAndReturn(func(context.Context, database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		return []database.ChatMessage{message}, nil
+	}).AnyTimes()
+
+	type result struct {
+		messages []database.ChatMessage
+		err      error
+	}
+	results := make(chan result, 2)
+	go func() {
+		msgs, err := server.getStreamChatMessages(ctx, params)
+		results <- result{messages: msgs, err: err}
+	}()
+	go func() {
+		msgs, err := server.getStreamChatMessages(ctx, params)
+		results <- result{messages: msgs, err: err}
+	}()
+
+	waitForSignal(t, started)
+	close(release)
+
+	first := <-results
+	second := <-results
+	require.NoError(t, first.err)
+	require.NoError(t, second.err)
+	require.Equal(t, int32(1), calls.Load())
+	require.Len(t, first.messages, 1)
+	require.Len(t, second.messages, 1)
+
+	first.messages[0].Content.RawMessage[0] = 'x'
+	require.Equal(t, `"hello"`, string(second.messages[0].Content.RawMessage))
+}
+
+func TestGetStreamQueuedMessagesCoalescesConcurrentRequestsAndClonesResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	queuedMessage := database.ChatQueuedMessage{
+		ID:      1,
+		ChatID:  chatID,
+		Content: []byte(`"queued"`),
+	}
+
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).DoAndReturn(func(context.Context, uuid.UUID) ([]database.ChatQueuedMessage, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		return []database.ChatQueuedMessage{queuedMessage}, nil
+	}).AnyTimes()
+
+	type result struct {
+		messages []database.ChatQueuedMessage
+		err      error
+	}
+	results := make(chan result, 2)
+	go func() {
+		msgs, err := server.getStreamQueuedMessages(ctx, chatID)
+		results <- result{messages: msgs, err: err}
+	}()
+	go func() {
+		msgs, err := server.getStreamQueuedMessages(ctx, chatID)
+		results <- result{messages: msgs, err: err}
+	}()
+
+	waitForSignal(t, started)
+	close(release)
+
+	first := <-results
+	second := <-results
+	require.NoError(t, first.err)
+	require.NoError(t, second.err)
+	require.Equal(t, int32(1), calls.Load())
+	require.Len(t, first.messages, 1)
+	require.Len(t, second.messages, 1)
+
+	first.messages[0].Content[0] = 'x'
+	require.Equal(t, `"queued"`, string(second.messages[0].Content))
+}
+
+func TestGetStreamChatCoalescesConcurrentRequestsAndClonesResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	mcpServerID := uuid.New()
+	chat := database.Chat{
+		ID:           chatID,
+		Status:       database.ChatStatusPending,
+		MCPServerIDs: []uuid.UUID{mcpServerID},
+		Labels:       database.StringMap{"team": "chatd"},
+		LastInjectedContext: pqtype.NullRawMessage{
+			RawMessage: []byte(`{"topic":"db-dedupe"}`),
+			Valid:      true,
+		},
+	}
+
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).DoAndReturn(func(context.Context, uuid.UUID) (database.Chat, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		return chat, nil
+	}).AnyTimes()
+
+	type result struct {
+		chat database.Chat
+		err  error
+	}
+	results := make(chan result, 2)
+	go func() {
+		got, err := server.getStreamChat(ctx, chatID)
+		results <- result{chat: got, err: err}
+	}()
+	go func() {
+		got, err := server.getStreamChat(ctx, chatID)
+		results <- result{chat: got, err: err}
+	}()
+
+	waitForSignal(t, started)
+	close(release)
+
+	first := <-results
+	second := <-results
+	require.NoError(t, first.err)
+	require.NoError(t, second.err)
+	require.Equal(t, int32(1), calls.Load())
+	require.Equal(t, database.ChatStatusPending, first.chat.Status)
+	require.Equal(t, database.ChatStatusPending, second.chat.Status)
+
+	first.chat.MCPServerIDs[0] = uuid.New()
+	first.chat.Labels["team"] = "mutated"
+	first.chat.LastInjectedContext.RawMessage[0] = 'x'
+
+	require.Equal(t, mcpServerID, second.chat.MCPServerIDs[0])
+	require.Equal(t, "chatd", second.chat.Labels["team"])
+	require.Equal(t, `{"topic":"db-dedupe"}`, string(second.chat.LastInjectedContext.RawMessage))
+}
+
+func TestGetStreamChatMessagesCanceledWaiterDoesNotPoisonOthers(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	params := database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0}
+	message := database.ChatMessage{ID: 1, ChatID: chatID}
+
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), params).DoAndReturn(func(context.Context, database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		return []database.ChatMessage{message}, nil
+	}).AnyTimes()
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancelErrCh := make(chan error, 1)
+	survivorCh := make(chan struct {
+		messages []database.ChatMessage
+		err      error
+	}, 1)
+
+	go func() {
+		_, err := server.getStreamChatMessages(cancelCtx, params)
+		cancelErrCh <- err
+	}()
+	go func() {
+		msgs, err := server.getStreamChatMessages(ctx, params)
+		survivorCh <- struct {
+			messages []database.ChatMessage
+			err      error
+		}{messages: msgs, err: err}
+	}()
+
+	waitForSignal(t, started)
+	cancel()
+
+	select {
+	case err := <-cancelErrCh:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("canceled waiter did not return promptly")
+	}
+
+	close(release)
+
+	select {
+	case result := <-survivorCh:
+		require.NoError(t, result.err)
+		require.Len(t, result.messages, 1)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("surviving waiter did not return")
+	}
+
+	require.Equal(t, int32(1), calls.Load())
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
