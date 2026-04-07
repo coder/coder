@@ -124,6 +124,14 @@ jobs:
             TITLE="[CONFLICT] ${TITLE}"
           fi
 
+          # Check if a PR already exists for this branch (idempotency
+          # for re-runs). Use --state all to catch closed/merged PRs too.
+          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_BRANCH" --state all --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
+            exit 0
+          fi
+
           gh pr create \
             --base "$RELEASE_BRANCH" \
             --head "$BACKPORT_BRANCH" \
