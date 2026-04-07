@@ -36,7 +36,7 @@ export const DownloadSelectedAgentLogsButton: FC<
 	download = saveAs,
 }) => {
 	const [isDownloading, setIsDownloading] = useState(false);
-	const handleDownload = async () => {
+	const downloadLogs = async (logsText: string, filenameSuffix: string) => {
 		try {
 			setIsDownloading(true);
 			const file = new Blob([logsText], { type: "text/plain" });
@@ -50,32 +50,40 @@ export const DownloadSelectedAgentLogsButton: FC<
 		}
 	};
 
-	const downloadLogs = (logsText: string, filenameSuffix: string) => {
-		try {
-			setIsDownloading(true);
-			const file = new Blob([logsText], { type: "text/plain" });
-			download(file, `${agentName}-${filenameSuffix}.txt`);
-		} catch (error) {
-			console.error(error);
-			toast.error(`Failed to download "${agentName}" logs.`, {
-				description: getErrorDetail(error),
-			});
-		} finally {
-			setIsDownloading(false);
-		}
-	};
-
 	const hasAllLogs = allLogsText.length > 0;
 
 	return (
-		<Button
-			variant="subtle"
-			size="sm"
-			disabled={disabled || isDownloading}
-			onClick={handleDownload}
-		>
-			<DownloadIcon />
-			{isDownloading ? "Downloading..." : "Download logs"}
-		</Button>
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="subtle" size="sm" disabled={disabled || isDownloading}>
+					<DownloadIcon />
+					{isDownloading ? "Downloading..." : "Download logs"}
+					<ChevronDownIcon className="size-icon-sm" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuItem
+					disabled={!hasAllLogs}
+					onSelect={() => {
+						downloadLogs(allLogsText, "all-logs");
+					}}
+				>
+					<PackageIcon />
+					Download all logs
+				</DropdownMenuItem>
+				{logSets.map((logSet) => (
+					<DropdownMenuItem
+						key={logSet.filenameSuffix}
+						disabled={logSet.logsText.length === 0}
+						onSelect={() => {
+							downloadLogs(logSet.logsText, logSet.filenameSuffix);
+						}}
+					>
+						{logSet.startIcon}
+						<span>Download {logSet.label}</span>
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };

@@ -2155,17 +2155,12 @@ func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.De
 	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
-func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
-	// First get the secret to check ownership
-	secret, err := q.GetUserSecret(ctx, id)
-	if err != nil {
+func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) error {
+	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
 		return err
 	}
-
-	if err := q.authorizeContext(ctx, policy.ActionDelete, secret); err != nil {
-		return err
-	}
-	return q.db.DeleteUserSecret(ctx, id)
+	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
 
 func (q *querier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
@@ -4128,19 +4123,6 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
-func (q *querier) GetUserSecret(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
-	// First get the secret to check ownership
-	secret, err := q.db.GetUserSecret(ctx, id)
-	if err != nil {
-		return database.UserSecret{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionRead, secret); err != nil {
-		return database.UserSecret{}, err
-	}
-	return secret, nil
-}
-
 func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -5524,12 +5506,22 @@ func (q *querier) ListUserChatCompactionThresholds(ctx context.Context, userID u
 	return q.db.ListUserChatCompactionThresholds(ctx, userID)
 }
 
-func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.ListUserSecretsRow, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(userID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
 		return nil, err
 	}
 	return q.db.ListUserSecrets(ctx, userID)
+}
+
+func (q *querier) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+	// This query returns decrypted secret values and must only be called
+	// from system contexts (provisioner, agent manifest). REST API
+	// handlers should use ListUserSecrets (metadata only).
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListUserSecretsWithValues(ctx, userID)
 }
 
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
@@ -6632,17 +6624,12 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 	return q.db.UpdateUserRoles(ctx, arg)
 }
 
-func (q *querier) UpdateUserSecret(ctx context.Context, arg database.UpdateUserSecretParams) (database.UserSecret, error) {
-	// First get the secret to check ownership
-	secret, err := q.db.GetUserSecret(ctx, arg.ID)
-	if err != nil {
+func (q *querier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg database.UpdateUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
+	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
 		return database.UserSecret{}, err
 	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, secret); err != nil {
-		return database.UserSecret{}, err
-	}
-	return q.db.UpdateUserSecret(ctx, arg)
+	return q.db.UpdateUserSecretByUserIDAndName(ctx, arg)
 }
 
 func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {

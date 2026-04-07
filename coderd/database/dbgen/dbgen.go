@@ -1597,6 +1597,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) datab
 		Name:        takeFirst(seed.Name, "secret-name"),
 		Description: takeFirst(seed.Description, "secret description"),
 		Value:       takeFirst(seed.Value, "secret value"),
+		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
 	})
