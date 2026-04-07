@@ -1279,9 +1279,11 @@ SELECT
     COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
 FROM chat_messages cm
 WHERE cm.created_at > @created_after
+  AND cm.deleted = false
 GROUP BY cm.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many
 -- Returns all model configurations for telemetry snapshot collection.
 SELECT id, provider, model, context_limit, enabled, is_default
-FROM chat_model_configs;
+FROM chat_model_configs
+WHERE deleted = false;

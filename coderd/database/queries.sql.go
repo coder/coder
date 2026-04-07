@@ -5204,6 +5204,7 @@ SELECT
     COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
 FROM chat_messages cm
 WHERE cm.created_at > $1
+  AND cm.deleted = false
 GROUP BY cm.chat_id
 `
 
@@ -5575,6 +5576,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
 SELECT id, provider, model, context_limit, enabled, is_default
 FROM chat_model_configs
+WHERE deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {

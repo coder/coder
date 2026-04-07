@@ -1600,6 +1600,21 @@ func TestChatsTelemetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Create a soft-deleted model config — should NOT appear in telemetry.
+	deletedCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "anthropic",
+		Model:                "claude-deleted",
+		DisplayName:          "Deleted Model",
+		Enabled:              true,
+		IsDefault:            false,
+		ContextLimit:         100000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+	err = db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	require.NoError(t, err)
+
 	// Create a root chat with a workspace.
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
@@ -1697,6 +1712,33 @@ func TestChatsTelemetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert a soft-deleted message on root chat with large token values.
+	// This acts as "poison" — if the deleted filter is missing, totals
+	// will be inflated and assertions below will fail.
+	poisonMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              rootChat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelCfg.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		Content:             []string{`[{"type":"text","text":"poison"}]`},
+		ContentVersion:      []int16{1},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{999999},
+		OutputTokens:        []int64{999999},
+		TotalTokens:         []int64{999999},
+		ReasoningTokens:     []int64{999999},
+		CacheCreationTokens: []int64{999999},
+		CacheReadTokens:     []int64{999999},
+		ContextLimit:        []int64{200000},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{999999},
+		RuntimeMs:           []int64{999999},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+	err = db.SoftDeleteChatMessageByID(ctx, poisonMsgs[0].ID)
+	require.NoError(t, err)
+
 	_, snapshot := collectSnapshot(ctx, t, db, nil)
 
 	// --- Assert Chats ---
@@ -1723,15 +1765,21 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NotNil(t, foundRoot.WorkspaceID)
 	assert.Equal(t, ws.ID, *foundRoot.WorkspaceID)
 	assert.Equal(t, modelCfg.ID, foundRoot.LastModelConfigID)
-	assert.Equal(t, "computer_use", foundRoot.Mode)
+	require.NotNil(t, foundRoot.Mode)
+	assert.Equal(t, "computer_use", *foundRoot.Mode)
+	assert.False(t, foundRoot.Archived)
 
 	// Child chat assertions.
 	assert.Equal(t, childChat.ID, foundChild.ID)
+	assert.Equal(t, user.ID, foundChild.OwnerID)
 	assert.True(t, foundChild.HasParent)
 	require.NotNil(t, foundChild.RootChatID)
 	assert.Equal(t, rootChat.ID, *foundChild.RootChatID)
 	assert.Nil(t, foundChild.WorkspaceID)
 	assert.Equal(t, "completed", foundChild.Status)
+	assert.Equal(t, modelCfg2.ID, foundChild.LastModelConfigID)
+	assert.Nil(t, foundChild.Mode)
+	assert.False(t, foundChild.Archived)
 
 	// --- Assert ChatMessageSummaries ---
 	require.Len(t, snapshot.ChatMessageSummaries, 2)
@@ -1768,8 +1816,12 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(1100), childSummary.TotalInputTokens)   // 500+600
 	assert.Equal(t, int64(200), childSummary.TotalOutputTokens)   // 0+200
 	assert.Equal(t, int64(50), childSummary.TotalReasoningTokens) // 0+50
-	assert.Equal(t, int64(13000), childSummary.TotalCostMicros)   // 5000+8000
-	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMs)     // 0+1200
+	assert.Equal(t, int64(0), childSummary.ToolMessageCount)
+	assert.Equal(t, int64(0), childSummary.SystemMessageCount)
+	assert.Equal(t, int64(100), childSummary.TotalCacheCreationTokens) // 100+0
+	assert.Equal(t, int64(75), childSummary.TotalCacheReadTokens)      // 0+75
+	assert.Equal(t, int64(13000), childSummary.TotalCostMicros)        // 5000+8000
+	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMs)          // 0+1200
 	assert.Equal(t, int64(1), childSummary.DistinctModelCount)
 	assert.Equal(t, int64(1), childSummary.CompressedMessageCount)
 

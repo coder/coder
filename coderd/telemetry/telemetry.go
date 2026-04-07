@@ -779,7 +779,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		chats, err := r.options.Database.GetChatsUpdatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get chats created after: %w", err)
+			return xerrors.Errorf("get chats updated after: %w", err)
 		}
 		snapshot.Chats = make([]Chat, 0, len(chats))
 		for _, chat := range chats {
@@ -2169,7 +2169,8 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 		c.WorkspaceID = &dbChat.WorkspaceID.UUID
 	}
 	if dbChat.Mode.Valid {
-		c.Mode = string(dbChat.Mode.ChatMode)
+		mode := string(dbChat.Mode.ChatMode)
+		c.Mode = &mode
 	}
 	return c
 }
@@ -2341,7 +2342,7 @@ type Chat struct {
 	HasParent         bool       `json:"has_parent"`
 	RootChatID        *uuid.UUID `json:"root_chat_id"`
 	WorkspaceID       *uuid.UUID `json:"workspace_id"`
-	Mode              string     `json:"mode"`
+	Mode              *string    `json:"mode"`
 	Archived          bool       `json:"archived"`
 	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
 }
