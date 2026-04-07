@@ -209,7 +209,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	var suggested version
 	var changelogBaseRef string
 
-	if onMain {
+	if onMain { //nolint:nestif // Sequential release flow with two distinct modes is inherently nested.
 		// On main, suggest the next RC. Find the latest RC tag
 		// across all tags, then suggest the next one. If no RC
 		// tags exist, suggest rc.0 for the next minor after the
