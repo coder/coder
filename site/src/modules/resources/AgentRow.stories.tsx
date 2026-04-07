@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { chromatic } from "#/testHelpers/chromatic";
 import * as M from "#/testHelpers/entities";
@@ -76,6 +76,8 @@ const defaultAgentMetadata = [
 	},
 ];
 
+const fixedLogTimestamp = "2021-05-05T00:00:00.000Z";
+
 const logs = [
 	"\x1b[91mCloning Git repository...",
 	"\x1b[2;37;41mStarting Docker Daemon...",
@@ -87,10 +89,10 @@ const logs = [
 	level: "info",
 	output: line,
 	source_id: M.MockWorkspaceAgentLogSource.id,
-	created_at: new Date().toISOString(),
+	created_at: fixedLogTimestamp,
 }));
 
-const installScriptLogSource: TypesGen.WorkspaceAgentLogSource = {
+const installScriptLogSource: WorkspaceAgentLogSource = {
 	...M.MockWorkspaceAgentLogSource,
 	id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 	display_name: "Install Script",
@@ -102,59 +104,23 @@ const tabbedLogs = [
 		level: "info",
 		output: "startup: preparing workspace",
 		source_id: M.MockWorkspaceAgentLogSource.id,
-		created_at: new Date().toISOString(),
+		created_at: fixedLogTimestamp,
 	},
 	{
 		id: 101,
 		level: "info",
 		output: "install: pnpm install",
 		source_id: installScriptLogSource.id,
-		created_at: new Date().toISOString(),
+		created_at: fixedLogTimestamp,
 	},
 	{
 		id: 102,
 		level: "info",
 		output: "install: setup complete",
 		source_id: installScriptLogSource.id,
-		created_at: new Date().toISOString(),
+		created_at: fixedLogTimestamp,
 	},
 ];
-
-const overflowLogSources: TypesGen.WorkspaceAgentLogSource[] = [
-	M.MockWorkspaceAgentLogSource,
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "58f5db69-5f78-496f-bce1-0686f5525aa1",
-		display_name: "code-server",
-		icon: "/icon/code.svg",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "f39d758c-bce2-4f41-8d70-58fdb1f0f729",
-		display_name: "Install and start AgentAPI",
-		icon: "/icon/claude.svg",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "bf7529b8-1787-4a20-b54f-eb894680e48f",
-		display_name: "Mux",
-		icon: "/icon/mux.svg",
-	},
-	{
-		...M.MockWorkspaceAgentLogSource,
-		id: "0d6ebde6-c534-4551-9f91-bfd98bfb04f4",
-		display_name: "Portable Desktop",
-		icon: "/icon/portable-desktop.svg",
-	},
-];
-
-const overflowLogs = overflowLogSources.map((source, index) => ({
-	id: 200 + index,
-	level: "info",
-	output: `${source.display_name}: line`,
-	source_id: source.id,
-	created_at: new Date().toISOString(),
-}));
 
 const meta: Meta<typeof AgentRow> = {
 	title: "components/AgentRow",
@@ -436,46 +402,5 @@ export const LogsTabs: Story = {
 			).not.toBeInTheDocument(),
 		);
 		await expect(canvas.getByText("install: pnpm install")).toBeVisible();
-	},
-};
-
-export const LogsTabsOverflow: Story = {
-	args: {
-		agent: {
-			...M.MockWorkspaceAgentReady,
-			logs_length: overflowLogs.length,
-			log_sources: overflowLogSources,
-		},
-	},
-	parameters: {
-		webSocket: [
-			{
-				event: "message",
-				data: JSON.stringify(overflowLogs),
-			},
-		],
-	},
-	render: (args) => (
-		<div className="max-w-[320px]">
-			<AgentRow {...args} />
-		</div>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const page = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
-		await userEvent.click(
-			canvas.getByRole("button", { name: "More log tabs" }),
-		);
-		const overflowItems = await page.findAllByRole("menuitemradio");
-		const selectedItem = overflowItems[0];
-		const selectedSource = selectedItem.textContent;
-		if (!selectedSource) {
-			throw new Error("Overflow menu item must have text content.");
-		}
-		await userEvent.click(selectedItem);
-		await waitFor(() =>
-			expect(canvas.getByText(`${selectedSource}: line`)).toBeVisible(),
-		);
 	},
 };

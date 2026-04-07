@@ -13,6 +13,20 @@ import {
 const now = "2026-02-18T12:00:00.000Z";
 const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 
+const googleUserOnlyProviderConfigID = "11111111-1111-1111-1111-111111111111";
+
+const createGoogleUserOnlyProviderConfig = (): TypesGen.ChatProviderConfig =>
+	createProviderConfig({
+		id: googleUserOnlyProviderConfigID,
+		provider: "google",
+		display_name: "Google",
+		has_api_key: false,
+		central_api_key_enabled: false,
+		allow_user_api_key: true,
+		allow_central_api_key_fallback: false,
+		source: "database",
+	});
+
 const createProviderConfig = (
 	overrides: Partial<TypesGen.ChatProviderConfig> &
 		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
@@ -700,32 +714,12 @@ export const ProviderWithCentralFallback: Story = {
 export const ProviderWithUserKeysOnly: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-google-user-only",
-				provider: "google",
-				display_name: "Google",
-				has_api_key: false,
-				central_api_key_enabled: false,
-				allow_user_api_key: true,
-				allow_central_api_key_fallback: false,
-			}),
-		],
+		providerConfigsData: [createGoogleUserOnlyProviderConfig()],
 		modelCatalogData: { providers: [] },
 	},
 	beforeEach: () => {
 		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-google-user-only",
-					provider: "google",
-					display_name: "Google",
-					has_api_key: false,
-					central_api_key_enabled: false,
-					allow_user_api_key: true,
-					allow_central_api_key_fallback: false,
-				}),
-			],
+			providerConfigs: [createGoogleUserOnlyProviderConfig()],
 			modelConfigs: [],
 			modelCatalog: { providers: [] },
 		});
@@ -764,7 +758,7 @@ export const ProviderWithUserKeysOnly: Story = {
 			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
 		});
 		expect(args.onUpdateProvider).toHaveBeenCalledWith(
-			"provider-google-user-only",
+			googleUserOnlyProviderConfigID,
 			expect.objectContaining({
 				api_key: "sk-google-central-key",
 				central_api_key_enabled: true,
