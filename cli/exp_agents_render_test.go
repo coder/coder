@@ -145,33 +145,57 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 			},
 			{
-				name: "MergesConsecutiveToolCallAndResult",
+				name: "MergesToolCallsWithLaterResultsByToolID",
 				messages: []codersdk.ChatMessage{
 					{
 						Role: codersdk.ChatMessageRoleAssistant,
-						Content: []codersdk.ChatMessagePart{{
-							Type:       codersdk.ChatMessagePartTypeToolCall,
-							ToolName:   "github__get_pull_request",
-							ToolCallID: "call-merge",
-							Args:       rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58036}`),
-						}},
+						Content: []codersdk.ChatMessagePart{
+							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "github__get_pull_request", ToolCallID: "call-1", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58036}`)},
+							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "github__get_pull_request", ToolCallID: "call-2", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58037}`)},
+							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "github__get_pull_request", ToolCallID: "call-3", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58038}`)},
+						},
 					},
 					{
 						Role: codersdk.ChatMessageRoleTool,
-						Content: []codersdk.ChatMessagePart{{
-							Type:       codersdk.ChatMessagePartTypeToolResult,
-							ToolName:   "github__get_pull_request",
-							ToolCallID: "call-merge",
-							Result:     rawJSON(`{"base":{"ref":"main"}}`),
-						}},
+						Content: []codersdk.ChatMessagePart{
+							{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: "github__get_pull_request", ToolCallID: "call-1", Result: rawJSON(`{"base":{"ref":"main"}}`)},
+							{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: "github__get_pull_request", ToolCallID: "call-2", Result: rawJSON(`{"base":{"ref":"main"}}`)},
+							{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: "github__get_pull_request", ToolCallID: "call-3", Result: rawJSON(`{"base":{"ref":"main"}}`)},
+						},
 					},
 				},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
+					require.Len(t, blocks, 3)
+					require.Equal(t, chatBlock{
+						kind:     blockToolResult,
+						role:     codersdk.ChatMessageRoleTool,
+						toolName: "github__get_pull_request",
+						toolID:   "call-1",
+						args:     `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`,
+						result:   `{"base":{"ref":"main"}}`,
+					}, blocks[0])
+					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58037}`, blocks[1].args)
+					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58038}`, blocks[2].args)
+				},
+			},
+			{
+				name: "KeepsStandaloneToolResultWithoutMatchingCall",
+				messages: []codersdk.ChatMessage{{
+					Role: codersdk.ChatMessageRoleTool,
+					Content: []codersdk.ChatMessagePart{{
+						Type:       codersdk.ChatMessagePartTypeToolResult,
+						ToolName:   "weather",
+						ToolCallID: "call-missing",
+						Result:     rawJSON(`{"temp":"68F"}`),
+					}},
+				}},
+				assert: func(t *testing.T, blocks []chatBlock) {
+					t.Helper()
 					require.Len(t, blocks, 1)
 					require.Equal(t, blockToolResult, blocks[0].kind)
-					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`, blocks[0].args)
-					require.Equal(t, `{"base":{"ref":"main"}}`, blocks[0].result)
+					require.Equal(t, "call-missing", blocks[0].toolID)
+					require.Equal(t, `{"temp":"68F"}`, blocks[0].result)
 				},
 			},
 			{
@@ -358,6 +382,20 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
+
+		t.Run("MergedErrorKeepsArgsSummary", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{
+				ToolName: "read_file",
+				Args:     rawJSON(`{"path":"secrets.txt"}`),
+				Result:   rawJSON(`{"error":"permission denied"}`),
+				IsError:  true,
+			}, 60))
+			require.Contains(t, output, "✗ read file")
+			require.Contains(t, output, "(secrets.txt)")
+			require.NotContains(t, output, "permission denied")
+		})
 
 		t.Run("SuccessShowsCheckPrefixAndArgsContext", func(t *testing.T) {
 			t.Parallel()

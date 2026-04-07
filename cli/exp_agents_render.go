@@ -266,10 +266,13 @@ func renderToolResult(styles tuiStyles, part codersdk.ChatMessagePart, width int
 
 	argsJSON := compactTranscriptJSON(part.Args)
 	resultJSON := compactTranscriptJSON(part.Result)
-	summary := toolResultSummary(part.ToolName, argsJSON, resultJSON)
-	if part.IsError {
-		if errorSummary := toolErrorSummary(resultJSON); errorSummary != "" {
-			summary = errorSummary
+	summary := toolArgsSummary(part.ToolName, argsJSON)
+	if summary == "" {
+		summary = toolResultSummary(part.ToolName, "", resultJSON)
+		if part.IsError {
+			if errorSummary := toolErrorSummary(resultJSON); errorSummary != "" {
+				summary = errorSummary
+			}
 		}
 	}
 	return renderToolLine(styles, labelStyle, icon, part.ToolName, summary, width)
@@ -528,24 +531,41 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 		return blocks
 	}
 
+	callByToolID := make(map[string]struct{}, len(blocks))
+	resultByToolID := make(map[string]chatBlock, len(blocks))
+	for i := range blocks {
+		block := blocks[i]
+		switch {
+		case block.kind == blockToolCall && block.toolID != "":
+			callByToolID[block.toolID] = struct{}{}
+		case block.kind == blockToolResult && block.toolID != "":
+			resultByToolID[block.toolID] = block
+		}
+	}
+
 	merged := make([]chatBlock, 0, len(blocks))
-	for i := 0; i < len(blocks); i++ {
-		current := blocks[i]
-		if current.kind == blockToolCall && i+1 < len(blocks) {
-			next := blocks[i+1]
-			if next.kind == blockToolResult && current.toolID != "" && current.toolID == next.toolID {
-				if next.toolName == "" {
-					next.toolName = current.toolName
+	for i := range blocks {
+		block := blocks[i]
+		switch {
+		case block.kind == blockToolCall && block.toolID != "":
+			if result, ok := resultByToolID[block.toolID]; ok {
+				toolName := block.toolName
+				if toolName == "" {
+					toolName = result.toolName
 				}
-				if next.args == "" {
-					next.args = current.args
-				}
-				merged = append(merged, next)
-				i++
+				result.kind = blockToolResult
+				result.toolName = toolName
+				result.toolID = block.toolID
+				result.args = block.args
+				merged = append(merged, result)
+				continue
+			}
+		case block.kind == blockToolResult && block.toolID != "":
+			if _, ok := callByToolID[block.toolID]; ok {
 				continue
 			}
 		}
-		merged = append(merged, current)
+		merged = append(merged, block)
 	}
 
 	return merged
