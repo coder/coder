@@ -232,17 +232,26 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			},
 		},
 		{
-			name: "EmptyBoundKeyKeepsInheritedFamilyKeys",
+			name: "EmptyBoundKeyKeepsInheritedFamilyKeyWhenCentralEnabled",
 			model: database.ChatModelConfig{
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), Valid: true},
 			},
 			enabledProviders: []database.ChatProvider{{
-				ID:       uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-				Provider: "openai",
-				APIKey:   "   ",
-				BaseUrl:  "   ",
+				ID:                   uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+				Provider:             "openai",
+				APIKey:               "   ",
+				BaseUrl:              "   ",
+				CentralApiKeyEnabled: true,
 			}},
-			want: baseKeys,
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "family-key",
+				Anthropic: "anthropic-key",
+				ByProvider: map[string]string{
+					"openai":    "family-key",
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{},
+			},
 		},
 		{
 			name: "BoundToNonOldestProviderInFamily",
@@ -299,7 +308,7 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			},
 		},
 		{
-			name: "CentralKeyDisabledKeepsInheritedKeyButUsesBoundBaseURL",
+			name: "CentralKeyDisabledUsesBoundKeyAndBaseURL",
 			model: database.ChatModelConfig{
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("abababab-abab-abab-abab-abababababab"), Valid: true},
 			},
@@ -312,10 +321,34 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 				AllowUserApiKey:      true,
 			}},
 			want: chatprovider.ProviderAPIKeys{
-				OpenAI:    "family-key",
+				OpenAI:    "stale-bound-key",
 				Anthropic: "anthropic-key",
 				ByProvider: map[string]string{
-					"openai":    "family-key",
+					"openai":    "stale-bound-key",
+					"anthropic": "anthropic-key",
+				},
+				BaseURLByProvider: map[string]string{
+					"openai": "https://bound.example.com",
+				},
+			},
+		},
+		{
+			name: "CentralKeyDisabledWithoutBoundKeyClearsInheritedKey",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd"), Valid: true},
+			},
+			enabledProviders: []database.ChatProvider{{
+				ID:                   uuid.MustParse("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd"),
+				Provider:             "openai",
+				APIKey:               "   ",
+				BaseUrl:              "https://bound.example.com",
+				CentralApiKeyEnabled: false,
+				AllowUserApiKey:      true,
+			}},
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "",
+				Anthropic: "anthropic-key",
+				ByProvider: map[string]string{
 					"anthropic": "anthropic-key",
 				},
 				BaseURLByProvider: map[string]string{

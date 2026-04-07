@@ -5034,25 +5034,38 @@ func (p *Server) resolveProviderAPIKeysForModel(
 		}
 		boundProvider := chatprovider.ConfiguredProvider{
 			Provider: providerConfig.Provider,
+			APIKey:   providerConfig.APIKey,
 			BaseURL:  providerConfig.BaseUrl,
-		}
-		if providerConfig.CentralApiKeyEnabled {
-			boundProvider.APIKey = providerConfig.APIKey
 		}
 		resolved := chatprovider.MergeProviderAPIKeys(
 			baseKeys,
 			[]chatprovider.ConfiguredProvider{boundProvider},
 		)
-		// If the bound config provides an API key but no base URL,
-		// drop any inherited family base URL so requests go to the
-		// provider's default endpoint.
-		if strings.TrimSpace(boundProvider.APIKey) != "" &&
-			strings.TrimSpace(providerConfig.BaseUrl) == "" &&
+		normalizedProvider := chatprovider.NormalizeProvider(providerConfig.Provider)
+		if normalizedProvider == "" {
+			return resolved
+		}
+		// Always honor the bound config's base URL. An empty bound
+		// base URL clears any inherited family base URL so requests
+		// use the provider's default endpoint.
+		if strings.TrimSpace(providerConfig.BaseUrl) == "" &&
 			resolved.BaseURLByProvider != nil {
-			delete(
-				resolved.BaseURLByProvider,
-				chatprovider.NormalizeProvider(providerConfig.Provider),
-			)
+			delete(resolved.BaseURLByProvider, normalizedProvider)
+		}
+		// A bound config with central keys disabled must not inherit
+		// a family-level fallback key. If the bound config stores its
+		// own key, the merge above already applied it.
+		if !providerConfig.CentralApiKeyEnabled &&
+			strings.TrimSpace(providerConfig.APIKey) == "" {
+			if resolved.ByProvider != nil {
+				delete(resolved.ByProvider, normalizedProvider)
+			}
+			switch normalizedProvider {
+			case "openai":
+				resolved.OpenAI = ""
+			case "anthropic":
+				resolved.Anthropic = ""
+			}
 		}
 		return resolved
 	}
