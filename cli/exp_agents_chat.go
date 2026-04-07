@@ -136,6 +136,7 @@ type chatViewModel struct {
 	composerFocused bool
 	selectedBlock   int
 	expandedBlocks  map[int]bool
+	autoFollow      bool
 	interrupting    bool
 
 	diffStatus   *codersdk.ChatDiffStatus
@@ -158,7 +159,7 @@ func newChatViewModel(
 	composer.Prompt = "> "
 	composer.Focus()
 
-	return chatViewModel{
+	model := chatViewModel{
 		ctx:             ctx,
 		client:          client,
 		workspaceID:     workspaceID,
@@ -167,9 +168,16 @@ func newChatViewModel(
 		loading:         true,
 		composerFocused: true,
 		expandedBlocks:  make(map[int]bool),
+		autoFollow:      true,
 		composer:        composer,
 		viewport:        viewport.New(0, 0),
 	}
+	model.setComposerWidth()
+	return model
+}
+
+func (m *chatViewModel) setComposerWidth() {
+	m.composer.Width = max(10, m.width-4)
 }
 
 func (m *chatViewModel) stopStream() {
@@ -198,6 +206,7 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 	if text == "" {
 		return m, nil
 	}
+	m.autoFollow = true
 	m.composer.SetValue("")
 	content := []codersdk.ChatInputPart{{
 		Type: codersdk.ChatInputPartTypeText,
@@ -337,6 +346,34 @@ func (m *chatViewModel) syncViewportContent() {
 		m.lastTranscript = transcript
 		m.viewport.SetContent(transcript)
 	}
+	if m.autoFollow {
+		m.viewport.GotoBottom()
+	}
+}
+
+func (m *chatViewModel) ensureSelectedBlockVisible() {
+	if len(m.blocks) == 0 || m.selectedBlock < 0 || m.selectedBlock >= len(m.blocks) {
+		return
+	}
+	m.syncViewportContent()
+
+	wrapWidth := m.width
+	if wrapWidth <= 0 {
+		wrapWidth = 80
+	}
+	renderer := m.getOrCreateMarkdownRenderer(wrapWidth)
+
+	topLine := 0
+	for i := 0; i < m.selectedBlock; i++ {
+		rendered := renderBlock(m.styles, m.blocks[i], m.expandedBlocks[i], wrapWidth, renderer)
+		topLine += strings.Count(rendered, "\n") + 1
+	}
+
+	if topLine < m.viewport.YOffset {
+		m.viewport.SetYOffset(topLine)
+	} else if topLine >= m.viewport.YOffset+m.viewport.Height {
+		m.viewport.SetYOffset(topLine - m.viewport.Height + 1)
+	}
 }
 
 func blockPayloadEqual(a, b chatBlock) bool {
@@ -426,6 +463,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		m.viewport.Width = m.width
 		m.viewport.Height = viewportHeight
+		(&m).setComposerWidth()
 		(&m).syncViewportContent()
 		return m, nil
 
@@ -472,20 +510,24 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		case "up", "k":
 			if m.selectedBlock > 0 {
 				m.selectedBlock--
+				m.autoFollow = false
 			}
-			(&m).syncViewportContent()
+			(&m).ensureSelectedBlockVisible()
 			return m, nil
 		case "down", "j":
 			if m.selectedBlock < len(m.blocks)-1 {
 				m.selectedBlock++
 			}
-			(&m).syncViewportContent()
+			if m.selectedBlock >= len(m.blocks)-1 {
+				m.autoFollow = true
+			}
+			(&m).ensureSelectedBlockVisible()
 			return m, nil
 		case "enter", " ":
 			if m.selectedBlock >= 0 && m.selectedBlock < len(m.blocks) {
 				m.expandedBlocks[m.selectedBlock] = !m.expandedBlocks[m.selectedBlock]
 			}
-			(&m).syncViewportContent()
+			(&m).ensureSelectedBlockVisible()
 			return m, nil
 		}
 
@@ -521,6 +563,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 				break
 			}
 		}
+		m.autoFollow = true
 		m.rebuildBlocks()
 		m.loading = false
 		if m.chat != nil && !m.streaming {
@@ -695,7 +738,7 @@ func (m chatViewModel) View() string {
 		m.width,
 	)
 
-	composerView := m.styles.composerStyle.Render(m.composer.View())
+	composerView := m.styles.composerStyle.Width(max(10, m.width-2)).Render(m.composer.View())
 
 	longHelpParts := []string{"tab: switch focus", "esc: back"}
 	shortHelpParts := []string{"tab focus", "esc back"}

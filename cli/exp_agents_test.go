@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -487,6 +489,20 @@ func TestExpAgents(t *testing.T) {
 		})
 	})
 
+	t.Run("ChatView/SendMessageEnablesAutoFollow", func(t *testing.T) {
+		t.Parallel()
+
+		model := newTestChatViewModel(nil)
+		model.draft = true
+		model.autoFollow = false
+		model.composer.SetValue("hello")
+
+		updated, cmd := model.sendMessage()
+		require.NotNil(t, cmd)
+		require.True(t, updated.autoFollow)
+		require.Empty(t, updated.composer.Value())
+	})
+
 	t.Run("ChatView/DraftPromotion", func(t *testing.T) {
 		t.Parallel()
 
@@ -656,6 +672,152 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, model.composerFocused, updated.composerFocused)
 			_, ok := mustMsg(t, cmd).(toggleDiffDrawerMsg)
 			require.True(t, ok)
+		})
+	})
+
+	t.Run("ChatView/ViewportAndComposer", func(t *testing.T) {
+		t.Parallel()
+
+		overflowingMessages := func(count int) []codersdk.ChatMessage {
+			messages := make([]codersdk.ChatMessage, 0, count)
+			for i := 0; i < count; i++ {
+				role := codersdk.ChatMessageRoleUser
+				if i%2 == 1 {
+					role = codersdk.ChatMessageRoleAssistant
+				}
+				messages = append(messages, testMessage(
+					int64(i+1),
+					role,
+					codersdk.ChatMessagePart{
+						Type: codersdk.ChatMessagePartTypeText,
+						Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
+					},
+				))
+			}
+			return messages
+		}
+
+		t.Run("AutoFollowDefaultsToTrue", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			require.True(t, model.autoFollow)
+		})
+
+		t.Run("ViewportNavigationScrolls", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.autoFollow = false
+			model.messages = overflowingMessages(8)
+			model.rebuildBlocks()
+
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model.viewport.SetYOffset(0)
+
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.False(t, model.composerFocused)
+
+			for i := 0; i < len(model.blocks)-1; i++ {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+
+			require.Greater(t, model.viewport.YOffset, 0)
+
+			for i := 0; i < len(model.blocks)-1; i++ {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			}
+
+			require.Equal(t, 0, model.selectedBlock)
+			require.Equal(t, 0, model.viewport.YOffset)
+		})
+
+		t.Run("HistoryLoadsAtBottom", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
+
+			require.True(t, model.autoFollow)
+			require.True(t, model.viewport.AtBottom())
+		})
+
+		t.Run("StreamingAutoFollows", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
+
+			yBefore := model.viewport.YOffset
+			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent(strings.Repeat("hello world ", 20))})
+			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent(strings.Repeat("more text ", 20))})
+
+			require.True(t, model.autoFollow)
+			require.True(t, model.viewport.AtBottom())
+			require.GreaterOrEqual(t, model.viewport.YOffset, yBefore)
+		})
+
+		t.Run("ManualBrowsePausesFollow", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+			for model.selectedBlock < len(model.blocks)-1 {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+
+			require.False(t, model.autoFollow)
+
+			yBefore := model.viewport.YOffset
+			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent(strings.Repeat("new content ", 20))})
+
+			require.False(t, model.autoFollow)
+			require.Equal(t, yBefore, model.viewport.YOffset)
+		})
+
+		t.Run("ResumeFollowAtBottom", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+			for model.selectedBlock < len(model.blocks)-1 {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.False(t, model.autoFollow)
+
+			for model.selectedBlock < len(model.blocks)-1 {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+
+			require.True(t, model.autoFollow)
+			require.True(t, model.viewport.AtBottom())
+		})
+
+		t.Run("ComposerWidthConstrained", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.loading = false
+			model.draft = true
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+			require.Equal(t, max(10, 80-4), model.composer.Width)
+
+			model.composer.SetValue(strings.Repeat("x", 200))
+			view := model.View()
+			for _, line := range strings.Split(view, "\n") {
+				require.LessOrEqual(t, lipgloss.Width(line), model.width, "line too wide: %q", line)
+			}
 		})
 	})
 
