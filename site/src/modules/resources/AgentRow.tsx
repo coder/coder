@@ -6,7 +6,14 @@ import {
 	PlayIcon,
 	SquareCheckBigIcon,
 } from "lucide-react";
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
@@ -233,7 +240,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		.filter((tab) => tab !== startupScriptLogTab)
 		.sort((a, b) => a.title.localeCompare(b.title));
 	const logTabs: {
-		startIcon?: React.ReactNode;
+		startIcon?: ReactNode;
 		title: string;
 		value: string;
 	}[] = [
