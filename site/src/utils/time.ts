@@ -176,6 +176,30 @@ export function daysAgo(count: number) {
 	return dayjs().subtract(count, "day").toISOString();
 }
 
+/**
+ * Formats a duration in milliseconds into a compact label like
+ * "0s", "30s", "5m", or "2h". Useful for tight UI spaces like
+ * tool-call duration badges. Unlike {@link shortRelativeTime},
+ * this operates on a raw duration rather than a point in time,
+ * preserves sub-minute precision, and is a pure function of its
+ * input.
+ */
+export function shortDurationMs(durationMs: number | undefined): string {
+	if (durationMs === undefined || durationMs < 0) {
+		return "";
+	}
+	const seconds = Math.round(durationMs / 1000);
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = Math.round(minutes / 60);
+	return `${hours}h`;
+}
+
 // Date comparison functions
 export function isAfter(date1: DateTimeInput, date2: DateTimeInput) {
 	return dayjs(date1).isAfter(dayjs(date2));

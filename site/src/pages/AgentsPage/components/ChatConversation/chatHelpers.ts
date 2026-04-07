@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { resolveModelOptionId } from "../../utils/modelOptions";
 import type { AgentContextUsage } from "../AgentChatInput";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
@@ -82,18 +83,17 @@ export const resolveModelFromChatConfig = (
 	const model = asString(typedModelConfig.model);
 	const provider = asString(typedModelConfig.provider);
 
-	const candidates = [model];
-	if (provider && model) {
-		candidates.push(`${provider}:${model}`);
-	}
-
+	// Try direct ID match and legacy "provider:model" match via the
+	// shared resolver.
+	const candidates = [model, provider && model ? `${provider}:${model}` : ""];
 	for (const candidate of candidates) {
-		const match = modelOptions.find((option) => option.id === candidate);
-		if (match) {
-			return match.id;
+		const resolved = resolveModelOptionId(candidate, modelOptions);
+		if (resolved) {
+			return resolved;
 		}
 	}
 
+	// Fall back to matching by model name + optional provider.
 	if (model) {
 		const modelMatch = modelOptions.find(
 			(option) =>

@@ -4,6 +4,8 @@ import * as Diff from "diff";
 import type React from "react";
 import { asRecord, asString } from "../runtimeTypeUtils";
 
+export { shortDurationMs } from "#/utils/time";
+
 export type ToolStatus = "completed" | "error" | "running";
 
 export interface EditFilesFileEntry {
@@ -26,26 +28,6 @@ export const toProviderLabel = (
 		return providerType;
 	}
 	return "Git provider";
-};
-
-/**
- * Formats a duration in milliseconds into a compact label using
- * the same style as {@link shortRelativeTime} in utils/time.
- */
-export const shortDurationMs = (durationMs: number | undefined): string => {
-	if (durationMs === undefined || durationMs < 0) {
-		return "";
-	}
-	const seconds = Math.round(durationMs / 1000);
-	if (seconds < 60) {
-		return `${seconds}s`;
-	}
-	const minutes = Math.round(seconds / 60);
-	if (minutes < 60) {
-		return `${minutes}m`;
-	}
-	const hours = Math.round(minutes / 60);
-	return `${hours}h`;
 };
 
 export const normalizeStatus = (status: string): string =>

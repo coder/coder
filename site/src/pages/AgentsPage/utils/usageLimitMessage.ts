@@ -1,4 +1,5 @@
 import { formatCostMicros } from "#/utils/currency";
+import { formatDate } from "#/utils/time";
 
 /**
  * Shape of structured usage-limit fields added to 409 responses
@@ -69,12 +70,14 @@ function formatResetDate(isoString: string): string {
 	if (Number.isNaN(date.getTime())) {
 		return "";
 	}
-	return date.toLocaleDateString("en-US", {
+	return formatDate(date, {
+		locale: "en-US",
 		month: "short",
 		day: "numeric",
 		year: "numeric",
 		hour: "numeric",
 		minute: "2-digit",
+		second: undefined,
 	});
 }
 

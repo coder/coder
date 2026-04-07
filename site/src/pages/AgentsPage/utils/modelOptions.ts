@@ -4,6 +4,7 @@ import {
 	asNumber,
 	asString,
 } from "../components/ChatElements/runtimeTypeUtils";
+import { normalizeProvider } from "../components/ChatModelAdminPanel/helpers";
 
 type RuntimeModelRef = {
 	readonly provider?: unknown;
@@ -44,7 +45,7 @@ export const getNormalizedModelRef = (
 ): { readonly provider: string; readonly model: string } => {
 	const modelRef = value ?? {};
 	return {
-		provider: asString(modelRef.provider).trim().toLowerCase(),
+		provider: normalizeProvider(asString(modelRef.provider)),
 		model: asString(modelRef.model).trim(),
 	};
 };

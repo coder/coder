@@ -1,11 +1,19 @@
 import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
+import { normalizeProvider } from "../ChatModelAdminPanel/helpers";
 
 const PROVIDER_STATUS_URLS: Record<string, string> = {
 	anthropic: "https://status.anthropic.com",
 };
 
-const normalizeProvider = (provider?: string): string | undefined => {
-	const normalized = provider?.trim().toLowerCase();
+/**
+ * Resolves aliases for provider names used in status lookups.
+ * Falls back to the base normalization for unknown providers.
+ */
+const resolveProviderAlias = (provider?: string): string | undefined => {
+	if (!provider) {
+		return undefined;
+	}
+	const normalized = normalizeProvider(provider);
 	if (!normalized) {
 		return undefined;
 	}
@@ -52,6 +60,6 @@ export const getProviderStatusURL = (
 	if (kind !== "overloaded") {
 		return undefined;
 	}
-	const normalized = normalizeProvider(provider);
-	return normalized ? PROVIDER_STATUS_URLS[normalized] : undefined;
+	const resolved = resolveProviderAlias(provider);
+	return resolved ? PROVIDER_STATUS_URLS[resolved] : undefined;
 };
