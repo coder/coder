@@ -23,6 +23,8 @@ import type { ProviderState } from "./ChatModelAdminPanel";
 import { ProviderForm } from "./ProviderForm";
 import { ProviderIcon } from "./ProviderIcon";
 
+const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
+
 type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 
 interface ProvidersSectionProps {
@@ -97,25 +99,32 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		if (!detailProvider) return undefined;
 		if (newConfigParam) return undefined;
 		const configs = detailProvider.providerConfigs;
+		const firstDatabaseConfig = configs.find(
+			(config) => config.id !== nilProviderConfigID,
+		);
 		if (configIdParam) {
 			return (
-				configs.find((config) => config.id === configIdParam) ?? configs[0]
+				configs.find((config) => config.id === configIdParam) ??
+				firstDatabaseConfig ??
+				configs[0]
 			);
 		}
-		return configs[0];
+		return firstDatabaseConfig ?? configs[0];
 	})();
+	const providerFormConfig =
+		selectedConfig?.id === nilProviderConfigID ? undefined : selectedConfig;
 
 	if (view.mode === "detail" && detailProvider) {
 		const providerFormKey = [
 			detailProvider.provider,
-			selectedConfig?.id ?? "new",
-			selectedConfig?.display_name ?? "",
-			selectedConfig?.base_url ?? detailProvider.baseURL,
-			selectedConfig?.central_api_key_enabled ?? true,
-			selectedConfig?.allow_user_api_key ?? false,
-			selectedConfig?.allow_central_api_key_fallback ?? false,
-			selectedConfig?.has_api_key ?? detailProvider.hasManagedAPIKey,
-			selectedConfig?.updated_at ?? "",
+			providerFormConfig?.id ?? "new",
+			providerFormConfig?.display_name ?? "",
+			providerFormConfig?.base_url ?? detailProvider.baseURL,
+			providerFormConfig?.central_api_key_enabled ?? true,
+			providerFormConfig?.allow_user_api_key ?? false,
+			providerFormConfig?.allow_central_api_key_fallback ?? false,
+			providerFormConfig?.has_api_key ?? detailProvider.hasManagedAPIKey,
+			providerFormConfig?.updated_at ?? "",
 		].join("|");
 
 		return (
@@ -175,7 +184,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				<ProviderForm
 					key={providerFormKey}
 					providerState={detailProvider}
-					providerConfig={selectedConfig}
+					{...(providerFormConfig
+						? { providerConfig: providerFormConfig }
+						: {})}
 					providerConfigsUnavailable={providerConfigsUnavailable}
 					isProviderMutationPending={isProviderMutationPending}
 					onCreateProvider={onCreateProvider}
