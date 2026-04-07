@@ -82,8 +82,8 @@ func (*RootCmd) chatContextAddCommand() *serpent.Command {
 				return nil
 			}
 
-			// Resolve chat ID from flag, env var, or auto-detect.
-			resolvedChatID, err := resolveChatID(inv, chatID)
+			// Resolve chat ID from flag or auto-detect.
+			resolvedChatID, err := resolveChatID(chatID)
 			if err != nil {
 				return err
 			}
@@ -137,7 +137,7 @@ func (*RootCmd) chatContextClearCommand() *serpent.Command {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
 
-			resolvedChatID, err := resolveChatID(inv, chatID)
+			resolvedChatID, err := resolveChatID(chatID)
 			if err != nil {
 				return err
 			}
@@ -168,20 +168,16 @@ func (*RootCmd) chatContextClearCommand() *serpent.Command {
 	return cmd
 }
 
-// resolveChatID returns the chat UUID from either the explicit flag
-// value or the CODER_CHAT_ID environment variable. Returns uuid.Nil
-// if neither is set (the server will auto-detect).
-func resolveChatID(inv *serpent.Invocation, flagValue string) (uuid.UUID, error) {
-	raw := flagValue
-	if raw == "" {
-		raw = inv.Environ.Get("CODER_CHAT_ID")
-	}
-	if raw == "" {
+// resolveChatID returns the chat UUID from the flag value (which
+// serpent already populates from --chat or CODER_CHAT_ID). Returns
+// uuid.Nil if empty (the server will auto-detect).
+func resolveChatID(flagValue string) (uuid.UUID, error) {
+	if flagValue == "" {
 		return uuid.Nil, nil
 	}
-	parsed, err := uuid.Parse(raw)
+	parsed, err := uuid.Parse(flagValue)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("invalid chat ID %q: %w", raw, err)
+		return uuid.Nil, xerrors.Errorf("invalid chat ID %q: %w", flagValue, err)
 	}
 	return parsed, nil
 }

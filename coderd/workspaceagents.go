@@ -2403,6 +2403,10 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 // @Success 200 {object} agentsdk.AddChatContextResponse
 // @Router /workspaceagents/me/chat-context [post]
 // @x-apidocgen {"skip": true}
+// maxChatContextParts caps the number of parts per request to
+// prevent unbounded message payloads.
+const maxChatContextParts = 100
+
 func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -2419,35 +2423,60 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	chatID := req.ChatID
-	if chatID == uuid.Nil {
-		// Auto-resolve: find active chats for this agent.
-		chats, err := api.Database.GetActiveChatsByAgentID(ctx, workspaceAgent.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to list active chats.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		switch len(chats) {
-		case 0:
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: "No active chats found for this agent.",
-			})
-			return
-		case 1:
-			chatID = chats[0].ID
-		default:
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf("Multiple active chats (%d) found for this agent. Specify a chat ID.", len(chats)),
-			})
-			return
-		}
+	if len(req.Parts) > maxChatContextParts {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Too many context parts (%d). Maximum is %d.", len(req.Parts), maxChatContextParts),
+		})
+		return
 	}
 
-	// Stamp each part with the agent identity.
+	// Filter to only context-file and skill parts.
+	var filtered []codersdk.ChatMessagePart
+	for _, p := range req.Parts {
+		if p.Type == codersdk.ChatMessagePartTypeContextFile || p.Type == codersdk.ChatMessagePartTypeSkill {
+			filtered = append(filtered, p)
+		}
+	}
+	if len(filtered) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No context-file or skill parts provided.",
+		})
+		return
+	}
+	req.Parts = filtered
+
+	// Use system context for chat operations since the
+	// workspace agent scope does not include chat resources.
+	// We verify agent-to-chat ownership explicitly below.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chatID, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+
+	// Look up the chat and verify it belongs to this agent.
+	chat, err := api.Database.GetChatByID(sysCtx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Chat not found.",
+		})
+		return
+	}
+	if !chat.AgentID.Valid || chat.AgentID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Chat does not belong to this agent.",
+		})
+		return
+	}
+
+	// Stamp each context-file part with the agent identity.
 	for i := range req.Parts {
+		if req.Parts[i].Type != codersdk.ChatMessagePartTypeContextFile {
+			continue
+		}
 		req.Parts[i].ContextFileAgentID = uuid.NullUUID{
 			UUID:  workspaceAgent.ID,
 			Valid: true,
@@ -2464,22 +2493,11 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to marshal context parts.",
-			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Look up the chat to get the owner for created_by and model config.
-	chat, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Chat not found.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	_, err = api.Database.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	_, err = api.Database.InsertChatMessages(sysCtx, database.InsertChatMessagesParams{
 		ChatID:              chatID,
 		CreatedBy:           []uuid.UUID{uuid.Nil},
 		ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
@@ -2502,7 +2520,6 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to insert context message.",
-			Detail:  err.Error(),
 		})
 		return
 	}
@@ -2532,43 +2549,101 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	chatID := req.ChatID
-	if chatID == uuid.Nil {
-		chats, err := api.Database.GetActiveChatsByAgentID(ctx, workspaceAgent.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to list active chats.",
-				Detail:  err.Error(),
-			})
+	// Use system context for chat operations since the
+	// workspace agent scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chatID, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	if err != nil {
+		// Zero active chats is not an error for clear.
+		if errors.Is(err, errNoActiveChats) {
+			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{})
 			return
 		}
-		switch len(chats) {
-		case 0:
-			// No active chats — nothing to clear.
-			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
-				Count: 0,
-			})
-			return
-		case 1:
-			chatID = chats[0].ID
-		default:
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf("Multiple active chats (%d) found for this agent. Specify a chat ID.", len(chats)),
-			})
-			return
-		}
+		writeAgentChatError(ctx, rw, err)
+		return
 	}
 
-	err := api.Database.SoftDeleteContextFileMessages(ctx, chatID)
+	// Verify the chat belongs to this agent.
+	chat, err := api.Database.GetChatByID(sysCtx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Chat not found.",
+		})
+		return
+	}
+	if !chat.AgentID.Valid || chat.AgentID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Chat does not belong to this agent.",
+		})
+		return
+	}
+
+	err = api.Database.SoftDeleteContextFileMessages(sysCtx, chatID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to clear context messages.",
-			Detail:  err.Error(),
 		})
 		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
 		ChatID: chatID,
+	})
+}
+
+var errNoActiveChats = xerrors.New("no active chats found")
+
+// resolveAgentChat finds the target chat ID from either an
+// explicit ID or auto-detection via the agent's active chats.
+func resolveAgentChat(
+	ctx context.Context,
+	db database.Store,
+	agentID uuid.UUID,
+	explicitChatID uuid.UUID,
+) (uuid.UUID, error) {
+	if explicitChatID != uuid.Nil {
+		return explicitChatID, nil
+	}
+	chats, err := db.GetActiveChatsByAgentID(ctx, agentID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list active chats: %w", err)
+	}
+	switch len(chats) {
+	case 0:
+		return uuid.Nil, errNoActiveChats
+	case 1:
+		return chats[0].ID, nil
+	default:
+		return uuid.Nil, xerrors.Errorf(
+			"multiple active chats (%d) found for this agent, specify a chat ID",
+			len(chats),
+		)
+	}
+}
+
+// writeAgentChatError translates resolveAgentChat errors to HTTP
+// responses.
+func writeAgentChatError(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	err error,
+) {
+	if errors.Is(err, errNoActiveChats) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "No active chats found for this agent.",
+		})
+		return
+	}
+	// "multiple active chats" → 409.
+	if strings.Contains(err.Error(), "multiple active chats") {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to resolve chat.",
 	})
 }

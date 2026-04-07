@@ -918,7 +918,6 @@ type ClearChatContextRequest struct {
 // ClearChatContextResponse is the response for clearing chat context.
 type ClearChatContextResponse struct {
 	ChatID uuid.UUID `json:"chat_id"`
-	Count  int       `json:"count"`
 }
 
 // AddChatContext adds context-file parts to an active chat.
