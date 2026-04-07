@@ -32,6 +32,7 @@ var (
 	//go:embed templates/docker
 	//go:embed templates/docker-devcontainer
 	//go:embed templates/docker-envbuilder
+	//go:embed templates/docker-repo-context-discovery
 	//go:embed templates/gcp-devcontainer
 	//go:embed templates/gcp-linux
 	//go:embed templates/gcp-vm-container
