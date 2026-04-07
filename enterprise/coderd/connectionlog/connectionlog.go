@@ -468,9 +468,10 @@ func (b *DBBatcher) retryLoop() {
 func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) {
 	count := len(params.ID)
 	for attempt := range maxRetries {
-		t := time.NewTimer(retryInterval)
+		t := b.clock.NewTimer(retryInterval, "connectionLogBatcher", "retryBackoff")
 		select {
 		case <-b.ctx.Done():
+			t.Stop()
 			b.shutdownBatch(params)
 			return
 		case <-t.C:
