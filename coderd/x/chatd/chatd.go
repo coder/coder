@@ -5250,7 +5250,7 @@ func (p *Server) resolveUserProviderAPIKeys(
 	}
 	return resolveUserProviderAPIKeysForProviders(
 		p.providerAPIKeys,
-		providers,
+		database.ChatProvidersByFamilyPrecedence(providers),
 		userKeys,
 	), nil
 }
