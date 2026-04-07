@@ -129,8 +129,10 @@ func requireChatUsageLimitExceededError(
 	limitErr := codersdk.ChatUsageLimitExceededFrom(err)
 	require.NotNil(t, limitErr)
 	require.Equal(t, "Chat usage limit exceeded.", limitErr.Message)
+	require.Equal(t, "account_period", limitErr.Scope)
 	require.Equal(t, wantSpentMicros, limitErr.SpentMicros)
 	require.Equal(t, wantLimitMicros, limitErr.LimitMicros)
+	require.NotNil(t, limitErr.ResetsAt)
 	require.True(
 		t,
 		limitErr.ResetsAt.Equal(wantResetsAt),
@@ -257,6 +259,84 @@ func TestPostChats(t *testing.T) {
 			}
 		}
 		require.True(t, foundUserMessage)
+	})
+
+	t.Run("WithSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "chat with spend limit",
+			}},
+			SpendLimitMicros: ptr.Ref(int64(500000)),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, chat.SpendLimitMicros)
+		require.EqualValues(t, 500000, *chat.SpendLimitMicros)
+	})
+
+	t.Run("OmittedSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "chat without spend limit",
+			}},
+		})
+		require.NoError(t, err)
+		require.Nil(t, chat.SpendLimitMicros)
+	})
+
+	t.Run("ZeroSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "invalid zero spend limit",
+			}},
+			SpendLimitMicros: ptr.Ref(int64(0)),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid spend limit.", sdkErr.Message)
+		require.Equal(t, "spend_limit_micros must be greater than zero.", sdkErr.Detail)
+	})
+
+	t.Run("NegativeSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "invalid negative spend limit",
+			}},
+			SpendLimitMicros: ptr.Ref(int64(-100)),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid spend limit.", sdkErr.Message)
+		require.Equal(t, "spend_limit_micros must be greater than zero.", sdkErr.Detail)
 	})
 
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
@@ -5394,8 +5474,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
 		require.NotNil(t, limitErr)
 		require.Equal(t, "Chat usage limit exceeded.", limitErr.Message)
+		require.Equal(t, "account_period", limitErr.Scope)
 		require.Equal(t, int64(100), limitErr.SpentMicros)
 		require.Equal(t, int64(100), limitErr.LimitMicros)
+		require.NotNil(t, limitErr.ResetsAt)
 		require.True(
 			t,
 			limitErr.ResetsAt.Equal(wantResetsAt),

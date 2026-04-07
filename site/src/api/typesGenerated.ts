@@ -1201,6 +1201,7 @@ export interface Chat {
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
 	readonly files?: readonly ChatFileMetadata[];
+	readonly spend_limit_micros?: number;
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
@@ -2147,9 +2148,10 @@ export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
  * parsing debug text.
  */
 export interface ChatUsageLimitExceededResponse extends Response {
+	readonly scope: string;
 	readonly spent_micros: number;
 	readonly limit_micros: number;
-	readonly resets_at: string;
+	readonly resets_at?: string;
 }
 
 // From codersdk/chats.go
@@ -2414,6 +2416,7 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	readonly spend_limit_micros?: number;
 }
 
 // From codersdk/users.go

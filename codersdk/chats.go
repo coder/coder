@@ -71,6 +71,7 @@ type Chat struct {
 	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string  `json:"labels"`
 	Files             []ChatFileMetadata `json:"files,omitempty"`
+	SpendLimitMicros  *int64             `json:"spend_limit_micros,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
@@ -363,12 +364,13 @@ type ChatInputPart struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content       []ChatInputPart   `json:"content"`
-	SystemPrompt  string            `json:"system_prompt,omitempty"`
-	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels        map[string]string `json:"labels,omitempty"`
+	Content          []ChatInputPart   `json:"content"`
+	SystemPrompt     string            `json:"system_prompt,omitempty"`
+	WorkspaceID      *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID    *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs     []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels           map[string]string `json:"labels,omitempty"`
+	SpendLimitMicros *int64            `json:"spend_limit_micros,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -1083,9 +1085,10 @@ type ChatCostUsersResponse struct {
 // parsing debug text.
 type ChatUsageLimitExceededResponse struct {
 	Response
-	SpentMicros int64     `json:"spent_micros"`
-	LimitMicros int64     `json:"limit_micros"`
-	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+	Scope       string     `json:"scope"`
+	SpentMicros int64      `json:"spent_micros"`
+	LimitMicros int64      `json:"limit_micros"`
+	ResetsAt    *time.Time `json:"resets_at,omitempty" format:"date-time"`
 }
 
 type chatUsageLimitExceededError struct {
@@ -1131,7 +1134,7 @@ func readBodyAsChatUsageLimitError(res *http.Response) error {
 }
 
 func isChatUsageLimitExceededResponse(resp ChatUsageLimitExceededResponse) bool {
-	return resp.Message != "" && !resp.ResetsAt.IsZero()
+	return resp.Message != "" && resp.Scope != ""
 }
 
 func readRawBodyAsError(res *http.Response, rawBody []byte) error {

@@ -737,9 +737,10 @@ var (
 // UsageLimitExceededError indicates the user has exceeded their chat spend
 // limit.
 type UsageLimitExceededError struct {
+	Scope          string
 	LimitMicros    int64
 	ConsumedMicros int64
-	PeriodEnd      time.Time
+	PeriodEnd      *time.Time
 }
 
 func formatMicrosAsDollars(micros int64) string {
@@ -747,12 +748,15 @@ func formatMicrosAsDollars(micros int64) string {
 }
 
 func (e *UsageLimitExceededError) Error() string {
-	return fmt.Sprintf(
-		"usage limit exceeded: spent %s of %s limit, resets at %s",
+	msg := fmt.Sprintf(
+		"usage limit exceeded: spent %s of %s limit",
 		formatMicrosAsDollars(e.ConsumedMicros),
 		formatMicrosAsDollars(e.LimitMicros),
-		e.PeriodEnd.Format(time.RFC3339),
 	)
+	if e.PeriodEnd != nil {
+		msg += fmt.Sprintf(", resets at %s", e.PeriodEnd.Format(time.RFC3339))
+	}
+	return msg
 }
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -770,6 +774,7 @@ type CreateOptions struct {
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
+	SpendLimitMicros   *int64
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -830,6 +835,13 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
+func int64PtrToNullInt64(p *int64) sql.NullInt64 {
+	if p == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *p, Valid: true}
+}
+
 // CreateChat creates a chat, inserts optional system prompt and initial user
 // message, and moves the chat into pending status.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
@@ -880,7 +892,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
-			}, SpendLimitMicros: sql.NullInt64{},
+			},
+			SpendLimitMicros: int64PtrToNullInt64(opts.SpendLimitMicros),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -1018,6 +1031,11 @@ func (p *Server) SendMessage(
 		}
 
 		// Enforce usage limits before queueing or inserting.
+		if lockedChat.SpendLimitMicros.Valid {
+			if limitErr := p.checkChatSpendLimit(ctx, tx, lockedChat.ID, lockedChat.SpendLimitMicros.Int64); limitErr != nil {
+				return limitErr
+			}
+		}
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr
 		}
@@ -1140,6 +1158,26 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
+func (p *Server) checkChatSpendLimit(ctx context.Context, store database.Store, chatID uuid.UUID, limitMicros int64) error {
+	spent, err := store.GetChatSpendTotal(ctx, chatID)
+	if err != nil {
+		p.logger.Warn(ctx, "chat spend lookup failed, allowing message",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	if spent >= limitMicros {
+		return &UsageLimitExceededError{
+			Scope:          "chat_lifetime",
+			LimitMicros:    limitMicros,
+			ConsumedMicros: spent,
+			PeriodEnd:      nil,
+		}
+	}
+	return nil
+}
+
 func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID) error {
 	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, time.Now())
 	if err != nil {
@@ -1156,10 +1194,12 @@ func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, owne
 	// Block when current spend reaches or exceeds limit (>= ensures
 	// the user cannot start new conversations once the limit is hit).
 	if status.SpendLimitMicros != nil && status.CurrentSpend >= *status.SpendLimitMicros {
+		periodEnd := status.PeriodEnd
 		return &UsageLimitExceededError{
+			Scope:          "account_period",
 			LimitMicros:    *status.SpendLimitMicros,
 			ConsumedMicros: status.CurrentSpend,
-			PeriodEnd:      status.PeriodEnd,
+			PeriodEnd:      &periodEnd,
 		}
 	}
 	return nil
@@ -1194,6 +1234,11 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
+		if lockedChat.SpendLimitMicros.Valid {
+			if limitErr := p.checkChatSpendLimit(ctx, tx, lockedChat.ID, lockedChat.SpendLimitMicros.Int64); limitErr != nil {
+				return limitErr
+			}
+		}
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr
 		}
@@ -1452,6 +1497,14 @@ func (p *Server) PromoteQueued(
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
+		}
+		if lockedChat.SpendLimitMicros.Valid {
+			if limitErr := p.checkChatSpendLimit(ctx, tx, lockedChat.ID, lockedChat.SpendLimitMicros.Int64); limitErr != nil {
+				return limitErr
+			}
+		}
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+			return limitErr
 		}
 		modelConfigID := lockedChat.LastModelConfigID
 		if opts.ModelConfigID != nil {

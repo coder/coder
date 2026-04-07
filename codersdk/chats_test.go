@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -68,11 +69,13 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	t.Run("ExtractsTyped409", func(t *testing.T) {
 		t.Parallel()
 
+		resetsAt := time.Date(2026, time.March, 16, 12, 0, 0, 0, time.UTC)
 		want := codersdk.ChatUsageLimitExceededResponse{
 			Response:    codersdk.Response{Message: "Chat usage limit exceeded."},
+			Scope:       "account_period",
 			SpentMicros: 123,
 			LimitMicros: 456,
-			ResetsAt:    time.Date(2026, time.March, 16, 12, 0, 0, 0, time.UTC),
+			ResetsAt:    &resetsAt,
 		}
 
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -104,6 +107,46 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
 		require.NotNil(t, limitErr)
 		require.Equal(t, want, *limitErr)
+		require.Equal(t, "account_period", limitErr.Scope)
+		require.NotNil(t, limitErr.ResetsAt)
+	})
+
+	t.Run("ExtractsChatLifetimeLimit", func(t *testing.T) {
+		t.Parallel()
+
+		want := codersdk.ChatUsageLimitExceededResponse{
+			Response:    codersdk.Response{Message: "Chat usage limit exceeded."},
+			Scope:       "chat_lifetime",
+			SpentMicros: 789,
+			LimitMicros: 789,
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/api/experimental/chats", r.URL.Path)
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusConflict)
+			require.NoError(t, json.NewEncoder(rw).Encode(want))
+		}))
+		defer srv.Close()
+
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+		})
+		require.Error(t, err)
+
+		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
+		require.NotNil(t, limitErr)
+		require.Equal(t, want, *limitErr)
+		require.Equal(t, "chat_lifetime", limitErr.Scope)
+		require.Nil(t, limitErr.ResetsAt)
 	})
 
 	t.Run("ReturnsNilForNonLimitErrors", func(t *testing.T) {
@@ -436,6 +479,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		Archived:          true,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            map[string]string{"env": "prod"},
+		SpendLimitMicros:  ptr.Ref(int64(500000)),
 		DiffStatus: &codersdk.ChatDiffStatus{
 			ChatID:           uuid.New(),
 			URL:              &prURL,

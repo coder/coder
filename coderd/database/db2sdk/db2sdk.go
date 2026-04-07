@@ -1580,6 +1580,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.AgentID.Valid {
 		chat.AgentID = &c.AgentID.UUID
 	}
+	if c.SpendLimitMicros.Valid {
+		v := c.SpendLimitMicros.Int64
+		chat.SpendLimitMicros = &v
+	}
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus

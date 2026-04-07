@@ -96,6 +96,7 @@ func writeChatUsageLimitExceeded(
 		Response: codersdk.Response{
 			Message: "Chat usage limit exceeded.",
 		},
+		Scope:       limitErr.Scope,
 		SpentMicros: limitErr.ConsumedMicros,
 		LimitMicros: limitErr.LimitMicros,
 		ResetsAt:    limitErr.PeriodEnd,
@@ -412,6 +413,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if req.SpendLimitMicros != nil && *req.SpendLimitMicros <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid spend limit.",
+			Detail:  "spend_limit_micros must be greater than zero.",
+		})
+		return
+	}
 
 	contentBlocks, titleSource, fileIDs, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
@@ -497,6 +505,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
+		SpendLimitMicros:   req.SpendLimitMicros,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {

@@ -54,6 +54,49 @@ import (
 	"github.com/coder/quartz"
 )
 
+func insertChatMessage(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	createdBy uuid.UUID,
+	modelConfigID uuid.UUID,
+	role database.ChatMessageRole,
+	text string,
+	totalCostMicros int64,
+) database.ChatMessage {
+	t.Helper()
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(text),
+	})
+	require.NoError(t, err)
+
+	messages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{createdBy},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		Role:                []database.ChatMessageRole{role},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(content.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{totalCostMicros},
+		RuntimeMs:           []int64{0},
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+
+	return messages[0]
+}
+
 func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	t.Parallel()
 
@@ -1000,9 +1043,6 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 
-	// CreateChat calls signalWake which triggers processOnce in
-	// the background. Wait for that processing to finish so it
-	// doesn't race with the manual status update below.
 	waitForChatProcessed(ctx, t, db, chat.ID, replica)
 
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -1023,31 +1063,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("assistant"),
-	})
-	require.NoError(t, err)
-
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{100},
-		RuntimeMs:           []int64{0},
-	})
-	require.NoError(t, err)
+	insertChatMessage(ctx, t, db, chat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 100)
 
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
@@ -1059,25 +1075,16 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	_, err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedResult.QueuedMessage.ID,
 		CreatedBy:       user.ID,
 	})
-	require.NoError(t, err)
-	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
+	require.Error(t, err)
 
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, queued)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 3)
-	require.Equal(t, database.ChatMessageRoleUser, messages[2].Role)
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "account_period", limitErr.Scope)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
@@ -1277,7 +1284,88 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.Equal(t, []string{"hello", "queued", "later queued"}, userTexts)
 }
 
-func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
+func TestSendMessageRejectsWhenChatSpendLimitReached(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "chat-spend-limit-send",
+		LastModelConfigID: model.ID,
+		SpendLimitMicros:  sql.NullInt64{Int64: 100, Valid: true},
+	})
+	require.NoError(t, err)
+
+	insertChatMessage(ctx, t, db, chat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 100)
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "chat_lifetime", limitErr.Scope)
+	require.Equal(t, int64(100), limitErr.LimitMicros)
+	require.Equal(t, int64(100), limitErr.ConsumedMicros)
+}
+
+func TestEditMessageRejectsWhenChatSpendLimitReached(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "chat-spend-limit-edit",
+		LastModelConfigID: model.ID,
+		SpendLimitMicros:  sql.NullInt64{Int64: 100, Valid: true},
+	})
+	require.NoError(t, err)
+
+	originalMessage := insertChatMessage(ctx, t, db, chat.ID, user.ID, model.ID, database.ChatMessageRoleUser, "original", 0)
+	insertChatMessage(ctx, t, db, chat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 100)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: originalMessage.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "chat_lifetime", limitErr.Scope)
+	require.Equal(t, int64(100), limitErr.LimitMicros)
+	require.Equal(t, int64(100), limitErr.ConsumedMicros)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	sdkMessage := db2sdk.ChatMessage(messages[0])
+	require.Len(t, sdkMessage.Content, 1)
+	require.Equal(t, "original", sdkMessage.Content[0].Text)
+}
+
+func TestSendMessageRejectsWhenAccountPeriodLimitReachedWithoutChatCap(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1293,69 +1381,72 @@ func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "edit-limit-reached",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "account-period-limit-send",
+		LastModelConfigID: model.ID,
+		SpendLimitMicros:  sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	editedMessageID := messages[0].ID
+	insertChatMessage(ctx, t, db, chat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 100)
 
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("assistant"),
-	})
-	require.NoError(t, err)
-
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{100},
-		RuntimeMs:           []int64{0},
-	})
-	require.NoError(t, err)
-
-	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		EditedMessageID: editedMessageID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.Error(t, err)
 
 	var limitErr *chatd.UsageLimitExceededError
 	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "account_period", limitErr.Scope)
 	require.Equal(t, int64(100), limitErr.LimitMicros)
 	require.Equal(t, int64(100), limitErr.ConsumedMicros)
+}
 
-	messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
+func TestSendMessagePrefersChatSpendLimitOverAccountPeriodLimit(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+		Enabled:            true,
+		DefaultLimitMicros: 200,
+		Period:             string(codersdk.ChatUsageLimitPeriodDay),
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	originalMessage := db2sdk.ChatMessage(messages[0])
-	require.Len(t, originalMessage.Content, 1)
-	require.Equal(t, "original", originalMessage.Content[0].Text)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             "prefer-chat-spend-limit",
+		LastModelConfigID: model.ID,
+		SpendLimitMicros:  sql.NullInt64{Int64: 100, Valid: true},
+	})
+	require.NoError(t, err)
+
+	insertChatMessage(ctx, t, db, chat.ID, uuid.Nil, model.ID, database.ChatMessageRoleAssistant, "assistant", 100)
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "chat_lifetime", limitErr.Scope)
+	require.Equal(t, int64(100), limitErr.LimitMicros)
+	require.Equal(t, int64(100), limitErr.ConsumedMicros)
 }
 
 func TestEditMessageRejectsMissingMessage(t *testing.T) {
