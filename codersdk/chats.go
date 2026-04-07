@@ -1020,42 +1020,44 @@ type ChatStreamToolCall struct {
 	Args       string `json:"args"`
 }
 
-// ToolCall represents a pending tool invocation from the chat
-// stream that the client must execute and submit back.
-type ToolCall struct {
-	ID   string
-	Name string
-	Args string
+// DynamicToolCall represents a pending tool invocation from the
+// chat stream that the client must execute and submit back.
+type DynamicToolCall struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Args string `json:"args"`
 }
 
-// ToolResponse holds the output of a dynamic tool execution.
-// IsError indicates a tool-level error the LLM should see, as
-// opposed to an infrastructure failure (returned as the error
-// return value).
-type ToolResponse struct {
-	Content string
-	IsError bool
+// DynamicToolResponse holds the output of a dynamic tool
+// execution. IsError indicates a tool-level error the LLM
+// should see, as opposed to an infrastructure failure
+// (returned as the error return value).
+type DynamicToolResponse struct {
+	Content string `json:"content"`
+	IsError bool   `json:"is_error"`
 }
 
 // DynamicTool pairs a tool definition with a client-side handler.
 // Only Name, Description, and InputSchema are serialized; the
 // Handler stays local.
 type DynamicTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"inputSchema"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// InputSchema uses snake_case for SDK consistency, deviating
+	// from the camelCase convention used by MCP.
+	InputSchema json.RawMessage `json:"input_schema"`
 
 	// Handler executes the tool when the LLM invokes it.
 	// Not serialized — this only exists on the client side.
-	Handler func(ctx context.Context, call ToolCall) (ToolResponse, error) `json:"-"`
+	Handler func(ctx context.Context, call DynamicToolCall) (DynamicToolResponse, error) `json:"-"`
 }
 
 // NewDynamicTool creates a DynamicTool with a typed handler.
 // The JSON schema is derived from T using invopop/jsonschema.
-// The handler receives deserialized args and the ToolCall metadata.
+// The handler receives deserialized args and the DynamicToolCall metadata.
 func NewDynamicTool[T any](
 	name, description string,
-	handler func(ctx context.Context, args T, call ToolCall) (ToolResponse, error),
+	handler func(ctx context.Context, args T, call DynamicToolCall) (DynamicToolResponse, error),
 ) DynamicTool {
 	reflector := jsonschema.Reflector{
 		DoNotReference:            true,
@@ -1073,10 +1075,10 @@ func NewDynamicTool[T any](
 		Name:        name,
 		Description: description,
 		InputSchema: schemaJSON,
-		Handler: func(ctx context.Context, call ToolCall) (ToolResponse, error) {
+		Handler: func(ctx context.Context, call DynamicToolCall) (DynamicToolResponse, error) {
 			var parsed T
 			if err := json.Unmarshal([]byte(call.Args), &parsed); err != nil {
-				return ToolResponse{
+				return DynamicToolResponse{
 					Content: fmt.Sprintf("invalid parameters: %s", err),
 					IsError: true,
 				}, nil

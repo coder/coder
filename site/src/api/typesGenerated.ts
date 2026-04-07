@@ -3295,7 +3295,34 @@ export interface DynamicParametersResponse {
 export interface DynamicTool {
 	readonly name: string;
 	readonly description?: string;
-	readonly inputSchema: Record<string, string>;
+	/**
+	 * InputSchema uses snake_case for SDK consistency, deviating
+	 * from the camelCase convention used by MCP.
+	 */
+	readonly input_schema: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * DynamicToolCall represents a pending tool invocation from the
+ * chat stream that the client must execute and submit back.
+ */
+export interface DynamicToolCall {
+	readonly id: string;
+	readonly name: string;
+	readonly args: string;
+}
+
+// From codersdk/chats.go
+/**
+ * DynamicToolResponse holds the output of a dynamic tool
+ * execution. IsError indicates a tool-level error the LLM
+ * should see, as opposed to an infrastructure failure
+ * (returned as the error return value).
+ */
+export interface DynamicToolResponse {
+	readonly content: string;
+	readonly is_error: boolean;
 }
 
 // From codersdk/chats.go
@@ -7260,29 +7287,6 @@ export interface TokenConfig {
 export interface TokensFilter {
 	readonly include_all: boolean;
 	readonly include_expired: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * ToolCall represents a pending tool invocation from the chat
- * stream that the client must execute and submit back.
- */
-export interface ToolCall {
-	readonly ID: string;
-	readonly Name: string;
-	readonly Args: string;
-}
-
-// From codersdk/chats.go
-/**
- * ToolResponse holds the output of a dynamic tool execution.
- * IsError indicates a tool-level error the LLM should see, as
- * opposed to an infrastructure failure (returned as the error
- * return value).
- */
-export interface ToolResponse {
-	readonly Content: string;
-	readonly IsError: boolean;
 }
 
 // From codersdk/chats.go

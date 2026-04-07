@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -496,6 +495,29 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			Detail:  "Maximum 250 dynamic tools per chat.",
 		})
 		return
+	}
+
+	// Validate that dynamic tool names are non-empty and unique
+	// within the list. Name collision with built-in tools is
+	// checked at chatloop time when the full tool set is known.
+	if len(req.UnsafeDynamicTools) > 0 {
+		seenNames := make(map[string]struct{}, len(req.UnsafeDynamicTools))
+		for _, dt := range req.UnsafeDynamicTools {
+			if dt.Name == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Dynamic tool name must not be empty.",
+				})
+				return
+			}
+			if _, exists := seenNames[dt.Name]; exists {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Duplicate dynamic tool name.",
+					Detail:  fmt.Sprintf("Tool %q appears more than once.", dt.Name),
+				})
+				return
+			}
+			seenNames[dt.Name] = struct{}{}
+		}
 	}
 
 	var dynamicToolsJSON json.RawMessage
@@ -5796,6 +5818,8 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fast-path check outside the transaction. The authoritative
+	// check happens inside the InTx block under a row lock.
 	if chat.Status != database.ChatStatusRequiresAction {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Chat is not waiting for tool results.",
@@ -5807,7 +5831,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Unmarshal dynamic tools from the chat to build the set of
 	// dynamic tool names. Only tool calls targeting these names
 	// require client-submitted results.
-	var dynamicTools []mcp.Tool
+	var dynamicTools []codersdk.DynamicTool
 	if chat.DynamicTools.Valid {
 		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicTools); err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5878,6 +5902,13 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// tool-role message row.
 	resultContents := make([]pqtype.NullRawMessage, 0, len(req.Results))
 	for _, result := range req.Results {
+		if !json.Valid([]byte(result.Output)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Tool result output must be valid JSON.",
+				Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", result.ToolCallID),
+			})
+			return
+		}
 		part := codersdk.ChatMessagePart{
 			Type:       codersdk.ChatMessagePartTypeToolResult,
 			ToolCallID: result.ToolCallID,
@@ -5898,7 +5929,19 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Persist tool-result messages and transition the chat to
 	// pending so the chatd run loop picks it up.
 	n := len(resultContents)
+	var statusConflict bool
 	err = api.Database.InTx(func(tx database.Store) error {
+		// Authoritative status check under row lock to prevent
+		// TOCTOU races with concurrent requests.
+		locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
+		if lockErr != nil {
+			return xerrors.Errorf("lock chat for update: %w", lockErr)
+		}
+		if locked.Status != database.ChatStatusRequiresAction {
+			statusConflict = true
+			return xerrors.Errorf("chat status is %q, expected %q", locked.Status, database.ChatStatusRequiresAction)
+		}
+
 		params := database.InsertChatMessagesParams{
 			ChatID:              chat.ID,
 			CreatedBy:           make([]uuid.UUID, n),
@@ -5947,6 +5990,13 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
+		if statusConflict {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is not waiting for tool results.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to submit tool results.",
 			Detail:  err.Error(),

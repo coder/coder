@@ -3354,6 +3354,20 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	}
 }
 
+// pendingToStreamToolCalls converts a slice of chatloop pending
+// tool calls into the SDK streaming representation.
+func pendingToStreamToolCalls(pending []chatloop.PendingToolCall) []codersdk.ChatStreamToolCall {
+	calls := make([]codersdk.ChatStreamToolCall, len(pending))
+	for i, tc := range pending {
+		calls[i] = codersdk.ChatStreamToolCall{
+			ToolCallID: tc.ToolCallID,
+			ToolName:   tc.ToolName,
+			Args:       tc.Args,
+		}
+	}
+	return calls
+}
+
 // publishChatActionRequired broadcasts an action_required event via
 // PostgreSQL pubsub so that global watchers can react to dynamic
 // tool calls without streaming each chat individually.
@@ -3361,14 +3375,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 	if p.pubsub == nil {
 		return
 	}
-	toolCalls := make([]codersdk.ChatStreamToolCall, 0, len(pending))
-	for _, tc := range pending {
-		toolCalls = append(toolCalls, codersdk.ChatStreamToolCall{
-			ToolCallID: tc.ToolCallID,
-			ToolName:   tc.ToolName,
-			Args:       tc.Args,
-		})
-	}
+	toolCalls := pendingToStreamToolCalls(pending)
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 
 	event := coderdpubsub.ChatEvent{
@@ -4754,8 +4761,23 @@ func (p *Server) runChat(
 			return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
 		}
 	}
-	tools = append(tools, dynamicToolsFromSDK(dynamicToolDefs)...)
+	// Check for name collisions between dynamic tools and
+	// built-in/MCP tools before appending. Built-in tools
+	// always take precedence.
+	dynamicToolNames := make(map[string]bool, len(dynamicToolDefs))
+	for _, dt := range dynamicToolDefs {
+		dynamicToolNames[dt.Name] = true
+	}
+	for _, t := range tools {
+		info := t.Info()
+		if dynamicToolNames[info.Name] {
+			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
+				slog.F("tool_name", info.Name))
+			delete(dynamicToolNames, info.Name)
+		}
+	}
 
+	tools = append(tools, dynamicToolsFromSDK(p.logger, dynamicToolDefs)...)
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool
@@ -4799,12 +4821,6 @@ func (p *Server) runChat(
 		)
 		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
 	}
-
-	dynamicToolNames := make(map[string]bool, len(dynamicToolDefs))
-	for _, dt := range dynamicToolDefs {
-		dynamicToolNames[dt.Name] = true
-	}
-
 	err := chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
@@ -4895,14 +4911,7 @@ func (p *Server) runChat(
 		// The LLM invoked a dynamic tool. Publish an
 		// action_required event so the client can execute
 		// the tool calls and submit results.
-		toolCalls := make([]codersdk.ChatStreamToolCall, 0, len(pendingDynamicCalls))
-		for _, tc := range pendingDynamicCalls {
-			toolCalls = append(toolCalls, codersdk.ChatStreamToolCall{
-				ToolCallID: tc.ToolCallID,
-				ToolName:   tc.ToolName,
-				Args:       tc.Args,
-			})
-		}
+		toolCalls := pendingToStreamToolCalls(pendingDynamicCalls)
 		p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
 			Type: codersdk.ChatStreamEventTypeActionRequired,
 			ActionRequired: &codersdk.ChatStreamActionRequired{
@@ -5559,8 +5568,14 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 					return nil
 				}
 			case database.ChatStatusRequiresAction:
-				// Nothing extra to check — updated_at was already
-				// verified by the query.
+				// Re-check: the chat may have been updated after
+				// our snapshot, similar to the heartbeat check for
+				// running chats.
+				if !locked.UpdatedAt.Before(staleAfter) {
+					p.logger.Debug(ctx, "chat updated since snapshot, skipping recovery",
+						slog.F("chat_id", chat.ID))
+					return nil
+				}
 			default:
 				// Status changed since our snapshot; skip.
 				p.logger.Debug(ctx, "chat status changed since snapshot, skipping recovery",

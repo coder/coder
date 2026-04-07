@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -26,7 +27,7 @@ type dynamicTool struct {
 // dynamicToolsFromSDK converts codersdk.DynamicTool definitions
 // into fantasy.AgentTool implementations for inclusion in the LLM
 // tool list.
-func dynamicToolsFromSDK(tools []codersdk.DynamicTool) []fantasy.AgentTool {
+func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fantasy.AgentTool {
 	if len(tools) == 0 {
 		return nil
 	}
@@ -44,7 +45,15 @@ func dynamicToolsFromSDK(tools []codersdk.DynamicTool) []fantasy.AgentTool {
 				Properties map[string]any `json:"properties"`
 				Required   []string       `json:"required"`
 			}
-			if err := json.Unmarshal(t.InputSchema, &schema); err == nil {
+			if err := json.Unmarshal(t.InputSchema, &schema); err != nil {
+				// Defensive: present the tool with no parameter
+				// constraints rather than failing. The LLM may
+				// hallucinate argument shapes, but the tool will
+				// still appear in the tool list.
+				logger.Warn(context.Background(), "failed to parse dynamic tool input schema",
+					slog.F("tool_name", t.Name),
+					slog.Error(err))
+			} else {
 				dt.parameters = schema.Properties
 				dt.required = schema.Required
 			}
