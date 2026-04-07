@@ -5203,8 +5203,7 @@ SELECT
     COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
     COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
 FROM chat_messages cm
-JOIN chats c ON c.id = cm.chat_id
-WHERE c.created_at > $1
+WHERE cm.created_at > $1
 GROUP BY cm.chat_id
 `
 
@@ -5226,8 +5225,9 @@ type GetChatMessageSummariesPerChatRow struct {
 	CompressedMessageCount   int64     `db:"compressed_message_count" json:"compressed_message_count"`
 }
 
-// Aggregates message-level metrics per chat for chats created after
-// the given timestamp. Used for telemetry snapshot collection.
+// Aggregates message-level metrics per chat for messages created
+// after the given timestamp. Uses message created_at so that
+// ongoing activity in long-running chats is captured each window.
 func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessageSummariesPerChat, createdAfter)
 	if err != nil {
@@ -5886,17 +5886,17 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 	return items, nil
 }
 
-const getChatsCreatedAfter = `-- name: GetChatsCreatedAfter :many
+const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
 SELECT
     id, owner_id, created_at, updated_at, status,
     (parent_chat_id IS NOT NULL)::bool AS has_parent,
     root_chat_id, workspace_id,
     mode, archived, last_model_config_id
 FROM chats
-WHERE created_at > $1
+WHERE updated_at > $1
 `
 
-type GetChatsCreatedAfterRow struct {
+type GetChatsUpdatedAfterRow struct {
 	ID                uuid.UUID     `db:"id" json:"id"`
 	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
 	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
@@ -5910,17 +5910,18 @@ type GetChatsCreatedAfterRow struct {
 	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
 }
 
-// Retrieves chats created after the given timestamp for telemetry
-// snapshot collection.
-func (q *sqlQuerier) GetChatsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]GetChatsCreatedAfterRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsCreatedAfter, createdAfter)
+// Retrieves chats updated after the given timestamp for telemetry
+// snapshot collection. Uses updated_at so that long-running chats
+// still appear in each snapshot window while they are active.
+func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsUpdatedAfter, updatedAfter)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetChatsCreatedAfterRow
+	var items []GetChatsUpdatedAfterRow
 	for rows.Next() {
-		var i GetChatsCreatedAfterRow
+		var i GetChatsUpdatedAfterRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,

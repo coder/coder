@@ -777,7 +777,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	})
 
 	eg.Go(func() error {
-		chats, err := r.options.Database.GetChatsCreatedAfter(ctx, createdAfter)
+		chats, err := r.options.Database.GetChatsUpdatedAfter(ctx, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("get chats created after: %w", err)
 		}
@@ -2151,7 +2151,7 @@ func ConvertTask(task database.Task) Task {
 }
 
 // ConvertChat converts a database chat row to a telemetry Chat.
-func ConvertChat(dbChat database.GetChatsCreatedAfterRow) Chat {
+func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 	c := Chat{
 		ID:                dbChat.ID,
 		OwnerID:           dbChat.OwnerID,

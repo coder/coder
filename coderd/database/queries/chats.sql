@@ -1245,20 +1245,22 @@ USING deletable
 WHERE chats.id = deletable.id
   AND chats.archived = true;
 
--- name: GetChatsCreatedAfter :many
--- Retrieves chats created after the given timestamp for telemetry
--- snapshot collection.
+-- name: GetChatsUpdatedAfter :many
+-- Retrieves chats updated after the given timestamp for telemetry
+-- snapshot collection. Uses updated_at so that long-running chats
+-- still appear in each snapshot window while they are active.
 SELECT
     id, owner_id, created_at, updated_at, status,
     (parent_chat_id IS NOT NULL)::bool AS has_parent,
     root_chat_id, workspace_id,
     mode, archived, last_model_config_id
 FROM chats
-WHERE created_at > @created_after;
+WHERE updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
--- Aggregates message-level metrics per chat for chats created after
--- the given timestamp. Used for telemetry snapshot collection.
+-- Aggregates message-level metrics per chat for messages created
+-- after the given timestamp. Uses message created_at so that
+-- ongoing activity in long-running chats is captured each window.
 SELECT
     cm.chat_id,
     COUNT(*)::bigint AS message_count,
@@ -1276,8 +1278,7 @@ SELECT
     COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
     COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
 FROM chat_messages cm
-JOIN chats c ON c.id = cm.chat_id
-WHERE c.created_at > @created_after
+WHERE cm.created_at > @created_after
 GROUP BY cm.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many

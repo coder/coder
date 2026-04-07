@@ -1352,11 +1352,11 @@ func (m queryMetricsStore) GetChatsByWorkspaceIDs(ctx context.Context, ids []uui
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetChatsCreatedAfterRow, error) {
+func (m queryMetricsStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]database.GetChatsUpdatedAfterRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatsCreatedAfter(ctx, createdAfter)
-	m.queryLatencies.WithLabelValues("GetChatsCreatedAfter").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsCreatedAfter").Inc()
+	r0, r1 := m.s.GetChatsUpdatedAfter(ctx, updatedAfter)
+	m.queryLatencies.WithLabelValues("GetChatsUpdatedAfter").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsUpdatedAfter").Inc()
 	return r0, r1
 }
 

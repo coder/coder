@@ -2492,19 +2492,19 @@ func (mr *MockStoreMockRecorder) GetChatsByWorkspaceIDs(ctx, ids any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetChatsByWorkspaceIDs), ctx, ids)
 }
 
-// GetChatsCreatedAfter mocks base method.
-func (m *MockStore) GetChatsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetChatsCreatedAfterRow, error) {
+// GetChatsUpdatedAfter mocks base method.
+func (m *MockStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]database.GetChatsUpdatedAfterRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatsCreatedAfter", ctx, createdAfter)
-	ret0, _ := ret[0].([]database.GetChatsCreatedAfterRow)
+	ret := m.ctrl.Call(m, "GetChatsUpdatedAfter", ctx, updatedAfter)
+	ret0, _ := ret[0].([]database.GetChatsUpdatedAfterRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatsCreatedAfter indicates an expected call of GetChatsCreatedAfter.
-func (mr *MockStoreMockRecorder) GetChatsCreatedAfter(ctx, createdAfter any) *gomock.Call {
+// GetChatsUpdatedAfter indicates an expected call of GetChatsUpdatedAfter.
+func (mr *MockStoreMockRecorder) GetChatsUpdatedAfter(ctx, updatedAfter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetChatsCreatedAfter), ctx, createdAfter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetChatsUpdatedAfter), ctx, updatedAfter)
 }
 
 // GetConnectionLogsOffset mocks base method.
