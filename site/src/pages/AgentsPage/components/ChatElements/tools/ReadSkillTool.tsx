@@ -57,5 +57,6 @@ export const ReadSkillTool: React.FC<{
 					</div>
 				</ScrollArea>
 			)}
-			</ToolCollapsible>	);
+		</ToolCollapsible>
+	);
 };
