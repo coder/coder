@@ -7339,13 +7339,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, secretID, createdSecret.ID)
 
-		// 2. READ by ID
-		readSecret, err := db.GetUserSecret(ctx, createdSecret.ID)
-		require.NoError(t, err)
-		assert.Equal(t, createdSecret.ID, readSecret.ID)
-		assert.Equal(t, "workflow-secret", readSecret.Name)
-
-		// 3. READ by UserID and Name
+		// 2. READ by UserID and Name
 		readByNameParams := database.GetUserSecretByUserIDAndNameParams{
 			UserID: testUser.ID,
 			Name:   "workflow-secret",
@@ -7353,33 +7347,43 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		readByNameSecret, err := db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
 		require.NoError(t, err)
 		assert.Equal(t, createdSecret.ID, readByNameSecret.ID)
+		assert.Equal(t, "workflow-secret", readByNameSecret.Name)
 
-		// 4. LIST
+		// 3. LIST (metadata only)
 		secrets, err := db.ListUserSecrets(ctx, testUser.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 1)
 		assert.Equal(t, createdSecret.ID, secrets[0].ID)
 
-		// 5. UPDATE
-		updateParams := database.UpdateUserSecretParams{
-			ID:          createdSecret.ID,
-			Description: "Updated workflow description",
-			Value:       "updated-workflow-value",
-			EnvName:     "UPDATED_WORKFLOW_ENV",
-			FilePath:    "/updated/workflow/path",
+		// 4. LIST with values
+		secretsWithValues, err := db.ListUserSecretsWithValues(ctx, testUser.ID)
+		require.NoError(t, err)
+		require.Len(t, secretsWithValues, 1)
+		assert.Equal(t, "workflow-value", secretsWithValues[0].Value)
+
+		// 5. UPDATE (partial - only description)
+		updateParams := database.UpdateUserSecretByUserIDAndNameParams{
+			UserID:            testUser.ID,
+			Name:              "workflow-secret",
+			UpdateDescription: true,
+			Description:       "Updated workflow description",
 		}
 
-		updatedSecret, err := db.UpdateUserSecret(ctx, updateParams)
+		updatedSecret, err := db.UpdateUserSecretByUserIDAndName(ctx, updateParams)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated workflow description", updatedSecret.Description)
-		assert.Equal(t, "updated-workflow-value", updatedSecret.Value)
+		assert.Equal(t, "workflow-value", updatedSecret.Value) // Value unchanged
+		assert.Equal(t, "WORKFLOW_ENV", updatedSecret.EnvName) // EnvName unchanged
 
 		// 6. DELETE
-		err = db.DeleteUserSecret(ctx, createdSecret.ID)
+		err = db.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID,
+			Name:   "workflow-secret",
+		})
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = db.GetUserSecret(ctx, createdSecret.ID)
+		_, err = db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows in result set")
 
@@ -7449,9 +7453,13 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		})
 
 		// Verify both secrets exist
-		_, err = db.GetUserSecret(ctx, secret1.ID)
+		_, err = db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID, Name: secret1.Name,
+		})
 		require.NoError(t, err)
-		_, err = db.GetUserSecret(ctx, secret2.ID)
+		_, err = db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID, Name: secret2.Name,
+		})
 		require.NoError(t, err)
 	})
 }
@@ -7474,14 +7482,14 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 
 	// Create secrets for users
-	user1Secret := dbgen.UserSecret(t, db, database.UserSecret{
+	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:      user1.ID,
 		Name:        "user1-secret",
 		Description: "User 1's secret",
 		Value:       "user1-value",
 	})
 
-	user2Secret := dbgen.UserSecret(t, db, database.UserSecret{
+	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:      user2.ID,
 		Name:        "user2-secret",
 		Description: "User 2's secret",
@@ -7491,7 +7499,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	testCases := []struct {
 		name           string
 		subject        rbac.Subject
-		secretID       uuid.UUID
+		lookupUserID   uuid.UUID
+		lookupName     string
 		expectedAccess bool
 	}{
 		{
@@ -7501,7 +7510,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user1Secret.ID,
+			lookupUserID:   user1.ID,
+			lookupName:     "user1-secret",
 			expectedAccess: true,
 		},
 		{
@@ -7511,7 +7521,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user2Secret.ID,
+			lookupUserID:   user2.ID,
+			lookupName:     "user2-secret",
 			expectedAccess: false,
 		},
 		{
@@ -7521,7 +7532,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user1Secret.ID,
+			lookupUserID:   user1.ID,
+			lookupName:     "user1-secret",
 			expectedAccess: false,
 		},
 		{
@@ -7531,7 +7543,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user1Secret.ID,
+			lookupUserID:   user1.ID,
+			lookupName:     "user1-secret",
 			expectedAccess: false,
 		},
 	}
@@ -7543,8 +7556,10 @@ func TestUserSecretsAuthorization(t *testing.T) {
 
 			authCtx := dbauthz.As(ctx, tc.subject)
 
-			// Test GetUserSecret
-			_, err := authDB.GetUserSecret(authCtx, tc.secretID)
+			_, err := authDB.GetUserSecretByUserIDAndName(authCtx, database.GetUserSecretByUserIDAndNameParams{
+				UserID: tc.lookupUserID,
+				Name:   tc.lookupName,
+			})
 
 			if tc.expectedAccess {
 				require.NoError(t, err, "expected access to be granted")
