@@ -916,37 +916,37 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		</DropdownMenu>
 	);
 
-	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes — not on every parentById
-	// recalculation — so user-initiated collapse is preserved.
-	const expandAncestors = useEffectEvent((chatId: string) => {
-		const parentById = chatTree.parentById;
-		const toExpand: string[] = [];
-		let cursor = parentById.get(chatId);
-		const seen = new Set<string>();
-		while (cursor && !seen.has(cursor)) {
-			seen.add(cursor);
-			toExpand.push(cursor);
-			cursor = parentById.get(cursor);
-		}
-		if (toExpand.length > 0) {
-			setExpandedById((prev) => {
-				if (toExpand.every((id) => prev[id])) {
-					return prev;
-				}
-				const next = { ...prev };
-				for (const id of toExpand) {
-					next[id] = true;
-				}
-				return next;
-			});
-		}
-	});
-	useEffect(() => {
+	// Auto-expand ancestors of the active chat so it's always
+	// visible. Runs during render when activeChatId changes —
+	// not on every parentById recalculation — so user-initiated
+	// collapse is preserved.
+	const [prevActiveChatId, setPrevActiveChatId] = useState(activeChatId);
+	if (prevActiveChatId !== activeChatId) {
+		setPrevActiveChatId(activeChatId);
 		if (activeChatId) {
-			expandAncestors(activeChatId);
+			const parentById = chatTree.parentById;
+			const toExpand: string[] = [];
+			let cursor = parentById.get(activeChatId);
+			const seen = new Set<string>();
+			while (cursor && !seen.has(cursor)) {
+				seen.add(cursor);
+				toExpand.push(cursor);
+				cursor = parentById.get(cursor);
+			}
+			if (toExpand.length > 0) {
+				setExpandedById((prev) => {
+					if (toExpand.every((id) => prev[id])) {
+						return prev;
+					}
+					const next = { ...prev };
+					for (const id of toExpand) {
+						next[id] = true;
+					}
+					return next;
+				});
+			}
 		}
-	}, [activeChatId, expandAncestors]);
+	}
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};

@@ -130,11 +130,6 @@ export const useChatStore = (
 	const setChatErrorReasonStable = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonStable = useEffectEvent(clearChatErrorReason);
 
-	// Wrap the socket creation in a useEffectEvent so we can
-	// read the latest chatMessages to compute the last known
-	// message ID without including chatMessages in the WS
-	// effect's dependency array (which would cause unnecessary
-	// reconnections).
 	const connectChatStream = useEffectEvent(
 		(chatID: string, localLastMessageId: number | undefined) => {
 			const restLastId =
