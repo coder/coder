@@ -467,6 +467,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 						}
 						return xerrors.Errorf("persist step: %w", err)
 					}
+
+					tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
+
 					return ErrDynamicToolCall
 				}
 
@@ -1160,6 +1163,38 @@ func persistInterruptedStep(
 		if opts.OnInterruptedPersistError != nil {
 			opts.OnInterruptedPersistError(err)
 		}
+	}
+}
+
+// tryCompactOnExit runs compaction when the chatloop is about
+// to exit early (e.g. via ErrDynamicToolCall). The normal
+// inline and post-run compaction paths are unreachable in
+// early-exit scenarios, so this ensures the context window
+// doesn't grow unbounded.
+func tryCompactOnExit(
+	ctx context.Context,
+	opts RunOptions,
+	usage fantasy.Usage,
+	metadata fantasy.ProviderMetadata,
+) {
+	if opts.Compaction == nil || opts.ReloadMessages == nil {
+		return
+	}
+	reloaded, err := opts.ReloadMessages(ctx)
+	if err != nil {
+		return
+	}
+	_, compactErr := tryCompact(
+		ctx,
+		opts.Model,
+		opts.Compaction,
+		opts.ContextLimitFallback,
+		usage,
+		metadata,
+		reloaded,
+	)
+	if compactErr != nil && opts.Compaction.OnError != nil {
+		opts.Compaction.OnError(compactErr)
 	}
 }
 
