@@ -2006,52 +2006,19 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	require.True(t, toolCallFound, "expected to find tool call for my_dynamic_tool")
 	require.NotEmpty(t, toolCallID)
 
-	// 3. Submit tool results — replicate what postChatToolResults does.
+	// 3. Submit tool results via SubmitToolResults.
 	toolResultOutput := `{"result":"dynamic tool output"}`
-	toolResultPart := codersdk.ChatMessagePart{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: toolCallID,
-		Result:     json.RawMessage(toolResultOutput),
-	}
-	marshaled, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{toolResultPart})
-	require.NoError(t, err)
-
-	params := database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{user.ID},
-		ModelConfigID:       []uuid.UUID{chatResult.LastModelConfigID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleTool},
-		Content:             []string{string(marshaled.RawMessage)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
-		ProviderResponseID:  []string{""},
-	}
-	_, err = db.InsertChatMessages(ctx, params)
-	require.NoError(t, err)
-
-	// Transition chat back to pending.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusPending,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+		ChatID:        chat.ID,
+		UserID:        user.ID,
+		ModelConfigID: chatResult.LastModelConfigID,
+		Results: []codersdk.ToolResult{{
+			ToolCallID: toolCallID,
+			Output:     toolResultOutput,
+		}},
+		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
-
-	// Wake the chatd loop.
-	server.SignalWake()
 
 	// 4. Wait for the chat to reach a terminal status.
 	require.Eventually(t, func() bool {

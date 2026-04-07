@@ -997,7 +997,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
-	p.SignalWake()
+	p.signalWake()
 	return chat, nil
 }
 
@@ -1159,7 +1159,7 @@ func (p *Server) SendMessage(
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
-	p.SignalWake()
+	p.signalWake()
 	return result, nil
 }
 
@@ -1302,7 +1302,7 @@ func (p *Server) EditMessage(
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
-	p.SignalWake()
+	p.signalWake()
 
 	return result, nil
 }
@@ -1546,9 +1546,212 @@ func (p *Server) PromoteQueued(
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
-	p.SignalWake()
+	p.signalWake()
 
 	return result, nil
+}
+
+// SubmitToolResultsOptions controls tool result submission.
+type SubmitToolResultsOptions struct {
+	ChatID        uuid.UUID
+	UserID        uuid.UUID
+	ModelConfigID uuid.UUID
+	Results       []codersdk.ToolResult
+	DynamicTools  json.RawMessage
+}
+
+// ToolResultValidationError indicates the submitted tool results
+// failed validation (e.g. missing, duplicate, or unexpected IDs,
+// or invalid JSON output).
+type ToolResultValidationError struct {
+	Message string
+	Detail  string
+}
+
+func (e *ToolResultValidationError) Error() string {
+	if e.Detail != "" {
+		return e.Message + ": " + e.Detail
+	}
+	return e.Message
+}
+
+// ToolResultStatusConflictError indicates the chat is not in the
+// requires_action state expected for tool result submission.
+type ToolResultStatusConflictError struct {
+	ActualStatus database.ChatStatus
+}
+
+func (e *ToolResultStatusConflictError) Error() string {
+	return fmt.Sprintf(
+		"chat status is %q, expected %q",
+		e.ActualStatus, database.ChatStatusRequiresAction,
+	)
+}
+
+// SubmitToolResults validates and persists client-provided tool
+// results, transitions the chat to pending, and wakes the run
+// loop. The caller is responsible for the fast-path status check;
+// this method performs an authoritative re-check under a row lock.
+func (p *Server) SubmitToolResults(
+	ctx context.Context,
+	opts SubmitToolResultsOptions,
+) error {
+	// Build the set of dynamic tool names.
+	var dynamicTools []codersdk.DynamicTool
+	if len(opts.DynamicTools) > 0 {
+		if err := json.Unmarshal(opts.DynamicTools, &dynamicTools); err != nil {
+			return xerrors.Errorf("parse chat dynamic tools: %w", err)
+		}
+	}
+	dynamicToolNames := make(map[string]bool, len(dynamicTools))
+	for _, dt := range dynamicTools {
+		dynamicToolNames[dt.Name] = true
+	}
+
+	// The GetLastChatMessageByRole lookup and all subsequent
+	// validation and persistence run inside a single transaction
+	// so the assistant message cannot change between reads.
+	var statusConflict *ToolResultStatusConflictError
+	txErr := p.db.InTx(func(tx database.Store) error {
+		// Authoritative status check under row lock.
+		locked, lockErr := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		if lockErr != nil {
+			return xerrors.Errorf("lock chat for update: %w", lockErr)
+		}
+		if locked.Status != database.ChatStatusRequiresAction {
+			statusConflict = &ToolResultStatusConflictError{
+				ActualStatus: locked.Status,
+			}
+			return statusConflict
+		}
+
+		// Get the last assistant message inside the transaction
+		// for consistency with the row lock above.
+		lastAssistant, err := tx.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+			ChatID: opts.ChatID,
+			Role:   database.ChatMessageRoleAssistant,
+		})
+		if err != nil {
+			return xerrors.Errorf("get last assistant message: %w", err)
+		}
+
+		// Extract pending dynamic tool-call IDs.
+		pendingCallIDs := make(map[string]bool)
+		parts, parseErr := chatprompt.ParseContent(lastAssistant)
+		if parseErr != nil {
+			return xerrors.Errorf("parse assistant message: %w", parseErr)
+		}
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolCall && dynamicToolNames[part.ToolName] {
+				pendingCallIDs[part.ToolCallID] = true
+			}
+		}
+
+		// Validate submitted results match pending calls exactly.
+		submittedIDs := make(map[string]bool, len(opts.Results))
+		for _, result := range opts.Results {
+			if submittedIDs[result.ToolCallID] {
+				return &ToolResultValidationError{
+					Message: "Duplicate tool_call_id in results.",
+					Detail:  fmt.Sprintf("Duplicate tool call ID %q.", result.ToolCallID),
+				}
+			}
+			submittedIDs[result.ToolCallID] = true
+		}
+		for id := range pendingCallIDs {
+			if !submittedIDs[id] {
+				return &ToolResultValidationError{
+					Message: "Missing tool result.",
+					Detail:  fmt.Sprintf("Missing result for tool call %q.", id),
+				}
+			}
+		}
+		for id := range submittedIDs {
+			if !pendingCallIDs[id] {
+				return &ToolResultValidationError{
+					Message: "Unexpected tool result.",
+					Detail:  fmt.Sprintf("No pending tool call with ID %q.", id),
+				}
+			}
+		}
+
+		// Marshal each tool result into a separate message row.
+		resultContents := make([]pqtype.NullRawMessage, 0, len(opts.Results))
+		for _, result := range opts.Results {
+			if !json.Valid([]byte(result.Output)) {
+				return &ToolResultValidationError{
+					Message: "Tool result output must be valid JSON.",
+					Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", result.ToolCallID),
+				}
+			}
+			part := codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: result.ToolCallID,
+				Result:     json.RawMessage(result.Output),
+				IsError:    result.IsError,
+			}
+			marshaled, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+			if marshalErr != nil {
+				return xerrors.Errorf("marshal tool result: %w", marshalErr)
+			}
+			resultContents = append(resultContents, marshaled)
+		}
+
+		// Insert tool-result messages.
+		n := len(resultContents)
+		params := database.InsertChatMessagesParams{
+			ChatID:              opts.ChatID,
+			CreatedBy:           make([]uuid.UUID, n),
+			ModelConfigID:       make([]uuid.UUID, n),
+			Role:                make([]database.ChatMessageRole, n),
+			Content:             make([]string, n),
+			ContentVersion:      make([]int16, n),
+			Visibility:          make([]database.ChatMessageVisibility, n),
+			InputTokens:         make([]int64, n),
+			OutputTokens:        make([]int64, n),
+			TotalTokens:         make([]int64, n),
+			ReasoningTokens:     make([]int64, n),
+			CacheCreationTokens: make([]int64, n),
+			CacheReadTokens:     make([]int64, n),
+			ContextLimit:        make([]int64, n),
+			Compressed:          make([]bool, n),
+			TotalCostMicros:     make([]int64, n),
+			RuntimeMs:           make([]int64, n),
+			ProviderResponseID:  make([]string, n),
+		}
+		for i, rc := range resultContents {
+			params.CreatedBy[i] = opts.UserID
+			params.ModelConfigID[i] = opts.ModelConfigID
+			params.Role[i] = database.ChatMessageRoleTool
+			params.Content[i] = string(rc.RawMessage)
+			params.ContentVersion[i] = chatprompt.CurrentContentVersion
+			params.Visibility[i] = database.ChatMessageVisibilityBoth
+		}
+		if _, insertErr := tx.InsertChatMessages(ctx, params); insertErr != nil {
+			return xerrors.Errorf("insert tool results: %w", insertErr)
+		}
+
+		// Transition chat to pending.
+		if _, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          opts.ChatID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		}); updateErr != nil {
+			return xerrors.Errorf("update chat status: %w", updateErr)
+		}
+
+		return nil
+	}, nil)
+	if txErr != nil {
+		return txErr
+	}
+
+	// Wake the chatd run loop so it processes the chat immediately.
+	p.signalWake()
+	return nil
 }
 
 // InterruptChat interrupts execution, sets waiting status, and broadcasts status updates.
@@ -2516,9 +2719,9 @@ func (p *Server) start(ctx context.Context) {
 	}
 }
 
-// SignalWake wakes the run loop so it calls processOnce immediately.
+// signalWake wakes the run loop so it calls processOnce immediately.
 // Non-blocking: if a signal is already pending it is a no-op.
-func (p *Server) SignalWake() {
+func (p *Server) signalWake() {
 	select {
 	case p.wakeCh <- struct{}{}:
 	default:
