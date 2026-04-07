@@ -11550,6 +11550,9 @@
 				},
 				"count": {
 					"type": "integer"
+				},
+				"count_cap": {
+					"type": "integer"
 				}
 			}
 		},
@@ -11835,6 +11838,9 @@
 					}
 				},
 				"count": {
+					"type": "integer"
+				},
+				"count_cap": {
 					"type": "integer"
 				}
 			}

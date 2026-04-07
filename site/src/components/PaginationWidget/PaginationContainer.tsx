@@ -25,6 +25,7 @@ export const PaginationContainer: FC<PaginationProps> = ({
 				totalRecords={query.totalRecords}
 				currentOffsetStart={query.currentOffsetStart}
 				paginationUnitLabel={paginationUnitLabel}
+				countIsCapped={query.countIsCapped}
 			/>
 
 			<div
@@ -40,6 +41,7 @@ export const PaginationContainer: FC<PaginationProps> = ({
 				{query.isSuccess && (
 					<PaginationWidgetBase
 						totalRecords={query.totalRecords}
+						totalPages={query.totalPages}
 						currentPage={query.currentPage}
 						pageSize={query.limit}
 						onPageChange={query.onPageChange}

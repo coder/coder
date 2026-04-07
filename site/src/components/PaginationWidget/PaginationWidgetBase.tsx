@@ -14,6 +14,10 @@ export type PaginationWidgetBaseProps = {
 
 	hasPreviousPage?: boolean;
 	hasNextPage?: boolean;
+	/** Override the computed totalPages.
+	 * Used when, e.g., the row count is capped and the user navigates beyond
+	 * the known range, so totalPages stays at least as high as currentPage. */
+	totalPages?: number;
 };
 
 export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
@@ -23,10 +27,11 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 	onPageChange,
 	hasPreviousPage,
 	hasNextPage,
+	totalPages: totalPagesProp,
 }) => {
 	const theme = useTheme();
 	const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-	const totalPages = Math.ceil(totalRecords / pageSize);
+	const totalPages = totalPagesProp ?? Math.ceil(totalRecords / pageSize);
 
 	if (totalPages < 2) {
 		return null;
