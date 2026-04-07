@@ -198,6 +198,73 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 	assert.Contains(t, names, "beta__greet")
 }
 
+func TestConnectAll_DeterministicOrder(t *testing.T) {
+	t.Parallel()
+
+	makeTool := func(name string) mcpserver.ServerTool {
+		return mcpserver.ServerTool{
+			Tool: mcp.NewTool(name),
+			Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return mcp.NewToolResultText("ok"), nil
+			},
+		}
+	}
+
+	t.Run("AcrossServers", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		ts1 := newTestMCPServer(t, makeTool("zebra"))
+		ts2 := newTestMCPServer(t, makeTool("alpha"))
+		ts3 := newTestMCPServer(t, makeTool("middle"))
+
+		tools, cleanup := mcpclient.ConnectAll(
+			ctx,
+			logger,
+			[]database.MCPServerConfig{
+				makeConfig("srv3", ts3.URL),
+				makeConfig("srv1", ts1.URL),
+				makeConfig("srv2", ts2.URL),
+			},
+			nil,
+		)
+		t.Cleanup(cleanup)
+
+		require.Len(t, tools, 3)
+		assert.Equal(t,
+			[]string{"srv1__zebra", "srv2__alpha", "srv3__middle"},
+			toolNames(tools),
+		)
+	})
+
+	t.Run("WithMultiToolServer", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		multi := newTestMCPServer(t, makeTool("zeta"), makeTool("beta"))
+		other := newTestMCPServer(t, makeTool("gamma"))
+
+		tools, cleanup := mcpclient.ConnectAll(
+			ctx,
+			logger,
+			[]database.MCPServerConfig{
+				makeConfig("other", other.URL),
+				makeConfig("multi", multi.URL),
+			},
+			nil,
+		)
+		t.Cleanup(cleanup)
+
+		require.Len(t, tools, 3)
+		assert.Equal(t,
+			[]string{"multi__beta", "multi__zeta", "other__gamma"},
+			toolNames(tools),
+		)
+	})
+}
+
 func TestConnectAll_AuthHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

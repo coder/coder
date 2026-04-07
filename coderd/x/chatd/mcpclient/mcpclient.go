@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -118,6 +119,14 @@ func ConnectAll(
 	// All goroutines return nil; error is intentionally
 	// discarded.
 	_ = eg.Wait()
+
+	// Sort tools by their model-visible name so the order is
+	// deterministic regardless of goroutine completion order.
+	// Stable prompt construction depends on consistent tool
+	// ordering.
+	slices.SortFunc(tools, func(a, b fantasy.AgentTool) int {
+		return cmp.Compare(a.Info().Name, b.Info().Name)
+	})
 
 	return tools, cleanup
 }
