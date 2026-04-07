@@ -255,7 +255,7 @@ export const ProviderAccordionCards: Story = {
 		expect(body.queryByText("OpenAI")).not.toBeInTheDocument();
 
 		await userEvent.click(body.getByRole("button", { name: /OpenRouter/i }));
-		await expect(body.getByLabelText("Base URL")).toBeInTheDocument();
+		await expect(await body.findByLabelText("Base URL")).toBeInTheDocument();
 	},
 };
 
