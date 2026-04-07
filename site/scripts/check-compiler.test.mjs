@@ -180,4 +180,24 @@ describe("findUnmemoizedClosureDeps", () => {
 		expect(result[0].name).toBe("fn1");
 		expect(result[1].name).toBe("fn2");
 	});
+
+	// The CLOSURE_RHS regex also matches IIFEs like `const x = (() => {...})();`.
+	// The compiler does not emit IIFEs in compiled output, so this is not
+	// a real-world false positive today. This test documents the assumption
+	// so it breaks visibly if the compiler changes its output shape.
+	it("matches IIFEs (documents known regex limitation)", () => {
+		const code = [
+			"const config = (() => {",
+			"  return { theme: 'dark' };",
+			"})();",
+			"if ($[0] !== config) {",
+			"  t0 = <View config={config} />;",
+			"}",
+		].join("\n");
+		// CLOSURE_RHS matches the IIFE because it starts with `(() =>`.
+		// This is a known false positive that does not occur in practice.
+		expect(findUnmemoizedClosureDeps(code)).toEqual([
+			{ name: "config", line: 1 },
+		]);
+	});
 });

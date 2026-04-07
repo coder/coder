@@ -29,7 +29,7 @@ const MAX_ERROR_LENGTH = 120;
 
 // Patterns that identify a function/closure value on the RHS of an
 // assignment. Primitives (strings, numbers, booleans) are fine without
-// memoization — `!==` compares them by value. Only reference types
+// memoization because `!==` compares them by value. Only reference types
 // (closures, objects, arrays) cause problems.
 const CLOSURE_RHS = /^\s*(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\s*\()/;
 
@@ -78,8 +78,8 @@ function collectFiles(dir) {
 //
 // We use transformSync deliberately. The React Compiler plugin is
 // CPU-bound (parse-only takes ~2s vs ~19s with the compiler over all
-// of site/src), so transformAsync + Promise.all gives no speedup —
-// Node still runs all transforms on a single thread. Benchmarked
+// of site/src), so transformAsync + Promise.all gives no speedup
+// because Node still runs all transforms on a single thread. Benchmarked
 // sync, async-sequential, and async-parallel: all land within noise
 // of each other. The sync API keeps the code simple.
 // ---------------------------------------------------------------------------
@@ -160,11 +160,12 @@ function compileFile(file) {
 		// were compiled in this file.
 		const compiledCount = result?.code?.match(/const \$ = _c\(\d+\)/g)?.length ?? 0;
 
-			return {
-				compiled: compiledCount,
-				code: result?.code ?? "",
-				diagnostics: deduplicateDiagnostics(diagnostics),
-			};	} catch (e) {
+		return {
+			compiled: compiledCount,
+			code: result?.code ?? "",
+			diagnostics: deduplicateDiagnostics(diagnostics),
+		};
+	} catch (e) {
 		return {
 			compiled: 0,
 			code: "",
@@ -192,8 +193,8 @@ function compileFile(file) {
 // 1. Collect every name that appears in a `$[N] !== name` dep check.
 // 2. For each, check if the name is assigned a function value
 //    (arrow or function expression) outside any `$[N]` guard.
-// 3. If so, the closure is unmemoized but used as a reactive dep —
-//    it defeats the downstream memoization.
+// 3. If so, the closure is unmemoized but used as a reactive dep,
+//    which defeats the downstream memoization.
 // ---------------------------------------------------------------------------
 
 /**
@@ -280,43 +281,47 @@ function printReport(failures, totalCompiled, fileCount, hadErrors) {
 // Main
 // ---------------------------------------------------------------------------
 
+// Tracks whether collectFiles encountered a missing directory.
+// Module-scoped so the function can set it and the main block can
+// read it after collection finishes.
+let hadCollectionErrors = false;
+
 // Only run the main block when executed directly, not when imported
 // by tests for the exported pure functions.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-	let hadCollectionErrors = false;
 
 	const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
 
-let totalCompiled = 0;
-const failures = [];
+	let totalCompiled = 0;
+	const failures = [];
 
-const scopePruned = [];
+	const scopePruned = [];
 
-for (const file of files) {
-	const { compiled, code, diagnostics } = compileFile(file);
-	totalCompiled += compiled;
-	if (diagnostics.length > 0) {
-		failures.push({ file, compiled, diagnostics });
-	}
-	const pruned = findUnmemoizedClosureDeps(code);
-	if (pruned.length > 0) {
-		scopePruned.push({ file, closures: pruned });
-	}
-}
-
-printReport(failures, totalCompiled, files.length, hadCollectionErrors);
-
-if (scopePruned.length > 0) {
-	console.log("\nUnmemoized closures used as reactive dependencies:");
-	console.log("(Move these after all hook calls — see PR #24098)\n");
-	for (const { file, closures } of scopePruned) {
-		for (const c of closures) {
-			console.log(`  ✗ ${shortPath(file)}:${c.line} — ${c.name}`);
+	for (const file of files) {
+		const { compiled, code, diagnostics } = compileFile(file);
+		totalCompiled += compiled;
+		if (diagnostics.length > 0) {
+			failures.push({ file, compiled, diagnostics });
+		}
+		const pruned = findUnmemoizedClosureDeps(code);
+		if (pruned.length > 0) {
+			scopePruned.push({ file, closures: pruned });
 		}
 	}
-}
 
-if (failures.length > 0 || hadCollectionErrors || scopePruned.length > 0) {
-	process.exitCode = 1;
-}
+	printReport(failures, totalCompiled, files.length, hadCollectionErrors);
+
+	if (scopePruned.length > 0) {
+		console.log("\nUnmemoized closures used as reactive dependencies:");
+		console.log("(Move these after all hook calls to restore memoization)\n");
+		for (const { file, closures } of scopePruned) {
+			for (const c of closures) {
+				console.log(`  ✗ ${shortPath(file)}: ${c.name}`);
+			}
+		}
+	}
+
+	if (failures.length > 0 || hadCollectionErrors || scopePruned.length > 0) {
+		process.exitCode = 1;
+	}
 }
