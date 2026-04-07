@@ -147,7 +147,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		changelogBaseRef = prevVersion.String()
 	} else {
 		prevReleaseBranch := fmt.Sprintf("release/%d.%d", branchMajor, branchMinor-1)
-		_ = gitRun("fetch", "--quiet", "origin", prevReleaseBranch)
+		if err := gitRun("fetch", "--quiet", "origin", prevReleaseBranch); err != nil {
+			warnf(w, "Could not fetch %s: %v", prevReleaseBranch, err)
+		}
 		if mb, mbErr := gitOutput("merge-base", "HEAD", "origin/"+prevReleaseBranch); mbErr == nil && mb != "" {
 			changelogBaseRef = mb
 			infof(w, "Using merge-base with %s as changelog base: %s", prevReleaseBranch, mb[:12])
