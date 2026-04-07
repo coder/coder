@@ -33,7 +33,7 @@ a YAML configuration file.
 | Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs      |
 | API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys     |
 | Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs |
-| AI Gateway            | `--aibridge-retention`             | `CODER_AIBRIDGE_RETENTION`             | `60d`          | How long to retain AI Gateway records    |
+| AI Gateway           | `--aibridge-retention`             | `CODER_AIBRIDGE_RETENTION`             | `60d`          | How long to retain AI Gateway records   |
 
 > [!NOTE]
 > AI Gateway retention is configured separately from other retention settings.

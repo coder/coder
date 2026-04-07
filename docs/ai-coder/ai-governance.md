@@ -119,7 +119,7 @@ and coding assistants.
 | Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
 | Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
 | Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
-| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall                   | No                             |
+| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall                    | No                             |
 
 In the future, additional capabilities for managing agents (beyond Coder Tasks)
 may also consume agent workspace builds.

@@ -83,7 +83,7 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 | [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.                                                                                                              |
 | [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key".                                                                                                           |
 | [Zed](./zed.md)                  | ✅      | ✅         |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Gateway Proxy](../ai-bridge-proxy/index.md). Uses per-user GitHub tokens.                                                                  |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Gateway Proxy](../ai-bridge-proxy/index.md). Uses per-user GitHub tokens.                                                                 |
 | WindSurf                         | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 | Cursor                           | ❌      | ❌         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
 | Sourcegraph Amp                  | ❌      | ❌         | No option to override base URL.                                                                                                                        |
