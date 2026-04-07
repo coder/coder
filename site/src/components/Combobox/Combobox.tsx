@@ -1,6 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import type React from "react";
-import { createContext, useContext, useRef, useState } from "react";
+import { type KeyboardEvent, createContext, useContext, useRef, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -131,24 +131,25 @@ export const ComboboxContent = ({
 
 type ComboboxInputProps = Omit<
 	React.ComponentPropsWithRef<typeof CommandInput>,
-	"onValueChange"
+	"onValueChange" | "value" | "defaultValue"
 > & {
-	onValueChange: NonNullable<
-		React.ComponentPropsWithRef<typeof CommandInput>["onValueChange"]
-	>;
+	onValueChange: (value: string) => void;
+	value?: string;
+	defaultValue?: string;
 };
 
-export const ComboboxInput = ({
+export const ComboboxInput: React.FC<ComboboxInputProps> = ({
 	onValueChange,
 	value,
 	defaultValue,
 	onBlur,
+	onKeyDown,
 	...props
-}: ComboboxInputProps) => {
+}) => {
 	const [internalValue, setInternalValue] = useState<string>(
-		String(value ?? defaultValue ?? ""),
+		value ?? defaultValue ?? "",
 	);
-	const externalValue = value === undefined ? undefined : String(value);
+	const externalValue = value;
 	const lastExternalValueRef = useRef(externalValue);
 
 	if (externalValue !== lastExternalValueRef.current) {
@@ -163,6 +164,16 @@ export const ComboboxInput = ({
 		COMBOBOX_DEBOUNCE_MS,
 	);
 
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		// Flush the pending debounce immediately on Enter so that
+		// parent onKeyDown handlers see up-to-date state.
+		if (event.key === "Enter") {
+			cancelDebounce();
+			onValueChange(internalValue);
+		}
+		onKeyDown?.(event);
+	};
+
 	return (
 		<CommandInput
 			{...props}
@@ -175,6 +186,7 @@ export const ComboboxInput = ({
 				cancelDebounce();
 				onBlur?.(event);
 			}}
+			onKeyDown={handleKeyDown}
 		/>
 	);
 };
