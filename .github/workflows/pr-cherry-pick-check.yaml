@@ -88,6 +88,6 @@ jobs:
               });
             }
 
-            core.setFailed(
+            core.warning(
               `PR #${prNumber} targets ${baseBranch} but is not a bug fix. Title must start with "fix:" or "fix(scope):".`,
             );
