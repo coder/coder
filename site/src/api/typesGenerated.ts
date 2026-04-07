@@ -913,6 +913,7 @@ export interface AuditLog {
 export interface AuditLogResponse {
 	readonly audit_logs: readonly AuditLog[];
 	readonly count: number;
+	readonly count_cap: number;
 }
 
 // From codersdk/audit.go
@@ -1200,6 +1201,7 @@ export interface Chat {
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
+	readonly files?: readonly ChatFileMetadata[];
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
@@ -1213,7 +1215,13 @@ export interface Chat {
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
+	readonly warnings?: readonly string[];
 }
+
+// From codersdk/chats.go
+export type ChatBusyBehavior = "interrupt" | "queue";
+
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
 
 // From codersdk/chats.go
 /**
@@ -1263,6 +1271,7 @@ export interface ChatCostChatBreakdown {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1280,6 +1289,7 @@ export interface ChatCostModelBreakdown {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1296,6 +1306,7 @@ export interface ChatCostSummary {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
 	readonly usage_limit?: ChatUsageLimitStatus;
@@ -1326,6 +1337,7 @@ export interface ChatCostUserRollup {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1396,6 +1408,20 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatFileMetadata contains lightweight metadata about a file
+ * associated with a chat, excluding the file content itself.
+ */
+export interface ChatFileMetadata {
+	readonly id: string;
+	readonly owner_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly mime_type: string;
+	readonly created_at: string;
 }
 
 // From codersdk/chats.go
@@ -2244,6 +2270,7 @@ export interface ConnectionLog {
 export interface ConnectionLogResponse {
 	readonly connection_logs: readonly ConnectionLog[];
 	readonly count: number;
+	readonly count_cap: number;
 }
 
 // From codersdk/connectionlog.go
@@ -2334,6 +2361,7 @@ export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
+	readonly busy_behavior?: ChatBusyBehavior;
 }
 
 // From codersdk/chats.go
@@ -2344,6 +2372,7 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -2382,6 +2411,7 @@ export interface CreateChatProviderConfigRequest {
  */
 export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
+	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
@@ -3192,6 +3222,17 @@ export interface DynamicParametersResponse {
  */
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
+}
+
+// From codersdk/chats.go
+/**
+ * EditChatMessageResponse is the response from editing a message in a chat.
+ * Edits are always synchronous (no queueing), so the message is returned
+ * directly.
+ */
+export interface EditChatMessageResponse {
+	readonly message: ChatMessage;
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -4100,6 +4141,15 @@ export interface MatchedProvisioners {
 	 */
 	readonly most_recently_seen?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * MaxChatFileIDs is the maximum number of file IDs that can be
+ * associated with a single chat. This limit prevents unbounded
+ * growth in the chat_file_links table. It is easier to raise
+ * this limit than to lower it.
+ */
+export const MaxChatFileIDs = 20;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {

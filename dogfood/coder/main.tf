@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.6"
+      version = "~> 4.0"
     }
   }
 }
@@ -922,7 +922,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.8.2"
+  version             = "4.9.1"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir

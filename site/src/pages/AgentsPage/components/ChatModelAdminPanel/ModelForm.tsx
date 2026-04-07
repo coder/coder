@@ -3,6 +3,8 @@ import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	InfoIcon,
+	PencilIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
@@ -17,6 +19,11 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
 import {
 	Select,
@@ -109,8 +116,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 }) => {
 	const isEditing = Boolean(editingModel);
 	const isDefaultModel = isEditing && editingModel?.is_default === true;
-	const [showPricing, setShowPricing] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [showPricing, setShowPricing] = useState(false);
+	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
@@ -324,17 +332,30 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8"
 					/>
 				)}
-				<div className="min-w-0 flex-1">
-					<input
-						type="text"
-						{...form.getFieldProps("displayName")}
-						disabled={isSaving}
-						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-						placeholder={
-							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
-						}
-					/>
-				</div>
+				<div className="inline-flex items-center gap-1">
+					<div className="relative inline-grid">
+						<span
+							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
+							aria-hidden="true"
+						>
+							{form.values.displayName ||
+								(isEditing
+									? (editingModel?.model ?? "Model name")
+									: "Model name")}
+						</span>
+						<input
+							type="text"
+							{...form.getFieldProps("displayName")}
+							disabled={isSaving}
+							spellCheck={false}
+							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+							placeholder={
+								isEditing ? (editingModel?.model ?? "Model name") : "Model name"
+							}
+						/>
+					</div>
+					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+				</div>{" "}
 				{editingModel && (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -361,170 +382,235 @@ export const ModelForm: FC<ModelFormProps> = ({
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 			{/* Form body */}
-			<form className="flex flex-1 flex-col" onSubmit={form.handleSubmit}>
-				<div className="space-y-5">
-					{/* Model ID + Context Limit */}
-					<div className="grid items-start gap-5 sm:grid-cols-2">
-						<div className="grid gap-1.5">
-							<Label
-								htmlFor={modelField.id}
-								className="text-sm font-medium text-content-primary"
-							>
-								Model Identifier{" "}
-								<span className="text-xs font-bold text-content-destructive">
-									*
-								</span>
-							</Label>
-							<p className="m-0 text-xs text-content-secondary">
-								The model identifier sent to the provider API.
-							</p>
-							<Input
-								id={modelField.id}
-								name={modelField.name}
-								className={cn(
-									"h-9 text-[13px] placeholder:text-content-disabled",
-									modelField.error && "border-content-destructive",
-								)}
-								placeholder="e.g. gpt-5, claude-sonnet-4-5"
-								value={modelField.value}
-								onChange={modelField.onChange}
-								onBlur={modelField.onBlur}
-								disabled={isSaving}
-								aria-invalid={modelField.error}
-								aria-describedby={
-									modelField.error ? `${modelField.id}-error` : undefined
-								}
-							/>
-							{modelField.error && (
-								<p
-									id={`${modelField.id}-error`}
-									className="m-0 text-xs text-content-destructive"
+			<form
+				className="flex flex-1 flex-col"
+				onSubmit={form.handleSubmit}
+				spellCheck={false}
+				autoComplete="off"
+			>
+				<div className="space-y-6">
+					{/* Model ID + Context Limit + Pricing */}
+					<div className="space-y-4">
+						<div className="grid items-start gap-4 sm:grid-cols-2">
+							{" "}
+							<div className="grid gap-1.5">
+								<Label
+									htmlFor={modelField.id}
+									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
 								>
-									{modelField.helperText}
-								</p>
-							)}
-						</div>
-						<div className="grid gap-1.5">
-							<Label
-								htmlFor={contextLimitField.id}
-								className="text-sm font-medium text-content-primary"
-							>
-								Context Limit{" "}
-								<span className="text-xs font-bold text-content-destructive">
-									*
-								</span>
-							</Label>
-							<p className="m-0 text-xs text-content-secondary">
-								Max tokens in the context window.
-							</p>
-							<Input
-								id={contextLimitField.id}
-								name={contextLimitField.name}
-								className={cn(
-									"h-9 text-[13px] placeholder:text-content-disabled",
-									contextLimitField.error && "border-content-destructive",
+									Model Identifier{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="h-3 w-3 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-[240px]">
+											The model identifier sent to the provider API.
+										</TooltipContent>
+									</Tooltip>
+								</Label>
+								<Input
+									id={modelField.id}
+									name={modelField.name}
+									className={cn(
+										"h-9 text-[13px] placeholder:text-content-disabled",
+										modelField.error && "border-content-destructive",
+									)}
+									placeholder="e.g. gpt-5, claude-sonnet-4-5"
+									value={modelField.value}
+									onChange={modelField.onChange}
+									onBlur={modelField.onBlur}
+									disabled={isSaving}
+									aria-invalid={modelField.error}
+									aria-describedby={
+										modelField.error ? `${modelField.id}-error` : undefined
+									}
+								/>
+								{modelField.error && (
+									<p
+										id={`${modelField.id}-error`}
+										className="m-0 text-xs text-content-destructive"
+									>
+										{modelField.helperText}
+									</p>
 								)}
-								placeholder="200000"
-								value={contextLimitField.value}
-								onChange={contextLimitField.onChange}
-								onBlur={contextLimitField.onBlur}
-								disabled={isSaving}
-								aria-invalid={contextLimitField.error}
-							/>
-							{contextLimitField.error && (
-								<p className="m-0 text-xs text-content-destructive">
-									{contextLimitField.helperText}
-								</p>
-							)}
+							</div>
+							<div className="grid gap-1.5">
+								<Label
+									htmlFor={contextLimitField.id}
+									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
+								>
+									Context Limit{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="h-3 w-3 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-[240px]">
+											Max tokens in the context window.
+										</TooltipContent>
+									</Tooltip>
+								</Label>
+								<InputGroup
+									className={cn(
+										"h-9",
+										contextLimitField.error && "border-border-destructive",
+									)}
+								>
+									<InputGroupInput
+										id={contextLimitField.id}
+										name={contextLimitField.name}
+										className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+										placeholder="200000"
+										value={contextLimitField.value}
+										onChange={contextLimitField.onChange}
+										onBlur={contextLimitField.onBlur}
+										disabled={isSaving}
+										aria-invalid={contextLimitField.error}
+									/>
+									<InputGroupAddon align="inline-end">
+										<span className="text-xs text-content-disabled">
+											tokens
+										</span>
+									</InputGroupAddon>
+								</InputGroup>{" "}
+								{contextLimitField.error && (
+									<p className="m-0 text-xs text-content-destructive">
+										{contextLimitField.helperText}
+									</p>
+								)}
+							</div>
 						</div>
 					</div>
 
-					{/* Provider-specific model config fields */}
-					<ModelConfigFields
-						provider={selectedProviderState.provider}
-						form={form}
-						fieldErrors={modelConfigFormBuildResult.fieldErrors}
-						disabled={isSaving}
-					/>
-
-					<div className="space-y-5">
-						{/* Pricing - toggle */}
-						<div>
-							<button
-								type="button"
-								onClick={() => setShowPricing((v) => !v)}
-								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
-							>
-								{showPricing ? (
-									<ChevronDownIcon className="h-4 w-4" />
-								) : (
-									<ChevronRightIcon className="h-4 w-4" />
-								)}
-								Pricing
-							</button>
-							{showPricing && (
-								<div className="mt-4 space-y-3">
-									<div>
-										<p className="m-0 text-xs text-content-secondary">
-											Optional USD pricing metadata per 1M tokens. Leave any
-											field blank to keep pricing unset and use provider or
-											profile defaults when available.
-										</p>
-									</div>
-									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-										<PricingModelConfigFields
-											provider={selectedProviderState.provider}
-											form={form}
-											fieldErrors={modelConfigFormBuildResult.fieldErrors}
-											disabled={isSaving}
-										/>
-									</div>
-								</div>
+					{/* Usage Tracking */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						<button
+							type="button"
+							onClick={() => setShowPricing((v) => !v)}
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+						>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Cost Tracking{" "}
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Set per-token pricing so Coder can track costs and enforce
+									spending limits.
+								</p>
+							</div>
+							{showPricing ? (
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							) : (
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							)}
-						</div>
+						</button>
+						{showPricing && (
+							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
+								<PricingModelConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+							</div>
+						)}
+					</div>
 
-						{/* Advanced - toggle */}
-						<div>
-							<button
-								type="button"
-								onClick={() => setShowAdvanced((v) => !v)}
-								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
-							>
-								{showAdvanced ? (
-									<ChevronDownIcon className="h-4 w-4" />
-								) : (
-									<ChevronRightIcon className="h-4 w-4" />
-								)}
-								Advanced
-							</button>
-							{showAdvanced && (
-								<div className="mt-4 space-y-5">
-									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-										<GeneralModelConfigFields
-											provider={selectedProviderState.provider}
-											form={form}
-											fieldErrors={modelConfigFormBuildResult.fieldErrors}
-											disabled={isSaving}
-										/>
-									</div>
-									<div className="flex flex-col gap-1.5">
-										<Label
-											htmlFor={compressionThresholdField.id}
-											className="text-sm font-medium text-content-primary"
-										>
-											Compression Threshold
-										</Label>
-										<p className="m-0 text-xs text-content-secondary">
-											Percentage at which context is compressed.
-										</p>
-										<Input
+					{/* Provider Configuration */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						<button
+							type="button"
+							onClick={() => setShowProviderConfig((v) => !v)}
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+						>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Provider Configuration
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Tune provider-specific behavior like reasoning, tool calling,
+									and web search.
+								</p>
+							</div>
+							{showProviderConfig ? (
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							) : (
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							)}
+						</button>
+						{showProviderConfig && (
+							<div className="pt-3">
+								<ModelConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+							</div>
+						)}
+					</div>
+
+					{/* Advanced */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						<button
+							type="button"
+							onClick={() => setShowAdvanced((v) => !v)}
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+						>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Advanced
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Low-level parameters like temperature and penalties. Rarely
+									need changing.
+								</p>
+							</div>
+							{showAdvanced ? (
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							) : (
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							)}
+						</button>
+						{showAdvanced && (
+							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
+								<GeneralModelConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label
+										htmlFor={compressionThresholdField.id}
+										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+									>
+										Compression Threshold
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<InfoIcon className="h-3 w-3 text-content-secondary" />
+											</TooltipTrigger>
+											<TooltipContent side="top" className="max-w-[240px]">
+												Percentage at which context is compressed.
+											</TooltipContent>
+										</Tooltip>
+									</Label>
+									<InputGroup
+										className={cn(
+											"h-9",
+											compressionThresholdField.error &&
+												"border-border-destructive",
+										)}
+									>
+										<InputGroupInput
 											id={compressionThresholdField.id}
 											name={compressionThresholdField.name}
-											className={cn(
-												"h-9 text-[13px] placeholder:text-content-disabled",
-												compressionThresholdField.error &&
-													"border-content-destructive",
-											)}
+											className="h-9 text-[13px] placeholder:text-content-disabled"
 											placeholder="70"
 											value={compressionThresholdField.value}
 											onChange={compressionThresholdField.onChange}
@@ -532,18 +618,20 @@ export const ModelForm: FC<ModelFormProps> = ({
 											disabled={isSaving}
 											aria-invalid={compressionThresholdField.error}
 										/>
-										{compressionThresholdField.error && (
-											<p className="m-0 text-xs text-content-destructive">
-												{compressionThresholdField.helperText}
-											</p>
-										)}
-									</div>
+										<InputGroupAddon align="inline-end">
+											<span className="text-xs text-content-disabled">%</span>
+										</InputGroupAddon>
+									</InputGroup>
+									{compressionThresholdField.error && (
+										<p className="m-0 text-xs text-content-destructive">
+											{compressionThresholdField.helperText}
+										</p>
+									)}
 								</div>
-							)}
-						</div>
+							</div>
+						)}
 					</div>
 				</div>
-				{/* Footer - pushed to bottom */}
 				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">

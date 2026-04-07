@@ -19,6 +19,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "#/modules/notifications/utils";
@@ -38,7 +39,9 @@ function isNotificationTab(
 }
 
 const NotificationsPage: FC = () => {
+	const { permissions } = useAuthenticated();
 	const { deploymentConfig } = useDeploymentConfig();
+	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const [systemTemplatesByGroup, customTemplatesByGroup, dispatchMethods] =
 		useQueries({
 			queries: [
@@ -102,6 +105,7 @@ const NotificationsPage: FC = () => {
 						<NotificationEvents
 							templatesByGroup={allTemplatesByGroup}
 							deploymentConfig={deploymentConfig.config}
+							canEdit={canEditDeploymentConfig}
 							defaultMethod={castNotificationMethod(
 								dispatchMethods.data.default,
 							)}
@@ -118,7 +122,7 @@ const NotificationsPage: FC = () => {
 						/>
 					</TabsContent>
 					<TabsContent value="troubleshooting" className="py-6">
-						<Troubleshooting />
+						<Troubleshooting canEdit={canEditDeploymentConfig} />
 					</TabsContent>
 				</Tabs>
 			)}

@@ -190,7 +190,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const handleSubmit = (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => {
-		if (!latestResponse || !latestResponse.parameters) {
+		if (!latestResponse?.parameters) {
 			return;
 		}
 
