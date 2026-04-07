@@ -69,6 +69,7 @@ describe("ConnectionLogPage", () => {
 					MockDisconnectedSSHConnectionLog,
 				],
 				count: 2,
+				count_cap: 0,
 			});
 
 		// When
@@ -95,6 +96,7 @@ describe("ConnectionLogPage", () => {
 				.mockResolvedValue({
 					connection_logs: [MockConnectedSSHConnectionLog],
 					count: 1,
+					count_cap: 0,
 				});
 
 			const query = "type:ssh status:ongoing";
