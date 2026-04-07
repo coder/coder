@@ -4100,6 +4100,8 @@ type AIBridgeInterception struct {
 	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
 	// Masked credential identifier for audit (e.g. sk-a***efgh).
 	CredentialHint string `db:"credential_hint" json:"credential_hint"`
+	// The provider instance name which may differ from provider when multiple instances of the same provider type exist.
+	ProviderName string `db:"provider_name" json:"provider_name"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4115,11 +4117,13 @@ type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
 	// The ID for the response in which the tokens were used, produced by the provider.
-	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
-	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
-	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
-	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+	ProviderResponseID    string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens           int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata              pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt             time.Time             `db:"created_at" json:"created_at"`
+	CacheReadInputTokens  int64                 `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64                 `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -4276,6 +4280,11 @@ type ChatFile struct {
 	Data           []byte    `db:"data" json:"data"`
 }
 
+type ChatFileLink struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	FileID uuid.UUID `db:"file_id" json:"file_id"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -4324,12 +4333,15 @@ type ChatProvider struct {
 	DisplayName string    `db:"display_name" json:"display_name"`
 	APIKey      string    `db:"api_key" json:"api_key"`
 	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
-	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled                    bool           `db:"enabled" json:"enabled"`
+	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time      `db:"updated_at" json:"updated_at"`
+	BaseUrl                    string         `db:"base_url" json:"base_url"`
+	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
+	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
+	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
 }
 
 type ChatQueuedMessage struct {
@@ -5282,6 +5294,16 @@ type User struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
+type UserChatProviderKey struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
+	APIKey         string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type UserConfig struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	Key    string    `db:"key" json:"key"`
@@ -5311,15 +5333,16 @@ type UserLink struct {
 }
 
 type UserSecret struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Value       string    `db:"value" json:"value"`
-	EnvName     string    `db:"env_name" json:"env_name"`
-	FilePath    string    `db:"file_path" json:"file_path"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Name        string         `db:"name" json:"name"`
+	Description string         `db:"description" json:"description"`
+	Value       string         `db:"value" json:"value"`
+	EnvName     string         `db:"env_name" json:"env_name"`
+	FilePath    string         `db:"file_path" json:"file_path"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
 // Tracks the history of user status changes

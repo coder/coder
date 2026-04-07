@@ -211,33 +211,53 @@ Coder releases are initiated via
 [`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh)
 and automated via GitHub Actions. Specifically, the
 [`release.yaml`](https://github.com/coder/coder/blob/main/.github/workflows/release.yaml)
-workflow. They are created based on the current
-[`main`](https://github.com/coder/coder/tree/main) branch.
+workflow.
 
-The release notes for a release are automatically generated from commit titles
-and metadata from PRs that are merged into `main`.
+Release notes are automatically generated from commit titles and PR metadata.
 
-### Creating a release
+### Release types
 
-The creation of a release is initiated via
-[`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh).
-This script will show a preview of the release that will be created, and if you
-choose to continue, create and push the tag which will trigger the creation of
-the release via GitHub Actions.
+| Type                   | Tag           | Branch        | Purpose                                 |
+|------------------------|---------------|---------------|-----------------------------------------|
+| RC (release candidate) | `vX.Y.0-rc.W` | `main`        | Ad-hoc pre-release for customer testing |
+| Release                | `vX.Y.0`      | `release/X.Y` | First release of a minor version        |
+| Patch                  | `vX.Y.Z`      | `release/X.Y` | Bug fixes and security patches          |
 
-See `./scripts/release.sh --help` for more information.
+### Workflow
+
+RC tags are created directly on `main`. The `release/X.Y` branch is only cut
+when the release is ready. This avoids cherry-picking main's progress onto
+a release branch between the first RC and the release.
+
+```text
+main:  ──●──●──●──●──●──●──●──●──●──
+              ↑           ↑     ↑
+           rc.0        rc.1    cut release/2.34, tag v2.34.0
+                                     \
+                               release/2.34:  ──●── v2.34.1 (patch)
+```
+
+1. **RC:** On `main`, run `./scripts/release.sh`. The tool suggests the next
+   RC version and tags it on `main`.
+2. **Release:** When the RC is blessed, create `release/X.Y` from `main` (or
+   the specific RC commit). Switch to that branch and run
+   `./scripts/release.sh`, which suggests `vX.Y.0`.
+3. **Patch:** Cherry-pick fixes onto `release/X.Y` and run
+   `./scripts/release.sh` from that branch.
+
+The release tool warns if you try to tag a non-RC on `main` or an RC on a
+release branch.
 
 ### Creating a release (via workflow dispatch)
 
-Typically the workflow dispatch is only used to test (dry-run) a release,
-meaning no actual release will take place. The workflow can be dispatched
-manually from
-[Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml).
-Simply press "Run workflow" and choose dry-run.
+If the
+[`release.yaml`](https://github.com/coder/coder/actions/workflows/release.yaml)
+workflow fails after the tag has been pushed, retry it from the GitHub Actions
+UI: press "Run workflow", set "Use workflow from" to the tag (e.g.
+`Tag: v2.34.0`), select the correct release channel, and do **not** select
+dry-run.
 
-If a release has failed after the tag has been created and pushed, it can be
-retried by again, pressing "Run workflow", changing "Use workflow from" from
-"Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
+To test the workflow without publishing, select dry-run.
 
 ### Commit messages
 

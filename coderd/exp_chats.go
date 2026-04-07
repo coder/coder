@@ -56,7 +56,6 @@ import (
 )
 
 const (
-	chatDiffStatusTTL   = gitsync.DiffStatusTTL
 	chatStreamBatchSize = 256
 
 	chatContextLimitModelConfigKey                = "context_limit"
@@ -67,11 +66,12 @@ const (
 	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
-// chatGitRef holds the branch and remote origin reported by the
-// workspace agent during a git operation.
+// chatGitRef holds the branch, remote origin, and optional chat
+// ID reported by the workspace agent during a git operation.
 type chatGitRef struct {
 	Branch       string
 	RemoteOrigin string
+	ChatID       uuid.UUID
 }
 
 type chatRepositoryRef struct {
@@ -403,7 +403,17 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	// Validate per-chat system prompt length.
+	const maxSystemPromptLen = 10000
+	if len(req.SystemPrompt) > maxSystemPromptLen {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "System prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("System prompt must be at most %d characters, got %d.", maxSystemPromptLen, len(req.SystemPrompt)),
+		})
+		return
+	}
+
+	contentBlocks, titleSource, fileIDs, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -483,7 +493,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
-		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
+		SystemPrompt:       req.SystemPrompt,
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
@@ -514,12 +524,38 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil))
+	// Link any user-uploaded files referenced in the initial
+	// message to this newly created chat (best-effort; cap
+	// enforced in SQL).
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+
+	// Re-read the chat so the response reflects the authoritative
+	// database state (file links are deduped in the join table).
+	chat, err = api.Database.GetChatByID(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to read back chat after creation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
+	response := db2sdk.Chat(chat, nil, chatFiles)
+	if len(unlinked) > 0 {
+		if capExceeded {
+			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
+		} else {
+			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	//nolint:gocritic // System context required to read enabled chat models.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
@@ -555,14 +591,24 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
 	)
+	enabledProviderNames := make(map[string]struct{}, len(enabledProviders))
 	for _, provider := range enabledProviders {
 		configuredProviders = append(
 			configuredProviders, chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
-				APIKey:   provider.APIKey,
-				BaseURL:  provider.BaseUrl,
+				ProviderID:                 provider.ID,
+				Provider:                   provider.Provider,
+				APIKey:                     provider.APIKey,
+				BaseURL:                    provider.BaseUrl,
+				CentralAPIKeyEnabled:       provider.CentralApiKeyEnabled,
+				AllowUserAPIKey:            provider.AllowUserApiKey,
+				AllowCentralAPIKeyFallback: provider.AllowCentralApiKeyFallback,
 			},
 		)
+		normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		enabledProviderNames[normalizedProvider] = struct{}{}
 	}
 	configuredModels := make(
 		[]chatprovider.ConfiguredModel, 0, len(enabledModels),
@@ -575,18 +621,38 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	keys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+	userKeyRows, err := api.Database.GetUserChatProviderKeys(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load user chat provider keys.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	userKeys := make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
+	for _, userKey := range userKeyRows {
+		userKeys = append(userKeys, chatprovider.UserProviderKey{
+			ChatProviderID: userKey.ChatProviderID,
+			APIKey:         userKey.APIKey,
+		})
+	}
+
+	_, providerAvailability := chatprovider.ResolveUserProviderKeys(
+		ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		configuredProviders,
+		userKeys,
 	)
-	catalog := chatprovider.NewModelCatalog(keys)
+	catalog := chatprovider.NewModelCatalog()
 	var response codersdk.ChatModelsResponse
 	if configured, ok := catalog.ListConfiguredModels(
-		configuredProviders, configuredModels,
+		configuredProviders, configuredModels, providerAvailability, enabledProviderNames,
 	); ok {
 		response = configured
 	} else {
-		response = catalog.ListConfiguredProviderAvailability(configuredProviders)
+		response = catalog.ListConfiguredProviderAvailability(
+			providerAvailability,
+			enabledProviderNames,
+		)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -686,6 +752,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		TotalOutputTokens:        summary.TotalOutputTokens,
 		TotalCacheReadTokens:     summary.TotalCacheReadTokens,
 		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
+		TotalRuntimeMs:           summary.TotalRuntimeMs,
 		ByModel:                  modelBreakdowns,
 		ByChat:                   chatBreakdowns,
 	}
@@ -1243,15 +1310,27 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	diffStatus, err := api.resolveChatDiffStatus(ctx, chat)
-	if err != nil {
-		// Log but don't fail - diff status is supplementary.
-		api.Logger.Error(ctx, "failed to resolve chat diff status",
+	// Use the cached diff status from the database rather than
+	// resolving it inline. Inline resolution calls out to the
+	// git provider API (e.g. GitHub) on every request which
+	// blocks the response for 200-800ms. The background gitsync
+	// worker keeps the cached status fresh.
+	var diffStatus *database.ChatDiffStatus
+	status, err := api.Database.GetChatDiffStatusByChatID(ctx, chat.ID)
+	switch {
+	case err == nil:
+		diffStatus = &status
+	case !xerrors.Is(err, sql.ErrNoRows):
+		api.Logger.Error(ctx, "failed to get cached chat diff status",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus))
+
+	// Hydrate file metadata for all files linked to this chat.
+	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1648,13 +1727,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.ArchiveChat(ctx, chat)
 			} else {
-				err = api.Database.ArchiveChatByID(ctx, chat.ID)
+				_, err = api.Database.ArchiveChatByID(ctx, chat.ID)
 			}
 		} else {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.UnarchiveChat(ctx, chat)
 			} else {
-				err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+				_, err = api.Database.UnarchiveChatByID(ctx, chat.ID)
 			}
 		}
 		if err != nil {
@@ -1741,7 +1820,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, fileIDs, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -1780,6 +1859,20 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	switch req.BusyBehavior {
+	case codersdk.ChatBusyBehaviorInterrupt:
+		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
+	case codersdk.ChatBusyBehaviorQueue, "":
+		// Default to queue.
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid busy_behavior value.",
+			Detail:  `Must be "queue" or "interrupt".`,
+		})
+		return
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -1787,7 +1880,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			CreatedBy:     apiKey.UserID,
 			Content:       contentBlocks,
 			ModelConfigID: req.ModelConfigID,
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior:  busyBehavior,
 			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
@@ -1809,6 +1902,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Link any user-uploaded files referenced in this message
+	// to the chat (best-effort; cap enforced in SQL).
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, fileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -1817,6 +1913,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		message := convertChatMessage(sendResult.Message)
 		response.Message = &message
+	}
+	if len(unlinked) > 0 {
+		if capExceeded {
+			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
+		} else {
+			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -1851,7 +1954,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, fileIDs, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -1890,8 +1993,20 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message := convertChatMessage(editResult.Message)
-	httpapi.Write(ctx, rw, http.StatusOK, message)
+	// Link any user-uploaded files referenced in the edited
+	// message to the chat (best-effort; cap enforced in SQL).
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	response := codersdk.EditChatMessageResponse{
+		Message: convertChatMessage(editResult.Message),
+	}
+	if len(unlinked) > 0 {
+		if capExceeded {
+			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
+		} else {
+			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2168,7 +2283,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2212,7 +2327,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2356,68 +2471,6 @@ func chatWorkspaceAuditStatus(err error) int {
 		return status
 	}
 	return http.StatusInternalServerError
-}
-
-func (api *API) resolveChatDiffStatus(
-	ctx context.Context,
-	chat database.Chat,
-) (*database.ChatDiffStatus, error) {
-	status, found, err := api.getCachedChatDiffStatus(ctx, chat.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-
-	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
-	if err != nil {
-		return nil, err
-	}
-	if reference.PullRequestURL != "" {
-		if !found || !strings.EqualFold(strings.TrimSpace(status.Url.String), reference.PullRequestURL) {
-			status, err = api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(-time.Second))
-			if err != nil {
-				return nil, err
-			}
-			found = true
-		}
-	}
-
-	if !found {
-		return nil, nil //nolint:nilnil // Callers handle nil status explicitly.
-	}
-	if !chatDiffStatusIsStale(status, now) {
-		return &status, nil
-	}
-
-	// Use the same refresh pipeline as the background worker
-	// so both paths share identical provider/token resolution.
-	refreshed, err := api.gitSyncWorker.RefreshChat(
-		ctx, status, chat.OwnerID,
-	)
-	if err == nil && refreshed != nil {
-		return refreshed, nil
-	}
-	if err == nil {
-		// No PR exists yet; return what we have.
-		return &status, nil
-	}
-
-	api.Logger.Warn(ctx, "failed to refresh chat diff status",
-		slog.F("chat_id", chat.ID),
-		slog.Error(err),
-	)
-
-	backoffStatus, backoffErr := api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(chatDiffStatusTTL))
-	if backoffErr != nil {
-		api.Logger.Warn(ctx, "failed to extend chat diff status stale timestamp",
-			slog.F("chat_id", chat.ID),
-			slog.Error(backoffErr),
-		)
-		return &status, nil
-	}
-
-	return &backoffStatus, nil
 }
 
 func (api *API) resolveChatDiffContents(
@@ -2684,13 +2737,6 @@ func (api *API) resolveExternalAuth(origin string) (providerType string, gp gitp
 func (api *API) resolveGitProvider(origin string) gitprovider.Provider {
 	_, gp := api.resolveExternalAuth(origin)
 	return gp
-}
-
-func chatDiffStatusIsStale(status database.ChatDiffStatus, now time.Time) bool {
-	if !status.RefreshedAt.Valid {
-		return true
-	}
-	return !status.StaleAt.After(now)
 }
 
 func (api *API) resolveChatGitAccessToken(
@@ -3506,35 +3552,6 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
-	config, err := api.Database.GetChatSystemPromptConfig(ctx)
-	if err != nil {
-		// We intentionally fail open here. When the prompt configuration
-		// cannot be read, returning the built-in default keeps the chat
-		// grounded instead of sending no system guidance at all.
-		api.Logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
-		return chatd.DefaultSystemPrompt
-	}
-
-	sanitizedCustom := chatd.SanitizePromptText(config.ChatSystemPrompt)
-	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
-		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
-	}
-
-	var parts []string
-	if config.IncludeDefaultSystemPrompt {
-		parts = append(parts, chatd.DefaultSystemPrompt)
-	}
-	if sanitizedCustom != "" {
-		parts = append(parts, sanitizedCustom)
-	}
-	result := strings.Join(parts, "\n\n")
-	if result == "" {
-		api.Logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
-	}
-	return result
-}
-
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -3722,6 +3739,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
 	[]codersdk.ChatMessagePart,
 	string,
+	[]uuid.UUID,
 	*codersdk.Response,
 ) {
 	return createChatInputFromParts(ctx, db, req.Content, "content")
@@ -3732,14 +3750,15 @@ func createChatInputFromParts(
 	db database.Store,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
-) ([]codersdk.ChatMessagePart, string, *codersdk.Response) {
+) ([]codersdk.ChatMessagePart, string, []uuid.UUID, *codersdk.Response) {
 	if len(parts) == 0 {
-		return nil, "", &codersdk.Response{
+		return nil, "", nil, &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  "Content cannot be empty.",
 		}
 	}
 
+	var fileIDs []uuid.UUID
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	textParts := make([]string, 0, len(parts))
 	for i, part := range parts {
@@ -3747,7 +3766,7 @@ func createChatInputFromParts(
 		case string(codersdk.ChatInputPartTypeText):
 			text := strings.TrimSpace(part.Text)
 			if text == "" {
-				return nil, "", &codersdk.Response{
+				return nil, "", nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
 				}
@@ -3756,7 +3775,7 @@ func createChatInputFromParts(
 			textParts = append(textParts, text)
 		case string(codersdk.ChatInputPartTypeFile):
 			if part.FileID == uuid.Nil {
-				return nil, "", &codersdk.Response{
+				return nil, "", nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
@@ -3767,20 +3786,23 @@ func createChatInputFromParts(
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
-					return nil, "", &codersdk.Response{
+					return nil, "", nil, &codersdk.Response{
 						Message: "Invalid input part.",
 						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
 					}
 				}
-				return nil, "", &codersdk.Response{
+				return nil, "", nil, &codersdk.Response{
 					Message: "Internal error.",
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype))
+			fileIDs = append(fileIDs, part.FileID)
+		// file-reference parts carry inline code snippets, not uploaded
+		// files. They have no FileID and are excluded from file tracking.
 		case string(codersdk.ChatInputPartTypeFileReference):
 			if part.FileName == "" {
-				return nil, "", &codersdk.Response{
+				return nil, "", nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
 				}
@@ -3798,7 +3820,7 @@ func createChatInputFromParts(
 			}
 			textParts = append(textParts, sb.String())
 		default:
-			return nil, "", &codersdk.Response{
+			return nil, "", nil, &codersdk.Response{
 				Message: "Invalid input part.",
 				Detail: fmt.Sprintf(
 					"%s[%d].type %q is not supported.",
@@ -3813,13 +3835,13 @@ func createChatInputFromParts(
 	// Allow file-only messages. The titleSource may be empty
 	// when only file parts are provided, callers handle this.
 	if len(content) == 0 {
-		return nil, "", &codersdk.Response{
+		return nil, "", nil, &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
 	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
-	return content, titleSource, nil
+	return content, titleSource, fileIDs, nil
 }
 
 func chatTitleFromMessage(message string) string {
@@ -3854,6 +3876,70 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
+// linkFilesToChat inserts file-link rows into the chat_file_links
+// join table. Cap enforcement and dedup are handled atomically in
+// SQL. On success returns (nil, false). On failure returns the full
+// input fileIDs slice — linking is all-or-nothing because the
+// SQL operates on the batch atomically. capExceeded indicates
+// whether the failure was due to the cap being exceeded (true)
+// or a database error (false).
+// Failures are logged but never block the caller.
+func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) (unlinked []uuid.UUID, capExceeded bool) {
+	if len(fileIDs) == 0 {
+		return nil, false
+	}
+	rejected, err := api.Database.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      fileIDs,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to link files to chat",
+			slog.F("chat_id", chatID),
+			slog.F("file_ids", fileIDs),
+			slog.Error(err),
+		)
+		return fileIDs, false
+	}
+	if rejected > 0 {
+		api.Logger.Warn(ctx, "file cap reached, files not linked",
+			slog.F("chat_id", chatID),
+			slog.F("file_ids", fileIDs),
+			slog.F("max_file_links", codersdk.MaxChatFileIDs),
+		)
+		return fileIDs, true
+	}
+	return nil, false
+}
+
+// fileLinkCapWarning builds a user-facing warning when a batch
+// of file IDs was atomically rejected because the resulting
+// array would exceed the per-chat file cap.
+func fileLinkCapWarning(count int) string {
+	return fmt.Sprintf("file linking skipped: batch of %d file(s) would exceed limit of %d", count, codersdk.MaxChatFileIDs)
+}
+
+// fileLinkErrorWarning builds a user-facing warning when a
+// database error prevented linking files to a chat.
+func fileLinkErrorWarning(count int) string {
+	return fmt.Sprintf("%d file(s) could not be linked due to a server error", count)
+}
+
+// fetchChatFileMetadata returns metadata for all files linked to
+// the given chat. Errors are logged and result in a nil return
+// (callers treat file metadata as best-effort).
+func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID) []database.GetChatFileMetadataByChatIDRow {
+	rows, err := api.Database.GetChatFileMetadataByChatID(ctx, chatID)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to fetch chat file metadata",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	return rows
+}
+
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
 	displayName := strings.TrimSpace(model.DisplayName)
 	if displayName == "" {
@@ -3870,6 +3956,7 @@ func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) coders
 		TotalOutputTokens:        model.TotalOutputTokens,
 		TotalCacheReadTokens:     model.TotalCacheReadTokens,
 		TotalCacheCreationTokens: model.TotalCacheCreationTokens,
+		TotalRuntimeMs:           model.TotalRuntimeMs,
 	}
 }
 
@@ -3883,6 +3970,7 @@ func convertChatCostChatBreakdown(chat database.GetChatCostPerChatRow) codersdk.
 		TotalOutputTokens:        chat.TotalOutputTokens,
 		TotalCacheReadTokens:     chat.TotalCacheReadTokens,
 		TotalCacheCreationTokens: chat.TotalCacheCreationTokens,
+		TotalRuntimeMs:           chat.TotalRuntimeMs,
 	}
 }
 
@@ -3899,6 +3987,7 @@ func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.Cha
 		TotalOutputTokens:        user.TotalOutputTokens,
 		TotalCacheReadTokens:     user.TotalCacheReadTokens,
 		TotalCacheCreationTokens: user.TotalCacheCreationTokens,
+		TotalRuntimeMs:           user.TotalRuntimeMs,
 	}
 }
 
@@ -3987,9 +4076,13 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
 	)
 	for _, provider := range enabledProviders {
+		normalizedProvider := normalizeChatProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
 		enabledConfiguredProviders = append(
 			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
+				Provider: normalizedProvider,
 				APIKey:   provider.APIKey,
 				BaseURL:  provider.BaseUrl,
 			},
@@ -3997,7 +4090,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		enabledConfiguredProviders,
 	)
 	effectiveKeys = chatprovider.MergeProviderAPIKeys(
@@ -4013,7 +4106,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 				resp,
 				convertChatProviderConfig(
 					configured,
-					effectiveKeys.APIKey(provider) != "",
+					api.hasEffectiveProviderAPIKey(ctx, configured),
 					codersdk.ChatProviderConfigSourceDatabase,
 				),
 			)
@@ -4029,13 +4122,16 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		resp = append(resp, codersdk.ChatProviderConfig{
-			ID:          uuid.Nil,
-			Provider:    provider,
-			DisplayName: chatprovider.ProviderDisplayName(provider),
-			Enabled:     enabled,
-			HasAPIKey:   hasAPIKey,
-			BaseURL:     effectiveKeys.BaseURL(provider),
-			Source:      source,
+			ID:                         uuid.Nil,
+			Provider:                   provider,
+			DisplayName:                chatprovider.ProviderDisplayName(provider),
+			Enabled:                    enabled,
+			HasAPIKey:                  hasAPIKey,
+			CentralAPIKeyEnabled:       true,
+			AllowUserAPIKey:            false,
+			AllowCentralAPIKeyFallback: false,
+			BaseURL:                    effectiveKeys.BaseURL(provider),
+			Source:                     source,
 		})
 	}
 
@@ -4045,6 +4141,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	var inserted database.ChatProvider
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -4064,6 +4161,14 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateChatProviderAPIKeySize(strings.TrimSpace(req.APIKey)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -4077,14 +4182,57 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inserted, err := api.Database.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    provider,
-		DisplayName: strings.TrimSpace(req.DisplayName),
-		APIKey:      strings.TrimSpace(req.APIKey),
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: sql.NullString{},
-		CreatedBy:   uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-		Enabled:     enabled,
+	centralAPIKeyEnabled := true
+	if req.CentralAPIKeyEnabled != nil {
+		centralAPIKeyEnabled = *req.CentralAPIKeyEnabled
+	}
+	allowUserAPIKey := false
+	if req.AllowUserAPIKey != nil {
+		allowUserAPIKey = *req.AllowUserAPIKey
+	}
+	allowCentralAPIKeyFallback := false
+	if req.AllowCentralAPIKeyFallback != nil {
+		allowCentralAPIKeyFallback = *req.AllowCentralAPIKeyFallback
+	}
+
+	if err := validateChatProviderCredentialPolicy(
+		centralAPIKeyEnabled,
+		allowUserAPIKey,
+		allowCentralAPIKeyFallback,
+	); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid credential policy.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if err := validateChatProviderCentralAPIKey(
+		centralAPIKeyEnabled,
+		api.hasEffectiveCentralProviderAPIKey(ctx, database.ChatProvider{
+			Provider:             provider,
+			APIKey:               strings.TrimSpace(req.APIKey),
+			BaseUrl:              baseURL,
+			CentralApiKeyEnabled: centralAPIKeyEnabled,
+		}, uuid.Nil),
+	); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	inserted, err = api.Database.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:                   provider,
+		DisplayName:                strings.TrimSpace(req.DisplayName),
+		APIKey:                     strings.TrimSpace(req.APIKey),
+		BaseUrl:                    baseURL,
+		ApiKeyKeyID:                sql.NullString{},
+		CreatedBy:                  uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		Enabled:                    enabled,
+		CentralApiKeyEnabled:       centralAPIKeyEnabled,
+		AllowUserApiKey:            allowUserAPIKey,
+		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
 	})
 	if err != nil {
 		switch {
@@ -4125,6 +4273,10 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	var (
+		existing database.ChatProvider
+		updated  database.ChatProvider
+	)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -4166,7 +4318,17 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	apiKey := existing.APIKey
 	apiKeyKeyID := existing.ApiKeyKeyID
 	if req.APIKey != nil {
-		apiKey = strings.TrimSpace(*req.APIKey)
+		trimmedAPIKey := strings.TrimSpace(*req.APIKey)
+		if trimmedAPIKey != "" {
+			if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "API key too large.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+		apiKey = trimmedAPIKey
 		apiKeyKeyID = sql.NullString{}
 	}
 	baseURL := existing.BaseUrl
@@ -4181,13 +4343,57 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := api.Database.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		DisplayName: displayName,
-		APIKey:      apiKey,
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: apiKeyKeyID,
-		Enabled:     enabled,
-		ID:          existing.ID,
+	centralAPIKeyEnabled := existing.CentralApiKeyEnabled
+	if req.CentralAPIKeyEnabled != nil {
+		centralAPIKeyEnabled = *req.CentralAPIKeyEnabled
+	}
+	allowUserAPIKey := existing.AllowUserApiKey
+	if req.AllowUserAPIKey != nil {
+		allowUserAPIKey = *req.AllowUserAPIKey
+	}
+	allowCentralAPIKeyFallback := existing.AllowCentralApiKeyFallback
+	if req.AllowCentralAPIKeyFallback != nil {
+		allowCentralAPIKeyFallback = *req.AllowCentralAPIKeyFallback
+	}
+
+	if err := validateChatProviderCredentialPolicy(
+		centralAPIKeyEnabled,
+		allowUserAPIKey,
+		allowCentralAPIKeyFallback,
+	); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid credential policy.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if err := validateChatProviderCentralAPIKey(
+		centralAPIKeyEnabled,
+		api.hasEffectiveCentralProviderAPIKey(ctx, database.ChatProvider{
+			ID:                   existing.ID,
+			Provider:             existing.Provider,
+			APIKey:               apiKey,
+			BaseUrl:              baseURL,
+			CentralApiKeyEnabled: centralAPIKeyEnabled,
+		}, existing.ID),
+	); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	updated, err = api.Database.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+		DisplayName:                displayName,
+		APIKey:                     apiKey,
+		BaseUrl:                    baseURL,
+		ApiKeyKeyID:                apiKeyKeyID,
+		Enabled:                    enabled,
+		CentralApiKeyEnabled:       centralAPIKeyEnabled,
+		AllowUserApiKey:            allowUserAPIKey,
+		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
+		ID:                         existing.ID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4254,6 +4460,169 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	//nolint:gocritic // Non-admin users need to read provider configs to manage their own chat credentials.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	providers, err := api.Database.GetChatProviders(chatdCtx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat providers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	userKeys, err := api.Database.GetUserChatProviderKeys(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list user chat provider keys.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	hasUserAPIKeyByProviderID := make(map[uuid.UUID]bool, len(userKeys))
+	for _, userKey := range userKeys {
+		hasUserAPIKeyByProviderID[userKey.ChatProviderID] = true
+	}
+
+	resp := make([]codersdk.UserChatProviderConfig, 0, len(providers))
+	for _, provider := range providers {
+		if !provider.Enabled || !provider.AllowUserApiKey {
+			continue
+		}
+		hasUserAPIKey := hasUserAPIKeyByProviderID[provider.ID]
+		hasCentralAPIKeyFallback := provider.Enabled &&
+			provider.AllowCentralApiKeyFallback &&
+			api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+		resp = append(
+			resp,
+			convertUserChatProviderConfig(
+				provider,
+				hasUserAPIKey,
+				hasCentralAPIKeyFallback,
+			),
+		)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	providerID, ok := parseChatProviderID(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // Non-admin users need to validate provider availability before storing their own key.
+	provider, err := api.Database.GetChatProviderByID(dbauthz.AsChatd(ctx), providerID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !provider.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Provider is disabled.",
+		})
+		return
+	}
+	if !provider.AllowUserApiKey {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Provider does not allow user API keys.",
+		})
+		return
+	}
+
+	var req codersdk.CreateUserChatProviderKeyRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	trimmedAPIKey := strings.TrimSpace(req.APIKey)
+	if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if trimmedAPIKey == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key is required.",
+		})
+		return
+	}
+
+	if _, err := api.Database.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
+		UserID:         apiKey.UserID,
+		ChatProviderID: providerID,
+		APIKey:         trimmedAPIKey,
+		ApiKeyKeyID:    sql.NullString{},
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to save user chat provider key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	hasCentralAPIKeyFallback := provider.Enabled &&
+		provider.AllowCentralApiKeyFallback &&
+		api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusOK,
+		convertUserChatProviderConfig(
+			provider,
+			true,
+			hasCentralAPIKeyFallback,
+		),
+	)
+}
+
+func (api *API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	providerID, ok := parseChatProviderID(rw, r)
+	if !ok {
+		return
+	}
+
+	if err := api.Database.DeleteUserChatProviderKey(ctx, database.DeleteUserChatProviderKeyParams{
+		UserID:         apiKey.UserID,
+		ChatProviderID: providerID,
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete user chat provider key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4798,15 +5167,37 @@ func convertChatProviderConfig(
 	}
 
 	return codersdk.ChatProviderConfig{
-		ID:          provider.ID,
-		Provider:    provider.Provider,
-		DisplayName: displayName,
-		Enabled:     provider.Enabled,
-		HasAPIKey:   hasAPIKey,
-		BaseURL:     strings.TrimSpace(provider.BaseUrl),
-		Source:      source,
-		CreatedAt:   provider.CreatedAt,
-		UpdatedAt:   provider.UpdatedAt,
+		ID:                         provider.ID,
+		Provider:                   provider.Provider,
+		DisplayName:                displayName,
+		Enabled:                    provider.Enabled,
+		HasAPIKey:                  hasAPIKey,
+		CentralAPIKeyEnabled:       provider.CentralApiKeyEnabled,
+		AllowUserAPIKey:            provider.AllowUserApiKey,
+		AllowCentralAPIKeyFallback: provider.AllowCentralApiKeyFallback,
+		BaseURL:                    strings.TrimSpace(provider.BaseUrl),
+		Source:                     source,
+		CreatedAt:                  provider.CreatedAt,
+		UpdatedAt:                  provider.UpdatedAt,
+	}
+}
+
+func convertUserChatProviderConfig(
+	provider database.ChatProvider,
+	hasUserAPIKey bool,
+	hasCentralAPIKeyFallback bool,
+) codersdk.UserChatProviderConfig {
+	displayName := strings.TrimSpace(provider.DisplayName)
+	if displayName == "" {
+		displayName = chatprovider.ProviderDisplayName(provider.Provider)
+	}
+
+	return codersdk.UserChatProviderConfig{
+		ProviderID:               provider.ID,
+		Provider:                 provider.Provider,
+		DisplayName:              displayName,
+		HasUserAPIKey:            hasUserAPIKey,
+		HasCentralAPIKeyFallback: hasCentralAPIKeyFallback,
 	}
 }
 
@@ -4965,24 +5356,78 @@ func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
-func chatProviderAPIKeysFromDeploymentValues(
-	deploymentValues *codersdk.DeploymentValues,
-) chatprovider.ProviderAPIKeys {
-	_ = deploymentValues
-	// For now, we'll just manage configs in the UI.
-	// We should probably not be reusing the AI bridge configs anyways.
-	return chatprovider.ProviderAPIKeys{
-		// OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
-		// Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
-		// BaseURLByProvider: map[string]string{
-		// 	"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
-		// 	"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
-		// },
+const maxChatProviderAPIKeySize = 10240 // 10 KB
+
+func validateChatProviderAPIKeySize(apiKey string) error {
+	if len(apiKey) > maxChatProviderAPIKeySize {
+		return xerrors.Errorf("API key exceeds maximum size of %d bytes", maxChatProviderAPIKeySize)
 	}
+	return nil
+}
+
+//nolint:revive // This helper validates the explicit credential policy tuple.
+func validateChatProviderCredentialPolicy(
+	centralEnabled, allowUserKey, allowFallback bool,
+) error {
+	if !centralEnabled && !allowUserKey {
+		return xerrors.New(
+			"At least one credential source must be enabled: central API key or user API key.",
+		)
+	}
+	if allowFallback && !centralEnabled {
+		return xerrors.New(
+			"Central API key fallback requires central API key to be enabled.",
+		)
+	}
+	if allowFallback && !allowUserKey {
+		return xerrors.New(
+			"Central API key fallback requires user API key to be enabled.",
+		)
+	}
+	return nil
+}
+
+//nolint:revive // This helper validates central-key requirements.
+func validateChatProviderCentralAPIKey(
+	centralEnabled bool,
+	hasCentralAPIKey bool,
+) error {
+	if centralEnabled && !hasCentralAPIKey {
+		return xerrors.New(
+			"API key is required when central API key is enabled.",
+		)
+	}
+	return nil
+}
+
+// ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
+// provider API keys.
+func ChatProviderAPIKeysFromDeploymentValues(
+	_ *codersdk.DeploymentValues,
+) chatprovider.ProviderAPIKeys {
+	// AI bridge deployment config is intentionally not reused for chat
+	// provider credentials. Bridge keys serve the AI task subsystem and
+	// should not silently broaden into chat execution paths.
+	return chatprovider.ProviderAPIKeys{}
 }
 
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
+	return api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+}
+
+func (api *API) hasEffectiveCentralProviderAPIKey(
+	ctx context.Context,
+	provider database.ChatProvider,
+	excludeProviderID uuid.UUID,
+) bool {
+	if !provider.CentralApiKeyEnabled {
+		return false
+	}
 	if strings.TrimSpace(provider.APIKey) != "" {
+		return true
+	}
+	deploymentKeys := ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
+	if deploymentKeys.APIKey(provider.Provider) != "" {
 		return true
 	}
 	if api.chatDaemon == nil {
@@ -5006,6 +5451,9 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
 	)
 	for _, configured := range enabledProviders {
+		if excludeProviderID != uuid.Nil && configured.ID == excludeProviderID {
+			continue
+		}
 		enabledConfiguredProviders = append(
 			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
 				Provider: configured.Provider,
@@ -5016,7 +5464,7 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	}
 
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		deploymentKeys,
 		enabledConfiguredProviders,
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""

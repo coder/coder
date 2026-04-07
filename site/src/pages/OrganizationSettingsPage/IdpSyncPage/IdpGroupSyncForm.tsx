@@ -18,12 +18,12 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -222,7 +222,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 						<Label htmlFor={`${id}-auto-create-missing-groups`}>
 							Auto create missing groups
 						</Label>
-						<AutoCreateMissingGroupsHelpTooltip />
+						<AutoCreateMissingGroupsHelpPopover />
 					</span>
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
@@ -445,17 +445,17 @@ const GroupRow: FC<GroupRowProps> = ({
 	);
 };
 
-const AutoCreateMissingGroupsHelpTooltip: FC = () => {
+const AutoCreateMissingGroupsHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
+			<HelpPopoverContent>
+				<HelpPopoverText>
 					Enabling auto create missing groups will automatically create groups
 					returned by the OIDC provider if they do not exist in Coder.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+				</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -464,11 +464,11 @@ const LegacyGroupSyncHeader: FC = () => {
 		<h4 className="text-xl font-medium">
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
-				<HelpTooltip>
-					<HelpTooltipIconTrigger />
-					<HelpTooltipContent>
-						<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
-						<HelpTooltipText>
+				<HelpPopover>
+					<HelpPopoverIconTrigger />
+					<HelpPopoverContent>
+						<HelpPopoverTitle>Legacy group sync settings</HelpPopoverTitle>
+						<HelpPopoverText>
 							These settings were configured using environment variables, and
 							only apply to the default organization. It is now recommended to
 							configure IdP sync via the CLI or the UI, which enables sync to be
@@ -477,9 +477,9 @@ const LegacyGroupSyncHeader: FC = () => {
 							<Link href={docs("/admin/users/idp-sync")}>
 								Learn more&hellip;
 							</Link>
-						</HelpTooltipText>
-					</HelpTooltipContent>
-				</HelpTooltip>
+						</HelpPopoverText>
+					</HelpPopoverContent>
+				</HelpPopover>
 			</div>
 		</h4>
 	);

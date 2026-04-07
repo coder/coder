@@ -2,8 +2,8 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/switch}
  */
-import * as SwitchPrimitives from "@radix-ui/react-switch";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Switch as SwitchPrimitives } from "radix-ui";
 import { cn } from "#/utils/cn";
 
 const switchVariants = cva(

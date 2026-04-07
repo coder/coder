@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
@@ -6,10 +5,25 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "#/components/SearchField/SearchField";
+import { cn } from "#/utils/cn";
 import type { BarColors } from "./Bar";
 
 export const Chart = (props: HTMLProps<HTMLDivElement>) => {
-	return <div css={styles.chart} {...props} />;
+	return (
+		<div
+			{...props}
+			className={cn("flex h-full flex-col", props.className)}
+			style={
+				{
+					"--header-height": "40px",
+					"--section-padding": "16px",
+					"--x-axis-rows-gap": "20px",
+					"--y-axis-width": "200px",
+					...props.style,
+				} as React.CSSProperties
+			}
+		/>
+	);
 };
 
 export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
@@ -41,11 +55,36 @@ export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
 		return () => contentEl.removeEventListener("scroll", handler);
 	}, []);
 
-	return <div css={styles.content} {...props} ref={contentRef} />;
+	return (
+		<div
+			{...props}
+			ref={contentRef}
+			className={cn(
+				"relative flex flex-1 items-stretch overflow-auto text-xs font-medium",
+				"[scrollbar-color:hsl(var(--border-default))_hsl(var(--surface-primary))]",
+				props.className,
+			)}
+		>
+			{props.children}
+			<div
+				aria-hidden="true"
+				className="pointer-events-none absolute inset-x-0 z-[1] h-[100px] transition-opacity duration-200 [bottom:calc(-1*var(--scroll-top,0px))] [opacity:var(--scroll-mask-opacity)] [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
+			/>
+		</div>
+	);
 };
 
 export const ChartToolbar = (props: HTMLProps<HTMLDivElement>) => {
-	return <div css={styles.toolbar} {...props} />;
+	return (
+		<div
+			{...props}
+			className={cn(
+				"flex items-stretch border-b border-border text-xs",
+				"border-solid border-0 border-b",
+				props.className,
+			)}
+		/>
+	);
 };
 
 type ChartBreadcrumb = {
@@ -61,18 +100,18 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 	breadcrumbs,
 }) => {
 	return (
-		<ul css={styles.breadcrumbs}>
+		<ul className="m-0 flex w-[var(--y-axis-width)] shrink-0 list-none items-center gap-1 p-[var(--section-padding)] leading-none">
 			{breadcrumbs.map((b, i) => {
 				const isLast = i === breadcrumbs.length - 1;
 				return (
 					<React.Fragment key={b.label}>
-						<li>
+						<li className={cn(i === 0 && "text-content-secondary")}>
 							{isLast ? (
 								b.label
 							) : (
 								<button
 									type="button"
-									css={styles.breadcrumbButton}
+									className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-content-primary"
 									onClick={b.onClick}
 								>
 									{b.label}
@@ -80,8 +119,8 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 							)}
 						</li>
 						{!isLast && (
-							<li role="presentation">
-								<ChevronRightIcon />
+							<li role="presentation" className="text-content-secondary">
+								<ChevronRightIcon className="size-[14px]" />
 							</li>
 						)}
 					</React.Fragment>
@@ -111,17 +150,18 @@ type ChartLegendsProps = {
 
 export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
 	return (
-		<ul css={styles.legends}>
+		<ul className="m-0 flex list-none items-center gap-6 pr-[var(--section-padding)] p-0">
 			{legends.map((l) => (
-				<li key={l.label} css={styles.legend}>
+				<li
+					key={l.label}
+					className="flex items-center gap-2 font-medium leading-none"
+				>
 					<div
-						css={[
-							styles.legendSquare,
-							{
-								borderColor: l.colors?.stroke,
-								backgroundColor: l.colors?.fill,
-							},
-						]}
+						className="size-[18px] rounded border border-solid bg-surface-primary"
+						style={{
+							borderColor: l.colors?.stroke,
+							backgroundColor: l.colors?.fill,
+						}}
 					/>
 					{l.label}
 				</li>
@@ -129,113 +169,3 @@ export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
 		</ul>
 	);
 };
-
-const styles = {
-	chart: {
-		"--header-height": "40px",
-		"--section-padding": "16px",
-		"--x-axis-rows-gap": "20px",
-		"--y-axis-width": "200px",
-
-		height: "100%",
-		display: "flex",
-		flexDirection: "column",
-	},
-	content: (theme) => ({
-		display: "flex",
-		alignItems: "stretch",
-		fontSize: 12,
-		fontWeight: 500,
-		overflow: "auto",
-		flex: 1,
-		scrollbarColor: `${theme.palette.divider} ${theme.palette.background.default}`,
-		scrollbarWidth: "thin",
-		position: "relative",
-
-		"&:before": {
-			content: "''",
-			position: "absolute",
-			bottom: "calc(-1 * var(--scroll-top, 0px))",
-			width: "100%",
-			height: 100,
-			background: `linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, ${theme.palette.background.default} 81.93%)`,
-			opacity: "var(--scroll-mask-opacity)",
-			zIndex: 1,
-			transition: "opacity 0.2s",
-			pointerEvents: "none",
-		},
-	}),
-	toolbar: (theme) => ({
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		fontSize: 12,
-		display: "flex",
-		flexAlign: "stretch",
-	}),
-	breadcrumbs: (theme) => ({
-		listStyle: "none",
-		margin: 0,
-		width: "var(--y-axis-width)",
-		padding: "var(--section-padding)",
-		display: "flex",
-		alignItems: "center",
-		gap: 4,
-		lineHeight: 1,
-		flexShrink: 0,
-
-		"& li": {
-			display: "block",
-
-			"&[role=presentation]": {
-				lineHeight: 0,
-			},
-		},
-
-		"& li:first-of-type": {
-			color: theme.palette.text.secondary,
-		},
-
-		"& li[role=presentation]": {
-			color: theme.palette.text.secondary,
-
-			"& svg": {
-				width: 14,
-				height: 14,
-			},
-		},
-	}),
-	breadcrumbButton: (theme) => ({
-		background: "none",
-		padding: 0,
-		border: "none",
-		fontSize: "inherit",
-		color: "inherit",
-		cursor: "pointer",
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-		},
-	}),
-	legends: {
-		listStyle: "none",
-		margin: 0,
-		padding: 0,
-		display: "flex",
-		alignItems: "center",
-		gap: 24,
-		paddingRight: "var(--section-padding)",
-	},
-	legend: {
-		fontWeight: 500,
-		display: "flex",
-		alignItems: "center",
-		gap: 8,
-		lineHeight: 1,
-	},
-	legendSquare: (theme) => ({
-		width: 18,
-		height: 18,
-		borderRadius: 4,
-		border: `1px solid ${theme.palette.divider}`,
-		backgroundColor: theme.palette.background.default,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

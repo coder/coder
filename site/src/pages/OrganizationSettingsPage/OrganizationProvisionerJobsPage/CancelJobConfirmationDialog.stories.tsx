@@ -31,7 +31,7 @@ export const OnCancel: Story = {
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
-		const cancelButton = body.getByRole("button", { name: "Discard" });
+		const cancelButton = body.getByRole("button", { name: "Cancel" });
 		user.click(cancelButton);
 		await waitFor(() => {
 			expect(args.onClose).toHaveBeenCalledTimes(1);

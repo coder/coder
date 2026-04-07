@@ -31,7 +31,8 @@ const (
 // ChatGPT provider.
 const (
 	ProviderChatGPT = "chatgpt"
-	BaseURLChatGPT  = "https://chatgpt.com/backend-api/codex"
+	HostChatGPT     = "chatgpt.com"
+	BaseURLChatGPT  = "https://" + HostChatGPT + "/backend-api/codex"
 )
 
 // IsBYOK reports whether the request is using BYOK mode, determined

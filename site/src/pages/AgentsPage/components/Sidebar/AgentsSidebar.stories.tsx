@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockUserOwner } from "#/testHelpers/entities";
@@ -57,6 +58,15 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 const agentsRouting = [
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
+] satisfies [
+	{ path: string; useStoryElement: boolean },
+	...{ path: string; useStoryElement: boolean }[],
+];
+
+const settingsRouting = [
+	{ path: "/agents/settings/:section", useStoryElement: true },
+	{ path: "/agents/settings", useStoryElement: true },
+	...agentsRouting,
 ] satisfies [
 	{ path: string; useStoryElement: boolean },
 	...{ path: string; useStoryElement: boolean }[],
@@ -1035,5 +1045,53 @@ export const FilterOnTimeGroupNoPins: Story = {
 			expect(canvas.getByText("Today")).toBeInTheDocument();
 			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 		});
+	},
+};
+
+export const SettingsAPIKeysAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/api-keys" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("API Keys")).toBeInTheDocument();
+	},
+};
+
+export const SettingsAPIKeysNonAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [
+					{
+						provider_id: "prov-1",
+						provider: "openai",
+						display_name: "OpenAI",
+						has_user_api_key: false,
+						has_central_api_key_fallback: false,
+					},
+				],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/api-keys" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("API Keys")).toBeInTheDocument();
 	},
 };

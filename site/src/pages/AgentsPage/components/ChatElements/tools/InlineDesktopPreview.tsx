@@ -6,12 +6,7 @@ import {
 	type UseDesktopConnectionResult,
 	useDesktopConnection,
 } from "#/pages/AgentsPage/hooks/useDesktopConnection";
-
-/** Default aspect ratio used before the remote framebuffer size is known. */
-const DEFAULT_ASPECT = "16 / 9";
-
-/** Fixed pixel height for the compact preview thumbnail. */
-const PREVIEW_HEIGHT = 128;
+import { DEFAULT_ASPECT, PREVIEW_HEIGHT } from "./previewConstants";
 
 /**
  * Non-interactive inline VNC desktop preview. The noVNC canvas is
@@ -36,6 +31,7 @@ export const InlineDesktopPreview: React.FC<{
 	// real hook skips its WebSocket connection logic entirely.
 	const realConnection = useDesktopConnection({
 		chatId: connectionOverride ? undefined : chatId,
+		activated: true,
 	});
 	const { status, attach } = connectionOverride ?? realConnection;
 	const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT);

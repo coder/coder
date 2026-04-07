@@ -196,6 +196,7 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
+	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
@@ -227,6 +228,7 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundary,
+		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
 	}
 
@@ -275,6 +277,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
 		FeatureBoundary:                   true,
+		FeatureServiceAccounts:            true,
 	}[n]
 }
 
@@ -282,7 +285,7 @@ func (n FeatureName) AlwaysEnable() bool {
 func (n FeatureName) Enterprise() bool {
 	switch n {
 	// Add all features that should be excluded in the Enterprise feature set.
-	case FeatureMultipleOrganizations, FeatureCustomRoles:
+	case FeatureMultipleOrganizations, FeatureCustomRoles, FeatureServiceAccounts:
 		return false
 	default:
 		return true
@@ -1251,7 +1254,11 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 }
 
 func removeTrailingVersionInfo(v string) string {
-	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+	// Strip build metadata (everything after '+').
+	v, _, _ = strings.Cut(v, "+")
+	// Strip '-devel' suffix if present.
+	v = strings.TrimSuffix(v, "-devel")
+	return v
 }
 
 func DefaultDocsURL() string {
@@ -3926,11 +3933,11 @@ Write out the current server config as YAML to stdout.`,
 			Name: "AI Bridge Proxy Domain Allowlist",
 			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. " +
 				"Requests to other domains will be tunneled directly without decryption. " +
-				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com.",
+				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.",
 			Flag:    "aibridge-proxy-domain-allowlist",
 			Env:     "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:   &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com",
+			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com",
 			Hidden:  true,
 			Group:   &deploymentGroupAIBridgeProxy,
 			YAML:    "domain_allowlist",

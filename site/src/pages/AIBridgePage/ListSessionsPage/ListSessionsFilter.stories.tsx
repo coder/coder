@@ -20,6 +20,7 @@ const defaultFilterProps = getDefaultFilterProps<
 		user: MockMenu,
 		provider: MockMenu,
 		client: MockMenu,
+		model: MockMenu,
 	},
 });
 
@@ -49,6 +50,7 @@ export const WithQuery: Story = {
 				user: MockMenu,
 				provider: MockMenu,
 				client: MockMenu,
+				model: MockMenu,
 			},
 			used: true,
 		}),
@@ -62,6 +64,7 @@ export const Loading: Story = {
 			user: { ...MockMenu, isInitializing: true },
 			provider: MockMenu,
 			client: MockMenu,
+			model: MockMenu,
 		},
 	},
 };

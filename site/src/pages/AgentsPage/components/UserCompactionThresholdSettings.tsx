@@ -182,8 +182,8 @@ export const UserCompactionThresholdSettings: FC<
 					Context Compaction
 				</h3>
 				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Control when chat context is automatically summarized for each model.
-					Setting 100% means the chat will never auto-compact.
+					Control when conversation context is automatically summarized for each
+					model. Setting 100% means the conversation will never auto-compact.
 				</p>
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="h-4 w-4" />
@@ -200,8 +200,8 @@ export const UserCompactionThresholdSettings: FC<
 					Context Compaction
 				</h3>
 				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Control when chat context is automatically summarized for each model.
-					Setting 100% means the chat will never auto-compact.
+					Control when conversation context is automatically summarized for each
+					model. Setting 100% means the conversation will never auto-compact.
 				</p>
 				<p className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(
@@ -219,8 +219,8 @@ export const UserCompactionThresholdSettings: FC<
 				Context Compaction
 			</h3>
 			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-				Control when chat context is automatically summarized for each model.
-				Setting 100% means the chat will never auto-compact.
+				Control when conversation context is automatically summarized for each
+				model. Setting 100% means the conversation will never auto-compact.
 			</p>
 			{isLoadingModelConfigs ? (
 				<div className="flex items-center gap-2 text-sm text-content-secondary">

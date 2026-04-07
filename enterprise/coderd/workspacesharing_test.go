@@ -231,7 +231,13 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	t.Run("ACLEndpointsForbiddenServiceAccountsMode", func(t *testing.T) {
 		t.Parallel()
 
-		client, db, owner := coderdenttest.NewWithDatabase(t, nil)
+		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
 
 		regularClient, regularUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		regularWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -444,7 +450,8 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureTemplateRBAC:    1,
+					codersdk.FeatureServiceAccounts: 1,
 				},
 			},
 		})
