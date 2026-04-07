@@ -2393,16 +2393,6 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 	return sdk
 }
 
-// @Summary Add chat context
-// @ID add-chat-context
-// @Security CoderSessionToken
-// @Tags Agents
-// @Accept json
-// @Produce json
-// @Param request body agentsdk.AddChatContextRequest true "Add chat context request"
-// @Success 200 {object} agentsdk.AddChatContextResponse
-// @Router /workspaceagents/me/chat-context [post]
-// @x-apidocgen {"skip": true}
 // maxChatContextParts caps the number of parts per request to
 // prevent unbounded message payloads.
 const maxChatContextParts = 100
@@ -2530,16 +2520,6 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	})
 }
 
-// @Summary Clear chat context
-// @ID clear-chat-context
-// @Security CoderSessionToken
-// @Tags Agents
-// @Accept json
-// @Produce json
-// @Param request body agentsdk.ClearChatContextRequest true "Clear chat context request"
-// @Success 200 {object} agentsdk.ClearChatContextResponse
-// @Router /workspaceagents/me/chat-context [delete]
-// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)

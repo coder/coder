@@ -46,34 +46,6 @@
 | `encoding`  | string | true     |              |             |
 | `signature` | string | true     |              |             |
 
-## agentsdk.ClearChatContextRequest
-
-```json
-{
-  "chat_id": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description                                                   |
-|-----------|--------|----------|--------------|---------------------------------------------------------------|
-| `chat_id` | string | false    |              | Chat ID optionally identifies the chat to clear context from. |
-
-## agentsdk.ClearChatContextResponse
-
-```json
-{
-  "chat_id": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description |
-|-----------|--------|----------|--------------|-------------|
-| `chat_id` | string | false    |              |             |
-
 ## agentsdk.ExternalAuthResponse
 
 ```json

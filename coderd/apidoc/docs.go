@@ -9998,48 +9998,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/chat-context": {
-            "delete": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Clear chat context",
-                "operationId": "clear-chat-context",
-                "parameters": [
-                    {
-                        "description": "Clear chat context request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/agentsdk.ClearChatContextRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/agentsdk.ClearChatContextResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/workspaceagents/me/external-auth": {
             "get": {
                 "produces": [
@@ -12581,23 +12539,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "signature": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentsdk.ClearChatContextRequest": {
-            "type": "object",
-            "properties": {
-                "chat_id": {
-                    "description": "ChatID optionally identifies the chat to clear context from.",
-                    "type": "string"
-                }
-            }
-        },
-        "agentsdk.ClearChatContextResponse": {
-            "type": "object",
-            "properties": {
-                "chat_id": {
                     "type": "string"
                 }
             }
