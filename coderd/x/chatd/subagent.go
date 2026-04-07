@@ -474,11 +474,11 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
-	// Copy context-file messages from the parent so the child
-	// inherits the same instruction context without re-fetching
-	// from the workspace agent independently.
-	if err := p.copyParentContextFiles(ctx, parent, child); err != nil {
-		p.logger.Warn(ctx, "failed to copy parent context files to child chat",
+	// Copy persisted context messages from the parent so the child
+	// inherits the same instruction and skill context without
+	// re-fetching from the workspace agent independently.
+	if err := p.copyParentContextMessages(ctx, parent, child); err != nil {
+		p.logger.Warn(ctx, "failed to copy parent context to child chat",
 			slog.F("parent_chat_id", parent.ID),
 			slog.F("child_chat_id", child.ID),
 			slog.Error(err),
@@ -488,11 +488,12 @@ func (p *Server) createChildSubagentChat(
 	return child, nil
 }
 
-// copyParentContextFiles reads all context-file messages from the
-// parent chat and inserts copies into the child chat. This ensures
-// sub-agents inherit the same instruction and skill context as
-// their parent without independently re-fetching from the agent.
-func (p *Server) copyParentContextFiles(
+// copyParentContextMessages reads persisted context-file and skill
+// messages from the parent chat and inserts copies into the child
+// chat. This ensures sub-agents inherit the same instruction and
+// skill context as their parent without independently re-fetching
+// from the agent.
+func (p *Server) copyParentContextMessages(
 	ctx context.Context,
 	parent database.Chat,
 	child database.Chat,
@@ -511,15 +512,16 @@ func (p *Server) copyParentContextFiles(
 			continue
 		}
 
-		// Only copy messages that contain context-file parts.
-		hasContextFile := false
+		// Only copy messages that contain persisted context parts.
+		hasContext := false
 		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeContextFile {
-				hasContextFile = true
+			if part.Type == codersdk.ChatMessagePartTypeContextFile ||
+				part.Type == codersdk.ChatMessagePartTypeSkill {
+				hasContext = true
 				break
 			}
 		}
-		if !hasContextFile {
+		if !hasContext {
 			continue
 		}
 
@@ -534,7 +536,7 @@ func (p *Server) copyParentContextFiles(
 			msg.ContentVersion,
 		))
 		if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
-			return xerrors.Errorf("insert context-file message: %w", err)
+			return xerrors.Errorf("insert context message: %w", err)
 		}
 	}
 

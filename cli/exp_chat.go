@@ -30,8 +30,8 @@ func (r *RootCmd) chatCommand() *serpent.Command {
 func (r *RootCmd) chatContextCommand() *serpent.Command {
 	return &serpent.Command{
 		Use:   "context",
-		Short: "Manage chat context files",
-		Long:  "Add or clear context files for an active chat session.",
+		Short: "Manage chat context",
+		Long:  "Add or clear context files and skills for an active chat session.",
 		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
@@ -50,8 +50,8 @@ func (*RootCmd) chatContextAddCommand() *serpent.Command {
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "add",
-		Short: "Add context files to an active chat",
-		Long: "Read instruction and skill files from a directory and add " +
+		Short: "Add context to an active chat",
+		Long: "Read instruction files and discover skills from a directory, then add " +
 			"them as context to an active chat session. Multiple calls " +
 			"are additive.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -78,7 +78,7 @@ func (*RootCmd) chatContextAddCommand() *serpent.Command {
 
 			parts := agentcontextconfig.ConfigFromDir(resolvedDir)
 			if len(parts) == 0 {
-				_, _ = fmt.Fprintln(inv.Stderr, "No context files found in "+resolvedDir)
+				_, _ = fmt.Fprintln(inv.Stderr, "No context files or skills found in "+resolvedDir)
 				return nil
 			}
 
@@ -103,7 +103,7 @@ func (*RootCmd) chatContextAddCommand() *serpent.Command {
 			{
 				Name:        "Directory",
 				Flag:        "dir",
-				Description: "Directory to read context files from. Defaults to the current working directory.",
+				Description: "Directory to read context files and skills from. Defaults to the current working directory.",
 				Value:       serpent.StringOf(&dir),
 			},
 			{
@@ -124,8 +124,8 @@ func (*RootCmd) chatContextClearCommand() *serpent.Command {
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "clear",
-		Short: "Clear context files from an active chat",
-		Long: "Soft-delete all context-file messages from an active chat. " +
+		Short: "Clear context from an active chat",
+		Long: "Soft-delete all context-file and skill messages from an active chat. " +
 			"The next turn will re-fetch default context from the agent.",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()

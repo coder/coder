@@ -899,7 +899,7 @@ type AddChatContextRequest struct {
 	// If empty, auto-detection is used (CODER_CHAT_ID env, or
 	// the only active chat for this agent).
 	ChatID uuid.UUID `json:"chat_id,omitempty"`
-	// Parts are the context-file parts to add.
+	// Parts are the context-file and skill parts to add.
 	Parts []codersdk.ChatMessagePart `json:"parts"`
 }
 
@@ -920,7 +920,7 @@ type ClearChatContextResponse struct {
 	ChatID uuid.UUID `json:"chat_id"`
 }
 
-// AddChatContext adds context-file parts to an active chat.
+// AddChatContext adds context-file and skill parts to an active chat.
 func (c *Client) AddChatContext(ctx context.Context, req AddChatContextRequest) (AddChatContextResponse, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/chat-context", req)
 	if err != nil {
@@ -936,7 +936,7 @@ func (c *Client) AddChatContext(ctx context.Context, req AddChatContextRequest) 
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// ClearChatContext soft-deletes all context-file messages from an active chat.
+// ClearChatContext soft-deletes context-file and skill messages from an active chat.
 func (c *Client) ClearChatContext(ctx context.Context, req ClearChatContextRequest) (ClearChatContextResponse, error) {
 	res, err := c.SDK.Request(ctx, http.MethodDelete, "/api/v2/workspaceagents/me/chat-context", req)
 	if err != nil {

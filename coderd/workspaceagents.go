@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -2441,24 +2442,9 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	//nolint:gocritic // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chatID, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
 	if err != nil {
 		writeAgentChatError(ctx, rw, err)
-		return
-	}
-
-	// Look up the chat and verify it belongs to this agent.
-	chat, err := api.Database.GetChatByID(sysCtx, chatID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Chat not found.",
-		})
-		return
-	}
-	if !chat.AgentID.Valid || chat.AgentID.UUID != workspaceAgent.ID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Chat does not belong to this agent.",
-		})
 		return
 	}
 
@@ -2488,12 +2474,12 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	}
 
 	_, err = api.Database.InsertChatMessages(sysCtx, database.InsertChatMessagesParams{
-		ChatID:              chatID,
+		ChatID:              chat.ID,
 		CreatedBy:           []uuid.UUID{uuid.Nil},
 		ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
 		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
 		Content:             []string{string(contentJSON)},
-		ContentVersion:      []int16{0},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
 		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
 		InputTokens:         []int64{0},
 		OutputTokens:        []int64{0},
@@ -2515,7 +2501,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AddChatContextResponse{
-		ChatID: chatID,
+		ChatID: chat.ID,
 		Count:  len(req.Parts),
 	})
 }
@@ -2534,7 +2520,7 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 	//nolint:gocritic // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chatID, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
 	if err != nil {
 		// Zero active chats is not an error for clear.
 		if errors.Is(err, errNoActiveChats) {
@@ -2545,22 +2531,7 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Verify the chat belongs to this agent.
-	chat, err := api.Database.GetChatByID(sysCtx, chatID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Chat not found.",
-		})
-		return
-	}
-	if !chat.AgentID.Valid || chat.AgentID.UUID != workspaceAgent.ID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Chat does not belong to this agent.",
-		})
-		return
-	}
-
-	err = api.Database.SoftDeleteContextFileMessages(sysCtx, chatID)
+	err = clearAgentChatContext(sysCtx, api.Database, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to clear context messages.",
@@ -2569,38 +2540,120 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
-		ChatID: chatID,
+		ChatID: chat.ID,
 	})
 }
 
-var errNoActiveChats = xerrors.New("no active chats found")
+var (
+	errNoActiveChats            = xerrors.New("no active chats found")
+	errChatNotFound             = xerrors.New("chat not found")
+	errChatNotActive            = xerrors.New("chat is not active")
+	errChatDoesNotBelongToAgent = xerrors.New("chat does not belong to this agent")
+)
 
-// resolveAgentChat finds the target chat ID from either an
-// explicit ID or auto-detection via the agent's active chats.
+type multipleActiveChatsError struct {
+	count int
+}
+
+func (e *multipleActiveChatsError) Error() string {
+	return fmt.Sprintf(
+		"multiple active chats (%d) found for this agent, specify a chat ID",
+		e.count,
+	)
+}
+
+// resolveAgentChat finds the target chat from either an explicit ID
+// or auto-detection via the agent's active chats.
 func resolveAgentChat(
 	ctx context.Context,
 	db database.Store,
 	agentID uuid.UUID,
 	explicitChatID uuid.UUID,
-) (uuid.UUID, error) {
-	if explicitChatID != uuid.Nil {
-		return explicitChatID, nil
+) (database.Chat, error) {
+	if explicitChatID == uuid.Nil {
+		chats, err := db.GetActiveChatsByAgentID(ctx, agentID)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("list active chats: %w", err)
+		}
+		switch len(chats) {
+		case 0:
+			return database.Chat{}, errNoActiveChats
+		case 1:
+			return chats[0], nil
+		default:
+			return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
+		}
 	}
-	chats, err := db.GetActiveChatsByAgentID(ctx, agentID)
+
+	chat, err := db.GetChatByID(ctx, explicitChatID)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("list active chats: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.Chat{}, errChatNotFound
+		}
+		return database.Chat{}, xerrors.Errorf("get chat by id: %w", err)
 	}
-	switch len(chats) {
-	case 0:
-		return uuid.Nil, errNoActiveChats
-	case 1:
-		return chats[0].ID, nil
+	if !chat.AgentID.Valid || chat.AgentID.UUID != agentID {
+		return database.Chat{}, errChatDoesNotBelongToAgent
+	}
+	if !isActiveAgentChat(chat) {
+		return database.Chat{}, errChatNotActive
+	}
+	return chat, nil
+}
+
+func isActiveAgentChat(chat database.Chat) bool {
+	if chat.Archived {
+		return false
+	}
+
+	switch chat.Status {
+	case database.ChatStatusWaiting,
+		database.ChatStatusPending,
+		database.ChatStatusRunning,
+		database.ChatStatusPaused:
+		return true
 	default:
-		return uuid.Nil, xerrors.Errorf(
-			"multiple active chats (%d) found for this agent, specify a chat ID",
-			len(chats),
-		)
+		return false
 	}
+}
+
+func clearAgentChatContext(
+	ctx context.Context,
+	db database.Store,
+	chatID uuid.UUID,
+) error {
+	if err := db.SoftDeleteContextFileMessages(ctx, chatID); err != nil {
+		return xerrors.Errorf("soft delete context-file messages: %w", err)
+	}
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get chat messages for prompt: %w", err)
+	}
+	for _, msg := range messages {
+		if !msg.Content.Valid || !messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeSkill) {
+			continue
+		}
+		if err := db.SoftDeleteChatMessageByID(ctx, msg.ID); err != nil {
+			return xerrors.Errorf("soft delete context message %d: %w", msg.ID, err)
+		}
+	}
+	return nil
+}
+
+func messageHasPartTypes(raw []byte, types ...codersdk.ChatMessagePartType) bool {
+	var parts []codersdk.ChatMessagePart
+	if err := json.Unmarshal(raw, &parts); err != nil {
+		return false
+	}
+	for _, part := range parts {
+		for _, typ := range types {
+			if part.Type == typ {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // writeAgentChatError translates resolveAgentChat errors to HTTP
@@ -2616,13 +2669,33 @@ func writeAgentChatError(
 		})
 		return
 	}
-	// "multiple active chats" → 409.
-	if strings.Contains(err.Error(), "multiple active chats") {
+	if errors.Is(err, errChatNotFound) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Chat not found.",
+		})
+		return
+	}
+	if errors.Is(err, errChatDoesNotBelongToAgent) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Chat does not belong to this agent.",
+		})
+		return
+	}
+	if errors.Is(err, errChatNotActive) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat is not active.",
+		})
+		return
+	}
+
+	var multipleErr *multipleActiveChatsError
+	if errors.As(err, &multipleErr) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: err.Error(),
 		})
 		return
 	}
+
 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 		Message: "Failed to resolve chat.",
 	})
