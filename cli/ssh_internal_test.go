@@ -243,6 +243,26 @@ func TestCloserStack_PushAfterClose_ConnClosed(t *testing.T) {
 	require.Equal(t, []*fakeCloser{fc}, *closes, "should close conn on failed push")
 }
 
+func TestCoderConnectDialer_DefaultTimeout(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	dialer := testOrDefaultDialer(ctx)
+	d, ok := dialer.(*net.Dialer)
+	require.True(t, ok, "expected *net.Dialer")
+	assert.Equal(t, 5*time.Second, d.Timeout)
+	assert.Equal(t, 30*time.Second, d.KeepAlive)
+}
+
+func TestCoderConnectDialer_Overridden(t *testing.T) {
+	t.Parallel()
+	custom := &net.Dialer{Timeout: 99 * time.Second}
+	ctx := WithTestOnlyCoderConnectDialer(context.Background(), custom)
+
+	dialer := testOrDefaultDialer(ctx)
+	assert.Equal(t, custom, dialer)
+}
+
 func TestCoderConnectStdio(t *testing.T) {
 	t.Parallel()
 

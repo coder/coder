@@ -1647,7 +1647,11 @@ func WithTestOnlyCoderConnectDialer(ctx context.Context, dialer coderConnectDial
 func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 	dialer, ok := ctx.Value(coderConnectDialerContextKey{}).(coderConnectDialer)
 	if !ok || dialer == nil {
-		return &net.Dialer{}
+		// Timeout prevents hanging on broken tunnels (OS default is very long).
+		return &net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}
 	}
 	return dialer
 }
