@@ -10,9 +10,9 @@ AI rollouts.
 The AI Governance Add-On is a per-user license that can be added to Premium seats. Each user with the add-on gets access to a set of features
 that help organizations safely roll out AI tooling at scale:
 
-- [AI Gateway](./ai-bridge/index.md): LLM gateway to audit AI sessions, central
+- [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central
   MCP server management, and policy enforcement
-- [Agent Firewall](./agent-boundaries/index.md): Process-level firewalls for
+- [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for
   agents, restricting which domains can be accessed by AI agents
 - [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured):
   Additional allowance of Agent Workspace Builds for continued use of Coder
@@ -130,7 +130,7 @@ Without proper controls and sandboxing, it is not recommended to open up Coder
 Tasks to a large audience in the enterprise. Both Community and Premium
 deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
 use and basic workflows. Community deployments do not have access to
-[AI Gateway](./ai-bridge/index.md) or [Agent Firewall](./agent-boundaries/index.md).
+[AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
 Agent Workspace Builds for automated workflows, along with limits that scale

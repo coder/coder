@@ -28,4 +28,4 @@ Additional guidance and tooling is coming in future releases of Coder.
 
 Agent Firewall is a process-level firewall that lets you restrict and
 audit what AI agents can access within Coder workspaces. To learn more about
-this feature, see [Agent Firewall](./agent-boundaries/index.md).
+this feature, see [Agent Firewall](./agent-firewall/index.md).

@@ -37,7 +37,7 @@ a YAML configuration file.
 
 > [!NOTE]
 > AI Gateway retention is configured separately from other retention settings.
-> See [AI Gateway Setup](../../ai-coder/ai-bridge/setup.md#data-retention) for
+> See [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention) for
 > detailed configuration options.
 
 ### Duration Format
@@ -136,7 +136,7 @@ provides a reasonable balance between storage costs and the ability to analyze
 usage patterns.
 
 For details on what data is retained, see the
-[AI Gateway Data Retention](../../ai-coder/ai-bridge/setup.md#data-retention)
+[AI Gateway Data Retention](../../ai-coder/ai-gateway/setup.md#data-retention)
 documentation.
 
 ## Best Practices
@@ -214,9 +214,9 @@ containing the table name (e.g., `audit_logs`, `connection_logs`, `api_keys`).
   purge procedures.
 - [Connection Logs](../monitoring/connection-logs.md): Learn about Connection
   Logs and monitoring.
-- [AI Gateway](../../ai-coder/ai-bridge/index.md): Learn about AI Gateway for
+- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for
   centralized LLM and MCP proxy management.
-- [AI Gateway Setup](../../ai-coder/ai-bridge/setup.md#data-retention): Configure
+- [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention): Configure
   AI Gateway data retention.
-- [AI Gateway Monitoring](../../ai-coder/ai-bridge/monitoring.md): Monitor AI
+- [AI Gateway Monitoring](../../ai-coder/ai-gateway/monitoring.md): Monitor AI
   Gateway usage and metrics.

@@ -5,7 +5,7 @@ Once AI Gateway is setup on your deployment, the AI coding tools used by your us
 There are two ways to connect AI tools to AI Gateway:
 
 - Base URL configuration (Recommended): Most AI tools allow customizing the base URL for API requests. This is the preferred approach when supported.
-- AI Gateway Proxy: For tools that don't support base URL configuration, [AI Gateway Proxy](../ai-bridge-proxy/index.md) can intercept traffic and forward it to AI Gateway.
+- AI Gateway Proxy: For tools that don't support base URL configuration, [AI Gateway Proxy](../ai-gateway-proxy/index.md) can intercept traffic and forward it to AI Gateway.
 
 ## Base URLs
 
@@ -27,7 +27,7 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 
 > [!NOTE]
 > Only Coder-issued tokens can authenticate users against AI Gateway.
-> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](https://coder.com/docs/ai-coder/ai-bridge/setup#configure-providers).
+> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](https://coder.com/docs/ai-coder/ai-gateway/setup#configure-providers).
 
 Again, the exact environment variable or setting naming may differ from tool to tool. See a list of [supported clients](#all-supported-clients) below and consult your tool's documentation for details.
 
@@ -83,7 +83,7 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 | [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.                                                                                                              |
 | [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key".                                                                                                           |
 | [Zed](./zed.md)                  | ✅      | ✅         |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Gateway Proxy](../ai-bridge-proxy/index.md). Uses per-user GitHub tokens.                                                                 |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
 | WindSurf                         | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 | Cursor                           | ❌      | ❌         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
 | Sourcegraph Amp                  | ❌      | ❌         | No option to override base URL.                                                                                                                        |

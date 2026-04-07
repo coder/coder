@@ -42,7 +42,7 @@ Anthropic. It solves three key problems:
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts,
 token usage, and tool invocations. For more information, read our documentation
-[here](https://coder.com/docs/ai-coder/ai-bridge).
+[here](https://coder.com/docs/ai-coder/ai-gateway).
 
 ### Agent Firewall
 
@@ -54,7 +54,7 @@ prevent data exfiltration—and write logs to the workspace for auditability.
 Agent Firewall supports any terminal-based agent, including custom ones, and can be
 easily configured through existing Coder modules like the Claude Code module.
 For more information, read our documentation
-[here](../../ai-coder/agent-boundaries/index.md).
+[here](../../ai-coder/agent-firewall/index.md).
 
 ### Performance Enhancements
 
