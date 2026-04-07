@@ -186,17 +186,19 @@
 
 ```json
 {
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "reason": "prebuild_claimed",
-  "workspaceID": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                               | Required | Restrictions | Description |
-|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
-| `workspaceID` | string                                                             | false    |              |             |
+| Name           | Type                                                               | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `owner_id`     | string                                                             | false    |              |             |
+| `reason`       | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspace_id` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
 
@@ -348,6 +350,8 @@
     }
   ],
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -502,6 +506,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "token_usages": [
     {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "input_tokens": 0,
@@ -593,6 +599,8 @@
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
+          "cache_read_input_tokens": 0,
+          "cache_write_input_tokens": 0,
           "created_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "input_tokens": 0,
@@ -677,6 +685,8 @@
       "started_at": "2019-08-24T14:15:22Z",
       "threads": 0,
       "token_usage_summary": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "output_tokens": 0
       }
@@ -785,6 +795,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": 0,
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "output_tokens": 0
   }
@@ -845,6 +857,8 @@
             }
           ],
           "token_usage": {
+            "cache_read_input_tokens": 0,
+            "cache_write_input_tokens": 0,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -877,6 +891,8 @@
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -887,6 +903,8 @@
     }
   ],
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -919,6 +937,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -930,17 +950,21 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `input_tokens`     | integer | false    |              |             |
-| `metadata`         | object  | false    |              |             |
-| » `[any property]` | any     | false    |              |             |
-| `output_tokens`    | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "output_tokens": 0
 }
@@ -948,10 +972,12 @@
 
 ### Properties
 
-| Name            | Type    | Required | Restrictions | Description |
-|-----------------|---------|----------|--------------|-------------|
-| `input_tokens`  | integer | false    |              |             |
-| `output_tokens` | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeThread
 
@@ -966,6 +992,8 @@
         }
       ],
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -998,6 +1026,8 @@
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -1025,6 +1055,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "input_tokens": 0,
@@ -1040,16 +1072,18 @@
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `input_tokens`         | integer | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `output_tokens`        | integer | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `created_at`               | string  | false    |              |             |
+| `id`                       | string  | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `interception_id`          | string  | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `provider_response_id`     | string  | false    |              |             |
 
 ## codersdk.AIBridgeToolCall
 
@@ -1706,7 +1740,8 @@
       "user_agent": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -1716,6 +1751,7 @@
 |--------------|-------------------------------------------------|----------|--------------|-------------|
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
+| `count_cap`  | integer                                         | false    |              |             |
 
 ## codersdk.AuthMethod
 
@@ -2139,7 +2175,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "workspace_owner_username": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -2149,6 +2186,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|-----------------------------------------------------------|----------|--------------|-------------|
 | `connection_logs` | array of [codersdk.ConnectionLog](#codersdkconnectionlog) | false    |              |             |
 | `count`           | integer                                                   | false    |              |             |
+| `count_cap`       | integer                                                   | false    |              |             |
 
 ## codersdk.ConnectionLogSSHInfo
 
@@ -2244,12 +2282,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateFirstUserOnboardingInfo
+
+```json
+{
+  "newsletter_marketing": true,
+  "newsletter_releases": true
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `newsletter_marketing` | boolean | false    |              |             |
+| `newsletter_releases`  | boolean | false    |              |             |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "newsletter_marketing": true,
+    "newsletter_releases": true
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -2267,14 +2325,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                   | Required | Restrictions | Description |
-|--------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`      | string                                                                 | true     |              |             |
-| `name`       | string                                                                 | false    |              |             |
-| `password`   | string                                                                 | true     |              |             |
-| `trial`      | boolean                                                                | false    |              |             |
-| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
-| `username`   | string                                                                 | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `email`           | string                                                                           | true     |              |             |
+| `name`            | string                                                                           | false    |              |             |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
+| `password`        | string                                                                           | true     |              |             |
+| `trial`           | boolean                                                                          | false    |              |             |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
+| `username`        | string                                                                           | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 

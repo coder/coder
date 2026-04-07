@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -91,6 +91,12 @@ const (
 	// goroutines and lifecycle management.
 	streamDropWarnInterval = 10 * time.Second
 
+	// bufferRetainGracePeriod is how long the message_part
+	// buffer is kept after processing completes. This gives
+	// cross-replica relay subscribers time to connect and
+	// snapshot the buffer before it is garbage-collected.
+	bufferRetainGracePeriod = 5 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -104,9 +110,10 @@ var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: th
 
 // Server handles background processing of pending chats.
 type Server struct {
-	cancel   context.CancelFunc
-	closed   chan struct{}
-	inflight sync.WaitGroup
+	cancel     context.CancelFunc
+	closed     chan struct{}
+	inflight   sync.WaitGroup
+	inflightMu sync.Mutex
 
 	db       database.Store
 	workerID uuid.UUID
@@ -116,6 +123,7 @@ type Server struct {
 
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
+	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	pubsub                         pubsub.Pubsub
@@ -143,6 +151,12 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
+
+	// heartbeatMu guards heartbeatRegistry.
+	heartbeatMu sync.Mutex
+	// heartbeatRegistry maps chat IDs to their cancel functions
+	// and workspace state for the centralized heartbeat loop.
+	heartbeatRegistry map[uuid.UUID]*heartbeatEntry
 
 	// wakeCh is signaled by SendMessage, EditMessage, CreateChat,
 	// and PromoteQueued so the run loop calls processOnce
@@ -690,6 +704,24 @@ type chatStreamState struct {
 	bufferLastWarnAt     time.Time
 	subscriberDropCount  int64
 	subscriberLastWarnAt time.Time
+	// bufferRetainedAt records when processing completed and
+	// the buffer was retained for late-connecting relay
+	// subscribers. Zero while buffering is active. When
+	// non-zero, cleanupStreamIfIdle skips GC until the grace
+	// period expires so cross-replica relays can still
+	// snapshot the buffer.
+	bufferRetainedAt time.Time
+}
+
+// heartbeatEntry tracks a single chat's cancel function and workspace
+// state for the centralized heartbeat loop. Instead of spawning a
+// per-chat goroutine, processChat registers an entry here and the
+// single heartbeatLoop goroutine handles all chats.
+type heartbeatEntry struct {
+	cancelWithCause context.CancelCauseFunc
+	chatID          uuid.UUID
+	workspaceID     uuid.NullUUID
+	logger          slog.Logger
 }
 
 // resetDropCounters zeroes the rate-limiting state for both buffer
@@ -872,7 +904,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert chat: %w", err)
 		}
 
-		systemPrompt := strings.TrimSpace(opts.SystemPrompt)
+		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+		userPrompt := SanitizePromptText(opts.SystemPrompt)
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
@@ -894,16 +927,32 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			ChatID: insertedChat.ID,
 		}
 
-		if systemPrompt != "" {
-			systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(systemPrompt),
+		if deploymentPrompt != "" {
+			deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(deploymentPrompt),
 			})
 			if err != nil {
-				return xerrors.Errorf("marshal system prompt: %w", err)
+				return xerrors.Errorf("marshal deployment system prompt: %w", err)
 			}
 			appendChatMessage(&msgParams, newChatMessage(
 				database.ChatMessageRoleSystem,
-				systemContent,
+				deploymentContent,
+				database.ChatMessageVisibilityModel,
+				opts.ModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+
+		if userPrompt != "" {
+			userPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(userPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal user system prompt: %w", err)
+			}
+			appendChatMessage(&msgParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				userPromptContent,
 				database.ChatMessageVisibilityModel,
 				opts.ModelConfigID,
 				chatprompt.CurrentContentVersion,
@@ -2315,6 +2364,7 @@ type Config struct {
 	ChatHeartbeatInterval          time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
+	InstructionLookupTimeout       time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	Pubsub                         pubsub.Pubsub
@@ -2355,6 +2405,11 @@ func New(cfg Config) *Server {
 		clk = quartz.NewReal()
 	}
 
+	instructionLookupTimeout := cfg.InstructionLookupTimeout
+	if instructionLookupTimeout == 0 {
+		instructionLookupTimeout = homeInstructionLookupTimeout
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -2369,6 +2424,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                    cfg.SubscribeFn,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		pubsub:                         cfg.Pubsub,
@@ -2382,8 +2438,8 @@ func New(cfg Config) *Server {
 		clock:                          clk,
 		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                         make(chan struct{}, 1),
+		heartbeatRegistry:              make(map[uuid.UUID]*heartbeatEntry),
 	}
-
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
 
@@ -2422,6 +2478,9 @@ func (p *Server) start(ctx context.Context) {
 	// Recover stale chats on startup and periodically thereafter
 	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
+
+	// Single heartbeat loop for all chats on this replica.
+	go p.heartbeatLoop(ctx)
 
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
@@ -2513,6 +2572,7 @@ func (p *Server) processOnce(ctx context.Context) {
 		return
 	}
 
+	p.inflightMu.Lock()
 	for _, chat := range chats {
 		p.inflight.Add(1)
 		go func() {
@@ -2520,6 +2580,7 @@ func (p *Server) processOnce(ctx context.Context) {
 			p.processChat(ctx, chat)
 		}()
 	}
+	p.inflightMu.Unlock()
 }
 
 func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -2671,11 +2732,113 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 
 // cleanupStreamIfIdle removes the chat entry from the sync.Map
 // when there are no subscribers and the stream is not buffering.
+// When bufferRetainedAt is set, cleanup is deferred until the
+// grace period expires so cross-replica relay subscribers can
+// still snapshot the buffer.
 // The caller must hold state.mu.
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
-	if !state.buffering && len(state.subscribers) == 0 {
-		p.chatStreams.Delete(chatID)
-		p.workspaceMCPToolsCache.Delete(chatID)
+	if state.buffering || len(state.subscribers) > 0 {
+		return
+	}
+	// Keep stream state alive during the grace period so
+	// late-connecting relay subscribers can snapshot the
+	// buffer after the worker finishes processing.
+	if !state.bufferRetainedAt.IsZero() &&
+		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
+		return
+	}
+	p.chatStreams.Delete(chatID)
+	p.workspaceMCPToolsCache.Delete(chatID)
+}
+
+// registerHeartbeat enrolls a chat in the centralized batch
+// heartbeat loop. Must be called after chatCtx is created.
+func (p *Server) registerHeartbeat(entry *heartbeatEntry) {
+	p.heartbeatMu.Lock()
+	defer p.heartbeatMu.Unlock()
+	if _, exists := p.heartbeatRegistry[entry.chatID]; exists {
+		p.logger.Warn(context.Background(),
+			"duplicate heartbeat registration, skipping",
+			slog.F("chat_id", entry.chatID))
+		return
+	}
+	p.heartbeatRegistry[entry.chatID] = entry
+}
+
+// unregisterHeartbeat removes a chat from the centralized
+// heartbeat loop when chat processing finishes.
+func (p *Server) unregisterHeartbeat(chatID uuid.UUID) {
+	p.heartbeatMu.Lock()
+	defer p.heartbeatMu.Unlock()
+	delete(p.heartbeatRegistry, chatID)
+}
+
+// heartbeatLoop runs in a single goroutine, issuing one batch
+// heartbeat query per interval for all registered chats.
+func (p *Server) heartbeatLoop(ctx context.Context) {
+	ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "batch-heartbeat")
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			p.heartbeatTick(ctx)
+		}
+	}
+}
+
+// heartbeatTick issues a single batch UPDATE for all running chats
+// owned by this worker. Chats missing from the result set are
+// interrupted (stolen by another replica or already completed).
+func (p *Server) heartbeatTick(ctx context.Context) {
+	// Snapshot the registry under the lock.
+	p.heartbeatMu.Lock()
+	snapshot := maps.Clone(p.heartbeatRegistry)
+	p.heartbeatMu.Unlock()
+
+	if len(snapshot) == 0 {
+		return
+	}
+
+	// Collect the IDs we believe we own.
+	ids := slices.Collect(maps.Keys(snapshot))
+
+	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
+	// access for batch-updating heartbeats.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	updatedIDs, err := p.db.UpdateChatHeartbeats(chatdCtx, database.UpdateChatHeartbeatsParams{
+		IDs:      ids,
+		WorkerID: p.workerID,
+		Now:      p.clock.Now(),
+	})
+	if err != nil {
+		p.logger.Error(ctx, "batch heartbeat failed", slog.Error(err))
+		return
+	}
+
+	// Build a set of IDs that were successfully updated.
+	updated := make(map[uuid.UUID]struct{}, len(updatedIDs))
+	for _, id := range updatedIDs {
+		updated[id] = struct{}{}
+	}
+
+	// Interrupt registered chats that were not in the result
+	// (stolen by another replica or already completed).
+	for id, entry := range snapshot {
+		if _, ok := updated[id]; !ok {
+			entry.logger.Warn(ctx, "chat not in batch heartbeat result, interrupting")
+			entry.cancelWithCause(chatloop.ErrInterrupted)
+			continue
+		}
+		// Bump workspace usage for surviving chats.
+		newWsID := p.trackWorkspaceUsage(ctx, entry.chatID, entry.workspaceID, entry.logger)
+		// Update workspace ID in the registry for next tick.
+		p.heartbeatMu.Lock()
+		if current, exists := p.heartbeatRegistry[id]; exists {
+			current.workspaceID = newWsID
+		}
+		p.heartbeatMu.Unlock()
 	}
 }
 
@@ -3153,7 +3316,11 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil) // we have diffStatus already converted
+	// diffStatus is applied below. File metadata is intentionally
+	// omitted from pubsub events to avoid an extra DB query per
+	// publish. Clients must merge pubsub updates, not replace
+	// cached file metadata.
+	sdkChat := db2sdk.Chat(chat, nil, nil)
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -3520,33 +3687,17 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
-	// Periodically update the heartbeat so other replicas know this
-	// worker is still alive. The goroutine stops when chatCtx is
-	// canceled (either by completion or interruption).
-	go func() {
-		ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "heartbeat")
-		defer ticker.Stop()
-		for {
-			select {
-			case <-chatCtx.Done():
-				return
-			case <-ticker.C:
-				rows, err := p.db.UpdateChatHeartbeat(chatCtx, database.UpdateChatHeartbeatParams{
-					ID:       chat.ID,
-					WorkerID: p.workerID,
-				})
-				if err != nil {
-					logger.Warn(chatCtx, "failed to update chat heartbeat", slog.Error(err))
-					continue
-				}
-				if rows == 0 {
-					cancel(chatloop.ErrInterrupted)
-					return
-				}
-				chat.WorkspaceID = p.trackWorkspaceUsage(chatCtx, chat.ID, chat.WorkspaceID, logger)
-			}
-		}
-	}()
+	// Register with the centralized heartbeat loop instead of
+	// running a per-chat goroutine. The loop issues a single batch
+	// UPDATE for all chats on this worker and detects stolen chats
+	// via set-difference.
+	p.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chat.ID,
+		workspaceID:     chat.WorkspaceID,
+		logger:          logger,
+	})
+	defer p.unregisterHeartbeat(chat.ID)
 
 	// Start buffering stream events BEFORE publishing the running
 	// status. This closes a race where a subscriber sees
@@ -3557,15 +3708,20 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState := p.getOrCreateStreamState(chat.ID)
 	streamState.mu.Lock()
 	streamState.buffer = nil
+	streamState.bufferRetainedAt = time.Time{}
 	streamState.resetDropCounters()
 	streamState.buffering = true
 	streamState.mu.Unlock()
 	defer func() {
 		streamState.mu.Lock()
-		streamState.buffer = nil
 		streamState.resetDropCounters()
 		streamState.buffering = false
-		p.cleanupStreamIfIdle(chat.ID, streamState)
+		// Retain the buffer for a grace period so
+		// cross-replica relay subscribers can still snapshot
+		// it after processing completes. The buffer is
+		// cleared when the next processChat starts or when
+		// cleanupStreamIfIdle runs after the grace period.
+		streamState.bufferRetainedAt = p.clock.Now()
 		streamState.mu.Unlock()
 	}()
 
@@ -3895,14 +4051,6 @@ func (p *Server) runChat(
 		)
 	}()
 
-	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
-	if err != nil {
-		return result, xerrors.Errorf("build chat prompt: %w", err)
-	}
-	if chat.ParentChatID.Valid {
-		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
-	}
-
 	// Detect computer-use subagent via the mode column.
 	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 
@@ -3941,7 +4089,6 @@ func (p *Server) runChat(
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		skills             []chattool.SkillMeta
-		skillMetaFile      = workspacesdk.DefaultSkillMetaFile
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3960,11 +4107,24 @@ func (p *Server) runChat(
 			needsInstructionPersist = true
 		}
 	}
+	// Convert messages to prompt format in parallel with g2 work.
+	// ConvertMessagesWithFiles only reads `messages` (available
+	// after g.Wait()) and resolves file references via the DB.
+	// No g2 task reads or writes `prompt`, so this is safe.
+	var prompt []fantasy.Message
 	var g2 errgroup.Group
+	g2.Go(func() error {
+		var err error
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
+		if err != nil {
+			return xerrors.Errorf("build chat prompt: %w", err)
+		}
+		return nil
+	})
 	if needsInstructionPersist {
 		g2.Go(func() error {
 			var persistErr error
-			instruction, skills, skillMetaFile, persistErr = p.persistInstructionFiles(
+			instruction, skills, persistErr = p.persistInstructionFiles(
 				ctx,
 				chat,
 				modelConfig.ID,
@@ -3991,9 +4151,6 @@ func (p *Server) runChat(
 		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
 		skills = skillsFromParts(messages)
-		if restored := skillMetaFileFromParts(messages); restored != "" {
-			skillMetaFile = restored
-		}
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
@@ -4077,8 +4234,12 @@ func (p *Server) runChat(
 			return nil
 		})
 	}
-	// All g2 goroutines return nil; error is discarded.
-	_ = g2.Wait()
+	if err := g2.Wait(); err != nil {
+		return result, err
+	}
+	if chat.ParentChatID.Valid {
+		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
+	}
 	if mcpCleanup != nil {
 		defer mcpCleanup()
 	}
@@ -4296,17 +4457,12 @@ func (p *Server) runChat(
 			p.publishMessage(chat.ID, msg)
 		}
 
-		// Clear the stream buffer now that the step is
-		// persisted. Late-joining subscribers will load
-		// these messages from the database instead.
-		if val, ok := p.chatStreams.Load(chat.ID); ok {
-			if ss, ok := val.(*chatStreamState); ok {
-				ss.mu.Lock()
-				ss.buffer = nil
-				ss.resetDropCounters()
-				ss.mu.Unlock()
-			}
-		}
+		// Do NOT clear the stream buffer here. Cross-replica
+		// relay subscribers may still need to snapshot buffered
+		// message_parts after processing completes. The buffer
+		// is bounded by maxStreamBufferSize and is cleared when
+		// the next processChat starts or when the stream state
+		// is garbage-collected after the retention grace period.
 
 		return nil
 	}
@@ -4469,6 +4625,27 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
+				// Cap enforcement and dedup are handled atomically
+				// in SQL. rejected > 0 = cap exceeded.
+				rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chatSnapshot.ID,
+					MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+					FileIds:      []uuid.UUID{row.ID},
+				})
+				switch {
+				case err != nil:
+					p.logger.Error(ctx, "failed to link file to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.Error(err),
+					)
+				case rejected > 0:
+					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.F("max_file_links", codersdk.MaxChatFileIDs),
+					)
+				}
 				return row.ID, nil
 			},
 		}))
@@ -4484,7 +4661,6 @@ func (p *Server) runChat(
 			GetSkills: func() []chattool.SkillMeta {
 				return skills
 			},
-			SkillMetaFile: skillMetaFile,
 		}
 		tools = append(tools,
 			chattool.ReadSkill(skillOpts),
@@ -4542,7 +4718,7 @@ func (p *Server) runChat(
 		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
 	}
 
-	err = chatloop.Run(ctx, chatloop.RunOptions{
+	err := chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
@@ -4983,22 +5159,22 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 // skills from the workspace agent, persisting both as message
 // parts. This is called once when a workspace is first attached
 // to a chat (or when the agent changes). Returns the formatted
-// instruction string, skill index, and the skill meta file name
-// for injection into the current turn's prompt.
+// instruction string and skill index for injection into the
+// current turn's prompt.
 func (p *Server) persistInstructionFiles(
 	ctx context.Context,
 	chat database.Chat,
 	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (instruction string, skills []chattool.SkillMeta, skillMetaFile string, err error) {
+) (instruction string, skills []chattool.SkillMeta, err error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
+		return "", nil, nil
 	}
 
 	agent, err := getWorkspaceAgent(ctx)
 	if err != nil {
-		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
+		return "", nil, nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -5006,23 +5182,14 @@ func (p *Server) persistInstructionFiles(
 		directory = agent.Directory
 	}
 
-	// Read instruction files from the workspace agent.
-	var (
-		sections        []instructionFileSection
-		workspaceConnOK bool
-	)
+	// Fetch context configuration from the agent. Parts
+	// arrive pre-populated with context-file and skill entries
+	// so we don't need additional round-trips.
+	var workspaceConnOK bool
+	var agentParts []codersdk.ChatMessagePart
 
-	// Fetch context configuration from the agent. This tells
-	// us where instruction files, skills, and MCP configs live.
-	// Fall back to the pre-context-config behavior for older
-	// agents that don't support the endpoint.
-	agentCfg := workspacesdk.ContextConfigResponse{
-		InstructionsFile: workspacesdk.DefaultInstructionsFile,
-		SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
-	}
-
-	if getWorkspaceConn != nil { //nolint:nestif // Existing high-complexity block; config fallback logic adds unavoidable branches.
-		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
+	if getWorkspaceConn != nil {
+		instructionCtx, cancel := context.WithTimeout(ctx, p.instructionLookupTimeout)
 		defer cancel()
 
 		conn, connErr := getWorkspaceConn(instructionCtx)
@@ -5034,108 +5201,62 @@ func (p *Server) persistInstructionFiles(
 		} else {
 			workspaceConnOK = true
 
-			// Fetch resolved context config from agent.
-			var cfgErr error
-			agentCfg, cfgErr = conn.ContextConfig(instructionCtx)
+			agentCfg, cfgErr := conn.ContextConfig(instructionCtx)
 			if cfgErr != nil {
-				p.logger.Debug(ctx, "agent does not support context-config endpoint, using defaults",
+				p.logger.Debug(ctx, "failed to fetch context config from agent",
 					slog.F("chat_id", chat.ID), slog.Error(cfgErr))
-				// Fall back to the pre-context-config behavior:
-				// read instruction file from home dir using
-				// LSRelativityHome and discover skills from the
-				// working directory.
-				agentCfg = workspacesdk.ContextConfigResponse{
-					InstructionsFile: workspacesdk.DefaultInstructionsFile,
-					SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
-				}
-				if content, source, truncated, readErr := readHomeInstructionFile(
-					instructionCtx, conn, ".coder", agentCfg.InstructionsFile,
-				); readErr != nil {
-					p.logger.Debug(ctx, "failed to load home instruction file",
-						slog.F("chat_id", chat.ID), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
-				}
-				if directory != "" {
-					agentCfg.SkillsDirs = []string{path.Join(directory, ".agents/skills")}
-				}
-			}
-
-			// Read instruction files from each configured
-			// instruction directory. Track seen paths to
-			// avoid reading the same file twice when the
-			// user duplicates entries.
-			seenDirs := make(map[string]struct{}, len(agentCfg.InstructionsDirs))
-			for _, absDir := range agentCfg.InstructionsDirs {
-				if _, ok := seenDirs[absDir]; ok {
-					continue
-				}
-				seenDirs[absDir] = struct{}{}
-				if content, source, truncated, readErr := readInstructionDirFile(instructionCtx, conn, absDir, agentCfg.InstructionsFile); readErr != nil {
-					p.logger.Debug(ctx, "failed to load instruction file from dir",
-						slog.F("chat_id", chat.ID), slog.F("dir", absDir), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
-				}
-			}
-
-			// Also check the working directory for the
-			// instruction file, unless it was already
-			// covered by InstructionsDirs.
-			_, pwdSeen := seenDirs[directory]
-			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" && !pwdSeen {
-				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
-					p.logger.Debug(ctx, "failed to load working directory instruction file",
-						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
-				}
+				// Treat a transient ContextConfig failure the
+				// same as a failed connection so no sentinel is
+				// persisted. The next turn will retry.
+				workspaceConnOK = false
+			} else {
+				agentParts = agentCfg.Parts
 			}
 		}
 	}
 
-	// Discover skills from each configured skills directory.
-	// Errors are non-fatal. A chat without skills still works,
-	// it just won't list them in the prompt.
+	// Stamp server-side fields and sanitize content. The
+	// agent cannot know its own UUID, OS metadata, or
+	// directory — those are added here at the trust boundary.
 	var discoveredSkills []chattool.SkillMeta
-	if workspaceConnOK && len(agentCfg.SkillsDirs) > 0 {
-		conn, connErr := getWorkspaceConn(ctx)
-		if connErr == nil {
-			var discoverErr error
-			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, p.logger, conn, agentCfg.SkillsDirs, agentCfg.SkillMetaFile)
-			if discoverErr != nil {
-				p.logger.Debug(ctx, "failed to discover skills",
-					slog.F("chat_id", chat.ID),
-					slog.Error(discoverErr),
-				)
-			}
-		}
-	}
+	var hasContent bool
+	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
 
-	if len(sections) == 0 {
-		if !workspaceConnOK {
-			return "", nil, agentCfg.SkillMetaFile, nil
-		}
-		// Persist a sentinel (plus any discovered skill parts)
-		// so subsequent turns skip the workspace agent dial.
-		parts := []codersdk.ChatMessagePart{{
-			Type:                     codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:          "",
-			ContextFileAgentID:       uuid.NullUUID{UUID: agent.ID, Valid: true},
-			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
-		}}
-		for _, s := range discoveredSkills {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:               codersdk.ChatMessagePartTypeSkill,
-				SkillName:          s.Name,
-				SkillDescription:   s.Description,
-				SkillDir:           s.Dir,
-				ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+	for i := range agentParts {
+		agentParts[i].ContextFileAgentID = agentID
+		switch agentParts[i].Type {
+		case codersdk.ChatMessagePartTypeContextFile:
+			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
+			agentParts[i].ContextFileOS = agent.OperatingSystem
+			agentParts[i].ContextFileDirectory = directory
+			if agentParts[i].ContextFileContent != "" {
+				hasContent = true
+			}
+		case codersdk.ChatMessagePartTypeSkill:
+			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
+				Name:        agentParts[i].SkillName,
+				Description: agentParts[i].SkillDescription,
+				Dir:         agentParts[i].SkillDir,
+				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
 			})
 		}
-		content, err := chatprompt.MarshalParts(parts)
+	}
+
+	if !hasContent {
+		if !workspaceConnOK {
+			return "", nil, nil
+		}
+		// Persist a sentinel (plus any skill-only parts) so
+		// subsequent turns skip the workspace agent dial.
+		if len(agentParts) == 0 {
+			agentParts = []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFileAgentID: agentID,
+			}}
+		}
+		content, err := chatprompt.MarshalParts(agentParts)
 		if err != nil {
-			return "", nil, agentCfg.SkillMetaFile, nil
+			return "", nil, nil
 		}
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: chat.ID,
@@ -5151,50 +5272,13 @@ func (p *Server) persistInstructionFiles(
 		// Update the cache column: persist skills if any
 		// exist, or clear to NULL so stale data from a
 		// previous agent doesn't linger.
-		if len(discoveredSkills) > 0 {
-			skillParts := make([]codersdk.ChatMessagePart, 0, len(discoveredSkills))
-			for _, s := range discoveredSkills {
-				skillParts = append(skillParts, codersdk.ChatMessagePart{
-					Type:               codersdk.ChatMessagePartTypeSkill,
-					SkillName:          s.Name,
-					SkillDescription:   s.Description,
-					ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
-				})
-			}
-			p.updateLastInjectedContext(ctx, chat.ID, skillParts)
-		} else {
-			p.updateLastInjectedContext(ctx, chat.ID, nil)
-		}
-		return "", discoveredSkills, agentCfg.SkillMetaFile, nil
+		skillParts := filterSkillParts(agentParts)
+		p.updateLastInjectedContext(ctx, chat.ID, skillParts)
+		return "", discoveredSkills, nil
 	}
-	// Build context-file parts (one per instruction file) and
-	// skill parts (one per discovered skill).
-	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
-	for _, s := range sections {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:                     codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:          s.source,
-			ContextFileContent:       s.content,
-			ContextFileTruncated:     s.truncated,
-			ContextFileAgentID:       uuid.NullUUID{UUID: agent.ID, Valid: true},
-			ContextFileOS:            agent.OperatingSystem,
-			ContextFileDirectory:     directory,
-			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
-		})
-	}
-	for _, s := range discoveredSkills {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:               codersdk.ChatMessagePartTypeSkill,
-			SkillName:          s.Name,
-			SkillDescription:   s.Description,
-			SkillDir:           s.Dir,
-			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
-		})
-	}
-
-	content, err := chatprompt.MarshalParts(parts)
+	content, err := chatprompt.MarshalParts(agentParts)
 	if err != nil {
-		return "", nil, agentCfg.SkillMetaFile, xerrors.Errorf("marshal context-file parts: %w", err)
+		return "", nil, xerrors.Errorf("marshal context-file parts: %w", err)
 	}
 
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
@@ -5208,13 +5292,13 @@ func (p *Server) persistInstructionFiles(
 		chatprompt.CurrentContentVersion,
 	))
 	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
-		return "", nil, agentCfg.SkillMetaFile, xerrors.Errorf("persist instruction files: %w", err)
+		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
 	}
 	// Build stripped copies for the cache column so internal
 	// fields (full file content, OS, directory, skill paths)
 	// are never persisted or returned to API clients.
-	stripped := make([]codersdk.ChatMessagePart, len(parts))
-	copy(stripped, parts)
+	stripped := make([]codersdk.ChatMessagePart, len(agentParts))
+	copy(stripped, agentParts)
 	for i := range stripped {
 		stripped[i].StripInternal()
 	}
@@ -5223,7 +5307,7 @@ func (p *Server) persistInstructionFiles(
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
 	// the prompt was built before we persisted).
-	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, agentCfg.SkillMetaFile, nil
+	return formatSystemInstructions(agent.OperatingSystem, directory, agentParts), discoveredSkills, nil
 }
 
 // updateLastInjectedContext persists the injected context
@@ -5281,6 +5365,37 @@ func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid
 		return 0, false
 	}
 	return int32(val), true
+}
+
+// resolveDeploymentSystemPrompt builds the deployment-level system
+// prompt from the built-in default and the admin-configured custom
+// prompt stored in site_configs.
+func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
+	config, err := p.db.GetChatSystemPromptConfig(ctx)
+	if err != nil {
+		// Fail open: use the built-in default so chats always have
+		// some system guidance.
+		p.logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
+		return DefaultSystemPrompt
+	}
+
+	sanitizedCustom := SanitizePromptText(config.ChatSystemPrompt)
+	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
+		p.logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
+	}
+
+	var parts []string
+	if config.IncludeDefaultSystemPrompt {
+		parts = append(parts, DefaultSystemPrompt)
+	}
+	if sanitizedCustom != "" {
+		parts = append(parts, sanitizedCustom)
+	}
+	result := strings.Join(parts, "\n\n")
+	if result == "" {
+		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
+	}
+	return result
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the
@@ -5454,8 +5569,21 @@ func (p *Server) Close() error {
 	}
 	p.cancel()
 	<-p.closed
-	p.inflight.Wait()
+	p.drainInflight()
 	return nil
+}
+
+// drainInflight waits for all in-flight operations to complete.
+// It acquires inflightMu to prevent processOnce from spawning
+// new goroutines (via inflight.Add) concurrently with Wait,
+// which would violate sync.WaitGroup's contract.
+//
+// https://pkg.go.dev/sync#WaitGroup.Add
+// > Note that calls with a positive delta that occur when the counter is zero must happen before a Wait.
+func (p *Server) drainInflight() {
+	p.inflightMu.Lock()
+	p.inflight.Wait()
+	p.inflightMu.Unlock()
 }
 
 // refreshExpiredMCPTokens checks each MCP OAuth2 token and refreshes

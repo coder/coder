@@ -208,6 +208,14 @@ func (m queryMetricsStore) BatchUpdateWorkspaceNextStartAt(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpsertConnectionLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpsertConnectionLogs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BatchUpsertConnectionLogs").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -1117,6 +1125,14 @@ func (m queryMetricsStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (d
 	r0, r1 := m.s.GetChatFileByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatFileByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFileMetadataByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatFileMetadataByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileMetadataByChatID").Inc()
 	return r0, r1
 }
 
@@ -2216,19 +2232,19 @@ func (m queryMetricsStore) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsRow, error) {
+func (m queryMetricsStore) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsBatchRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTailnetTunnelPeerBindings(ctx, srcID)
-	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerBindings").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerBindings").Inc()
+	r0, r1 := m.s.GetTailnetTunnelPeerBindingsBatch(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerBindingsBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerBindingsBatch").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
+func (m queryMetricsStore) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]database.GetTailnetTunnelPeerIDsBatchRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTailnetTunnelPeerIDs(ctx, srcID)
-	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerIDs").Inc()
+	r0, r1 := m.s.GetTailnetTunnelPeerIDsBatch(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerIDsBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerIDsBatch").Inc()
 	return r0, r1
 }
 
@@ -3768,6 +3784,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.LinkChatFiles(ctx, arg)
+	m.queryLatencies.WithLabelValues("LinkChatFiles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LinkChatFiles").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeClients(ctx, arg)
@@ -4112,11 +4136,11 @@ func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.Upda
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateChatHeartbeatParams) (int64, error) {
+func (m queryMetricsStore) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateChatHeartbeat(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatHeartbeat").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatHeartbeat").Inc()
+	r0, r1 := m.s.UpdateChatHeartbeats(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatHeartbeats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatHeartbeats").Inc()
 	return r0, r1
 }
 
@@ -5022,14 +5046,6 @@ func (m queryMetricsStore) UpsertChatWorkspaceTTL(ctx context.Context, workspace
 	m.queryLatencies.WithLabelValues("UpsertChatWorkspaceTTL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatWorkspaceTTL").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertConnectionLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertConnectionLog").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertConnectionLog").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

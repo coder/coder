@@ -1134,7 +1134,9 @@ CREATE TABLE aibridge_token_usages (
     input_tokens bigint NOT NULL,
     output_tokens bigint NOT NULL,
     metadata jsonb,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    cache_read_input_tokens bigint DEFAULT 0 NOT NULL,
+    cache_write_input_tokens bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
@@ -1265,6 +1267,11 @@ CREATE TABLE chat_diff_statuses (
     approved boolean,
     reviewer_count integer,
     head_branch text
+);
+
+CREATE TABLE chat_file_links (
+    chat_id uuid NOT NULL,
+    file_id uuid NOT NULL
 );
 
 CREATE TABLE chat_files (
@@ -2808,7 +2815,8 @@ CREATE TABLE user_secrets (
     env_name text DEFAULT ''::text NOT NULL,
     file_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    value_key_id text
 );
 
 CREATE TABLE user_status_changes (
@@ -3341,6 +3349,9 @@ ALTER TABLE ONLY boundary_usage_stats
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
+
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
@@ -3731,6 +3742,8 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
+
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
@@ -4033,6 +4046,12 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_file_id_fkey FOREIGN KEY (file_id) REFERENCES chat_files(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
@@ -4305,6 +4324,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_secrets
+    ADD CONSTRAINT user_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

@@ -266,7 +266,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			}
 		}
 
-		if (!selectedPreset || !selectedPreset.Parameters) {
+		if (!selectedPreset?.Parameters) {
 			setPresetParameterNames([]);
 			return;
 		}

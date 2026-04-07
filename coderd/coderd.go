@@ -168,6 +168,7 @@ type Options struct {
 	ConnectionLogger               connectionlog.ConnectionLogger
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
+	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
@@ -785,6 +786,7 @@ func New(options *Options) *API {
 			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
 			Pubsub:                         options.Pubsub,

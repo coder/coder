@@ -223,10 +223,12 @@ func TestTelemetry(t *testing.T) {
 			StartedAt:   previousAIBridgeInterceptionPeriod.Add(-30 * time.Minute),
 		}, nil)
 		_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: aiBridgeInterception1.ID,
-			InputTokens:    100,
-			OutputTokens:   200,
-			Metadata:       json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
+			InterceptionID:        aiBridgeInterception1.ID,
+			InputTokens:           100,
+			OutputTokens:          200,
+			CacheReadInputTokens:  300,
+			CacheWriteInputTokens: 400,
+			Metadata:              json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
 		})
 		_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
 			InterceptionID: aiBridgeInterception1.ID,
@@ -248,10 +250,12 @@ func TestTelemetry(t *testing.T) {
 			StartedAt:   aiBridgeInterception1.StartedAt,
 		}, nil)
 		_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: aiBridgeInterception2.ID,
-			InputTokens:    100,
-			OutputTokens:   200,
-			Metadata:       json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
+			InterceptionID:        aiBridgeInterception2.ID,
+			InputTokens:           100,
+			OutputTokens:          200,
+			CacheReadInputTokens:  300,
+			CacheWriteInputTokens: 400,
+			Metadata:              json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
 		})
 		_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
 			InterceptionID: aiBridgeInterception2.ID,

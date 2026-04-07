@@ -66,18 +66,20 @@ func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridg
 		merged = aibridge.Metadata{}
 	}
 
-	// Merge the token usage values into metadata; later we might want to store some of these in their own fields.
+	// Merge remaining extra token types into metadata.
 	for k, v := range req.ExtraTokenTypes {
 		merged[k] = v
 	}
 
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-		InterceptionId: req.InterceptionID,
-		MsgId:          req.MsgID,
-		InputTokens:    req.Input,
-		OutputTokens:   req.Output,
-		Metadata:       marshalForProto(merged),
-		CreatedAt:      timestamppb.New(req.CreatedAt),
+		InterceptionId:        req.InterceptionID,
+		MsgId:                 req.MsgID,
+		InputTokens:           req.Input,
+		OutputTokens:          req.Output,
+		CacheReadInputTokens:  req.CacheReadInputTokens,
+		CacheWriteInputTokens: req.CacheWriteInputTokens,
+		Metadata:              marshalForProto(merged),
+		CreatedAt:             timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
