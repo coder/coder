@@ -48,7 +48,18 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
-		setIsExpandable(el.scrollHeight > maxHeight);
+
+		const checkIsExpandable = () => {
+			setIsExpandable(el.scrollHeight > maxHeight);
+		};
+
+		checkIsExpandable();
+
+		const observer = new ResizeObserver(checkIsExpandable);
+
+		observer.observe(el);
+
+		return () => observer.disconnect();
 	}, [maxHeight]);
 
 	return (
