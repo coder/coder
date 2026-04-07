@@ -1,7 +1,6 @@
 import { useFormik } from "formik";
 import {
 	ChevronDownIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
 	InfoIcon,
 	PencilIcon,
@@ -41,6 +40,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
+import { BackButton } from "../BackButton";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
@@ -262,14 +262,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
-				<button
-					type="button"
-					onClick={onCancel}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-				>
-					<ChevronLeftIcon className="h-4 w-4" />
-					Back
-				</button>
+				<BackButton onClick={onCancel} />
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
@@ -283,14 +276,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!canManageModels && !isEditing) {
 		return (
 			<div>
-				<button
-					type="button"
-					onClick={onCancel}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-				>
-					<ChevronLeftIcon className="h-4 w-4" />
-					Back
-				</button>
+				<BackButton onClick={onCancel} />
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					Add Model
 				</h2>
@@ -316,15 +302,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				onClick={onCancel}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
-			{/* Header - editable display name */}
+			<BackButton onClick={onCancel} /> {/* Header - editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
 					<ProviderIcon

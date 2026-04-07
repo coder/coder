@@ -1,5 +1,4 @@
 import dayjs from "dayjs";
-import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -25,6 +24,7 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
 import { AdminBadge } from "./components/AdminBadge";
+import { BackButton } from "./components/BackButton";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { SectionHeader } from "./components/SectionHeader";
 
@@ -202,17 +202,7 @@ export const AgentSettingsUsagePageView: FC<
 	);
 
 	if (selectedUserId) {
-		const backButton = (
-			<button
-				type="button"
-				onClick={onClearSelectedUser}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				{" "}
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
-		);
+		const backButton = <BackButton onClick={onClearSelectedUser} />;
 
 		if (isSelectedUserLoading) {
 			return (

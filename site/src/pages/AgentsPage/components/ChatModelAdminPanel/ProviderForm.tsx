@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, InfoIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import {
 	type CSSProperties,
 	type FC,
@@ -27,6 +27,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "../../utils/modelOptions";
+import { BackButton } from "../BackButton";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
@@ -241,15 +242,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
-
+			<BackButton onClick={onBack} />
 			{/* Provider header, editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />
