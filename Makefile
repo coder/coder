@@ -707,6 +707,9 @@ TYPOS_VERSION := $(shell grep -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github
 
 # Map uname values to typos release asset names.
 TYPOS_ARCH := $(shell uname -m)
+ifeq ($(TYPOS_ARCH),arm64)
+TYPOS_ARCH := aarch64
+endif
 ifeq ($(shell uname -s),Darwin)
 TYPOS_OS := apple-darwin
 else
