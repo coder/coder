@@ -2162,6 +2162,21 @@ func (mr *MockStoreMockRecorder) GetChatMessageByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByID", reflect.TypeOf((*MockStore)(nil).GetChatMessageByID), ctx, id)
 }
 
+// GetChatMessageSummariesByChat mocks base method.
+func (m *MockStore) GetChatMessageSummariesByChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesByChatRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessageSummariesByChat", ctx, createdAfter)
+	ret0, _ := ret[0].([]database.GetChatMessageSummariesByChatRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessageSummariesByChat indicates an expected call of GetChatMessageSummariesByChat.
+func (mr *MockStoreMockRecorder) GetChatMessageSummariesByChat(ctx, createdAfter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageSummariesByChat", reflect.TypeOf((*MockStore)(nil).GetChatMessageSummariesByChat), ctx, createdAfter)
+}
+
 // GetChatMessagesByChatID mocks base method.
 func (m *MockStore) GetChatMessagesByChatID(ctx context.Context, arg database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -2250,6 +2265,21 @@ func (m *MockStore) GetChatModelConfigs(ctx context.Context) ([]database.ChatMod
 func (mr *MockStoreMockRecorder) GetChatModelConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigs), ctx)
+}
+
+// GetChatModelConfigsForTelemetry mocks base method.
+func (m *MockStore) GetChatModelConfigsForTelemetry(ctx context.Context) ([]database.GetChatModelConfigsForTelemetryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatModelConfigsForTelemetry", ctx)
+	ret0, _ := ret[0].([]database.GetChatModelConfigsForTelemetryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatModelConfigsForTelemetry indicates an expected call of GetChatModelConfigsForTelemetry.
+func (mr *MockStoreMockRecorder) GetChatModelConfigsForTelemetry(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigsForTelemetry", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigsForTelemetry), ctx)
 }
 
 // GetChatProviderByID mocks base method.
@@ -2460,6 +2490,21 @@ func (m *MockStore) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID)
 func (mr *MockStoreMockRecorder) GetChatsByWorkspaceIDs(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetChatsByWorkspaceIDs), ctx, ids)
+}
+
+// GetChatsCreatedAfter mocks base method.
+func (m *MockStore) GetChatsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetChatsCreatedAfterRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsCreatedAfter", ctx, createdAfter)
+	ret0, _ := ret[0].([]database.GetChatsCreatedAfterRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsCreatedAfter indicates an expected call of GetChatsCreatedAfter.
+func (mr *MockStoreMockRecorder) GetChatsCreatedAfter(ctx, createdAfter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetChatsCreatedAfter), ctx, createdAfter)
 }
 
 // GetConnectionLogsOffset mocks base method.
