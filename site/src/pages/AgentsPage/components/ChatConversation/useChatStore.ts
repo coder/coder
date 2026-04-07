@@ -153,6 +153,7 @@ export const useChatStore = (
 	// otherwise the server replays the entire message history as
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
+
 	useEffect(() => {
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
