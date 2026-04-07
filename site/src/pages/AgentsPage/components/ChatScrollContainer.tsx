@@ -430,7 +430,7 @@ function useStickToBottom(): StickToBottomInstance {
 		}
 	});
 
-	const scrollRef = useEffectEvent((el: HTMLDivElement | null) => {
+	const scrollRef = (el: HTMLDivElement | null) => {
 		const s = stateRef.current;
 		const prev = s.scrollElement;
 
@@ -469,9 +469,9 @@ function useStickToBottom(): StickToBottomInstance {
 			vo.observe(el);
 			s.viewportObserver = vo;
 		}
-	});
+	};
 
-	const contentRef = useEffectEvent((el: HTMLDivElement | null) => {
+	const contentRef = (el: HTMLDivElement | null) => {
 		const s = stateRef.current;
 
 		if (s.resizeObserver) {
@@ -486,10 +486,10 @@ function useStickToBottom(): StickToBottomInstance {
 			ro.observe(el);
 			s.resizeObserver = ro;
 		}
-	});
+	};
 
 	// -----------------------------------------------------------------------
-	// -----------------------------------------------------------------------
+
 	// Mouse tracking (instance-scoped)
 	// -----------------------------------------------------------------------
 
@@ -614,11 +614,12 @@ const ChatScrollContainer: FC<{
 	// Merge our callback ref with the external RefObject so both
 	// point at the same DOM node, and expose scrollToBottom to the
 	// parent via its imperative ref.
-	const mergedScrollRef = useEffectEvent((el: HTMLDivElement | null) => {
+	const mergedScrollRef = (el: HTMLDivElement | null) => {
 		scrollRef(el);
 		scrollContainerRef.current = el;
 		scrollToBottomRef.current = el ? () => scrollToBottom("instant") : null;
-	});
+	};
+
 	// -------------------------------------------------------------------
 	// Pagination sentinel (IntersectionObserver)
 	// -------------------------------------------------------------------
