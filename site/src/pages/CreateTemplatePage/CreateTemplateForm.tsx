@@ -435,7 +435,7 @@ const fillNameAndDisplayWithFilename = async (
 
 const ProvisionerWarning: FC = () => {
 	return (
-		<Alert severity="warning" css={{ marginBottom: 16 }} prominent>
+		<Alert severity="warning" className="mb-4" prominent>
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
 			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>

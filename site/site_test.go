@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
@@ -77,6 +79,74 @@ func TestInjection(t *testing.T) {
 	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
 
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
+}
+
+func TestRenderPermissionsResolvesMe(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler wired to a real RBAC authorizer and a
+	// template that renders only the SSR permissions JSON.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Permissions }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	handler, err := site.New(&site.Options{
+		Telemetry:  telemetry.NewNoop(),
+		Database:   db,
+		SiteFS:     siteFS,
+		Authorizer: authorizer,
+	})
+	require.NoError(t, err)
+
+	// GIVEN: a user with the agents-access role.
+	userWithRole := dbgen.User(t, db, database.User{
+		RBACRoles: []string{"agents-access"},
+	})
+	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithRole.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithRole)
+	rw := httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: the SSR-rendered permissions include createChat = true
+	// because the "me" sentinel in permissions.json was resolved to
+	// the actor's ID, and the agents-access role grants user-scoped
+	// chat create permission.
+	var permsWithRole codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
+	require.NoError(t, err)
+	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+
+	// GIVEN: a user without the agents-access role.
+	userWithoutRole := dbgen.User(t, db, database.User{})
+	_, tokenWithoutRole := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithoutRole.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithoutRole)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createChat = false because the member role does not
+	// grant chat permissions.
+	var permsWithoutRole codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
+	require.NoError(t, err)
+	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {

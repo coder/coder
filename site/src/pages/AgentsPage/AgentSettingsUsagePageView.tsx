@@ -188,8 +188,8 @@ export const AgentSettingsUsagePageView: FC<
 			label="Usage"
 			description={
 				selectedUserId
-					? "Review deployment chat usage for a specific user."
-					: "Review deployment chat usage and drill into individual users."
+					? "Review deployment Coder Agents usage for a specific user."
+					: "Review deployment Coder Agents usage and drill into individual users."
 			}
 			badge={<AdminBadge />}
 			action={

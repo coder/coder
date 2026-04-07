@@ -95,7 +95,7 @@ interface NotificationItemProps {
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (
 		<article css={styles.notificationItem}>
-			<h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
+			<h4 className="m-0 font-medium">{notification.title}</h4>
 			{notification.detail && (
 				<p css={styles.notificationDetail}>{notification.detail}</p>
 			)}

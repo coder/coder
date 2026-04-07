@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"io"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +21,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -62,8 +61,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
-		Provider:     "anthropic",
-		Model:        "claude-haiku-4-5",
+		Provider:     "openai",
+		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
 	}
 	updatedChat := chat
@@ -85,9 +84,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		require.Equal(t, "claude-haiku-4-5", req.Model)
-		return chattest.AnthropicNonStreamingResponse(wantTitle)
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		require.Equal(t, "gpt-4o-mini", req.Model)
+		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
 	})
 
 	server := &Server{
@@ -99,9 +98,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "anthropic",
-		APIKey:   "test-key",
-		BaseUrl:  serverURL,
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+		APIKey:               "test-key",
+		BaseUrl:              serverURL,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
@@ -221,8 +221,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
-		Provider:     "anthropic",
-		Model:        "claude-haiku-4-5",
+		Provider:     "openai",
+		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
 	}
 	updatedChat := lockedChat
@@ -247,9 +247,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		require.Equal(t, "claude-haiku-4-5", req.Model)
-		return chattest.AnthropicNonStreamingResponse(wantTitle)
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		require.Equal(t, "gpt-4o-mini", req.Model)
+		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
 	})
 
 	server := &Server{
@@ -261,9 +261,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "anthropic",
-		APIKey:   "test-key",
-		BaseUrl:  serverURL,
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+		APIKey:               "test-key",
+		BaseUrl:              serverURL,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
@@ -376,6 +377,87 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for title change pubsub event")
 	}
+}
+
+func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI:    "openai-deployment-key",
+			Anthropic: "anthropic-deployment-key",
+			ByProvider: map[string]string{
+				"openai":    "openai-deployment-key",
+				"anthropic": "anthropic-deployment-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai":    "https://openai.example.com",
+				"anthropic": "https://anthropic.example.com",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:                   "anthropic",
+		CentralApiKeyEnabled:       true,
+		AllowCentralApiKeyFallback: true,
+	}}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Empty(t, keys.OpenAI)
+	require.Empty(t, keys.APIKey("openai"))
+	require.Empty(t, keys.BaseURL("openai"))
+	require.Equal(t, "anthropic-deployment-key", keys.Anthropic)
+	require.Equal(t, "anthropic-deployment-key", keys.APIKey("anthropic"))
+	require.Equal(t, "https://anthropic.example.com", keys.BaseURL("anthropic"))
+	require.Equal(t, map[string]string{"anthropic": "anthropic-deployment-key"}, keys.ByProvider)
+	require.Equal(t, map[string]string{"anthropic": "https://anthropic.example.com"}, keys.BaseURLByProvider)
+}
+
+func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI: "openai-deployment-key",
+			ByProvider: map[string]string{
+				"openai": "openai-deployment-key",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+	}}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Equal(t, "openai-deployment-key", keys.OpenAI)
+	require.Equal(t, "openai-deployment-key", keys.APIKey("openai"))
 }
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
@@ -513,24 +595,18 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
-	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-		workspacesdk.LSResponse{},
-		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).AnyTimes()
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		io.NopCloser(strings.NewReader("# Project instructions")),
-		"",
-		nil,
-	).Times(1)
-
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		Parts: []codersdk.ChatMessagePart{{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/home/coder/project/AGENTS.md",
+			ContextFileContent: "# Project instructions",
+		}},
+	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:     db,
-		logger: logger,
+		db:                       db,
+		logger:                   logger,
+		instructionLookupTimeout: 5 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -655,61 +731,21 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
-
-	// Home LS (.coder directory): return 404 so no home
-	// instruction file is found.
-	conn.EXPECT().LS(gomock.Any(), "",
-		gomock.Cond(func(x any) bool {
-			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityHome
-		}),
-	).Return(
-		workspacesdk.LSResponse{},
-		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).Times(1)
-
-	// Pwd AGENTS.md: return 404 so no working-directory
-	// instruction file is found either.
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		nil, "",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
-	).Times(1)
-
-	// Skills LS (.agents/skills directory): return one skill
-	// directory so DiscoverSkills finds it.
-	conn.EXPECT().LS(gomock.Any(), "",
-		gomock.Cond(func(x any) bool {
-			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityRoot
-		}),
-	).Return(workspacesdk.LSResponse{
-		Contents: []workspacesdk.LSFile{{
-			Name:               "my-skill",
-			AbsolutePathString: "/home/coder/project/.agents/skills/my-skill",
-			IsDir:              true,
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		// Agent returns pre-read content: no instruction files
+		// found but one skill discovered.
+		Parts: []codersdk.ChatMessagePart{{
+			Type:             codersdk.ChatMessagePartTypeSkill,
+			SkillName:        "my-skill",
+			SkillDescription: "A test skill",
+			SkillDir:         "/home/coder/project/.agents/skills/my-skill",
 		}},
-	}, nil).Times(1)
-
-	// Skills SKILL.md ReadFile: return valid frontmatter.
-	skillContent := "---\nname: my-skill\ndescription: A test skill\n---\nSkill body"
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/.agents/skills/my-skill/SKILL.md",
-		int64(0),
-		int64(64*1024+1),
-	).Return(
-		io.NopCloser(strings.NewReader(skillContent)),
-		"",
-		nil,
-	).Times(1)
-
+	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:     db,
-		logger: logger,
+		db:                       db,
+		logger:                   logger,
+		instructionLookupTimeout: 5 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -786,28 +822,15 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
-
-	// All LS calls return 404: no home .coder directory and no
-	// .agents/skills directory.
-	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-		workspacesdk.LSResponse{},
-		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).AnyTimes()
-
-	// Pwd AGENTS.md: return 404.
-	conn.EXPECT().ReadFile(gomock.Any(),
-		"/home/coder/project/AGENTS.md",
-		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
-		nil, "",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
-	).Times(1)
-
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		// Agent returns pre-read content: no files, no skills.
+		Parts: []codersdk.ChatMessagePart{},
+	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:     db,
-		logger: logger,
+		db:                       db,
+		logger:                   logger,
+		instructionLookupTimeout: 5 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -2017,4 +2040,96 @@ func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage
 	return database.ChatMessage{
 		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
 	}
+}
+
+// TestProcessChat_IgnoresStaleControlNotification verifies that
+// processChat is not interrupted by a "pending" notification
+// published before processing begins. This is the race that caused
+// TestOpenAIReasoningWithWebSearchRoundTripStoreFalse to flake:
+// SendMessage publishes "pending" via PostgreSQL NOTIFY, and due
+// to async delivery the notification can arrive at the control
+// subscriber after it registers but before the processor publishes
+// "running".
+func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewMock(t)
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		pubsub:                ps,
+		clock:                 clock,
+		workerID:              workerID,
+		chatHeartbeatInterval: time.Minute,
+		configCache:           newChatConfigCache(ctx, db, clock),
+	}
+
+	// Publish a stale "pending" notification on the control channel
+	// BEFORE processChat subscribes. In production this is the
+	// notification from SendMessage that triggered the processing.
+	staleNotify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusPending),
+	})
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), staleNotify)
+	require.NoError(t, err)
+
+	// Track which status processChat writes during cleanup.
+	var finalStatus database.ChatStatus
+	cleanupDone := make(chan struct{})
+
+	// The deferred cleanup in processChat runs a transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	)
+	db.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusRunning, WorkerID: uuid.NullUUID{UUID: workerID, Valid: true}}, nil,
+	)
+	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
+			finalStatus = params.Status
+			close(cleanupDone)
+			return database.Chat{ID: chatID, Status: params.Status}, nil
+		},
+	)
+
+	// resolveChatModel fails immediately — that's fine, we only
+	// need processChat to get past initialization without being
+	// interrupted by the stale notification.
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
+		database.ChatModelConfig{}, xerrors.New("no model configured"),
+	).AnyTimes()
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
+		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
+	).AnyTimes()
+	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
+	go server.processChat(ctx, chat)
+
+	select {
+	case <-cleanupDone:
+	case <-ctx.Done():
+		t.Fatal("processChat did not complete")
+	}
+
+	// If the stale notification interrupted us, status would be
+	// "waiting" (the ErrInterrupted path). Since the gate blocked
+	// it, processChat reached runChat, which failed on model
+	// resolution → status is "error".
+	require.Equal(t, database.ChatStatusError, finalStatus,
+		"processChat should have reached runChat (error), not been interrupted (waiting)")
 }

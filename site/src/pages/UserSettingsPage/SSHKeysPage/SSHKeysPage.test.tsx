@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { API } from "#/api/api";
 import { MockGitSSHKey, mockApiError } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import SSHKeysPage, { Language as SSHKeysPageLanguage } from "./SSHKeysPage";
+import SSHKeysPage from "./SSHKeysPage";
 
 describe("SSH keys Page", () => {
 	it("shows the SSH key", async () => {
@@ -23,7 +23,7 @@ describe("SSH keys Page", () => {
 				fireEvent.click(regenerateButton);
 				const confirmDialog = screen.getByRole("dialog");
 				expect(confirmDialog).toHaveTextContent(
-					SSHKeysPageLanguage.regenerateDialogMessage,
+					"You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
 				);
 
 				const newUserSSHKey =
@@ -35,7 +35,7 @@ describe("SSH keys Page", () => {
 
 				// Click on the "Confirm" button
 				const confirmButton = within(confirmDialog).getByRole("button", {
-					name: SSHKeysPageLanguage.confirmLabel,
+					name: "Confirm",
 				});
 				fireEvent.click(confirmButton);
 
@@ -59,7 +59,7 @@ describe("SSH keys Page", () => {
 
 				vi.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce(
 					mockApiError({
-						message: SSHKeysPageLanguage.regenerationError,
+						message: "Failed to regenerate SSH key",
 					}),
 				);
 
@@ -68,17 +68,17 @@ describe("SSH keys Page", () => {
 				fireEvent.click(regenerateButton);
 				const confirmDialog = screen.getByRole("dialog");
 				expect(confirmDialog).toHaveTextContent(
-					SSHKeysPageLanguage.regenerateDialogMessage,
+					"You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
 				);
 
 				// Click on the "Confirm" button
 				const confirmButton = within(confirmDialog).getByRole("button", {
-					name: SSHKeysPageLanguage.confirmLabel,
+					name: "Confirm",
 				});
 				fireEvent.click(confirmButton);
 
 				// Check if the error message is displayed
-				await screen.findByText(SSHKeysPageLanguage.regenerationError);
+				await screen.findByText("Failed to regenerate SSH key");
 
 				// Check if the API was called correctly
 				expect(API.regenerateUserSSHKey).toBeCalledTimes(1);

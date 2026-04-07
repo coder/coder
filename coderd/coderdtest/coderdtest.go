@@ -149,12 +149,13 @@ type Options struct {
 	OneTimePasscodeValidityPeriod time.Duration
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon    bool
-	ProvisionerDaemonVersion    string
-	ProvisionerDaemonTags       map[string]string
-	MetricsCacheRefreshInterval time.Duration
-	AgentStatsRefreshInterval   time.Duration
-	DeploymentValues            *codersdk.DeploymentValues
+	IncludeProvisionerDaemon      bool
+	ChatdInstructionLookupTimeout time.Duration
+	ProvisionerDaemonVersion      string
+	ProvisionerDaemonTags         map[string]string
+	MetricsCacheRefreshInterval   time.Duration
+	AgentStatsRefreshInterval     time.Duration
+	DeploymentValues              *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -575,6 +576,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,

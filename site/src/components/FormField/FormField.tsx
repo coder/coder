@@ -24,6 +24,10 @@ export const FormField: FC<FormFieldProps> = ({
 		<div className="flex flex-col gap-2">
 			<Label htmlFor={id}>{label}</Label>
 			<Input
+				name={field.name}
+				value={field.value}
+				onChange={field.onChange}
+				onBlur={field.onBlur}
 				{...inputProps}
 				id={id}
 				aria-invalid={field.error}

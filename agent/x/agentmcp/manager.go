@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -70,16 +69,40 @@ func NewManager(logger slog.Logger) *Manager {
 	}
 }
 
-// Connect discovers .mcp.json in dir and connects to all
-// configured servers. Failed servers are logged and skipped.
-func (m *Manager) Connect(ctx context.Context, dir string) error {
-	path := filepath.Join(dir, ".mcp.json")
-	configs, err := ParseConfig(path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+// Connect reads MCP config files at the given absolute paths and
+// connects to all configured servers. Failed servers are logged
+// and skipped. Missing config files are silently skipped.
+func (m *Manager) Connect(ctx context.Context, mcpConfigFiles []string) error {
+	var allConfigs []ServerConfig
+	for _, configPath := range mcpConfigFiles {
+		configs, err := ParseConfig(configPath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			m.logger.Warn(ctx, "failed to parse MCP config",
+				slog.F("path", configPath),
+				slog.Error(err),
+			)
+			continue
 		}
-		return xerrors.Errorf("parse mcp config: %w", err)
+		allConfigs = append(allConfigs, configs...)
+	}
+
+	// Deduplicate by server name; first occurrence wins.
+	seen := make(map[string]struct{})
+	deduped := make([]ServerConfig, 0, len(allConfigs))
+	for _, cfg := range allConfigs {
+		if _, ok := seen[cfg.Name]; ok {
+			continue
+		}
+		seen[cfg.Name] = struct{}{}
+		deduped = append(deduped, cfg)
+	}
+	allConfigs = deduped
+
+	if len(allConfigs) == 0 {
+		return nil
 	}
 
 	// Connect to servers in parallel without holding the
@@ -95,7 +118,7 @@ func (m *Manager) Connect(ctx context.Context, dir string) error {
 		connected []connectedServer
 	)
 	var eg errgroup.Group
-	for _, cfg := range configs {
+	for _, cfg := range allConfigs {
 		eg.Go(func() error {
 			c, err := m.connectServer(ctx, cfg)
 			if err != nil {
@@ -164,7 +187,11 @@ func (*Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Cl
 	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 
-	if err := c.Start(connectCtx); err != nil {
+	// Use the parent ctx (not connectCtx) so the subprocess outlives
+	// the connect/initialize handshake. connectCtx bounds only the
+	// Initialize call below. The subprocess is cleaned up when the
+	// Manager is closed or ctx is canceled.
+	if err := c.Start(ctx); err != nil {
 		_ = c.Close()
 		return nil, xerrors.Errorf("start %q: %w", cfg.Name, err)
 	}

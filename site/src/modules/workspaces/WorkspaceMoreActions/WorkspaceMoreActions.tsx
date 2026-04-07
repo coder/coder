@@ -45,6 +45,7 @@ type WorkspaceMoreActionsProps = {
 	disabled: boolean;
 	onStop?: () => void;
 	isStopping?: boolean;
+	onActionSuccess?: () => Promise<void> | void;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
@@ -52,6 +53,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 	onStop,
 	isStopping,
+	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -97,8 +99,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 	// Delete
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
 	const deleteWorkspaceMutation = useMutation({
-		...deleteWorkspace(workspace, queryClient),
+		...deleteWorkspaceOptions,
+		onSuccess: async (build) => {
+			await deleteWorkspaceOptions.onSuccess?.(build);
+			await onActionSuccess?.();
+		},
 		onError: (error: unknown) => {
 			handleError(error);
 		},

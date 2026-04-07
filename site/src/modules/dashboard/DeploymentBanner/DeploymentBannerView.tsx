@@ -24,7 +24,7 @@ import type {
 	WorkspaceStatus,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { HelpTooltipTitle } from "#/components/HelpTooltip/HelpTooltip";
+import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { JetBrainsIcon } from "#/components/Icons/JetBrainsIcon";
 import { RocketIcon } from "#/components/Icons/RocketIcon";
 import { TerminalIcon } from "#/components/Icons/TerminalIcon";
@@ -137,9 +137,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					>
 						{healthErrors.length > 0 ? (
 							<>
-								<HelpTooltipTitle>
+								<HelpPopoverTitle>
 									We have detected problems with your Coder deployment.
-								</HelpTooltipTitle>
+								</HelpPopoverTitle>
 								<div className="flex flex-col gap-1">
 									{healthErrors.map((error) => (
 										<HealthIssue key={error}>{error}</HealthIssue>

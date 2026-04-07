@@ -30,9 +30,11 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	var latestMainline *version
-	if len(allTags) > 0 {
-		v := allTags[0]
-		latestMainline = &v
+	for _, t := range allTags {
+		if t.Pre == "" {
+			latestMainline = &t
+			break
+		}
 	}
 
 	stableMinor := -1
@@ -41,7 +43,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		stableMinor = latestMainline.Minor - 1
 		// Find highest tag in the stable minor series.
 		for _, t := range allTags {
-			if t.Major == latestMainline.Major && t.Minor == stableMinor {
+			if t.Major == latestMainline.Major && t.Minor == stableMinor && t.Pre == "" {
 				latestStableStr = t.String()
 				break
 			}
@@ -66,15 +68,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
-	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
+	// Match standard release branches (release/2.32) and RC
+	// branches (release/2.32-rc.0).
+	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)(?:-rc\.(\d+))?$`)
 	m := branchRe.FindStringSubmatch(currentBranch)
 	if m == nil {
-		warnf(w, "Current branch %q is not a release branch (release/X.Y).", currentBranch)
+		warnf(w, "Current branch %q is not a release branch (release/X.Y or release/X.Y-rc.N).", currentBranch)
 		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
-			Text: "Enter the release branch to use (e.g. release/2.21)",
+			Text: "Enter the release branch to use (e.g. release/2.21 or release/2.21-rc.0)",
 			Validate: func(s string) error {
 				if !branchRe.MatchString(s) {
-					return xerrors.New("must be in format release/X.Y (e.g. release/2.21)")
+					return xerrors.New("must be in format release/X.Y or release/X.Y-rc.N (e.g. release/2.21 or release/2.21-rc.0)")
 				}
 				return nil
 			},
@@ -87,6 +91,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	branchMajor, _ := strconv.Atoi(m[1])
 	branchMinor, _ := strconv.Atoi(m[2])
+	branchRC := -1 // -1 means not an RC branch.
+	if m[3] != "" {
+		branchRC, _ = strconv.Atoi(m[3])
+	}
 	successf(w, "Using release branch: %s", currentBranch)
 
 	// --- Fetch & sync check ---
@@ -134,9 +142,27 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if prevVersion == nil {
 		infof(w, "No previous release tag found on this branch.")
 		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
+		if branchRC >= 0 {
+			suggested.Pre = fmt.Sprintf("rc.%d", branchRC)
+		}
 	} else {
 		infof(w, "Previous release tag: %s", prevVersion.String())
-		suggested = version{Major: prevVersion.Major, Minor: prevVersion.Minor, Patch: prevVersion.Patch + 1}
+		if branchRC >= 0 {
+			// On an RC branch, suggest the next RC for
+			// the same base version.
+			nextRC := 0
+			if prevVersion.IsRC() {
+				nextRC = prevVersion.rcNumber() + 1
+			}
+			suggested = version{
+				Major: prevVersion.Major,
+				Minor: prevVersion.Minor,
+				Patch: prevVersion.Patch,
+				Pre:   fmt.Sprintf("rc.%d", nextRC),
+			}
+		} else {
+			suggested = version{Major: prevVersion.Major, Minor: prevVersion.Minor, Patch: prevVersion.Patch + 1}
+		}
 	}
 
 	fmt.Fprintln(w)
@@ -147,7 +173,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		Default: suggested.String(),
 		Validate: func(s string) error {
 			if _, ok := parseVersion(s); !ok {
-				return xerrors.New("must be in format vMAJOR.MINOR.PATCH (e.g. v2.31.1)")
+				return xerrors.New("must be in format vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N (e.g. v2.31.1 or v2.31.0-rc.0)")
 			}
 			return nil
 		},
@@ -303,29 +329,36 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Channel selection ---
 	// This is done before release notes generation because the
 	// notes format differs between mainline and stable channels.
-	channelDefault := cliui.ConfirmNo
-	channelHint := ""
-	if newVersion.Minor == stableMinor {
-		channelDefault = cliui.ConfirmYes
-		channelHint = " (this looks like a stable release)"
-	}
-
+	// RC releases are always on the "rc" channel and skip the
+	// stable/mainline prompt.
 	channel := "mainline"
-	_, err = cliui.Prompt(inv, cliui.PromptOptions{
-		Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
-		Default:   channelDefault,
-		IsConfirm: true,
-	})
-	if err == nil {
-		channel = "stable"
-	} else if !errors.Is(err, cliui.ErrCanceled) {
-		return err
-	}
-
-	if channel == "stable" {
-		infof(w, "Channel: stable (will be marked as GitHub Latest).")
+	if newVersion.IsRC() {
+		channel = "rc"
+		infof(w, "Channel: rc (release candidate, will be marked as prerelease on GitHub).")
 	} else {
-		infof(w, "Channel: mainline (will be marked as prerelease).")
+		channelDefault := cliui.ConfirmNo
+		channelHint := ""
+		if newVersion.Minor == stableMinor {
+			channelDefault = cliui.ConfirmYes
+			channelHint = " (this looks like a stable release)"
+		}
+
+		_, err = cliui.Prompt(inv, cliui.PromptOptions{
+			Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
+			Default:   channelDefault,
+			IsConfirm: true,
+		})
+		if err == nil {
+			channel = "stable"
+		} else if !errors.Is(err, cliui.ErrCanceled) {
+			return err
+		}
+
+		if channel == "stable" {
+			infof(w, "Channel: stable (will be marked as GitHub Latest).")
+		} else {
+			infof(w, "Channel: mainline (will be marked as prerelease).")
+		}
 	}
 	fmt.Fprintln(w)
 
@@ -408,12 +441,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// scripts/release/generate_release_notes.sh.
 	var notes strings.Builder
 
-	// Stable since header or mainline blurb.
+	// Stable since header, mainline blurb, or RC advisory.
 	if channel == "stable" {
 		fmt.Fprintf(&notes, "> ## Stable (since %s)\n\n", time.Now().Format("January 02, 2006"))
 	}
 	fmt.Fprintln(&notes, "## Changelog")
-	if channel == "mainline" {
+	switch channel {
+	case "rc":
+		fmt.Fprintln(&notes)
+		fmt.Fprintln(&notes, "> [!NOTE]")
+		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+	case "mainline":
 		fmt.Fprintln(&notes)
 		fmt.Fprintln(&notes, "> [!NOTE]")
 		fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
@@ -576,7 +614,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	successf(w, "Release workflow triggered!")
 
 	// --- Update release docs ---
-	promptAndUpdateDocs(inv, newVersion, channel, dryRun)
+	// RC releases skip docs updates (calendar, helm versions, etc.)
+	// since they are not production releases.
+	if newVersion.IsRC() {
+		infof(w, "Skipping docs update for release candidate.")
+	} else {
+		promptAndUpdateDocs(inv, newVersion, channel, dryRun)
+	}
 
 	fmt.Fprintln(w)
 	successf(w, "Done! 🎉")

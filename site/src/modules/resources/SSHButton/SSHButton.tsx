@@ -5,10 +5,10 @@ import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import {
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Popover,
 	PopoverContent,
@@ -44,9 +44,9 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 				align="end"
 				className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary"
 			>
-				<HelpTooltipText>
+				<HelpPopoverText>
 					Run the following commands to connect with SSH:
-				</HelpTooltipText>
+				</HelpPopoverText>
 
 				<ol style={{ margin: 0, padding: 0 }}>
 					<Stack spacing={0.5} className="mt-3">
@@ -61,25 +61,25 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 					</Stack>
 				</ol>
 
-				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/install")}>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink href={docs("/install")}>
 						Install Coder CLI
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access/vscode")}>
+					</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/workspace-access/vscode")}>
 						Connect via VS Code Remote SSH
-					</HelpTooltipLink>
-					<HelpTooltipLink
+					</HelpPopoverLink>
+					<HelpPopoverLink
 						href={docs("/user-guides/workspace-access/jetbrains")}
 					>
 						Connect via JetBrains IDEs
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/desktop")}>
+					</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/desktop")}>
 						Connect via Coder Desktop
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
+					</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/workspace-access#ssh")}>
 						SSH configuration
-					</HelpTooltipLink>
-				</HelpTooltipLinksGroup>
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
 			</PopoverContent>
 		</Popover>
 	);
@@ -92,9 +92,9 @@ interface SSHStepProps {
 
 const SSHStep: FC<SSHStepProps> = ({ helpText, codeExample }) => (
 	<li style={{ listStylePosition: "inside" }}>
-		<HelpTooltipText style={{ display: "inline" }}>
+		<HelpPopoverText style={{ display: "inline" }}>
 			<strong className="text-xs">{helpText}</strong>
-		</HelpTooltipText>
+		</HelpPopoverText>
 		<CodeExample secret={false} code={codeExample} />
 	</li>
 );

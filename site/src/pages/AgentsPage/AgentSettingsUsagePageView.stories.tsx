@@ -16,6 +16,7 @@ const mockUsers: TypesGen.ChatCostUserRollup[] = [
 		total_output_tokens: 300_000,
 		total_cache_read_tokens: 10_000,
 		total_cache_creation_tokens: 5_000,
+		total_runtime_ms: 0,
 	},
 	{
 		user_id: "user-2",
@@ -29,6 +30,7 @@ const mockUsers: TypesGen.ChatCostUserRollup[] = [
 		total_output_tokens: 120_000,
 		total_cache_read_tokens: 4_000,
 		total_cache_creation_tokens: 2_000,
+		total_runtime_ms: 0,
 	},
 ];
 
@@ -65,6 +67,7 @@ const mockCostSummary: TypesGen.ChatCostSummary = {
 	total_output_tokens: 300_000,
 	total_cache_read_tokens: 10_000,
 	total_cache_creation_tokens: 5_000,
+	total_runtime_ms: 0,
 	by_model: [
 		{
 			model_config_id: "model-1",
@@ -77,6 +80,7 @@ const mockCostSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 250_000,
 			total_cache_read_tokens: 8_000,
 			total_cache_creation_tokens: 4_000,
+			total_runtime_ms: 0,
 		},
 	],
 	by_chat: [
@@ -89,6 +93,7 @@ const mockCostSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 120_000,
 			total_cache_read_tokens: 3_000,
 			total_cache_creation_tokens: 1_500,
+			total_runtime_ms: 0,
 		},
 	],
 };

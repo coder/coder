@@ -80,9 +80,12 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
       },
       "model": "string",
       "provider": "string",
+      "provider_name": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
+          "cache_read_input_tokens": 0,
+          "cache_write_input_tokens": 0,
           "created_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "input_tokens": 0,
@@ -225,6 +228,8 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions \
       "started_at": "2019-08-24T14:15:22Z",
       "threads": 0,
       "token_usage_summary": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "output_tokens": 0
       }
@@ -302,6 +307,8 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions/{session_id} \
             }
           ],
           "token_usage": {
+            "cache_read_input_tokens": 0,
+            "cache_write_input_tokens": 0,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -334,6 +341,8 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions/{session_id} \
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -344,6 +353,8 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions/{session_id} \
     }
   ],
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,

@@ -160,7 +160,7 @@ describe("useDesktopConnection", () => {
 
 	it("does nothing when chatId is undefined", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: undefined }),
+			useDesktopConnection({ chatId: undefined, activated: true }),
 		);
 
 		expect(result.current.status).toBe("idle");
@@ -171,7 +171,7 @@ describe("useDesktopConnection", () => {
 
 	it("auto-connects on mount when chatId is set", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-1");
@@ -185,7 +185,9 @@ describe("useDesktopConnection", () => {
 	});
 
 	it("sets scaleViewport and resizeSession on the RFB instance", () => {
-		renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+		renderHook(() =>
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
+		);
 		const rfb = getLastRFBInstance();
 
 		expect(rfb.scaleViewport).toBe(true);
@@ -194,7 +196,7 @@ describe("useDesktopConnection", () => {
 
 	it("transitions to error on securityfailure", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		const rfb = getLastRFBInstance();
@@ -213,7 +215,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb1 = getLastRFBInstance();
@@ -263,7 +265,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb1 = getLastRFBInstance();
@@ -298,7 +300,9 @@ describe("useDesktopConnection", () => {
 		vi.useFakeTimers();
 
 		try {
-			renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+			renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
+			);
 
 			let rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("connect"));
@@ -330,7 +334,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { unmount } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb = getLastRFBInstance();
@@ -351,7 +355,7 @@ describe("useDesktopConnection", () => {
 	it("tears down and reconnects when chatId changes", () => {
 		const { result, rerender } = renderHook(
 			({ chatId }: { chatId: string | undefined }) =>
-				useDesktopConnection({ chatId }),
+				useDesktopConnection({ chatId, activated: true }),
 			{ initialProps: { chatId: "chat-aaa" as string | undefined } },
 		);
 
@@ -374,7 +378,7 @@ describe("useDesktopConnection", () => {
 
 	it("attach() appends the offscreen container to the target", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		const rfb = getLastRFBInstance();
@@ -389,7 +393,7 @@ describe("useDesktopConnection", () => {
 
 	it("attach() moves the canvas between containers without reconnecting", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		const rfb = getLastRFBInstance();
@@ -413,7 +417,7 @@ describe("useDesktopConnection", () => {
 
 	it("stores remote clipboard text when the server sends it", async () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		const rfb = getLastRFBInstance();
@@ -431,7 +435,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb = getLastRFBInstance();
@@ -455,7 +459,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb1 = getLastRFBInstance();
@@ -485,7 +489,7 @@ describe("useDesktopConnection", () => {
 
 	it("attach() is a no-op when the screen is already in the container", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		const rfb = getLastRFBInstance();
@@ -504,7 +508,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			let rfb = getLastRFBInstance();
@@ -535,7 +539,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			let rfb = getLastRFBInstance();
@@ -570,7 +574,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			let rfb = getLastRFBInstance();
@@ -602,7 +606,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			let rfb = getLastRFBInstance();
@@ -633,7 +637,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb1 = getLastRFBInstance();
@@ -669,7 +673,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb1 = getLastRFBInstance();
@@ -698,7 +702,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			expect(result.current.status).toBe("connecting");
@@ -718,7 +722,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb = getLastRFBInstance();
@@ -744,7 +748,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			const rfb = getLastRFBInstance();
@@ -769,7 +773,7 @@ describe("useDesktopConnection", () => {
 
 		try {
 			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
 			);
 
 			let rfb = getLastRFBInstance();
@@ -804,7 +808,7 @@ describe("useDesktopConnection", () => {
 	it("resets to idle when chatId becomes undefined", () => {
 		const { result, rerender } = renderHook(
 			({ chatId }: { chatId: string | undefined }) =>
-				useDesktopConnection({ chatId }),
+				useDesktopConnection({ chatId, activated: true }),
 			{ initialProps: { chatId: "chat-1" as string | undefined } },
 		);
 
@@ -825,7 +829,7 @@ describe("useDesktopConnection", () => {
 		try {
 			const { result, rerender } = renderHook(
 				({ chatId }: { chatId: string | undefined }) =>
-					useDesktopConnection({ chatId }),
+					useDesktopConnection({ chatId, activated: true }),
 				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
 			);
 
@@ -861,7 +865,7 @@ describe("useDesktopConnection", () => {
 		FakeRFB.throwOnConstruct = true;
 
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		expect(result.current.status).toBe("error");
@@ -876,7 +880,7 @@ describe("useDesktopConnection", () => {
 		try {
 			const { result, rerender } = renderHook(
 				({ chatId }: { chatId: string | undefined }) =>
-					useDesktopConnection({ chatId }),
+					useDesktopConnection({ chatId, activated: true }),
 				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
 			);
 
@@ -901,7 +905,9 @@ describe("useDesktopConnection", () => {
 	// -- Visibility observer (ResizeObserver) ---------------------------------
 
 	it("forces scaleViewport on hidden→visible transition", () => {
-		renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+		renderHook(() =>
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
+		);
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
@@ -923,7 +929,9 @@ describe("useDesktopConnection", () => {
 	});
 
 	it("does not force scaleViewport on normal nonzero→nonzero resize", () => {
-		renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+		renderHook(() =>
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
+		);
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
@@ -943,7 +951,7 @@ describe("useDesktopConnection", () => {
 
 	it("disconnects visibility observer on unmount", () => {
 		const { unmount } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: "chat-1", activated: true }),
 		);
 
 		getLastRFBInstance();
@@ -958,7 +966,9 @@ describe("useDesktopConnection", () => {
 		vi.useFakeTimers();
 
 		try {
-			renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+			renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1", activated: true }),
+			);
 			const rfb1 = getLastRFBInstance();
 			act(() => rfb1.simulateEvent("connect"));
 
@@ -982,7 +992,7 @@ describe("useDesktopConnection", () => {
 	it("ignores stale visibility observer callback after chatId change", () => {
 		const { rerender } = renderHook(
 			({ chatId }: { chatId: string | undefined }) =>
-				useDesktopConnection({ chatId }),
+				useDesktopConnection({ chatId, activated: true }),
 			{ initialProps: { chatId: "chat-aaa" as string | undefined } },
 		);
 

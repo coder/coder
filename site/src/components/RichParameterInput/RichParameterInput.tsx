@@ -242,7 +242,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel parameter={parameter} isPreset={isPreset} />
-			<div css={{ display: "flex", flexDirection: "column" }}>
+			<div className="flex flex-col">
 				<RichParameterField
 					{...fieldProps}
 					onChange={onChange}
@@ -271,7 +271,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 						</FormHelperText>
 					)}
 				{autofillSource && autofillDescription[autofillSource] && (
-					<div css={{ marginTop: 4, fontSize: 12 }}>
+					<div className="mt-1 text-xs">
 						🪄 Autofilled {autofillDescription[autofillSource]}
 					</div>
 				)}
@@ -345,7 +345,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 										spacing={small ? 1 : 0}
 										alignItems={small ? "center" : undefined}
 										direction={small ? "row" : "column"}
-										css={{ padding: small ? undefined : "4px 0" }}
+										className={small ? undefined : "py-1"}
 									>
 										{small ? (
 											<Tooltip>

@@ -61,7 +61,7 @@ test.skip("update workspace, new optional, immutable parameter added", async ({
 
 	// Now, update the workspace, and select the value for immutable parameter.
 	await login(page, users.member);
-	await updateWorkspace(page, workspaceName, updatedRichParameters, [
+	await updateWorkspace(page, workspaceName, "running", updatedRichParameters, [
 		{ name: fifthParameter.name, value: fifthParameter.options[0].value },
 	]);
 
@@ -108,6 +108,7 @@ test("update workspace, new required, mutable parameter added", async ({
 	await updateWorkspace(
 		page,
 		workspaceName,
+		"stopped",
 		updatedRichParameters,
 		buildParameters,
 	);
@@ -146,6 +147,7 @@ test("update workspace with ephemeral parameter enabled", async ({ page }) => {
 	await updateWorkspaceParameters(
 		page,
 		workspaceName,
+		"running",
 		richParameters,
 		buildParameters,
 	);

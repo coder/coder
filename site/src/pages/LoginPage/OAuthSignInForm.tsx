@@ -3,7 +3,6 @@ import { type FC, useId } from "react";
 import type { AuthMethods } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Language } from "./Language";
 
 type OAuthSignInFormProps = {
 	isSigningIn: boolean;
@@ -17,7 +16,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 	authMethods,
 }) => {
 	return (
-		<div css={{ display: "grid", gap: "16px" }}>
+		<div className="grid gap-4">
 			{authMethods?.github.enabled && (
 				<Button
 					variant="outline"
@@ -33,7 +32,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 						)}`}
 					>
 						<ExternalImage src="/icon/github.svg" />
-						{Language.githubSignIn}
+						GitHub
 					</a>
 				</Button>
 			)}
@@ -57,7 +56,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 						) : (
 							<KeyIcon />
 						)}
-						{authMethods.oidc.signInText || Language.oidcSignIn}
+						{authMethods.oidc.signInText || "OpenID Connect"}
 					</a>
 				</Button>
 			)}

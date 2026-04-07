@@ -36,11 +36,10 @@ export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
 			// remove the stroke so it is not overly thick.
 			return (
 				<PauseIcon
-					css={{ strokeWidth: 0 }}
 					className={cn([
-						"text-content-secondary",
-						className,
+						"text-content-secondary stroke-0",
 						disabled ? "fill-content-disabled" : "fill-content-secondary",
+						className,
 					])}
 				/>
 			);
