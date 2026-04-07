@@ -270,11 +270,11 @@ describe.skip(usePaginatedQuery.name, () => {
 	});
 
 	describe("Capped count behavior", () => {
-		const mockQueryKey = vi.fn(() => ["mock"]);
+		const mockQueryKey = jest.fn(() => ["mock"]);
 
 		// Returns count 2001 (capped) with items on pages up to page 84
 		// (84 * 25 = 2100 items total).
-		const mockCappedQueryFn = vi.fn(({ pageNumber, limit }) => {
+		const mockCappedQueryFn = jest.fn(({ pageNumber, limit }) => {
 			const totalItems = 2100;
 			const offset = (pageNumber - 1) * limit;
 			// Returns 0 items when the requested page is past the end, simulating
