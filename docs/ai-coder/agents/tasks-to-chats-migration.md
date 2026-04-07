@@ -438,6 +438,167 @@ See
 for the full guide on writing discoverable descriptions, configuring
 network boundaries, scoping credentials, and pre-installing dependencies.
 
+## How to test your migration
+
+After completing the migration steps above, walk through these checks to
+confirm the Chats API integration is working end-to-end.
+
+### 1. Verify the experiment is active
+
+Confirm the `agents` experiment is enabled on your deployment:
+
+```sh
+curl -s https://coder.example.com/api/v2/buildinfo \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.experiments'
+```
+
+The response should include `"agents"` in the array.
+
+### 2. Confirm LLM provider connectivity
+
+List available models to verify at least one provider is configured and
+reachable:
+
+```sh
+curl -s https://coder.example.com/api/experimental/chats/models \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.[].display_name'
+```
+
+If this returns an empty list or an error, revisit
+[Step 2: Configure an LLM provider](#2-configure-an-llm-provider).
+
+### 3. Create a chat and confirm the response
+
+Create a simple chat that does not require a workspace:
+
+```sh
+curl -s -X POST https://coder.example.com/api/experimental/chats \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": [{"type": "text", "text": "What is 2 + 2?"}]
+  }' | jq '{id, status, title}'
+```
+
+You should receive a `Chat` object with `status` set to `"waiting"` or
+`"pending"`. Save the `id` for subsequent steps.
+
+### 4. Stream the response
+
+Open a WebSocket connection to verify the agent processes the prompt and
+returns a response. Using [websocat](https://github.com/vi/websocat):
+
+```sh
+websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  "wss://coder.example.com/api/experimental/chats/$CHAT_ID/stream"
+```
+
+You should see JSON envelopes with `"type": "data"` containing
+`message_part` and `status` events. The chat should eventually reach
+`"waiting"` status, indicating the agent completed its response.
+
+### 5. Send a follow-up message
+
+Verify multi-turn conversation works:
+
+```sh
+curl -s -X POST \
+  "https://coder.example.com/api/experimental/chats/$CHAT_ID/messages" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": [{"type": "text", "text": "Now multiply that by 10"}]
+  }' | jq '{queued}'
+```
+
+The response should include `"queued": false` (delivered immediately) or
+`"queued": true` (agent was busy — the message is queued and will be
+processed next).
+
+### 6. Test workspace provisioning
+
+Create a chat that requires workspace access to confirm the agent can
+select a template and provision infrastructure:
+
+```sh
+curl -s -X POST https://coder.example.com/api/experimental/chats \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": [{
+      "type": "text",
+      "text": "List the files in the root directory of a workspace"
+    }]
+  }' | jq '{id, status, workspace_id}'
+```
+
+Stream the chat and watch for the agent to call `create_workspace` and
+`execute` tools. After the agent finishes, verify `workspace_id` is
+populated:
+
+```sh
+curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '{workspace_id, status}'
+```
+
+A non-null `workspace_id` confirms the agent successfully provisioned a
+workspace.
+
+### 7. Verify interrupt works
+
+Start a long-running chat and interrupt it:
+
+```sh
+curl -s -X POST \
+  "https://coder.example.com/api/experimental/chats/$CHAT_ID/interrupt" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
+```
+
+Then confirm the chat status returns to `"waiting"`:
+
+```sh
+curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.status'
+```
+
+### 8. Validate archive and restore
+
+```sh
+# Archive
+curl -s -X PATCH \
+  "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"archived": true}'
+
+# Confirm it no longer appears in the default list
+curl -s "https://coder.example.com/api/experimental/chats" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  | jq --arg id "$CHAT_ID" '[.[] | select(.id == $id)] | length'
+# Should return 0
+
+# Restore
+curl -s -X PATCH \
+  "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"archived": false}'
+```
+
+### Quick checklist
+
+Use this checklist to confirm each part of your integration:
+
+- [ ] `agents` experiment is enabled
+- [ ] At least one LLM model is configured and returned by `/chats/models`
+- [ ] `POST /chats` creates a chat and returns a valid `Chat` object
+- [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
+- [ ] Follow-up messages via `/chats/{chat}/messages` are accepted
+- [ ] Agent provisions a workspace when the task requires one
+- [ ] `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
+- [ ] Archive and restore via `PATCH /chats/{chat}` works
+- [ ] (If applicable) GitHub Actions workflow creates chats successfully
+
 ## Features available only in the Chats API
 
 The Chats API includes capabilities that have no equivalent in the Tasks
