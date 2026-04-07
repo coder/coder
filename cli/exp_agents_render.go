@@ -695,7 +695,10 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, re
 	}
 }
 
-var fallbackMarkdownRenderers sync.Map
+var (
+	fallbackMarkdownRenderers sync.Map
+	markdownRendererMu        sync.Mutex
+)
 
 func getFallbackMarkdownRenderer(width int) *glamour.TermRenderer {
 	wrapWidth := width
@@ -733,9 +736,14 @@ func renderAssistantMarkdown(styles tuiStyles, text string, width int, renderers
 		renderer = getFallbackMarkdownRenderer(width)
 	}
 	if renderer != nil {
+		markdownRendererMu.Lock()
 		rendered, err := renderer.Render(text)
+		markdownRendererMu.Unlock()
 		if err == nil {
-			return styles.assistantMsg.Render(strings.TrimRight(rendered, "\n"))
+			trimmedRendered := strings.TrimRight(rendered, "\n")
+			if strings.TrimSpace(trimmedRendered) != "" || strings.TrimSpace(text) == "" {
+				return styles.assistantMsg.Render(trimmedRendered)
+			}
 		}
 	}
 	return styles.assistantMsg.Render(wrapPreservingNewlines(text, width))

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/require"
@@ -403,6 +404,44 @@ func TestExpAgentsRender(t *testing.T) {
 				result:   `{"content":"hello"}`,
 			}, merged[0])
 		})
+
+		t.Run("MultiplePairs", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-1", args: `{"path":"one.txt"}`},
+				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-1", result: `{"ok":true}`},
+				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "list_dir", toolID: "call-2", args: `{"path":"/tmp"}`},
+				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "list_dir", toolID: "call-2", result: `{"entries":[]}`},
+			}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Len(t, merged, 2)
+			require.Equal(t, `{"path":"one.txt"}`, merged[0].args)
+			require.Equal(t, `{"ok":true}`, merged[0].result)
+			require.Equal(t, "call-1", merged[0].toolID)
+			require.Equal(t, `{"path":"/tmp"}`, merged[1].args)
+			require.Equal(t, `{"entries":[]}`, merged[1].result)
+			require.Equal(t, "call-2", merged[1].toolID)
+		})
+
+		t.Run("OrphanedCall", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-orphan", args: `{"path":"solo.txt"}`}}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Equal(t, blocks, merged)
+		})
+
+		t.Run("OrphanedResult", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-orphan", result: `{"content":"hello"}`}}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Equal(t, blocks, merged)
+		})
 	})
 
 	t.Run("ToolArgsSummary", func(t *testing.T) {
@@ -418,6 +457,18 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Parallel()
 
 			require.Equal(t, "(my-ws)", toolArgsSummary("coder_create_workspace", `{"workspace_name":"my-ws","template":"docker"}`))
+		})
+
+		t.Run("WithUnicodeTruncatesOnRuneBoundary", func(t *testing.T) {
+			t.Parallel()
+
+			args := strings.Repeat("こんにちは世界", 10)
+			summary := toolArgsSummary("weather", args)
+			require.NotEmpty(t, summary)
+			require.True(t, utf8.ValidString(summary))
+			require.True(t, strings.HasSuffix(summary, "…"))
+			require.LessOrEqual(t, len([]rune(summary)), toolSummaryFallbackWidth)
+			require.Contains(t, summary, "こんにちは")
 		})
 	})
 
@@ -459,6 +510,19 @@ func TestExpAgentsRender(t *testing.T) {
 			require.Contains(t, output, "…")
 		})
 
+		t.Run("VeryLongArgsTruncatePreview", func(t *testing.T) {
+			t.Parallel()
+
+			args := rawJSON(`{"payload":"` + strings.Repeat("a", 2000) + `"}`)
+			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{
+				ToolName: "weather",
+				Args:     args,
+			}, 40))
+			require.Contains(t, output, "⏳ weather")
+			require.Contains(t, output, "…")
+			require.NotContains(t, output, strings.Repeat("a", 100))
+		})
+
 		t.Run("ContextCompactionRendersBanner", func(t *testing.T) {
 			t.Parallel()
 
@@ -479,6 +543,14 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderToolCall(styles, codersdk.ChatMessagePart{ToolName: "weather", Args: rawJSON(`{"x":1}`)}, 0))
 			require.Equal(t, "  ⏳ weather", output)
+		})
+
+		t.Run("ZeroWidthDoesNotPanic", func(t *testing.T) {
+			t.Parallel()
+
+			require.NotPanics(t, func() {
+				_ = renderToolCall(styles, codersdk.ChatMessagePart{ToolName: "weather", Args: rawJSON(`{"x":1}`)}, 0)
+			})
 		})
 	})
 
@@ -533,6 +605,16 @@ func TestExpAgentsRender(t *testing.T) {
 			require.Contains(t, output, "sunny")
 			require.Contains(t, output, "…")
 			require.NotContains(t, output, "all afternoon")
+		})
+
+		t.Run("VeryLongResultTruncatesPreview", func(t *testing.T) {
+			t.Parallel()
+
+			result := rawJSON(`{"payload":"` + strings.Repeat("b", 5000) + `"}`)
+			output := plainText(renderToolResult(styles, codersdk.ChatMessagePart{ToolName: "weather", Result: result}, 40))
+			require.Contains(t, output, "✓ weather")
+			require.Contains(t, output, "…")
+			require.NotContains(t, output, strings.Repeat("b", 100))
 		})
 
 		t.Run("CreateWorkspaceSuccessShowsWorkspaceContext", func(t *testing.T) {
@@ -675,6 +757,18 @@ func TestExpAgentsRender(t *testing.T) {
 			output := plainText(renderStatusBar(styles, nil, codersdk.ChatStatusRunning, nil, 0, false, false, 80))
 			require.NotContains(t, output, "tokens:")
 		})
+
+		t.Run("NarrowWidthFits", func(t *testing.T) {
+			t.Parallel()
+
+			usage := &codersdk.ChatMessageUsage{TotalTokens: int64Ptr(96), ContextLimit: int64Ptr(100)}
+			var output string
+			require.NotPanics(t, func() {
+				output = renderStatusBar(styles, nil, codersdk.ChatStatusRunning, usage, 2, true, true, 20)
+			})
+			require.NotEmpty(t, plainText(output))
+			require.LessOrEqual(t, lipgloss.Width(output), 20)
+		})
 	})
 
 	t.Run("RenderBlock", func(t *testing.T) {
@@ -769,6 +863,93 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderBlock(styles, chatBlock{kind: blockCompaction}, false, 40))
 			require.Contains(t, output, "🗜️  Context compacted")
+		})
+
+		t.Run("ExtremelyNarrow", func(t *testing.T) {
+			t.Parallel()
+
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "narrow terminal rendering still works"}, false, 15))
+			})
+			require.NotEmpty(t, output)
+		})
+
+		t.Run("ExtremelyWide", func(t *testing.T) {
+			t.Parallel()
+
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "wide terminal rendering still works"}, false, 250))
+			})
+			require.NotEmpty(t, output)
+		})
+
+		t.Run("WithEmoji", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "Hello 👋 World 🌍"}, false, 40))
+			require.Contains(t, output, "Hello 👋 World 🌍")
+		})
+
+		t.Run("WithCJKCharacters", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "こんにちは世界"}, false, 40))
+			require.Contains(t, output, "こんにちは世界")
+		})
+
+		t.Run("VeryLongMessage", func(t *testing.T) {
+			t.Parallel()
+
+			veryLong := strings.Repeat("abcde", 1000)
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: veryLong}, false, 60))
+			})
+			require.NotEmpty(t, output)
+		})
+
+		t.Run("VeryLongSingleLineWraps", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: strings.Repeat("a", 1000)}, false, 40))
+			lines := strings.Split(output, "\n")
+			require.Greater(t, len(lines), 1)
+			for _, line := range lines {
+				require.LessOrEqual(t, lipgloss.Width(line), 40)
+			}
+		})
+
+		t.Run("EmptyText", func(t *testing.T) {
+			t.Parallel()
+
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: ""}, false, 40))
+			})
+			require.Equal(t, "You: ", output)
+		})
+
+		t.Run("NilParts", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := messagesToBlocks([]codersdk.ChatMessage{{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Content: []codersdk.ChatMessagePart{
+					{Type: codersdk.ChatMessagePartTypeText},
+					{Type: codersdk.ChatMessagePartTypeToolCall},
+					{Type: codersdk.ChatMessagePartTypeToolResult},
+				},
+			}})
+			require.Len(t, blocks, 2)
+
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 40))
+			})
+			require.NotEmpty(t, output)
+			require.Contains(t, output, "✓ tool")
 		})
 	})
 
@@ -869,6 +1050,26 @@ func TestExpAgentsRender(t *testing.T) {
 			renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 40)
 			require.Equal(t, cachedRender, blocks[0].cachedRender)
 		})
+
+		t.Run("MultipleToolCalls", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, toolName: "tool_one", args: `{}`},
+				{kind: blockToolCall, toolName: "tool_two", args: `{}`},
+				{kind: blockToolCall, toolName: "tool_three", args: `{}`},
+				{kind: blockToolCall, toolName: "tool_four", args: `{}`},
+				{kind: blockToolCall, toolName: "tool_five", args: `{}`},
+			}
+
+			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 60))
+			require.Equal(t, 5, strings.Count(output, "⏳"))
+			require.Contains(t, output, "tool one")
+			require.Contains(t, output, "tool two")
+			require.Contains(t, output, "tool three")
+			require.Contains(t, output, "tool four")
+			require.Contains(t, output, "tool five")
+		})
 	})
 	t.Run("RenderDiffDrawer", func(t *testing.T) {
 		t.Parallel()
@@ -906,6 +1107,16 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderDiffDrawer(styles, codersdk.ChatDiffContents{}, nil, 90, 20))
 			require.Contains(t, output, "No diff contents.")
+		})
+
+		t.Run("NarrowWidthDoesNotPanic", func(t *testing.T) {
+			t.Parallel()
+
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderDiffDrawer(styles, codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+added line"}, []codersdk.ChatGitChange{{FilePath: "a.txt", ChangeType: "modified"}}, 25, 10))
+			})
+			require.NotEmpty(t, output)
 		})
 	})
 
@@ -967,6 +1178,16 @@ func TestExpAgentsRender(t *testing.T) {
 			output := plainText(renderModelPicker(styles, catalog, "gpt-4o", 0, 90, 20))
 			require.Contains(t, output, "Local")
 			require.Contains(t, output, "No models available.")
+		})
+
+		t.Run("NarrowWidthDoesNotPanic", func(t *testing.T) {
+			t.Parallel()
+
+			var output string
+			require.NotPanics(t, func() {
+				output = plainText(renderModelPicker(styles, catalog, "gpt-4o", 0, 25, 10))
+			})
+			require.NotEmpty(t, output)
 		})
 	})
 
@@ -1052,6 +1273,30 @@ func TestExpAgentsRender(t *testing.T) {
 			require.GreaterOrEqual(t, len(lines), 2)
 			require.True(t, strings.HasPrefix(lines[1], strings.Repeat(" ", lipgloss.Width(prefix))))
 			require.Contains(t, output, prefix)
+		})
+
+		t.Run("RenderPrefixedBlockEmptyContent", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, "You: ", renderPrefixedBlock("You: ", "", 12))
+		})
+
+		t.Run("WrapPreservingNewlinesEmptyString", func(t *testing.T) {
+			t.Parallel()
+
+			require.Empty(t, wrapPreservingNewlines("", 40))
+		})
+
+		t.Run("WrapPreservingNewlinesOnlyNewlines", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, "\n\n\n", wrapPreservingNewlines("\n\n\n", 40))
+		})
+
+		t.Run("ClampLinesZeroMax", func(t *testing.T) {
+			t.Parallel()
+
+			require.Empty(t, clampLines("line1\nline2", 0))
 		})
 	})
 }
