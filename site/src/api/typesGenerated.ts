@@ -2481,7 +2481,12 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
-	readonly dynamic_tools?: readonly DynamicTool[];
+	/**
+	 * UnsafeDynamicTools declares client-executed tools that the
+	 * LLM can invoke. This API is highly experimental and highly
+	 * subject to change.
+	 */
+	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 }
 
 // From codersdk/users.go

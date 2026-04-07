@@ -384,7 +384,10 @@ type CreateChatRequest struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels        map[string]string `json:"labels,omitempty"`
-	DynamicTools  []DynamicTool     `json:"dynamic_tools,omitempty"`
+	// UnsafeDynamicTools declares client-executed tools that the
+	// LLM can invoke. This API is highly experimental and highly
+	// subject to change.
+	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.

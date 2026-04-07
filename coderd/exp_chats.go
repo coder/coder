@@ -490,7 +490,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.DynamicTools) > 250 {
+	if len(req.UnsafeDynamicTools) > 250 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many dynamic tools.",
 			Detail:  "Maximum 250 dynamic tools per chat.",
@@ -499,9 +499,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var dynamicToolsJSON json.RawMessage
-	if len(req.DynamicTools) > 0 {
+	if len(req.UnsafeDynamicTools) > 0 {
 		var err error
-		dynamicToolsJSON, err = json.Marshal(req.DynamicTools)
+		dynamicToolsJSON, err = json.Marshal(req.UnsafeDynamicTools)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to marshal dynamic tools.",
