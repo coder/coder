@@ -165,6 +165,9 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			if strings.HasSuffix(route, "/*") {
 				return
 			}
+			if isSwaggerRouterAnnotationOptional(method, route) {
+				return
+			}
 
 			c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
 			assert.NotNil(t, c, "Missing @Router annotation")
@@ -227,6 +230,13 @@ func assertSingleAnnotations(t *testing.T, comments []SwaggerComment) {
 			assert.Equal(t, 1, v, "%s annotation for route %s must be defined only once", annotation, comment.router)
 		}
 	}
+}
+
+// Experimental workspace agent chat-context endpoints intentionally omit
+// swagger annotations, so the docs test skips them until they stabilize.
+func isSwaggerRouterAnnotationOptional(method, route string) bool {
+	return (route == "/workspaceagents/me/chat-context" && method == "post") ||
+		(route == "/workspaceagents/me/chat-context" && method == "delete")
 }
 
 func findSwaggerCommentByMethodAndRoute(comments []SwaggerComment, method, route string) *SwaggerComment {
