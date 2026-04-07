@@ -232,7 +232,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					<PasswordField
 						field={getFieldHelpers("password")}
 						label="Password"
-						value={form.values.password}
 						autoComplete="new-password"
 					/>
 

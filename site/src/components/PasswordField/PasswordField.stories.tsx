@@ -19,11 +19,15 @@ const meta: Meta<typeof PasswordField> = {
 	},
 	render: function StatefulPasswordField(args) {
 		const [value, setValue] = useState("");
+
 		return (
 			<PasswordField
 				{...args}
-				value={value}
-				onChange={(e) => setValue(e.currentTarget.value)}
+				field={{
+					...args.field,
+					value,
+					onChange: (e) => setValue(e.currentTarget.value),
+				}}
 			/>
 		);
 	},
