@@ -12,11 +12,11 @@
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `agent_name` | string | false    |              |             |
-| `document`   | string | true     |              |             |
-| `signature`  | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `document`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.AuthenticateResponse
 
@@ -44,11 +44,11 @@
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `agent_name` | string | false    |              |             |
-| `encoding`   | string | true     |              |             |
-| `signature`  | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `encoding`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.ExternalAuthResponse
 
@@ -101,10 +101,10 @@
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `agent_name`     | string | false    |              |             |
-| `json_web_token` | string | true     |              |             |
+| Name             | Type   | Required | Restrictions | Description                                                                                                                                      |
+|------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`     | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `json_web_token` | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.Log
 

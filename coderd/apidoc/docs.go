@@ -12499,6 +12499,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
                     "type": "string"
                 },
                 "document": {
@@ -12525,6 +12526,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
                     "type": "string"
                 },
                 "encoding": {
@@ -12578,6 +12580,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
                     "type": "string"
                 },
                 "json_web_token": {

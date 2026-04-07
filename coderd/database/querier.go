@@ -612,6 +612,10 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
+	// GetWorkspaceAgentByInstanceIDAndName returns the most recently created
+	// non-deleted root agent matching both instance ID and name. The ORDER BY
+	// is necessary because historical workspace builds can leave older rows
+	// with the same (auth_instance_id, name) pair; we want the newest one.
 	GetWorkspaceAgentByInstanceIDAndName(ctx context.Context, arg GetWorkspaceAgentByInstanceIDAndNameParams) (WorkspaceAgent, error)
 	GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error)
 	GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentLifecycleStateByIDRow, error)

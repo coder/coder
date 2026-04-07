@@ -24984,6 +24984,10 @@ type GetWorkspaceAgentByInstanceIDAndNameParams struct {
 	Name           string `db:"name" json:"name"`
 }
 
+// GetWorkspaceAgentByInstanceIDAndName returns the most recently created
+// non-deleted root agent matching both instance ID and name. The ORDER BY
+// is necessary because historical workspace builds can leave older rows
+// with the same (auth_instance_id, name) pair; we want the newest one.
 func (q *sqlQuerier) GetWorkspaceAgentByInstanceIDAndName(ctx context.Context, arg GetWorkspaceAgentByInstanceIDAndNameParams) (WorkspaceAgent, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceIDAndName, arg.AuthInstanceID, arg.Name)
 	var i WorkspaceAgent

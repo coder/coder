@@ -14,7 +14,10 @@ import (
 
 type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
-	AgentName    string `json:"agent_name,omitempty"`
+	// AgentName optionally selects a specific agent when multiple
+	// agents share the same instance identity. An empty string is
+	// treated as unspecified.
+	AgentName string `json:"agent_name,omitempty"`
 }
 
 // GoogleSessionTokenExchanger exchanges a Google instance JWT document for a Coder session token.

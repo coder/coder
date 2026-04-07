@@ -156,8 +156,13 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			return
 		}
 	} else {
-		// Start with the legacy lookup so we stay anchored to a workspace build
-		// agent instead of template-version agents that share the same instance ID.
+		// When no agent name is provided, use the existing singular lookup to
+		// anchor to a specific agent, then check its resource siblings for
+		// ambiguity. This resource-scoped approach is intentional: using a
+		// global instance-ID query would include template-version agents that
+		// share the same instance ID, causing false 409 ambiguity errors. By
+		// scoping to the selected agent's resource, we only detect ambiguity
+		// among agents in the same workspace build resource.
 		selectedAgent, err := api.Database.GetWorkspaceAgentByInstanceID(systemCtx, instanceID)
 		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -194,6 +199,10 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		}
 
 		if len(matchingAgents) > 1 {
+			// Include agent names in the error message to help operators
+			// configure CODER_AGENT_NAME. The caller has already proven
+			// cloud instance identity, so agent names are not sensitive
+			// here.
 			names := make([]string, len(matchingAgents))
 			for i, candidate := range matchingAgents {
 				names[i] = candidate.Name

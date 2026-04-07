@@ -11,6 +11,9 @@ import (
 type AzureInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Encoding  string `json:"encoding" validate:"required"`
+	// AgentName optionally selects a specific agent when multiple
+	// agents share the same instance identity. An empty string is
+	// treated as unspecified.
 	AgentName string `json:"agent_name,omitempty"`
 }
 

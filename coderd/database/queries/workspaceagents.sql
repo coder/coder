@@ -36,6 +36,10 @@ WHERE
 ORDER BY
 	created_at DESC;
 
+-- GetWorkspaceAgentByInstanceIDAndName returns the most recently created
+-- non-deleted root agent matching both instance ID and name. The ORDER BY
+-- is necessary because historical workspace builds can leave older rows
+-- with the same (auth_instance_id, name) pair; we want the newest one.
 -- name: GetWorkspaceAgentByInstanceIDAndName :one
 SELECT
 	*
