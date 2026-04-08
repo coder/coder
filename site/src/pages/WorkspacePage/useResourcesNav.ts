@@ -1,6 +1,5 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useEffectEvent } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 export const resourceOptionValue = (resource: WorkspaceResource) => {
 	return `${resource.type}_${resource.name}`;
@@ -35,7 +34,7 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 	);
 	useEffect(() => {
 		onResourceChanges(resources);
-	}, [onResourceChanges, resources]);
+	}, [resources]);
 
 	const select = useCallback(
 		(resource: WorkspaceResource) => {
