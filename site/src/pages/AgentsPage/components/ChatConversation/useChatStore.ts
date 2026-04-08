@@ -81,7 +81,11 @@ interface UseChatStoreOptions {
 
 export const useChatStore = (
 	options: UseChatStoreOptions,
-): { store: ChatStore; clearStreamError: () => void } => {
+): {
+	store: ChatStore;
+	clearStreamError: () => void;
+	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+} => {
 	const {
 		chatID,
 		chatMessages,
@@ -94,7 +98,6 @@ export const useChatStore = (
 
 	const queryClient = useQueryClient();
 	const [store] = useState(createChatStore);
-	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
 	// current chat. When true, the stream is the authoritative source
@@ -103,6 +106,14 @@ export const useChatStore = (
 	// messages are corrected when switching back to a chat whose
 	// queue was drained while the user was away.
 	const wsQueueUpdateReceivedRef = useRef(false);
+	// Tracks whether the WebSocket has delivered a status event for
+	// the current chat. Once true, the WS is the authoritative
+	// source for chatStatus and the REST-fetched chatRecord.status
+	// must not overwrite it. Without this guard, a React Query
+	// refetch (e.g. on window focus) can regress chatStatus to a
+	// stale value like "pending", causing shouldApplyMessagePart()
+	// to drop all incoming parts.
+	const wsStatusReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -143,6 +154,56 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
+	// Write WebSocket-delivered durable messages into the React
+	// Query infinite cache so that navigating away and back
+	// serves up-to-date data instead of the stale REST snapshot.
+	// Without this, the cache only contains messages from the
+	// last REST fetch, and structural sharing can suppress the
+	// refetch-driven store update when no new durable messages
+	// have been committed to the DB yet.
+	const upsertCacheMessages = useEffectEvent(
+		(messages: readonly TypesGen.ChatMessage[]) => {
+			if (!chatID || messages.length === 0) {
+				return;
+			}
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				const existingByID = new Map(firstPage.messages.map((m) => [m.id, m]));
+
+				let changed = false;
+				for (const msg of messages) {
+					const existing = existingByID.get(msg.id);
+					if (!existing || !chatMessagesEqualByValue(existing, msg)) {
+						changed = true;
+						existingByID.set(msg.id, msg);
+					}
+				}
+
+				if (!changed) {
+					return currentData;
+				}
+
+				// Sort descending to match the API page order
+				// (newest first).
+				const updatedMessages = Array.from(existingByID.values());
+				updatedMessages.sort((a, b) => b.id - a.id);
+
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, messages: updatedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
+		},
+	);
+
 	useEffect(() => {
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
@@ -173,9 +234,18 @@ export const useChatStore = (
 
 				const storeSnap = store.getSnapshot();
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+				// Only classify a store-held ID as stale if it was
+				// present in the PREVIOUS sync's fetched data. IDs
+				// added to the store after the last sync (by the WS
+				// handler or handleSend) are new, not stale, and
+				// must not trigger the destructive replaceMessages
+				// path.
+				const prevIDs = new Set(prev.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&
-					storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
+					storeSnap.orderedMessageIDs.some(
+						(id) => !fetchedIDs.has(id) && prevIDs.has(id),
+					);
 				if (hasStaleEntries) {
 					store.replaceMessages(chatMessages);
 				} else {
@@ -186,12 +256,19 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
-		store.setChatStatus(chatRecord?.status ?? null);
+		// Only hydrate from REST when the WebSocket hasn't delivered
+		// a status event yet. Once the WS is the authoritative
+		// source, a stale REST refetch must not overwrite the
+		// fresher WS-delivered value.
+		if (!wsStatusReceivedRef.current) {
+			store.setChatStatus(chatRecord?.status ?? null);
+		}
 	}, [chatRecord?.status, store]);
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
+		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
 		if (!chatID) {
 			return;
@@ -240,22 +317,6 @@ export const useChatStore = (
 			});
 		};
 
-		const cancelScheduledStreamReset = () => {
-			if (streamResetFrameRef.current === null) {
-				return;
-			}
-			window.cancelAnimationFrame(streamResetFrameRef.current);
-			streamResetFrameRef.current = null;
-		};
-
-		const scheduleStreamReset = () => {
-			cancelScheduledStreamReset();
-			streamResetFrameRef.current = window.requestAnimationFrame(() => {
-				store.clearStreamState();
-				streamResetFrameRef.current = null;
-			});
-		};
-
 		const updateChatQueuedMessages = (
 			queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 		) => {
@@ -288,55 +349,6 @@ export const useChatStore = (
 			});
 		};
 
-		// Write WebSocket-delivered durable messages into the React
-		// Query infinite cache so that navigating away and back
-		// serves up-to-date data instead of the stale REST snapshot.
-		// Without this, the cache only contains messages from the
-		// last REST fetch, and structural sharing can suppress the
-		// refetch-driven store update when no new durable messages
-		// have been committed to the DB yet.
-		const upsertCacheMessages = (messages: readonly TypesGen.ChatMessage[]) => {
-			if (!chatID || messages.length === 0) {
-				return;
-			}
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				const existingByID = new Map(firstPage.messages.map((m) => [m.id, m]));
-
-				let changed = false;
-				for (const msg of messages) {
-					const existing = existingByID.get(msg.id);
-					if (!existing || !chatMessagesEqualByValue(existing, msg)) {
-						changed = true;
-						existingByID.set(msg.id, msg);
-					}
-				}
-
-				if (!changed) {
-					return currentData;
-				}
-
-				// Sort descending to match the API page order
-				// (newest first).
-				const updatedMessages = Array.from(existingByID.values());
-				updatedMessages.sort((a, b) => b.id - a.id);
-
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, messages: updatedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
-			});
-		};
-
-		cancelScheduledStreamReset();
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
@@ -366,7 +378,6 @@ export const useChatStore = (
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
 				return;
 			}
-			cancelScheduledStreamReset();
 			partsFlushTimer = setTimeout(() => {
 				partsFlushTimer = null;
 				if (disposed || activeChatIDRef.current !== chatID) {
@@ -391,7 +402,6 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
 			}
-			cancelScheduledStreamReset();
 			const parts = partsBuf.splice(0);
 			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
 				return;
@@ -452,7 +462,6 @@ export const useChatStore = (
 						const part = streamEvent.message_part?.part;
 						if (part) {
 							store.clearRetryState();
-							cancelScheduledStreamReset();
 							partsBuf.push(part);
 						}
 						continue;
@@ -517,6 +526,7 @@ export const useChatStore = (
 								continue;
 							}
 
+							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
@@ -568,7 +578,7 @@ export const useChatStore = (
 					}
 				}
 
-				// Schedule a rAF-coalesced flush for any remaining
+				// Schedule a coalesced flush for any remaining
 				// parts. If parts were already flushed by a
 				// non-message_part event above, this is a no-op.
 				schedulePartsFlush();
@@ -579,10 +589,33 @@ export const useChatStore = (
 					store.upsertDurableMessages(pendingMessages);
 					upsertCacheMessages(pendingMessages);
 				}
+
+				// Clear stream state atomically with the durable
+				// message commit so subscribers never see a
+				// snapshot where both the committed message and
+				// the streaming output coexist. Previously this
+				// was deferred to a requestAnimationFrame, which
+				// left a window where ConversationTimeline and
+				// LiveStreamTail rendered the same content.
+				if (needsStreamReset) {
+					store.clearStreamState();
+					// If more message_part events arrived in this
+					// batch after the durable message, they belong
+					// to the next turn. Apply them immediately so
+					// the stream transitions from the old turn to
+					// the new one without a flash.
+					if (partsBuf.length > 0) {
+						if (partsFlushTimer !== null) {
+							clearTimeout(partsFlushTimer);
+							partsFlushTimer = null;
+						}
+						const nextParts = partsBuf.splice(0);
+						if (shouldApplyMessagePart()) {
+							store.applyMessageParts(nextParts);
+						}
+					}
+				}
 			});
-			if (needsStreamReset) {
-				scheduleStreamReset();
-			}
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
@@ -599,6 +632,12 @@ export const useChatStore = (
 				// partial output or failures do not leak into the new
 				// stream.
 				store.resetTransportReplayState();
+				// Drain any message parts buffered from the
+				// previous socket. Without this, a pending
+				// flush timer could fire after reconnect and
+				// apply stale parts from the old connection
+				// into the fresh stream state.
+				discardBufferedParts();
 			},
 			onDisconnect(
 				reconnectState: import("#/utils/reconnectingWebSocket").ReconnectSchedule,
@@ -616,7 +655,6 @@ export const useChatStore = (
 		return () => {
 			disposed = true;
 			disposeSocket();
-			cancelScheduledStreamReset();
 			if (partsFlushTimer !== null) {
 				clearTimeout(partsFlushTimer);
 			}
@@ -629,11 +667,13 @@ export const useChatStore = (
 		store,
 		setChatErrorReasonStable,
 		clearChatErrorReasonStable,
+		upsertCacheMessages,
 	]);
 	return {
 		store,
 		clearStreamError: () => {
 			store.clearStreamError();
 		},
+		upsertCacheMessages,
 	};
 };

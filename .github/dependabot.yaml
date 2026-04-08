@@ -82,9 +82,6 @@ updates:
       mui:
         patterns:
           - "@mui*"
-      radix:
-        patterns:
-          - "@radix-ui/*"
       react:
         patterns:
           - "react"

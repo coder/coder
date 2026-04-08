@@ -988,6 +988,7 @@ coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.g
 
 codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
 	go generate ./codersdk/workspacesdk/agentconnmock/
+	./scripts/format_go_file.sh "$@"
 	touch "$@"
 
 $(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go

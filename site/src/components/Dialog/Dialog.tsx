@@ -2,8 +2,8 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/dialog}
  */
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 
 export const Dialog = DialogPrimitive.Root;

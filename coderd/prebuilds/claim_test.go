@@ -25,24 +25,26 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		logger := testutil.Logger(t)
 		ps := pubsub.NewInMemory()
 		workspaceID := uuid.New()
-		reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
 		publisher := prebuilds.NewPubsubWorkspaceClaimPublisher(ps)
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, logger)
 
-		cancel, err := listener.ListenForWorkspaceClaims(ctx, workspaceID, reinitEvents)
+		events, cancel, err := listener.ListenForWorkspaceClaims(ctx, workspaceID)
 		require.NoError(t, err)
 		defer cancel()
 
+		userID := uuid.New()
 		claim := agentsdk.ReinitializationEvent{
 			WorkspaceID: workspaceID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			OwnerID:     userID,
 		}
 		err = publisher.PublishWorkspaceClaim(claim)
 		require.NoError(t, err)
 
-		gotEvent := testutil.RequireReceive(ctx, t, reinitEvents)
+		gotEvent := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, workspaceID, gotEvent.WorkspaceID)
 		require.Equal(t, claim.Reason, gotEvent.Reason)
+		require.Equal(t, userID, gotEvent.OwnerID)
 	})
 
 	t.Run("fail to publish claim", func(t *testing.T) {
@@ -69,10 +71,8 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		ps := pubsub.NewInMemory()
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
-		claims := make(chan agentsdk.ReinitializationEvent, 1) // Buffer to avoid messing with goroutines in the rest of the test
-
 		workspaceID := uuid.New()
-		cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID, claims)
+		events, cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID)
 		require.NoError(t, err)
 		defer cancelFunc()
 
@@ -84,9 +84,10 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 
 		// Verify we receive the claim
 		ctx := testutil.Context(t, testutil.WaitShort)
-		claim := testutil.RequireReceive(ctx, t, claims)
+		claim := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, workspaceID, claim.WorkspaceID)
 		require.Equal(t, reason, claim.Reason)
+		require.Equal(t, uuid.Nil, claim.OwnerID)
 	})
 
 	t.Run("ignores claim events for other workspaces", func(t *testing.T) {
@@ -95,10 +96,9 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		ps := pubsub.NewInMemory()
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
-		claims := make(chan agentsdk.ReinitializationEvent)
 		workspaceID := uuid.New()
 		otherWorkspaceID := uuid.New()
-		cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID, claims)
+		events, cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID)
 		require.NoError(t, err)
 		defer cancelFunc()
 
@@ -109,7 +109,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 
 		// Verify we don't receive the claim
 		select {
-		case <-claims:
+		case <-events:
 			t.Fatal("received claim for wrong workspace")
 		case <-time.After(100 * time.Millisecond):
 			// Expected - no claim received
@@ -119,11 +119,10 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 	t.Run("communicates the error if it can't subscribe", func(t *testing.T) {
 		t.Parallel()
 
-		claims := make(chan agentsdk.ReinitializationEvent)
 		ps := &brokenPubsub{}
 		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
 
-		_, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New(), claims)
+		_, _, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New())
 		require.ErrorContains(t, err, "failed to subscribe to prebuild claimed channel")
 	})
 }

@@ -433,3 +433,86 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	_ = coordinator.Close()
 	require.Eventually(t, ctrl.Satisfied, testutil.WaitShort, testutil.IntervalFast)
 }
+
+func TestWorkQ_AcquireBatch_RespectsMax(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[uuid.UUID](ctx)
+
+	for i := 0; i < 5; i++ {
+		q.enqueue(uuid.New())
+	}
+
+	batch, err := q.acquireBatch(3)
+	require.NoError(t, err)
+	assert.Len(t, batch, 3, "should respect max parameter")
+
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Remaining 2 should be available.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	assert.Len(t, batch, 2)
+
+	for _, k := range batch {
+		q.done(k)
+	}
+}
+
+func TestWorkQ_AcquireBatch_SkipsInProgress(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[uuid.UUID](ctx)
+
+	peer1 := uuid.New()
+	peer2 := uuid.New()
+	q.enqueue(peer1)
+	q.enqueue(peer2)
+
+	// Acquire one item.
+	key, err := q.acquire()
+	require.NoError(t, err)
+	assert.Equal(t, peer1, key)
+
+	// Re-enqueue peer1 (simulating a new update while in progress).
+	q.enqueue(peer1)
+
+	// acquireBatch should only return peer2 (peer1 is in progress).
+	batch, err := q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	assert.Equal(t, peer2, batch[0])
+
+	q.done(key)
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Now peer1 (re-enqueued) should be available.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	assert.Equal(t, peer1, batch[0])
+}
+
+func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[uuid.UUID](ctx)
+
+	peer := uuid.New()
+	q.enqueue(peer)
+
+	key, err := q.acquire()
+	require.NoError(t, err)
+	assert.Equal(t, peer, key)
+	q.done(key)
+}

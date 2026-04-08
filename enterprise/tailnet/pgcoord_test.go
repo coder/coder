@@ -50,7 +50,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	defer client.Close(ctx)
 	client.UpdateDERP(10)
 	require.Eventually(t, func() bool {
-		clients, err := store.GetTailnetTunnelPeerBindings(ctx, agentID)
+		clients, err := store.GetTailnetTunnelPeerBindingsBatch(ctx, []uuid.UUID{agentID})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
@@ -590,9 +590,8 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().GetTailnetTunnelPeerIDs(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
-	mStore.EXPECT().GetTailnetTunnelPeerBindings(gomock.Any(), gomock.Any()).
-		AnyTimes().Return(nil, nil)
+	mStore.EXPECT().GetTailnetTunnelPeerIDsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().GetTailnetTunnelPeerBindingsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
 	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
@@ -934,7 +933,7 @@ func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Stor
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
 	t.Helper()
 	assert.Eventually(t, func() bool {
-		clients, err := store.GetTailnetTunnelPeerIDs(ctx, agentID)
+		clients, err := store.GetTailnetTunnelPeerIDsBatch(ctx, []uuid.UUID{agentID})
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
 		}

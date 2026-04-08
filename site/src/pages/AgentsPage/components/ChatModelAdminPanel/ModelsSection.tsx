@@ -182,9 +182,12 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// ── List view ──────────────────────────────────────────────
 
-	// Only show providers that have an API key configured.
+	// Only show providers that have a deployment key configured or allow
+	// end users to bring their own key.
 	const addableProviders = providerStates.filter(
-		(ps) => ps.providerConfig && ps.hasEffectiveAPIKey,
+		(ps) =>
+			ps.providerConfig &&
+			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
 	);
 
 	const addButton = addableProviders.length > 0 && (

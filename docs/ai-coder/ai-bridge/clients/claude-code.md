@@ -1,13 +1,50 @@
 # Claude Code
 
-## Configuration
+Claude Code can be configured using environment variables. All modes require a **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Bridge.
 
-Claude Code can be configured using environment variables.
+## Centralized API Key
 
-* **Base URL**: `ANTHROPIC_BASE_URL` should point to `https://coder.example.com/api/v2/aibridge/anthropic`
-* **Auth Token**: `ANTHROPIC_AUTH_TOKEN` should be your [Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
+```bash
+# AI Bridge base URL.
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 
-### Pre-configuring in Templates
+# Your Coder session token, used for authentication with AI Bridge.
+export ANTHROPIC_AUTH_TOKEN="<your-coder-session-token>"
+```
+
+## BYOK (Personal API Key)
+
+```bash
+# AI Bridge base URL.
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+
+# Your personal Anthropic API key, forwarded to Anthropic.
+export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
+
+# Your Coder session token, used for authentication with AI Bridge.
+export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-session-token>"
+
+# Ensure no auth token is set so Claude Code uses the API key instead.
+unset ANTHROPIC_AUTH_TOKEN
+```
+
+## BYOK (Claude Subscription)
+
+```bash
+# AI Bridge base URL.
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+
+# Your Coder session token, used for authentication with AI Bridge.
+export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-session-token>"
+
+# Ensure no auth token is set so Claude Code uses subscription login instead.
+unset ANTHROPIC_AUTH_TOKEN
+```
+
+When you run Claude Code, it will prompt you to log in with your Anthropic
+account.
+
+## Pre-configuring in Templates
 
 Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Bridge base URL into the workspace environment.
 

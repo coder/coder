@@ -2,12 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
 	type UploadState,
 } from "./AgentChatInput";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 const defaultModelConfigID = "model-config-1";
 

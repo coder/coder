@@ -376,7 +376,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 	}
 
 	model := &stubModel{
-		generateFn: func(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
+		generateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			deadline, ok := ctx.Deadline()
 			require.True(t, ok, "manual title generation should set a deadline")
 			require.WithinDuration(
@@ -386,11 +386,8 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 				2*time.Second,
 			)
 			require.Len(t, call.Prompt, 2)
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Refresh title"},
-				},
-			}, nil
+			require.Equal(t, "propose_title", call.SchemaName)
+			return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
 		},
 	}
 
@@ -417,7 +414,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	}
 
 	model := &stubModel{
-		generateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+		generateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Len(t, call.Prompt, 2)
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
@@ -426,11 +423,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 			userText, ok := call.Prompt[1].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
 			require.Equal(t, truncateRunes(longFirstUserText, 1000), userText.Text)
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Refresh title"},
-				},
-			}, nil
+			return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
 		},
 	}
 
@@ -455,11 +448,9 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 	}
 
 	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "\"\""},
-				},
+		generateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "\"\""},
 				Usage: fantasy.Usage{
 					InputTokens:  11,
 					OutputTokens: 7,
@@ -533,13 +524,17 @@ func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
 }
 
 type stubModel struct {
-	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
+	generateFn       func(context.Context, fantasy.Call) (*fantasy.Response, error)
+	generateObjectFn func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error)
 }
 
 func (m *stubModel) Generate(
 	ctx context.Context,
 	call fantasy.Call,
 ) (*fantasy.Response, error) {
+	if m.generateFn == nil {
+		return nil, xerrors.New("generate not implemented")
+	}
 	return m.generateFn(ctx, call)
 }
 
@@ -550,11 +545,14 @@ func (*stubModel) Stream(
 	return nil, xerrors.New("stream not implemented")
 }
 
-func (*stubModel) GenerateObject(
-	context.Context,
-	fantasy.ObjectCall,
+func (m *stubModel) GenerateObject(
+	ctx context.Context,
+	call fantasy.ObjectCall,
 ) (*fantasy.ObjectResponse, error) {
-	return nil, xerrors.New("generate object not implemented")
+	if m.generateObjectFn == nil {
+		return nil, xerrors.New("generate object not implemented")
+	}
+	return m.generateObjectFn(ctx, call)
 }
 
 func (*stubModel) StreamObject(
