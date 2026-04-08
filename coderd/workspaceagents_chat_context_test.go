@@ -33,285 +33,138 @@ type agentChatContextTestSetup struct {
 func TestAgentChatContext(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AddSuccessFiltersPartsAndUpdatesCache", func(t *testing.T) {
-		t.Parallel()
+	type addSuccessStep struct {
+		req       agentsdk.AddChatContextRequest
+		wantCount int
+	}
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+	type addSuccessCase struct {
+		name          string
+		steps         []addSuccessStep
+		wantStored    [][]codersdk.ChatMessagePart
+		storedOrdered bool
+		wantCached    []codersdk.ChatMessagePart
+		cachedOrdered bool
+	}
 
-		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
-			Parts: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("ignore this text part"),
-				{
-					Type:               codersdk.ChatMessagePartTypeContextFile,
-					ContextFilePath:    "/workspace/AGENTS.md",
-					ContextFileContent: "context from the agent",
-				},
-			},
+	agentInstructionsPart := codersdk.ChatMessagePart{
+		Type:               codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath:    "/workspace/AGENTS.md",
+		ContextFileContent: "context from the agent",
+	}
+	fileAPart := codersdk.ChatMessagePart{
+		Type:               codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath:    "/workspace/file-a.md",
+		ContextFileContent: "file A context",
+	}
+	fileBPart := codersdk.ChatMessagePart{
+		Type:               codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath:    "/workspace/file-b.md",
+		ContextFileContent: "file B context",
+	}
+	repoHelperSkillPart := codersdk.ChatMessagePart{
+		Type:                     codersdk.ChatMessagePartTypeSkill,
+		SkillName:                "repo-helper",
+		SkillDescription:         "Repository instructions",
+		SkillDir:                 "/workspace/.agents/skills/repo-helper",
+		ContextFileSkillMetaFile: "SKILL.md",
+	}
+	projectInstructionsPart := codersdk.ChatMessagePart{
+		Type:               codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath:    "/workspace/AGENTS.md",
+		ContextFileContent: "project instructions",
+	}
+	cachedAgentInstructionsPart := codersdk.ChatMessagePart{
+		Type:            codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath: agentInstructionsPart.ContextFilePath,
+	}
+	cachedFileAPart := codersdk.ChatMessagePart{
+		Type:            codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath: fileAPart.ContextFilePath,
+	}
+	cachedFileBPart := codersdk.ChatMessagePart{
+		Type:            codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath: fileBPart.ContextFilePath,
+	}
+	cachedRepoHelperSkillPart := codersdk.ChatMessagePart{
+		Type:             codersdk.ChatMessagePartTypeSkill,
+		SkillName:        repoHelperSkillPart.SkillName,
+		SkillDescription: repoHelperSkillPart.SkillDescription,
+	}
+	cachedProjectInstructionsPart := codersdk.ChatMessagePart{
+		Type:            codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath: projectInstructionsPart.ContextFilePath,
+	}
+
+	addSuccessCases := []addSuccessCase{
+		{
+			name:          "AddSuccessFiltersPartsAndUpdatesCache",
+			steps:         []addSuccessStep{{req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{codersdk.ChatMessageText("ignore this text part"), agentInstructionsPart}}, wantCount: 1}},
+			wantStored:    [][]codersdk.ChatMessagePart{{agentInstructionsPart}},
+			storedOrdered: true,
+			wantCached:    []codersdk.ChatMessagePart{cachedAgentInstructionsPart},
+			cachedOrdered: true,
+		},
+		{
+			name:          "AddSuccessIsAdditive",
+			steps:         []addSuccessStep{{req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{fileAPart}}, wantCount: 1}, {req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{fileBPart}}, wantCount: 1}},
+			wantStored:    [][]codersdk.ChatMessagePart{{fileAPart}, {fileBPart}},
+			storedOrdered: false,
+			wantCached:    []codersdk.ChatMessagePart{cachedFileAPart, cachedFileBPart},
+			cachedOrdered: false,
+		},
+		{
+			name:          "AddSuccessWithSkillOnlyPartsGetsSentinel",
+			steps:         []addSuccessStep{{req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{repoHelperSkillPart}}, wantCount: 1}},
+			wantStored:    [][]codersdk.ChatMessagePart{{{Type: codersdk.ChatMessagePartTypeContextFile}, repoHelperSkillPart}},
+			storedOrdered: true,
+			wantCached:    []codersdk.ChatMessagePart{cachedRepoHelperSkillPart},
+			cachedOrdered: true,
+		},
+		{
+			name:          "AddSuccessWithMixedPartsNoSentinel",
+			steps:         []addSuccessStep{{req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{projectInstructionsPart, repoHelperSkillPart}}, wantCount: 2}},
+			wantStored:    [][]codersdk.ChatMessagePart{{projectInstructionsPart, repoHelperSkillPart}},
+			storedOrdered: true,
+			wantCached:    []codersdk.ChatMessagePart{cachedProjectInstructionsPart, cachedRepoHelperSkillPart},
+			cachedOrdered: true,
+		},
+	}
+
+	for _, tc := range addSuccessCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			setup := newAgentChatContextTestSetup(t)
+			model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+			chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+			for _, step := range tc.steps {
+				resp, err := setup.agentClient.AddChatContext(ctx, step.req)
+				require.NoError(t, err)
+				require.Equal(t, chat.ID, resp.ChatID)
+				require.Equal(t, step.wantCount, resp.Count)
+			}
+
+			actualStored := requireAgentChatContextStoredMessages(t, requireAgentChatContextMessages(ctx, t, setup.db, chat.ID))
+			agent := setup.workspace.Agents[0]
+			wantStored := agentChatContextExpectedMessages(agent, tc.wantStored)
+			if tc.storedOrdered {
+				require.Equal(t, wantStored, actualStored)
+			} else {
+				require.ElementsMatch(t, wantStored, actualStored)
+			}
+
+			wantCached := agentChatContextExpectedCachedParts(agent, tc.wantCached)
+			actualCached := requireAgentChatContextCachedParts(ctx, t, setup.db, chat.ID)
+			if tc.cachedOrdered {
+				require.Equal(t, wantCached, actualCached)
+			} else {
+				require.ElementsMatch(t, wantCached, actualCached)
+			}
 		})
-		require.NoError(t, err)
-		require.Equal(t, chat.ID, resp.ChatID)
-		require.Equal(t, 1, resp.Count)
-
-		messages, err := setup.db.GetChatMessagesByChatID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetChatMessagesByChatIDParams{ChatID: chat.ID, AfterID: 0},
-		)
-		require.NoError(t, err)
-		require.Len(t, messages, 1)
-		require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
-		require.True(t, messages[0].Content.Valid)
-
-		storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
-		require.Len(t, storedParts, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeContextFile, storedParts[0].Type)
-		require.Equal(t, "/workspace/AGENTS.md", storedParts[0].ContextFilePath)
-		require.Equal(t, "context from the agent", storedParts[0].ContextFileContent)
-		require.True(t, storedParts[0].ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, storedParts[0].ContextFileAgentID.UUID)
-		require.Equal(t, setup.workspace.Agents[0].OperatingSystem, storedParts[0].ContextFileOS)
-		require.Equal(t, agentChatContextDirectory(setup.workspace.Agents[0]), storedParts[0].ContextFileDirectory)
-
-		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, persistedChat.LastInjectedContext.Valid)
-
-		cachedParts := requireAgentChatContextParts(t, persistedChat.LastInjectedContext.RawMessage)
-		require.Len(t, cachedParts, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeContextFile, cachedParts[0].Type)
-		require.Equal(t, "/workspace/AGENTS.md", cachedParts[0].ContextFilePath)
-		require.True(t, cachedParts[0].ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, cachedParts[0].ContextFileAgentID.UUID)
-		require.Empty(t, cachedParts[0].ContextFileContent)
-		require.Empty(t, cachedParts[0].ContextFileOS)
-		require.Empty(t, cachedParts[0].ContextFileDirectory)
-	})
-
-	t.Run("AddSuccessIsAdditive", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
-
-		firstPart := codersdk.ChatMessagePart{
-			Type:               codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:    "/workspace/file-a.md",
-			ContextFileContent: "file A context",
-		}
-		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
-			Parts: []codersdk.ChatMessagePart{firstPart},
-		})
-		require.NoError(t, err)
-		require.Equal(t, chat.ID, resp.ChatID)
-		require.Equal(t, 1, resp.Count)
-
-		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, persistedChat.LastInjectedContext.Valid)
-
-		cachedParts := requireAgentChatContextParts(t, persistedChat.LastInjectedContext.RawMessage)
-		require.Len(t, cachedParts, 1)
-		require.Equal(t, firstPart.ContextFilePath, cachedParts[0].ContextFilePath)
-		require.True(t, cachedParts[0].ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, cachedParts[0].ContextFileAgentID.UUID)
-		require.Empty(t, cachedParts[0].ContextFileContent)
-
-		secondPart := codersdk.ChatMessagePart{
-			Type:               codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:    "/workspace/file-b.md",
-			ContextFileContent: "file B context",
-		}
-		resp, err = setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
-			Parts: []codersdk.ChatMessagePart{secondPart},
-		})
-		require.NoError(t, err)
-		require.Equal(t, chat.ID, resp.ChatID)
-		require.Equal(t, 1, resp.Count)
-
-		persistedChat, err = setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, persistedChat.LastInjectedContext.Valid)
-
-		cachedParts = requireAgentChatContextParts(t, persistedChat.LastInjectedContext.RawMessage)
-		require.Len(t, cachedParts, 2)
-		require.ElementsMatch(
-			t,
-			[]string{firstPart.ContextFilePath, secondPart.ContextFilePath},
-			[]string{cachedParts[0].ContextFilePath, cachedParts[1].ContextFilePath},
-		)
-		for _, part := range cachedParts {
-			require.Equal(t, codersdk.ChatMessagePartTypeContextFile, part.Type)
-			require.True(t, part.ContextFileAgentID.Valid)
-			require.Equal(t, setup.workspace.Agents[0].ID, part.ContextFileAgentID.UUID)
-			require.Empty(t, part.ContextFileContent)
-			require.Empty(t, part.ContextFileOS)
-			require.Empty(t, part.ContextFileDirectory)
-		}
-
-		messages, err := setup.db.GetChatMessagesByChatID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetChatMessagesByChatIDParams{ChatID: chat.ID, AfterID: 0},
-		)
-		require.NoError(t, err)
-		require.Len(t, messages, 2)
-
-		expectedContents := map[string]string{
-			firstPart.ContextFilePath:  firstPart.ContextFileContent,
-			secondPart.ContextFilePath: secondPart.ContextFileContent,
-		}
-		for _, message := range messages {
-			storedParts := requireAgentChatContextParts(t, message.Content.RawMessage)
-			require.Len(t, storedParts, 1)
-
-			storedPart := storedParts[0]
-			require.Equal(t, codersdk.ChatMessagePartTypeContextFile, storedPart.Type)
-			expectedContent, ok := expectedContents[storedPart.ContextFilePath]
-			require.True(t, ok)
-			require.Equal(t, expectedContent, storedPart.ContextFileContent)
-			require.True(t, storedPart.ContextFileAgentID.Valid)
-			require.Equal(t, setup.workspace.Agents[0].ID, storedPart.ContextFileAgentID.UUID)
-			require.Equal(t, setup.workspace.Agents[0].OperatingSystem, storedPart.ContextFileOS)
-			require.Equal(t, agentChatContextDirectory(setup.workspace.Agents[0]), storedPart.ContextFileDirectory)
-		}
-	})
-
-	t.Run("AddSuccessWithSkillOnlyPartsGetsSentinel", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
-
-		skillPart := codersdk.ChatMessagePart{
-			Type:                     codersdk.ChatMessagePartTypeSkill,
-			SkillName:                "repo-helper",
-			SkillDescription:         "Repository instructions",
-			SkillDir:                 "/workspace/.agents/skills/repo-helper",
-			ContextFileSkillMetaFile: "SKILL.md",
-		}
-		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
-			Parts: []codersdk.ChatMessagePart{skillPart},
-		})
-		require.NoError(t, err)
-		require.Equal(t, chat.ID, resp.ChatID)
-		require.Equal(t, 1, resp.Count)
-
-		messages, err := setup.db.GetChatMessagesByChatID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetChatMessagesByChatIDParams{ChatID: chat.ID, AfterID: 0},
-		)
-		require.NoError(t, err)
-		require.Len(t, messages, 1)
-
-		storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
-		require.Len(t, storedParts, 2)
-
-		sentinelPart := storedParts[0]
-		require.Equal(t, codersdk.ChatMessagePartTypeContextFile, sentinelPart.Type)
-		require.Empty(t, sentinelPart.ContextFilePath)
-		require.Empty(t, sentinelPart.ContextFileContent)
-		require.True(t, sentinelPart.ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, sentinelPart.ContextFileAgentID.UUID)
-		require.Equal(t, setup.workspace.Agents[0].OperatingSystem, sentinelPart.ContextFileOS)
-		require.Equal(t, agentChatContextDirectory(setup.workspace.Agents[0]), sentinelPart.ContextFileDirectory)
-
-		persistedSkillPart := storedParts[1]
-		require.Equal(t, codersdk.ChatMessagePartTypeSkill, persistedSkillPart.Type)
-		require.Equal(t, skillPart.SkillName, persistedSkillPart.SkillName)
-		require.Equal(t, skillPart.SkillDescription, persistedSkillPart.SkillDescription)
-		require.Equal(t, skillPart.SkillDir, persistedSkillPart.SkillDir)
-		require.Equal(t, skillPart.ContextFileSkillMetaFile, persistedSkillPart.ContextFileSkillMetaFile)
-		require.True(t, persistedSkillPart.ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, persistedSkillPart.ContextFileAgentID.UUID)
-
-		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, persistedChat.LastInjectedContext.Valid)
-
-		cachedParts := requireAgentChatContextParts(t, persistedChat.LastInjectedContext.RawMessage)
-		require.Len(t, cachedParts, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeSkill, cachedParts[0].Type)
-		require.Equal(t, skillPart.SkillName, cachedParts[0].SkillName)
-		require.Equal(t, skillPart.SkillDescription, cachedParts[0].SkillDescription)
-		require.True(t, cachedParts[0].ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, cachedParts[0].ContextFileAgentID.UUID)
-		require.Empty(t, cachedParts[0].SkillDir)
-		require.Empty(t, cachedParts[0].ContextFileSkillMetaFile)
-	})
-
-	t.Run("AddSuccessWithMixedPartsNoSentinel", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
-
-		parts := []codersdk.ChatMessagePart{
-			{
-				Type:               codersdk.ChatMessagePartTypeContextFile,
-				ContextFilePath:    "/workspace/AGENTS.md",
-				ContextFileContent: "project instructions",
-			},
-			{
-				Type:                     codersdk.ChatMessagePartTypeSkill,
-				SkillName:                "repo-helper",
-				SkillDescription:         "Repository instructions",
-				SkillDir:                 "/workspace/.agents/skills/repo-helper",
-				ContextFileSkillMetaFile: "SKILL.md",
-			},
-		}
-		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{Parts: parts})
-		require.NoError(t, err)
-		require.Equal(t, chat.ID, resp.ChatID)
-		require.Equal(t, 2, resp.Count)
-
-		messages, err := setup.db.GetChatMessagesByChatID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetChatMessagesByChatIDParams{ChatID: chat.ID, AfterID: 0},
-		)
-		require.NoError(t, err)
-		require.Len(t, messages, 1)
-
-		storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
-		require.Len(t, storedParts, 2)
-
-		storedContextFilePart := storedParts[0]
-		require.Equal(t, codersdk.ChatMessagePartTypeContextFile, storedContextFilePart.Type)
-		require.Equal(t, parts[0].ContextFilePath, storedContextFilePart.ContextFilePath)
-		require.Equal(t, parts[0].ContextFileContent, storedContextFilePart.ContextFileContent)
-		require.True(t, storedContextFilePart.ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, storedContextFilePart.ContextFileAgentID.UUID)
-		require.Equal(t, setup.workspace.Agents[0].OperatingSystem, storedContextFilePart.ContextFileOS)
-		require.Equal(t, agentChatContextDirectory(setup.workspace.Agents[0]), storedContextFilePart.ContextFileDirectory)
-
-		storedSkillPart := storedParts[1]
-		require.Equal(t, codersdk.ChatMessagePartTypeSkill, storedSkillPart.Type)
-		require.Equal(t, parts[1].SkillName, storedSkillPart.SkillName)
-		require.Equal(t, parts[1].SkillDescription, storedSkillPart.SkillDescription)
-		require.Equal(t, parts[1].SkillDir, storedSkillPart.SkillDir)
-		require.Equal(t, parts[1].ContextFileSkillMetaFile, storedSkillPart.ContextFileSkillMetaFile)
-		require.True(t, storedSkillPart.ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, storedSkillPart.ContextFileAgentID.UUID)
-
-		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, persistedChat.LastInjectedContext.Valid)
-
-		cachedParts := requireAgentChatContextParts(t, persistedChat.LastInjectedContext.RawMessage)
-		require.Len(t, cachedParts, 2)
-		require.Equal(t, codersdk.ChatMessagePartTypeContextFile, cachedParts[0].Type)
-		require.Equal(t, parts[0].ContextFilePath, cachedParts[0].ContextFilePath)
-		require.Equal(t, codersdk.ChatMessagePartTypeSkill, cachedParts[1].Type)
-		require.Equal(t, parts[1].SkillName, cachedParts[1].SkillName)
-		require.True(t, cachedParts[1].ContextFileAgentID.Valid)
-		require.Equal(t, setup.workspace.Agents[0].ID, cachedParts[1].ContextFileAgentID.UUID)
-	})
+	}
 
 	t.Run("ClearDeletesSkillMessages", func(t *testing.T) {
 		t.Parallel()
@@ -556,6 +409,68 @@ func TestAgentChatContext(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Equal(t, "Cannot modify context: this chat is no longer active.", sdkErr.Message)
 	})
+}
+
+func requireAgentChatContextMessages(ctx context.Context, t testing.TB, db database.Store, chatID uuid.UUID) []database.ChatMessage {
+	t.Helper()
+
+	messages, err := db.GetChatMessagesByChatID(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0},
+	)
+	require.NoError(t, err)
+	return messages
+}
+
+func requireAgentChatContextCachedParts(ctx context.Context, t testing.TB, db database.Store, chatID uuid.UUID) []codersdk.ChatMessagePart {
+	t.Helper()
+
+	chat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
+	require.NoError(t, err)
+	require.True(t, chat.LastInjectedContext.Valid)
+	return requireAgentChatContextParts(t, chat.LastInjectedContext.RawMessage)
+}
+
+func requireAgentChatContextStoredMessages(t testing.TB, messages []database.ChatMessage) [][]codersdk.ChatMessagePart {
+	t.Helper()
+
+	stored := make([][]codersdk.ChatMessagePart, len(messages))
+	for i, message := range messages {
+		require.Equal(t, database.ChatMessageRoleUser, message.Role)
+		require.True(t, message.Content.Valid)
+		stored[i] = requireAgentChatContextParts(t, message.Content.RawMessage)
+	}
+	return stored
+}
+
+func agentChatContextExpectedMessages(agent database.WorkspaceAgent, messages [][]codersdk.ChatMessagePart) [][]codersdk.ChatMessagePart {
+	expected := make([][]codersdk.ChatMessagePart, len(messages))
+	for i, parts := range messages {
+		expected[i] = agentChatContextExpectedStoredParts(agent, parts)
+	}
+	return expected
+}
+
+func agentChatContextExpectedStoredParts(agent database.WorkspaceAgent, parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	expected := make([]codersdk.ChatMessagePart, len(parts))
+	for i, part := range parts {
+		part.ContextFileAgentID = uuid.NullUUID{UUID: agent.ID, Valid: true}
+		if part.Type == codersdk.ChatMessagePartTypeContextFile {
+			part.ContextFileOS = agent.OperatingSystem
+			part.ContextFileDirectory = agentChatContextDirectory(agent)
+		}
+		expected[i] = part
+	}
+	return expected
+}
+
+func agentChatContextExpectedCachedParts(agent database.WorkspaceAgent, parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	expected := make([]codersdk.ChatMessagePart, len(parts))
+	for i, part := range parts {
+		part.ContextFileAgentID = uuid.NullUUID{UUID: agent.ID, Valid: true}
+		expected[i] = part
+	}
+	return expected
 }
 
 func newAgentChatContextTestSetup(t *testing.T) agentChatContextTestSetup {
