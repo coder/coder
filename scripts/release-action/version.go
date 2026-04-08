@@ -102,22 +102,3 @@ func allSemverTags() ([]version, error) {
 	}
 	return tags, nil
 }
-
-// mergedSemverTags returns semver tags reachable from HEAD, sorted
-// descending.
-func mergedSemverTags() ([]version, error) {
-	out, err := gitOutput("tag", "--merged", "HEAD", "--sort=-v:refname")
-	if err != nil {
-		return nil, err
-	}
-	if out == "" {
-		return nil, nil
-	}
-	var tags []version
-	for _, line := range strings.Split(out, "\n") {
-		if v, ok := parseVersion(strings.TrimSpace(line)); ok {
-			tags = append(tags, v)
-		}
-	}
-	return tags, nil
-}
