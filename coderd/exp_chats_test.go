@@ -8418,18 +8418,26 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
 
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
-			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_json", Output: json.RawMessage("not-json")},
-			},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Contains(t, sdkErr.Message, "Tool result output must be valid JSON")
+		// We must bypass the SDK client because json.RawMessage
+		// rejects invalid JSON during json.Marshal. A raw HTTP
+		// request lets the invalid payload reach the server so we
+		// can verify server-side validation.
+		rawBody := `{"results":[{"tool_call_id":"call_json","output":not-json,"is_error":false}]}`
+		url := client.URL.JoinPath(fmt.Sprintf("/api/experimental/chats/%s/tool-results", chat.ID)).String()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(rawBody))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("DuplicateToolCallID", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
