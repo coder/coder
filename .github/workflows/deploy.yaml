@@ -28,12 +28,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Determines if the given branch should be deployed to dogfood.
+  # Determines if the given branch should be deployed to dogfood,
+  # and which channel it maps to.
   should-deploy:
     name: should-deploy
     runs-on: ubuntu-latest
     outputs:
-      verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
+      verdict: ${{ steps.check.outputs.verdict }}
+      channel: ${{ steps.check.outputs.channel }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -50,8 +52,16 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          verdict="$(./scripts/should_deploy.sh)"
-          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          result="$(./scripts/should_deploy.sh)"
+          if [[ "$result" == NOOP ]]; then
+            echo "verdict=NOOP" >> "$GITHUB_OUTPUT"
+            echo "channel=" >> "$GITHUB_OUTPUT"
+          else
+            # Output is "DEPLOY <channel>"
+            channel="${result#DEPLOY }"
+            echo "verdict=DEPLOY" >> "$GITHUB_OUTPUT"
+            echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy:
     name: "deploy"
@@ -62,7 +72,9 @@ jobs:
     permissions:
       contents: read
       id-token: write # to authenticate to EKS cluster
-      packages: write # to retag image as dogfood
+      packages: write # to retag image
+    env:
+      CHANNEL: ${{ needs.should-deploy.outputs.channel }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -74,6 +86,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Set deploy parameters
+        id: params
+        run: |
+          set -euo pipefail
+          channel="$CHANNEL"
+          if [[ "$channel" == "dogfood" ]]; then
+            echo "namespace=coder" >> "$GITHUB_OUTPUT"
+            echo "image_tag=dogfood" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespace=coder-${channel}" >> "$GITHUB_OUTPUT"
+            echo "image_tag=${channel}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: GHCR Login
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
@@ -100,25 +125,41 @@ jobs:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.8.2"
 
-      # Retag image as dogfood while maintaining the multi-arch manifest
-      - name: Tag image as dogfood
-        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
+      # Retag image with the channel name while maintaining the
+      # multi-arch manifest. For dogfood this produces :dogfood, for
+      # release channels it produces :mainline, :stable, or :esr.
+      - name: Tag image for channel
+        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:$IMAGE_TAG" "$IMAGE"
         env:
           IMAGE: ${{ inputs.image }}
+          IMAGE_TAG: ${{ steps.params.outputs.image_tag }}
 
       - name: Reconcile Flux
         run: |
           set -euxo pipefail
+          ns="${NAMESPACE}"
+
           flux --namespace flux-system reconcile source git flux-system
           flux --namespace flux-system reconcile source git coder-main
           flux --namespace flux-system reconcile kustomization flux-system
-          flux --namespace flux-system reconcile kustomization coder
-          flux --namespace flux-system reconcile source chart coder-coder
-          flux --namespace flux-system reconcile source chart coder-coder-provisioner
-          flux --namespace coder reconcile helmrelease coder
-          flux --namespace coder reconcile helmrelease coder-provisioner
-          flux --namespace coder reconcile helmrelease coder-provisioner-tagged
-          flux --namespace coder reconcile helmrelease coder-provisioner-tagged-prebuilds
+          flux --namespace flux-system reconcile kustomization "${ns}"
+
+          # Flux auto-generates HelmChart sources named
+          # <namespace>-<helmrelease>. For dogfood the namespace is
+          # "coder", for release channels it is "coder-<channel>".
+          flux --namespace flux-system reconcile source chart "${ns}-coder"
+          flux --namespace flux-system reconcile source chart "${ns}-coder-provisioner"
+          flux --namespace "${ns}" reconcile helmrelease coder
+          flux --namespace "${ns}" reconcile helmrelease coder-provisioner
+
+          # Dogfood has additional tagged provisioner variants that
+          # release channels do not use.
+          if [[ "$CHANNEL" == "dogfood" ]]; then
+            flux --namespace "${ns}" reconcile helmrelease coder-provisioner-tagged
+            flux --namespace "${ns}" reconcile helmrelease coder-provisioner-tagged-prebuilds
+          fi
+        env:
+          NAMESPACE: ${{ steps.params.outputs.namespace }}
 
       # Just updating Flux is usually not enough. The Helm release may get
       # redeployed, but unless something causes the Deployment to update the
@@ -128,18 +169,31 @@ jobs:
       - name: Rollout Deployment
         run: |
           set -euxo pipefail
-          kubectl --namespace coder rollout restart deployment/coder
-          kubectl --namespace coder rollout status deployment/coder
-          kubectl --namespace coder rollout restart deployment/coder-provisioner
-          kubectl --namespace coder rollout status deployment/coder-provisioner
-          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
-          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
-          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged-prebuilds
-          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged-prebuilds
+          ns="${NAMESPACE}"
 
+          kubectl --namespace "${ns}" rollout restart deployment/coder
+          kubectl --namespace "${ns}" rollout status deployment/coder
+          kubectl --namespace "${ns}" rollout restart deployment/coder-provisioner
+          kubectl --namespace "${ns}" rollout status deployment/coder-provisioner
+
+          # Dogfood has additional tagged provisioner variants.
+          if [[ "$CHANNEL" == "dogfood" ]]; then
+            kubectl --namespace "${ns}" rollout restart deployment/coder-provisioner-tagged
+            kubectl --namespace "${ns}" rollout status deployment/coder-provisioner-tagged
+            kubectl --namespace "${ns}" rollout restart deployment/coder-provisioner-tagged-prebuilds
+            kubectl --namespace "${ns}" rollout status deployment/coder-provisioner-tagged-prebuilds
+          fi
+        env:
+          NAMESPACE: ${{ steps.params.outputs.namespace }}
+
+  # Workspace proxies are only deployed for the dogfood channel
+  # (dev.coder.com). Release channels do not use workspace proxies.
   deploy-wsproxies:
     runs-on: ubuntu-latest
-    needs: deploy
+    needs:
+      - should-deploy
+      - deploy
+    if: needs.should-deploy.outputs.channel == 'dogfood'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1

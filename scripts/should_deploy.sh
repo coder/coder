@@ -1,73 +1,85 @@
 #!/usr/bin/env bash
 
 # This script determines if a commit in either the main branch or a
-# `release/x.y` branch should be deployed to dogfood.
+# `release/x.y` branch should be deployed to dogfood, and which channel
+# it maps to.
 #
-# To avoid masking unrelated failures, this script will return 0 in either case,
-# and will print `DEPLOY` or `NOOP` to stdout.
+# Channel mapping:
+#   main           → dogfood  (dev.coder.com)
+#   release/X.Y    → mainline (X.Y is the highest published minor)
+#   release/X.Y-1  → stable   (one minor behind mainline)
+#   release/ESR    → esr      (read from .github/esr-version)
+#
+# Mainline and stable are derived programmatically from published
+# vX.Y.0 tags. ESR is configured manually via .github/esr-version.
+#
+# To avoid masking unrelated failures, this script returns 0 in all
+# cases and prints one of the following to stdout:
+#   DEPLOY <channel>   — deploy to this channel
+#   NOOP               — do not deploy
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-deploy_branch=main
-
-# Determine the current branch name and check that it is one of the supported
-# branch names.
 branch_name=$(git branch --show-current)
 
-if [[ "$branch_name" != "main" && ! "$branch_name" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
-	error "Current branch '$branch_name' is not a supported branch name for dogfood, must be 'main' or 'release/x.y'"
+# main always deploys to dogfood.
+if [[ "$branch_name" == "main" ]]; then
+	log "Branch 'main' maps to channel 'dogfood'"
+	echo "DEPLOY dogfood"
+	exit 0
 fi
-log "Current branch '$branch_name'"
 
-# Determine the remote name
-remote=$(git remote -v | grep coder/coder | awk '{print $1}' | head -n1)
-if [[ -z "${remote}" ]]; then
-	error "Could not find remote for coder/coder"
+# Must be a release branch.
+if [[ ! "$branch_name" =~ ^release/([0-9]+)\.([0-9]+)$ ]]; then
+	log "Branch '$branch_name' is not a supported branch for dogfood deploy"
+	echo "NOOP"
+	exit 0
 fi
-log "Using remote '$remote'"
+branch_version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+log "Current branch '$branch_name' (version $branch_version)"
 
-# Step 1: List all release branches and sort them by major/minor so we can find
-# the latest release branch.
-release_branches=$(
-	git branch -r --format='%(refname:short)' |
-		grep -E "${remote}/release/[0-9]+\.[0-9]+$" |
-		sed "s|${remote}/||" |
-		sort -V
+# Find mainline: the highest minor version with a published vX.Y.0 tag.
+# Exclude rc, dev, and pre-release tags.
+mainline_version=$(
+	git tag -l 'v[0-9]*.[0-9]*.0' |
+		grep -vE '(rc|dev|-|\+)' |
+		sort -V | tail -n1 |
+		sed 's/^v//; s/\.0$//'
 )
 
-# As a sanity check, release/2.26 should exist.
-if ! echo "$release_branches" | grep "release/2.26" >/dev/null; then
-	error "Could not find existing release branches. Did you run 'git fetch -ap ${remote}'?"
+if [[ -z "$mainline_version" ]]; then
+	log "No published vX.Y.0 tags found, cannot determine channels"
+	echo "NOOP"
+	exit 0
 fi
 
-latest_release_branch=$(echo "$release_branches" | tail -n 1)
-latest_release_branch_version=${latest_release_branch#release/}
-log "Latest release branch: $latest_release_branch"
-log "Latest release branch version: $latest_release_branch_version"
+# Stable: one minor version behind mainline.
+mainline_major=${mainline_version%%.*}
+mainline_minor=${mainline_version#*.}
+stable_version="${mainline_major}.$((mainline_minor - 1))"
 
-# Step 2: check if a matching tag `v<x.y>.0` exists. If it does not, we will
-# use the release branch as the deploy branch.
-if ! git rev-parse "refs/tags/v${latest_release_branch_version}.0" >/dev/null 2>&1; then
-	log "Tag 'v${latest_release_branch_version}.0' does not exist, using release branch as deploy branch"
-	deploy_branch=$latest_release_branch
-else
-	log "Matching tag 'v${latest_release_branch_version}.0' exists, using main as deploy branch"
+# ESR: read from config file.
+esr_version=""
+esr_config=".github/esr-version"
+if [[ -f "$esr_config" ]]; then
+	esr_version=$(tr -d '[:space:]' <"$esr_config")
 fi
-log "Deploy branch: $deploy_branch"
 
-# TODO: remove this temporary override
-log "OVERRIDE: forcing main as deploy branch"
-deploy_branch=main
+log "Channel mapping: mainline=$mainline_version stable=$stable_version esr=${esr_version:-(none)}"
 
-# Finally, check if the current branch is the deploy branch.
-log
-if [[ "$branch_name" != "$deploy_branch" ]]; then
-	log "VERDICT: DO NOT DEPLOY"
-	echo "NOOP" # stdout
+if [[ "$branch_version" == "$mainline_version" ]]; then
+	log "VERDICT: DEPLOY mainline"
+	echo "DEPLOY mainline"
+elif [[ "$branch_version" == "$stable_version" ]]; then
+	log "VERDICT: DEPLOY stable"
+	echo "DEPLOY stable"
+elif [[ -n "$esr_version" && "$branch_version" == "$esr_version" ]]; then
+	log "VERDICT: DEPLOY esr"
+	echo "DEPLOY esr"
 else
-	log "VERDICT: DEPLOY"
-	echo "DEPLOY" # stdout
+	log "VERDICT: NOOP (branch $branch_version not mapped to any channel)"
+	echo "NOOP"
 fi
