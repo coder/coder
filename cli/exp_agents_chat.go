@@ -750,6 +750,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.restorePendingComposerIfEmpty()
 			return m, nil
 		}
+		m.err = nil
 		m.pendingComposerText = ""
 		if msg.resp.Message != nil {
 			m.addMessageIfNew(*msg.resp.Message)

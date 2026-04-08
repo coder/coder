@@ -1648,6 +1648,18 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "delivered", updated.blocks[0].text)
 		})
 
+		t.Run("SuccessfulSendClearsPreviousError", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.err = xerrors.New("stale send failed")
+			message := testMessage(23, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "delivered"})
+
+			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{Message: &message}})
+			require.Nil(t, cmd)
+			require.Nil(t, updated.err)
+		})
+
 		t.Run("QueuedResponseUpdatesQueuedMessages", func(t *testing.T) {
 			t.Parallel()
 
