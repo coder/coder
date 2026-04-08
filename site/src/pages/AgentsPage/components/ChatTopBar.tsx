@@ -260,7 +260,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							</span>
 						)}
 						{showSaved && (
-							<span className="flex shrink-0 items-center gap-1 text-xs text-content-secondary animate-in fade-in">
+							<span className="flex shrink-0 items-center gap-1 text-xs leading-5 text-content-secondary animate-in fade-in">
 								Saved
 								<SaveIcon className="h-3 w-3" />
 							</span>
