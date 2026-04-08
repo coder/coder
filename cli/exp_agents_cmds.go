@@ -16,10 +16,12 @@ type (
 		err   error
 	}
 	chatOpenedMsg struct {
-		chat codersdk.Chat
-		err  error
+		chatID uuid.UUID
+		chat   codersdk.Chat
+		err    error
 	}
 	chatHistoryMsg struct {
+		chatID   uuid.UUID
 		messages []codersdk.ChatMessage
 		err      error
 	}
@@ -40,16 +42,19 @@ type (
 		err     error
 	}
 	gitChangesMsg struct {
+		chatID  uuid.UUID
 		changes []codersdk.ChatGitChange
 		err     error
 	}
 	diffContentsMsg struct {
-		diff codersdk.ChatDiffContents
-		err  error
+		chatID uuid.UUID
+		diff   codersdk.ChatDiffContents
+		err    error
 	}
 	chatStreamEventMsg struct {
-		event codersdk.ChatStreamEvent
-		err   error
+		chatID uuid.UUID
+		event  codersdk.ChatStreamEvent
+		err    error
 	}
 	toggleModelPickerMsg struct{}
 	toggleDiffDrawerMsg  struct{}
@@ -78,12 +83,14 @@ func listChatsCmd(ctx context.Context, client *codersdk.ExperimentalClient) tea.
 }
 
 func openChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) tea.Cmd {
-	return apiCmd(func() (codersdk.Chat, error) { return client.GetChat(ctx, chatID) }, func(chat codersdk.Chat, err error) tea.Msg { return chatOpenedMsg{chat: chat, err: err} })
+	return apiCmd(func() (codersdk.Chat, error) { return client.GetChat(ctx, chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
+		return chatOpenedMsg{chatID: chatID, chat: chat, err: err}
+	})
 }
 
 func loadChatHistoryCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) tea.Cmd {
 	return apiCmd(func() ([]codersdk.ChatMessage, error) { return fetchAllChatMessages(ctx, client, chatID) }, func(messages []codersdk.ChatMessage, err error) tea.Msg {
-		return chatHistoryMsg{messages: messages, err: err}
+		return chatHistoryMsg{chatID: chatID, messages: messages, err: err}
 	})
 }
 
@@ -109,16 +116,18 @@ func listModelsCmd(ctx context.Context, client *codersdk.ExperimentalClient) tea
 
 func loadGitChangesCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) tea.Cmd {
 	return apiCmd(func() ([]codersdk.ChatGitChange, error) { return client.GetChatGitChanges(ctx, chatID) }, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
-		return gitChangesMsg{changes: changes, err: err}
+		return gitChangesMsg{chatID: chatID, changes: changes, err: err}
 	})
 }
 
 func loadDiffContentsCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) tea.Cmd {
-	return apiCmd(func() (codersdk.ChatDiffContents, error) { return client.GetChatDiffContents(ctx, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg { return diffContentsMsg{diff: diff, err: err} })
+	return apiCmd(func() (codersdk.ChatDiffContents, error) { return client.GetChatDiffContents(ctx, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
+		return diffContentsMsg{chatID: chatID, diff: diff, err: err}
+	})
 }
 
-func listenToStream(eventCh <-chan codersdk.ChatStreamEvent) tea.Cmd {
+func listenToStream(chatID uuid.UUID, eventCh <-chan codersdk.ChatStreamEvent) tea.Cmd {
 	return streamCmd(eventCh, func(event codersdk.ChatStreamEvent, err error) tea.Msg {
-		return chatStreamEventMsg{event: event, err: err}
+		return chatStreamEventMsg{chatID: chatID, event: event, err: err}
 	})
 }

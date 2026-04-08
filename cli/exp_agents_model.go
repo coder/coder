@@ -56,6 +56,11 @@ func newExpChatsTUIModel(
 		currentView = viewChat
 	}
 
+	chat := newChatViewModel(ctx, client, workspaceID, modelOverride, styles)
+	if initialChatID != nil {
+		chat.activeChatID = *initialChatID
+	}
+
 	return expChatsTUIModel{
 		ctx:           ctx,
 		client:        client,
@@ -63,7 +68,7 @@ func newExpChatsTUIModel(
 		currentView:   currentView,
 		overlay:       overlayNone,
 		list:          newChatListModel(styles),
-		chat:          newChatViewModel(ctx, client, workspaceID, modelOverride, styles),
+		chat:          chat,
 		initialChatID: initialChatID,
 		workspaceID:   workspaceID,
 		modelOverride: modelOverride,
@@ -72,6 +77,7 @@ func newExpChatsTUIModel(
 
 func (m expChatsTUIModel) Init() tea.Cmd {
 	if m.initialChatID != nil {
+		m.chat.activeChatID = *m.initialChatID
 		return tea.Batch(
 			m.chat.Init(),
 			openChatCmd(m.ctx, m.client, *m.initialChatID),
@@ -161,6 +167,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentView = viewChat
 		m.chat.stopStream()
 		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
+		m.chat.activeChatID = msg.chatID
 		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
 		m.chat.width = childMsg.Width
 		m.chat.height = childMsg.Height
