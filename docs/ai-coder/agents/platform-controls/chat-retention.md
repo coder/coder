@@ -38,8 +38,3 @@ If a user unarchives a conversation whose files were purged, stale file
 references are automatically cleaned up by FK cascades. The conversation
 remains usable but previously attached files are no longer available.
 
-## Related links
-
-- [Coder Agents](../index.md)
-- [Platform Controls](./index.md)
-- [Data Retention](../../../admin/setup/data-retention.md)
