@@ -92,7 +92,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						size="sm"
 						className="font-mono"
 					>
-						{" "}
 						{buildInfo.version}
 					</Badge>
 				</a>
