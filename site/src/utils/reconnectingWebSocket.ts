@@ -164,8 +164,11 @@ const getReconnectSchedule = ({
 	jitter: number;
 	random: () => number;
 }): ReconnectSchedule => {
-	const rawDelayMs = normalizeDelayMs(baseMs * factor ** (attempt - 1), 0);
-	const safeMaxMs = normalizeDelayMs(maxMs, rawDelayMs);
+	const safeMaxMs = normalizeDelayMs(maxMs, 0);
+	const rawDelayMs = normalizeDelayMs(
+		baseMs * factor ** (attempt - 1),
+		safeMaxMs,
+	);
 	const cappedDelayMs = Math.min(rawDelayMs, safeMaxMs);
 	const jitteredDelayMs = applyReconnectJitter({
 		delayMs: cappedDelayMs,

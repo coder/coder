@@ -493,6 +493,79 @@ describe("createReconnectingWebSocket", () => {
 		);
 	});
 
+	it("saturates overflowed backoff at maxMs instead of 0ms", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			maxMs: 5000,
+			factor: 1e308,
+			jitter: 0,
+			random: deterministicRandom,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+		vi.runOnlyPendingTimers();
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[1]!, { attempt: 2, delayMs: 5000 });
+	});
+
+	it("preserves jitter spread when backoff overflows", () => {
+		const makeOverflowReconnect = (random: () => number) => {
+			let activeSocket = createMockSocket();
+			const connect = vi.fn(() => {
+				activeSocket = createMockSocket();
+				return activeSocket;
+			});
+			const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+				[];
+			const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+				disconnects.push({ reconnect, now: Date.now() });
+			});
+
+			createReconnectingWebSocket({
+				connect,
+				onDisconnect,
+				baseMs: 1000,
+				maxMs: 10000,
+				factor: 1e308,
+				jitter: 0.3,
+				random,
+			});
+
+			activeSocket.emit("close");
+			vi.runOnlyPendingTimers();
+			activeSocket.emit("close");
+
+			return disconnects[1]!;
+		};
+
+		const minReconnect = makeOverflowReconnect(() => 0);
+		expectReconnectSchedule(minReconnect, { attempt: 2, delayMs: 7000 });
+
+		vi.clearAllTimers();
+		vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
+
+		const maxReconnect = makeOverflowReconnect(() => 1);
+		expectReconnectSchedule(maxReconnect, { attempt: 2, delayMs: 10000 });
+		expect(maxReconnect.reconnect.delayMs).toBeGreaterThan(
+			minReconnect.reconnect.delayMs,
+		);
+	});
+
 	it("resets backoff on successful connection", () => {
 		let activeSocket = createMockSocket();
 		const connect = vi.fn(() => {
