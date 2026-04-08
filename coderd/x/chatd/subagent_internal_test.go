@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -370,6 +372,7 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 		model            database.ChatModelConfig
 		enabledProviders []database.ChatProvider
 		want             chatprovider.ProviderAPIKeys
+		wantWarning      string
 	}{
 		{
 			name: "BoundProviderOverridesFamilyKeys",
@@ -533,7 +536,8 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 				APIKey:   "cached-key",
 				BaseUrl:  "https://cached.example.com",
 			}},
-			want: baseKeys,
+			want:        baseKeys,
+			wantWarning: "bound provider config not found or disabled, falling back to family defaults",
 		},
 		{
 			name: "MissingBindingFallsBack",
@@ -546,7 +550,8 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 				APIKey:   "cached-anthropic-key",
 				BaseUrl:  "https://anthropic.example.com",
 			}},
-			want: baseKeys,
+			want:        baseKeys,
+			wantWarning: "bound provider config not found or disabled, falling back to family defaults",
 		},
 	}
 
@@ -558,7 +563,10 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 			db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(tt.enabledProviders, nil)
 
+			var logBuf strings.Builder
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(sloghuman.Sink(&logBuf))
 			server := &Server{
+				logger:      logger,
 				configCache: newChatConfigCache(context.Background(), db, quartz.NewMock(t)),
 			}
 			resolved := server.resolveProviderAPIKeysForModel(
@@ -569,6 +577,9 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			)
 
 			require.Equal(t, tt.want, resolved)
+			if tt.wantWarning != "" {
+				require.Contains(t, logBuf.String(), tt.wantWarning)
+			}
 			require.Equal(t, "family-key", baseKeys.APIKey("openai"))
 			require.Equal(t, "https://family.example.com", baseKeys.BaseURL("openai"))
 		})

@@ -5059,45 +5059,52 @@ func (p *Server) resolveProviderAPIKeysForModel(
 		)
 	}
 
-	for _, providerConfig := range providers {
-		if providerConfig.ID != modelConfig.ProviderConfigID.UUID {
-			continue
-		}
-		resolvedProvider := resolveUserProviderAPIKeysForProviders(
-			baseKeys,
-			[]database.ChatProvider{providerConfig},
-			userKeys,
+	boundProvider, ok, err := p.configCache.EnabledProviderByID(
+		ctx,
+		modelConfig.ProviderConfigID.UUID,
+	)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load bound provider config, falling back to family defaults",
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
+			slog.F("provider", modelConfig.Provider),
+			slog.Error(err),
 		)
-		normalizedProvider := chatprovider.NormalizeProvider(providerConfig.Provider)
-		if normalizedProvider == "" {
-			return baseKeys
-		}
-		providerAPIKey := resolvedProvider.APIKey(normalizedProvider)
-		resolved := setResolvedModelProviderAPIKey(
-			cloneProviderAPIKeys(baseKeys),
-			normalizedProvider,
-			providerAPIKey,
-		)
-		// Always honor the bound config's base URL. An empty bound
-		// base URL clears any inherited family base URL so requests
-		// use the provider's default endpoint.
-		resolved = setResolvedModelProviderBaseURL(
-			resolved,
-			normalizedProvider,
-			providerConfig.BaseUrl,
-		)
-		return resolved
+		return baseKeys
 	}
-
-	if modelConfig.ProviderConfigID.Valid {
+	if !ok {
 		p.logger.Warn(ctx, "bound provider config not found or disabled, falling back to family defaults",
 			slog.F("model_config_id", modelConfig.ID),
 			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
 			slog.F("provider", modelConfig.Provider),
 		)
+		return baseKeys
 	}
 
-	return baseKeys
+	resolvedProvider := resolveUserProviderAPIKeysForProviders(
+		baseKeys,
+		[]database.ChatProvider{boundProvider},
+		userKeys,
+	)
+	normalizedProvider := chatprovider.NormalizeProvider(boundProvider.Provider)
+	if normalizedProvider == "" {
+		return baseKeys
+	}
+	providerAPIKey := resolvedProvider.APIKey(normalizedProvider)
+	resolved := setResolvedModelProviderAPIKey(
+		cloneProviderAPIKeys(baseKeys),
+		normalizedProvider,
+		providerAPIKey,
+	)
+	// Always honor the bound config's base URL. An empty bound
+	// base URL clears any inherited family base URL so requests
+	// use the provider's default endpoint.
+	resolved = setResolvedModelProviderBaseURL(
+		resolved,
+		normalizedProvider,
+		boundProvider.BaseUrl,
+	)
+	return resolved
 }
 
 func cloneProviderAPIKeys(keys chatprovider.ProviderAPIKeys) chatprovider.ProviderAPIKeys {
