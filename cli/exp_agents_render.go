@@ -183,6 +183,8 @@ func toolDisplayLabel(toolName string, kind chatBlockKind, collapsedCount int) s
 }
 
 func renderToolLine(styles tuiStyles, labelStyle lipgloss.Style, icon, label, summary string, width int) string {
+	label = sanitizeTerminalRenderableText(label)
+	summary = sanitizeTerminalRenderableText(summary)
 	header := toolBlockIndent + labelStyle.Render(icon) + " " + label
 	if summary == "" || width <= 0 {
 		return header
@@ -196,6 +198,7 @@ func renderToolLine(styles tuiStyles, labelStyle lipgloss.Style, icon, label, su
 }
 
 func renderToolDetail(styles tuiStyles, label, value string, width int) string {
+	value = sanitizeTerminalRenderableText(value)
 	if strings.TrimSpace(value) == "" {
 		return ""
 	}
@@ -666,12 +669,12 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, re
 		case codersdk.ChatMessageRoleAssistant:
 			return renderAssistantMarkdown(styles, block.text, width, renderer)
 		case codersdk.ChatMessageRoleTool:
-			return styles.dimmedText.Render(wrapPreservingNewlines(block.text, width))
+			return styles.dimmedText.Render(wrapPreservingNewlines(sanitizeTerminalRenderableText(block.text), width))
 		default:
-			return wrapPreservingNewlines(block.text, width)
+			return wrapPreservingNewlines(sanitizeTerminalRenderableText(block.text), width)
 		}
 	case blockReasoning:
-		content := wrapPreservingNewlines("💭 "+block.text, width)
+		content := wrapPreservingNewlines("💭 "+sanitizeTerminalRenderableText(block.text), width)
 		if !expanded {
 			content = clampLines(content, 3)
 		}
@@ -732,6 +735,7 @@ func getFallbackMarkdownRenderer(width int) *glamour.TermRenderer {
 }
 
 func renderAssistantMarkdown(styles tuiStyles, text string, width int, renderers ...*glamour.TermRenderer) string {
+	text = sanitizeTerminalRenderableText(text)
 	renderer := firstRenderer(renderers...)
 	if renderer == nil {
 		renderer = getFallbackMarkdownRenderer(width)
@@ -751,6 +755,7 @@ func renderAssistantMarkdown(styles tuiStyles, text string, width int, renderers
 }
 
 func renderPrefixedBlock(prefix, body string, width int) string {
+	body = sanitizeTerminalRenderableText(body)
 	if strings.TrimSpace(body) == "" {
 		return prefix
 	}

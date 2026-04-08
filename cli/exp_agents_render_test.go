@@ -1150,6 +1150,30 @@ func TestExpAgentsRender(t *testing.T) {
 		require.Contains(t, output, "• second")
 		require.NotContains(t, output, "- first")
 	})
+
+	t.Run("SanitizeTerminalRenderableText", func(t *testing.T) {
+		t.Parallel()
+
+		output := sanitizeTerminalRenderableText("safe\ttext\n\x1b[31mred\u009b32mgreen\x1b]52;c;clipboard\x07\x1b(Bdone\r\x00")
+		require.Equal(t, "safe\ttext\nredgreendone", output)
+		require.NotContains(t, output, "\x1b")
+		require.NotContains(t, output, "\x07")
+		require.NotContains(t, output, "\r")
+		require.NotContains(t, output, "\x00")
+	})
+
+	t.Run("RenderToolDetailStripsTerminalEscapes", func(t *testing.T) {
+		t.Parallel()
+
+		styles := newTUIStyles()
+		rawOutput := renderToolDetail(styles, "result", "ok\x1b]52;c;clipboard\x07\n\tstill here", 60)
+		output := plainText(rawOutput)
+		require.Contains(t, output, "result: ok")
+		require.Contains(t, output, "still here")
+		require.NotContains(t, output, "clipboard")
+		require.NotContains(t, output, "\x1b")
+		require.NotContains(t, output, "\x07")
+	})
 	t.Run("UtilityRenderers", func(t *testing.T) {
 		t.Parallel()
 

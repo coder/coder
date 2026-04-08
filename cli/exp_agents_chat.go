@@ -617,16 +617,6 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlI || msg.String() == "tab" {
-			if m.isInterruptible() && m.chat != nil {
-				if m.interrupting {
-					return m, nil
-				}
-				m.interrupting = true
-				return m, interruptChatCmd(m.ctx, m.client, m.chat.ID, m.chatGeneration)
-			}
-		}
-
 		if msg.String() == "tab" {
 			m.composerFocused = !m.composerFocused
 			if m.composerFocused {
@@ -645,8 +635,12 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, func() tea.Msg { return toggleModelPickerMsg{} }
 		case tea.KeyCtrlD:
 			return m, func() tea.Msg { return toggleDiffDrawerMsg{} }
-		case tea.KeyCtrlI:
-			return m, nil
+		case tea.KeyCtrlX:
+			if !m.isInterruptible() || m.chat == nil || m.interrupting {
+				return m, nil
+			}
+			m.interrupting = true
+			return m, interruptChatCmd(m.ctx, m.client, m.chat.ID, m.chatGeneration)
 		}
 
 		if m.composerFocused {
@@ -966,9 +960,9 @@ func (m chatViewModel) View() string {
 		compactHelpParts = append(compactHelpParts, "↑↓", "pg", "home/end")
 	}
 	if m.isInterruptible() {
-		longHelpParts = append(longHelpParts, "ctrl+i: interrupt")
-		shortHelpParts = append(shortHelpParts, "ctrl+i")
-		compactHelpParts = append(compactHelpParts, "^I")
+		longHelpParts = append(longHelpParts, "ctrl+x: interrupt")
+		shortHelpParts = append(shortHelpParts, "ctrl+x")
+		compactHelpParts = append(compactHelpParts, "^X")
 	}
 	longHelpParts = append(longHelpParts, "ctrl+p: models", "ctrl+d: diff")
 	shortHelpParts = append(shortHelpParts, "ctrl+p", "ctrl+d")

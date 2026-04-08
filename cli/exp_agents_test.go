@@ -2043,7 +2043,7 @@ func TestExpAgents(t *testing.T) {
 			model.chatStatus = codersdk.ChatStatusRunning
 			model.interrupting = true
 
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlI})
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
 			require.Nil(t, cmd)
 			require.True(t, updated.interrupting)
 		})
@@ -2051,18 +2051,32 @@ func TestExpAgents(t *testing.T) {
 		t.Run("InterruptOnIdleChatIsNoOp", func(t *testing.T) {
 			t.Parallel()
 
-			// This also covers Ctrl-I on a completed chat.
 			model := newTestChatViewModel(failingExperimentalClient())
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat = &chat
 			model.chatStatus = codersdk.ChatStatusCompleted
 
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlI})
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
 			require.Nil(t, cmd)
 			require.False(t, updated.interrupting)
 		})
 
-		t.Run("TabInterruptsRunningChat", func(t *testing.T) {
+		t.Run("CtrlXInterruptsRunningChat", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusRunning
+			require.True(t, model.composerFocused)
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
+			require.NotNil(t, cmd)
+			require.True(t, updated.interrupting)
+			require.True(t, updated.composerFocused)
+		})
+
+		t.Run("TabKeepsFocusSwitchBehaviorWhileRunningChat", func(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(failingExperimentalClient())
@@ -2072,9 +2086,24 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, model.composerFocused)
 
 			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
-			require.NotNil(t, cmd)
-			require.True(t, updated.interrupting)
-			require.True(t, updated.composerFocused)
+			require.Nil(t, cmd)
+			require.False(t, updated.interrupting)
+			require.False(t, updated.composerFocused)
+		})
+
+		t.Run("ViewShowsCtrlXInterruptHelp", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusRunning
+			model.loading = false
+
+			view := plainText(model.View())
+			require.Contains(t, view, "ctrl+x: interrupt")
+			require.NotContains(t, view, "ctrl+i: interrupt")
 		})
 	})
 
