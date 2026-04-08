@@ -80,6 +80,10 @@ type sqlcQuerier interface {
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	// Counts remaining provider configs in the same family, excluding
+	// the target row. Used by deleteChatProvider to detect last-provider
+	// deletes.
+	CountChatProvidersByProviderExcludingID(ctx context.Context, arg CountChatProvidersByProviderExcludingIDParams) (int32, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// Counts enabled, non-deleted model configs that lack both input and
 	// output pricing in their JSONB options.cost configuration.
@@ -330,7 +334,17 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
+	// Returns enabled, non-deleted model configs that are usable at runtime.
+	// Bound rows (provider_config_id IS NOT NULL) are kept only when the
+	// referenced provider config exists and is still enabled.
+	// Unbound rows (provider_config_id IS NULL) are kept when the family
+	// has at least one enabled provider, OR when the family has no provider
+	// rows at all (pure env-key setup).
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
+	// Returns the oldest enabled provider config for a given provider family.
+	// Multiple enabled configs may exist per family; this returns the
+	// first-created one.
+	GetEnabledChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
@@ -893,9 +907,17 @@ type sqlcQuerier interface {
 	// for the table.
 	// The CTE and the reorder is required because UPDATE doesn't guarantee order.
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
+	// Soft-deletes model configs bound to a specific provider config.
+	// Called before provider deletion so bound models are preserved
+	// (soft-deleted) rather than hard-removed by a database cascade.
+	SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, arg SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error)
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
+	// Soft-deletes model configs in the given provider family that have
+	// no provider_config_id binding. Used during last-provider cleanup
+	// so lingering NULL-bound rows do not become orphans.
+	SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, arg SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

@@ -669,6 +669,7 @@ type CreateUserChatProviderKeyRequest struct {
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
 	Provider             string               `json:"provider"`
+	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
@@ -879,6 +880,7 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
 	Provider             string               `json:"provider"`
+	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -891,6 +893,7 @@ type CreateChatModelConfigRequest struct {
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
 	Provider             string               `json:"provider,omitempty"`
+	ProviderConfigID     **uuid.UUID          `json:"provider_config_id,omitempty" format:"uuid" typescript:"-"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -898,6 +901,41 @@ type UpdateChatModelConfigRequest struct {
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+}
+
+// UnmarshalJSON preserves an explicit JSON null for provider_config_id so
+// PATCH handlers can distinguish clearing the binding from omitting the field.
+func (r *UpdateChatModelConfigRequest) UnmarshalJSON(data []byte) error {
+	type updateChatModelConfigRequestAlias UpdateChatModelConfigRequest
+
+	var alias updateChatModelConfigRequestAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*r = UpdateChatModelConfigRequest(alias)
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+
+	rawProviderConfigID, ok := fields["provider_config_id"]
+	if !ok {
+		return nil
+	}
+	if bytes.Equal(bytes.TrimSpace(rawProviderConfigID), []byte("null")) {
+		var providerConfigID *uuid.UUID
+		r.ProviderConfigID = &providerConfigID
+		return nil
+	}
+
+	var providerConfigID uuid.UUID
+	if err := json.Unmarshal(rawProviderConfigID, &providerConfigID); err != nil {
+		return err
+	}
+	providerConfigIDPtr := &providerConfigID
+	r.ProviderConfigID = &providerConfigIDPtr
+	return nil
 }
 
 // ChatGitChange represents a git file change detected during a chat session.
@@ -1793,33 +1831,6 @@ func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorks
 // UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
 func (c *ExperimentalClient) UpdateChatWorkspaceTTL(ctx context.Context, req UpdateChatWorkspaceTTLRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/workspace-ttl", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// GetChatRetentionDays returns the configured chat retention period.
-func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRetentionDaysResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/retention-days", nil)
-	if err != nil {
-		return ChatRetentionDaysResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatRetentionDaysResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatRetentionDaysResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// UpdateChatRetentionDays updates the chat retention period.
-func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
 	if err != nil {
 		return err
 	}
