@@ -3131,7 +3131,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
+	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID)
 	// Subscribe only fails today when the receiver is nil, which
 	// the chatDaemon == nil guard above already catches. This is
 	// defensive against future Subscribe failure modes.
