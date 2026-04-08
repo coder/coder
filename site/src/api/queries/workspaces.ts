@@ -211,7 +211,7 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-function workspacesKey(req: WorkspacesRequest = {}) {
+export function workspacesKey(req: WorkspacesRequest = {}) {
 	return ["workspaces", req] as const;
 }
 
