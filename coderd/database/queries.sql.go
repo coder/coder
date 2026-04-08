@@ -4505,6 +4505,19 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 	return err
 }
 
+const clearChatMessageProviderResponseIDsByChatID = `-- name: ClearChatMessageProviderResponseIDsByChatID :exec
+UPDATE chat_messages
+SET provider_response_id = NULL
+WHERE chat_id = $1::uuid
+    AND deleted = false
+    AND provider_response_id IS NOT NULL
+`
+
+func (q *sqlQuerier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearChatMessageProviderResponseIDsByChatID, chatID)
+	return err
+}
+
 const countEnabledModelsWithoutPricing = `-- name: CountEnabledModelsWithoutPricing :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_model_configs

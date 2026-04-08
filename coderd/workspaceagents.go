@@ -2738,6 +2738,11 @@ func clearAgentChatContext(
 				return xerrors.Errorf("soft delete context message %d: %w", msg.ID, err)
 			}
 		}
+		// Reset provider-side Responses chaining so the next turn replays
+		// the post-clear history instead of inheriting cleared context.
+		if err := tx.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID); err != nil {
+			return xerrors.Errorf("clear provider response chain: %w", err)
+		}
 		// Clear the injected-context cache inside the transaction so it is
 		// atomic with the soft-deletes.
 		param, err := chatd.BuildLastInjectedContext(nil)

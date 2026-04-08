@@ -228,6 +228,105 @@ func TestAgentChatContext(t *testing.T) {
 		require.False(t, persistedChat.LastInjectedContext.Valid)
 	})
 
+	t.Run("ClearDeletesSkillMessagesBeforeCompressedSummary", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+		skillPart := codersdk.ChatMessagePart{
+			Type:                     codersdk.ChatMessagePartTypeSkill,
+			SkillName:                "repo-helper",
+			SkillDescription:         "Repository instructions",
+			SkillDir:                 "/workspace/.agents/skills/repo-helper",
+			ContextFileSkillMetaFile: "SKILL.md",
+		}
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			Parts: []codersdk.ChatMessagePart{skillPart},
+		})
+		require.NoError(t, err)
+
+		messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+		require.Len(t, messages, 1)
+
+		storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
+		require.Len(t, storedParts, 2)
+
+		// Strip the sentinel so the skill message must be found by the
+		// full-history scan even after compaction hides it from the
+		// prompt-scoped query.
+		rawSkillOnly, err := json.Marshal([]codersdk.ChatMessagePart{storedParts[1]})
+		require.NoError(t, err)
+		_, err = setup.db.UpdateChatMessageByID(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpdateChatMessageByIDParams{
+				ID: messages[0].ID,
+				Content: pqtype.NullRawMessage{
+					RawMessage: rawSkillOnly,
+					Valid:      true,
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		summaryContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("compressed summary"),
+		})
+		require.NoError(t, err)
+		summaryParams := chatd.BuildSingleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleUser,
+			summaryContent,
+			database.ChatMessageVisibilityModel,
+			chat.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+			setup.user.UserID,
+		)
+		summaryParams.Compressed[0] = true
+		_, err = setup.db.InsertChatMessages(
+			dbauthz.AsSystemRestricted(ctx),
+			summaryParams,
+		)
+		require.NoError(t, err)
+
+		regularContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("keep this user message"),
+		})
+		require.NoError(t, err)
+		_, err = setup.db.InsertChatMessages(
+			dbauthz.AsSystemRestricted(ctx),
+			chatd.BuildSingleChatMessageInsertParams(
+				chat.ID,
+				database.ChatMessageRoleUser,
+				regularContent,
+				database.ChatMessageVisibilityBoth,
+				chat.LastModelConfigID,
+				chatprompt.CurrentContentVersion,
+				setup.user.UserID,
+			),
+		)
+		require.NoError(t, err)
+
+		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.ChatID)
+
+		messages = requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+		require.Len(t, messages, 1)
+		require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+
+		remainingParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
+		require.Len(t, remainingParts, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeText, remainingParts[0].Type)
+		require.Equal(t, "keep this user message", remainingParts[0].Text)
+
+		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.False(t, persistedChat.LastInjectedContext.Valid)
+	})
+
 	t.Run("ClearSuccessDeletesInjectedContext", func(t *testing.T) {
 		t.Parallel()
 
@@ -279,6 +378,68 @@ func TestAgentChatContext(t *testing.T) {
 		require.Len(t, remainingParts, 1)
 		require.Equal(t, codersdk.ChatMessagePartTypeText, remainingParts[0].Type)
 		require.Equal(t, "keep this user message", remainingParts[0].Text)
+
+		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.False(t, persistedChat.LastInjectedContext.Valid)
+	})
+
+	t.Run("ClearSuccessResetsProviderResponseChain", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/instructions.md",
+				ContextFileContent: "remember this file",
+			}},
+		})
+		require.NoError(t, err)
+
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("assistant reply"),
+		})
+		require.NoError(t, err)
+		assistantParams := chatd.BuildSingleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleAssistant,
+			assistantContent,
+			database.ChatMessageVisibilityBoth,
+			chat.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+			uuid.Nil,
+		)
+		assistantParams.ProviderResponseID[0] = "resp-123"
+		_, err = setup.db.InsertChatMessages(
+			dbauthz.AsSystemRestricted(ctx),
+			assistantParams,
+		)
+		require.NoError(t, err)
+
+		messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+		require.Len(t, messages, 2)
+		require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
+		require.True(t, messages[1].ProviderResponseID.Valid)
+		require.Equal(t, "resp-123", messages[1].ProviderResponseID.String)
+
+		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.ChatID)
+
+		messages = requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+		require.Len(t, messages, 1)
+		require.Equal(t, database.ChatMessageRoleAssistant, messages[0].Role)
+		require.False(t, messages[0].ProviderResponseID.Valid)
+
+		remainingParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
+		require.Len(t, remainingParts, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeText, remainingParts[0].Type)
+		require.Equal(t, "assistant reply", remainingParts[0].Text)
 
 		persistedChat, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)

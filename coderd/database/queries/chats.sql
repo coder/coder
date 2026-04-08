@@ -1304,6 +1304,13 @@ WHERE agent_id = @agent_id::uuid
     AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
 ORDER BY updated_at DESC;
 
+-- name: ClearChatMessageProviderResponseIDsByChatID :exec
+UPDATE chat_messages
+SET provider_response_id = NULL
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND provider_response_id IS NOT NULL;
+
 -- name: SoftDeleteContextFileMessages :exec
 UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
