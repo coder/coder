@@ -2564,3 +2564,20 @@ type PRInsightsPullRequest struct {
 	CostMicros       int64     `json:"cost_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
+
+// ChatWatchEventKind classifies the type of chat watch event.
+type ChatWatchEventKind string
+
+const (
+	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
+	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
+)
+
+// ChatWatchEvent is a real-time notification about a chat changing.
+type ChatWatchEvent struct {
+	Kind ChatWatchEventKind `json:"kind"`
+	Chat Chat               `json:"chat"`
+}

@@ -21,7 +21,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
@@ -160,7 +159,7 @@ func (p *Server) maybeGenerateChatTitle(
 		}
 		chat.Title = title
 		generatedTitle.Store(title)
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange, nil)
+		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 		return
 	}
 

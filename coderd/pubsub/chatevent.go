@@ -15,35 +15,18 @@ func ChatEventChannel(ownerID uuid.UUID) string {
 	return fmt.Sprintf("chat:owner:%s", ownerID)
 }
 
-func HandleChatEvent(cb func(ctx context.Context, payload ChatEvent, err error)) func(ctx context.Context, message []byte, err error) {
+func HandleChatEvent(cb func(ctx context.Context, payload codersdk.ChatWatchEvent, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {
-			cb(ctx, ChatEvent{}, xerrors.Errorf("chat event pubsub: %w", err))
+			cb(ctx, codersdk.ChatWatchEvent{}, xerrors.Errorf("chat event pubsub: %w", err))
 			return
 		}
-		var payload ChatEvent
+		var payload codersdk.ChatWatchEvent
 		if err := json.Unmarshal(message, &payload); err != nil {
-			cb(ctx, ChatEvent{}, xerrors.Errorf("unmarshal chat event: %w", err))
+			cb(ctx, codersdk.ChatWatchEvent{}, xerrors.Errorf("unmarshal chat event: %w", err))
 			return
 		}
 
 		cb(ctx, payload, err)
 	}
 }
-
-type ChatEvent struct {
-	Kind      ChatEventKind                 `json:"kind"`
-	Chat      codersdk.Chat                 `json:"chat"`
-	ToolCalls []codersdk.ChatStreamToolCall `json:"tool_calls,omitempty"`
-}
-
-type ChatEventKind string
-
-const (
-	ChatEventKindStatusChange     ChatEventKind = "status_change"
-	ChatEventKindTitleChange      ChatEventKind = "title_change"
-	ChatEventKindCreated          ChatEventKind = "created"
-	ChatEventKindDeleted          ChatEventKind = "deleted"
-	ChatEventKindDiffStatusChange ChatEventKind = "diff_status_change"
-	ChatEventKindActionRequired   ChatEventKind = "action_required"
-)

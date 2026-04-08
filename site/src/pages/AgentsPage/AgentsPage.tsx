@@ -75,19 +75,6 @@ function diffStatusEqual(
 	);
 }
 
-function isChatListSSEEvent(
-	data: unknown,
-): data is { kind: string; chat: TypesGen.Chat } {
-	if (typeof data !== "object" || data === null) return false;
-	const obj = data as Record<string, unknown>;
-	return (
-		typeof obj.kind === "string" &&
-		typeof obj.chat === "object" &&
-		obj.chat !== null &&
-		"id" in obj.chat
-	);
-}
-
 export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
@@ -495,14 +482,7 @@ const AgentsPage: FC = () => {
 						console.warn("Failed to parse chat watch event:", event.parseError);
 						return;
 					}
-					const sse = event.parsedMessage;
-					if (sse?.type !== "data" || !sse.data) {
-						return;
-					}
-					if (!isChatListSSEEvent(sse.data)) {
-						return;
-					}
-					const chatEvent = sse.data;
+					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// Read the previous status from the infinite chat list
 					// cache before we write the update below. The per-chat

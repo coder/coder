@@ -137,8 +137,9 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	logger := api.Logger.Named("chat_watcher")
 
-	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
+	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to open chat watch stream.",
@@ -146,54 +147,38 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		<-senderClosed
-	}()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+
+	encoder := json.NewEncoder(wsNetConn)
 
 	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatEventChannel(apiKey.UserID),
 		pubsub.HandleChatEvent(
-			func(ctx context.Context, payload pubsub.ChatEvent, err error) {
+			func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
 				if err != nil {
 					api.Logger.Error(ctx, "chat event subscription error", slog.Error(err))
 					return
 				}
-				if err := sendEvent(codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeData,
-					Data: payload,
-				}); err != nil {
+				if err := encoder.Encode(payload); err != nil {
 					api.Logger.Debug(ctx, "failed to send chat event", slog.Error(err))
 				}
 			},
 		))
 	if err != nil {
-		if err := sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeError,
-			Data: codersdk.Response{
-				Message: "Internal error subscribing to chat events.",
-				Detail:  err.Error(),
-			},
-		}); err != nil {
-			api.Logger.Debug(ctx, "failed to send chat subscribe error event", slog.Error(err))
-		}
+		api.Logger.Error(ctx, "failed to subscribe to chat events", slog.Error(err))
 		return
 	}
 	defer cancelSubscribe()
 
-	// Send initial ping to signal the connection is ready.
-	if err := sendEvent(codersdk.ServerSentEvent{
-		Type: codersdk.ServerSentEventTypePing,
-	}); err != nil {
-		api.Logger.Debug(ctx, "failed to send chat ping event", slog.Error(err))
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-senderClosed:
-			return
-		}
-	}
+	<-ctx.Done()
 }
 
 // EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
@@ -2176,6 +2161,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+	logger := api.Logger.Named("chat_streamer")
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2198,7 +2184,19 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
+	// Subscribe before accepting the WebSocket so that failures
+	// can still be reported as normal HTTP errors.
+	snapshot, events, cancelSub, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat streaming is not available.",
+			Detail:  "Chat stream state is not configured.",
+		})
+		return
+	}
+	defer cancelSub()
+
+	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to open chat stream.",
@@ -2206,26 +2204,16 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
-	if !ok {
-		if err := sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeError,
-			Data: codersdk.Response{
-				Message: "Chat streaming is not available.",
-				Detail:  "Chat stream state is not configured.",
-			},
-		}); err != nil {
-			api.Logger.Debug(ctx, "failed to send chat stream unavailable event", slog.Error(err))
-		}
-		// Ensure the WebSocket is closed so senderClosed
-		// completes and the handler can return.
-		<-senderClosed
-		return
-	}
-	defer func() {
-		<-senderClosed
-	}()
+
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	// Mark the chat as read when the stream connects and again
 	// when it disconnects so we avoid per-message API calls while
@@ -2233,14 +2221,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	api.markChatAsRead(ctx, chatID)
 	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 
+	encoder := json.NewEncoder(wsNetConn)
+
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
 			return nil
 		}
-		return sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeData,
-			Data: batch,
-		})
+		return encoder.Encode(batch)
 	}
 
 	drainChatStreamBatch := func(
@@ -2281,8 +2268,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-senderClosed:
 			return
 		case firstEvent, ok := <-events:
 			if !ok {

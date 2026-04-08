@@ -55,7 +55,7 @@ vi.mock("#/api/api", () => ({
 }));
 
 type MessageListener = (
-	payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
+	payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 ) => void;
 type ErrorListener = (payload: Event) => void;
 type OpenListener = (payload: Event) => void;
@@ -143,26 +143,20 @@ const createMockSocket = (): MockSocket => {
 		removeEventListener,
 		close: vi.fn(),
 		emitData: (event) => {
-			const payload: OneWayMessageEvent<TypesGen.ServerSentEvent> = {
+			const payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]> = {
 				sourceEvent: {} as MessageEvent<string>,
 				parseError: undefined,
-				parsedMessage: {
-					type: "data",
-					data: event,
-				},
+				parsedMessage: [event],
 			};
 			for (const listener of messageListeners) {
 				listener(payload);
 			}
 		},
 		emitDataBatch: (events) => {
-			const payload: OneWayMessageEvent<TypesGen.ServerSentEvent> = {
+			const payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]> = {
 				sourceEvent: {} as MessageEvent<string>,
 				parseError: undefined,
-				parsedMessage: {
-					type: "data",
-					data: events,
-				},
+				parsedMessage: events as TypesGen.ChatStreamEvent[],
 			};
 			for (const listener of messageListeners) {
 				listener(payload);
