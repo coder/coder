@@ -1562,6 +1562,39 @@ func TestExpAgents(t *testing.T) {
 			require.NotNil(t, updated.err)
 		})
 
+		t.Run("EOFReconnectClearsPendingAccumulator", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusPending)
+			model.setChat(chat)
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "persisted"}),
+			}
+			model.accumulator = streamAccumulator{
+				pending: true,
+				role:    codersdk.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: "partial",
+				}},
+			}
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 2)
+			require.Equal(t, "partial", model.blocks[1].text)
+			model.streaming = true
+
+			updated, cmd := model.Update(chatStreamEventMsg{chatID: chat.ID, err: io.EOF})
+			require.Nil(t, cmd)
+			require.False(t, updated.streaming)
+			require.True(t, updated.reconnecting)
+			require.NotNil(t, updated.err)
+			require.False(t, updated.accumulator.isPending())
+			require.Nil(t, updated.accumulator.parts)
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "persisted", updated.blocks[0].text)
+		})
+
 		t.Run("MessageEventsDeduplicateByID", func(t *testing.T) {
 			t.Parallel()
 

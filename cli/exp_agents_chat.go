@@ -97,6 +97,10 @@ func (a streamAccumulator) isPending() bool {
 	return a.pending
 }
 
+func (a *streamAccumulator) reset() {
+	*a = streamAccumulator{}
+}
+
 type chatViewModel struct {
 	styles              tuiStyles
 	chat                *codersdk.Chat
@@ -451,6 +455,11 @@ func (m *chatViewModel) rebuildBlocks() {
 	m.syncViewportContent()
 }
 
+func (m *chatViewModel) clearPendingStreamAccumulator() {
+	m.accumulator.reset()
+	m.rebuildBlocks()
+}
+
 func (m *chatViewModel) getOrCreateMarkdownRenderer(width int) *glamour.TermRenderer {
 	if m.cachedRendererWidth == width && m.cachedRenderer != nil {
 		return m.cachedRenderer
@@ -779,6 +788,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 				return m, nil
 			}
 			if m.isInterruptible() && m.chat != nil {
+				m.clearPendingStreamAccumulator()
 				m.reconnecting = true
 				(&m).syncViewportContent()
 				updated, cmd := m.startStream()
