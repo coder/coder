@@ -86,7 +86,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					href={buildInfo.external_url}
 					target="_blank"
 					rel="noreferrer"
-					className="absolute left-1/2 -translate-x-1/2 no-underline"
+					className="absolute top-1 left-1/2 -translate-x-1/2 no-underline z-10"
 				>
 					<Badge
 						variant={isDev ? "warning" : "info"}
