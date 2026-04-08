@@ -199,7 +199,22 @@ func TestAgentChatContext(t *testing.T) {
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
 
 		originalModel := coderd.InsertAgentChatTestModelConfig(ctx, t, baseDB, user.UserID)
-		updatedModel := coderd.InsertAgentChatTestModelConfig(ctx, t, baseDB, user.UserID)
+		updatedModel, err := baseDB.InsertChatModelConfig(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatModelConfigParams{
+				Provider:             originalModel.Provider,
+				Model:                "gpt-4o-mini-updated",
+				DisplayName:          "Updated Test Model",
+				CreatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
+				UpdatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
+				Enabled:              true,
+				IsDefault:            false,
+				ContextLimit:         originalModel.ContextLimit,
+				CompressionThreshold: originalModel.CompressionThreshold,
+				Options:              json.RawMessage(`{}`),
+			},
+		)
+		require.NoError(t, err)
 		chat := createAgentChatContextChat(ctx, t, baseDB, user.UserID, originalModel.ID, workspace.Agents[0].ID, t.Name())
 
 		interceptDB.beforeInTx = func() {
