@@ -2,6 +2,19 @@ import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
+/**
+ * Minimal store interface for optimistic updates in mutation
+ * callbacks. Avoids importing the full ChatStore from the page
+ * layer (api/queries should not depend on pages/).
+ */
+interface ChatMutationStore {
+	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
+	upsertDurableMessage: (message: TypesGen.ChatMessage) => {
+		isDuplicate: boolean;
+		changed: boolean;
+	};
+}
+
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
@@ -586,14 +599,27 @@ export const createChat = (queryClient: QueryClient) => ({
 export const createChatMessage = (
 	_queryClient: QueryClient,
 	chatId: string,
+	store?: ChatMutationStore,
 ) => ({
 	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
 		API.experimental.createChatMessage(chatId, req),
-	// No onSuccess invalidation needed: the per-chat WebSocket delivers
-	// the response message via upsertDurableMessage, and the global
-	// watchChats() WebSocket updates the sidebar sort order.
+	onSuccess: (response: TypesGen.CreateChatMessageResponse) => {
+		if (!store || response.queued) {
+			return;
+		}
+		// Optimistic updates: set status to running so the
+		// Thinking indicator appears immediately, and insert
+		// the user's message without waiting for the WebSocket.
+		// Do NOT call clearStreamState here. The previous
+		// turn's state is already null, and clearing would wipe
+		// any stream content the WebSocket delivered before this
+		// callback fires (Race 2).
+		store.setChatStatus("running");
+		if (response.message) {
+			store.upsertDurableMessage(response.message);
+		}
+	},
 });
-
 type EditChatMessageMutationArgs = {
 	messageId: number;
 	req: TypesGen.EditChatMessageRequest;

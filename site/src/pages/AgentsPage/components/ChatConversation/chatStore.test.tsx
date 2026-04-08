@@ -1,6 +1,10 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
+import {
+	chatMessagesKey,
+	chatsKey,
+	createChatMessage,
+} from "#/api/queries/chats";
 
 // The infinite query key used by useInfiniteQuery(infiniteChats())
 // is [...chatsKey, undefined] = ["chats", undefined].
@@ -31,7 +35,7 @@ const readInfiniteChats = (
 };
 
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider, useMutation } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
@@ -3960,5 +3964,127 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 				{ type: "response", text: "fresh content" },
 			]);
 		});
+	});
+});
+
+describe("Race 2: REST response wipes in-progress WS stream", () => {
+	it("stream state survives REST response arriving after WS content", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-race2";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		// Deferred promise so we control when the REST response arrives.
+		let resolveREST!: (value: TypesGen.CreateChatMessageResponse) => void;
+		const createChatMessageMock = vi.fn(
+			(_req: TypesGen.CreateChatMessageRequest) =>
+				new Promise<TypesGen.CreateChatMessageResponse>((resolve) => {
+					resolveREST = resolve;
+				}),
+		);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		// Render useChatStore (WS handler) and useMutation with
+		// the production createChatMessage factory. The factory's
+		// onSuccess applies optimistic updates (setChatStatus,
+		// upsertDurableMessage) without calling clearStreamState.
+		// We only override mutationFn to use the deferred mock;
+		// onSuccess is real.
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				const mutation = useMutation({
+					...createChatMessage(queryClient, chatID, store),
+					mutationFn: createChatMessageMock,
+				});
+				return {
+					mutation,
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		// Wait for WS to connect.
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Start the mutation (REST call in flight).
+		let mutationDone = false;
+		const mutationPromise = act(async () => {
+			await result.current.mutation.mutateAsync({
+				content: [{ type: "text", text: "follow-up" }],
+			});
+			mutationDone = true;
+		});
+
+		// While REST is in-flight, WS delivers status=running
+		// and a message part via the production handler.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "The answer is 42" },
+				},
+			});
+		});
+
+		// Verify stream state was built via the production WS path.
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "The answer is 42" },
+			]);
+		});
+
+		// REST hasn't resolved yet.
+		expect(mutationDone).toBe(false);
+
+		// Resolve the REST response. The mutation's production
+		// onSuccess callback runs automatically, applying
+		// optimistic updates.
+		await act(async () => {
+			resolveREST({
+				queued: false,
+				message: makeMessage(chatID, 2, "user", "follow-up"),
+			} as TypesGen.CreateChatMessageResponse);
+		});
+
+		await mutationPromise;
+		expect(mutationDone).toBe(true);
+
+		// Stream state survives because onSuccess no longer
+		// calls clearStreamState.
+		expect(result.current.streamState).not.toBeNull();
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "The answer is 42" },
+		]);
 	});
 });

@@ -697,13 +697,15 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// createChatMessage has no onSuccess handler — the WebSocket
-		// stream covers all real-time updates. Verify that constructing
-		// the mutation config does not define one.
+		// Without a store, onSuccess returns early.
 		const mutation = createChatMessage(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		mutation.onSuccess({
+			queued: false,
+			message: {} as TypesGen.ChatMessage,
+		} as TypesGen.CreateChatMessageResponse);
 
-		// Since there is no onSuccess, no queries should be invalidated.
+		await new Promise((r) => setTimeout(r, 0));
+
 		for (const { label, key } of unrelatedKeys(chatId)) {
 			const state = queryClient.getQueryState(key);
 			expect(
@@ -718,9 +720,14 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// No onSuccess handler exists.
+		// Without a store, onSuccess returns early.
 		const mutation = createChatMessage(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		mutation.onSuccess({
+			queued: false,
+			message: {} as TypesGen.ChatMessage,
+		} as TypesGen.CreateChatMessageResponse);
+
+		await new Promise((r) => setTimeout(r, 0));
 
 		const chatState = queryClient.getQueryState(chatKey(chatId));
 		expect(
@@ -733,6 +740,24 @@ describe("mutation invalidation scope", () => {
 			messagesState?.isInvalidated,
 			"chatMessagesKey should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	it("createChatMessage onSuccess skips optimistic updates for queued responses", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		const mockStore: Parameters<typeof createChatMessage>[2] = {
+			setChatStatus: vi.fn(),
+			upsertDurableMessage: vi.fn(),
+		};
+
+		const mutation = createChatMessage(queryClient, chatId, mockStore);
+		mutation.onSuccess({
+			queued: true,
+		} as TypesGen.CreateChatMessageResponse);
+
+		expect(mockStore.setChatStatus).not.toHaveBeenCalled();
+		expect(mockStore.upsertDurableMessage).not.toHaveBeenCalled();
 	});
 
 	it("editChatMessage does not invalidate unrelated queries", async () => {

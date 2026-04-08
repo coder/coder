@@ -637,8 +637,18 @@ const AgentChatPage: FC = () => {
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
+	const { store, clearStreamError } = useChatStore({
+		chatID: agentId,
+		chatMessages: chatMessagesList,
+		chatRecord,
+		chatMessagesData,
+		chatQueuedMessages,
+		setChatErrorReason,
+		clearChatErrorReason,
+	});
+
 	const sendMutation = useMutation(
-		createChatMessage(queryClient, agentId ?? ""),
+		createChatMessage(queryClient, agentId ?? "", store),
 	);
 	const editMutation = useMutation(editChatMessage(queryClient, agentId ?? ""));
 	const interruptMutation = useMutation(
@@ -650,16 +660,6 @@ const AgentChatPage: FC = () => {
 	const promoteQueuedMutation = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-
-	const { store, clearStreamError } = useChatStore({
-		chatID: agentId,
-		chatMessages: chatMessagesList,
-		chatRecord,
-		chatMessagesData,
-		chatQueuedMessages,
-		setChatErrorReason,
-		clearChatErrorReason,
-	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
 	const persistedError = getPersistedDetailError({
@@ -829,7 +829,6 @@ const AgentChatPage: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
-				store.clearStreamState();
 				store.setChatStatus("running");
 				setPendingEditMessageId(null);
 			} catch (error) {
@@ -854,33 +853,13 @@ const AgentChatPage: FC = () => {
 
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
-		// clearing; for non-queued sends we clear explicitly
-		// below. Clearing eagerly causes a visible cutoff.
-		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
+		// clearing; for non-queued sends the mutation's onSuccess
+		// callback handles optimistic store updates.
 		try {
-			response = await sendMutation.mutateAsync(request);
+			await sendMutation.mutateAsync(request);
 		} catch (error) {
 			handleUsageLimitError(error);
 			throw error;
-		}
-		// When the server accepts the message immediately (not
-		// queued), clear the stream and insert the user's message
-		// so it appears in the timeline without waiting for the
-		// WebSocket stream.
-		if (!response.queued) {
-			store.clearStreamState();
-			// Optimistically set status to "running" so the
-			// "Thinking..." indicator appears immediately.
-			// The server accepted the message (not queued),
-			// so it will start processing. The WebSocket
-			// status:running event no-ops via the
-			// setChatStatus guard. If the server transitions
-			// to error/pending instead, the WebSocket event
-			// overrides this optimistic value.
-			store.setChatStatus("running");
-			if (response.message) {
-				store.upsertDurableMessage(response.message);
-			}
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
