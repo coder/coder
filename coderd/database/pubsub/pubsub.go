@@ -81,8 +81,8 @@ func newMsgQueue(ctx context.Context, l Listener, le ListenerWithErr) *msgQueue 
 }
 
 func (q *msgQueue) run() {
+	var batch [maxDrainBatch]msgOrErr
 	for {
-		// wait until there is something on the queue or we are closed
 		q.cond.L.Lock()
 		for q.size == 0 && !q.closed {
 			q.cond.Wait()
@@ -91,28 +91,32 @@ func (q *msgQueue) run() {
 			q.cond.L.Unlock()
 			return
 		}
-		item := q.q[q.front]
-		q.front = (q.front + 1) % BufferSize
-		q.size--
+		// Drain up to maxDrainBatch items while holding the lock.
+		n := min(q.size, maxDrainBatch)
+		for i := range n {
+			batch[i] = q.q[q.front]
+			q.front = (q.front + 1) % BufferSize
+		}
+		q.size -= n
 		q.cond.L.Unlock()
 
-		// process item without holding lock
-		if item.err == nil {
-			// real message
-			if q.l != nil {
-				q.l(q.ctx, item.msg)
+		// Dispatch each message individually without holding the lock.
+		for i := range n {
+			item := batch[i]
+			if item.err == nil {
+				if q.l != nil {
+					q.l(q.ctx, item.msg)
+					continue
+				}
+				if q.le != nil {
+					q.le(q.ctx, item.msg, nil)
+					continue
+				}
 				continue
 			}
 			if q.le != nil {
-				q.le(q.ctx, item.msg, nil)
-				continue
+				q.le(q.ctx, nil, item.err)
 			}
-			// unhittable
-			continue
-		}
-		// if the listener wants errors, send it.
-		if q.le != nil {
-			q.le(q.ctx, nil, item.err)
 		}
 	}
 }
@@ -232,6 +236,12 @@ type PGPubsub struct {
 // BufferSize is the maximum number of unhandled messages we will buffer
 // for a subscriber before dropping messages.
 const BufferSize = 2048
+
+// maxDrainBatch is the maximum number of messages to drain from the ring
+// buffer per iteration. Batching amortizes the cost of mutex
+// acquire/release and cond.Wait across many messages, improving drain
+// throughput during bursts.
+const maxDrainBatch = 256
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *PGPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
