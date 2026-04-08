@@ -293,6 +293,55 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 		}, resolved)
 	})
 
+	t.Run("CentralKeyDisabledBoundProviderPrefersUserKeyOverStoredKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ownerID := uuid.MustParse("06060606-0606-0606-0606-060606060606")
+		boundProviderID := uuid.MustParse("07070707-0707-0707-0707-070707070707")
+		db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{
+			{
+				ID:              boundProviderID,
+				Provider:        "openai",
+				APIKey:          "stale-bound-key",
+				AllowUserApiKey: true,
+				BaseUrl:         "https://bound.example.com",
+			},
+		}, nil)
+		db.EXPECT().GetUserChatProviderKeys(gomock.Any(), ownerID).Return([]database.UserChatProviderKey{
+			{
+				ChatProviderID: boundProviderID,
+				APIKey:         "user-key",
+			},
+		}, nil)
+
+		server := &Server{
+			db:          db,
+			configCache: newChatConfigCache(context.Background(), db, quartz.NewMock(t)),
+		}
+		resolved := server.resolveProviderAPIKeysForModel(
+			context.Background(),
+			ownerID,
+			database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: boundProviderID, Valid: true},
+			},
+			baseKeys,
+		)
+
+		require.Equal(t, chatprovider.ProviderAPIKeys{
+			OpenAI:    "user-key",
+			Anthropic: "anthropic-key",
+			ByProvider: map[string]string{
+				"openai":    "user-key",
+				"anthropic": "anthropic-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai": "https://bound.example.com",
+			},
+		}, resolved)
+	})
+
 	t.Run("CacheErrorFallsBack", func(t *testing.T) {
 		t.Parallel()
 
@@ -328,10 +377,11 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Valid: true},
 			},
 			enabledProviders: []database.ChatProvider{{
-				ID:       uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-				Provider: "openai",
-				APIKey:   "bound-key",
-				BaseUrl:  "https://bound.example.com",
+				ID:                   uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+				Provider:             "openai",
+				APIKey:               "bound-key",
+				BaseUrl:              "https://bound.example.com",
+				CentralApiKeyEnabled: true,
 			}},
 			want: chatprovider.ProviderAPIKeys{
 				OpenAI:    "bound-key",
@@ -374,18 +424,20 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			},
 			enabledProviders: []database.ChatProvider{
 				{
-					ID:        uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					Provider:  "openai",
-					APIKey:    "older-key",
-					BaseUrl:   "https://older.example.com",
-					CreatedAt: time.Unix(1, 0).UTC(),
+					ID:                   uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Provider:             "openai",
+					APIKey:               "older-key",
+					BaseUrl:              "https://older.example.com",
+					CentralApiKeyEnabled: true,
+					CreatedAt:            time.Unix(1, 0).UTC(),
 				},
 				{
-					ID:        uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					Provider:  "openai",
-					APIKey:    "newer-key",
-					BaseUrl:   "https://newer.example.com",
-					CreatedAt: time.Unix(2, 0).UTC(),
+					ID:                   uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					Provider:             "openai",
+					APIKey:               "newer-key",
+					BaseUrl:              "https://newer.example.com",
+					CentralApiKeyEnabled: true,
+					CreatedAt:            time.Unix(2, 0).UTC(),
 				},
 			},
 			want: chatprovider.ProviderAPIKeys{
@@ -406,10 +458,11 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("12121212-1212-1212-1212-121212121212"), Valid: true},
 			},
 			enabledProviders: []database.ChatProvider{{
-				ID:       uuid.MustParse("12121212-1212-1212-1212-121212121212"),
-				Provider: "openai",
-				APIKey:   "bound-key",
-				BaseUrl:  "   ",
+				ID:                   uuid.MustParse("12121212-1212-1212-1212-121212121212"),
+				Provider:             "openai",
+				APIKey:               "bound-key",
+				BaseUrl:              "   ",
+				CentralApiKeyEnabled: true,
 			}},
 			want: chatprovider.ProviderAPIKeys{
 				OpenAI:    "bound-key",
@@ -422,7 +475,7 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 			},
 		},
 		{
-			name: "CentralKeyDisabledUsesBoundKeyAndBaseURL",
+			name: "CentralKeyDisabledIgnoresStoredBoundKeyAndKeepsBaseURL",
 			model: database.ChatModelConfig{
 				ProviderConfigID: uuid.NullUUID{UUID: uuid.MustParse("abababab-abab-abab-abab-abababababab"), Valid: true},
 			},
@@ -435,10 +488,9 @@ func TestResolveProviderAPIKeysForModel(t *testing.T) {
 				AllowUserApiKey:      true,
 			}},
 			want: chatprovider.ProviderAPIKeys{
-				OpenAI:    "stale-bound-key",
+				OpenAI:    "",
 				Anthropic: "anthropic-key",
 				ByProvider: map[string]string{
-					"openai":    "stale-bound-key",
 					"anthropic": "anthropic-key",
 				},
 				BaseURLByProvider: map[string]string{

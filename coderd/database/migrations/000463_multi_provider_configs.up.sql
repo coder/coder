@@ -9,10 +9,10 @@ ALTER TABLE chat_model_configs DROP CONSTRAINT IF EXISTS chat_model_configs_prov
 ALTER TABLE chat_providers DROP CONSTRAINT IF EXISTS chat_providers_provider_key;
 
 -- Bind each model config to a specific provider config by ID.
--- ON DELETE SET NULL clears the binding when the provider config is deleted,
--- so application code can soft-delete bound models instead of hard-removing them.
+-- Keep this as a plain UUID so soft-deleted model configs preserve their
+-- historical binding after the provider row is hard-deleted.
 ALTER TABLE chat_model_configs
-    ADD COLUMN provider_config_id uuid REFERENCES chat_providers(id) ON DELETE SET NULL;
+    ADD COLUMN provider_config_id uuid;
 
 -- Backfill existing live model configs with the oldest enabled provider
 -- config for their family, matching the precedence rule used at runtime

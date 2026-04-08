@@ -2420,7 +2420,12 @@ func TestDeleteChatProvider(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: chatDeploymentValues(t),
+			Database:         store,
+			Pubsub:           ps,
+		}))
 		user := coderdtest.CreateFirstUser(t, client.Client)
 
 		providerConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Only", nil)
@@ -2434,7 +2439,7 @@ func TestDeleteChatProvider(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		unboundRow, err := db.InsertChatModelConfig(dbauthz.AsSystemRestricted(ctx), database.InsertChatModelConfigParams{
+		unboundRow, err := store.InsertChatModelConfig(dbauthz.AsSystemRestricted(ctx), database.InsertChatModelConfigParams{
 			Provider:             "openai",
 			Model:                "gpt-4o-unbound",
 			DisplayName:          "GPT-4o Unbound",
@@ -2461,6 +2466,21 @@ func TestDeleteChatProvider(t *testing.T) {
 		err = client.DeleteChatProvider(ctx, providerConfig.ID)
 		require.NoError(t, err)
 
+		var deletedProviderConfigID uuid.NullUUID
+		var deleted bool
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT deleted, provider_config_id
+			FROM chat_model_configs
+			WHERE id = $1
+		`, boundModel.ID).Scan(&deleted, &deletedProviderConfigID)
+		require.NoError(t, err)
+		require.True(t, deleted,
+			"bound model row should be soft-deleted in place")
+		require.True(t, deletedProviderConfigID.Valid,
+			"soft-deleted bound model should preserve provider_config_id")
+		require.Equal(t, providerConfig.ID, deletedProviderConfigID.UUID,
+			"soft-deleted bound model should preserve its provider_config_id binding")
+
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		for _, c := range configs {
@@ -2470,7 +2490,7 @@ func TestDeleteChatProvider(t *testing.T) {
 				"unbound model should be soft-deleted after last-provider cleanup")
 		}
 
-		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		storedChat, err := store.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, boundModel.ID, storedChat.LastModelConfigID,
 			"chat history should still reference the soft-deleted bound model")

@@ -4515,8 +4515,8 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Soft-delete model configs bound to this specific provider
-		// config. This preserves tracking data and chat history that
-		// ON DELETE SET NULL would otherwise orphan.
+		// config before hard-deleting the provider. This preserves
+		// tracking data, chat history, and the historical binding.
 		if _, err := tx.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, providerID); err != nil {
 			return xerrors.Errorf("soft-delete bound model configs: %w", err)
 		}

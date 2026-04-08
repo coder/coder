@@ -5073,12 +5073,6 @@ func (p *Server) resolveProviderAPIKeysForModel(
 			return baseKeys
 		}
 		providerAPIKey := resolvedProvider.APIKey(normalizedProvider)
-		// Preserve legacy behavior for direct stored keys even when
-		// central keys are disabled.
-		if !providerConfig.CentralApiKeyEnabled &&
-			strings.TrimSpace(providerConfig.APIKey) != "" {
-			providerAPIKey = providerConfig.APIKey
-		}
 		resolved := setResolvedModelProviderAPIKey(
 			cloneProviderAPIKeys(baseKeys),
 			normalizedProvider,
