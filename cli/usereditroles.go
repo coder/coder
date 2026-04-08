@@ -13,9 +13,9 @@ import (
 
 func (r *RootCmd) userEditRoles() *serpent.Command {
 	var (
-		givenRoles  []string
-		addRoles    []string
-		removeRoles []string
+		replaceRoles []string
+		addRoles     []string
+		removeRoles  []string
 	)
 	cmd := &serpent.Command{
 		Use:   "edit-roles <username|user_id>",
@@ -26,7 +26,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				Name:        "roles",
 				Description: "A list of roles to give to the user. This replaces all existing roles. Use --add or --remove to modify roles incrementally.",
 				Flag:        "roles",
-				Value:       serpent.StringArrayOf(&givenRoles),
+				Value:       serpent.StringArrayOf(&replaceRoles),
 			},
 			{
 				Name:        "add",
@@ -44,7 +44,7 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
 		Handler: func(inv *serpent.Invocation) error {
 			// Validate flag conflicts before any API calls.
-			if len(givenRoles) > 0 && (len(addRoles) > 0 || len(removeRoles) > 0) {
+			if len(replaceRoles) > 0 && (len(addRoles) > 0 || len(removeRoles) > 0) {
 				return xerrors.Errorf("--roles cannot be used with --add or --remove")
 			}
 			for _, role := range addRoles {
@@ -63,32 +63,6 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 			user, err := client.User(ctx, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch user: %w", err)
-			}
-
-			// Pre-flight check: verify the caller has permission to
-			// assign and unassign site roles before we do any further
-			// work.
-			authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{
-				Checks: map[string]codersdk.AuthorizationCheck{
-					"assignRole": {
-						Object: codersdk.AuthorizationObject{
-							ResourceType: codersdk.ResourceAssignRole,
-						},
-						Action: codersdk.ActionAssign,
-					},
-					"unassignRole": {
-						Object: codersdk.AuthorizationObject{
-							ResourceType: codersdk.ResourceAssignRole,
-						},
-						Action: codersdk.ActionUnassign,
-					},
-				},
-			})
-			if err != nil {
-				return xerrors.Errorf("check permissions: %w", err)
-			}
-			if !authResp["assignRole"] || !authResp["unassignRole"] {
-				return xerrors.Errorf("you do not have permission to edit user roles")
 			}
 
 			userRoles, err := client.UserRoles(ctx, user.Username)
@@ -112,26 +86,58 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				for _, role := range addRoles {
 					if !slices.Contains(siteRoleNames, role) {
 						siteRolesPretty := strings.Join(siteRoleNames, ", ")
-						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", role, siteRolesPretty)
+						return xerrors.Errorf("role %q is not valid, assignable roles: %s", role, siteRolesPretty)
 					}
 				}
 				for _, role := range removeRoles {
 					if !slices.Contains(siteRoleNames, role) {
 						siteRolesPretty := strings.Join(siteRoleNames, ", ")
-						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", role, siteRolesPretty)
+						return xerrors.Errorf("role %q is not valid, assignable roles: %s", role, siteRolesPretty)
 					}
 				}
 
-				// Start from the user's current assignable roles,
-				// filtering out implied roles like "member" that
-				// are not real assignable site roles.
-				currentAssignable := make([]string, 0, len(userRoles.Roles))
-				for _, role := range userRoles.Roles {
-					if slices.Contains(siteRoleNames, role) {
-						currentAssignable = append(currentAssignable, role)
+				// Check permissions scoped to the operations
+				// requested: only check assign when adding, only
+				// check unassign when removing.
+				checks := make(map[string]codersdk.AuthorizationCheck)
+				if len(addRoles) > 0 {
+					checks["assignRole"] = codersdk.AuthorizationCheck{
+						Object: codersdk.AuthorizationObject{
+							ResourceType: codersdk.ResourceAssignRole,
+						},
+						Action: codersdk.ActionAssign,
 					}
 				}
-				selectedRoles = append([]string{}, currentAssignable...)
+				if len(removeRoles) > 0 {
+					checks["unassignRole"] = codersdk.AuthorizationCheck{
+						Object: codersdk.AuthorizationObject{
+							ResourceType: codersdk.ResourceAssignRole,
+						},
+						Action: codersdk.ActionUnassign,
+					}
+				}
+				authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{
+					Checks: checks,
+				})
+				if err != nil {
+					return xerrors.Errorf("check permissions: %w", err)
+				}
+				for check, allowed := range authResp {
+					if !allowed {
+						return xerrors.Errorf("you do not have permission to %s", check)
+					}
+				}
+
+				// Start from the user's current roles, filtering
+				// out the implied "member" role which is not a real
+				// assignable site role.
+				currentRoles := make([]string, 0, len(userRoles.Roles))
+				for _, role := range userRoles.Roles {
+					if role != "member" {
+						currentRoles = append(currentRoles, role)
+					}
+				}
+				selectedRoles = append([]string{}, currentRoles...)
 
 				// Apply additions.
 				for _, role := range addRoles {
@@ -141,28 +147,28 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 				}
 
 				// Apply removals.
-				selectedRoles = slices.DeleteFunc(selectedRoles, func(r string) bool {
-					return slices.Contains(removeRoles, r)
+				selectedRoles = slices.DeleteFunc(selectedRoles, func(role string) bool {
+					return slices.Contains(removeRoles, role)
 				})
 
 				// If nothing changed, inform the user and exit early.
 				slices.Sort(selectedRoles)
-				slices.Sort(currentAssignable)
-				if slices.Equal(selectedRoles, currentAssignable) {
+				slices.Sort(currentRoles)
+				if slices.Equal(selectedRoles, currentRoles) {
 					cliui.Infof(inv.Stdout, "No role changes required; the user already has the desired roles.")
 					return nil
 				}
 
-			case len(givenRoles) > 0:
+			case len(replaceRoles) > 0:
 				// Make sure all of the given roles are valid site roles
-				for _, givenRole := range givenRoles {
-					if !slices.Contains(siteRoleNames, givenRole) {
+				for _, replaceRole := range replaceRoles {
+					if !slices.Contains(siteRoleNames, replaceRole) {
 						siteRolesPretty := strings.Join(siteRoleNames, ", ")
-						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", givenRole, siteRolesPretty)
+						return xerrors.Errorf("The role %s is not valid. Please use one or more of the following roles: %s\n", replaceRole, siteRolesPretty)
 					}
 				}
 
-				selectedRoles = givenRoles
+				selectedRoles = replaceRoles
 
 			default:
 				selectedRoles, err = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
