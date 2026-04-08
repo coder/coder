@@ -42,11 +42,14 @@ import {
 import { cn } from "#/utils/cn";
 import { BackButton } from "./BackButton";
 import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
+import {
+	effectiveSecretValue,
+	SECRET_PLACEHOLDER,
+	SecretInput,
+} from "./SecretInput";
 import { SectionHeader } from "./SectionHeader";
 
 // ── Constants ──────────────────────────────────────────────────
-
-const SECRET_PLACEHOLDER = "••••••••••••••••";
 
 const TRANSPORT_OPTIONS = [
 	{ value: "streamable_http", label: "Streamable HTTP" },
@@ -297,15 +300,14 @@ const ServerForm: FC<ServerFormProps> = ({
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialValues(server),
 		onSubmit: async (values) => {
-			const effectiveOAuth2Secret =
-				values.oauth2SecretTouched &&
-				values.oauth2ClientSecret !== SECRET_PLACEHOLDER
-					? values.oauth2ClientSecret
-					: undefined;
-			const effectiveApiKeyValue =
-				values.apiKeyTouched && values.apiKeyValue !== SECRET_PLACEHOLDER
-					? values.apiKeyValue
-					: undefined;
+			const effectiveOAuth2Secret = effectiveSecretValue(
+				values.oauth2ClientSecret,
+				values.oauth2SecretTouched,
+			);
+			const effectiveApiKeyValue = effectiveSecretValue(
+				values.apiKeyValue,
+				values.apiKeyTouched,
+			);
 
 			const req: TypesGen.CreateMCPServerConfigRequest = {
 				display_name: values.displayName.trim(),
@@ -543,28 +545,13 @@ const ServerForm: FC<ServerFormProps> = ({
 									/>
 								</Field>
 								<Field label="Client Secret" htmlFor={`${formId}-oauth-secret`}>
-									<Input
+									<SecretInput
 										id={`${formId}-oauth-secret`}
-										className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
-										type="text"
-										autoComplete="off"
-										data-1p-ignore
-										data-lpignore="true"
-										data-form-type="other"
-										data-bwignore
 										value={form.values.oauth2ClientSecret}
-										onChange={(e) => {
-											form.setFieldValue("oauth2SecretTouched", true);
-											form.setFieldValue("oauth2ClientSecret", e.target.value);
-										}}
-										onFocus={() => {
-											if (
-												!form.values.oauth2SecretTouched &&
-												form.values.oauth2ClientSecret === SECRET_PLACEHOLDER
-											) {
-												form.setFieldValue("oauth2ClientSecret", "");
-												form.setFieldValue("oauth2SecretTouched", true);
-											}
+										touched={form.values.oauth2SecretTouched}
+										onValueChange={(v, t) => {
+											form.setFieldValue("oauth2ClientSecret", v);
+											form.setFieldValue("oauth2SecretTouched", t);
 										}}
 										disabled={isDisabled}
 									/>
@@ -616,28 +603,13 @@ const ServerForm: FC<ServerFormProps> = ({
 								/>
 							</Field>
 							<Field label="API Key" htmlFor={`${formId}-apikey-value`}>
-								<Input
+								<SecretInput
 									id={`${formId}-apikey-value`}
-									className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
-									type="text"
-									autoComplete="off"
-									data-1p-ignore
-									data-lpignore="true"
-									data-form-type="other"
-									data-bwignore
 									value={form.values.apiKeyValue}
-									onChange={(e) => {
-										form.setFieldValue("apiKeyTouched", true);
-										form.setFieldValue("apiKeyValue", e.target.value);
-									}}
-									onFocus={() => {
-										if (
-											!form.values.apiKeyTouched &&
-											form.values.apiKeyValue === SECRET_PLACEHOLDER
-										) {
-											form.setFieldValue("apiKeyValue", "");
-											form.setFieldValue("apiKeyTouched", true);
-										}
+									touched={form.values.apiKeyTouched}
+									onValueChange={(v, t) => {
+										form.setFieldValue("apiKeyValue", v);
+										form.setFieldValue("apiKeyTouched", t);
 									}}
 									disabled={isDisabled}
 								/>

@@ -9,11 +9,13 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	effectiveSecretValue,
+	SECRET_PLACEHOLDER,
+	SecretInput,
+} from "./components/SecretInput";
 import { SectionHeader } from "./components/SectionHeader";
-
-const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
 type ProviderStatus = {
 	label: string;
@@ -69,7 +71,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 }) => {
 	const apiKeyInputId = useId();
 	const [apiKey, setApiKey] = useState(
-		provider.has_user_api_key ? API_KEY_PLACEHOLDER : "",
+		provider.has_user_api_key ? SECRET_PLACEHOLDER : "",
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -78,30 +80,19 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	const enabledModels = models.filter((model) => {
 		return model.enabled && model.provider === provider.provider;
 	});
-	const trimmedApiKey = apiKey.trim();
-	const saveDisabled =
-		trimmedApiKey.length === 0 ||
-		apiKey === API_KEY_PLACEHOLDER ||
-		isSaving ||
-		isRemoving;
+	const resolvedApiKey = effectiveSecretValue(apiKey, apiKeyTouched);
+	const saveDisabled = !resolvedApiKey || isSaving || isRemoving;
 	const inputDisabled = isSaving || isRemoving;
 	const providerName = provider.display_name || provider.provider;
-
-	const handleApiKeyFocus = () => {
-		if (!apiKeyTouched && apiKey === API_KEY_PLACEHOLDER) {
-			setApiKey("");
-			setApiKeyTouched(true);
-		}
-	};
 
 	const handleSave = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 
-		if (saveDisabled) {
+		if (saveDisabled || !resolvedApiKey) {
 			return;
 		}
 
-		onSave(provider.provider_id, trimmedApiKey);
+		onSave(provider.provider_id, resolvedApiKey);
 	};
 
 	const handleRemoveKey = () => {
@@ -136,22 +127,16 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 					API Key
 				</label>
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<Input
+					<SecretInput
 						id={apiKeyInputId}
 						name={`provider-api-key-${provider.provider_id}`}
-						type="password"
-						autoComplete="off"
-						data-1p-ignore
-						data-lpignore="true"
-						data-form-type="other"
-						data-bwignore
-						className="h-9 font-mono text-[13px] lg:flex-1"
+						className="lg:flex-1"
 						placeholder="sk-..."
 						value={apiKey}
-						onFocus={handleApiKeyFocus}
-						onChange={(event) => {
-							setApiKey(event.target.value);
-							setApiKeyTouched(true);
+						touched={apiKeyTouched}
+						onValueChange={(v, t) => {
+							setApiKey(v);
+							setApiKeyTouched(t);
 						}}
 						disabled={inputDisabled}
 					/>

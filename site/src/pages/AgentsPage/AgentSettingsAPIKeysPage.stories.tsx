@@ -114,7 +114,7 @@ export const MasksApiKeyInput: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByLabelText(/API Key/i)).toHaveAttribute(
 			"type",
-			"password",
+			"text",
 		);
 	},
 };

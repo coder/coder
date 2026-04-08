@@ -1,6 +1,5 @@
 import { InfoIcon } from "lucide-react";
 import {
-	type CSSProperties,
 	type FC,
 	type FormEvent,
 	type ReactNode,
@@ -28,15 +27,15 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { BackButton } from "../BackButton";
+import {
+	effectiveSecretValue,
+	SECRET_PLACEHOLDER,
+	SecretInput,
+} from "../SecretInput";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
 import { normalizeProviderPolicyDefaults } from "./providerPolicyDefaults";
-
-// Sentinel value used to represent an existing API key that the
-// backend will not reveal. If the user has not touched the field,
-// we know nothing changed.
-const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
 interface ProviderFormProps {
 	providerState: ProviderState;
@@ -92,7 +91,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	const [displayName, setDisplayName] = useState(initialValues.displayName);
 	const [apiKey, setApiKey] = useState(
-		providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
+		providerState.hasManagedAPIKey ? SECRET_PLACEHOLDER : "",
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
@@ -124,8 +123,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		centralAPIKeyEnabled &&
 		!providerState.hasManagedAPIKey;
 
-	const effectiveApiKey =
-		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
+	const effectiveApiKey = effectiveSecretValue(apiKey, apiKeyTouched) ?? "";
 	const hasCredentialSource = centralAPIKeyEnabled || allowUserAPIKey;
 	const deleteProviderDescription = normalizedProviderConfig?.allow_user_api_key
 		? "Are you sure you want to delete this provider? Any personal API " +
@@ -225,16 +223,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 
 		setApiKeyTouched(false);
-		setApiKey(API_KEY_PLACEHOLDER);
-	};
-
-	const handleApiKeyFocus = () => {
-		// Clear the placeholder on first focus so the user starts
-		// with a blank field and Chrome does not try to autofill.
-		if (!apiKeyTouched && apiKey === API_KEY_PLACEHOLDER) {
-			setApiKey("");
-			setApiKeyTouched(true);
-		}
+		setApiKey(SECRET_PLACEHOLDER);
 	};
 
 	const isDisabled = providerConfigsUnavailable || isProviderMutationPending;
@@ -290,24 +279,16 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required={requiresAPIKey}
 								description="Secret key used to authenticate requests to this provider."
 							>
-								<Input
+								<SecretInput
 									id={apiKeyInputId}
 									name="provider_api_token"
-									type="password"
-									autoComplete="off"
-									data-1p-ignore
-									data-lpignore="true"
-									data-form-type="other"
-									data-bwignore
-									style={{ WebkitTextSecurity: "disc" } as CSSProperties}
-									className="h-9 font-mono text-[13px]"
 									placeholder="sk-..."
 									required={requiresAPIKey}
 									value={apiKey}
-									onFocus={handleApiKeyFocus}
-									onChange={(event) => {
-										setApiKey(event.target.value);
-										setApiKeyTouched(true);
+									touched={apiKeyTouched}
+									onValueChange={(v, t) => {
+										setApiKey(v);
+										setApiKeyTouched(t);
 									}}
 									disabled={isDisabled}
 								/>

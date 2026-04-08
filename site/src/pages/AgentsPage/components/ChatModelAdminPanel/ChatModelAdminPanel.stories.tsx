@@ -716,7 +716,7 @@ export const ProviderApiKeyInputMasked: Story = {
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await expect(await body.findByLabelText(/^API Key$/i)).toHaveAttribute(
 			"type",
-			"password",
+			"text",
 		);
 	},
 };
