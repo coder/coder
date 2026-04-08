@@ -4,6 +4,7 @@ import (
 	"context"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -99,6 +100,15 @@ func (m *expChatsTUIModel) resetChatSession() {
 	m.chat.chatGeneration = m.chatGeneration
 }
 
+func (m *expChatsTUIModel) setRenderer(renderer *lipgloss.Renderer) {
+	styles := newTUIStyles(renderer)
+	m.styles = styles
+	m.list.styles = styles
+	m.list.spinner.Style = styles.dimmedText
+	m.chat.styles = styles
+	m.chat.spinner.Style = styles.dimmedText
+}
+
 func (m expChatsTUIModel) Init() tea.Cmd {
 	if m.initialChatID != nil {
 		m.chat.activeChatID = *m.initialChatID
@@ -148,6 +158,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.currentView == viewChat {
 				m.chatGeneration++
+				m.chat.chatGeneration = m.chatGeneration
 				m.chat.stopStream()
 				m.currentView = viewList
 				m.list.loading = true

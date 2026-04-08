@@ -51,6 +51,7 @@ func newChatListModel(styles tuiStyles) chatListModel {
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
+	s.Style = styles.dimmedText
 
 	return chatListModel{
 		styles:   styles,
@@ -91,31 +92,43 @@ func (m chatListModel) displayRows() []chatDisplayRow {
 		return nil
 	}
 
-	matched := make(map[uuid.UUID]struct{}, len(filtered))
-	childrenOf := make(map[uuid.UUID][]codersdk.Chat)
+	queryActive := m.searchQuery() != ""
+	chatsByID := make(map[uuid.UUID]codersdk.Chat, len(m.chats))
+	included := make(map[uuid.UUID]struct{}, len(filtered))
+	for _, chat := range m.chats {
+		chatsByID[chat.ID] = chat
+	}
 	for _, chat := range filtered {
-		matched[chat.ID] = struct{}{}
-		if chat.ParentChatID != nil {
+		included[chat.ID] = struct{}{}
+		if !queryActive {
+			continue
+		}
+		for parentID := chat.ParentChatID; parentID != nil; {
+			parent, ok := chatsByID[*parentID]
+			if !ok {
+				break
+			}
+			included[parent.ID] = struct{}{}
+			parentID = parent.ParentChatID
+		}
+	}
+
+	childrenOf := make(map[uuid.UUID][]codersdk.Chat)
+	roots := make([]codersdk.Chat, 0, len(included))
+	for _, chat := range m.chats {
+		if _, ok := included[chat.ID]; !ok {
+			continue
+		}
+		if chat.ParentChatID == nil {
+			roots = append(roots, chat)
+			continue
+		}
+		if _, ok := included[*chat.ParentChatID]; ok {
 			childrenOf[*chat.ParentChatID] = append(childrenOf[*chat.ParentChatID], chat)
 		}
 	}
 
-	roots := make([]codersdk.Chat, 0, len(filtered))
-	for _, chat := range m.chats {
-		if chat.ParentChatID != nil {
-			continue
-		}
-		if _, ok := matched[chat.ID]; ok {
-			roots = append(roots, chat)
-			continue
-		}
-		if len(childrenOf[chat.ID]) > 0 {
-			roots = append(roots, chat)
-		}
-	}
-
-	rows := make([]chatDisplayRow, 0, len(filtered))
-	queryActive := m.searchQuery() != ""
+	rows := make([]chatDisplayRow, 0, len(included))
 	var appendRows func(codersdk.Chat, int)
 	appendRows = func(chat codersdk.Chat, depth int) {
 		children := childrenOf[chat.ID]

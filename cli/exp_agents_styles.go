@@ -31,32 +31,37 @@ type tuiStyles struct {
 	composerStyle lipgloss.Style
 }
 
-func newTUIStyles() tuiStyles {
+func newTUIStyles(renderers ...*lipgloss.Renderer) tuiStyles {
+	renderer := lipgloss.DefaultRenderer()
+	if len(renderers) > 0 && renderers[0] != nil {
+		renderer = renderers[0]
+	}
+
 	return tuiStyles{
-		title:        lipgloss.NewStyle().Bold(true),
-		subtitle:     lipgloss.NewStyle().Faint(true),
-		statusBar:    lipgloss.NewStyle(),
-		statusBadge:  lipgloss.NewStyle().Padding(0, 1),
-		selectedItem: lipgloss.NewStyle().Bold(true),
-		normalItem:   lipgloss.NewStyle(),
-		dimmedText:   lipgloss.NewStyle().Faint(true),
-		errorText:    lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
-		searchInput: lipgloss.NewStyle().
+		title:        renderer.NewStyle().Bold(true),
+		subtitle:     renderer.NewStyle().Faint(true),
+		statusBar:    renderer.NewStyle(),
+		statusBadge:  renderer.NewStyle().Padding(0, 1),
+		selectedItem: renderer.NewStyle().Bold(true),
+		normalItem:   renderer.NewStyle(),
+		dimmedText:   renderer.NewStyle().Faint(true),
+		errorText:    renderer.NewStyle().Foreground(lipgloss.Color("1")),
+		searchInput: renderer.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderBottom(true),
-		separator:     lipgloss.NewStyle().Faint(true),
-		helpText:      lipgloss.NewStyle().Faint(true),
-		userMessage:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6")),
-		assistantMsg:  lipgloss.NewStyle(),
-		reasoning:     lipgloss.NewStyle().Faint(true).Italic(true),
-		toolCallStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
-		toolPending:   lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("3")),
-		toolSuccess:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
-		compaction:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5")),
-		warningText:   lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
-		criticalText:  lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),
-		overlayBorder: lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).Padding(1),
-		composerStyle: lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderTop(true),
+		separator:     renderer.NewStyle().Faint(true),
+		helpText:      renderer.NewStyle().Faint(true),
+		userMessage:   renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("6")),
+		assistantMsg:  renderer.NewStyle(),
+		reasoning:     renderer.NewStyle().Faint(true).Italic(true),
+		toolCallStyle: renderer.NewStyle().Foreground(lipgloss.Color("3")),
+		toolPending:   renderer.NewStyle().Faint(true).Foreground(lipgloss.Color("3")),
+		toolSuccess:   renderer.NewStyle().Foreground(lipgloss.Color("2")),
+		compaction:    renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("5")),
+		warningText:   renderer.NewStyle().Foreground(lipgloss.Color("3")),
+		criticalText:  renderer.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),
+		overlayBorder: renderer.NewStyle().BorderStyle(lipgloss.RoundedBorder()).Padding(1),
+		composerStyle: renderer.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderTop(true),
 	}
 }
 

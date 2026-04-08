@@ -137,13 +137,14 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 			// Set an explicit color profile before Bubble Tea acquires the
 			// terminal so lipgloss/termenv don't send OSC color queries that
 			// can leak back into stdin as literal input in some terminals.
-			lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(
+			renderer := lipgloss.NewRenderer(
 				inv.Stdout,
 				termenv.WithProfile(termenv.TrueColor),
-			))
-			lipgloss.SetHasDarkBackground(true)
+			)
+			renderer.SetHasDarkBackground(true)
 
 			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID)
+			model.setRenderer(renderer)
 			program := tea.NewProgram(
 				model,
 				tea.WithAltScreen(),

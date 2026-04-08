@@ -98,9 +98,38 @@ func TestExpAgents(t *testing.T) {
 			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, uint64(5), updated.chatGeneration)
-			require.Equal(t, uint64(4), updated.chat.chatGeneration)
-			require.False(t, updated.chat.matchesGeneration(updated.chatGeneration))
+			require.Equal(t, uint64(5), updated.chat.chatGeneration)
+			require.True(t, updated.chat.matchesGeneration(updated.chatGeneration))
 			require.NotNil(t, cmd)
+		})
+
+		t.Run("EscFromChatViewRejectsLateChatLoadMessages", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayNone
+			model.chatGeneration = 4
+			model.chat.chatGeneration = 4
+			model.chat.chat = &codersdk.Chat{ID: uuid.New(), Title: "current chat"}
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.NotNil(t, cmd)
+
+			staleChat := codersdk.Chat{ID: uuid.New(), Title: "stale chat"}
+			updatedModel, cmd = updated.Update(chatOpenedMsg{generation: 4, chatID: staleChat.ID, chat: staleChat})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, "current chat", updated.chat.chat.Title)
+
+			staleMessages := []codersdk.ChatMessage{testMessage(
+				1,
+				codersdk.ChatMessageRoleUser,
+				codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "stale"},
+			)}
+			updatedModel, cmd = updated.Update(chatHistoryMsg{generation: 4, chatID: staleChat.ID, messages: staleMessages})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Empty(t, updated.chat.messages)
 		})
 
 		t.Run("EscFromSearchClearsFilterBeforeQuit", func(t *testing.T) {
@@ -2480,6 +2509,35 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, rows[0].isExpanded)
 			require.Equal(t, child.ID, rows[1].chat.ID)
 			require.True(t, rows[1].isSubagent)
+		})
+
+		t.Run("SearchIncludesAncestorChainForMatchingGrandchild", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			root := testChat(codersdk.ChatStatusRunning)
+			root.Title = "Root chat"
+			child := testChat(codersdk.ChatStatusWaiting)
+			child.Title = "Child subagent"
+			child.ParentChatID = &root.ID
+			grandchild := testChat(codersdk.ChatStatusPending)
+			grandchild.Title = "Grandchild needle"
+			grandchild.ParentChatID = &child.ID
+			other := testChat(codersdk.ChatStatusCompleted)
+			other.Title = "Other root"
+			model.chats = []codersdk.Chat{root, child, grandchild, other}
+			model.search.SetValue("needle")
+
+			rows := model.displayRows()
+			require.Len(t, rows, 3)
+			require.Equal(t, root.ID, rows[0].chat.ID)
+			require.True(t, rows[0].isExpanded)
+			require.Equal(t, child.ID, rows[1].chat.ID)
+			require.True(t, rows[1].isExpanded)
+			require.Equal(t, grandchild.ID, rows[2].chat.ID)
+			require.Equal(t, 2, rows[2].depth)
 		})
 
 		t.Run("DisplayRowsRenderNestedSubagentsRecursively", func(t *testing.T) {

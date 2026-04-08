@@ -167,6 +167,7 @@ func newChatViewModel(
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
+	s.Style = styles.dimmedText
 
 	model := chatViewModel{
 		ctx:              ctx,
