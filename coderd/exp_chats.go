@@ -4138,7 +4138,6 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	effectiveKeys, err := api.effectiveChatProviderAPIKeys(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4151,15 +4150,12 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	supportedProviders := chatprovider.SupportedProviders()
 	resp := make([]codersdk.ChatProviderConfig, 0, len(normalizedProviders)+len(supportedProviders))
 	for _, provider := range normalizedProviders {
-		hasEffectiveAPIKey := effectiveChatProviderConfigHasAPIKey(
-			provider,
-			deploymentKeys,
-		)
+		hasAPIKey, hasEffectiveAPIKey := chatProviderConfigKeyBooleans(provider, effectiveKeys)
 		resp = append(
 			resp,
 			convertChatProviderConfig(
 				provider,
-				chatProviderConfigHasAPIKey(provider),
+				hasAPIKey,
 				hasEffectiveAPIKey,
 				codersdk.ChatProviderConfigSourceDatabase,
 			),
@@ -4309,13 +4305,14 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
 
-	if _, effectiveKeysErr := api.effectiveChatProviderAPIKeys(ctx); effectiveKeysErr != nil {
+	effectiveKeys, effectiveKeysErr := api.effectiveChatProviderAPIKeys(ctx)
+	if effectiveKeysErr != nil {
 		api.Logger.Warn(ctx, "failed to compute effective API keys",
 			slog.Error(effectiveKeysErr),
 		)
 	}
 
-	hasEffectiveAPIKey := effectiveChatProviderConfigHasAPIKey(inserted, chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues))
+	hasAPIKey, hasEffectiveAPIKey := chatProviderConfigKeyBooleans(inserted, effectiveKeys)
 
 	httpapi.Write(
 		ctx,
@@ -4323,7 +4320,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		http.StatusCreated,
 		convertChatProviderConfig(
 			inserted,
-			inserted.CentralApiKeyEnabled && chatProviderConfigHasAPIKey(inserted),
+			hasAPIKey,
 			hasEffectiveAPIKey,
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
@@ -4452,11 +4449,12 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
 
-	if _, effectiveKeysErr := api.effectiveChatProviderAPIKeys(ctx); effectiveKeysErr != nil {
+	effectiveKeys, effectiveKeysErr := api.effectiveChatProviderAPIKeys(ctx)
+	if effectiveKeysErr != nil {
 		api.Logger.Warn(ctx, "failed to compute effective API keys", slog.Error(effectiveKeysErr))
 	}
 
-	hasEffectiveAPIKey := effectiveChatProviderConfigHasAPIKey(updated, chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues))
+	hasAPIKey, hasEffectiveAPIKey := chatProviderConfigKeyBooleans(updated, effectiveKeys)
 
 	httpapi.Write(
 		ctx,
@@ -4464,7 +4462,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		http.StatusOK,
 		convertChatProviderConfig(
 			updated,
-			updated.CentralApiKeyEnabled && chatProviderConfigHasAPIKey(updated),
+			hasAPIKey,
 			hasEffectiveAPIKey,
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
@@ -5480,8 +5478,8 @@ func filterUserVisibleChatModelConfigs(
 		defaultProviderByFamily[chatprovider.NormalizeProvider(provider.Provider)] = provider
 	}
 	providerVisible := func(provider database.ChatProvider) bool {
-		return provider.AllowUserApiKey ||
-			effectiveChatProviderConfigHasAPIKey(provider, defaultKeys)
+		_, hasEffective := chatProviderConfigKeyBooleans(provider, defaultKeys)
+		return provider.AllowUserApiKey || hasEffective
 	}
 	return slices.DeleteFunc(configs, func(config database.ChatModelConfig) bool {
 		if config.ProviderConfigID.Valid {
@@ -5850,6 +5848,14 @@ func effectiveChatProviderConfigHasAPIKey(provider database.ChatProvider, fallba
 		return false
 	}
 	return chatprovider.MergeProviderAPIKeys(fallback, []chatprovider.ConfiguredProvider{{Provider: provider.Provider, APIKey: chatProviderCentralAPIKey(provider), BaseURL: provider.BaseUrl}}).APIKey(normalizedProvider) != ""
+}
+
+func chatProviderConfigKeyBooleans(
+	provider database.ChatProvider,
+	familyKeys chatprovider.ProviderAPIKeys,
+) (hasAPIKey, hasEffectiveAPIKey bool) {
+	return chatProviderConfigHasAPIKey(provider),
+		effectiveChatProviderConfigHasAPIKey(provider, familyKeys)
 }
 
 func chatProviderConfigHasAPIKey(provider database.ChatProvider) bool {
