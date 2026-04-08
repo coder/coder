@@ -1596,16 +1596,12 @@ func (p *Server) SubmitToolResults(
 	ctx context.Context,
 	opts SubmitToolResultsOptions,
 ) error {
-	// Build the set of dynamic tool names.
-	var dynamicTools []codersdk.DynamicTool
-	if len(opts.DynamicTools) > 0 {
-		if err := json.Unmarshal(opts.DynamicTools, &dynamicTools); err != nil {
-			return xerrors.Errorf("parse chat dynamic tools: %w", err)
-		}
-	}
-	dynamicToolNames := make(map[string]bool, len(dynamicTools))
-	for _, dt := range dynamicTools {
-		dynamicToolNames[dt.Name] = true
+	dynamicToolNames, err := parseDynamicToolNames(pqtype.NullRawMessage{
+		RawMessage: opts.DynamicTools,
+		Valid:      len(opts.DynamicTools) > 0,
+	})
+	if err != nil {
+		return xerrors.Errorf("parse chat dynamic tools: %w", err)
 	}
 
 	// The GetLastChatMessageByRole lookup and all subsequent
@@ -1635,15 +1631,47 @@ func (p *Server) SubmitToolResults(
 			return xerrors.Errorf("get last assistant message: %w", err)
 		}
 
-		// Extract pending dynamic tool-call IDs.
+		// Collect tool-call IDs that already have results.
+		// When a dynamic tool name collides with a built-in,
+		// the chatloop executes it as a built-in and persists
+		// the result. Those calls must not count as pending.
+		afterMsgs, afterErr := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  opts.ChatID,
+			AfterID: lastAssistant.ID,
+		})
+		if afterErr != nil {
+			return xerrors.Errorf("get messages after assistant: %w", afterErr)
+		}
+		handledCallIDs := make(map[string]bool)
+		for _, msg := range afterMsgs {
+			if msg.Role != database.ChatMessageRoleTool {
+				continue
+			}
+			msgParts, msgParseErr := chatprompt.ParseContent(msg)
+			if msgParseErr != nil {
+				continue
+			}
+			for _, mp := range msgParts {
+				if mp.Type == codersdk.ChatMessagePartTypeToolResult {
+					handledCallIDs[mp.ToolCallID] = true
+				}
+			}
+		}
+
+		// Extract pending dynamic tool-call IDs, skipping any
+		// that were already handled by the chatloop.
 		pendingCallIDs := make(map[string]bool)
+		toolCallIDToName := make(map[string]string)
 		parts, parseErr := chatprompt.ParseContent(lastAssistant)
 		if parseErr != nil {
 			return xerrors.Errorf("parse assistant message: %w", parseErr)
 		}
 		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeToolCall && dynamicToolNames[part.ToolName] {
+			if part.Type == codersdk.ChatMessagePartTypeToolCall &&
+				dynamicToolNames[part.ToolName] &&
+				!handledCallIDs[part.ToolCallID] {
 				pendingCallIDs[part.ToolCallID] = true
+				toolCallIDToName[part.ToolCallID] = part.ToolName
 			}
 		}
 
@@ -1687,6 +1715,7 @@ func (p *Server) SubmitToolResults(
 			part := codersdk.ChatMessagePart{
 				Type:       codersdk.ChatMessagePartTypeToolResult,
 				ToolCallID: result.ToolCallID,
+				ToolName:   toolCallIDToName[result.ToolCallID],
 				Result:     json.RawMessage(result.Output),
 				IsError:    result.IsError,
 			}
@@ -1768,10 +1797,22 @@ func (p *Server) InterruptChat(
 	// before transitioning to waiting. Without this, the LLM
 	// would see unmatched tool-call parts on the next run.
 	if chat.Status == database.ChatStatusRequiresAction {
-		if err := p.insertSyntheticToolResults(ctx, chat, "Tool execution interrupted by user"); err != nil {
+		if txErr := p.db.InTx(func(tx database.Store) error {
+			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
+			if lockErr != nil {
+				return xerrors.Errorf("lock chat for interrupt: %w", lockErr)
+			}
+			// Another request may have already transitioned
+			// the chat (e.g. SubmitToolResults committed
+			// between our snapshot and this lock).
+			if locked.Status != database.ChatStatusRequiresAction {
+				return nil
+			}
+			return insertSyntheticToolResultsTx(ctx, tx, locked, "Tool execution interrupted by user")
+		}, nil); txErr != nil {
 			p.logger.Error(ctx, "failed to insert synthetic tool results during interrupt",
 				slog.F("chat_id", chat.ID),
-				slog.Error(err),
+				slog.Error(txErr),
 			)
 			// Fall through — still try to set waiting status.
 		}
@@ -1786,14 +1827,6 @@ func (p *Server) InterruptChat(
 		return chat
 	}
 	return updatedChat
-}
-
-// insertSyntheticToolResults inserts error tool-result messages for
-// every pending dynamic tool call in the last assistant message.
-// This ensures the LLM conversation stays well-formed when a chat
-// is interrupted while in requires_action status.
-func (p *Server) insertSyntheticToolResults(ctx context.Context, chat database.Chat, reason string) error {
-	return insertSyntheticToolResultsTx(ctx, p.db, chat, reason)
 }
 
 const manualTitleMessageWindowLimit = 50
@@ -4985,19 +5018,18 @@ func (p *Server) runChat(
 	// creation time. These appear in the LLM's tool list but
 	// are never executed by the chatloop — the client handles
 	// execution via POST /tool-results.
+	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
+	if err != nil {
+		return result, xerrors.Errorf("parse dynamic tool names: %w", err)
+	}
+	// Unmarshal the full definitions separately so we can
+	// build the filtered list below. parseDynamicToolNames
+	// already validated the JSON, so this cannot fail.
 	var dynamicToolDefs []codersdk.DynamicTool
-
 	if chat.DynamicTools.Valid {
 		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
 			return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
 		}
-	}
-	// Check for name collisions between dynamic tools and
-	// built-in/MCP tools before appending. Built-in tools
-	// always take precedence.
-	dynamicToolNames := make(map[string]bool, len(dynamicToolDefs))
-	for _, dt := range dynamicToolDefs {
-		dynamicToolNames[dt.Name] = true
 	}
 	for _, t := range tools {
 		info := t.Info()
@@ -5058,7 +5090,7 @@ func (p *Server) runChat(
 		)
 		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
 	}
-	err := chatloop.Run(ctx, chatloop.RunOptions{
+	err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
@@ -5886,19 +5918,12 @@ func insertSyntheticToolResultsTx(
 	chat database.Chat,
 	reason string,
 ) error {
-	// Build set of dynamic tool names from the chat.
-	var dynamicTools []codersdk.DynamicTool
-	if chat.DynamicTools.Valid && len(chat.DynamicTools.RawMessage) > 0 {
-		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicTools); err != nil {
-			return xerrors.Errorf("unmarshal dynamic tools: %w", err)
-		}
+	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
+	if err != nil {
+		return xerrors.Errorf("parse dynamic tools: %w", err)
 	}
-	if len(dynamicTools) == 0 {
+	if len(dynamicToolNames) == 0 {
 		return nil
-	}
-	dynamicToolNames := make(map[string]bool, len(dynamicTools))
-	for _, dt := range dynamicTools {
-		dynamicToolNames[dt.Name] = true
 	}
 
 	// Get the last assistant message to find pending tool calls.
@@ -5975,6 +6000,24 @@ func insertSyntheticToolResultsTx(
 	}
 
 	return nil
+}
+
+// parseDynamicToolNames unmarshals the dynamic tools JSON column
+// and returns a map of tool names. This centralizes the repeated
+// pattern of deserializing DynamicTools into a name set.
+func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return make(map[string]bool), nil
+	}
+	var tools []codersdk.DynamicTool
+	if err := json.Unmarshal(raw.RawMessage, &tools); err != nil {
+		return nil, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+	}
+	names := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		names[t.Name] = true
+	}
+	return names, nil
 }
 
 // maybeSendPushNotification sends a web push notification when an

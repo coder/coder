@@ -2411,11 +2411,8 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 		unexpectedErrors = make(chan error, numGoroutines)
 	)
 
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func() {
-			defer wg.Done()
-
+	for range numGoroutines {
+		wg.Go(func() {
 			// Wait for all goroutines to be ready.
 			<-ready
 
@@ -2443,7 +2440,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 			// outside the goroutine (require.NoError
 			// calls t.FailNow which is illegal here).
 			unexpectedErrors <- submitErr
-		}()
+		})
 	}
 	// Release all goroutines at once.
 	close(ready)

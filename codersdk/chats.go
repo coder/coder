@@ -1046,8 +1046,9 @@ type DynamicToolResponse struct {
 type DynamicTool struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	// InputSchema uses snake_case for SDK consistency, deviating
-	// from the camelCase convention used by MCP.
+	// InputSchema's JSON key "input_schema" uses snake_case for
+	// SDK consistency, deviating from the camelCase "inputSchema"
+	// convention used by MCP.
 	InputSchema json.RawMessage `json:"input_schema"`
 
 	// Handler executes the tool when the LLM invokes it.

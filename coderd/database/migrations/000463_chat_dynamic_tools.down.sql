@@ -1,6 +1,6 @@
 -- First update any rows using the value we're about to remove.
 -- The column type is still the original chat_status at this point.
-UPDATE chats SET status = 'pending' WHERE status = 'requires_action';
+UPDATE chats SET status = 'error' WHERE status = 'requires_action';
 
 -- Drop the column (this is independent of the enum).
 ALTER TABLE chats DROP COLUMN IF EXISTS dynamic_tools;

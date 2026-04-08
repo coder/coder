@@ -5861,9 +5861,12 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 				Detail:  validationErr.Detail,
 			})
 		default:
+			api.Logger.Error(ctx, "tool results submission failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to submit tool results.",
-				Detail:  err.Error(),
+				Message: "Internal error submitting tool results.",
 			})
 		}
 		return
