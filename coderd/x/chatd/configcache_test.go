@@ -160,6 +160,123 @@ func TestConfigCache_EnabledProviders_Invalidation(t *testing.T) {
 	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
 }
 
+func TestConfigCache_EnabledProviderByID_WarmCacheHit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	providerA := testChatProvider("provider-a")
+	providerA.ID = uuid.MustParse("00000000-0000-0000-0000-000000000011")
+	providerB := testChatProvider("provider-b")
+	providerB.ID = uuid.MustParse("00000000-0000-0000-0000-000000000012")
+	store := &stubChatConfigStore{
+		getEnabledChatProviders: func(context.Context) ([]database.ChatProvider, error) {
+			return []database.ChatProvider{providerA, providerB}, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	_, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+
+	provider, ok, err := cache.EnabledProviderByID(ctx, providerB.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, providerB, provider)
+	require.Equal(t, int32(1), store.enabledProvidersCalls.Load())
+}
+
+func TestConfigCache_EnabledProviderByID_TTLExpiryRefreshesSliceAndIndex(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	providerID := uuid.MustParse("00000000-0000-0000-0000-000000000021")
+	store := &stubChatConfigStore{}
+	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+		call := store.enabledProvidersCalls.Load()
+		provider := testChatProvider(fmt.Sprintf("provider-%d", call))
+		provider.ID = providerID
+		return []database.ChatProvider{provider}, nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	firstProviders, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+
+	clock.Advance(chatConfigProvidersTTL).MustWait(ctx)
+
+	provider, ok, err := cache.EnabledProviderByID(ctx, providerID)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	secondProviders, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+
+	require.NotEqual(t, firstProviders[0], provider)
+	require.Equal(t, provider, secondProviders[0])
+	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
+}
+
+func TestConfigCache_EnabledProviderByID_InvalidationClearsSliceAndIndex(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	providerID := uuid.MustParse("00000000-0000-0000-0000-000000000031")
+	store := &stubChatConfigStore{}
+	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+		call := store.enabledProvidersCalls.Load()
+		provider := testChatProvider(fmt.Sprintf("provider-%d", call))
+		provider.ID = providerID
+		return []database.ChatProvider{provider}, nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	firstProviders, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+
+	cache.InvalidateProviders()
+	require.Nil(t, cache.providers)
+
+	provider, ok, err := cache.EnabledProviderByID(ctx, providerID)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	secondProviders, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+
+	require.NotEqual(t, firstProviders[0], provider)
+	require.Equal(t, provider, secondProviders[0])
+	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
+}
+
+func TestConfigCache_EnabledProviderByID_MissingID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	provider := testChatProvider("provider-a")
+	store := &stubChatConfigStore{
+		getEnabledChatProviders: func(context.Context) ([]database.ChatProvider, error) {
+			return []database.ChatProvider{provider}, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	_, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+	cachedProviders := cache.providers
+
+	missingID := uuid.MustParse("00000000-0000-0000-0000-000000000041")
+	lookup, ok, err := cache.EnabledProviderByID(ctx, missingID)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Equal(t, database.ChatProvider{}, lookup)
+	require.Same(t, cachedProviders, cache.providers)
+	require.Equal(t, int32(1), store.enabledProvidersCalls.Load())
+}
+
 func TestConfigCache_ModelConfigByID_CacheHit(t *testing.T) {
 	t.Parallel()
 
