@@ -398,6 +398,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cap the raw request body to prevent excessive memory use
+	// from large dynamic tool schemas.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
+
 	var req codersdk.CreateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return

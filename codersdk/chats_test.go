@@ -469,6 +469,68 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, original, decoded)
 }
 
+func TestNewDynamicTool(t *testing.T) {
+	t.Parallel()
+
+	type testArgs struct {
+		Query string `json:"query"`
+	}
+
+	t.Run("CorrectSchema", func(t *testing.T) {
+		t.Parallel()
+
+		tool := codersdk.NewDynamicTool(
+			"search", "search things",
+			func(_ context.Context, args testArgs, _ codersdk.DynamicToolCall) (codersdk.DynamicToolResponse, error) {
+				return codersdk.DynamicToolResponse{Content: args.Query}, nil
+			},
+		)
+
+		require.Equal(t, "search", tool.Name)
+		require.Equal(t, "search things", tool.Description)
+		require.Contains(t, string(tool.InputSchema), `"query"`)
+		require.Contains(t, string(tool.InputSchema), `"string"`)
+	})
+
+	t.Run("HandlerReceivesArgs", func(t *testing.T) {
+		t.Parallel()
+
+		var received testArgs
+		tool := codersdk.NewDynamicTool(
+			"search", "search things",
+			func(_ context.Context, args testArgs, _ codersdk.DynamicToolCall) (codersdk.DynamicToolResponse, error) {
+				received = args
+				return codersdk.DynamicToolResponse{Content: "ok"}, nil
+			},
+		)
+
+		resp, err := tool.Handler(context.Background(), codersdk.DynamicToolCall{
+			Args: `{"query":"hello"}`,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "ok", resp.Content)
+		require.Equal(t, "hello", received.Query)
+	})
+
+	t.Run("InvalidJSONArgs", func(t *testing.T) {
+		t.Parallel()
+
+		tool := codersdk.NewDynamicTool(
+			"search", "search things",
+			func(_ context.Context, args testArgs, _ codersdk.DynamicToolCall) (codersdk.DynamicToolResponse, error) {
+				return codersdk.DynamicToolResponse{Content: "should not reach"}, nil
+			},
+		)
+
+		resp, err := tool.Handler(context.Background(), codersdk.DynamicToolCall{
+			Args: "not-json",
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "invalid parameters")
+	})
+}
+
 //nolint:tparallel,paralleltest
 func TestParseChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()

@@ -8404,6 +8404,124 @@ func TestSubmitToolResults(t *testing.T) {
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
+
+	t.Run("InvalidJSONOutput", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_json"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_json", Output: "not-json"},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Tool result output must be valid JSON")
+	})
+
+	t.Run("DuplicateToolCallID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_dup1", "call_dup2"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_dup1", Output: `"result_a"`},
+				{ToolCallID: "call_dup1", Output: `"result_b"`},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Duplicate tool_call_id")
+	})
+}
+
+func TestPostChats_DynamicToolValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TooManyTools", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		tools := make([]codersdk.DynamicTool, 251)
+		for i := range tools {
+			tools[i] = codersdk.DynamicTool{
+				Name: fmt.Sprintf("tool-%d", i),
+			}
+		}
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: tools,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Too many dynamic tools.", sdkErr.Message)
+	})
+
+	t.Run("EmptyToolName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{
+				{Name: ""},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Dynamic tool name must not be empty.", sdkErr.Message)
+	})
+
+	t.Run("DuplicateToolName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{
+				{Name: "dup-tool"},
+				{Name: "dup-tool"},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Duplicate dynamic tool name.", sdkErr.Message)
+	})
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

@@ -1763,6 +1763,20 @@ func (p *Server) InterruptChat(
 		return chat
 	}
 
+	// If the chat is in requires_action, insert synthetic error
+	// tool-result messages for each pending dynamic tool call
+	// before transitioning to waiting. Without this, the LLM
+	// would see unmatched tool-call parts on the next run.
+	if chat.Status == database.ChatStatusRequiresAction {
+		if err := p.insertSyntheticToolResults(ctx, chat, "Tool execution interrupted by user"); err != nil {
+			p.logger.Error(ctx, "failed to insert synthetic tool results during interrupt",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			// Fall through — still try to set waiting status.
+		}
+	}
+
 	updatedChat, err := p.setChatWaiting(ctx, chat.ID)
 	if err != nil {
 		p.logger.Error(ctx, "failed to mark chat as waiting",
@@ -1772,6 +1786,14 @@ func (p *Server) InterruptChat(
 		return chat
 	}
 	return updatedChat
+}
+
+// insertSyntheticToolResults inserts error tool-result messages for
+// every pending dynamic tool call in the last assistant message.
+// This ensures the LLM conversation stays well-formed when a chat
+// is interrupted while in requires_action status.
+func (p *Server) insertSyntheticToolResults(ctx context.Context, chat database.Chat, reason string) error {
+	return insertSyntheticToolResultsTx(ctx, p.db, chat, reason)
 }
 
 const manualTitleMessageWindowLimit = 50
@@ -2553,7 +2575,7 @@ func insertUserMessageAndSetPending(
 // queued while a chat is active.
 func shouldQueueUserMessage(status database.ChatStatus) bool {
 	switch status {
-	case database.ChatStatusRunning, database.ChatStatusPending:
+	case database.ChatStatusRunning, database.ChatStatusPending, database.ChatStatusRequiresAction:
 		return true
 	default:
 		return false
@@ -4106,15 +4128,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
 
-		// When the chat is parked in requires_action, also
-		// publish an action_required event on the global
-		// pubsub so that watchers (e.g. a Slackbot) can
-		// react to dynamic tool calls without streaming
-		// each chat individually.
+		// When the chat is parked in requires_action,
+		// publish the stream event and global pubsub event
+		// after the DB status has committed. Publishing
+		// here (not in runChat) prevents a race where a
+		// fast client reacts before the status is visible.
 		if status == database.ChatStatusRequiresAction && len(runResult.PendingDynamicToolCalls) > 0 {
+			toolCalls := pendingToStreamToolCalls(runResult.PendingDynamicToolCalls)
+			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeActionRequired,
+				ActionRequired: &codersdk.ChatStreamActionRequired{
+					ToolCalls: toolCalls,
+				},
+			})
 			p.publishChatActionRequired(updatedChat, runResult.PendingDynamicToolCalls)
 		}
-
 		if !wasInterrupted {
 			p.maybeSendPushNotification(cleanupCtx, updatedChat, status, lastError, runResult, logger)
 		}
@@ -5119,16 +5147,10 @@ func (p *Server) runChat(
 		},
 	})
 	if errors.Is(err, chatloop.ErrDynamicToolCall) {
-		// The LLM invoked a dynamic tool. Publish an
-		// action_required event so the client can execute
-		// the tool calls and submit results.
-		toolCalls := pendingToStreamToolCalls(pendingDynamicCalls)
-		p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-			Type: codersdk.ChatStreamEventTypeActionRequired,
-			ActionRequired: &codersdk.ChatStreamActionRequired{
-				ToolCalls: toolCalls,
-			},
-		})
+		// The stream event is published in processChat's
+		// defer after the DB status transitions to
+		// requires_action, preventing a race where a fast
+		// client reacts before the status is committed.
 		result.FinalAssistantText = finalAssistantText
 		result.PendingDynamicToolCalls = pendingDynamicCalls
 		return result, nil
@@ -5812,6 +5834,20 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				recoverStatus = database.ChatStatusError
 			}
 
+			// Insert synthetic error tool-result messages
+			// so the LLM history remains valid if the user
+			// retries the chat later.
+			if locked.Status == database.ChatStatusRequiresAction {
+				if synthErr := insertSyntheticToolResultsTx(ctx, tx, locked, "Dynamic tool execution timed out"); synthErr != nil {
+					p.logger.Warn(ctx, "failed to insert synthetic tool results during stale recovery",
+						slog.F("chat_id", chat.ID),
+						slog.Error(synthErr),
+					)
+					// Continue with error status even if
+					// synthetic results fail to insert.
+				}
+			}
+
 			// Reset so any replica can pick it up (pending) or
 			// the client sees the failure (error).
 			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -5837,6 +5873,108 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 	if recovered > 0 {
 		p.logger.Info(ctx, "recovered stale chats", slog.F("count", recovered))
 	}
+}
+
+// insertSyntheticToolResultsTx inserts error tool-result messages for
+// every pending dynamic tool call in the last assistant message. This
+// keeps the LLM message history valid (every tool-call has a matching
+// tool-result) when a requires_action chat times out or is interrupted.
+// It operates on the provided store, which may be a transaction handle.
+func insertSyntheticToolResultsTx(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	reason string,
+) error {
+	// Build set of dynamic tool names from the chat.
+	var dynamicTools []codersdk.DynamicTool
+	if chat.DynamicTools.Valid && len(chat.DynamicTools.RawMessage) > 0 {
+		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicTools); err != nil {
+			return xerrors.Errorf("unmarshal dynamic tools: %w", err)
+		}
+	}
+	if len(dynamicTools) == 0 {
+		return nil
+	}
+	dynamicToolNames := make(map[string]bool, len(dynamicTools))
+	for _, dt := range dynamicTools {
+		dynamicToolNames[dt.Name] = true
+	}
+
+	// Get the last assistant message to find pending tool calls.
+	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if err != nil {
+		return xerrors.Errorf("get last assistant message: %w", err)
+	}
+
+	parts, err := chatprompt.ParseContent(lastAssistant)
+	if err != nil {
+		return xerrors.Errorf("parse assistant message: %w", err)
+	}
+
+	// Collect dynamic tool calls that need synthetic results.
+	var resultContents []pqtype.NullRawMessage
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeToolCall || !dynamicToolNames[part.ToolName] {
+			continue
+		}
+		resultPart := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: part.ToolCallID,
+			ToolName:   part.ToolName,
+			Result:     json.RawMessage(fmt.Sprintf("%q", reason)),
+			IsError:    true,
+		}
+		marshaled, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{resultPart})
+		if marshalErr != nil {
+			return xerrors.Errorf("marshal synthetic tool result: %w", marshalErr)
+		}
+		resultContents = append(resultContents, marshaled)
+	}
+
+	if len(resultContents) == 0 {
+		return nil
+	}
+
+	// Insert tool-result messages using the same pattern as
+	// SubmitToolResults.
+	n := len(resultContents)
+	params := database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           make([]uuid.UUID, n),
+		ModelConfigID:       make([]uuid.UUID, n),
+		Role:                make([]database.ChatMessageRole, n),
+		Content:             make([]string, n),
+		ContentVersion:      make([]int16, n),
+		Visibility:          make([]database.ChatMessageVisibility, n),
+		InputTokens:         make([]int64, n),
+		OutputTokens:        make([]int64, n),
+		TotalTokens:         make([]int64, n),
+		ReasoningTokens:     make([]int64, n),
+		CacheCreationTokens: make([]int64, n),
+		CacheReadTokens:     make([]int64, n),
+		ContextLimit:        make([]int64, n),
+		Compressed:          make([]bool, n),
+		TotalCostMicros:     make([]int64, n),
+		RuntimeMs:           make([]int64, n),
+		ProviderResponseID:  make([]string, n),
+	}
+	for i, rc := range resultContents {
+		params.CreatedBy[i] = uuid.Nil
+		params.ModelConfigID[i] = chat.LastModelConfigID
+		params.Role[i] = database.ChatMessageRoleTool
+		params.Content[i] = string(rc.RawMessage)
+		params.ContentVersion[i] = chatprompt.CurrentContentVersion
+		params.Visibility[i] = database.ChatMessageVisibilityBoth
+	}
+	if _, err := store.InsertChatMessages(ctx, params); err != nil {
+		return xerrors.Errorf("insert synthetic tool results: %w", err)
+	}
+
+	return nil
 }
 
 // maybeSendPushNotification sends a web push notification when an

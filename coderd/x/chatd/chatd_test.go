@@ -2405,7 +2405,6 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 	const numGoroutines = 10
 	var (
 		wg               sync.WaitGroup
-		barrier          sync.Once
 		ready            = make(chan struct{})
 		successes        atomic.Int32
 		conflicts        atomic.Int32
@@ -2417,8 +2416,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			// Signal readiness, then wait for the barrier.
-			barrier.Do(func() { close(ready) })
+			// Wait for all goroutines to be ready.
 			<-ready
 
 			submitErr := server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
@@ -2447,6 +2445,8 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 			unexpectedErrors <- submitErr
 		}()
 	}
+	// Release all goroutines at once.
+	close(ready)
 
 	wg.Wait()
 	close(unexpectedErrors)
