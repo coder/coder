@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
 )
 
 func TestExpAgents(t *testing.T) {
@@ -852,6 +853,71 @@ func TestExpAgents(t *testing.T) {
 				require.Nil(t, model.err)
 				require.NotNil(t, model.chat)
 				require.Len(t, model.messages, 1)
+			})
+
+			t.Run("OpenThenEmptyHistoryStartsStream", func(t *testing.T) {
+				t.Parallel()
+
+				chat := testChat(codersdk.ChatStatusRunning)
+				streamQueryCh := make(chan string, 1)
+				streamErrCh := make(chan error, 1)
+				server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					wantPath := fmt.Sprintf("/api/experimental/chats/%s/stream", chat.ID)
+					if req.URL.Path != wantPath {
+						select {
+						case streamErrCh <- xerrors.Errorf("stream path %q, want %q", req.URL.Path, wantPath):
+						default:
+						}
+						rw.WriteHeader(http.StatusNotFound)
+						return
+					}
+
+					conn, err := websocket.Accept(rw, req, nil)
+					if err != nil {
+						select {
+						case streamErrCh <- err:
+						default:
+						}
+						return
+					}
+					defer conn.Close(websocket.StatusNormalClosure, "")
+
+					select {
+					case streamQueryCh <- req.URL.RawQuery:
+					default:
+					}
+				}))
+				defer server.Close()
+
+				serverURL, err := url.Parse(server.URL)
+				require.NoError(t, err)
+
+				model := newTestChatViewModel(codersdk.NewExperimentalClient(codersdk.New(serverURL)))
+				model.loading = true
+				model.metadataResolved = false
+				model.historyResolved = false
+
+				model, cmd := model.Update(chatOpenedMsg{chat: chat})
+				require.NotNil(t, cmd)
+				require.True(t, model.loading)
+				require.False(t, model.streaming)
+
+				updated, cmd := model.Update(chatHistoryMsg{messages: nil})
+				defer updated.stopStream()
+				require.NotNil(t, cmd)
+				require.False(t, updated.loading)
+				require.True(t, updated.streaming)
+				require.NotNil(t, updated.streamCloser)
+				require.NotNil(t, updated.streamEventCh)
+
+				select {
+				case err := <-streamErrCh:
+					require.NoError(t, err)
+				case query := <-streamQueryCh:
+					require.Empty(t, query)
+				case <-time.After(time.Second):
+					t.Fatal("timed out waiting for chat stream connection")
+				}
 			})
 
 			t.Run("BothFail", func(t *testing.T) {

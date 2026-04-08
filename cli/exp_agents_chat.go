@@ -214,6 +214,10 @@ func (m chatViewModel) combinedError() error {
 	return m.historyErr
 }
 
+func (m chatViewModel) readyToStartStream() bool {
+	return m.metadataResolved && m.historyResolved && m.err == nil && m.chat != nil && m.client != nil && !m.streaming
+}
+
 // restorePendingComposerIfEmpty restores pending text to the
 // composer only when the user has not typed new input since the
 // original send was dispatched.
@@ -631,7 +635,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		m.err = m.combinedError()
 		m.loading = !m.metadataResolved || !m.historyResolved
-		if !m.loading && m.err == nil && len(m.messages) > 0 && !m.streaming {
+		if m.readyToStartStream() {
 			updated, cmd := m.startStream()
 			return updated, startSpinner(updated, cmd)
 		}
@@ -659,7 +663,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		m.err = m.combinedError()
 		m.loading = !m.metadataResolved || !m.historyResolved
-		if !m.loading && m.err == nil && m.chat != nil && !m.streaming {
+		if m.readyToStartStream() {
 			updated, cmd := m.startStream()
 			return updated, startSpinner(updated, cmd)
 		}
