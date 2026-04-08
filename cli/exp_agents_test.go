@@ -595,6 +595,9 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = false
+			model.historyResolved = true
 			diffStatus := &codersdk.ChatDiffStatus{ChatID: uuid.New()}
 			chat := testChat(codersdk.ChatStatusRunning)
 			chat.DiffStatus = diffStatus
@@ -613,6 +616,9 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = false
+			model.historyResolved = true
 
 			updated, cmd := model.Update(chatOpenedMsg{err: xerrors.New("open failed")})
 			require.Nil(t, cmd)
@@ -625,6 +631,9 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = true
+			model.historyResolved = false
 			usageA := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(10)}
 			usageB := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(20)}
 			messages := []codersdk.ChatMessage{
@@ -653,12 +662,102 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = true
+			model.historyResolved = false
 
 			updated, cmd := model.Update(chatHistoryMsg{err: xerrors.New("history failed")})
 			require.Nil(t, cmd)
 			require.NotNil(t, updated.err)
 			require.Equal(t, "history failed", updated.err.Error())
 			require.False(t, updated.loading)
+		})
+
+		t.Run("OpenHistoryReadiness", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("OpenFailsThenHistorySucceeds", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				model.loading = true
+				model.metadataResolved = false
+				model.historyResolved = false
+
+				model, _ = model.Update(chatOpenedMsg{err: xerrors.New("open failed")})
+				require.True(t, model.loading)
+				require.True(t, model.metadataResolved)
+				require.False(t, model.historyResolved)
+
+				model, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{
+					testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"}),
+				}})
+				require.False(t, model.loading)
+				require.NotNil(t, model.err)
+				require.Equal(t, "open failed", model.err.Error())
+				require.Len(t, model.messages, 1)
+			})
+
+			t.Run("HistoryFailsThenOpenSucceeds", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				model.loading = true
+				model.metadataResolved = false
+				model.historyResolved = false
+
+				model, _ = model.Update(chatHistoryMsg{err: xerrors.New("history failed")})
+				require.True(t, model.loading)
+				require.False(t, model.metadataResolved)
+				require.True(t, model.historyResolved)
+
+				chat := testChat(codersdk.ChatStatusCompleted)
+				model, _ = model.Update(chatOpenedMsg{chat: chat})
+				require.False(t, model.loading)
+				require.NotNil(t, model.err)
+				require.Equal(t, "history failed", model.err.Error())
+				require.NotNil(t, model.chat)
+			})
+
+			t.Run("BothSucceedOutOfOrder", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				model.loading = true
+				model.metadataResolved = false
+				model.historyResolved = false
+
+				model, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{
+					testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"}),
+				}})
+				require.True(t, model.loading)
+				require.Nil(t, model.err)
+
+				model.streaming = true
+				chat := testChat(codersdk.ChatStatusCompleted)
+				model, _ = model.Update(chatOpenedMsg{chat: chat})
+				require.False(t, model.loading)
+				require.Nil(t, model.err)
+				require.NotNil(t, model.chat)
+				require.Len(t, model.messages, 1)
+			})
+
+			t.Run("BothFail", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				model.loading = true
+				model.metadataResolved = false
+				model.historyResolved = false
+
+				model, _ = model.Update(chatOpenedMsg{err: xerrors.New("open err")})
+				require.True(t, model.loading)
+
+				model, _ = model.Update(chatHistoryMsg{err: xerrors.New("history err")})
+				require.False(t, model.loading)
+				require.NotNil(t, model.err)
+				require.Equal(t, "open err", model.err.Error())
+			})
 		})
 
 		t.Run("StaleAsyncMessagesAreDropped", func(t *testing.T) {
@@ -704,6 +803,7 @@ func TestExpAgents(t *testing.T) {
 					model := newTestChatViewModel(nil)
 					chat := testChat(codersdk.ChatStatusCompleted)
 					model.setChat(chat)
+					model.chatGeneration = 1
 					model.loading = false
 
 					before := model
@@ -712,6 +812,117 @@ func TestExpAgents(t *testing.T) {
 					require.Equal(t, before.loading, model.loading)
 					require.Equal(t, before.messages, model.messages)
 					require.Equal(t, before.err, model.err)
+				})
+			}
+		})
+
+		t.Run("WriteSideStaleSessionMessagesAreDropped", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name string
+				msg  tea.Msg
+			}{
+				{
+					name: "chatCreatedMsg",
+					msg:  chatCreatedMsg{generation: 1, chat: testChat(codersdk.ChatStatusRunning)},
+				},
+				{
+					name: "messageSentMsg",
+					msg:  messageSentMsg{generation: 1, resp: codersdk.CreateChatMessageResponse{}},
+				},
+				{
+					name: "chatInterruptedMsg",
+					msg:  chatInterruptedMsg{generation: 1, chat: testChat(codersdk.ChatStatusCompleted)},
+				},
+			}
+
+			for _, tt := range tests {
+				tt := tt
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					model := newTestChatViewModel(nil)
+					model.chatGeneration = 2
+					model.creatingChat = true
+					model.interrupting = true
+					chat := testChat(codersdk.ChatStatusCompleted)
+					model.setChat(chat)
+					model.loading = false
+					model.pendingComposerText = "pending"
+					model.composer.SetValue("current")
+
+					before := model
+					model, cmd := model.Update(tt.msg)
+					require.Nil(t, cmd)
+					require.Equal(t, before.loading, model.loading)
+					require.Equal(t, before.chat, model.chat)
+					require.Equal(t, before.draft, model.draft)
+					require.Equal(t, before.err, model.err)
+					require.Equal(t, before.pendingComposerText, model.pendingComposerText)
+					require.Equal(t, before.creatingChat, model.creatingChat)
+					require.Equal(t, before.interrupting, model.interrupting)
+					require.Equal(t, before.queuedMessages, model.queuedMessages)
+					require.Equal(t, before.composer.Value(), model.composer.Value())
+				})
+			}
+		})
+
+		t.Run("DraftSessionRejectsStaleTrafficByGeneration", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name string
+				msg  tea.Msg
+			}{
+				{
+					name: "chatOpenedMsg",
+					msg:  chatOpenedMsg{generation: 1, chatID: uuid.New(), chat: testChat(codersdk.ChatStatusCompleted)},
+				},
+				{
+					name: "chatHistoryMsg",
+					msg: chatHistoryMsg{generation: 1, chatID: uuid.New(), messages: []codersdk.ChatMessage{testMessage(
+						1,
+						codersdk.ChatMessageRoleUser,
+						codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"},
+					)}},
+				},
+				{
+					name: "chatStreamEventMsg",
+					msg:  chatStreamEventMsg{generation: 1, chatID: uuid.New(), event: testTextPartEvent("stale")},
+				},
+				{
+					name: "gitChangesMsg",
+					msg:  gitChangesMsg{generation: 1, chatID: uuid.New()},
+				},
+				{
+					name: "diffContentsMsg",
+					msg:  diffContentsMsg{generation: 1, chatID: uuid.New()},
+				},
+			}
+
+			for _, tt := range tests {
+				tt := tt
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					model := newTestChatViewModel(nil)
+					model.draft = true
+					model.loading = false
+					model.chatGeneration = 2
+					model.pendingComposerText = "pending"
+					model.composer.SetValue("draft text")
+
+					before := model
+					model, cmd := model.Update(tt.msg)
+					require.Nil(t, cmd)
+					require.Equal(t, before.loading, model.loading)
+					require.Equal(t, before.messages, model.messages)
+					require.Equal(t, before.err, model.err)
+					require.Equal(t, before.chat, model.chat)
+					require.Equal(t, before.pendingComposerText, model.pendingComposerText)
+					require.Equal(t, before.composer.Value(), model.composer.Value())
+					require.True(t, model.draft)
 				})
 			}
 		})
@@ -990,6 +1201,9 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = false
+			model.historyResolved = false
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 
 			view := plainText(model.View())
@@ -1089,12 +1303,13 @@ func TestExpAgents(t *testing.T) {
 			}
 		})
 
-		t.Run("StaleStreamEventsAreDropped", func(t *testing.T) {
+		t.Run("StaleStreamEventsAreDroppedByGeneration", func(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusRunning)
 			model.setChat(chat)
+			model.chatGeneration = 1
 			model.streaming = true
 
 			staleMsg := chatStreamEventMsg{
@@ -1268,6 +1483,60 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "first message", model.composer.Value())
 			require.False(t, model.creatingChat)
 			require.Error(t, model.err)
+		})
+
+		t.Run("PendingComposerTextRestoresOnlyIntoEmptyComposer", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("messageSentMsg", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				chat := testChat(codersdk.ChatStatusCompleted)
+				model.setChat(chat)
+				model.loading = false
+				model.composer.SetValue("original")
+
+				model, _ = model.sendMessage()
+				require.Equal(t, "original", model.pendingComposerText)
+
+				model.composer.SetValue("new input")
+
+				model, _ = model.Update(messageSentMsg{err: xerrors.New("fail")})
+				require.Equal(t, "new input", model.composer.Value())
+				require.Error(t, model.err)
+			})
+
+			t.Run("chatCreatedMsg", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				model.draft = true
+				model.loading = false
+				model.composer.SetValue("draft text")
+
+				model, _ = model.sendMessage()
+				require.Equal(t, "draft text", model.pendingComposerText)
+
+				model.composer.SetValue("edited")
+
+				model, _ = model.Update(chatCreatedMsg{err: xerrors.New("fail")})
+				require.Equal(t, "edited", model.composer.Value())
+				require.Error(t, model.err)
+			})
+		})
+
+		t.Run("EnterWhileLoadingDoesNotDispatchOrClearComposer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.composer.SetValue("my text")
+
+			updated, cmd := model.sendMessage()
+			require.Nil(t, cmd)
+			require.Equal(t, "my text", updated.composer.Value())
+			require.Empty(t, updated.pendingComposerText)
 		})
 
 		t.Run("BlankComposerDoesNotSend", func(t *testing.T) {
@@ -2277,6 +2546,9 @@ func mustBatchMsg(t testing.TB, cmd tea.Cmd) tea.BatchMsg {
 	return batch
 }
 
+// newTestChatViewModel creates a chatViewModel for reducer tests.
+// The returned model has chatGeneration=0, so test messages with
+// default generation=0 pass the generation guard.
 func newTestChatViewModel(client *codersdk.ExperimentalClient) chatViewModel {
 	return newChatViewModel(context.Background(), client, nil, nil, newTUIStyles())
 }

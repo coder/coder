@@ -229,9 +229,6 @@ func (m chatViewModel) matchesGeneration(gen uint64) bool {
 }
 
 func (m *chatViewModel) setChat(chat codersdk.Chat) {
-	if m.chatGeneration == 0 {
-		m.chatGeneration = 1
-	}
 	m.chat = &chat
 	m.activeChatID = chat.ID
 	m.chatStatus = chat.Status
