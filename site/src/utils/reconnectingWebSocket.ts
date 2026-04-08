@@ -100,8 +100,9 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	baseMs?: number;
 
 	/**
-	 * Hard upper bound on the reconnect delay in milliseconds. Applied
-	 * after jitter. Defaults to {@link RECONNECT_MAX_MS}.
+	 * Hard upper bound on the reconnect delay in milliseconds. Jitter is
+	 * applied to the capped backoff base, so the final delay never exceeds
+	 * this value.
 	 */
 	maxMs?: number;
 
@@ -165,8 +166,9 @@ const getReconnectSchedule = ({
 }): ReconnectSchedule => {
 	const rawDelayMs = normalizeDelayMs(baseMs * factor ** (attempt - 1), 0);
 	const safeMaxMs = normalizeDelayMs(maxMs, rawDelayMs);
+	const cappedDelayMs = Math.min(rawDelayMs, safeMaxMs);
 	const jitteredDelayMs = applyReconnectJitter({
-		delayMs: rawDelayMs,
+		delayMs: cappedDelayMs,
 		jitter,
 		random,
 	});
@@ -193,7 +195,8 @@ const getReconnectSchedule = ({
  * Backoff delay formula:
  * ```
  * rawDelay = baseMs * factor ^ (attempt - 1)
- * jitteredDelay = round(rawDelay * (1 + offset))
+ * cappedDelay = min(rawDelay, maxMs)
+ * jitteredDelay = round(cappedDelay * (1 + offset))
  * delay = min(jitteredDelay, maxMs)
  * offset ∈ [-jitter, +jitter]
  * ```
