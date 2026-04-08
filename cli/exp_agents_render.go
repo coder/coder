@@ -21,11 +21,15 @@ const (
 	toolSummaryFallbackWidth  = 48
 )
 
-func humanizeToolName(name string) string {
+func toolBaseName(name string) string {
 	name = strings.TrimSpace(name)
 	name = strings.TrimPrefix(name, "coder_")
 	name = strings.TrimPrefix(name, "github__")
-	name = strings.ReplaceAll(name, "_", " ")
+	return strings.Join(strings.Fields(name), " ")
+}
+
+func humanizeToolName(name string) string {
+	name = strings.ReplaceAll(toolBaseName(name), "_", " ")
 	name = strings.Join(strings.Fields(name), " ")
 	if name == "" {
 		return "tool"
@@ -34,33 +38,48 @@ func humanizeToolName(name string) string {
 }
 
 func normalizeToolName(name string) string {
-	name = strings.TrimSpace(name)
-	name = strings.TrimPrefix(name, "coder_")
-	name = strings.TrimPrefix(name, "github__")
-	return strings.ToLower(name)
+	if toolBaseName(name) == "" {
+		return ""
+	}
+	return strings.ReplaceAll(strings.ToLower(humanizeToolName(name)), " ", "_")
 }
 
-func toolArgsSummary(toolName string, argsJSON string) string {
-	raw := strings.TrimSpace(argsJSON)
+func summarizeToolContent(toolName, raw string, fields ...string) string {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
 	}
-
-	parsed, ok := parseToolSummaryValue(raw)
-	if ok {
+	var parsed any
+	if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
 		if summary := toolObjectSummary(toolName, parsed); summary != "" {
 			return summary
+		}
+		if value := firstStringField(parsed, fields...); value != "" {
+			return strconv.Quote(value)
 		}
 		if value := firstShortStringValue(parsed); value != "" {
 			return strconv.Quote(value)
 		}
 	}
-
 	compact := compactTranscriptJSON(json.RawMessage(raw))
 	if compact == "" {
 		return ""
 	}
 	return truncateToolSummary(compact, toolSummaryFallbackWidth)
+}
+
+func toolArgsSummary(toolName, argsJSON string) string {
+	return summarizeToolContent(toolName, argsJSON)
+}
+
+func toolResultSummary(toolName, argsJSON, resultJSON string) string {
+	if summary := toolArgsSummary(toolName, argsJSON); summary != "" {
+		return summary
+	}
+	if summary := summarizeToolContent(toolName, resultJSON); summary != "" {
+		return summary
+	}
+	return "null"
 }
 
 func toolObjectSummary(toolName string, parsed any) string {
@@ -88,60 +107,7 @@ func toolObjectSummary(toolName string, parsed any) string {
 			return "(" + workspace + ")"
 		}
 	}
-
 	return ""
-}
-
-func toolResultSummary(toolName, argsJSON, resultJSON string) string {
-	if summary := toolArgsSummary(toolName, argsJSON); summary != "" {
-		return summary
-	}
-
-	compact := compactTranscriptJSON(json.RawMessage(resultJSON))
-	if compact == "" {
-		return "null"
-	}
-
-	if parsed, ok := parseToolSummaryValue(compact); ok {
-		if summary := toolObjectSummary(toolName, parsed); summary != "" {
-			return summary
-		}
-		if value := firstShortStringValue(parsed); value != "" {
-			return strconv.Quote(value)
-		}
-	}
-
-	return truncateToolSummary(compact, toolSummaryFallbackWidth)
-}
-
-func toolErrorSummary(resultJSON string) string {
-	raw := strings.TrimSpace(resultJSON)
-	if raw == "" {
-		return ""
-	}
-
-	if parsed, ok := parseToolSummaryValue(raw); ok {
-		if message := firstStringField(parsed, "error", "message", "detail", "stderr"); message != "" {
-			return strconv.Quote(message)
-		}
-		if value := firstShortStringValue(parsed); value != "" {
-			return strconv.Quote(value)
-		}
-	}
-
-	compact := compactTranscriptJSON(json.RawMessage(raw))
-	if compact == "" {
-		return ""
-	}
-	return truncateToolSummary(compact, toolSummaryFallbackWidth)
-}
-
-func parseToolSummaryValue(raw string) (any, bool) {
-	var value any
-	if err := json.Unmarshal([]byte(raw), &value); err != nil {
-		return nil, false
-	}
-	return value, true
 }
 
 func firstStringField(value any, keys ...string) string {
@@ -149,7 +115,6 @@ func firstStringField(value any, keys ...string) string {
 	if !ok {
 		return ""
 	}
-
 	for _, key := range keys {
 		fieldValue, ok := object[key]
 		if !ok {
@@ -159,7 +124,6 @@ func firstStringField(value any, keys ...string) string {
 			return text
 		}
 	}
-
 	return ""
 }
 
@@ -189,7 +153,6 @@ func firstShortStringValue(value any) string {
 			}
 		}
 	}
-
 	return ""
 }
 
@@ -224,13 +187,11 @@ func renderToolLine(styles tuiStyles, labelStyle lipgloss.Style, icon, label, su
 	if summary == "" || width <= 0 {
 		return header
 	}
-
 	available := width - lipgloss.Width(header) - 1
 	preview := styles.truncate(summary, max(available, 0))
 	if preview == "" {
 		return header
 	}
-
 	return header + " " + styles.dimmedText.Render(preview)
 }
 
@@ -238,13 +199,8 @@ func renderToolDetail(styles tuiStyles, label, value string, width int) string {
 	if strings.TrimSpace(value) == "" {
 		return ""
 	}
-
 	prefix := toolDetailIndent + label + ": "
-	contentWidth := 80
-	if width > 0 {
-		contentWidth = max(width-lipgloss.Width(prefix), 1)
-	}
-	wrapped := wrapPreservingNewlines(value, contentWidth)
+	wrapped := wrapPreservingNewlines(value, contentWidth(width, lipgloss.Width(prefix)))
 	lines := strings.Split(wrapped, "\n")
 	for i := range lines {
 		if i == 0 {
@@ -253,7 +209,6 @@ func renderToolDetail(styles tuiStyles, label, value string, width int) string {
 		}
 		lines[i] = strings.Repeat(" ", lipgloss.Width(prefix)) + lines[i]
 	}
-
 	return styles.dimmedText.Render(strings.Join(lines, "\n"))
 }
 
@@ -307,7 +262,6 @@ func renderToolResultBlock(styles tuiStyles, block chatBlock, width int) string 
 	if block.toolName == contextCompactionToolName {
 		return renderCompaction(styles, width)
 	}
-
 	icon := "✓"
 	labelStyle := styles.toolSuccess
 	if block.isError {
@@ -316,12 +270,13 @@ func renderToolResultBlock(styles tuiStyles, block chatBlock, width int) string 
 	}
 
 	summary := toolArgsSummary(block.toolName, block.args)
+	if summary == "" && block.isError {
+		summary = summarizeToolContent("", block.result, "error", "message", "detail", "stderr")
+	}
 	if summary == "" {
-		summary = toolResultSummary(block.toolName, "", block.result)
-		if block.isError {
-			if errorSummary := toolErrorSummary(block.result); errorSummary != "" {
-				summary = errorSummary
-			}
+		summary = summarizeToolContent(block.toolName, block.result)
+		if summary == "" {
+			summary = "null"
 		}
 	}
 	return renderToolLine(
@@ -342,39 +297,31 @@ func renderCompaction(styles tuiStyles, width int) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, banner)
 }
 
+func contentWidth(width, inset int) int {
+	if width <= 0 {
+		return 80
+	}
+	return max(width-inset, 1)
+}
+
+func renderOverlayFrame(styles tuiStyles, width int, sections ...string) string {
+	return styles.overlayBorder.Width(contentWidth(width, 6)).Render(strings.Join(sections, "\n\n"))
+}
+
 func renderDiffDrawerLoading(styles tuiStyles, width, _ int) string {
-	return renderDiffDrawerState(styles, styles.dimmedText.Render("Loading diff…"), width)
+	return renderOverlayFrame(styles, width, styles.title.Render("Diff"), styles.dimmedText.Render("Loading diff…"), styles.helpText.Render("Esc to close"))
 }
 
 func renderDiffDrawerError(styles tuiStyles, err error, width, _ int) string {
 	message := styles.errorText.Render("Failed to load diff.")
 	if err != nil {
-		message = styles.errorText.Render(wrapPreservingNewlines(err.Error(), max(width-6, 1)))
+		message = styles.errorText.Render(wrapPreservingNewlines(err.Error(), contentWidth(width, 6)))
 	}
-	return renderDiffDrawerState(styles, message, width)
-}
-
-func renderDiffDrawerState(styles tuiStyles, body string, width int) string {
-	innerWidth := 80
-	if width > 0 {
-		innerWidth = max(width-6, 1)
-	}
-
-	sections := []string{
-		styles.title.Render("Diff"),
-		body,
-		styles.helpText.Render("Esc to close"),
-	}
-	frame := styles.overlayBorder.Width(innerWidth)
-	return frame.Render(strings.Join(sections, "\n\n"))
+	return renderOverlayFrame(styles, width, styles.title.Render("Diff"), message, styles.helpText.Render("Esc to close"))
 }
 
 func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
-	innerWidth := 80
-	if width > 0 {
-		innerWidth = max(width-6, 1)
-	}
-
+	innerWidth := contentWidth(width, 6)
 	headerBits := []string{styles.title.Render("Diff")}
 	var meta []string
 	if diff.Branch != nil && *diff.Branch != "" {
@@ -386,13 +333,11 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 	if len(meta) > 0 {
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
-
 	summary := renderChatDiffSummary(diff, changes)
 	diffBody := diff.Diff
 	if strings.TrimSpace(diffBody) == "" {
 		diffBody = styles.dimmedText.Render("No diff contents.")
 	}
-
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4
 	availableBodyLines := height - overhead
@@ -402,14 +347,12 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 	if availableBodyLines < 0 {
 		availableBodyLines = 0
 	}
-
 	wrappedDiff := wrapPreservingNewlines(diffBody, innerWidth)
 	if availableBodyLines == 0 {
 		wrappedDiff = ""
 	} else {
 		wrappedDiff = clampLines(wrappedDiff, availableBodyLines)
 	}
-
 	sections := []string{strings.Join(headerBits, "\n")}
 	if summary != "" {
 		sections = append(sections, summary)
@@ -418,18 +361,11 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 		sections = append(sections, wrappedDiff)
 	}
 	sections = append(sections, help)
-
-	panel := strings.Join(sections, "\n\n")
-	frame := styles.overlayBorder.Width(innerWidth)
-	return frame.Render(panel)
+	return renderOverlayFrame(styles, width, sections...)
 }
 
 func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, selected string, cursor int, width, height int) string {
-	innerWidth := 80
-	if width > 0 {
-		innerWidth = max(width-6, 1)
-	}
-
+	innerWidth := contentWidth(width, 6)
 	lines := []string{styles.title.Render("Select Model")}
 	hasModels := false
 	flatIndex := 0
@@ -444,13 +380,11 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 			lines = append(lines, "")
 			continue
 		}
-
 		if len(provider.Models) == 0 {
 			lines = append(lines, "  "+styles.dimmedText.Render("No models available."))
 			lines = append(lines, "")
 			continue
 		}
-
 		for _, model := range provider.Models {
 			hasModels = true
 			name := model.DisplayName
@@ -461,7 +395,6 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 			if flatIndex == cursor {
 				marker = "> "
 			}
-
 			rowStyle := styles.normalItem
 			if model.ID == selected {
 				rowStyle = styles.selectedItem
@@ -471,12 +404,10 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 		}
 		lines = append(lines, "")
 	}
-
 	if !hasModels {
 		lines = append(lines, styles.dimmedText.Render("No models available."))
 		lines = append(lines, "")
 	}
-
 	help := styles.helpText.Render("Esc to close, Enter to select")
 	contentLines := lines
 	maxContentLines := height - countRenderedLines(help) - 4
@@ -488,9 +419,14 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	}
 	content := clampLineSlice(contentLines, maxContentLines)
 	content = append(content, help)
+	return renderOverlayFrame(styles, width, strings.Join(content, "\n"))
+}
 
-	frame := styles.overlayBorder.Width(innerWidth)
-	return frame.Render(strings.Join(content, "\n"))
+func firstRenderer(renderers ...*glamour.TermRenderer) *glamour.TermRenderer {
+	if len(renderers) == 0 {
+		return nil
+	}
+	return renderers[0]
 }
 
 //nolint:revive // Signature is dictated by the chat TUI view code.
@@ -499,11 +435,7 @@ func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, e
 		return ""
 	}
 
-	var renderer *glamour.TermRenderer
-	if len(renderers) > 0 {
-		renderer = renderers[0]
-	}
-
+	renderer := firstRenderer(renderers...)
 	activeSelection := -1
 	if !composerFocused {
 		activeSelection = selectedBlock
@@ -527,16 +459,13 @@ func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, e
 		}
 		rendered = append(rendered, blockView)
 	}
-
 	return strings.Join(rendered, "\n")
 }
 
 //nolint:revive // Signature is dictated by the chat TUI view code.
 func renderStatusBar(styles tuiStyles, chat *codersdk.Chat, status codersdk.ChatStatus, usage *codersdk.ChatMessageUsage, queueCount int, interrupting, reconnecting bool, width int) string {
 	_ = chat
-
 	parts := []string{styles.statusColor(status).Render(string(status))}
-
 	if usage != nil && usage.TotalTokens != nil && usage.ContextLimit != nil {
 		total := *usage.TotalTokens
 		limit := *usage.ContextLimit
@@ -552,7 +481,6 @@ func renderStatusBar(styles tuiStyles, chat *codersdk.Chat, status codersdk.Chat
 			parts = append(parts, tokenText)
 		}
 	}
-
 	if queueCount > 0 {
 		parts = append(parts, fmt.Sprintf("queued: %d", queueCount))
 	}
@@ -562,7 +490,6 @@ func renderStatusBar(styles tuiStyles, chat *codersdk.Chat, status codersdk.Chat
 	if reconnecting {
 		parts = append(parts, styles.warningText.Render("reconnecting…"))
 	}
-
 	line := strings.Join(parts, styles.separator.Render(" │ "))
 	bar := styles.statusBar
 	if width > 0 {
@@ -632,44 +559,37 @@ func hasExpandedToolBlock(expandedBlocks map[int]bool, start, end int) bool {
 	return false
 }
 
+func toolChatBlock(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) chatBlock {
+	block := chatBlock{role: role, toolName: part.ToolName, toolID: part.ToolCallID}
+	if part.ToolName == contextCompactionToolName {
+		block.kind = blockCompaction
+		return block
+	}
+	if part.Type == codersdk.ChatMessagePartTypeToolCall {
+		block.kind = blockToolCall
+		block.args = compactTranscriptJSON(part.Args)
+		return block
+	}
+	block.kind = blockToolResult
+	block.result = compactTranscriptJSON(part.Result)
+	block.isError = part.IsError
+	return block
+}
+
 func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
 	blocks := make([]chatBlock, 0)
 	for _, message := range messages {
 		if message.Role == codersdk.ChatMessageRoleSystem {
 			continue
 		}
-
 		for _, part := range message.Content {
 			switch part.Type {
 			case codersdk.ChatMessagePartTypeText:
 				blocks = append(blocks, chatBlock{kind: blockText, role: message.Role, text: part.Text})
 			case codersdk.ChatMessagePartTypeReasoning:
 				blocks = append(blocks, chatBlock{kind: blockReasoning, role: message.Role, text: part.Text})
-			case codersdk.ChatMessagePartTypeToolCall:
-				kind := blockToolCall
-				if part.ToolName == contextCompactionToolName {
-					kind = blockCompaction
-				}
-				blocks = append(blocks, chatBlock{
-					kind:     kind,
-					role:     message.Role,
-					toolName: part.ToolName,
-					toolID:   part.ToolCallID,
-					args:     compactTranscriptJSON(part.Args),
-				})
-			case codersdk.ChatMessagePartTypeToolResult:
-				kind := blockToolResult
-				if part.ToolName == contextCompactionToolName {
-					kind = blockCompaction
-				}
-				blocks = append(blocks, chatBlock{
-					kind:     kind,
-					role:     message.Role,
-					toolName: part.ToolName,
-					toolID:   part.ToolCallID,
-					result:   compactTranscriptJSON(part.Result),
-					isError:  part.IsError,
-				})
+			case codersdk.ChatMessagePartTypeToolCall, codersdk.ChatMessagePartTypeToolResult:
+				blocks = append(blocks, toolChatBlock(message.Role, part))
 			case codersdk.ChatMessagePartTypeSource:
 				title := part.Title
 				if strings.TrimSpace(title) == "" {
@@ -686,11 +606,20 @@ func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
 	return mergeConsecutiveToolBlocks(blocks)
 }
 
+func mergeToolResult(call, result chatBlock) chatBlock {
+	if call.toolName != "" {
+		result.toolName = call.toolName
+	}
+	result.kind = blockToolResult
+	result.toolID = call.toolID
+	result.args = call.args
+	return result
+}
+
 func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 	if len(blocks) < 2 {
 		return blocks
 	}
-
 	callByToolID := make(map[string]struct{}, len(blocks))
 	resultByToolID := make(map[string]chatBlock, len(blocks))
 	for i := range blocks {
@@ -702,22 +631,13 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 			resultByToolID[block.toolID] = block
 		}
 	}
-
 	merged := make([]chatBlock, 0, len(blocks))
 	for i := range blocks {
 		block := blocks[i]
 		switch {
 		case block.kind == blockToolCall && block.toolID != "":
 			if result, ok := resultByToolID[block.toolID]; ok {
-				toolName := block.toolName
-				if toolName == "" {
-					toolName = result.toolName
-				}
-				result.kind = blockToolResult
-				result.toolName = toolName
-				result.toolID = block.toolID
-				result.args = block.args
-				merged = append(merged, result)
+				merged = append(merged, mergeToolResult(block, result))
 				continue
 			}
 		case block.kind == blockToolResult && block.toolID != "":
@@ -727,11 +647,9 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 		}
 		merged = append(merged, block)
 	}
-
 	if len(merged) < 2 {
 		return merged
 	}
-
 	fallbackMerged := make([]chatBlock, 0, len(merged))
 	for i := 0; i < len(merged); i++ {
 		block := merged[i]
@@ -740,32 +658,19 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 			if block.kind == blockToolCall && block.toolID == "" &&
 				next.kind == blockToolResult && next.toolID == "" &&
 				block.toolName == next.toolName {
-				result := next
-				toolName := block.toolName
-				if toolName == "" {
-					toolName = result.toolName
-				}
-				result.kind = blockToolResult
-				result.toolName = toolName
-				result.args = block.args
-				fallbackMerged = append(fallbackMerged, result)
+				fallbackMerged = append(fallbackMerged, mergeToolResult(block, next))
 				i++
 				continue
 			}
 		}
 		fallbackMerged = append(fallbackMerged, block)
 	}
-
 	return fallbackMerged
 }
 
 //nolint:revive // Signature keeps block expansion state explicit at the callsite.
 func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, renderers ...*glamour.TermRenderer) string {
-	var renderer *glamour.TermRenderer
-	if len(renderers) > 0 {
-		renderer = renderers[0]
-	}
-
+	renderer := firstRenderer(renderers...)
 	switch block.kind {
 	case blockText:
 		switch block.role {
@@ -817,17 +722,13 @@ var (
 )
 
 func getFallbackMarkdownRenderer(width int) *glamour.TermRenderer {
-	wrapWidth := width
-	if wrapWidth <= 0 {
-		wrapWidth = 80
-	}
+	wrapWidth := contentWidth(width, 0)
 	if cachedRenderer, ok := fallbackMarkdownRenderers.Load(wrapWidth); ok {
 		renderer, ok := cachedRenderer.(*glamour.TermRenderer)
 		if ok {
 			return renderer
 		}
 	}
-
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(wrapWidth),
@@ -844,10 +745,7 @@ func getFallbackMarkdownRenderer(width int) *glamour.TermRenderer {
 }
 
 func renderAssistantMarkdown(styles tuiStyles, text string, width int, renderers ...*glamour.TermRenderer) string {
-	var renderer *glamour.TermRenderer
-	if len(renderers) > 0 {
-		renderer = renderers[0]
-	}
+	renderer := firstRenderer(renderers...)
 	if renderer == nil {
 		renderer = getFallbackMarkdownRenderer(width)
 	}
@@ -898,16 +796,7 @@ func wrapPreservingNewlines(text string, width int) string {
 }
 
 func clampLines(text string, maxLines int) string {
-	if maxLines <= 0 {
-		return ""
-	}
-	lines := strings.Split(text, "\n")
-	if len(lines) <= maxLines {
-		return text
-	}
-	lines = lines[:maxLines]
-	lines[maxLines-1] = stylesafeEllipsis(lines[maxLines-1])
-	return strings.Join(lines, "\n")
+	return strings.Join(clampLineSlice(strings.Split(text, "\n"), maxLines), "\n")
 }
 
 func clampLineSlice(lines []string, maxLines int) []string {
