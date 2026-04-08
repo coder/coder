@@ -315,6 +315,7 @@ func TestExpAgents(t *testing.T) {
 
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
+			model.width = 80
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.chat = &chat
 
@@ -322,7 +323,7 @@ func TestExpAgents(t *testing.T) {
 			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 
 			updatedModel, cmd = updated.Update(gitChangesMsg{err: xerrors.New("connection refused")})
-			updated = mustTUIModel(t, updatedModel, cmd)
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Contains(t, plainText(updated.View()), "connection refused")
 		})
 
@@ -371,7 +372,7 @@ func TestExpAgents(t *testing.T) {
 			model.chat.gitChanges = []codersdk.ChatGitChange{}
 
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
-			updated := mustTUIModel(t, updatedModel, cmd)
+			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, overlayDiffDrawer, updated.overlay)
 
 			updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
