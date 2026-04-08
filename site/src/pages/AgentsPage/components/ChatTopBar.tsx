@@ -227,7 +227,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										{chatTitle}
 									</span>
 									{!showSaved && onRegenerateTitle && (
-										<WandSparklesIcon
+										<span
 											role="button"
 											tabIndex={0}
 											onClick={(e) => {
@@ -244,9 +244,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 												}
 											}}
 											aria-label="Generate new title"
-											className="h-3.5 w-3.5 shrink-0 cursor-pointer text-content-secondary opacity-0 transition-opacity group-hover/title:opacity-100 hover:text-content-primary"
-										/>
-									)}
+											className="flex shrink-0 cursor-pointer items-center gap-1 text-xs leading-5 translate-y-px text-content-secondary opacity-0 transition-opacity group-hover/title:opacity-100 hover:text-content-primary"
+										>
+											Generate new title
+											<WandSparklesIcon className="h-3 w-3" />
+										</span>
+									)}{" "}
 								</>
 							)
 						) : (
