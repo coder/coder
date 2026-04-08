@@ -118,10 +118,17 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 
 	/**
 	 * Random-number source used for jitter. Defaults to `Math.random` and
-	 * exists primarily as a deterministic test seam.
+	 * exists primarily as a deterministic test seam. Output is normalized
+	 * to `[0, 1]`; non-finite values fall back to `0.5`.
 	 */
 	random?: () => number;
 }
+
+const normalizeUnitInterval = (value: number, fallback: number): number =>
+	Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : fallback;
+
+const normalizeDelayMs = (value: number, fallback: number): number =>
+	Number.isFinite(value) ? Math.max(0, value) : fallback;
 
 const applyReconnectJitter = ({
 	delayMs,
@@ -132,15 +139,13 @@ const applyReconnectJitter = ({
 	jitter: number;
 	random: () => number;
 }): number => {
-	const safeJitter = Number.isFinite(jitter)
-		? Math.min(Math.max(jitter, 0), 1)
-		: 0;
+	const safeJitter = normalizeUnitInterval(jitter, 0);
 	if (safeJitter <= 0) {
 		return delayMs;
 	}
-	const randomValue = Math.min(Math.max(random(), 0), 1);
-	const jitterOffset = (randomValue * 2 - 1) * safeJitter;
-	return Math.max(0, Math.round(delayMs * (1 + jitterOffset)));
+	const safeRandom = normalizeUnitInterval(random(), 0.5);
+	const jitterOffset = (safeRandom * 2 - 1) * safeJitter;
+	return normalizeDelayMs(Math.round(delayMs * (1 + jitterOffset)), delayMs);
 };
 
 const getReconnectSchedule = ({
@@ -158,12 +163,18 @@ const getReconnectSchedule = ({
 	jitter: number;
 	random: () => number;
 }): ReconnectSchedule => {
-	const baseDelayMs = Math.min(baseMs * factor ** (attempt - 1), maxMs);
-	const delayMs = applyReconnectJitter({
-		delayMs: baseDelayMs,
-		jitter,
-		random,
-	});
+	const baseDelayMs = normalizeDelayMs(
+		Math.min(baseMs * factor ** (attempt - 1), maxMs),
+		0,
+	);
+	const delayMs = normalizeDelayMs(
+		applyReconnectJitter({
+			delayMs: baseDelayMs,
+			jitter,
+			random,
+		}),
+		baseDelayMs,
+	);
 	return {
 		attempt,
 		delayMs,
