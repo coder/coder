@@ -675,7 +675,7 @@ export const AgentSettingsBehaviorPageView: FC<
 								Failed to load retention setting.
 							</p>
 						)}
-					</form>{" "}
+					</form>
 				</>
 			)}
 			<hr className="my-5 border-0 border-t border-solid border-border" />
