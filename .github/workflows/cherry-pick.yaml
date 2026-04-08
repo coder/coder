@@ -1,0 +1,139 @@
+# Automatically cherry-pick merged PRs to the latest release branch when the
+# "cherry-pick" label is applied. Works whether the label is added before or
+# after the PR is merged.
+#
+# Usage:
+#   1. Add the "cherry-pick" label to a PR targeting main.
+#   2. When the PR merges (or if already merged), the workflow detects the
+#      latest release/* branch and opens a cherry-pick PR against it.
+#
+# The created PRs follow existing repo conventions:
+#   - Branch:  backport/<pr>-to-<version>
+#   - Title:   <original PR title> (#<pr>)
+#   - Body:    links back to the original PR and merge commit
+
+name: Cherry-pick to release
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - closed
+      - labeled
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Prevent duplicate runs for the same PR when both 'closed' and 'labeled'
+# fire in quick succession.
+concurrency:
+  group: cherry-pick-${{ github.event.pull_request.number }}
+
+jobs:
+  cherry-pick:
+    name: Cherry-pick to latest release
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'cherry-pick')
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history required for cherry-pick and branch discovery.
+          fetch-depth: 0
+
+      - name: Cherry-pick and open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Find the latest release branch matching the exact release/2.X
+          # pattern (no suffixes like release/2.31_hotfix).
+          RELEASE_BRANCH=$(
+            git branch -r \
+              | grep -E '^\s*origin/release/2\.[0-9]+$' \
+              | sed 's|.*origin/||' \
+              | sort -t. -k2 -n -r \
+              | head -1
+          )
+
+          if [ -z "$RELEASE_BRANCH" ]; then
+            echo "::error::No release branch found."
+            exit 1
+          fi
+
+          # Strip the release/ prefix for naming.
+          VERSION="${RELEASE_BRANCH#release/}"
+          BACKPORT_BRANCH="backport/${PR_NUMBER}-to-${VERSION}"
+
+          echo "Target branch: $RELEASE_BRANCH"
+          echo "Backport branch: $BACKPORT_BRANCH"
+
+          # Check if backport branch already exists (idempotency for re-runs).
+          if git ls-remote --exit-code origin "refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
+            echo "Branch ${BACKPORT_BRANCH} already exists, skipping."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Create the backport branch from the target release branch.
+          git checkout -b "$BACKPORT_BRANCH" "origin/${RELEASE_BRANCH}"
+
+          # Cherry-pick the merge commit. Use -x to record provenance and
+          # -m1 to pick the first parent (the main branch side).
+          CONFLICT=false
+          if ! git cherry-pick -x -m1 "$MERGE_SHA"; then
+            CONFLICT=true
+            echo "::warning::Cherry-pick to ${RELEASE_BRANCH} had conflicts."
+
+            # Abort the failed cherry-pick and create an empty commit with
+            # instructions so the PR can still be opened.
+            git cherry-pick --abort
+            git commit --allow-empty -m "cherry-pick of #${PR_NUMBER} failed — resolve conflicts manually
+
+          Cherry-pick of ${MERGE_SHA} onto ${RELEASE_BRANCH} had conflicts.
+          To resolve:
+            git fetch origin ${BACKPORT_BRANCH}
+            git checkout ${BACKPORT_BRANCH}
+            git cherry-pick -x -m1 ${MERGE_SHA}
+            # resolve conflicts
+            git push origin ${BACKPORT_BRANCH}"
+          fi
+
+          git push origin "$BACKPORT_BRANCH"
+
+          BODY=$(cat <<EOF
+          Cherry-pick of ${PR_URL}
+
+          Original PR: #${PR_NUMBER} — ${PR_TITLE}
+          Merge commit: ${MERGE_SHA}
+          EOF
+          )
+
+          TITLE="${PR_TITLE} (#${PR_NUMBER})"
+          if [ "$CONFLICT" = true ]; then
+            TITLE="[CONFLICT] ${TITLE}"
+          fi
+
+          # Check if a PR already exists for this branch (idempotency
+          # for re-runs). Use --state all to catch closed/merged PRs too.
+          EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_BRANCH" --state all --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for ${BACKPORT_BRANCH}, skipping."
+            exit 0
+          fi
+
+          gh pr create \
+            --base "$RELEASE_BRANCH" \
+            --head "$BACKPORT_BRANCH" \
+            --title "$TITLE" \
+            --body "$BODY"
