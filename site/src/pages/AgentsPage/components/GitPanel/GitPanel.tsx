@@ -72,8 +72,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 	chatInputRef,
 }) => {
 	const hasRemoteStats =
-		remoteDiffStats != null &&
-		(remoteDiffStats.additions > 0 || remoteDiffStats.deletions > 0);
+		(remoteDiffStats?.additions ?? 0) > 0 ||
+		(remoteDiffStats?.deletions ?? 0) > 0;
 
 	const showRemoteTab = Boolean(prTab) || hasRemoteStats;
 
