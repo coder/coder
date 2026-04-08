@@ -85,6 +85,6 @@ Select a user to see:
 - **Per-chat breakdown** — table of costs and token usage by chat session.
 
 > [!NOTE]
-> Title generation uses lightweight models, such as Claude Haiku or GPT-4o
+> Automatic title generation uses lightweight models, such as Claude Haiku or GPT-4o
 > Mini. Its token usage is not counted towards usage limits or shown in usage
 > summaries.
