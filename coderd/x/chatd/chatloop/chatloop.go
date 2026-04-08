@@ -1019,7 +1019,7 @@ func executeTools(
 	var wg sync.WaitGroup
 	wg.Add(len(localToolCalls))
 	for i, tc := range localToolCalls {
-		go func(i int, tc fantasy.ToolCallContent) {
+		go func() {
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
@@ -1037,7 +1037,7 @@ func executeTools(
 				completedAt[i] = dbtime.Now()
 			}()
 			results[i] = executeSingleTool(ctx, toolMap, tc)
-		}(i, tc)
+		}()
 	}
 	wg.Wait()
 

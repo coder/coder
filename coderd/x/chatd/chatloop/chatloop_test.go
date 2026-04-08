@@ -803,6 +803,101 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 		"tool-result timestamp must be >= tool-call timestamp")
 }
 
+func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			_ = call
+
+			switch step {
+			case 0:
+				// Step 0: produce two tool calls in one stream.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"path":"a.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"a.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-2", ToolCallName: "write_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-2", Delta: `{"path":"b.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-2"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-2",
+						ToolCallName:  "write_file",
+						ToolCallInput: `{"path":"b.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				// Step 1: return plain text.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "all done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "do both"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+			newNoopTool("write_file"),
+		},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	// Two steps: tool-call step + text step.
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+
+	toolStep := persistedSteps[0]
+
+	// Both tool-call IDs must appear in ToolCallCreatedAt.
+	require.Contains(t, toolStep.ToolCallCreatedAt, "tc-1",
+		"tool-call step must record when tc-1 was emitted")
+	require.Contains(t, toolStep.ToolCallCreatedAt, "tc-2",
+		"tool-call step must record when tc-2 was emitted")
+
+	// Both tool-call IDs must appear in ToolResultCreatedAt.
+	require.Contains(t, toolStep.ToolResultCreatedAt, "tc-1",
+		"tool-call step must record when tc-1 result was produced")
+	require.Contains(t, toolStep.ToolResultCreatedAt, "tc-2",
+		"tool-call step must record when tc-2 result was produced")
+
+	// Result timestamps must be >= call timestamps for both.
+	require.False(t, toolStep.ToolResultCreatedAt["tc-1"].Before(toolStep.ToolCallCreatedAt["tc-1"]),
+		"tc-1 tool-result timestamp must be >= tool-call timestamp")
+	require.False(t, toolStep.ToolResultCreatedAt["tc-2"].Before(toolStep.ToolCallCreatedAt["tc-2"]),
+		"tc-2 tool-result timestamp must be >= tool-call timestamp")
+}
+
 func TestRun_PersistStepErrorPropagates(t *testing.T) {
 	t.Parallel()
 
