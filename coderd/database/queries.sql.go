@@ -5185,6 +5185,89 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 	return i, err
 }
 
+const getChatMessageSummariesPerChat = `-- name: GetChatMessageSummariesPerChat :many
+SELECT
+    cm.chat_id,
+    COUNT(*)::bigint AS message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS user_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS assistant_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'tool')::bigint AS tool_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'system')::bigint AS system_message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
+    COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
+FROM chat_messages cm
+WHERE cm.created_at > $1
+  AND cm.deleted = false
+GROUP BY cm.chat_id
+`
+
+type GetChatMessageSummariesPerChatRow struct {
+	ChatID                   uuid.UUID `db:"chat_id" json:"chat_id"`
+	MessageCount             int64     `db:"message_count" json:"message_count"`
+	UserMessageCount         int64     `db:"user_message_count" json:"user_message_count"`
+	AssistantMessageCount    int64     `db:"assistant_message_count" json:"assistant_message_count"`
+	ToolMessageCount         int64     `db:"tool_message_count" json:"tool_message_count"`
+	SystemMessageCount       int64     `db:"system_message_count" json:"system_message_count"`
+	TotalInputTokens         int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens        int64     `db:"total_output_tokens" json:"total_output_tokens"`
+	TotalReasoningTokens     int64     `db:"total_reasoning_tokens" json:"total_reasoning_tokens"`
+	TotalCacheCreationTokens int64     `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+	TotalCacheReadTokens     int64     `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
+	TotalCostMicros          int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalRuntimeMs           int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
+	DistinctModelCount       int64     `db:"distinct_model_count" json:"distinct_model_count"`
+	CompressedMessageCount   int64     `db:"compressed_message_count" json:"compressed_message_count"`
+}
+
+// Aggregates message-level metrics per chat for messages created
+// after the given timestamp. Uses message created_at so that
+// ongoing activity in long-running chats is captured each window.
+func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessageSummariesPerChat, createdAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatMessageSummariesPerChatRow
+	for rows.Next() {
+		var i GetChatMessageSummariesPerChatRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.MessageCount,
+			&i.UserMessageCount,
+			&i.AssistantMessageCount,
+			&i.ToolMessageCount,
+			&i.SystemMessageCount,
+			&i.TotalInputTokens,
+			&i.TotalOutputTokens,
+			&i.TotalReasoningTokens,
+			&i.TotalCacheCreationTokens,
+			&i.TotalCacheReadTokens,
+			&i.TotalCostMicros,
+			&i.TotalRuntimeMs,
+			&i.DistinctModelCount,
+			&i.CompressedMessageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
@@ -5490,6 +5573,52 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 	return items, nil
 }
 
+const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
+SELECT id, provider, model, context_limit, enabled, is_default
+FROM chat_model_configs
+WHERE deleted = false
+`
+
+type GetChatModelConfigsForTelemetryRow struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	Provider     string    `db:"provider" json:"provider"`
+	Model        string    `db:"model" json:"model"`
+	ContextLimit int64     `db:"context_limit" json:"context_limit"`
+	Enabled      bool      `db:"enabled" json:"enabled"`
+	IsDefault    bool      `db:"is_default" json:"is_default"`
+}
+
+// Returns all model configurations for telemetry snapshot collection.
+func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigsForTelemetry)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatModelConfigsForTelemetryRow
+	for rows.Next() {
+		var i GetChatModelConfigsForTelemetryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Model,
+			&i.ContextLimit,
+			&i.Enabled,
+			&i.IsDefault,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at FROM chat_queued_messages
 WHERE chat_id = $1
@@ -5745,6 +5874,68 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.PinOrder,
 			&i.LastReadMessageID,
 			&i.LastInjectedContext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
+SELECT
+    id, owner_id, created_at, updated_at, status,
+    (parent_chat_id IS NOT NULL)::bool AS has_parent,
+    root_chat_id, workspace_id,
+    mode, archived, last_model_config_id
+FROM chats
+WHERE updated_at > $1
+`
+
+type GetChatsUpdatedAfterRow struct {
+	ID                uuid.UUID     `db:"id" json:"id"`
+	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
+	Status            ChatStatus    `db:"status" json:"status"`
+	HasParent         bool          `db:"has_parent" json:"has_parent"`
+	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
+	WorkspaceID       uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	Mode              NullChatMode  `db:"mode" json:"mode"`
+	Archived          bool          `db:"archived" json:"archived"`
+	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
+}
+
+// Retrieves chats updated after the given timestamp for telemetry
+// snapshot collection. Uses updated_at so that long-running chats
+// still appear in each snapshot window while they are active.
+func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsUpdatedAfter, updatedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatsUpdatedAfterRow
+	for rows.Next() {
+		var i GetChatsUpdatedAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.HasParent,
+			&i.RootChatID,
+			&i.WorkspaceID,
+			&i.Mode,
+			&i.Archived,
+			&i.LastModelConfigID,
 		); err != nil {
 			return nil, err
 		}
