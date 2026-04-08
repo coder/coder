@@ -206,14 +206,24 @@ WHERE run_id = @run_id::uuid
 ORDER BY step_number ASC, started_at ASC;
 
 -- name: DeleteChatDebugDataByChatID :execrows
+-- The started_before bound prevents retried cleanup from deleting
+-- runs created by a replacement turn that races ahead of the retry
+-- window (for example, after an unarchive races with a pending
+-- archive-cleanup retry).
 DELETE FROM chat_debug_runs
-WHERE chat_id = @chat_id::uuid;
+WHERE chat_id = @chat_id::uuid
+    AND started_at < @started_before::timestamptz;
 
 -- name: DeleteChatDebugDataAfterMessageID :execrows
+-- Deletes debug runs (and their cascaded steps) whose message IDs
+-- exceed the cutoff. The started_before bound prevents retried
+-- cleanup from deleting runs created by a replacement turn that
+-- raced ahead of the retry window.
 WITH affected_runs AS (
     SELECT DISTINCT run.id
     FROM chat_debug_runs run
     WHERE run.chat_id = @chat_id::uuid
+        AND run.started_at < @started_before::timestamptz
         AND (
             run.history_tip_message_id > @message_id::bigint
             OR run.trigger_message_id > @message_id::bigint
@@ -223,7 +233,10 @@ WITH affected_runs AS (
 
     SELECT DISTINCT step.run_id AS id
     FROM chat_debug_steps step
+    JOIN chat_debug_runs run ON run.id = step.run_id
+        AND run.chat_id = step.chat_id
     WHERE step.chat_id = @chat_id::uuid
+        AND run.started_at < @started_before::timestamptz
         AND (
             step.assistant_message_id > @message_id::bigint
             OR step.history_tip_message_id > @message_id::bigint

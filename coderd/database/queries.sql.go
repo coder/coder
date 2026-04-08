@@ -2905,19 +2905,23 @@ WITH affected_runs AS (
     SELECT DISTINCT run.id
     FROM chat_debug_runs run
     WHERE run.chat_id = $1::uuid
+        AND run.started_at < $2::timestamptz
         AND (
-            run.history_tip_message_id > $2::bigint
-            OR run.trigger_message_id > $2::bigint
+            run.history_tip_message_id > $3::bigint
+            OR run.trigger_message_id > $3::bigint
         )
 
     UNION
 
     SELECT DISTINCT step.run_id AS id
     FROM chat_debug_steps step
+    JOIN chat_debug_runs run ON run.id = step.run_id
+        AND run.chat_id = step.chat_id
     WHERE step.chat_id = $1::uuid
+        AND run.started_at < $2::timestamptz
         AND (
-            step.assistant_message_id > $2::bigint
-            OR step.history_tip_message_id > $2::bigint
+            step.assistant_message_id > $3::bigint
+            OR step.history_tip_message_id > $3::bigint
         )
 )
 DELETE FROM chat_debug_runs
@@ -2926,12 +2930,17 @@ WHERE chat_id = $1::uuid
 `
 
 type DeleteChatDebugDataAfterMessageIDParams struct {
-	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
-	MessageID int64     `db:"message_id" json:"message_id"`
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+	MessageID     int64     `db:"message_id" json:"message_id"`
 }
 
+// Deletes debug runs (and their cascaded steps) whose message IDs
+// exceed the cutoff. The started_before bound prevents retried
+// cleanup from deleting runs created by a replacement turn that
+// raced ahead of the retry window.
 func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.MessageID)
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.StartedBefore, arg.MessageID)
 	if err != nil {
 		return 0, err
 	}
@@ -2941,10 +2950,20 @@ func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg 
 const deleteChatDebugDataByChatID = `-- name: DeleteChatDebugDataByChatID :execrows
 DELETE FROM chat_debug_runs
 WHERE chat_id = $1::uuid
+    AND started_at < $2::timestamptz
 `
 
-func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, chatID)
+type DeleteChatDebugDataByChatIDParams struct {
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+}
+
+// The started_before bound prevents retried cleanup from deleting
+// runs created by a replacement turn that races ahead of the retry
+// window (for example, after an unarchive races with a pending
+// archive-cleanup retry).
+func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, arg.ChatID, arg.StartedBefore)
 	if err != nil {
 		return 0, err
 	}

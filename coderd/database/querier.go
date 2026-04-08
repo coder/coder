@@ -102,8 +102,16 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes debug runs (and their cascaded steps) whose message IDs
+	// exceed the cutoff. The started_before bound prevents retried
+	// cleanup from deleting runs created by a replacement turn that
+	// raced ahead of the retry window.
 	DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error)
-	DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
+	// The started_before bound prevents retried cleanup from deleting
+	// runs created by a replacement turn that races ahead of the retry
+	// window (for example, after an unarchive races with a pending
+	// archive-cleanup retry).
+	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error

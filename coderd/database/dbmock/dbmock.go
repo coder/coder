@@ -687,18 +687,18 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataAfterMessageID(ctx, arg any)
 }
 
 // DeleteChatDebugDataByChatID mocks base method.
-func (m *MockStore) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+func (m *MockStore) DeleteChatDebugDataByChatID(ctx context.Context, arg database.DeleteChatDebugDataByChatIDParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatDebugDataByChatID", ctx, chatID)
+	ret := m.ctrl.Call(m, "DeleteChatDebugDataByChatID", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteChatDebugDataByChatID indicates an expected call of DeleteChatDebugDataByChatID.
-func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, chatID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, chatID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, arg)
 }
 
 // DeleteChatModelConfigByID mocks base method.

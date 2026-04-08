@@ -181,6 +181,12 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	}
 }
 
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
 func TestReasoningEffortFromChat(t *testing.T) {
 	t.Parallel()
 
@@ -783,7 +789,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 			BaseURLByProvider: map[string]string{"openai": serverURL},
 		}
 
-		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers)
+		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers, nil)
 		require.NoError(t, err)
 
 		_, err = model.Generate(ctx, fantasy.Call{
@@ -814,7 +820,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 			BaseURLByProvider: map[string]string{"anthropic": serverURL},
 		}
 
-		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers)
+		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers, nil)
 		require.NoError(t, err)
 
 		_, err = model.Generate(ctx, fantasy.Call{
@@ -850,7 +856,7 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 		BaseURLByProvider: map[string]string{"openai": serverURL},
 	}
 
-	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil)
+	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil, nil)
 	require.NoError(t, err)
 
 	_, err = model.Generate(ctx, fantasy.Call{
@@ -860,6 +866,48 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
 			},
 		},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
+func TestModelFromConfig_HTTPClient(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	called := make(chan struct{})
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		assert.Equal(t, "true", req.Header.Get("X-Test-Transport"))
+		close(called)
+		return chattest.OpenAINonStreamingResponse("hello")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"openai": "test-key"},
+		BaseURLByProvider: map[string]string{"openai": serverURL},
+	}
+	client := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		cloned := req.Clone(req.Context())
+		cloned.Header = req.Header.Clone()
+		cloned.Header.Set("X-Test-Transport", "true")
+		return http.DefaultTransport.RoundTrip(cloned)
+	})}
+
+	model, err := chatprovider.ModelFromConfig(
+		"openai",
+		"gpt-4",
+		keys,
+		chatprovider.UserAgent(),
+		nil,
+		client,
+	)
+	require.NoError(t, err)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}},
 	})
 	require.NoError(t, err)
 	_ = testutil.TryReceive(ctx, t, called)
