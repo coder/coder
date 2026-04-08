@@ -37,4 +37,3 @@ The retention period is stored as the `agents_chat_retention_days` key in the
 If a user unarchives a conversation whose files were purged, stale file
 references are automatically cleaned up by FK cascades. The conversation
 remains usable but previously attached files are no longer available.
-
