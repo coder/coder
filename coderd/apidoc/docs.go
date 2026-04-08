@@ -18917,6 +18917,9 @@ const docTemplate = `{
                 "template_version_name": {
                     "type": "string"
                 },
+                "workspace_build_transition": {
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                },
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"

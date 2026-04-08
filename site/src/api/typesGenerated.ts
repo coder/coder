@@ -5599,6 +5599,7 @@ export interface ProvisionerJobMetadata {
 	readonly template_icon: string;
 	readonly workspace_id?: string;
 	readonly workspace_name?: string;
+	readonly workspace_build_transition?: WorkspaceTransition;
 }
 
 // From codersdk/provisionerdaemons.go

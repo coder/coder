@@ -58,7 +58,8 @@
       "template_display_name": "",
       "template_icon": "",
       "workspace_id": "===========[workspace ID]===========",
-      "workspace_name": "test-workspace"
+      "workspace_name": "test-workspace",
+      "workspace_build_transition": "start"
     },
     "logs_overflowed": false,
     "organization_name": "Coder"
