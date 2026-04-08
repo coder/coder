@@ -9,7 +9,7 @@ const skeletonVariants = cva("bg-surface-tertiary animate-pulse", {
 	variants: {
 		variant: {
 			default: "rounded-md",
-			text: "rounded-full py-1",
+			text: "rounded-full h-2 my-1",
 			circular: "rounded-full",
 		},
 	},

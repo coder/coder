@@ -7,8 +7,8 @@ export const AvatarDataSkeleton: FC = () => {
 			<Skeleton className="size-10 rounded-sm shrink-0" />
 
 			<div className="flex flex-col w-full">
-				<Skeleton variant="text" width={100} height={16} />
-				<Skeleton variant="text" width={60} height={16} />
+				<Skeleton variant="text" width={100} />
+				<Skeleton variant="text" width={60} />
 			</div>
 		</div>
 	);
