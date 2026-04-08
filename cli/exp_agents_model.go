@@ -236,7 +236,9 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case modelsListedMsg:
-		if msg.err == nil {
+		if msg.err != nil {
+			m.overlay = overlayNone
+		} else {
 			catalog := msg.catalog
 			m.catalog = &catalog
 		}
@@ -273,13 +275,21 @@ func (m expChatsTUIModel) View() string {
 
 	switch m.overlay {
 	case overlayModelPicker:
-		if m.catalog != nil {
-			selectedID := ""
-			if m.chat.modelOverride != nil {
-				selectedID = m.chat.modelOverride.String()
-			}
-			base += "\n" + renderModelPicker(m.styles, *m.catalog, selectedID, m.chat.modelPickerCursor, m.width, m.height)
+		if m.catalog == nil {
+			base += "\n" + renderOverlayFrame(
+				m.styles,
+				m.width,
+				m.styles.title.Render("Select Model"),
+				m.styles.dimmedText.Render("Loading models..."),
+				m.styles.helpText.Render("Esc to close"),
+			)
+			break
 		}
+		selectedID := ""
+		if m.chat.modelOverride != nil {
+			selectedID = m.chat.modelOverride.String()
+		}
+		base += "\n" + renderModelPicker(m.styles, *m.catalog, selectedID, m.chat.modelPickerCursor, m.width, m.height)
 	case overlayDiffDrawer:
 		switch {
 		case m.chat.diffErr != nil:

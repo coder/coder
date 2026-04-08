@@ -352,6 +352,43 @@ func TestExpAgents(t *testing.T) {
 					},
 				},
 				{
+					name: "LoadingPlaceholder",
+					run: func(t *testing.T, model expChatsTUIModel) {
+						t.Helper()
+
+						model.currentView = viewChat
+						model.width = 80
+						model.height = 24
+
+						updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+						updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+						require.Equal(t, overlayModelPicker, updated.overlay)
+						require.NotNil(t, cmd)
+						require.Contains(t, plainText(updated.View()), "Loading models...")
+					},
+				},
+				{
+					name: "LoadErrorClosesOverlay",
+					run: func(t *testing.T, model expChatsTUIModel) {
+						t.Helper()
+
+						model.currentView = viewChat
+						model.width = 80
+						model.height = 24
+
+						updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+						updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+						require.Equal(t, overlayModelPicker, updated.overlay)
+						require.NotNil(t, cmd)
+						require.Contains(t, plainText(updated.View()), "Loading models...")
+
+						updatedModel, cmd = updated.Update(modelsListedMsg{err: xerrors.New("model discovery failed")})
+						updated = mustTUIModel(t, updatedModel, cmd)
+						require.Equal(t, overlayNone, updated.overlay)
+						require.NotContains(t, plainText(updated.View()), "Loading models...")
+					},
+				},
+				{
 					name: "ReOpenPreservesCursor",
 					run: func(t *testing.T, model expChatsTUIModel) {
 						t.Helper()
