@@ -1,9 +1,4 @@
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	LoaderIcon,
-} from "lucide-react";
+import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
 	AIBridgeAgenticAction,
@@ -118,11 +113,13 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 		className="border-none bg-transparent text-content-secondary flex items-center"
 		size="sm"
 	>
-		{isOpen ? (
-			<ChevronDownIcon className="size-3.5 flex-shrink-0" />
-		) : (
-			<ChevronRightIcon className="size-3.5 flex-shrink-0" />
-		)}
+		<ChevronRightIcon
+			className={cn(
+				"mr-4 transition-transform size-3.5",
+				isOpen && "rotate-90",
+			)}
+		/>
+		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
 	</Button>
 );

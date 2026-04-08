@@ -140,7 +140,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						])}
 					>
 						<ChevronRightIcon
-							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+							className={cn(
+								"mr-4 transition-transform size-3.5",
+								isOpen && "rotate-90",
+							)}
 						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
