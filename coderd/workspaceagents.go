@@ -2437,16 +2437,6 @@ func readChatContextBody(ctx context.Context, rw http.ResponseWriter, r *http.Re
 	return httpapi.Read(ctx, rw, r, dst)
 }
 
-// @Summary Add workspace agent chat context
-// @ID add-workspace-agent-chat-context
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Agents
-// @Param request body agentsdk.AddChatContextRequest true "Chat context request"
-// @Success 200 {object} agentsdk.AddChatContextResponse
-// @Router /workspaceagents/me/experimental/chat-context [post]
-// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -2574,16 +2564,6 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	})
 }
 
-// @Summary Clear workspace agent chat context
-// @ID clear-workspace-agent-chat-context
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Agents
-// @Param request body agentsdk.ClearChatContextRequest true "Clear context request"
-// @Success 200 {object} agentsdk.ClearChatContextResponse
-// @Router /workspaceagents/me/experimental/chat-context [delete]
-// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
