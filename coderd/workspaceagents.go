@@ -2437,6 +2437,7 @@ func readChatContextBody(ctx context.Context, rw http.ResponseWriter, r *http.Re
 	return httpapi.Read(ctx, rw, r, dst)
 }
 
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -2564,6 +2565,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	})
 }
 
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
