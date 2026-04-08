@@ -67,13 +67,19 @@ func seedChat(t *testing.T, ctx context.Context, expClient *codersdk.Experimenta
 }
 
 type expAgentsSession struct {
-	t   *testing.T
-	pty *ptytest.PTY
+	t     *testing.T
+	pty   *ptytest.PTY
+	errCh <-chan error
 }
 
 func (s *expAgentsSession) expect(ctx context.Context, text string) {
 	s.t.Helper()
 	s.pty.ExpectMatchContext(ctx, text)
+}
+
+func (s *expAgentsSession) wait(ctx context.Context) error {
+	s.t.Helper()
+	return testutil.RequireReceive(ctx, s.t, s.errCh)
 }
 
 //nolint:unused // Kept as a small PTY helper for future multi-character input.
@@ -135,9 +141,10 @@ func startExpAgentsSession(t *testing.T, ctx context.Context, client *codersdk.C
 	inv.Stdout = tty
 	inv.Stderr = tty
 
+	errCh := make(chan error, 1)
 	tGo(t, func() {
-		_ = inv.WithContext(ctx).Run()
+		errCh <- inv.WithContext(ctx).Run()
 	})
 
-	return &expAgentsSession{t: t, pty: pty}
+	return &expAgentsSession{t: t, pty: pty, errCh: errCh}
 }

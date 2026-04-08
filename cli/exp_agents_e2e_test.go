@@ -3,6 +3,8 @@ package cli_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -18,6 +20,7 @@ func TestExpAgentsE2E(t *testing.T) {
 
 		session.expect(ctx, "No chats yet. Press n to start a new chat.")
 		session.quit()
+		require.NoError(t, session.wait(ctx))
 	})
 
 	t.Run("ListAndNavigate", func(t *testing.T) {
@@ -39,6 +42,7 @@ func TestExpAgentsE2E(t *testing.T) {
 		session.esc()
 		session.expect(ctx, "enter: open")
 		session.quit()
+		require.NoError(t, session.wait(ctx))
 	})
 
 	t.Run("SearchFilter", func(t *testing.T) {
@@ -61,6 +65,7 @@ func TestExpAgentsE2E(t *testing.T) {
 		}
 		session.expect(ctx, "No matches.")
 		session.ctrlC()
+		require.NoError(t, session.wait(ctx))
 	})
 
 	t.Run("ExistingChatHistory", func(t *testing.T) {
@@ -77,5 +82,6 @@ func TestExpAgentsE2E(t *testing.T) {
 		session.esc()
 		session.expect(ctx, "enter: open")
 		session.quit()
+		require.NoError(t, session.wait(ctx))
 	})
 }
