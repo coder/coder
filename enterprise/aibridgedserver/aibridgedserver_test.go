@@ -406,7 +406,7 @@ func TestRecordInterception(t *testing.T) {
 						Model:          req.GetModel(),
 						Metadata:       json.RawMessage(metadataJSON),
 						StartedAt:      req.StartedAt.AsTime().UTC(),
-						CredentialKind: "byok",
+						CredentialKind: database.CredentialKindByok,
 						CredentialHint: "sk-a...efgh",
 					}).Return(database.AIBridgeInterception{
 						ID:             interceptionID,
@@ -416,7 +416,7 @@ func TestRecordInterception(t *testing.T) {
 						ProviderName:   req.GetProviderName(),
 						Model:          req.GetModel(),
 						StartedAt:      req.StartedAt.AsTime().UTC(),
-						CredentialKind: "byok",
+						CredentialKind: database.CredentialKindByok,
 						CredentialHint: "sk-a...efgh",
 					}, nil)
 				},
