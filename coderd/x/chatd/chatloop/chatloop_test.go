@@ -86,6 +86,54 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
 }
 
+func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
+	t.Parallel()
+
+	model := &loopTestModel{
+		provider: fantasyanthropic.Name,
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "cached response"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{
+					Type: fantasy.StreamPartTypeFinish,
+					Usage: fantasy.Usage{
+						InputTokens:         200,
+						OutputTokens:        75,
+						TotalTokens:         275,
+						CacheCreationTokens: 30,
+						CacheReadTokens:     150,
+						ReasoningTokens:     0,
+					},
+					FinishReason: fantasy.FinishReasonStop,
+				},
+			}), nil
+		},
+	}
+
+	var persistedStep PersistedStep
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(200), persistedStep.Usage.InputTokens)
+	require.Equal(t, int64(75), persistedStep.Usage.OutputTokens)
+	require.Equal(t, int64(275), persistedStep.Usage.TotalTokens)
+	require.Equal(t, int64(30), persistedStep.Usage.CacheCreationTokens)
+	require.Equal(t, int64(150), persistedStep.Usage.CacheReadTokens)
+}
+
 func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	t.Parallel()
 

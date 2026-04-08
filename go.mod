@@ -82,7 +82,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260325145725-112927d9b6d8
 
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
+// Forked from coder/anthropic-sdk-go (mike/fix-usage-accumulator branch) which adds:
+// 1) All kylecarbs changes (fantasy branch merge).
+// 2) Explicit usage-field merging in Accumulate using JSON presence checks
+//    (preserves input and cache tokens from message_start when message_delta
+//    omits them).
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260407150612-7277505f117c
 
 require (
 	cdr.dev/slog/v3 v3.0.0
