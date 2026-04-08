@@ -238,8 +238,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			<div className="flex items-start gap-3 p-4 text-sm text-content-secondary">
 				<InfoIcon className="h-5 w-5 shrink-0" />
 				<span>
-					Title generation uses lightweight models and is not counted
-					towards usage limits.
+					Title generation uses lightweight models and is not counted towards
+					usage limits.
 				</span>
 			</div>
 
