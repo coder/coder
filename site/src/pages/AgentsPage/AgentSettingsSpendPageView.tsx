@@ -9,8 +9,10 @@ import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
-import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import {
+	PaginationContainer,
+	type PaginationResult,
+} from "#/components/PaginationWidget/PaginationContainer";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -151,15 +153,13 @@ interface AgentSettingsSpendPageViewProps {
 	onDateRangeChange: (value: DateRangeValue) => void;
 	searchFilter: string;
 	onSearchFilterChange: (value: string) => void;
-	page: number;
-	onPageChange: (page: number) => void;
-	pageSize: number;
-	offset: number;
-	usersData: TypesGen.ChatCostUsersResponse | undefined;
-	isUsersLoading: boolean;
-	isUsersFetching: boolean;
-	usersError: unknown;
-	onUsersRetry: () => void;
+	usersQuery: PaginationResult & {
+		data: TypesGen.ChatCostUsersResponse | undefined;
+		isLoading: boolean;
+		isFetching: boolean;
+		error: unknown;
+		refetch: () => unknown;
+	};
 	selectedUserId: string | null;
 	selectedUser: TypesGen.User | null;
 	isSelectedUserLoading: boolean;
@@ -208,15 +208,7 @@ export const AgentSettingsSpendPageView: FC<
 	onDateRangeChange,
 	searchFilter,
 	onSearchFilterChange,
-	page,
-	onPageChange,
-	pageSize,
-	offset,
-	usersData,
-	isUsersLoading,
-	isUsersFetching,
-	usersError,
-	onUsersRetry,
+	usersQuery,
 	selectedUserId,
 	selectedUser,
 	isSelectedUserLoading,
@@ -299,9 +291,6 @@ export const AgentSettingsSpendPageView: FC<
 	const dateRangeLabel = formatUsageDateRange(dateRange, {
 		endDateIsExclusive: hasExplicitDateRange,
 	});
-	const totalCount = usersData?.count ?? 0;
-	const hasPreviousPage = page > 1;
-	const hasNextPage = offset + pageSize < totalCount;
 
 	// ── Limits handlers ──
 	const handleResetUpdateConfig = () => {
@@ -503,9 +492,10 @@ export const AgentSettingsSpendPageView: FC<
 						}) => (
 							<section>
 								<SectionHeader
+									level="section"
 									label="Default spend limit"
 									description="Set a deployment-wide spend cap that applies to all users by default."
-								/>
+								/>{" "}
 								<DefaultLimitSection
 									hideHeader
 									adminBadge={null}
@@ -559,6 +549,7 @@ export const AgentSettingsSpendPageView: FC<
 					{/* Section 2: Group limits */}
 					<section>
 						<SectionHeader
+							level="section"
 							label="Group limits"
 							description="Override the default limit for specific groups. The lowest group limit applies."
 						/>{" "}
@@ -590,6 +581,7 @@ export const AgentSettingsSpendPageView: FC<
 			{/* Section 3: Per-user spend */}{" "}
 			<section>
 				<SectionHeader
+					level="section"
 					label="Per-user spend"
 					description="User overrides take highest priority, followed by group limits, then the default."
 				/>
@@ -625,29 +617,19 @@ export const AgentSettingsSpendPageView: FC<
 						deleteError={deleteOverrideError}
 					/>
 				)}{" "}
-				{/* Search + pagination amount */}
-				<div className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
+				{/* Search */}
+				<div className="pt-6">
 					<div className="w-full md:max-w-sm">
 						<SearchField
 							value={searchFilter}
-							onChange={(value) => {
-								onSearchFilterChange(value);
-							}}
+							onChange={onSearchFilterChange}
 							placeholder="Search by name or username"
 							aria-label="Search usage by name or username"
 						/>
 					</div>
-					{usersData && (
-						<PaginationAmount
-							limit={pageSize}
-							totalRecords={usersData.count}
-							currentOffsetStart={usersData.count === 0 ? 0 : offset + 1}
-							paginationUnitLabel="users"
-						/>
-					)}
 				</div>
 				{/* Loading state */}
-				{isUsersLoading && (
+				{usersQuery.isLoading && (
 					<div
 						role="status"
 						aria-label="Loading usage"
@@ -657,25 +639,25 @@ export const AgentSettingsSpendPageView: FC<
 					</div>
 				)}
 				{/* Error state */}
-				{usersError != null && (
+				{usersQuery.error != null && (
 					<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
 						<p className="m-0 text-sm text-content-secondary">
-							{getErrorMessage(usersError, "Failed to load usage data.")}
+							{getErrorMessage(usersQuery.error, "Failed to load usage data.")}
 						</p>
 						<Button
 							variant="outline"
 							size="sm"
 							type="button"
-							onClick={onUsersRetry}
+							onClick={() => void usersQuery.refetch()}
 						>
 							Retry
 						</Button>
 					</div>
 				)}
-				{/* User table */}
-				{usersData && (
+				{/* User table + pagination */}
+				{usersQuery.data && (
 					<div className="relative pt-3">
-						{isUsersFetching && !isUsersLoading && (
+						{usersQuery.isFetching && !usersQuery.isLoading && (
 							<div
 								role="status"
 								aria-label="Refreshing usage"
@@ -684,12 +666,15 @@ export const AgentSettingsSpendPageView: FC<
 								<Spinner size="lg" loading className="text-content-secondary" />
 							</div>
 						)}
-						{usersData.users.length === 0 ? (
+						{usersQuery.data.users.length === 0 ? (
 							<p className="py-12 text-center text-content-secondary">
 								No usage data for this period.
 							</p>
 						) : (
-							<>
+							<PaginationContainer
+								query={usersQuery}
+								paginationUnitLabel="users"
+							>
 								<div className="overflow-hidden rounded-lg border border-border-default">
 									<Table aria-label="Per-user spend">
 										<TableHeader>
@@ -707,7 +692,7 @@ export const AgentSettingsSpendPageView: FC<
 											</TableRow>
 										</TableHeader>
 										<TableBody>
-											{usersData.users.map((user) => (
+											{usersQuery.data.users.map((user) => (
 												<UserRow
 													key={user.user_id}
 													user={user}
@@ -717,21 +702,11 @@ export const AgentSettingsSpendPageView: FC<
 										</TableBody>
 									</Table>
 								</div>
-								<div className="pt-4">
-									<PaginationWidgetBase
-										totalRecords={usersData.count}
-										currentPage={page}
-										pageSize={pageSize}
-										onPageChange={onPageChange}
-										hasPreviousPage={hasPreviousPage}
-										hasNextPage={hasNextPage}
-									/>
-								</div>
-							</>
+							</PaginationContainer>
 						)}
 					</div>
 				)}
-			</section>
+			</section>{" "}
 		</div>
 	);
 };

@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -329,10 +330,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 
 					<div>
-						<Table aria-label="Cost breakdown by conversation">
+						<Table aria-label="Cost breakdown by agent">
 							<TableHeader>
 								<TableRow>
-									<TableHead>Conversation</TableHead>
+									<TableHead>Agent</TableHead>
 									<TableHead className="text-right">Cost</TableHead>
 									<TableHead className="text-right">Messages</TableHead>
 									<TableHead className="text-right">Input</TableHead>
@@ -348,16 +349,22 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 											{chat.chat_title ? (
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="block truncate">
+														<Link
+															to={`/agents/${chat.root_chat_id}`}
+															className="block truncate text-inherit no-underline hover:underline"
+														>
 															{chat.chat_title}
-														</span>
+														</Link>
 													</TooltipTrigger>
 													<TooltipContent>{chat.chat_title}</TooltipContent>
 												</Tooltip>
 											) : (
-												<span className="italic text-content-secondary">
-													Untitled conversation
-												</span>
+												<Link
+													to={`/agents/${chat.root_chat_id}`}
+													className="text-inherit no-underline hover:underline"
+												>
+													Untitled agent
+												</Link>
 											)}
 										</TableCell>
 										<TableCell className="text-right tabular-nums">

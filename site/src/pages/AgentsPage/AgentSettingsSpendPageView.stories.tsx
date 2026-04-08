@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
 import { AgentSettingsSpendPageView } from "./AgentSettingsSpendPageView";
 
 // ── Mock data ──────────────────────────────────────────────────
@@ -167,6 +168,59 @@ const defaultDateRange = {
 	endDate: new Date("2026-03-12T00:00:00Z"),
 };
 
+// Helper to build a mock usersQuery object that satisfies the view's
+// PaginationResult & query shape.
+function mockUsersQuery(
+	opts: {
+		data?: TypesGen.ChatCostUsersResponse;
+		isLoading?: boolean;
+		isFetching?: boolean;
+		error?: unknown;
+	} = {},
+): PaginationResult & {
+	data: TypesGen.ChatCostUsersResponse | undefined;
+	isLoading: boolean;
+	isFetching: boolean;
+	error: unknown;
+	refetch: () => unknown;
+} {
+	const data = opts.data;
+	const isSuccess = data !== undefined && !opts.error;
+	return {
+		data,
+		isLoading: opts.isLoading ?? false,
+		isFetching: opts.isFetching ?? false,
+		error: opts.error ?? null,
+		refetch: fn(),
+		isPlaceholderData: false,
+		currentPage: 1,
+		limit: 25,
+		onPageChange: fn(),
+		goToPreviousPage: fn(),
+		goToNextPage: fn(),
+		goToFirstPage: fn(),
+		...(isSuccess
+			? {
+					isSuccess: true as const,
+					hasNextPage: false,
+					hasPreviousPage: false,
+					totalRecords: data.count,
+					totalPages: 1,
+					currentOffsetStart: data.count === 0 ? 0 : 1,
+					countIsCapped: false,
+				}
+			: {
+					isSuccess: false as const,
+					hasNextPage: false,
+					hasPreviousPage: false,
+					totalRecords: undefined,
+					totalPages: undefined,
+					currentOffsetStart: undefined,
+					countIsCapped: false,
+				}),
+	};
+}
+
 // Baseline props shared across stories. Only primitives and simple
 // objects here to avoid the composeStory deep-merge hang.
 const baseProps = {
@@ -192,12 +246,7 @@ const baseProps = {
 	dateRange: defaultDateRange,
 	hasExplicitDateRange: false,
 	searchFilter: "",
-	page: 1,
-	pageSize: 25,
-	offset: 0,
-	isUsersLoading: false,
-	isUsersFetching: false,
-	usersError: undefined as unknown,
+	usersQuery: mockUsersQuery(),
 	selectedUserId: null as string | null,
 	selectedUser: null as TypesGen.User | null,
 	isSelectedUserLoading: false,
@@ -222,8 +271,6 @@ const meta = {
 		onDeleteGroupOverride: fn(),
 		onDateRangeChange: fn(),
 		onSearchFilterChange: fn(),
-		onPageChange: fn(),
-		onUsersRetry: fn(),
 		onSelectedUserRetry: fn(),
 		onClearSelectedUser: fn(),
 		onSelectUser: fn(),
@@ -240,7 +287,7 @@ export const SpendWithLimitsAndUsers: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		usersData: mockUsersResponse,
+		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -266,12 +313,14 @@ export const SpendUsersEmpty: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		usersData: {
-			start_date: "2026-02-10T00:00:00Z",
-			end_date: "2026-03-12T00:00:00Z",
-			count: 0,
-			users: [],
-		},
+		usersQuery: mockUsersQuery({
+			data: {
+				start_date: "2026-02-10T00:00:00Z",
+				end_date: "2026-03-12T00:00:00Z",
+				count: 0,
+				users: [],
+			},
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -329,9 +378,10 @@ export const SpendRefetchOverlay: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		usersData: mockUsersResponse,
-		isUsersFetching: true,
-		isUsersLoading: false,
+		usersQuery: mockUsersQuery({
+			data: mockUsersResponse,
+			isFetching: true,
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -355,7 +405,7 @@ export const SpendConfigLoading: Story = {
 export const SpendConfigError: Story = {
 	args: {
 		configError: new Error("Network error: failed to fetch config"),
-		usersData: mockUsersResponse,
+		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -374,7 +424,7 @@ export const SpendUsersLoading: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		isUsersLoading: true,
+		usersQuery: mockUsersQuery({ isLoading: true }),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -393,7 +443,9 @@ export const SpendUsersError: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		usersError: new Error("Failed to load usage data"),
+		usersQuery: mockUsersQuery({
+			error: new Error("Failed to load usage data"),
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

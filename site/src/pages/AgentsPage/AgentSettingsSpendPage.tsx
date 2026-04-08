@@ -1,18 +1,13 @@
 import dayjs from "dayjs";
-import type { FC } from "react";
-import {
-	keepPreviousData,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import {
 	chatCostSummary,
-	chatCostUsers,
 	chatUsageLimitConfig,
 	deleteChatUsageLimitGroupOverride,
 	deleteChatUsageLimitOverride,
+	paginatedChatCostUsers,
 	updateChatUsageLimitConfig,
 	upsertChatUsageLimitGroupOverride,
 	upsertChatUsageLimitOverride,
@@ -23,10 +18,9 @@ import type { ChatCostUserRollup } from "#/api/typesGenerated";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { AgentSettingsSpendPageView } from "./AgentSettingsSpendPageView";
-
-const pageSize = 10;
 
 const usageStartDateSearchParam = "startDate";
 const usageEndDateSearchParam = "endDate";
@@ -74,11 +68,8 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 
 	const [searchParams, setSearchParams] = useSearchParams();
 
-	// All ephemeral UI state lives in URL search params so the page
-	// is deep-linkable and survives navigation.
 	const searchFilter = searchParams.get("search") ?? "";
 	const debouncedSearch = useDebouncedValue(searchFilter, 300);
-	const page = Number(searchParams.get("page") ?? "1") || 1;
 
 	const setSearchFilter = (value: string) => {
 		setSearchParams((prev) => {
@@ -88,20 +79,6 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 			} else {
 				next.delete("search");
 			}
-			// Reset to page 1 when the search changes.
-			next.delete("page");
-			return next;
-		});
-	};
-
-	const setPage = (newPage: number) => {
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			if (newPage > 1) {
-				next.set("page", String(newPage));
-			} else {
-				next.delete("page");
-			}
 			return next;
 		});
 	};
@@ -110,8 +87,8 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
 	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
 
-	// Capture the default once so it doesn't shift on re-render.
-	const defaultDateRange = getDefaultUsageDateRange(now);
+	// Stable default so dayjs() isn't called on every render.
+	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
 	let dateRange = defaultDateRange;
 	let hasExplicitDateRange = false;
 
@@ -136,7 +113,6 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 		start_date: dateRange.startDate.toISOString(),
 		end_date: dateRange.endDate.toISOString(),
 	};
-	const offset = (page - 1) * pageSize;
 
 	const onDateRangeChange = (value: DateRangeValue) => {
 		setSearchParams((prev) => {
@@ -149,15 +125,12 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 		});
 	};
 
-	const usersQuery = useQuery({
-		...chatCostUsers({
+	const usersQuery = usePaginatedQuery(
+		paginatedChatCostUsers({
 			...dateRangeParams,
-			username: debouncedSearch || undefined,
-			limit: pageSize,
-			offset,
+			username: debouncedSearch,
 		}),
-		placeholderData: keepPreviousData,
-	});
+	);
 
 	const selectedUserId = searchParams.get("user");
 	const selectedUserQuery = useQuery({
@@ -221,16 +194,11 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 				hasExplicitDateRange={hasExplicitDateRange}
 				onDateRangeChange={onDateRangeChange}
 				searchFilter={searchFilter}
-				onSearchFilterChange={setSearchFilter}
-				page={page}
-				onPageChange={setPage}
-				pageSize={pageSize}
-				offset={offset}
-				usersData={usersQuery.data}
-				isUsersLoading={usersQuery.isLoading}
-				isUsersFetching={usersQuery.isFetching}
-				usersError={usersQuery.error}
-				onUsersRetry={() => void usersQuery.refetch()}
+				onSearchFilterChange={(value: string) => {
+					setSearchFilter(value);
+					usersQuery.goToFirstPage();
+				}}
+				usersQuery={usersQuery}
 				selectedUserId={selectedUserId}
 				selectedUser={selectedUserQuery.data ?? null}
 				isSelectedUserLoading={selectedUserQuery.isLoading}
