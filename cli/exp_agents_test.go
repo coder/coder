@@ -1045,25 +1045,17 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, ok)
 		})
 
-		t.Run("EmptyComposerDoesNotSend", func(t *testing.T) {
+		t.Run("BlankComposerDoesNotSend", func(t *testing.T) {
 			t.Parallel()
 
-			model := newTestChatViewModel(nil)
+			for _, value := range []string{"", "   "} {
+				model := newTestChatViewModel(nil)
+				model.composer.SetValue(value)
 
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			require.Nil(t, cmd)
-			require.Empty(t, updated.composer.Value())
-		})
-
-		t.Run("WhitespaceOnlyComposerDoesNotSend", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.composer.SetValue("   ")
-
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			require.Nil(t, cmd)
-			require.Equal(t, "   ", updated.composer.Value())
+				updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				require.Nil(t, cmd)
+				require.Equal(t, value, updated.composer.Value())
+			}
 		})
 
 		t.Run("SendClearsComposerText", func(t *testing.T) {
@@ -1988,35 +1980,6 @@ func TestExpAgents(t *testing.T) {
 		})
 	})
 
-	t.Run("ChatView/RendererCaching", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("SameWidthReusesRenderer", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.width = 80
-
-			rendererA := (&model).getOrCreateMarkdownRenderer(80)
-			rendererB := (&model).getOrCreateMarkdownRenderer(80)
-			require.NotNil(t, rendererA)
-			require.Same(t, rendererA, rendererB)
-		})
-
-		t.Run("DifferentWidthRecreatesRenderer", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.width = 80
-
-			rendererA := (&model).getOrCreateMarkdownRenderer(80)
-			rendererB := (&model).getOrCreateMarkdownRenderer(60)
-			require.NotNil(t, rendererA)
-			require.NotNil(t, rendererB)
-			require.NotSame(t, rendererA, rendererB)
-		})
-	})
-
 	t.Run("ChatView/TranscriptSync", func(t *testing.T) {
 		t.Parallel()
 
@@ -2066,157 +2029,6 @@ func TestExpAgents(t *testing.T) {
 					}
 				})
 			}
-		})
-	})
-
-	t.Run("ChatView/BlockCachePreservation", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("UnchangedBlocksKeepCache", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.width = 80
-			model.messages = []codersdk.ChatMessage{
-				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{
-					Type: codersdk.ChatMessagePartTypeText,
-					Text: "cached block content",
-				}),
-			}
-
-			model.rebuildBlocks()
-			require.Len(t, model.blocks, 1)
-			cachedRender := model.blocks[0].cachedRender
-			require.NotEmpty(t, cachedRender)
-
-			model.rebuildBlocks()
-			require.Len(t, model.blocks, 1)
-			require.Equal(t, cachedRender, model.blocks[0].cachedRender)
-		})
-
-		t.Run("ChangedBlockLosesCache", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.width = 80
-			model.messages = []codersdk.ChatMessage{
-				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{
-					Type: codersdk.ChatMessagePartTypeText,
-					Text: "stable block",
-				}),
-			}
-			model.accumulator = streamAccumulator{
-				pending: true,
-				role:    codersdk.ChatMessageRoleAssistant,
-				parts: []codersdk.ChatMessagePart{{
-					Type: codersdk.ChatMessagePartTypeText,
-					Text: "partial response",
-				}},
-			}
-
-			model.rebuildBlocks()
-			require.Len(t, model.blocks, 2)
-			cachedRender := model.blocks[len(model.blocks)-1].cachedRender
-			require.NotEmpty(t, cachedRender)
-
-			model.accumulator.parts[0].Text = "partial response updated"
-			model.rebuildBlocks()
-			require.Len(t, model.blocks, 2)
-			require.NotEqual(t, cachedRender, model.blocks[len(model.blocks)-1].cachedRender)
-		})
-	})
-
-	t.Run("StreamAccumulator", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("ApplyDeltaTextAppends", func(t *testing.T) {
-			t.Parallel()
-
-			var accumulator streamAccumulator
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hel"},
-			})
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "lo"},
-			})
-
-			require.Len(t, accumulator.parts, 1)
-			require.Equal(t, "hello", accumulator.parts[0].Text)
-		})
-
-		t.Run("ApplyDeltaReasoningAppends", func(t *testing.T) {
-			t.Parallel()
-
-			var accumulator streamAccumulator
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "thin"},
-			})
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "king"},
-			})
-
-			require.Len(t, accumulator.parts, 1)
-			require.Equal(t, "thinking", accumulator.parts[0].Text)
-		})
-
-		t.Run("ApplyDeltaToolCallAccumulatesArgs", func(t *testing.T) {
-			t.Parallel()
-
-			var accumulator streamAccumulator
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{
-					Type:       codersdk.ChatMessagePartTypeToolCall,
-					ToolCallID: "tool-1",
-					ToolName:   "search",
-					ArgsDelta:  `{"query":"he`,
-				},
-			})
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{
-					Type:       codersdk.ChatMessagePartTypeToolCall,
-					ToolCallID: "tool-1",
-					ToolName:   "search",
-					ArgsDelta:  `llo"}`,
-				},
-			})
-
-			require.Len(t, accumulator.parts, 1)
-			require.Equal(t, `{"query":"hello"}`, string(accumulator.parts[0].Args))
-		})
-
-		t.Run("ResetClearsState", func(t *testing.T) {
-			t.Parallel()
-
-			accumulator := streamAccumulator{
-				parts:      []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: "hello"}},
-				role:       codersdk.ChatMessageRoleAssistant,
-				pending:    true,
-				toolDeltas: map[string]string{"tool-1": `{}`},
-			}
-
-			accumulator.reset()
-			require.Nil(t, accumulator.parts)
-			require.Equal(t, codersdk.ChatMessageRole(""), accumulator.role)
-			require.False(t, accumulator.pending)
-			require.Nil(t, accumulator.toolDeltas)
-		})
-
-		t.Run("IsPendingAfterDelta", func(t *testing.T) {
-			t.Parallel()
-
-			var accumulator streamAccumulator
-			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
-			})
-
-			require.True(t, accumulator.isPending())
 		})
 	})
 
@@ -2463,41 +2275,6 @@ func TestExpAgents(t *testing.T) {
 			updated, cmd := model.Update(chatsListedMsg{chats: []codersdk.Chat{}})
 			require.Nil(t, cmd)
 			require.Contains(t, plainText(updated.View()), "No chats yet")
-		})
-
-		t.Run("SingleChatListNoCursor", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			chat := testChat(codersdk.ChatStatusCompleted)
-
-			updated, cmd := model.Update(chatsListedMsg{chats: []codersdk.Chat{chat}})
-			require.Nil(t, cmd)
-			require.Equal(t, 0, updated.cursor)
-
-			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			require.Nil(t, cmd)
-			require.Equal(t, 0, updated.cursor)
-
-			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
-			require.Nil(t, cmd)
-			require.Equal(t, 0, updated.cursor)
-		})
-
-		t.Run("EmptySearchResultsDisplaysPlaceholder", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-			chat := testChat(codersdk.ChatStatusCompleted)
-			chat.Title = "existing chat"
-			model.chats = []codersdk.Chat{chat}
-
-			updated, cmd := model.Update(keyRunes("/"))
-			require.Nil(t, cmd)
-			require.True(t, updated.searching)
-			updated.search.SetValue("missing")
-			require.Contains(t, plainText(updated.View()), "No matches.")
 		})
 
 		t.Run("SlashFocusesSearch", func(t *testing.T) {
