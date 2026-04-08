@@ -436,18 +436,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 				// Execute only built-in tools.
 				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, func(tr fantasy.ToolResultContent, completedAt time.Time) {
-					// Use the per-tool completion time captured
-					// inside the goroutine for accurate duration.
-					if result.toolResultCreatedAt == nil {
-						result.toolResultCreatedAt = make(map[string]time.Time)
-					}
-					result.toolResultCreatedAt[tr.ToolCallID] = completedAt
+					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
-					publishMessagePart(
-						codersdk.ChatMessageRoleTool,
-						ssePart,
-					)
+					publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 				})
 				for _, tr := range toolResults {
 					result.content = append(result.content, tr)
@@ -1198,6 +1190,7 @@ func persistInterruptedStep(
 	content := make([]fantasy.Content, 0, len(result.content))
 	content = append(content, result.content...)
 
+	interruptedAt := dbtime.Now()
 	for _, tc := range result.toolCalls {
 		if tc.ToolCallID == "" {
 			continue
@@ -1213,7 +1206,12 @@ func persistInterruptedStep(
 				Error: xerrors.New(interruptedToolResultErrorMessage),
 			},
 		})
-		toolResultCreatedAt[tc.ToolCallID] = dbtime.Now()
+		// Only stamp synthetic results; don't clobber
+		// timestamps from tools that completed before
+		// the interruption arrived.
+		if _, exists := toolResultCreatedAt[tc.ToolCallID]; !exists {
+			toolResultCreatedAt[tc.ToolCallID] = interruptedAt
+		}
 		answeredToolCalls[tc.ToolCallID] = struct{}{}
 	}
 
@@ -1410,6 +1408,16 @@ func isResponsesStoreEnabled(providerOptions fantasy.ProviderOptions) bool {
 	}
 
 	return false
+}
+
+// recordToolResultTimestamp lazily initializes the
+// toolResultCreatedAt map on the stepResult and records
+// the completion timestamp for the given tool-call ID.
+func recordToolResultTimestamp(result *stepResult, toolCallID string, ts time.Time) {
+	if result.toolResultCreatedAt == nil {
+		result.toolResultCreatedAt = make(map[string]time.Time)
+	}
+	result.toolResultCreatedAt[toolCallID] = ts
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {
