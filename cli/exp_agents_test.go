@@ -86,6 +86,23 @@ func TestExpAgents(t *testing.T) {
 			require.NotNil(t, cmd)
 		})
 
+		t.Run("EscFromChatViewAdvancesGeneration", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayNone
+			model.chatGeneration = 4
+			model.chat.chatGeneration = 4
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, uint64(5), updated.chatGeneration)
+			require.Equal(t, uint64(4), updated.chat.chatGeneration)
+			require.False(t, updated.chat.matchesGeneration(updated.chatGeneration))
+			require.NotNil(t, cmd)
+		})
+
 		t.Run("EscFromSearchClearsFilterBeforeQuit", func(t *testing.T) {
 			t.Parallel()
 
@@ -365,6 +382,23 @@ func TestExpAgents(t *testing.T) {
 						require.Equal(t, overlayModelPicker, updated.overlay)
 						require.NotNil(t, cmd)
 						require.Contains(t, plainText(updated.View()), "Loading models...")
+					},
+				},
+				{
+					name: "RebuildsFlatListFromCachedCatalog",
+					run: func(t *testing.T, model expChatsTUIModel) {
+						t.Helper()
+
+						catalog := twoModelCatalog()
+						model.currentView = viewChat
+						model.catalog = &catalog
+						model.chat.modelPickerFlat = nil
+
+						updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+						updated := mustTUIModel(t, updatedModel, cmd)
+						require.Equal(t, overlayModelPicker, updated.overlay)
+						require.Len(t, updated.chat.modelPickerFlat, 2)
+						require.Equal(t, catalog.Providers[0].Models, updated.chat.modelPickerFlat)
 					},
 				},
 				{
@@ -1531,6 +1565,21 @@ func TestExpAgents(t *testing.T) {
 
 			model := newTestChatViewModel(nil)
 			model.loading = true
+			model.composer.SetValue("my text")
+
+			updated, cmd := model.sendMessage()
+			require.Nil(t, cmd)
+			require.Equal(t, "my text", updated.composer.Value())
+			require.Empty(t, updated.pendingComposerText)
+		})
+
+		t.Run("EnterWithoutLoadedChatDoesNotDispatchOrClearComposer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.loading = false
+			model.draft = false
+			model.chat = nil
 			model.composer.SetValue("my text")
 
 			updated, cmd := model.sendMessage()

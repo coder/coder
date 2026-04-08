@@ -258,6 +258,16 @@ func (m chatViewModel) spinnerLabel() string {
 	return "Thinking..."
 }
 
+func availableChatModels(catalog codersdk.ChatModelsResponse) []codersdk.ChatModel {
+	var models []codersdk.ChatModel
+	for _, provider := range catalog.Providers {
+		if provider.Available {
+			models = append(models, provider.Models...)
+		}
+	}
+	return models
+}
+
 // sendMessage trims the composer, builds the content, and dispatches
 // a create-chat or send-message command.
 func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
@@ -266,6 +276,9 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 		return m, nil
 	}
 	if m.loading {
+		return m, nil
+	}
+	if !m.draft && m.chat == nil {
 		return m, nil
 	}
 	if m.draft && m.creatingChat {
@@ -287,10 +300,6 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 		}
 		m.creatingChat = true
 		return m, createChatCmd(m.ctx, m.client, req, m.chatGeneration)
-	}
-
-	if m.chat == nil {
-		return m, nil
 	}
 
 	req := codersdk.CreateChatMessageRequest{
@@ -726,12 +735,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		if msg.err != nil {
 			return m, nil
 		}
-		m.modelPickerFlat = nil
-		for _, provider := range msg.catalog.Providers {
-			if provider.Available {
-				m.modelPickerFlat = append(m.modelPickerFlat, provider.Models...)
-			}
-		}
+		m.modelPickerFlat = availableChatModels(msg.catalog)
 		if m.modelPickerCursor >= len(m.modelPickerFlat) {
 			m.modelPickerCursor = max(len(m.modelPickerFlat)-1, 0)
 		}

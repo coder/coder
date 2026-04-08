@@ -147,6 +147,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			if m.currentView == viewChat {
+				m.chatGeneration++
 				m.chat.stopStream()
 				m.currentView = viewList
 				m.list.loading = true
@@ -220,6 +221,9 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay = overlayModelPicker
 			if m.catalog == nil {
 				return m, listModelsCmd(m.ctx, m.client)
+			}
+			if len(m.chat.modelPickerFlat) == 0 {
+				m.chat.modelPickerFlat = availableChatModels(*m.catalog)
 			}
 		}
 		return m, nil
