@@ -122,7 +122,7 @@ type chatViewModel struct {
 	ctx                 context.Context
 	client              *codersdk.ExperimentalClient
 	workspaceID         *uuid.UUID
-	modelOverride       *uuid.UUID
+	modelOverride       *string
 	activeChatID        uuid.UUID
 	chatGeneration      uint64
 	intentionalClose    bool
@@ -153,11 +153,23 @@ type chatViewModel struct {
 	modelPickerCursor int
 }
 
+func modelOverrideUUID(modelOverride *string) *uuid.UUID {
+	if modelOverride == nil {
+		return nil
+	}
+
+	modelConfigID, err := uuid.Parse(*modelOverride)
+	if err != nil {
+		return nil
+	}
+	return &modelConfigID
+}
+
 func newChatViewModel(
 	ctx context.Context,
 	client *codersdk.ExperimentalClient,
 	workspaceID *uuid.UUID,
-	modelOverride *uuid.UUID,
+	modelOverride *string,
 	styles tuiStyles,
 ) chatViewModel {
 	composer := textinput.New()
@@ -293,11 +305,13 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 		Text: text,
 	}}
 
+	modelConfigID := modelOverrideUUID(m.modelOverride)
+
 	if m.draft {
 		req := codersdk.CreateChatRequest{
 			Content:       content,
 			WorkspaceID:   m.workspaceID,
-			ModelConfigID: m.modelOverride,
+			ModelConfigID: modelConfigID,
 		}
 		m.creatingChat = true
 		return m, createChatCmd(m.ctx, m.client, req, m.chatGeneration)
@@ -305,7 +319,7 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 
 	req := codersdk.CreateChatMessageRequest{
 		Content:       content,
-		ModelConfigID: m.modelOverride,
+		ModelConfigID: modelConfigID,
 	}
 	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req, m.chatGeneration)
 }

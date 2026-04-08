@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -20,6 +22,53 @@ import (
 
 func TestExpAgents(t *testing.T) {
 	t.Parallel()
+
+	t.Run("ResolveModel", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := codersdk.ChatModelsResponse{
+			Providers: []codersdk.ChatModelProvider{{
+				Provider:  "openai",
+				Available: true,
+				Models: []codersdk.ChatModel{{
+					ID:          "openai:gpt-4o",
+					Provider:    "openai",
+					Model:       "gpt-4o",
+					DisplayName: "GPT-4o",
+				}},
+			}},
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(rw).Encode(catalog)
+		}))
+		t.Cleanup(server.Close)
+
+		serverURL, err := url.Parse(server.URL)
+		require.NoError(t, err)
+
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+		tests := []struct {
+			name  string
+			input string
+			want  string
+		}{
+			{name: "ExactID", input: "openai:gpt-4o", want: "openai:gpt-4o"},
+			{name: "ProviderModel", input: "openai/gpt-4o", want: "openai:gpt-4o"},
+			{name: "DisplayName", input: "GPT-4o", want: "openai:gpt-4o"},
+		}
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				resolved, err := resolveModel(context.Background(), client, tt.input)
+				require.NoError(t, err)
+				require.NotNil(t, resolved)
+				require.Equal(t, tt.want, *resolved)
+			})
+		}
+	})
 
 	t.Run("TopLevelModelRouting", func(t *testing.T) {
 		t.Parallel()
@@ -345,11 +394,11 @@ func TestExpAgents(t *testing.T) {
 			twoModelCatalog := func() codersdk.ChatModelsResponse {
 				return codersdk.ChatModelsResponse{
 					Providers: []codersdk.ChatModelProvider{{
-						Provider:  "OpenAI",
+						Provider:  "openai",
 						Available: true,
 						Models: []codersdk.ChatModel{
-							{ID: uuid.NewString(), Model: "gpt-4o", DisplayName: "GPT-4o"},
-							{ID: uuid.NewString(), Model: "gpt-4.1", DisplayName: "GPT-4.1"},
+							{ID: "openai:gpt-4o", Provider: "openai", Model: "gpt-4o", DisplayName: "GPT-4o"},
+							{ID: "openai:gpt-4.1", Provider: "openai", Model: "gpt-4.1", DisplayName: "GPT-4.1"},
 						},
 					}},
 				}
@@ -2201,21 +2250,21 @@ func TestExpAgents(t *testing.T) {
 		t.Run("SelectedModelSurvivesPickerReopen", func(t *testing.T) {
 			t.Parallel()
 
-			firstModelID := uuid.New()
-			secondModelID := uuid.New()
+			firstModelID := "provider:model-a"
+			secondModelID := "provider:model-b"
 			catalog := codersdk.ChatModelsResponse{
 				Providers: []codersdk.ChatModelProvider{{
 					Provider:  "provider",
 					Available: true,
 					Models: []codersdk.ChatModel{
 						{
-							ID:          firstModelID.String(),
+							ID:          firstModelID,
 							Provider:    "provider",
 							Model:       "model-a",
 							DisplayName: "Model A",
 						},
 						{
-							ID:          secondModelID.String(),
+							ID:          secondModelID,
 							Provider:    "provider",
 							Model:       "model-b",
 							DisplayName: "Model B",

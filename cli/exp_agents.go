@@ -171,14 +171,14 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 	}
 }
 
-//nolint:nilnil // A nil UUID indicates that no model override was provided.
-func resolveModel(ctx context.Context, client *codersdk.ExperimentalClient, modelFlag string) (*uuid.UUID, error) {
+//nolint:nilnil // A nil string indicates that no model override was provided.
+func resolveModel(ctx context.Context, client *codersdk.ExperimentalClient, modelFlag string) (*string, error) {
 	if modelFlag == "" {
 		return nil, nil
 	}
 
-	if id, err := uuid.Parse(modelFlag); err == nil {
-		return &id, nil
+	if _, err := uuid.Parse(modelFlag); err == nil {
+		return &modelFlag, nil
 	}
 
 	catalog, err := client.ListChatModels(ctx)
@@ -189,11 +189,7 @@ func resolveModel(ctx context.Context, client *codersdk.ExperimentalClient, mode
 	for _, provider := range catalog.Providers {
 		for _, model := range provider.Models {
 			if model.ID == modelFlag || model.Provider+"/"+model.Model == modelFlag || model.DisplayName == modelFlag {
-				id, err := uuid.Parse(model.ID)
-				if err != nil {
-					return nil, xerrors.Errorf("invalid model ID %q: %w", model.ID, err)
-				}
-				return &id, nil
+				return &model.ID, nil
 			}
 		}
 	}

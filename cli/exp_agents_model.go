@@ -37,7 +37,7 @@ type expChatsTUIModel struct {
 	chat           chatViewModel
 	initialChatID  *uuid.UUID
 	workspaceID    *uuid.UUID
-	modelOverride  *uuid.UUID
+	modelOverride  *string
 	chatGeneration uint64
 	catalog        *codersdk.ChatModelsResponse
 	quitting       bool
@@ -50,7 +50,7 @@ func newExpChatsTUIModel(
 	client *codersdk.ExperimentalClient,
 	initialChatID *uuid.UUID,
 	workspaceID *uuid.UUID,
-	modelOverride *uuid.UUID,
+	modelOverride *string,
 ) expChatsTUIModel {
 	styles := newTUIStyles()
 	currentView := viewList
@@ -183,11 +183,8 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				if len(m.chat.modelPickerFlat) > 0 && m.chat.modelPickerCursor < len(m.chat.modelPickerFlat) {
 					selected := m.chat.modelPickerFlat[m.chat.modelPickerCursor]
-					parsed, err := uuid.Parse(selected.ID)
-					if err == nil {
-						m.chat.modelOverride = &parsed
-						m.modelOverride = &parsed
-					}
+					m.chat.modelOverride = &selected.ID
+					m.modelOverride = &selected.ID
 					m.overlay = overlayNone
 				}
 				return m, nil
@@ -322,7 +319,7 @@ func (m expChatsTUIModel) View() string {
 		}
 		selectedID := ""
 		if m.chat.modelOverride != nil {
-			selectedID = m.chat.modelOverride.String()
+			selectedID = *m.chat.modelOverride
 		}
 		base += "\n" + renderModelPicker(m.styles, *m.catalog, selectedID, m.chat.modelPickerCursor, m.width, m.height)
 	case overlayDiffDrawer:
