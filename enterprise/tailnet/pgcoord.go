@@ -12,6 +12,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
 
@@ -820,6 +821,8 @@ type querier struct {
 	mu      sync.Mutex
 	mappers map[mKey]*mapper
 	healthy bool
+
+	resyncGroup singleflight.Group
 }
 
 func newQuerier(ctx context.Context,
@@ -1207,8 +1210,13 @@ func (q *querier) subscribe() {
 func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped peer updates")
-		// we need to schedule a full resync of peer mappings
-		q.resyncPeerMappings()
+		// Schedule a full resync asynchronously so we don't block the
+		// pubsub drain goroutine. Singleflight coalesces concurrent
+		// resync requests.
+		go q.resyncGroup.Do("resync", func() (any, error) {
+			q.resyncPeerMappings()
+			return nil, nil
+		})
 		return
 	}
 	if err != nil {
@@ -1234,8 +1242,13 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
-		// we need to schedule a full resync of peer mappings
-		q.resyncPeerMappings()
+		// Schedule a full resync asynchronously so we don't block the
+		// pubsub drain goroutine. Singleflight coalesces concurrent
+		// resync requests.
+		go q.resyncGroup.Do("resync", func() (any, error) {
+			q.resyncPeerMappings()
+			return nil, nil
+		})
 		return
 	}
 	if err != nil {
