@@ -4518,12 +4518,11 @@ func (p *Server) SubscribeAuthorized(
 		return p.db.GetChatByID(dbauthz.AsChatd(refreshCtx), chatID)
 	}()
 	if err != nil {
-		p.logger.Error(ctx, "failed to refresh chat for stream subscription",
+		p.logger.Warn(ctx, "failed to refresh chat for stream subscription; using stale state",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
-		cancel()
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		snapshotChat = chat
 	}
 
 	// Build initial snapshot synchronously. The pubsub subscription
