@@ -624,6 +624,61 @@ func TestExpAgents(t *testing.T) {
 			require.False(t, updated.loading)
 		})
 
+		t.Run("StaleAsyncMessagesAreDropped", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name string
+				msg  tea.Msg
+			}{
+				{
+					name: "chatOpenedMsg",
+					msg: chatOpenedMsg{
+						chatID: uuid.New(),
+						chat:   testChat(codersdk.ChatStatusCompleted),
+					},
+				},
+				{
+					name: "chatHistoryMsg",
+					msg: chatHistoryMsg{
+						chatID: uuid.New(),
+						messages: []codersdk.ChatMessage{testMessage(
+							1,
+							codersdk.ChatMessageRoleUser,
+							codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"},
+						)},
+					},
+				},
+				{
+					name: "gitChangesMsg",
+					msg:  gitChangesMsg{chatID: uuid.New()},
+				},
+				{
+					name: "diffContentsMsg",
+					msg:  diffContentsMsg{chatID: uuid.New()},
+				},
+			}
+
+			for _, tt := range tests {
+				tt := tt
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					model := newTestChatViewModel(nil)
+					chat := testChat(codersdk.ChatStatusCompleted)
+					model.setChat(chat)
+					model.loading = false
+
+					before := model
+					model, cmd := model.Update(tt.msg)
+					require.Nil(t, cmd)
+					require.Equal(t, before.loading, model.loading)
+					require.Equal(t, before.messages, model.messages)
+					require.Equal(t, before.err, model.err)
+				})
+			}
+		})
+
 		t.Run("ErrorThenRetrySucceeds", func(t *testing.T) {
 			t.Parallel()
 
@@ -996,16 +1051,59 @@ func TestExpAgents(t *testing.T) {
 				})
 			}
 		})
+
+		t.Run("StaleStreamEventsAreDropped", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.setChat(chat)
+			model.streaming = true
+
+			staleMsg := chatStreamEventMsg{
+				chatID: uuid.New(),
+				event:  testTextPartEvent("should be ignored"),
+			}
+
+			updated, cmd := model.Update(staleMsg)
+			require.Nil(t, cmd)
+			require.Empty(t, updated.accumulator.parts)
+			require.Equal(t, model.chatStatus, updated.chatStatus)
+			require.Equal(t, model.blocks, updated.blocks)
+		})
+
+		t.Run("IntentionalCloseSkipsReconnect", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.setChat(chat)
+			model.streaming = true
+
+			model.stopStream()
+			require.True(t, model.intentionalClose)
+
+			eofMsg := chatStreamEventMsg{
+				chatID: chat.ID,
+				err:    io.EOF,
+			}
+			updated, cmd := model.Update(eofMsg)
+			require.Nil(t, cmd)
+			require.False(t, updated.streaming)
+			require.False(t, updated.reconnecting)
+			require.False(t, updated.intentionalClose)
+			require.NoError(t, updated.err)
+		})
+
 		t.Run("EOFStopsStreamingAndAttemptsReconnectWhenInterruptible", func(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(failingExperimentalClient())
 			chat := testChat(codersdk.ChatStatusPending)
-			model.chat = &chat
-			model.chatStatus = codersdk.ChatStatusPending
+			model.setChat(chat)
 			model.streaming = true
 
-			updated, cmd := model.Update(chatStreamEventMsg{err: io.EOF})
+			updated, cmd := model.Update(chatStreamEventMsg{chatID: chat.ID, err: io.EOF})
 			require.Nil(t, cmd)
 			require.False(t, updated.streaming)
 			require.True(t, updated.reconnecting)
@@ -1076,6 +1174,24 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "keep me", updated.composer.Value())
 		})
 
+		t.Run("SendErrorRestoresComposer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.setChat(chat)
+			model.loading = false
+			model.composer.SetValue("my message")
+
+			model, _ = model.sendMessage()
+			require.Empty(t, model.composer.Value())
+			require.Equal(t, "my message", model.pendingComposerText)
+
+			model, _ = model.Update(messageSentMsg{err: xerrors.New("network error")})
+			require.Equal(t, "my message", model.composer.Value())
+			require.Error(t, model.err)
+		})
+
 		t.Run("CreateChatErrorAllowsRetry", func(t *testing.T) {
 			t.Parallel()
 
@@ -1098,6 +1214,25 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, ok)
 		})
 
+		t.Run("CreateErrorRestoresComposer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.draft = true
+			model.loading = false
+			model.composer.SetValue("first message")
+
+			model, _ = model.sendMessage()
+			require.Empty(t, model.composer.Value())
+			require.Equal(t, "first message", model.pendingComposerText)
+			require.True(t, model.creatingChat)
+
+			model, _ = model.Update(chatCreatedMsg{err: xerrors.New("create failed")})
+			require.Equal(t, "first message", model.composer.Value())
+			require.False(t, model.creatingChat)
+			require.Error(t, model.err)
+		})
+
 		t.Run("BlankComposerDoesNotSend", func(t *testing.T) {
 			t.Parallel()
 
@@ -1109,6 +1244,20 @@ func TestExpAgents(t *testing.T) {
 				require.Nil(t, cmd)
 				require.Equal(t, value, updated.composer.Value())
 			}
+		})
+
+		t.Run("DuplicateDraftCreateIsIgnored", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.draft = true
+			model.loading = false
+			model.creatingChat = true
+			model.composer.SetValue("hello")
+
+			updated, cmd := model.sendMessage()
+			require.Nil(t, cmd)
+			require.Equal(t, "hello", updated.composer.Value())
 		})
 
 		t.Run("SendClearsComposerText", func(t *testing.T) {
