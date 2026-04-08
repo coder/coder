@@ -610,6 +610,16 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
+		if msg.Type == tea.KeyCtrlI || msg.String() == "tab" {
+			if m.isInterruptible() && m.chat != nil {
+				if m.interrupting {
+					return m, nil
+				}
+				m.interrupting = true
+				return m, interruptChatCmd(m.ctx, m.client, m.chat.ID, m.chatGeneration)
+			}
+		}
+
 		if msg.String() == "tab" {
 			m.composerFocused = !m.composerFocused
 			if m.composerFocused {
@@ -621,9 +631,6 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle the tab string first because Ctrl+I and Tab often collide in
-		// terminals.
-
 		// Shortcut keys take priority over composer input so the parent model
 		// can toggle overlays and the chat view can interrupt active chats.
 		switch msg.Type {
@@ -632,10 +639,6 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		case tea.KeyCtrlD:
 			return m, func() tea.Msg { return toggleDiffDrawerMsg{} }
 		case tea.KeyCtrlI:
-			if m.isInterruptible() && !m.interrupting && m.chat != nil {
-				m.interrupting = true
-				return m, interruptChatCmd(m.ctx, m.client, m.chat.ID, m.chatGeneration)
-			}
 			return m, nil
 		}
 

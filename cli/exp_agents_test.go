@@ -553,6 +553,24 @@ func TestExpAgents(t *testing.T) {
 			require.Contains(t, plainText(updated.View()), "Loading diff")
 		})
 
+		t.Run("DiffDrawerNoOpWithoutActiveChat", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.chat.draft = true
+			model.chat.loading = false
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			msg, ok := mustMsg(t, cmd).(toggleDiffDrawerMsg)
+			require.True(t, ok)
+
+			updatedModel, cmd = updated.Update(msg)
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayNone, updated.overlay)
+		})
+
 		t.Run("DiffDrawerErrorState", func(t *testing.T) {
 			t.Parallel()
 
@@ -2015,6 +2033,21 @@ func TestExpAgents(t *testing.T) {
 			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlI})
 			require.Nil(t, cmd)
 			require.False(t, updated.interrupting)
+		})
+
+		t.Run("TabInterruptsRunningChat", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusRunning
+			require.True(t, model.composerFocused)
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.NotNil(t, cmd)
+			require.True(t, updated.interrupting)
+			require.True(t, updated.composerFocused)
 		})
 	})
 

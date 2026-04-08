@@ -240,8 +240,11 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.overlay == overlayDiffDrawer {
 			m.overlay = overlayNone
 		} else {
+			if m.chat.chat == nil {
+				return m, nil
+			}
 			m.overlay = overlayDiffDrawer
-			if m.chat.chat != nil && (m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil) {
+			if m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil {
 				m.chat.diffErr = nil
 				chatID := m.chat.chat.ID
 				return m, tea.Batch(
