@@ -77,9 +77,7 @@ Detailed instructions for each provider and model option are in the
 The **Coder Agents User** role controls which users can interact with Coder Agents.
 Members do not have Coder Agents User by default.
 
-Owners always have full access and do not need the role.
-Repeat for each user who needs access. Owners always have full access
-and do not need the role.
+Owners always have full access and do not need the role. Repeat the following steps for each user who needs access.
 
 > [!NOTE]
 > Users who created conversations before this role was introduced are
