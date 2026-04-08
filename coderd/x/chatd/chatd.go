@@ -5089,6 +5089,14 @@ func (p *Server) resolveProviderAPIKeysForModel(
 		return resolved
 	}
 
+	if modelConfig.ProviderConfigID.Valid {
+		p.logger.Warn(ctx, "bound provider config not found or disabled, falling back to family defaults",
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
+			slog.F("provider", modelConfig.Provider),
+		)
+	}
+
 	return baseKeys
 }
 
