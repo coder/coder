@@ -300,6 +300,12 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
+	// Returns enabled, non-deleted model configs that are usable at runtime.
+	// Bound rows (provider_config_id IS NOT NULL) are kept only when the
+	// referenced provider config exists and is still enabled.
+	// Unbound rows (provider_config_id IS NULL) are kept when the family
+	// has at least one enabled provider, OR when the family has no provider
+	// rows at all (pure env-key setup).
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	// Returns the oldest enabled provider config for a given provider family.
 	// Multiple enabled configs may exist per family; this returns the
@@ -868,13 +874,13 @@ type sqlcQuerier interface {
 	// Soft-deletes model configs bound to a specific provider config.
 	// Called before provider deletion so bound models are preserved
 	// (soft-deleted) rather than hard-removed by a database cascade.
-	SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error)
+	SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, arg SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error)
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	// Soft-deletes model configs in the given provider family that have
 	// no provider_config_id binding. Used during last-provider cleanup
 	// so lingering NULL-bound rows do not become orphans.
-	SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider string) (int64, error)
+	SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, arg SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

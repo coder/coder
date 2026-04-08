@@ -7678,18 +7678,18 @@ func (mr *MockStoreMockRecorder) SelectUsageEventsForPublishing(ctx, now any) *g
 }
 
 // SoftDeleteBoundChatModelConfigsByProviderConfigID mocks base method.
-func (m *MockStore) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
+func (m *MockStore) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, arg database.SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SoftDeleteBoundChatModelConfigsByProviderConfigID", ctx, providerConfigID)
+	ret := m.ctrl.Call(m, "SoftDeleteBoundChatModelConfigsByProviderConfigID", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SoftDeleteBoundChatModelConfigsByProviderConfigID indicates an expected call of SoftDeleteBoundChatModelConfigsByProviderConfigID.
-func (mr *MockStoreMockRecorder) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, providerConfigID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteBoundChatModelConfigsByProviderConfigID", reflect.TypeOf((*MockStore)(nil).SoftDeleteBoundChatModelConfigsByProviderConfigID), ctx, providerConfigID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteBoundChatModelConfigsByProviderConfigID", reflect.TypeOf((*MockStore)(nil).SoftDeleteBoundChatModelConfigsByProviderConfigID), ctx, arg)
 }
 
 // SoftDeleteChatMessageByID mocks base method.
@@ -7721,18 +7721,18 @@ func (mr *MockStoreMockRecorder) SoftDeleteChatMessagesAfterID(ctx, arg any) *go
 }
 
 // SoftDeleteUnboundChatModelConfigsByProvider mocks base method.
-func (m *MockStore) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider string) (int64, error) {
+func (m *MockStore) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, arg database.SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SoftDeleteUnboundChatModelConfigsByProvider", ctx, provider)
+	ret := m.ctrl.Call(m, "SoftDeleteUnboundChatModelConfigsByProvider", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SoftDeleteUnboundChatModelConfigsByProvider indicates an expected call of SoftDeleteUnboundChatModelConfigsByProvider.
-func (mr *MockStoreMockRecorder) SoftDeleteUnboundChatModelConfigsByProvider(ctx, provider any) *gomock.Call {
+func (mr *MockStoreMockRecorder) SoftDeleteUnboundChatModelConfigsByProvider(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteUnboundChatModelConfigsByProvider", reflect.TypeOf((*MockStore)(nil).SoftDeleteUnboundChatModelConfigsByProvider), ctx, provider)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteUnboundChatModelConfigsByProvider", reflect.TypeOf((*MockStore)(nil).SoftDeleteUnboundChatModelConfigsByProvider), ctx, arg)
 }
 
 // TryAcquireLock mocks base method.

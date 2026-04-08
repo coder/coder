@@ -4048,7 +4048,7 @@ func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, n
 	return r0, r1
 }
 
-func (m queryMetricsStore) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
+func (m queryMetricsStore) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID database.SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, providerConfigID)
 	m.queryLatencies.WithLabelValues("SoftDeleteBoundChatModelConfigsByProviderConfigID").Observe(time.Since(start).Seconds())
@@ -4072,7 +4072,7 @@ func (m queryMetricsStore) SoftDeleteChatMessagesAfterID(ctx context.Context, ar
 	return r0
 }
 
-func (m queryMetricsStore) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider string) (int64, error) {
+func (m queryMetricsStore) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider database.SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.SoftDeleteUnboundChatModelConfigsByProvider(ctx, provider)
 	m.queryLatencies.WithLabelValues("SoftDeleteUnboundChatModelConfigsByProvider").Observe(time.Since(start).Seconds())

@@ -3760,11 +3760,15 @@ CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (e
 
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
 
+CREATE INDEX idx_chat_model_configs_provider_config_id ON chat_model_configs USING btree (provider_config_id) WHERE (provider_config_id IS NOT NULL);
+
 CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
+
+CREATE INDEX idx_chat_providers_provider ON chat_providers USING btree (provider);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 

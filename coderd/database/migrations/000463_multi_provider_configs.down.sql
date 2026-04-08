@@ -8,6 +8,12 @@ ALTER TABLE chat_model_configs
 -- NOTE: This will also fail if any chat_model_configs row references a
 -- provider value that has no matching chat_providers row. Such orphaned
 -- model configs must be deleted or reassigned before rolling back.
+-- Drop the non-unique family index before restoring the unique constraint.
+DROP INDEX IF EXISTS idx_chat_providers_provider;
+
+-- Drop the provider_config_id lookup index (column goes away with DROP COLUMN above).
+DROP INDEX IF EXISTS idx_chat_model_configs_provider_config_id;
+
 ALTER TABLE chat_providers ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
 
 -- Restore the FK from chat_model_configs.provider → chat_providers(provider).

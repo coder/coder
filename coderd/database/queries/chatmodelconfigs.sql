@@ -30,6 +30,12 @@ ORDER BY
     id DESC;
 
 -- name: GetEnabledChatModelConfigs :many
+-- Returns enabled, non-deleted model configs that are usable at runtime.
+-- Bound rows (provider_config_id IS NOT NULL) are kept only when the
+-- referenced provider config exists and is still enabled.
+-- Unbound rows (provider_config_id IS NULL) are kept when the family
+-- has at least one enabled provider, OR when the family has no provider
+-- rows at all (pure env-key setup).
 SELECT
     cmc.*
 FROM
@@ -37,6 +43,30 @@ FROM
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
+    AND (
+        -- Bound: the referenced provider must exist and be enabled.
+        (cmc.provider_config_id IS NOT NULL
+         AND EXISTS (
+             SELECT 1 FROM chat_providers cp
+             WHERE cp.id = cmc.provider_config_id
+               AND cp.enabled = TRUE
+         ))
+        OR
+        -- Unbound with at least one enabled sibling provider.
+        (cmc.provider_config_id IS NULL
+         AND EXISTS (
+             SELECT 1 FROM chat_providers cp
+             WHERE cp.provider = cmc.provider
+               AND cp.enabled = TRUE
+         ))
+        OR
+        -- Unbound with no provider rows at all (env-only family).
+        (cmc.provider_config_id IS NULL
+         AND NOT EXISTS (
+             SELECT 1 FROM chat_providers cp
+             WHERE cp.provider = cmc.provider
+         ))
+    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -120,7 +150,8 @@ WHERE
 UPDATE chat_model_configs
 SET deleted = TRUE,
     deleted_at = NOW(),
-    updated_at = NOW()
+    updated_at = NOW(),
+    updated_by = sqlc.narg('updated_by')::uuid
 WHERE provider = @provider::text
   AND provider_config_id IS NULL
   AND deleted = FALSE;
@@ -132,6 +163,7 @@ WHERE provider = @provider::text
 UPDATE chat_model_configs
 SET deleted = TRUE,
     deleted_at = NOW(),
-    updated_at = NOW()
+    updated_at = NOW(),
+    updated_by = sqlc.narg('updated_by')::uuid
 WHERE provider_config_id = @provider_config_id::uuid
   AND deleted = FALSE;

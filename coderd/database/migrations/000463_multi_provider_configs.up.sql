@@ -28,3 +28,13 @@ SET provider_config_id = (
 )
 WHERE cmc.provider_config_id IS NULL
   AND cmc.deleted = FALSE;
+
+-- Lookup index for model config -> provider config joins.
+CREATE INDEX idx_chat_model_configs_provider_config_id
+    ON chat_model_configs (provider_config_id)
+    WHERE provider_config_id IS NOT NULL;
+
+-- Non-unique lookup index for provider family queries now that
+-- the old UNIQUE constraint was dropped above.
+CREATE INDEX idx_chat_providers_provider
+    ON chat_providers (provider);

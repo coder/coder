@@ -4475,6 +4475,7 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	apiKey := httpmw.APIKey(r)
 
 	providerID, ok := parseChatProviderID(rw, r)
 	if !ok {
@@ -4507,7 +4508,10 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 			chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		)
 		if shouldCleanUnbound {
-			if _, err := tx.SoftDeleteUnboundChatModelConfigsByProvider(ctx, provider.Provider); err != nil {
+			if _, err := tx.SoftDeleteUnboundChatModelConfigsByProvider(ctx, database.SoftDeleteUnboundChatModelConfigsByProviderParams{
+				Provider:  provider.Provider,
+				UpdatedBy: uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+			}); err != nil {
 				return xerrors.Errorf("soft-delete unbound model configs: %w", err)
 			}
 		}
@@ -4515,8 +4519,14 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		// Soft-delete model configs bound to this specific provider
 		// config before hard-deleting the provider. This preserves
 		// tracking data, chat history, and the historical binding.
-		if _, err := tx.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, providerID); err != nil {
+		if _, err := tx.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, database.SoftDeleteBoundChatModelConfigsByProviderConfigIDParams{
+			ProviderConfigID: providerID,
+			UpdatedBy:        uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		}); err != nil {
 			return xerrors.Errorf("soft-delete bound model configs: %w", err)
+		}
+		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+			return xerrors.Errorf("ensure default model config after provider deletion: %w", err)
 		}
 
 		return tx.DeleteChatProviderByID(ctx, providerID)
@@ -4524,16 +4534,6 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
-			return
-		}
-		if database.IsForeignKeyViolation(err,
-			database.ForeignKeyChatMessagesModelConfigID,
-			database.ForeignKeyChatsLastModelConfigID,
-		) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot delete provider config: models bound to it are still referenced by active chats.",
-				Detail:  err.Error(),
-			})
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5783,11 +5783,6 @@ func ChatProviderAPIKeysFromDeploymentValues(
 // ChatProviderAPIKeysFromDeploymentValues, used by internal callers.
 var chatProviderAPIKeysFromDeploymentValues = ChatProviderAPIKeysFromDeploymentValues
 
-//nolint:unused // Phase 1 moves current call sites to the newer helpers.
-func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
-	return api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
-}
-
 func (api *API) hasEffectiveCentralProviderAPIKey(ctx context.Context, provider database.ChatProvider, excludeProviderID uuid.UUID) bool {
 	if !provider.CentralApiKeyEnabled {
 		return false
@@ -5833,7 +5828,7 @@ func (api *API) effectiveChatProviderAPIKeys(ctx context.Context) (chatprovider.
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(enabledProviders))
 	for _, provider := range enabledProviders {
-		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{Provider: provider.Provider, APIKey: provider.APIKey, BaseURL: provider.BaseUrl})
+		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{Provider: provider.Provider, APIKey: chatProviderCentralAPIKey(provider), BaseURL: provider.BaseUrl})
 	}
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues), configuredProviders)
 	return effectiveKeys, nil

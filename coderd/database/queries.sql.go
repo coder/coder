@@ -3649,6 +3649,30 @@ FROM
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
+    AND (
+        -- Bound: the referenced provider must exist and be enabled.
+        (cmc.provider_config_id IS NOT NULL
+         AND EXISTS (
+             SELECT 1 FROM chat_providers cp
+             WHERE cp.id = cmc.provider_config_id
+               AND cp.enabled = TRUE
+         ))
+        OR
+        -- Unbound with at least one enabled sibling provider.
+        (cmc.provider_config_id IS NULL
+         AND EXISTS (
+             SELECT 1 FROM chat_providers cp
+             WHERE cp.provider = cmc.provider
+               AND cp.enabled = TRUE
+         ))
+        OR
+        -- Unbound with no provider rows at all (env-only family).
+        (cmc.provider_config_id IS NULL
+         AND NOT EXISTS (
+             SELECT 1 FROM chat_providers cp
+             WHERE cp.provider = cmc.provider
+         ))
+    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -3656,6 +3680,12 @@ ORDER BY
     cmc.id DESC
 `
 
+// Returns enabled, non-deleted model configs that are usable at runtime.
+// Bound rows (provider_config_id IS NOT NULL) are kept only when the
+// referenced provider config exists and is still enabled.
+// Unbound rows (provider_config_id IS NULL) are kept when the family
+// has at least one enabled provider, OR when the family has no provider
+// rows at all (pure env-key setup).
 func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
 	if err != nil {
@@ -3780,16 +3810,22 @@ const softDeleteBoundChatModelConfigsByProviderConfigID = `-- name: SoftDeleteBo
 UPDATE chat_model_configs
 SET deleted = TRUE,
     deleted_at = NOW(),
-    updated_at = NOW()
-WHERE provider_config_id = $1::uuid
+    updated_at = NOW(),
+    updated_by = $1::uuid
+WHERE provider_config_id = $2::uuid
   AND deleted = FALSE
 `
+
+type SoftDeleteBoundChatModelConfigsByProviderConfigIDParams struct {
+	UpdatedBy        uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	ProviderConfigID uuid.UUID     `db:"provider_config_id" json:"provider_config_id"`
+}
 
 // Soft-deletes model configs bound to a specific provider config.
 // Called before provider deletion so bound models are preserved
 // (soft-deleted) rather than hard-removed by a database cascade.
-func (q *sqlQuerier) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
-	result, err := q.db.ExecContext(ctx, softDeleteBoundChatModelConfigsByProviderConfigID, providerConfigID)
+func (q *sqlQuerier) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, arg SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, softDeleteBoundChatModelConfigsByProviderConfigID, arg.UpdatedBy, arg.ProviderConfigID)
 	if err != nil {
 		return 0, err
 	}
@@ -3800,17 +3836,23 @@ const softDeleteUnboundChatModelConfigsByProvider = `-- name: SoftDeleteUnboundC
 UPDATE chat_model_configs
 SET deleted = TRUE,
     deleted_at = NOW(),
-    updated_at = NOW()
-WHERE provider = $1::text
+    updated_at = NOW(),
+    updated_by = $1::uuid
+WHERE provider = $2::text
   AND provider_config_id IS NULL
   AND deleted = FALSE
 `
 
+type SoftDeleteUnboundChatModelConfigsByProviderParams struct {
+	UpdatedBy uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	Provider  string        `db:"provider" json:"provider"`
+}
+
 // Soft-deletes model configs in the given provider family that have
 // no provider_config_id binding. Used during last-provider cleanup
 // so lingering NULL-bound rows do not become orphans.
-func (q *sqlQuerier) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, softDeleteUnboundChatModelConfigsByProvider, provider)
+func (q *sqlQuerier) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, arg SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, softDeleteUnboundChatModelConfigsByProvider, arg.UpdatedBy, arg.Provider)
 	if err != nil {
 		return 0, err
 	}

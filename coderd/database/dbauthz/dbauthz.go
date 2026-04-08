@@ -5662,7 +5662,7 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
 }
 
-func (q *querier) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
+func (q *querier) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID database.SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return 0, err
 	}
@@ -5695,7 +5695,7 @@ func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg databas
 	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
 }
 
-func (q *querier) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider string) (int64, error) {
+func (q *querier) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, provider database.SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return 0, err
 	}
