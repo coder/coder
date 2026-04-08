@@ -154,6 +154,70 @@
 		--primary: 213 94% 68%;
 		--primary-foreground: 240 10% 4%;
 	}
+
+	.purple {
+		--content-primary: 0 0% 100%;
+		--content-secondary: 270 10% 65%;
+		--content-link: 270 91% 75%;
+		--content-invert: 270 20% 8%;
+		--content-disabled: 270 10% 30%;
+		--content-success: 142 76% 36%;
+		--content-warning: 31 97% 72%;
+		--content-destructive: 0 91% 71%;
+		--surface-primary: 270 30% 5%;
+		--surface-secondary: 270 25% 9%;
+		--surface-tertiary: 270 20% 14%;
+		--surface-quaternary: 270 15% 22%;
+		--surface-invert-primary: 270 10% 88%;
+		--surface-invert-secondary: 270 10% 65%;
+		--surface-destructive: 0 75% 15%;
+		--surface-green: 145 80% 10%;
+		--surface-grey: 270 25% 10%;
+		--surface-orange: 13 81% 15%;
+		--surface-sky: 196 67% 12%;
+		--surface-red: 0 75% 15%;
+		--surface-purple: 270 60% 20%;
+		--surface-magenta: 291 74% 15%;
+		--border-purple: 270 80% 70%;
+		--border-default: 270 20% 18%;
+		--border-success: 142 76% 36%;
+		--border-magenta: 292 100% 78%;
+		--border-warning: 31 97% 72%;
+		--border-destructive: 0 91% 71%;
+		--border-sky: 194 90% 62%;
+		--border-green: 143 77% 87%;
+		--border-hover: 270 15% 35%;
+		--overlay-default: 270 30% 5% / 80%;
+		--highlight-purple: 270 100% 80%;
+		--highlight-green: 141 79% 85%;
+		--highlight-orange: 31 100% 70%;
+		--highlight-sky: 188 75% 80%;
+		--highlight-red: 0 91% 71%;
+		--highlight-magenta: 292 100% 78%;
+		--syntax-key: 270 90% 80%;
+		--syntax-string: 300 50% 70%;
+		--syntax-number: 180 40% 70%;
+		--syntax-boolean: 250 70% 70%;
+		--git-added: 142 77% 73%;
+		--git-deleted: 0 94% 82%;
+		--git-modified: 31 97% 72%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 71% 45%;
+		--git-deleted-bright: 0 91% 71%;
+		--git-merged-bright: 270 95% 75%;
+		--surface-git-added: 145 80% 10%;
+		--surface-git-deleted: 0 75% 15%;
+		--surface-git-merged: 274 87% 21%;
+		--border: 270 20% 18%;
+		--input: 270 20% 18%;
+		--ring: 270 80% 70%;
+		--background: 270 30% 5%;
+		--foreground: 0 0% 98%;
+		--muted: 270 25% 10%;
+		--muted-foreground: 270 10% 65%;
+		--primary: 270 91% 75%;
+		--primary-foreground: 270 30% 5%;
+	}
 }
 
 @layer base {

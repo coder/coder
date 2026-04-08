@@ -90,13 +90,19 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						theme="dark"
 						onSelect={() => onChangeTheme("dark")}
 					/>
-					<ThemePreviewButton
-						displayName="Light"
-						active={currentTheme === "light"}
-						theme="light"
-						onSelect={() => onChangeTheme("light")}
-					/>
-				</div>
+						<ThemePreviewButton
+							displayName="Light"
+							active={currentTheme === "light"}
+							theme="light"
+							onSelect={() => onChangeTheme("light")}
+						/>
+						<ThemePreviewButton
+							displayName="Purple"
+							active={currentTheme === "purple"}
+							theme="purple"
+							onSelect={() => onChangeTheme("purple")}
+							preview
+						/>				</div>
 			</Section>
 			<Section
 				title={
@@ -139,7 +145,7 @@ function toTerminalFontName(value: string): TerminalFontName {
 		: "";
 }
 
-type ThemeMode = "dark" | "light";
+type ThemeMode = "dark" | "light" | "purple";
 
 interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
 	themes: [ThemeMode, ThemeMode];
