@@ -43,19 +43,32 @@ if ! echo "$release_branches" | grep "release/2.26" >/dev/null; then
 	error "Could not find existing release branches. Did you run 'git fetch -ap ${remote}'?"
 fi
 
-latest_release_branch=$(echo "$release_branches" | tail -n 1)
-latest_release_branch_version=${latest_release_branch#release/}
-log "Latest release branch: $latest_release_branch"
-log "Latest release branch version: $latest_release_branch_version"
+# Step 2: Iterate from the latest release branch backwards to find the deploy
+# branch. A release branch is the deploy target if its `.0` tag does not yet
+# exist (i.e. the release is in progress / frozen). Release branches that only
+# carry RC tags (v<x.y>.0-rc.*) are skipped — they are not considered frozen.
+for branch in $(echo "$release_branches" | sort -Vr); do
+	version=${branch#release/}
+	log "Checking release branch: $branch (version: $version)"
 
-# Step 2: check if a matching tag `v<x.y>.0` exists. If it does not, we will
-# use the release branch as the deploy branch.
-if ! git rev-parse "refs/tags/v${latest_release_branch_version}.0" >/dev/null 2>&1; then
-	log "Tag 'v${latest_release_branch_version}.0' does not exist, using release branch as deploy branch"
-	deploy_branch=$latest_release_branch
-else
-	log "Matching tag 'v${latest_release_branch_version}.0' exists, using main as deploy branch"
-fi
+	if git rev-parse "refs/tags/v${version}.0" >/dev/null 2>&1; then
+		# Final .0 tag exists — this release (and all older ones) are done.
+		log "Tag 'v${version}.0' exists, release is complete"
+		break
+	fi
+
+	# No .0 tag. Check if there are RC tags, which would indicate this is
+	# an RC-only branch that we should skip.
+	if git tag -l "v${version}.0-rc.*" | grep -q .; then
+		log "Branch '$branch' only has RC tags, skipping"
+		continue
+	fi
+
+	# No .0 tag and no RC tags — this is the frozen release branch.
+	log "Branch '$branch' is the frozen release branch"
+	deploy_branch=$branch
+	break
+done
 log "Deploy branch: $deploy_branch"
 
 # Finally, check if the current branch is the deploy branch.
