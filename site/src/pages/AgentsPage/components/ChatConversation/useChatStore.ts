@@ -97,7 +97,22 @@ export const useChatStore = (
 	} = options;
 
 	const queryClient = useQueryClient();
-	const [store] = useState(createChatStore);
+	// Seed the store with REST-fetched messages at creation
+	// time so child components reading via useSyncExternalStore
+	// see data on their very first render. Without this the
+	// store starts empty, the timeline paints an empty frame,
+	// and then the useEffect below fills it — producing a
+	// visible flash.
+	const [store] = useState(() => {
+		const s = createChatStore();
+		if (chatMessages && chatMessages.length > 0) {
+			s.upsertDurableMessages(chatMessages);
+		}
+		if (chatRecord?.status) {
+			s.setChatStatus(chatRecord.status);
+		}
+		return s;
+	});
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
 	// current chat. When true, the stream is the authoritative source

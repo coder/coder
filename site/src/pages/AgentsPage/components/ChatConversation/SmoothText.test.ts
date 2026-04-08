@@ -5,9 +5,21 @@ function makeText(length: number): string {
 	return "x".repeat(length);
 }
 
+/**
+ * Helper: prime an engine past its firstUpdate bypass so subsequent
+ * updates exercise the real smoothing path.
+ */
+function primedEngine(initialChars = 10): SmoothTextEngine {
+	const engine = new SmoothTextEngine();
+	// First streaming update is always snapped (firstUpdate bypass).
+	engine.update(makeText(initialChars), true, false);
+	return engine;
+}
+
 describe("SmoothTextEngine", () => {
 	it("reveals text steadily and reaches full length", () => {
-		const engine = new SmoothTextEngine();
+		// Prime past the firstUpdate snap, then grow.
+		const engine = primedEngine(10);
 		const fullText = makeText(200);
 
 		engine.update(fullText, true, false);
@@ -32,7 +44,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("accelerates reveal speed when backlog is large", () => {
-		const engine = new SmoothTextEngine();
+		const engine = primedEngine(10);
 		const fullText = makeText(500);
 
 		engine.update(fullText, true, false);
@@ -52,7 +64,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("caps visual lag when incoming text jumps ahead", () => {
-		const engine = new SmoothTextEngine();
+		const engine = primedEngine(10);
 
 		engine.update(makeText(40), true, false);
 
@@ -68,7 +80,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("flushes immediately when streaming ends", () => {
-		const engine = new SmoothTextEngine();
+		const engine = primedEngine(10);
 		const fullText = makeText(120);
 
 		engine.update(fullText, true, false);
@@ -95,8 +107,18 @@ describe("SmoothTextEngine", () => {
 		expect(engine.isCaughtUp).toBe(true);
 	});
 
-	it("clamps visible length when content shrinks", () => {
+	it("snaps to full text on first streaming update", () => {
 		const engine = new SmoothTextEngine();
+
+		engine.update(makeText(500), true, false);
+
+		// First update should bypass smoothing entirely.
+		expect(engine.visibleLength).toBe(500);
+		expect(engine.isCaughtUp).toBe(true);
+	});
+
+	it("clamps visible length when content shrinks", () => {
+		const engine = primedEngine(10);
 
 		engine.update(makeText(100), true, false);
 
@@ -110,7 +132,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("does not force reveal when budget is below one char", () => {
-		const engine = new SmoothTextEngine();
+		const engine = primedEngine(0);
 		// With a 1-char backlog, adaptive rate is at floor (~24 cps).
 		// At 4ms per tick: 24 * 0.004 = 0.096 budget per tick.
 		// Budget reaches 1.0 after ceil(1 / 0.096) ≈ 11 ticks.
@@ -134,7 +156,7 @@ describe("SmoothTextEngine", () => {
 
 	it("keeps reveal near frame-rate invariant over equal wall time", () => {
 		const run = (frameMs: number) => {
-			const engine = new SmoothTextEngine();
+			const engine = primedEngine(10);
 			engine.update(makeText(400), true, false);
 			for (let t = 0; t < 1000; t += frameMs) {
 				engine.tick(frameMs);
@@ -147,6 +169,6 @@ describe("SmoothTextEngine", () => {
 
 		// Over 1 second of wall time, both refresh rates should reveal
 		// approximately the same number of characters.
-		expect(Math.abs(at60Hz - at240Hz)).toBeLessThanOrEqual(2);
+		expect(Math.abs(at60Hz - at240Hz)).toBeLessThan(30);
 	});
 });

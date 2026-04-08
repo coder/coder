@@ -66,6 +66,8 @@ export class SmoothTextEngine {
 	private charBudget = 0;
 	private isStreaming = false;
 	private bypassSmoothing = false;
+	/** True until the first update() call with streaming content. */
+	private firstUpdate = true;
 
 	private rafId: number | null = null;
 	private previousTimestamp: number | null = null;
@@ -150,7 +152,18 @@ export class SmoothTextEngine {
 			this.charBudget = 0;
 		}
 
-		if (!isStreaming || bypassSmoothing) {
+		// On the first streaming update, snap to the full length
+		// so content that was already produced before this
+		// component mounted (e.g. a WebSocket replay of an
+		// in-progress response) appears instantly. Only text
+		// that arrives *after* this initial snapshot gets the
+		// smooth reveal animation.
+		const shouldBypass = !isStreaming || bypassSmoothing || this.firstUpdate;
+		if (isStreaming && !bypassSmoothing) {
+			this.firstUpdate = false;
+		}
+
+		if (shouldBypass) {
 			this.visibleLengthValue = this.fullLength;
 			this.charBudget = 0;
 			this.stopLoop();
@@ -245,6 +258,7 @@ export class SmoothTextEngine {
 		this.charBudget = 0;
 		this.isStreaming = false;
 		this.bypassSmoothing = false;
+		this.firstUpdate = true;
 	}
 
 	/**
