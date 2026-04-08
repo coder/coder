@@ -3,6 +3,7 @@ import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -357,6 +358,13 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 				</>
 			)}
+
+			<Alert severity="info">
+				<AlertDescription>
+					Title generation uses lightweight models and is not counted towards
+					usage limits.
+				</AlertDescription>
+			</Alert>
 		</div>
 	);
 };
