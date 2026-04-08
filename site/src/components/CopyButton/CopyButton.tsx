@@ -12,11 +12,13 @@ import { useClipboard } from "#/hooks/useClipboard";
 type CopyButtonProps = ButtonProps & {
 	text: string;
 	label: string;
+	tooltipSide?: "top" | "bottom" | "left" | "right";
 };
 
 export const CopyButton: FC<CopyButtonProps> = ({
 	text,
 	label,
+	tooltipSide,
 	...buttonProps
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
@@ -34,7 +36,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
 					<span className="sr-only">{label}</span>
 				</Button>
 			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
+			<TooltipContent side={tooltipSide}>{label}</TooltipContent>
 		</Tooltip>
 	);
 };

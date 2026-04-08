@@ -107,6 +107,7 @@
 					"go_name": "Effort",
 					"type": "string",
 					"description": "Controls the level of reasoning effort",
+					"label": "Reasoning Effort",
 					"required": false,
 					"enum": ["low", "medium", "high", "max"],
 					"input_type": "select"
@@ -132,6 +133,7 @@
 					"go_name": "AllowedDomains",
 					"type": "array",
 					"description": "Restrict web search to these domains (cannot be used with blocked_domains)",
+					"label": "Web Search: Allowed Domains",
 					"required": false,
 					"input_type": "json"
 				},
@@ -140,6 +142,7 @@
 					"go_name": "BlockedDomains",
 					"type": "array",
 					"description": "Block web search on these domains (cannot be used with allowed_domains)",
+					"label": "Web Search: Blocked Domains",
 					"required": false,
 					"input_type": "json"
 				}
@@ -286,7 +289,8 @@
 					"type": "string",
 					"description": "Controls whether reasoning tokens are summarized in the response",
 					"required": false,
-					"input_type": "input"
+					"enum": ["auto", "concise", "detailed"],
+					"input_type": "select"
 				},
 				{
 					"json_name": "max_completion_tokens",
@@ -354,7 +358,8 @@
 					"type": "string",
 					"description": "Latency tier to use for processing the request",
 					"required": false,
-					"input_type": "input"
+					"enum": ["auto", "default", "flex", "scale", "priority"],
+					"input_type": "select"
 				},
 				{
 					"json_name": "structured_outputs",
@@ -396,6 +401,7 @@
 					"go_name": "AllowedDomains",
 					"type": "array",
 					"description": "Restrict web search to these domains",
+					"label": "Web Search: Allowed Domains",
 					"required": false,
 					"input_type": "json"
 				}

@@ -94,6 +94,8 @@ type AgentConn interface {
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
+	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
+	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (io.ReadCloser, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -596,6 +598,23 @@ type DesktopActionResponse struct {
 	ScreenshotHeight int    `json:"screenshot_height,omitempty"`
 }
 
+// StartDesktopRecordingRequest is the request body for starting a
+// desktop recording session.
+type StartDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// StopDesktopRecordingRequest is the request body for stopping a
+// desktop recording session.
+type StopDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// MaxRecordingSize is the largest desktop recording (in bytes)
+// that will be accepted. Used by both the agent-side stop handler
+// and the server-side storage pipeline.
+const MaxRecordingSize = 100 << 20 // 100 MB
+
 // ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
 // agent's desktop.
 func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error) {
@@ -641,6 +660,43 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
 	}
 	return result, nil
+}
+
+// StartDesktopRecording starts a desktop recording session on the
+// agent with the given recording ID. The recording ID is
+// caller-provided and must be unique. Idempotent — if the ID is
+// already recording, returns success.
+func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/start", req)
+	if err != nil {
+		return xerrors.Errorf("start recording request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// StopDesktopRecording stops a desktop recording session on the
+// agent and returns the MP4 data as an io.ReadCloser. The caller
+// is responsible for closing the returned reader. Idempotent —
+// safe to call on an already-stopped recording.
+func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (io.ReadCloser, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
+	if err != nil {
+		return nil, xerrors.Errorf("stop recording request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	// Caller is responsible for closing res.Body.
+	return res.Body, nil
 }
 
 // DeleteDevcontainer deletes the provided devcontainer.
@@ -947,28 +1003,11 @@ type MCPToolInfo struct {
 	Required []string `json:"required"`
 }
 
-// Default values for context configuration. These are used
-// by the agent when env vars are unset and by the server as
-// fallbacks for older agents that don't support the
-// context-config endpoint.
-const (
-	DefaultInstructionsDir  = "~/.coder"
-	DefaultInstructionsFile = "AGENTS.md"
-	DefaultSkillsDir        = ".agents/skills"
-	DefaultSkillMetaFile    = "SKILL.md"
-	DefaultMCPConfigFile    = ".mcp.json"
-)
-
-// ContextConfigResponse is the response from the agent's
-// context configuration endpoint. Directory fields contain
-// fully resolved absolute paths. File name fields contain
-// basenames.
+// ContextConfigResponse is the response from the agent's context
+// configuration endpoint. Contains pre-read instruction file
+// contents and discovered skill metadata as chat message parts.
 type ContextConfigResponse struct {
-	InstructionsDirs []string `json:"instructions_dirs"`
-	InstructionsFile string   `json:"instructions_file"`
-	SkillsDirs       []string `json:"skills_dirs"`
-	SkillMetaFile    string   `json:"skill_meta_file"`
-	MCPConfigFiles   []string `json:"mcp_config_files"`
+	Parts []codersdk.ChatMessagePart `json:"parts"`
 }
 
 // CallMCPToolRequest is the request body for proxying an MCP

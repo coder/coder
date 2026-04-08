@@ -82,6 +82,17 @@ export const hasConfiguredModelsInCatalog = (
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
 };
 
+export const hasUserFixableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	if (!catalog?.providers) {
+		return false;
+	}
+	return catalog.providers.some(
+		(provider) => provider.unavailable_reason === "user_api_key_required",
+	);
+};
+
 const getAvailableProviders = (
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): ReadonlySet<string> => {
@@ -205,6 +216,7 @@ export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
 	hasConfiguredModels: boolean,
+	catalog?: TypesGen.ChatModelsResponse | null,
 ): string => {
 	if (modelOptions.length > 0) {
 		return "Select model";
@@ -213,7 +225,9 @@ export const getModelSelectorPlaceholder = (
 		return "Loading models...";
 	}
 	if (hasConfiguredModels) {
-		return "No Models Available";
+		return hasUserFixableProviders(catalog)
+			? "Configure API Keys"
+			: "No Models Available";
 	}
 	return "No Models Configured";
 };

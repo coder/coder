@@ -16,6 +16,7 @@ import { Response } from "../Response";
 import { Shimmer } from "../Shimmer";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
+import { RecordingPreview } from "./RecordingPreview";
 import {
 	isSubagentSuccessStatus,
 	shortDurationMs,
@@ -57,6 +58,53 @@ const SUBAGENT_VERBS: Record<
 		timeout: "Timed out spawning ",
 	},
 };
+
+/**
+ * Returns the label JSX for a sub-agent tool row. Extracted to keep
+ * the rendering logic for the three label variants readable.
+ */
+function getSubagentLabel(
+	showDesktopPreview: boolean | undefined,
+	toolStatus: ToolStatus,
+	variant: "default" | "computer-use",
+	toolName: string,
+	title: string,
+	isTimeout: boolean,
+): React.ReactNode {
+	if (showDesktopPreview && toolStatus === "running") {
+		return (
+			<Shimmer as="span" className="text-sm">
+				Using the computer...
+			</Shimmer>
+		);
+	}
+	if (
+		variant === "computer-use" &&
+		toolName === "wait_agent" &&
+		toolStatus === "completed"
+	) {
+		return (
+			<>
+				Used the computer{" "}
+				<span className="text-content-secondary opacity-60">{title}</span>
+			</>
+		);
+	}
+	return (
+		<>
+			{SUBAGENT_VERBS[toolName]?.[
+				isTimeout
+					? "timeout"
+					: toolStatus === "completed"
+						? "completed"
+						: toolStatus === "error"
+							? "error"
+							: "running"
+			] ?? ""}
+			<span className="text-content-secondary opacity-60">{title}</span>
+		</>
+	);
+}
 
 /**
  * Resolves a sub-agent status string and tool-level status into a
@@ -122,6 +170,8 @@ export const SubagentTool: React.FC<{
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
 	showDesktopPreview?: boolean;
 	variant?: "default" | "computer-use";
+	/** File ID for a completed recording (shown after tool completes). */
+	recordingFileId?: string;
 }> = ({
 	toolName,
 	title,
@@ -136,6 +186,7 @@ export const SubagentTool: React.FC<{
 	isTimeout = false,
 	showDesktopPreview,
 	variant = "default",
+	recordingFileId,
 }) => {
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
@@ -166,23 +217,13 @@ export const SubagentTool: React.FC<{
 					showDesktopPreview={showDesktopPreview}
 				/>{" "}
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-					{showDesktopPreview && toolStatus === "running" ? (
-						<Shimmer as="span" className="text-sm">
-							Using the computer...
-						</Shimmer>
-					) : (
-						<>
-							{SUBAGENT_VERBS[toolName]?.[
-								isTimeout
-									? "timeout"
-									: toolStatus === "completed"
-										? "completed"
-										: toolStatus === "error"
-											? "error"
-											: "running"
-							] ?? ""}
-							<span className="text-content-secondary opacity-60">{title}</span>
-						</>
+					{getSubagentLabel(
+						showDesktopPreview,
+						toolStatus,
+						variant,
+						toolName,
+						title,
+						isTimeout,
 					)}
 					{chatId && (
 						<Link
@@ -210,7 +251,7 @@ export const SubagentTool: React.FC<{
 				)}
 			</button>
 
-			{showDesktopPreview && desktopChatId && (
+			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
 				<div className="mt-1.5 w-fit overflow-hidden rounded-lg border border-solid border-border-default">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
@@ -219,6 +260,11 @@ export const SubagentTool: React.FC<{
 				</div>
 			)}
 
+			{recordingFileId && toolStatus === "completed" && (
+				<div className="mt-1.5 w-fit">
+					<RecordingPreview recordingFileId={recordingFileId} />
+				</div>
+			)}
 			{expanded && hasPrompt && (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default"

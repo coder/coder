@@ -114,8 +114,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		<Topbar className="[grid-area:topbar]">
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<TopbarIconButton component={RouterLink} to="/workspaces">
-						<ChevronLeftIcon className="size-icon-sm" />
+					<TopbarIconButton asChild>
+						<RouterLink to="/workspaces">
+							<ChevronLeftIcon className="size-icon-sm" />
+						</RouterLink>
 					</TopbarIconButton>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Back to workspaces</TooltipContent>

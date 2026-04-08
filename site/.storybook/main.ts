@@ -11,7 +11,7 @@ export default {
 		"@storybook/addon-vitest",
 	],
 
-	staticDirs: ["../static"],
+	staticDirs: ["../static", "./static"],
 
 	framework: {
 		name: "@storybook/react-vite",

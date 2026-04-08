@@ -1,4 +1,4 @@
-import { type FC, Profiler, useEffect } from "react";
+import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -7,6 +7,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
+	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	type UploadState,
 } from "./AgentChatInput";
@@ -66,7 +67,17 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 
 	const messages = orderedMessageIDs
-		.map((messageID) => messagesByID.get(messageID))
+		.map((messageID) => {
+			const message = messagesByID.get(messageID);
+			if (!message && process.env.NODE_ENV !== "production") {
+				console.warn(
+					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
+						"not found in messagesByID. This may indicate a store/cache " +
+						"desync bug.",
+				);
+			}
+			return message;
+		})
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
@@ -122,6 +133,7 @@ interface ChatPageInputProps {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -157,6 +169,7 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
@@ -174,6 +187,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onModelChange,
 	modelOptions,
 	modelSelectorPlaceholder,
+	modelSelectorHelp,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -192,6 +206,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	attachedWorkspace,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -200,7 +215,17 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
 	const messages = orderedMessageIDs
-		.map((messageID) => messagesByID.get(messageID))
+		.map((messageID) => {
+			const message = messagesByID.get(messageID);
+			if (!message && process.env.NODE_ENV !== "production") {
+				console.warn(
+					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
+						"not found in messagesByID. This may indicate a store/cache " +
+						"desync bug.",
+				);
+			}
+			return message;
+		})
 		.filter(isChatMessage);
 	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
 	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
@@ -283,7 +308,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
-	return (
+	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
@@ -352,6 +377,20 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			attachedWorkspace={attachedWorkspace}
 		/>
+	);
+
+	if (!modelSelectorHelp) {
+		return inputElement;
+	}
+
+	return (
+		<div>
+			{inputElement}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
+		</div>
 	);
 };

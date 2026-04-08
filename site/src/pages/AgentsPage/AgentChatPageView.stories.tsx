@@ -112,7 +112,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
-		hasWorkspace: true,
 		store: createChatStore(),
 		pendingEditMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,
@@ -279,6 +278,70 @@ index abc1234..def5678 100644
  const port = 3000;
 +logger.info("Starting server...");
  start(port);`,
+		});
+	},
+};
+
+/**
+ * Clicking the refresh button in the git panel invalidates the
+ * cached PR diff contents so that React Query re-fetches from
+ * the server.
+ */
+export const RefreshInvalidatesPRDiff: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			prNumber={123}
+			diffStatusData={
+				{
+					chat_id: AGENT_ID,
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				} satisfies ChatDiffStatus
+			}
+		/>
+	),
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			chat_id: AGENT_ID,
+			diff: `diff --git a/src/main.ts b/src/main.ts
+index abc1234..def5678 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,3 +1,5 @@
+ import { start } from "./server";
++import { logger } from "./logger";
+ const port = 3000;
++logger.info("Starting server...");
+ start(port);`,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the initial diff fetch triggered by React Query.
+		await waitFor(() => {
+			expect(API.experimental.getChatDiffContents).toHaveBeenCalled();
+		});
+		const callsBefore = (
+			API.experimental.getChatDiffContents as ReturnType<typeof fn>
+		).mock.calls.length;
+
+		// Click the refresh button in the git panel toolbar.
+		const refreshButton = canvas.getByRole("button", { name: "Refresh" });
+		await userEvent.click(refreshButton);
+
+		// The query should be re-fetched, resulting in an additional call.
+		await waitFor(() => {
+			expect(
+				(API.experimental.getChatDiffContents as ReturnType<typeof fn>).mock
+					.calls.length,
+			).toBeGreaterThan(callsBefore);
 		});
 	},
 };

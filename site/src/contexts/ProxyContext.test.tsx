@@ -108,23 +108,11 @@ describe("ProxyContextGetURLs", () => {
 			MockHealthyWildWorkspaceProxy.path_app_url,
 			MockHealthyWildWorkspaceProxy.wildcard_hostname,
 		],
-	])(
-		"%p",
-		(
-			_,
-			regions,
-			latencies,
-			selected,
-			preferredPathAppURL,
-			preferredWildcardHostname,
-		) => {
-			const preferred = getPreferredProxy(regions, selected, latencies, true);
-			expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL);
-			expect(preferred.preferredWildcardHostname).toBe(
-				preferredWildcardHostname,
-			);
-		},
-	);
+	])("%p", (_, regions, latencies, selected, preferredPathAppURL, preferredWildcardHostname) => {
+		const preferred = getPreferredProxy(regions, selected, latencies, true);
+		expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL);
+		expect(preferred.preferredWildcardHostname).toBe(preferredWildcardHostname);
+	});
 });
 
 const TestingComponent = () => {
@@ -342,62 +330,56 @@ describe("ProxyContextSelection", () => {
 				},
 			},
 		],
-	] as [string, ProxyContextSelectionTest][])(
-		"%s",
-		async (
-			_,
-			{
-				expUserProxyID,
-				expProxyID: expSelectedProxyID,
-				regions,
-				storageProxy,
-				latencies = {},
-				afterLoad,
-			},
-		) => {
-			// Mock the latencies
-			hardCodedLatencies = latencies;
+	] as [string, ProxyContextSelectionTest][])("%s", async (_, {
+		expUserProxyID,
+		expProxyID: expSelectedProxyID,
+		regions,
+		storageProxy,
+		latencies = {},
+		afterLoad,
+	}) => {
+		// Mock the latencies
+		hardCodedLatencies = latencies;
 
-			// Initial selection if present
-			if (storageProxy) {
-				saveUserSelectedProxy(storageProxy);
-			}
+		// Initial selection if present
+		if (storageProxy) {
+			saveUserSelectedProxy(storageProxy);
+		}
 
-			// Mock the API response
-			server.use(
-				http.get("/api/v2/regions", () =>
-					HttpResponse.json({
-						regions,
-					}),
-				),
-				http.get("/api/v2/workspaceproxies", () =>
-					HttpResponse.json({ regions }),
-				),
-			);
+		// Mock the API response
+		server.use(
+			http.get("/api/v2/regions", () =>
+				HttpResponse.json({
+					regions,
+				}),
+			),
+			http.get("/api/v2/workspaceproxies", () =>
+				HttpResponse.json({ regions }),
+			),
+		);
 
-			TestingComponent();
-			await waitForLoaderToBeRemoved();
+		TestingComponent();
+		await waitForLoaderToBeRemoved();
 
-			await screen.findByTestId("latenciesLoaded").then((x) => {
-				expect(x.title).toBe("true");
-			});
+		await screen.findByTestId("latenciesLoaded").then((x) => {
+			expect(x.title).toBe("true");
+		});
 
-			if (afterLoad) {
-				await afterLoad();
-			}
+		if (afterLoad) {
+			await afterLoad();
+		}
 
-			await screen.findByTestId("isFetched").then((x) => {
-				expect(x.title).toBe("true");
-			});
-			await screen.findByTestId("isLoading").then((x) => {
-				expect(x.title).toBe("false");
-			});
-			await screen.findByTestId("preferredProxy").then((x) => {
-				expect(x.title).toBe(expSelectedProxyID);
-			});
-			await screen.findByTestId("userProxy").then((x) => {
-				expect(x.title).toBe(expUserProxyID || "");
-			});
-		},
-	);
+		await screen.findByTestId("isFetched").then((x) => {
+			expect(x.title).toBe("true");
+		});
+		await screen.findByTestId("isLoading").then((x) => {
+			expect(x.title).toBe("false");
+		});
+		await screen.findByTestId("preferredProxy").then((x) => {
+			expect(x.title).toBe(expSelectedProxyID);
+		});
+		await screen.findByTestId("userProxy").then((x) => {
+			expect(x.title).toBe(expUserProxyID || "");
+		});
+	});
 });
