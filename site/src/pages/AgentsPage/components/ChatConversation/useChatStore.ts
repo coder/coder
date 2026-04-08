@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
@@ -140,12 +139,10 @@ export const useChatStore = (
 				: undefined;
 	});
 
-	// Keep error-reason callbacks in refs so the WebSocket effect
-	// can call them without including them in its dependency array.
-	// This prevents the socket from tearing down when the parent
-	// re-renders with new callback identities.
-	const setChatErrorReasonStable = useEffectEvent(setChatErrorReason);
-	const clearChatErrorReasonStable = useEffectEvent(clearChatErrorReason);
+	// Wrap error-reason callbacks so the WebSocket effect can call
+	// them without including them in its dependency array.
+	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
+	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
 
 	// True once the initial REST page has resolved for the current
 	// chat. The WebSocket effect gates on this so that
@@ -538,7 +535,7 @@ export const useChatStore = (
 								store.clearRetryState();
 							}
 							if (nextStatus !== "error") {
-								clearChatErrorReasonStable(chatID);
+								clearChatErrorReasonEvent(chatID);
 							}
 							updateSidebarChat((chat) =>
 								chat.status === nextStatus
@@ -555,7 +552,7 @@ export const useChatStore = (
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();
-							setChatErrorReasonStable(chatID, reason);
+							setChatErrorReasonEvent(chatID, reason);
 							updateSidebarChat((chat) =>
 								chat.status === "error" ? chat : { ...chat, status: "error" },
 							);
@@ -660,15 +657,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [
-		chatID,
-		initialDataLoaded,
-		queryClient,
-		store,
-		setChatErrorReasonStable,
-		clearChatErrorReasonStable,
-		upsertCacheMessages,
-	]);
+	}, [chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
 		clearStreamError: () => {

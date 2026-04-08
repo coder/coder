@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,6 +54,7 @@ func TestPurge(t *testing.T) {
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
 	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	<-done // wait for doTick() to run.
@@ -125,6 +127,16 @@ func TestMetrics(t *testing.T) {
 			"record_type": "audit_logs",
 		})
 		require.GreaterOrEqual(t, auditLogs, 0)
+
+		chats := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chats",
+		})
+		require.GreaterOrEqual(t, chats, 0)
+
+		chatFiles := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chat_files",
+		})
+		require.GreaterOrEqual(t, chatFiles, 0)
 	})
 
 	t.Run("FailedIteration", func(t *testing.T) {
@@ -138,6 +150,7 @@ func TestMetrics(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
@@ -1633,4 +1646,489 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 // ptr is a helper to create a pointer to a value.
 func ptr[T any](v T) *T {
 	return &v
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteOldChatFiles(t *testing.T) {
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	// createChatFile inserts a chat file and backdates created_at.
+	createChatFile := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, orgID uuid.UUID, createdAt time.Time) uuid.UUID {
+		t.Helper()
+		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+			Name:           "test.png",
+			Mimetype:       "image/png",
+			Data:           []byte("fake-image-data"),
+		})
+		require.NoError(t, err)
+		_, err = rawDB.ExecContext(ctx, "UPDATE chat_files SET created_at = $1 WHERE id = $2", createdAt, row.ID)
+		require.NoError(t, err)
+		return row.ID
+	}
+
+	// createChat inserts a chat and optionally archives it, then
+	// backdates updated_at to control the "archived since" window.
+	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, modelConfigID uuid.UUID, archived bool, updatedAt time.Time) database.Chat {
+		t.Helper()
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "test-chat",
+			Status:            database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+		if archived {
+			_, err = db.ArchiveChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+		}
+		_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	// setupChatDeps creates the common dependencies needed for
+	// chat-related tests: user, org, org member, provider, model config.
+	type chatDeps struct {
+		user        database.User
+		org         database.Organization
+		modelConfig database.ChatModelConfig
+	}
+	setupChatDeps := func(ctx context.Context, t *testing.T, db database.Store) chatDeps {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
+		})
+		require.NoError(t, err)
+		mc, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:     "openai",
+			Model:        "test-model",
+			ContextLimit: 8192,
+			Options:      json.RawMessage("{}"),
+		})
+		require.NoError(t, err)
+		return chatDeps{user: user, org: org, modelConfig: mc}
+	}
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "ChatRetentionDisabled",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(ctx, t, db)
+
+				// Disable retention.
+				err := db.UpsertChatRetentionDays(ctx, int32(0))
+				require.NoError(t, err)
+
+				// Create an old archived chat and an orphaned old file.
+				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Both should still exist.
+				_, err = db.GetChatByID(ctx, oldChat.ID)
+				require.NoError(t, err, "chat should not be deleted when retention is disabled")
+				_, err = db.GetChatFileByID(ctx, oldFileID)
+				require.NoError(t, err, "chat file should not be deleted when retention is disabled")
+			},
+		},
+		{
+			name: "OldArchivedChatsDeleted",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(ctx, t, db)
+
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
+				require.NoError(t, err)
+
+				// Old archived chat (31 days) — should be deleted.
+				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				// Insert a message so we can verify CASCADE.
+				_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+					ChatID:              oldChat.ID,
+					CreatedBy:           []uuid.UUID{deps.user.ID},
+					ModelConfigID:       []uuid.UUID{deps.modelConfig.ID},
+					Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+					Content:             []string{`[{"type":"text","text":"hello"}]`},
+					ContentVersion:      []int16{0},
+					Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+					InputTokens:         []int64{0},
+					OutputTokens:        []int64{0},
+					TotalTokens:         []int64{0},
+					ReasoningTokens:     []int64{0},
+					CacheCreationTokens: []int64{0},
+					CacheReadTokens:     []int64{0},
+					ContextLimit:        []int64{0},
+					Compressed:          []bool{false},
+					TotalCostMicros:     []int64{0},
+					RuntimeMs:           []int64{0},
+					ProviderResponseID:  []string{""},
+				})
+				require.NoError(t, err)
+
+				// Recently archived chat (10 days) — should be retained.
+				recentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
+
+				// Active chat — should be retained.
+				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Old archived chat should be gone.
+				_, err = db.GetChatByID(ctx, oldChat.ID)
+				require.Error(t, err, "old archived chat should be deleted")
+
+				// Its messages should be gone too (CASCADE).
+				msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+					ChatID:  oldChat.ID,
+					AfterID: 0,
+				})
+				require.NoError(t, err)
+				require.Empty(t, msgs, "messages should be cascade-deleted")
+
+				// Recent archived and active chats should remain.
+				_, err = db.GetChatByID(ctx, recentChat.ID)
+				require.NoError(t, err, "recently archived chat should be retained")
+				_, err = db.GetChatByID(ctx, activeChat.ID)
+				require.NoError(t, err, "active chat should be retained")
+			},
+		},
+		{
+			name: "OrphanedOldFilesDeleted",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(ctx, t, db)
+
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
+				require.NoError(t, err)
+
+				// File A: 31 days old, NOT in any chat -> should be deleted.
+				fileA := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+
+				// File B: 31 days old, in an active chat -> should be retained.
+				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       activeChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileB},
+				})
+				require.NoError(t, err)
+
+				// File C: 10 days old, NOT in any chat -> should be retained (too young).
+				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-10*24*time.Hour))
+
+				// File near boundary: 29d23h old — close to threshold.
+				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err = db.GetChatFileByID(ctx, fileA)
+				require.Error(t, err, "orphaned old file A should be deleted")
+
+				_, err = db.GetChatFileByID(ctx, fileB)
+				require.NoError(t, err, "file B in active chat should be retained")
+
+				_, err = db.GetChatFileByID(ctx, fileC)
+				require.NoError(t, err, "young file C should be retained")
+
+				_, err = db.GetChatFileByID(ctx, fileBoundary)
+				require.NoError(t, err, "file near 30d boundary should be retained")
+			},
+		},
+		{
+			name: "ArchivedChatFilesDeleted",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(ctx, t, db)
+
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
+				require.NoError(t, err)
+
+				// File D: 31 days old, in a chat archived 31 days ago -> should be deleted.
+				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       oldArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileD},
+				})
+				require.NoError(t, err)
+				// LinkChatFiles does not update chats.updated_at, so backdate.
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
+					now.Add(-31*24*time.Hour), oldArchivedChat.ID)
+				require.NoError(t, err)
+
+				// File E: 31 days old, in a chat archived 10 days ago -> should be retained.
+				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       recentArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileE},
+				})
+				require.NoError(t, err)
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
+					now.Add(-10*24*time.Hour), recentArchivedChat.ID)
+				require.NoError(t, err)
+
+				// File F: 31 days old, in BOTH an active chat AND an old archived chat -> should be retained.
+				fileF := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				anotherOldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       anotherOldArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileF},
+				})
+				require.NoError(t, err)
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
+					now.Add(-31*24*time.Hour), anotherOldArchivedChat.ID)
+				require.NoError(t, err)
+
+				activeChatForF := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       activeChatForF.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileF},
+				})
+				require.NoError(t, err)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err = db.GetChatFileByID(ctx, fileD)
+				require.Error(t, err, "file D in old archived chat should be deleted")
+
+				_, err = db.GetChatFileByID(ctx, fileE)
+				require.NoError(t, err, "file E in recently archived chat should be retained")
+
+				_, err = db.GetChatFileByID(ctx, fileF)
+				require.NoError(t, err, "file F in active + old archived chat should be retained")
+			},
+		},
+		{
+			name: "UnarchiveAfterFilePurge",
+			run: func(t *testing.T) {
+				// Validates that when dbpurge deletes chat_files rows,
+				// the FK cascade on chat_file_links automatically
+				// removes the stale links. Unarchiving a chat after
+				// file purge should show only surviving files.
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(ctx, t, db)
+
+				// Create a chat with three attached files.
+				fileA := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				_, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileA, fileB, fileC},
+				})
+				require.NoError(t, err)
+
+				// Archive the chat.
+				_, err = db.ArchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				// Simulate dbpurge deleting files A and B. The FK
+				// cascade on chat_file_links_file_id_fkey should
+				// automatically remove the corresponding link rows.
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)", pq.Array([]uuid.UUID{fileA, fileB}))
+				require.NoError(t, err)
+
+				// Unarchive the chat.
+				_, err = db.UnarchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				// Only file C should remain linked (FK cascade
+				// removed the links for deleted files A and B).
+				files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Len(t, files, 1, "only surviving file should be linked")
+				require.Equal(t, fileC, files[0].ID)
+
+				// Edge case: delete the last file too. The chat
+				// should have zero linked files, not an error.
+				_, err = db.ArchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = $1", fileC)
+				require.NoError(t, err)
+				_, err = db.UnarchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				files, err = db.GetChatFileMetadataByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Empty(t, files, "all-files-deleted should yield empty result")
+
+				// Test parent+child cascade: deleting files should
+				// clean up links for both parent and child chats
+				// independently via FK cascade.
+				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+					OwnerID:           deps.user.ID,
+					LastModelConfigID: deps.modelConfig.ID,
+					Title:             "child-chat",
+					Status:            database.ChatStatusWaiting,
+				})
+				require.NoError(t, err)
+				// Set root_chat_id to link child to parent.
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET root_chat_id = $1 WHERE id = $2", parentChat.ID, childChat.ID)
+				require.NoError(t, err)
+
+				// Attach different files to parent and child.
+				parentFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				parentFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				childFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				childFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       parentChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{parentFileKeep, parentFileStale},
+				})
+				require.NoError(t, err)
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       childChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{childFileKeep, childFileStale},
+				})
+				require.NoError(t, err)
+
+				// Archive via parent (cascades to child).
+				_, err = db.ArchiveChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+
+				// Delete one file from each chat.
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)",
+					pq.Array([]uuid.UUID{parentFileStale, childFileStale}))
+				require.NoError(t, err)
+
+				// Unarchive via parent.
+				_, err = db.UnarchiveChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+
+				parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parentChat.ID)
+				require.NoError(t, err)
+				require.Len(t, parentFiles, 1)
+				require.Equal(t, parentFileKeep, parentFiles[0].ID,
+					"parent should retain only non-stale file")
+
+				childFiles, err := db.GetChatFileMetadataByChatID(ctx, childChat.ID)
+				require.NoError(t, err)
+				require.Len(t, childFiles, 1)
+				require.Equal(t, childFileKeep, childFiles[0].ID,
+					"child should retain only non-stale file")
+			},
+		},
+		{
+			name: "BatchLimitFiles",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(ctx, t, db)
+
+				// Create 3 deletable orphaned files (all 31 days old).
+				for range 3 {
+					createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				}
+
+				// Delete with limit 2 — should delete 2, leave 1.
+				deleted, err := db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(2), deleted, "should delete exactly 2 files")
+
+				// Delete again — should delete the remaining 1.
+				deleted, err = db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(1), deleted, "should delete remaining 1 file")
+			},
+		},
+		{
+			name: "BatchLimitChats",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(ctx, t, db)
+
+				// Create 3 deletable old archived chats.
+				for range 3 {
+					createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				}
+
+				// Delete with limit 2 — should delete 2, leave 1.
+				deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(2), deleted, "should delete exactly 2 chats")
+
+				// Delete again — should delete the remaining 1.
+				deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(1), deleted, "should delete remaining 1 chat")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
+	}
 }

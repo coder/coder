@@ -52,6 +52,7 @@ import {
 	type FC,
 	useContext,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
@@ -84,7 +85,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -1419,7 +1419,7 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreStable = useEffectEvent(() => {
+	const onLoadMoreEvent = useEffectEvent(() => {
 		onLoadMore?.();
 	});
 
@@ -1438,14 +1438,14 @@ const LoadMoreSentinel: FC<{
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (entries[0]?.isIntersecting) {
-					onLoadMoreStable();
+					onLoadMoreEvent();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [isFetchingNextPage, onLoadMoreStable]);
+	}, [isFetchingNextPage]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

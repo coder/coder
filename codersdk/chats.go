@@ -545,6 +545,17 @@ type UpdateChatWorkspaceTTLRequest struct {
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
+// ChatRetentionDaysResponse contains the current chat retention setting.
+type ChatRetentionDaysResponse struct {
+	RetentionDays int32 `json:"retention_days"`
+}
+
+// UpdateChatRetentionDaysRequest is a request to update the chat
+// retention period.
+type UpdateChatRetentionDaysRequest struct {
+	RetentionDays int32 `json:"retention_days"`
+}
+
 // ParseChatWorkspaceTTL parses a stored TTL string, returning the
 // default when the value is empty.
 func ParseChatWorkspaceTTL(s string) (time.Duration, error) {
@@ -1657,6 +1668,33 @@ func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorks
 // UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
 func (c *ExperimentalClient) UpdateChatWorkspaceTTL(ctx context.Context, req UpdateChatWorkspaceTTLRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/workspace-ttl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatRetentionDays returns the configured chat retention period.
+func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRetentionDaysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/retention-days", nil)
+	if err != nil {
+		return ChatRetentionDaysResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatRetentionDaysResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatRetentionDaysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatRetentionDays updates the chat retention period.
+func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
 	if err != nil {
 		return err
 	}

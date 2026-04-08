@@ -1,6 +1,6 @@
 import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { API } from "#/api/api";
@@ -21,7 +21,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -146,7 +145,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	}, [
 		templateVersionId,
 		workspace.latest_build.template_version_id,
-		onMessage,
 		workspace.owner_id,
 	]);
 

@@ -1189,6 +1189,8 @@ func New(options *Options) *API {
 				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
 				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
+				r.Get("/retention-days", api.getChatRetentionDays)
+				r.Put("/retention-days", api.putChatRetentionDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
 				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})

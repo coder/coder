@@ -3183,6 +3183,70 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get chat retention days
+// @ID get-chat-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatRetentionDaysResponse
+// @Router /experimental/chats/config/retention-days [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	retentionDays, err := api.Database.GetChatRetentionDays(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat retention days.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatRetentionDaysResponse{
+		RetentionDays: retentionDays,
+	})
+}
+
+// Keep in sync with retentionDaysMaximum in
+// site/src/pages/AgentsPage/AgentSettingsBehaviorPageView.tsx.
+const retentionDaysMaximum = 3650 // ~10 years
+
+// @Summary Update chat retention days
+// @ID update-chat-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
+// @Success 204
+// @Router /experimental/chats/config/retention-days [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	var req codersdk.UpdateChatRetentionDaysRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.RetentionDays < 0 || req.RetentionDays > retentionDaysMaximum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Retention days must be between 0 and %d.", retentionDaysMaximum),
+		})
+		return
+	}
+	if err := api.Database.UpsertChatRetentionDays(ctx, req.RetentionDays); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat retention days.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
