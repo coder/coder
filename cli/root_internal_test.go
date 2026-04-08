@@ -185,6 +185,29 @@ func Test_wrapTransportWithVersionCheck(t *testing.T) {
 	})
 }
 
+func Test_serverVersionMessage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		version  string
+		expected string
+	}{
+		{"Stable", "v2.31.0", ""},
+		{"Dev", "v0.0.0-devel+abc123", "the server is running a development version of Coder (v0.0.0-devel+abc123)"},
+		{"RC", "v2.31.0-rc.1", "the server is running a release candidate of Coder (v2.31.0-rc.1)"},
+		{"RCDevel", "v2.33.0-rc.1-devel+727ec00f7", "the server is running a release candidate of Coder (v2.33.0-rc.1-devel+727ec00f7)"},
+		{"Empty", "", ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, c.expected, serverVersionMessage(c.version))
+		})
+	}
+}
+
 func Test_wrapTransportWithTelemetryHeader(t *testing.T) {
 	t.Parallel()
 

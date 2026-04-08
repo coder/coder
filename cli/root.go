@@ -1435,6 +1435,21 @@ func defaultUpgradeMessage(version string) string {
 	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
 
+// serverVersionMessage returns a warning message if the server version
+// is a release candidate or development build. Returns empty string
+// for stable versions. RC is checked before devel because RC dev
+// builds (e.g. v2.33.0-rc.1-devel+hash) contain both tags.
+func serverVersionMessage(serverVersion string) string {
+	switch {
+	case buildinfo.IsRCVersion(serverVersion):
+		return fmt.Sprintf("the server is running a release candidate of Coder (%s)", serverVersion)
+	case buildinfo.IsDevVersion(serverVersion):
+		return fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion)
+	default:
+		return ""
+	}
+}
+
 // wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
 // that checks for entitlement warnings and prints them to the user.
 func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.RoundTripper {
@@ -1470,20 +1485,9 @@ func wrapTransportWithVersionCheck(rt http.RoundTripper, inv *serpent.Invocation
 			}
 			// Warn about non-stable server versions. Skip
 			// during tests to avoid polluting golden files.
-			if flag.Lookup("test.v") == nil {
-				// RC check comes first because RC dev builds
-				// (e.g. v2.33.0-rc.1-devel+hash) contain both
-				// "-rc." and "-devel".
-				switch {
-				case buildinfo.IsRCVersion(serverVersion):
-					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
-						fmt.Sprintf("the server is running a release candidate of Coder (%s)", serverVersion))
-					_, _ = fmt.Fprintln(inv.Stderr, warning)
-				case buildinfo.IsDevVersion(serverVersion):
-					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
-						fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion))
-					_, _ = fmt.Fprintln(inv.Stderr, warning)
-				}
+			if msg := serverVersionMessage(serverVersion); msg != "" && flag.Lookup("test.v") == nil {
+				warning := pretty.Sprint(cliui.DefaultStyles.Warn, msg)
+				_, _ = fmt.Fprintln(inv.Stderr, warning)
 			}
 			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
 				return
