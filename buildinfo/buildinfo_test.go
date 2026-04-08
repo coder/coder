@@ -114,6 +114,7 @@ func TestIsRCVersion(t *testing.T) {
 		{"RC0", "v2.31.0-rc.0", true},
 		{"RC1WithBuild", "v2.31.0-rc.1+abc123", true},
 		{"RC10", "v2.31.0-rc.10", true},
+		{"RCDevel", "v2.33.0-rc.1-devel+727ec00f7", true},
 		{"DevelVersion", "v2.31.0-devel+abc123", false},
 		{"StableVersion", "v2.31.0", false},
 		{"DevNoVersion", "v0.0.0-devel+abc123", false},

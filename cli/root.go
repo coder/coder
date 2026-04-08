@@ -1471,14 +1471,17 @@ func wrapTransportWithVersionCheck(rt http.RoundTripper, inv *serpent.Invocation
 			// Warn about non-stable server versions. Skip
 			// during tests to avoid polluting golden files.
 			if flag.Lookup("test.v") == nil {
+				// RC check comes first because RC dev builds
+				// (e.g. v2.33.0-rc.1-devel+hash) contain both
+				// "-rc." and "-devel".
 				switch {
-				case buildinfo.IsDevVersion(serverVersion):
-					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
-						fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion))
-					_, _ = fmt.Fprintln(inv.Stderr, warning)
 				case buildinfo.IsRCVersion(serverVersion):
 					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
 						fmt.Sprintf("the server is running a release candidate of Coder (%s)", serverVersion))
+					_, _ = fmt.Fprintln(inv.Stderr, warning)
+				case buildinfo.IsDevVersion(serverVersion):
+					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
+						fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion))
 					_, _ = fmt.Fprintln(inv.Stderr, warning)
 				}
 			}
