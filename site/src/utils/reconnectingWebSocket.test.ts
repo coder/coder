@@ -218,6 +218,102 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
 
+	it("clamps jitter greater than 1 before delay math", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: 1.5,
+			random: () => 1,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 2000 });
+	});
+
+	it("treats negative jitter as no jitter", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: -0.5,
+			random: () => 0,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+	});
+
+	it("treats NaN jitter as no jitter", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: Number.NaN,
+			random: () => 0.5,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+	});
+
+	it("treats Infinity jitter as no jitter", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			jitter: Number.POSITIVE_INFINITY,
+			random: () => 0.5,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+	});
+
 	it("caps backoff delay at maxMs", () => {
 		let activeSocket = createMockSocket();
 		const connect = vi.fn(() => {

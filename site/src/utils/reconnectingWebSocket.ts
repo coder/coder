@@ -111,7 +111,8 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	/**
 	 * Symmetric jitter applied to the computed delay. `0.3` means the
 	 * final delay may vary within ±30% of the base exponential-backoff
-	 * value. Set to `0` to preserve exact legacy timing.
+	 * value. Set to `0` to preserve exact legacy timing. Values are
+	 * clamped to `[0, 1]`; non-finite values are treated as `0`.
 	 */
 	jitter?: number;
 
@@ -131,11 +132,14 @@ const applyReconnectJitter = ({
 	jitter: number;
 	random: () => number;
 }): number => {
-	if (jitter <= 0) {
+	const safeJitter = Number.isFinite(jitter)
+		? Math.min(Math.max(jitter, 0), 1)
+		: 0;
+	if (safeJitter <= 0) {
 		return delayMs;
 	}
 	const randomValue = Math.min(Math.max(random(), 0), 1);
-	const jitterOffset = (randomValue * 2 - 1) * jitter;
+	const jitterOffset = (randomValue * 2 - 1) * safeJitter;
 	return Math.max(0, Math.round(delayMs * (1 + jitterOffset)));
 };
 
