@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -31,7 +29,7 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 		OrganizationID: org.ID,
 		OwnerID:        owner.ID,
 	}).WithAgent().Do()
-	modelConfig := insertActiveAgentChatTestModelConfig(ctx, t, db, owner.ID)
+	modelConfig := insertAgentChatTestModelConfig(ctx, t, db, owner.ID)
 
 	insertedChats := make([]database.Chat, 0, len(database.AllChatStatusValues())*2)
 	for _, archived := range []bool{false, true} {
@@ -75,38 +73,4 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 			chat.Archived,
 		)
 	}
-}
-
-func insertActiveAgentChatTestModelConfig(
-	ctx context.Context,
-	t testing.TB,
-	db database.Store,
-	userID uuid.UUID,
-) database.ChatModelConfig {
-	t.Helper()
-
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-api-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
-
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	return model
 }

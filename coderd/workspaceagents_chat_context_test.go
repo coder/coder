@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -38,7 +38,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
@@ -94,7 +94,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		firstPart := codersdk.ChatMessagePart{
@@ -184,7 +184,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		skillPart := codersdk.ChatMessagePart{
@@ -249,7 +249,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		parts := []codersdk.ChatMessagePart{
@@ -318,7 +318,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		skillPart := codersdk.ChatMessagePart{
@@ -380,7 +380,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
@@ -455,7 +455,7 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		model := createAgentChatContextModelConfig(ctx, t, db, user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, db, user.UserID)
 
 		firstWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
@@ -516,7 +516,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-chat1")
 		createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-chat2")
 
@@ -536,7 +536,7 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := createAgentChatContextModelConfig(ctx, t, setup.db, setup.user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
@@ -575,45 +575,6 @@ func newAgentChatContextTestSetup(t *testing.T) agentChatContextTestSetup {
 		workspace:   workspace,
 		agentClient: agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken)),
 	}
-}
-
-func createAgentChatContextModelConfig(
-	ctx context.Context,
-	t testing.TB,
-	db database.Store,
-	userID uuid.UUID,
-) database.ChatModelConfig {
-	t.Helper()
-
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	createdBy := uuid.NullUUID{UUID: userID, Valid: true}
-
-	_, err := db.InsertChatProvider(sysCtx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-api-key",
-		ApiKeyKeyID:          sql.NullString{},
-		CreatedBy:            createdBy,
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
-
-	model, err := db.InsertChatModelConfig(sysCtx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            createdBy,
-		UpdatedBy:            createdBy,
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	return model
 }
 
 func createAgentChatContextChat(
