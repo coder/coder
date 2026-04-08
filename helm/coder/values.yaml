@@ -451,7 +451,7 @@ coder:
     # applications over subdomains.
     # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
     wildcardHost: ""
-    # coder.gateway.annotations -- The ingress annotations.
+    # coder.httproute.annotations -- The HTTPRoute annotations.
     annotations: {}
 
   # coder.command -- The command to use when running the Coder container. Used
