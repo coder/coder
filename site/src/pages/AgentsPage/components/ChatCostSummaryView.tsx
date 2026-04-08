@@ -1,9 +1,8 @@
 import dayjs from "dayjs";
-import { TriangleAlertIcon } from "lucide-react";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -236,6 +235,14 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 			)}
 
+			<div className="flex items-start gap-3 p-4 text-sm text-content-secondary">
+				<InfoIcon className="h-5 w-5 shrink-0" />
+				<span>
+					Title generation uses lightweight models and is not counted
+					towards usage limits.
+				</span>
+			</div>
+
 			{summary.by_model.length === 0 && summary.by_chat.length === 0 ? (
 				<p className="py-12 text-center text-content-secondary">
 					{emptyMessage}
@@ -358,13 +365,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 				</>
 			)}
-
-			<Alert severity="info">
-				<AlertDescription>
-					Title generation uses lightweight models and is not counted towards
-					usage limits.
-				</AlertDescription>
-			</Alert>
 		</div>
 	);
 };
