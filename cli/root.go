@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -710,7 +711,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
-		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
+		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
 			basicClient := codersdk.New(serverURL)
@@ -1452,10 +1453,10 @@ func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.
 	})
 }
 
-// wrapTransportWithVersionMismatchCheck adds a middleware to the HTTP transport
-// that checks for version mismatches between the client and server. If a mismatch
-// is detected, a warning is printed to the user.
-func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
+// wrapTransportWithVersionCheck adds a middleware to the HTTP transport
+// that checks the server version and warns about development builds,
+// release candidates, and client/server version mismatches.
+func wrapTransportWithVersionCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
 	var once sync.Once
 	return roundTripper(func(req *http.Request) (*http.Response, error) {
 		res, err := rt.RoundTrip(req)
@@ -1467,9 +1468,24 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 			if serverVersion == "" {
 				return
 			}
+			// Warn about non-stable server versions. Skip
+			// during tests to avoid polluting golden files.
+			if flag.Lookup("test.v") == nil {
+				switch {
+				case buildinfo.IsDevVersion(serverVersion):
+					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
+						fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion))
+					_, _ = fmt.Fprintln(inv.Stderr, warning)
+				case buildinfo.IsRCVersion(serverVersion):
+					warning := pretty.Sprint(cliui.DefaultStyles.Warn,
+						fmt.Sprintf("the server is running a release candidate of Coder (%s)", serverVersion))
+					_, _ = fmt.Fprintln(inv.Stderr, warning)
+				}
+			}
 			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
 				return
 			}
+
 			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
 			if serverInfo, err := getBuildInfo(inv.Context()); err == nil {
 				switch {

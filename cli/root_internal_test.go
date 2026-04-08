@@ -91,7 +91,7 @@ func Test_formatExamples(t *testing.T) {
 	}
 }
 
-func Test_wrapTransportWithVersionMismatchCheck(t *testing.T) {
+func Test_wrapTransportWithVersionCheck(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoOutput", func(t *testing.T) {
@@ -102,7 +102,7 @@ func Test_wrapTransportWithVersionMismatchCheck(t *testing.T) {
 		var buf bytes.Buffer
 		inv := cmd.Invoke()
 		inv.Stderr = &buf
-		rt := wrapTransportWithVersionMismatchCheck(roundTripper(func(req *http.Request) (*http.Response, error) {
+		rt := wrapTransportWithVersionCheck(roundTripper(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header: http.Header{
@@ -131,7 +131,7 @@ func Test_wrapTransportWithVersionMismatchCheck(t *testing.T) {
 		inv := cmd.Invoke()
 		inv.Stderr = &buf
 		expectedUpgradeMessage := "My custom upgrade message"
-		rt := wrapTransportWithVersionMismatchCheck(roundTripper(func(req *http.Request) (*http.Response, error) {
+		rt := wrapTransportWithVersionCheck(roundTripper(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header: http.Header{
@@ -158,6 +158,30 @@ func Test_wrapTransportWithVersionMismatchCheck(t *testing.T) {
 		fmtOutput := fmt.Sprintf("version mismatch: client v2.0.0, server v1.0.0\n%s", expectedUpgradeMessage)
 		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
 		require.Equal(t, expectedOutput, buf.String())
+	})
+
+	t.Run("ServerStableVersion", func(t *testing.T) {
+		t.Parallel()
+		r := &RootCmd{}
+		cmd, err := r.Command(nil)
+		require.NoError(t, err)
+		var buf bytes.Buffer
+		inv := cmd.Invoke()
+		inv.Stderr = &buf
+		rt := wrapTransportWithVersionCheck(roundTripper(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					codersdk.BuildVersionHeader: []string{"v2.31.0"},
+				},
+				Body: io.NopCloser(nil),
+			}, nil
+		}), inv, "v2.31.0", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+		res, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Empty(t, buf.String())
 	})
 }
 
