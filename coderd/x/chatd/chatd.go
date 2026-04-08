@@ -182,7 +182,6 @@ type Server struct {
 	// completes, future reads hit the database again.
 	streamMessageFetches singleflight.Group[string, []database.ChatMessage]
 	streamQueueFetches   singleflight.Group[string, []database.ChatQueuedMessage]
-	streamChatFetches    singleflight.Group[string, database.Chat]
 
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
@@ -4252,13 +4251,6 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 	}
 }
 
-func cloneChatForStream(chat database.Chat) database.Chat {
-	chat.MCPServerIDs = slices.Clone(chat.MCPServerIDs)
-	chat.Labels = maps.Clone(chat.Labels)
-	chat.LastInjectedContext.RawMessage = slices.Clone(chat.LastInjectedContext.RawMessage)
-	return chat
-}
-
 func cloneChatMessagesForStream(messages []database.ChatMessage) []database.ChatMessage {
 	cloned := slices.Clone(messages)
 	for i := range cloned {
@@ -4275,9 +4267,9 @@ func cloneQueuedMessagesForStream(messages []database.ChatQueuedMessage) []datab
 	return cloned
 }
 
-// streamFetchContext preserves request-scoped auth and trace values while
-// removing cancellation so one disconnecting subscriber does not poison
-// other waiters sharing the same singleflight entry.
+// streamFetchContext preserves request-scoped trace values while removing
+// cancellation so one disconnecting subscriber does not poison other waiters
+// sharing the same singleflight entry.
 func streamFetchContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
@@ -4285,6 +4277,10 @@ func streamFetchContext(ctx context.Context) context.Context {
 	return context.WithoutCancel(ctx)
 }
 
+// getStreamChatMessages loads durable chat messages for an already-authorized
+// subscriber. Subscribe() must validate the caller before this helper is used.
+// The shared fetch intentionally runs as chatd so the singleflight leader's
+// request identity cannot affect authorization for other waiters.
 func (p *Server) getStreamChatMessages(
 	ctx context.Context,
 	params database.GetChatMessagesByChatIDParams,
@@ -4297,7 +4293,10 @@ func (p *Server) getStreamChatMessages(
 		&p.streamMessageFetches,
 		fmt.Sprintf("chat-messages:%s:after:%d", params.ChatID, params.AfterID),
 		func() ([]database.ChatMessage, error) {
-			return p.db.GetChatMessagesByChatID(streamFetchContext(ctx), params)
+			//nolint:gocritic // Subscribe already authorized the caller; the
+			// shared singleflight fetch runs as chatd so the leader's request
+			// identity cannot affect other authorized waiters.
+			return p.db.GetChatMessagesByChatID(dbauthz.AsChatd(streamFetchContext(ctx)), params)
 		},
 	)
 	if err != nil {
@@ -4306,6 +4305,10 @@ func (p *Server) getStreamChatMessages(
 	return cloneChatMessagesForStream(messages), nil
 }
 
+// getStreamQueuedMessages loads queued messages for an already-authorized
+// subscriber. Subscribe() must validate the caller before this helper is used.
+// The shared fetch intentionally runs as chatd so the singleflight leader's
+// request identity cannot affect authorization for other waiters.
 func (p *Server) getStreamQueuedMessages(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -4318,31 +4321,16 @@ func (p *Server) getStreamQueuedMessages(
 		&p.streamQueueFetches,
 		fmt.Sprintf("chat-queue:%s", chatID),
 		func() ([]database.ChatQueuedMessage, error) {
-			return p.db.GetChatQueuedMessages(streamFetchContext(ctx), chatID)
+			//nolint:gocritic // Subscribe already authorized the caller; the
+			// shared singleflight fetch runs as chatd so the leader's request
+			// identity cannot affect other authorized waiters.
+			return p.db.GetChatQueuedMessages(dbauthz.AsChatd(streamFetchContext(ctx)), chatID)
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 	return cloneQueuedMessagesForStream(queued), nil
-}
-
-func (p *Server) getStreamChat(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	chat, err := singleflightDoChan(
-		ctx,
-		&p.streamChatFetches,
-		fmt.Sprintf("chat:%s", chatID),
-		func() (database.Chat, error) {
-			return p.db.GetChatByID(streamFetchContext(ctx), chatID)
-		},
-	)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	return cloneChatForStream(chat), nil
 }
 
 func (p *Server) Subscribe(
@@ -4427,6 +4415,30 @@ func (p *Server) Subscribe(
 		}
 	}
 
+	cancel := func() {
+		mergedCancel()
+		for _, cancelFn := range allCancels {
+			if cancelFn != nil {
+				cancelFn()
+			}
+		}
+	}
+
+	// Authorize this subscriber with its own request context before any
+	// singleflight-backed reads return shared stream data. The HTTP route
+	// already does this via middleware, but Subscribe is also used directly in
+	// tests and internal paths. Once this check passes, the shared helpers may
+	// safely run under a privileged chatd context.
+	authorizedChat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to authorize chat stream subscriber",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		cancel()
+		return nil, nil, nil, false
+	}
+
 	// Build initial snapshot synchronously. The pubsub subscription
 	// is already active so no notifications can be lost during this
 	// window.
@@ -4498,44 +4510,24 @@ func (p *Server) Subscribe(
 		})
 	}
 
-	// Get initial chat state to determine if we need a relay.
-	chat, chatErr := p.getStreamChat(ctx, chatID)
-
 	// Include the current chat status in the snapshot so the
 	// frontend can gate message_part processing correctly from
 	// the very first batch, without waiting for a separate REST
 	// query.
-	if chatErr != nil {
-		p.logger.Error(ctx, "failed to load initial chat state",
-			slog.Error(chatErr),
-			slog.F("chat_id", chatID),
-		)
-		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: chatID,
-			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
-		})
-	} else {
-		statusEvent := codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeStatus,
-			ChatID: chatID,
-			Status: &codersdk.ChatStreamStatus{
-				Status: codersdk.ChatStatus(chat.Status),
-			},
-		}
-		// Prepend so the frontend sees the current stream phases
-		// before any message_part events.
-		prefix := []codersdk.ChatStreamEvent{statusEvent}
-		if retryEvent != nil {
-			prefix = append(prefix, *retryEvent)
-			retryEvent = nil
-		}
-		initialSnapshot = append(prefix, initialSnapshot...)
+	statusEvent := codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		ChatID: chatID,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatus(authorizedChat.Status),
+		},
 	}
-
+	// Prepend so the frontend sees the current stream phases
+	// before any message_part events.
+	prefix := []codersdk.ChatStreamEvent{statusEvent}
 	if retryEvent != nil {
-		initialSnapshot = append(initialSnapshot, *retryEvent)
+		prefix = append(prefix, *retryEvent)
 	}
+	initialSnapshot = append(prefix, initialSnapshot...)
 
 	// Track the highest durable message ID delivered to this subscriber,
 	// whether it came from the initial DB snapshot, the same-replica local
@@ -4545,18 +4537,17 @@ func (p *Server) Subscribe(
 		lastMessageID = messages[len(messages)-1].ID
 	}
 
-	// When an enterprise SubscribeFn is provided and the chat
-	// lookup succeeded, call it to get relay events (message_parts
-	// from remote replicas). OSS now owns pubsub subscription,
-	// message catch-up, queue updates, and status forwarding;
-	// enterprise only manages relay dialing.
+	// When an enterprise SubscribeFn is provided, call it to get relay events
+	// (message_parts from remote replicas). OSS owns pubsub subscription,
+	// message catch-up, queue updates, and status forwarding; enterprise only
+	// manages relay dialing.
 	var relayEvents <-chan codersdk.ChatStreamEvent
 	var statusNotifications chan StatusNotification
-	if p.subscribeFn != nil && chatErr == nil {
+	if p.subscribeFn != nil {
 		statusNotifications = make(chan StatusNotification, 10)
 		relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
 			ChatID:              chatID,
-			Chat:                chat,
+			Chat:                authorizedChat,
 			WorkerID:            p.workerID,
 			StatusNotifications: statusNotifications,
 			RequestHeader:       requestHeader,
@@ -4777,14 +4768,6 @@ func (p *Server) Subscribe(
 		}
 	}()
 
-	cancel := func() {
-		mergedCancel()
-		for _, cancelFn := range allCancels {
-			if cancelFn != nil {
-				cancelFn()
-			}
-		}
-	}
 	return initialSnapshot, mergedEvents, cancel, true
 }
 
