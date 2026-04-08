@@ -164,6 +164,8 @@ func TestExpAgents(t *testing.T) {
 			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, viewChat, updated.currentView)
 			require.True(t, updated.chat.loading)
+			require.Equal(t, 39, updated.chat.height)
+			require.Equal(t, 31, updated.chat.viewport.Height)
 			require.Len(t, mustBatchMsg(t, cmd), 3)
 		})
 
@@ -171,12 +173,16 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.width = 100
+			model.height = 40
 
 			updatedModel, cmd := model.Update(openDraftChatMsg{})
 			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, viewChat, updated.currentView)
 			require.True(t, updated.chat.draft)
 			require.False(t, updated.chat.loading)
+			require.Equal(t, 39, updated.chat.height)
+			require.Equal(t, 31, updated.chat.viewport.Height)
 			require.Nil(t, cmd)
 		})
 
@@ -1336,6 +1342,296 @@ func TestExpAgents(t *testing.T) {
 			require.Len(t, model.blocks, 1)
 			require.Equal(t, blockToolResult, model.blocks[0].kind)
 			require.Equal(t, "tool-1", model.blocks[0].toolID)
+		})
+	})
+
+	t.Run("ChatView/ViewportScrolling", func(t *testing.T) {
+		t.Parallel()
+
+		overflowingMessages := func(count int) []codersdk.ChatMessage {
+			messages := make([]codersdk.ChatMessage, 0, count)
+			for i := 0; i < count; i++ {
+				role := codersdk.ChatMessageRoleUser
+				if i%2 == 1 {
+					role = codersdk.ChatMessageRoleAssistant
+				}
+				messages = append(messages, testMessage(
+					int64(i+1),
+					role,
+					codersdk.ChatMessagePart{
+						Type: codersdk.ChatMessagePartTypeText,
+						Text: fmt.Sprintf(
+							"message %d %s",
+							i+1,
+							strings.Repeat("content ", 18),
+						),
+					},
+				))
+			}
+			return messages
+		}
+
+		applyWindowSize := func(
+			t *testing.T,
+			model expChatsTUIModel,
+			width int,
+			height int,
+		) expChatsTUIModel {
+			t.Helper()
+
+			updatedModel, cmd := model.Update(
+				tea.WindowSizeMsg{Width: width, Height: height},
+			)
+			return mustTUIModel(t, updatedModel, cmd)
+		}
+
+		newScrollableModel := func(t *testing.T) chatViewModel {
+			t.Helper()
+
+			model := newTestChatViewModel(nil)
+			model.loading = false
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat = &chat
+			model.chatStatus = chat.Status
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+			model.messages = overflowingMessages(24)
+			model.rebuildBlocks()
+
+			var cmd tea.Cmd
+			model, cmd = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.Nil(t, cmd)
+			require.False(t, model.composerFocused)
+			require.True(t, model.autoFollow)
+			require.True(t, model.viewport.AtBottom())
+			require.Greater(t, model.viewport.YOffset, 0)
+			return model
+		}
+
+		streamMessage := func(id int64) chatStreamEventMsg {
+			message := testMessage(
+				id,
+				codersdk.ChatMessageRoleAssistant,
+				codersdk.ChatMessagePart{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: strings.Repeat("new content ", 24),
+				},
+			)
+			return chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:    codersdk.ChatStreamEventTypeMessage,
+				Message: &message,
+			}}
+		}
+
+		t.Run("ViewportHeightCalculation", func(t *testing.T) {
+			t.Parallel()
+
+			model := applyWindowSize(
+				t,
+				newExpChatsTUIModel(context.Background(), nil, nil, nil, nil),
+				80,
+				40,
+			)
+
+			require.Equal(t, 31, model.chat.viewport.Height)
+		})
+
+		t.Run("ViewportHeightAccountsForRootTitle", func(t *testing.T) {
+			t.Parallel()
+
+			model := applyWindowSize(
+				t,
+				newExpChatsTUIModel(context.Background(), nil, nil, nil, nil),
+				80,
+				40,
+			)
+
+			require.Equal(t, 39, model.chat.height)
+		})
+
+		t.Run("ViewportHeightMinimumZero", func(t *testing.T) {
+			t.Parallel()
+
+			var model expChatsTUIModel
+			require.NotPanics(t, func() {
+				model = applyWindowSize(
+					t,
+					newExpChatsTUIModel(
+						context.Background(),
+						nil,
+						nil,
+						nil,
+						nil,
+					),
+					80,
+					5,
+				)
+			})
+
+			require.GreaterOrEqual(t, model.chat.viewport.Height, 0)
+			require.Equal(t, 0, model.chat.viewport.Height)
+		})
+
+		t.Run("ScrollUpDecreasesYOffset", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			before := model.viewport.YOffset
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.False(t, updated.autoFollow)
+			require.Less(t, updated.viewport.YOffset, before)
+		})
+
+		t.Run("ScrollDownIncreasesYOffset", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			before := model.viewport.YOffset
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			require.Greater(t, updated.viewport.YOffset, before)
+		})
+
+		t.Run("ScrollUpAtTopIsNoOp", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyHome})
+			before := model.viewport.YOffset
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.Equal(t, 0, before)
+			require.Equal(t, before, updated.viewport.YOffset)
+		})
+
+		t.Run("ScrollDownAtBottomReEnablesAutoFollow", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.False(t, model.autoFollow)
+
+			for i := 0; i < 100 && !model.viewport.AtBottom(); i++ {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+
+			require.True(t, model.viewport.AtBottom())
+			require.True(t, model.autoFollow)
+		})
+
+		t.Run("PageUpScrollsHalfViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			before := model.viewport.YOffset
+			halfView := model.viewport.Height / 2
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+			require.False(t, updated.autoFollow)
+			require.InDelta(
+				t,
+				float64(before-halfView),
+				float64(updated.viewport.YOffset),
+				1,
+			)
+		})
+
+		t.Run("PageDownScrollsHalfViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+			before := model.viewport.YOffset
+			halfView := model.viewport.Height / 2
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+			require.InDelta(
+				t,
+				float64(before+halfView),
+				float64(updated.viewport.YOffset),
+				1,
+			)
+		})
+
+		t.Run("HomeJumpsToTop", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyHome})
+			require.Equal(t, 0, updated.viewport.YOffset)
+			require.False(t, updated.autoFollow)
+		})
+
+		t.Run("EndJumpsToBottomAndEnablesAutoFollow", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyHome})
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnd})
+			require.True(t, updated.viewport.AtBottom())
+			require.True(t, updated.autoFollow)
+		})
+
+		t.Run("SetContentPreservesScrollPosition", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			before := model.viewport.YOffset
+
+			updated, _ := model.Update(streamMessage(1001))
+			require.False(t, updated.autoFollow)
+			require.Equal(t, before, updated.viewport.YOffset)
+		})
+
+		t.Run("NewMessageAutoFollowsWhenAtBottom", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			before := model.viewport.YOffset
+
+			updated, _ := model.Update(streamMessage(1002))
+			require.True(t, updated.autoFollow)
+			require.True(t, updated.viewport.AtBottom())
+			require.GreaterOrEqual(t, updated.viewport.YOffset, before)
+		})
+
+		t.Run("NewMessageDoesNotAutoFollowWhenScrolledUp", func(t *testing.T) {
+			t.Parallel()
+
+			model := newScrollableModel(t)
+			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			before := model.viewport.YOffset
+
+			updated, _ := model.Update(streamMessage(1003))
+			require.False(t, updated.autoFollow)
+			require.False(t, updated.viewport.AtBottom())
+			require.Equal(t, before, updated.viewport.YOffset)
+		})
+
+		t.Run("TotalViewHeightDoesNotExceedTerminalHeight", func(t *testing.T) {
+			t.Parallel()
+
+			model := applyWindowSize(
+				t,
+				newExpChatsTUIModel(context.Background(), nil, nil, nil, nil),
+				80,
+				40,
+			)
+			model.currentView = viewChat
+			model.chat.loading = false
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat.chat = &chat
+			model.chat.chatStatus = chat.Status
+			model.chat.messages = overflowingMessages(24)
+			model.chat.rebuildBlocks()
+
+			view := model.View()
+			lineCount := strings.Count(view, "\n") + 1
+			require.LessOrEqual(t, lineCount, 40)
 		})
 	})
 

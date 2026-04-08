@@ -468,7 +468,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		viewportHeight := m.height - 6
+		viewportHeight := m.height - 8
 		if viewportHeight < 0 {
 			viewportHeight = 0
 		}

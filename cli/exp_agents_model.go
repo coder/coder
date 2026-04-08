@@ -90,8 +90,10 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list, _ = m.list.Update(msg)
-		m.chat, _ = m.chat.Update(msg)
+		childMsg := msg
+		childMsg.Height = max(0, msg.Height-1)
+		m.list, _ = m.list.Update(childMsg)
+		m.chat, _ = m.chat.Update(childMsg)
 		return m, nil
 
 	case terminateTUIMsg:
@@ -159,9 +161,10 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentView = viewChat
 		m.chat.stopStream()
 		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
-		m.chat.width = m.width
-		m.chat.height = m.height
-		m.chat, _ = m.chat.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
+		m.chat.width = childMsg.Width
+		m.chat.height = childMsg.Height
+		m.chat, _ = m.chat.Update(childMsg)
 		return m, tea.Batch(
 			m.chat.Init(),
 			openChatCmd(m.ctx, m.client, msg.chatID),
@@ -174,9 +177,10 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
 		m.chat.draft = true
 		m.chat.loading = false
-		m.chat.width = m.width
-		m.chat.height = m.height
-		m.chat, _ = m.chat.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
+		m.chat.width = childMsg.Width
+		m.chat.height = childMsg.Height
+		m.chat, _ = m.chat.Update(childMsg)
 		return m, nil
 
 	case refreshChatsMsg:
