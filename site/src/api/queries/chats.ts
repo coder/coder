@@ -576,6 +576,67 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+export const updateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, title }: { chatId: string; title: string }) =>
+		API.experimental.updateChat(chatId, { title }),
+
+	onMutate: async ({ chatId, title }: { chatId: string; title: string }) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		const previousTitle = previousChat?.title;
+
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (old) =>
+			old ? { ...old, title } : old,
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+		);
+
+		return { previousTitle };
+	},
+
+	onError: (
+		_error: unknown,
+		{ chatId }: { chatId: string; title: string },
+		context: { previousTitle?: string } | undefined,
+	) => {
+		if (context?.previousTitle !== undefined) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (old) =>
+				old ? { ...old, title: context.previousTitle! } : old,
+			);
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? { ...chat, title: context.previousTitle! }
+						: chat,
+				),
+			);
+		}
+	},
+
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: { chatId: string; title: string },
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

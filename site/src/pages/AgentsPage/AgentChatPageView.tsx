@@ -143,6 +143,7 @@ interface AgentChatPageViewProps {
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
 	handleRegenerateTitle?: () => void;
+	onUpdateTitle?: (title: string) => void;
 	isRegeneratingTitle?: boolean;
 	isRegenerateTitleDisabled?: boolean;
 
@@ -212,6 +213,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	handleRegenerateTitle,
+	onUpdateTitle,
 	isRegeneratingTitle,
 	isRegenerateTitleDisabled,
 	scrollContainerRef,
@@ -347,6 +349,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							{...(handleRegenerateTitle
 								? { onRegenerateTitle: handleRegenerateTitle }
 								: {})}
+							onUpdateTitle={onUpdateTitle}
 							isRegeneratingTitle={isRegeneratingTitle}
 							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 							hasWorkspace={Boolean(workspace)}

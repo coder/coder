@@ -1,4 +1,11 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	useInfiniteQuery,
@@ -23,6 +30,7 @@ import {
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	updateChatTitle,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -1094,6 +1102,16 @@ const AgentChatPage: FC = () => {
 		onRegenerateTitle(agentId);
 	};
 
+	const updateTitleMutation = useMutation(updateChatTitle(queryClient));
+
+	const handleUpdateTitle = useCallback(
+		(title: string) => {
+			if (!agentId) return;
+			updateTitleMutation.mutate({ chatId: agentId, title });
+		},
+		[agentId, updateTitleMutation],
+	);
+
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentChatPageLoadingView
@@ -1168,6 +1186,7 @@ const AgentChatPage: FC = () => {
 				handleArchiveAndDeleteWorkspaceAction
 			}
 			handleRegenerateTitle={handleRegenerateTitle}
+			onUpdateTitle={handleUpdateTitle}
 			isRegeneratingTitle={isRegeneratingThisChat}
 			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 			urlTransform={urlTransform}

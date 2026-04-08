@@ -10,11 +10,13 @@ import {
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	PencilIcon,
+	SaveIcon,
 	TerminalIcon,
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -55,6 +57,7 @@ type ChatTopBarProps = {
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
+	onUpdateTitle?: (title: string) => void;
 	onRegenerateTitle?: () => void;
 	isRegeneratingTitle?: boolean;
 	isRegenerateTitleDisabled?: boolean;
@@ -73,6 +76,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
+	onUpdateTitle,
 	onRegenerateTitle,
 	isRegeneratingTitle,
 	isRegenerateTitleDisabled,
@@ -83,6 +87,52 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	diffStatusData,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+
+	const [isEditingTitle, setIsEditingTitle] = useState(false);
+	const [draftTitle, setDraftTitle] = useState("");
+	const [showSaved, setShowSaved] = useState(false);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const savedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+	const startEditing = useCallback(() => {
+		if (!onUpdateTitle || isRegeneratingTitle) return;
+		setDraftTitle(chatTitle ?? "");
+		setIsEditingTitle(true);
+	}, [onUpdateTitle, isRegeneratingTitle, chatTitle]);
+
+	const commitEdit = useCallback(() => {
+		const trimmed = draftTitle.trim();
+		if (trimmed && trimmed !== chatTitle) {
+			onUpdateTitle?.(trimmed);
+			if (savedTimeoutRef.current) {
+				clearTimeout(savedTimeoutRef.current);
+			}
+			setShowSaved(true);
+			savedTimeoutRef.current = setTimeout(() => {
+				setShowSaved(false);
+			}, 2000);
+		}
+		setIsEditingTitle(false);
+	}, [draftTitle, chatTitle, onUpdateTitle]);
+
+	const cancelEdit = useCallback(() => {
+		setIsEditingTitle(false);
+	}, []);
+
+	useEffect(() => {
+		if (isEditingTitle && inputRef.current) {
+			inputRef.current.focus();
+			inputRef.current.select();
+		}
+	}, [isEditingTitle]);
+
+	useEffect(() => {
+		return () => {
+			if (savedTimeoutRef.current) {
+				clearTimeout(savedTimeoutRef.current);
+			}
+		};
+	}, []);
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -127,8 +177,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						role="status"
 						aria-live="polite"
 						aria-busy={isRegeneratingTitle}
-						className="flex min-w-0 items-center gap-1.5"
+						className="group/title flex min-w-0 flex-1 items-center gap-1.5"
 					>
+						{" "}
 						{parentChat && (
 							<>
 								<Button
@@ -144,14 +195,62 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						<span
-							className={cn(
-								"truncate text-sm text-content-primary",
-								isRegeneratingTitle && "animate-pulse",
-							)}
-						>
-							{chatTitle}
-						</span>
+						{onUpdateTitle && !isRegeneratingTitle ? (
+							isEditingTitle ? (
+								<input
+									ref={inputRef}
+									value={draftTitle}
+									onChange={(e) => setDraftTitle(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") {
+											commitEdit();
+										} else if (e.key === "Escape") {
+											cancelEdit();
+										}
+									}}
+									onBlur={commitEdit}
+									className="min-w-0 flex-1 text-sm text-content-primary bg-transparent border-none outline-none p-0 m-0 font-inherit"
+								/>
+							) : (
+								<>
+									<span
+										role="textbox"
+										tabIndex={0}
+										onClick={startEditing}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault();
+												startEditing();
+											}
+										}}
+										className="truncate text-sm text-content-primary cursor-text"
+									>
+										{chatTitle}
+									</span>
+									{!showSaved && (
+										<PencilIcon
+											className="h-3 w-3 shrink-0 text-content-secondary opacity-0 transition-opacity group-hover/title:opacity-100"
+											aria-hidden
+										/>
+									)}{" "}
+								</>
+							)
+						) : (
+							<span
+								className={cn(
+									"truncate text-sm text-content-primary",
+									isRegeneratingTitle && "animate-pulse",
+								)}
+							>
+								{chatTitle}
+							</span>
+						)}
+						{showSaved && (
+							<span className="flex shrink-0 items-center gap-1 text-xs text-content-secondary animate-in fade-in">
+								Saved
+								<SaveIcon className="h-3 w-3" />
+							</span>
+						)}
 						{isRegeneratingTitle && (
 							<Spinner
 								aria-label="Regenerating title"
