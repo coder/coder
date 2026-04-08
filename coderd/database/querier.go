@@ -128,6 +128,22 @@ type sqlcQuerier interface {
 	// connection events (connect, disconnect, open, close) which are handled
 	// separately by DeleteOldAuditLogConnectionEvents.
 	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
+	// TODO(cian): Add indexes on chats(archived, updated_at) and
+	// chat_files(created_at) for purge query performance.
+	// See: https://github.com/coder/internal/issues/1438
+	// Deletes chat files that are older than the given threshold and are
+	// not referenced by any chat that is still active or was archived
+	// within the same threshold window. This covers two cases:
+	// 1. Orphaned files not linked to any chat.
+	// 2. Files whose every referencing chat has been archived for longer
+	//    than the retention period.
+	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
+	// Deletes chats that have been archived for longer than the given
+	// threshold. Active (non-archived) chats are never deleted.
+	// Related chat_messages, chat_diff_statuses, and
+	// chat_queued_messages are removed via ON DELETE CASCADE.
+	// Parent/root references on child chats are SET NULL.
+	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error
@@ -265,6 +281,11 @@ type sqlcQuerier interface {
 	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
+	// Returns the chat retention period in days. Chats archived longer
+	// than this and orphaned chat files older than this are purged by
+	// dbpurge. Returns 30 (days) when no value has been configured.
+	// A value of 0 disables chat purging entirely.
+	GetChatRetentionDays(ctx context.Context) (int32, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
@@ -865,6 +886,10 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
+	// Unarchives a chat (and its children). Stale file references are
+	// handled automatically by FK cascades on chat_file_links: when
+	// dbpurge deletes a chat_files row, the corresponding
+	// chat_file_links rows are cascade-deleted by PostgreSQL.
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
@@ -1006,6 +1031,7 @@ type sqlcQuerier interface {
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error)

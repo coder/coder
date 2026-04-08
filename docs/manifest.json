@@ -1264,6 +1264,12 @@
 							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["early access"]
+						},
+						{
+							"title": "Chat Data Retention",
+							"description": "Automatic cleanup of old chat data",
+							"path": "./ai-coder/agents/chat-retention.md",
+							"state": ["early access"]
 						}
 					]
 				}

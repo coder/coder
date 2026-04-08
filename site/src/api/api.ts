@@ -3279,6 +3279,20 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
 	};
 
+	getChatRetentionDays =
+		async (): Promise<TypesGen.ChatRetentionDaysResponse> => {
+			const response = await this.axios.get<TypesGen.ChatRetentionDaysResponse>(
+				"/api/experimental/chats/config/retention-days",
+			);
+			return response.data;
+		};
+
+	updateChatRetentionDays = async (
+		req: TypesGen.UpdateChatRetentionDaysRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/retention-days", req);
+	};
+
 	updateChatTemplateAllowlist = async (
 		req: TypesGen.ChatTemplateAllowlist,
 	): Promise<void> => {

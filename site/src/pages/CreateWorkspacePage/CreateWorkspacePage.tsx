@@ -2,6 +2,7 @@ import {
 	type FC,
 	useCallback,
 	useEffect,
+	useEffectEvent,
 	useMemo,
 	useRef,
 	useState,
@@ -26,7 +27,6 @@ import type {
 	Workspace,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
@@ -187,7 +187,7 @@ const CreateWorkspacePage: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage, defaultOwner.id]);
+	}, [realizedVersionId, defaultOwner.id]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -278,7 +278,7 @@ const CreateWorkspacePage: FC = () => {
 		if (autoCreateReady) {
 			void automateWorkspaceCreation();
 		}
-	}, [automateWorkspaceCreation, autoCreateReady]);
+	}, [autoCreateReady]);
 
 	const sortedParams = useMemo(() => {
 		if (!latestResponse?.parameters) {
