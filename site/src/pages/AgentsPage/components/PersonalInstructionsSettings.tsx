@@ -1,16 +1,12 @@
-import type { FC, FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-
-const textareaMaxHeight = 240;
-const textareaBaseClassName =
-	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
-const textareaOverflowClassName = "overflow-y-auto [scrollbar-width:thin]";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -36,32 +32,27 @@ export const PersonalInstructionsSettings: FC<
 	isSaveUserPromptError,
 	isAnyPromptSaving,
 }) => {
-	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 
-	const serverUserPrompt = userPromptData?.custom_prompt ?? "";
-	const userPromptDraft = localUserEdit ?? serverUserPrompt;
-	const userInvisibleCharCount = useMemo(
-		() => countInvisibleCharacters(userPromptDraft),
-		[userPromptDraft],
-	);
-	const isUserPromptDirty =
-		localUserEdit !== null && localUserEdit !== serverUserPrompt;
+	const form = useFormik({
+		initialValues: {
+			custom_prompt: userPromptData?.custom_prompt ?? "",
+		},
+		enableReinitialize: true,
+		onSubmit: (values, helpers) => {
+			onSaveUserPrompt(
+				{ custom_prompt: values.custom_prompt },
+				{ onSuccess: () => helpers.resetForm() },
+			);
+		},
+	});
 
-	const handleSaveUserPrompt = (event: FormEvent) => {
-		event.preventDefault();
-		if (!isUserPromptDirty) return;
-		onSaveUserPrompt(
-			{ custom_prompt: userPromptDraft },
-			{ onSuccess: () => setLocalUserEdit(null) },
-		);
-	};
+	const userInvisibleCharCount = countInvisibleCharacters(
+		form.values.custom_prompt,
+	);
 
 	return (
-		<form
-			className="space-y-2"
-			onSubmit={(event) => void handleSaveUserPrompt(event)}
-		>
+		<form className="space-y-2" onSubmit={form.handleSubmit}>
 			<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 				Personal Instructions
 			</h3>
@@ -70,15 +61,14 @@ export const PersonalInstructionsSettings: FC<
 			</p>
 			<TextareaAutosize
 				className={cn(
-					textareaBaseClassName,
-					isUserPromptOverflowing && textareaOverflowClassName,
+					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+					isUserPromptOverflowing && "overflow-y-auto [scrollbar-width:thin]",
 				)}
+				name="custom_prompt"
 				placeholder="Additional behavior, style, and tone preferences"
-				value={userPromptDraft}
-				onChange={(event) => setLocalUserEdit(event.target.value)}
-				onHeightChange={(height) =>
-					setIsUserPromptOverflowing(height >= textareaMaxHeight)
-				}
+				value={form.values.custom_prompt}
+				onChange={form.handleChange}
+				onHeightChange={(height) => setIsUserPromptOverflowing(height >= 240)}
 				disabled={isAnyPromptSaving}
 				minRows={1}
 			/>
@@ -96,15 +86,15 @@ export const PersonalInstructionsSettings: FC<
 					size="sm"
 					variant="outline"
 					type="button"
-					onClick={() => setLocalUserEdit("")}
-					disabled={isAnyPromptSaving || !userPromptDraft}
+					onClick={() => form.setFieldValue("custom_prompt", "")}
+					disabled={isAnyPromptSaving || !form.values.custom_prompt}
 				>
 					Clear
 				</Button>
 				<Button
 					size="sm"
 					type="submit"
-					disabled={isAnyPromptSaving || !isUserPromptDirty}
+					disabled={isAnyPromptSaving || !form.dirty}
 				>
 					Save
 				</Button>

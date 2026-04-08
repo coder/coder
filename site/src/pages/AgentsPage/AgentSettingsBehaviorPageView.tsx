@@ -150,11 +150,9 @@ export const AgentSettingsBehaviorPageView: FC<
 					<SystemInstructionsSettings
 						systemPromptData={systemPromptData}
 						onSaveSystemPrompt={onSaveSystemPrompt}
-						isSavingSystemPrompt={isSavingSystemPrompt}
 						isSaveSystemPromptError={isSaveSystemPromptError}
 						isAnyPromptSaving={isAnyPromptSaving}
 					/>
-
 					<hr className="my-5 border-0 border-t border-solid border-border" />
 					<VirtualDesktopSettings
 						desktopEnabledData={desktopEnabledData}

@@ -1,5 +1,7 @@
-import type { FC, FormEvent } from "react";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { useState } from "react";
+import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Switch } from "#/components/Switch/Switch";
@@ -23,6 +25,8 @@ interface WorkspaceAutostopSettingsProps {
 	isSaveWorkspaceTTLError: boolean;
 }
 
+const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
+
 export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
@@ -31,23 +35,47 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 	isSavingWorkspaceTTL,
 	isSaveWorkspaceTTLError,
 }) => {
-	// ── Local state ──
-	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	// ── Toggle state (fires immediate mutations, not a form submit) ──
 	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
 
 	// ── Derived state ──
 	const serverTTLMs = workspaceTTLData?.workspace_ttl_ms ?? 0;
-	const ttlMs = localTTLMs ?? serverTTLMs;
 	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
-	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
-	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
-	const isTTLOverMax = ttlMs > maxTTLMs;
-	const isTTLZero = isAutostopEnabled && ttlMs === 0;
+
+	// ── Form (for editing the TTL value) ──
+	const validationSchema = Yup.object({
+		workspace_ttl_ms: Yup.number()
+			.required()
+			.when([], {
+				is: () => isAutostopEnabled,
+				then: (schema) =>
+					schema.moreThan(0, "Duration must be greater than zero."),
+			})
+			.max(maxTTLMs, "Must not exceed 30 days (720 hours)."),
+	});
+
+	const form = useFormik({
+		initialValues: { workspace_ttl_ms: serverTTLMs },
+		enableReinitialize: true,
+		validationSchema,
+		onSubmit: (values, helpers) => {
+			onSaveWorkspaceTTL(
+				{ workspace_ttl_ms: values.workspace_ttl_ms },
+				{
+					onSuccess: () => {
+						setAutostopToggled(null);
+						helpers.resetForm();
+					},
+					onError: () => setAutostopToggled(null),
+				},
+			);
+		},
+	});
 
 	// ── Handlers ──
 	const resetAutostopState = () => {
-		setLocalTTLMs(null);
 		setAutostopToggled(null);
+		form.resetForm();
 	};
 
 	const handleToggleAutostop = (checked: boolean) => {
@@ -56,14 +84,14 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 			// stale; otherwise default to 1 hour.
 			const defaultTTL = serverTTLMs > 0 ? serverTTLMs : 3_600_000;
 			setAutostopToggled(true);
-			setLocalTTLMs(defaultTTL);
+			void form.setFieldValue("workspace_ttl_ms", defaultTTL);
 			onSaveWorkspaceTTL(
 				{ workspace_ttl_ms: defaultTTL },
 				{ onSuccess: resetAutostopState, onError: resetAutostopState },
 			);
 		} else {
 			setAutostopToggled(false);
-			setLocalTTLMs(0);
+			void form.setFieldValue("workspace_ttl_ms", 0);
 			onSaveWorkspaceTTL(
 				{ workspace_ttl_ms: 0 },
 				{ onSuccess: resetAutostopState, onError: resetAutostopState },
@@ -71,20 +99,8 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 		}
 	};
 
-	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
-		event.preventDefault();
-		if (!isTTLDirty || isSavingWorkspaceTTL) return;
-		onSaveWorkspaceTTL(
-			{ workspace_ttl_ms: localTTLMs ?? 0 },
-			{
-				onSuccess: resetAutostopState,
-				onError: () => setAutostopToggled(null),
-			},
-		);
-	};
-
 	const handleTTLChange = (value: number) => {
-		setLocalTTLMs(value);
+		void form.setFieldValue("workspace_ttl_ms", value);
 		// Latch the toggle open while the user is editing
 		// so a background refetch cannot unmount the field.
 		if (autostopToggled === null) {
@@ -92,11 +108,10 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 		}
 	};
 
+	const fieldError = form.errors.workspace_ttl_ms;
+
 	return (
-		<form
-			className="space-y-2"
-			onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
-		>
+		<form className="space-y-2" onSubmit={form.handleSubmit}>
 			<div className="flex items-center gap-2">
 				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 					Workspace Autostop Fallback
@@ -114,22 +129,16 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					onCheckedChange={handleToggleAutostop}
 					aria-label="Enable default autostop"
 					disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
-				/>{" "}
+				/>
 			</div>
 			{isAutostopEnabled && (
 				<DurationField
-					valueMs={ttlMs}
+					valueMs={form.values.workspace_ttl_ms}
 					onChange={handleTTLChange}
 					label="Autostop Fallback"
 					disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
-					error={isTTLOverMax || isTTLZero}
-					helperText={
-						isTTLZero
-							? "Duration must be greater than zero."
-							: isTTLOverMax
-								? "Must not exceed 30 days (720 hours)."
-								: undefined
-					}
+					error={!!fieldError}
+					helperText={fieldError}
 				/>
 			)}
 			{isAutostopEnabled && (
@@ -137,9 +146,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					<Button
 						size="sm"
 						type="submit"
-						disabled={
-							isSavingWorkspaceTTL || !isTTLDirty || isTTLOverMax || isTTLZero
-						}
+						disabled={isSavingWorkspaceTTL || !form.dirty || !!fieldError}
 					>
 						Save
 					</Button>
