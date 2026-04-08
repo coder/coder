@@ -124,9 +124,9 @@ func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.Ch
 }
 
 func formatChatGitChange(change codersdk.ChatGitChange) string {
-	path := change.FilePath
+	path := sanitizeTerminalRenderableText(change.FilePath)
 	if change.ChangeType == "renamed" && change.OldPath != nil && *change.OldPath != "" {
-		path = fmt.Sprintf("%s → %s", *change.OldPath, change.FilePath)
+		path = fmt.Sprintf("%s → %s", sanitizeTerminalRenderableText(*change.OldPath), path)
 	}
 
 	return fmt.Sprintf("%-8s %s", change.ChangeType, path)

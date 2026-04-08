@@ -215,6 +215,8 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetChatSession()
 		m.chat.draft = true
 		m.chat.loading = false
+		m.chat.metadataResolved = true
+		m.chat.historyResolved = true
 		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
 		m.chat, _ = m.chat.Update(childMsg)
 		return m, nil

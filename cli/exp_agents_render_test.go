@@ -1062,6 +1062,28 @@ func TestExpAgentsRender(t *testing.T) {
 			})
 		}
 	})
+	t.Run("RenderDiffDrawerSanitizesUntrustedContent", func(t *testing.T) {
+		t.Parallel()
+
+		styles := newTUIStyles()
+		rawOutput := renderDiffDrawer(
+			styles,
+			codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+safe\x1b]52;c;clipboard\x07line"},
+			[]codersdk.ChatGitChange{{
+				FilePath:   "a.txt\x1b]52;c;clipboard\x07",
+				ChangeType: "modified",
+			}},
+			90,
+			20,
+		)
+		output := plainText(rawOutput)
+
+		require.Contains(t, output, "diff --git a/a.txt b/a.txt")
+		require.Contains(t, output, "+safeline")
+		require.Contains(t, output, "modified a.txt")
+		require.NotContains(t, rawOutput, "clipboard")
+		require.NotContains(t, rawOutput, "\x1b]52")
+	})
 	t.Run("RenderModelPicker", func(t *testing.T) {
 		t.Parallel()
 

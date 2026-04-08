@@ -337,7 +337,7 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
 	summary := renderChatDiffSummary(diff, changes)
-	diffBody := diff.Diff
+	diffBody := sanitizeTerminalRenderableText(diff.Diff)
 	if strings.TrimSpace(diffBody) == "" {
 		diffBody = styles.dimmedText.Render("No diff contents.")
 	}

@@ -277,6 +277,8 @@ func TestExpAgents(t *testing.T) {
 						require.Equal(t, viewChat, updated.currentView)
 						require.True(t, updated.chat.draft)
 						require.False(t, updated.chat.loading)
+						require.True(t, updated.chat.metadataResolved)
+						require.True(t, updated.chat.historyResolved)
 						require.Equal(t, 39, updated.chat.height)
 						require.Equal(t, 31, updated.chat.viewport.Height)
 						require.Nil(t, cmd)
