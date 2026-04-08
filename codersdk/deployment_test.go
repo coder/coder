@@ -70,6 +70,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"External Token Encryption Keys": {
 			yaml: true,
 		},
+		"Database Encryption Keys": {
+			yaml: true,
+		},
 		"External Auth Providers": {
 			// Technically External Auth Providers can be provided through the env,
 			// but bypassing serpent. See cli.ReadExternalAuthProvidersFromEnv.

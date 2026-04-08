@@ -1,15 +1,15 @@
 # Database Encryption
 
-By default, Coder stores external user tokens in plaintext in the database.
-Database Encryption allows Coder administrators to encrypt these tokens at-rest,
-preventing attackers with database access from using them to impersonate users.
+By default, Coder stores sensitive data in plaintext in the database.
+Database Encryption allows Coder administrators to encrypt this data at-rest,
+preventing attackers with database access from using it to impersonate users.
 
 ## How it works
 
 Coder allows administrators to specify
-[external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys).
-If configured, Coder will use these keys to encrypt external user tokens before
-storing them in the database. The encryption algorithm used is AES-256-GCM with
+[database encryption keys](../../reference/cli/server.md#--db-encryption-keys).
+If configured, Coder will use these keys to encrypt sensitive data before
+storing it in the database. The encryption algorithm used is AES-256-GCM with
 a 32-byte key length.
 
 Coder will use the first key provided for both encryption and decryption. If
@@ -24,7 +24,7 @@ The following database fields are currently encrypted:
 - `external_auth_links.oauth_refresh_token`
 - `crypto_keys.secret`
 
-Additional database fields may be encrypted in the future.
+Additional sensitive fields are also encrypted when this setting is enabled.
 
 ### Implementation notes
 
@@ -63,10 +63,10 @@ dd if=/dev/urandom bs=32 count=1 | base64
 - Store this key in a secure location (for example, a Kubernetes secret):
 
 ```shell
-kubectl create secret generic coder-external-token-encryption-keys --from-literal=keys=<key>
+kubectl create secret generic coder-db-encryption-keys --from-literal=keys=<key>
 ```
 
-- In your Coder configuration set `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS` to a
+- In your Coder configuration set `CODER_DB_ENCRYPTION_KEYS` to a
   comma-separated list of base64-encoded keys. For example, in your Helm
   `values.yaml`:
 
@@ -74,10 +74,10 @@ kubectl create secret generic coder-external-token-encryption-keys --from-litera
 coder:
   env:
     [...]
-    - name: CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS
+    - name: CODER_DB_ENCRYPTION_KEYS
       valueFrom:
         secretKeyRef:
-          name: coder-external-token-encryption-keys
+          name: coder-db-encryption-keys
           key: keys
 ```
 
@@ -94,7 +94,7 @@ if you need to rotate keys, you can perform the following procedure:
 - Generate a new encryption key following the same procedure as above.
 
 - Add the above key to the list of
-  [external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys).
+  [database encryption keys](../../reference/cli/server.md#--db-encryption-keys).
   **The new key must appear first in the list**. For example, in the Kubernetes
   secret created above:
 
@@ -103,7 +103,7 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
-  name: coder-external-token-encryption-keys
+  name: coder-db-encryption-keys
   namespace: coder-namespace
 data:
   keys: <new-key>,<old-key1>,<old-key2>,...
@@ -143,12 +143,12 @@ To disable encryption, perform the following actions:
 
   > [!NOTE]
   > for `decrypt` command, the equivalent environment variable for
-  > `--keys` is `CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS` and not
-  > `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`. This is explicitly named differently
+  > `--keys` is `CODER_DB_ENCRYPTION_DECRYPT_KEYS` and not
+  > `CODER_DB_ENCRYPTION_KEYS`. This is explicitly named differently
   > to help prevent accidentally decrypting data.
 
 - Remove all
-  [external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys)
+  [database encryption keys](../../reference/cli/server.md#--db-encryption-keys)
   from Coder's configuration.
 
 - Start coderd. You can now safely delete the encryption keys from your secret
@@ -172,7 +172,7 @@ To delete all encrypted data from your database, perform the following actions:
   encryption keys.
 
 - Remove all
-  [external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys)
+  [database encryption keys](../../reference/cli/server.md#--db-encryption-keys)
   from Coder's configuration.
 
 - Start coderd. You can now safely delete the encryption keys from your secret

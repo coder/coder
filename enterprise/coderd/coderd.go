@@ -129,7 +129,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		cancelFunc()
 		// If we fail to initialize the database, it's likely that the
-		// database is encrypted with an unknown external token encryption key.
+		// database is encrypted with an unknown database encryption key.
 		// This is a fatal error.
 		var derr *dbcrypt.DecryptFailedError
 		if xerrors.As(err, &derr) {
@@ -1058,7 +1058,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		featureExternalTokenEncryption := reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption]
 		featureExternalTokenEncryption.Enabled = len(api.ExternalTokenEncryption) > 0
 		if featureExternalTokenEncryption.Enabled && featureExternalTokenEncryption.Entitlement != codersdk.EntitlementEntitled {
-			msg := fmt.Sprintf("%s is enabled (due to setting external token encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
+			msg := fmt.Sprintf("%s is enabled (due to setting database encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
 			api.Logger.Warn(ctx, msg)
 			reloadedEntitlements.Warnings = append(reloadedEntitlements.Warnings, msg)
 		}

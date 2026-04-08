@@ -1130,14 +1130,14 @@ Whether Coder only allows connections to workspaces via the browser.
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
 
-### --external-token-encryption-keys
+### --db-encryption-keys
 
-|             |                                                    |
-|-------------|----------------------------------------------------|
-| Type        | <code>string-array</code>                          |
-| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>string-array</code>              |
+| Environment | <code>$CODER_DB_ENCRYPTION_KEYS</code> |
 
-Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
+Encrypt sensitive data in the database with AES-256-GCM. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
 
 ### --disable-path-apps
 

@@ -111,7 +111,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			for idx, ek := range encKeys {
 				dk, err := base64.StdEncoding.DecodeString(ek)
 				if err != nil {
-					return nil, nil, xerrors.Errorf("decode external-token-encryption-key %d: %w", idx, err)
+					return nil, nil, xerrors.Errorf("decode db-encryption-key %d: %w", idx, err)
 				}
 				keys = append(keys, dk)
 			}

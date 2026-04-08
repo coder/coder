@@ -11,7 +11,7 @@ OPTIONS:
       --postgres-connection-auth password|awsiamrds, $CODER_PG_CONNECTION_AUTH (default: password)
           Type of auth to use when connecting to postgres.
 
-      --postgres-url string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL
+      --postgres-url string, $CODER_DB_ENCRYPTION_POSTGRES_URL
           The connection URL for the Postgres database.
 
   -y, --yes bool

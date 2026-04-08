@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -49,6 +51,8 @@ func (*RootCmd) dbcryptRotateCmd() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
+			flags.applyDeprecatedEnv(inv.Stderr)
+
 			if err := flags.valid(); err != nil {
 				return err
 			}
@@ -81,7 +85,7 @@ func (*RootCmd) dbcryptRotateCmd() *serpent.Command {
 				act = "Data will be decrypted with all available keys and re-encrypted with new key."
 			}
 
-			msg := fmt.Sprintf("%s\n\n- New key: %s\n- Old keys: %s\n\nRotate external token encryption keys?\n",
+			msg := fmt.Sprintf("%s\n\n- New key: %s\n- Old keys: %s\n\nRotate database encryption keys?\n",
 				act,
 				flags.New,
 				strings.Join(flags.Old, ", "),
@@ -129,6 +133,8 @@ func (*RootCmd) dbcryptDecryptCmd() *serpent.Command {
 			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
+
+			flags.applyDeprecatedEnv(inv.Stderr)
 
 			if err := flags.valid(); err != nil {
 				return err
@@ -194,6 +200,8 @@ func (*RootCmd) dbcryptDeleteCmd() *serpent.Command {
 			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
+
+			flags.applyDeprecatedEnv(inv.Stderr)
 
 			if err := flags.valid(); err != nil {
 				return err
@@ -264,18 +272,36 @@ func (f *rotateFlags) attach(opts *serpent.OptionSet) {
 		},
 		serpent.Option{
 			Flag:        "new-key",
-			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY",
-			Description: "The new external token encryption key. Must be base64-encoded.",
+			Env:         "CODER_DB_ENCRYPTION_NEW_KEY",
+			Description: "The new database encryption key. Must be base64-encoded.",
 			Value:       serpent.StringOf(&f.New),
 		},
 		serpent.Option{
 			Flag:        "old-keys",
-			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS",
-			Description: "The old external token encryption keys. Must be a comma-separated list of base64-encoded keys.",
+			Env:         "CODER_DB_ENCRYPTION_OLD_KEYS",
+			Description: "The old database encryption keys. Must be a comma-separated list of base64-encoded keys.",
 			Value:       serpent.StringArrayOf(&f.Old),
 		},
 		cliui.SkipPromptOption(),
 	)
+}
+
+// applyDeprecatedEnv checks for deprecated environment variables and
+// uses them as fallbacks when the corresponding new variables are not
+// set. A deprecation warning is written to w for each fallback used.
+func (f *rotateFlags) applyDeprecatedEnv(w io.Writer) {
+	if f.New == "" {
+		if v, ok := os.LookupEnv("CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY"); ok {
+			cliui.Warnf(w, "CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY is deprecated, use CODER_DB_ENCRYPTION_NEW_KEY instead")
+			f.New = v
+		}
+	}
+	if len(f.Old) == 0 {
+		if v, ok := os.LookupEnv("CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS"); ok {
+			cliui.Warnf(w, "CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS is deprecated, use CODER_DB_ENCRYPTION_OLD_KEYS instead")
+			f.Old = strings.Split(v, ",")
+		}
+	}
 }
 
 func (f *rotateFlags) valid() error {
@@ -334,12 +360,25 @@ func (f *decryptFlags) attach(opts *serpent.OptionSet) {
 		},
 		serpent.Option{
 			Flag:        "keys",
-			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS",
+			Env:         "CODER_DB_ENCRYPTION_DECRYPT_KEYS",
 			Description: "Keys required to decrypt existing data. Must be a comma-separated list of base64-encoded keys.",
 			Value:       serpent.StringArrayOf(&f.Keys),
 		},
 		cliui.SkipPromptOption(),
 	)
+}
+
+// applyDeprecatedEnv checks for the deprecated
+// CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS environment variable
+// and uses it as a fallback when CODER_DB_ENCRYPTION_DECRYPT_KEYS is
+// not set.
+func (f *decryptFlags) applyDeprecatedEnv(w io.Writer) {
+	if len(f.Keys) == 0 {
+		if v, ok := os.LookupEnv("CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS"); ok {
+			cliui.Warnf(w, "CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS is deprecated, use CODER_DB_ENCRYPTION_DECRYPT_KEYS instead")
+			f.Keys = strings.Split(v, ",")
+		}
+	}
 }
 
 func (f *decryptFlags) valid() error {
@@ -373,7 +412,7 @@ func (f *deleteFlags) attach(opts *serpent.OptionSet) {
 		*opts,
 		serpent.Option{
 			Flag:        "postgres-url",
-			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL",
+			Env:         "CODER_DB_ENCRYPTION_POSTGRES_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
 		},
@@ -387,6 +426,19 @@ func (f *deleteFlags) attach(opts *serpent.OptionSet) {
 		},
 		cliui.SkipPromptOption(),
 	)
+}
+
+// applyDeprecatedEnv checks for the deprecated
+// CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL environment variable
+// and uses it as a fallback when CODER_DB_ENCRYPTION_POSTGRES_URL is
+// not set.
+func (f *deleteFlags) applyDeprecatedEnv(w io.Writer) {
+	if f.PostgresURL == "" {
+		if v, ok := os.LookupEnv("CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL"); ok {
+			cliui.Warnf(w, "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL is deprecated, use CODER_DB_ENCRYPTION_POSTGRES_URL instead")
+			f.PostgresURL = v
+		}
+	}
 }
 
 func (f *deleteFlags) valid() error {
