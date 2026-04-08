@@ -1,9 +1,12 @@
+import type * as TypesGen from "api/typesGenerated";
 import { describe, expect, it } from "vitest";
 import {
+	createParsedConversationCache,
 	mergeTools,
 	normalizeBlockType,
 	parseMessageContent,
 	parseToolResultIsError,
+	resolveParsedConversation,
 } from "./messageParsing";
 
 describe("normalizeBlockType", () => {
@@ -399,5 +402,90 @@ describe("mergeTools", () => {
 		const merged = mergeTools([{ id: "1", name: "bash" }], []);
 		expect(merged).toHaveLength(1);
 		expect(merged[0].status).toBe("completed");
+	});
+});
+
+const makeMessage = (
+	id: number,
+	chatId: string,
+	content: readonly TypesGen.ChatMessagePart[] = [
+		{
+			type: "text",
+			text: `message-${id}`,
+		},
+	],
+): TypesGen.ChatMessage => ({
+	id,
+	chat_id: chatId,
+	created_at: `2025-01-01T00:00:${String(id).padStart(2, "0")}.000Z`,
+	role: id % 2 === 0 ? "assistant" : "user",
+	content,
+});
+
+describe("resolveParsedConversation", () => {
+	it("reuses parsed output when message references are unchanged", () => {
+		const cache = createParsedConversationCache();
+		const chatID = "chat-1";
+		const m1 = makeMessage(1, chatID);
+		const m2 = makeMessage(2, chatID);
+
+		const first = resolveParsedConversation({
+			cache,
+			chatID,
+			messages: [m1, m2],
+		});
+		const second = resolveParsedConversation({
+			cache,
+			chatID,
+			messages: [m1, m2],
+		});
+
+		expect(second.parsedMessages).toBe(first.parsedMessages);
+		expect(second.parsedSections).toBe(first.parsedSections);
+		expect(second.subagentTitles).toBe(first.subagentTitles);
+	});
+
+	it("re-parses when any message reference changes", () => {
+		const cache = createParsedConversationCache();
+		const chatID = "chat-1";
+		const firstMessages = [makeMessage(1, chatID), makeMessage(2, chatID)];
+		const first = resolveParsedConversation({
+			cache,
+			chatID,
+			messages: firstMessages,
+		});
+
+		const secondMessages: TypesGen.ChatMessage[] = [
+			firstMessages[0],
+			makeMessage(2, chatID, [{ type: "text", text: "updated" }]),
+		];
+		const second = resolveParsedConversation({
+			cache,
+			chatID,
+			messages: secondMessages,
+		});
+
+		expect(second.parsedMessages).not.toBe(first.parsedMessages);
+		expect(second.parsedSections).not.toBe(first.parsedSections);
+	});
+
+	it("evicts the least-recently used chat when cache exceeds max size", () => {
+		const cache = createParsedConversationCache(1);
+		const chat1 = "chat-1";
+		const chat2 = "chat-2";
+
+		resolveParsedConversation({
+			cache,
+			chatID: chat1,
+			messages: [makeMessage(1, chat1)],
+		});
+		resolveParsedConversation({
+			cache,
+			chatID: chat2,
+			messages: [makeMessage(1, chat2)],
+		});
+
+		expect(cache.entriesByChatID.has(chat1)).toBe(false);
+		expect(cache.entriesByChatID.has(chat2)).toBe(true);
 	});
 });

@@ -2,7 +2,7 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import { archiveChat, chatKey, chatsKey, unarchiveChat } from "./chats";
+import { archiveChat, chat, chatKey, chatsKey, unarchiveChat } from "./chats";
 
 vi.mock("api/api", () => ({
 	API: {
@@ -75,6 +75,13 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("chat query config", () => {
+	it("uses a non-zero staleTime to avoid immediate warm-cache refetches", () => {
+		const query = chat("chat-1");
+		expect(query.staleTime).toBeGreaterThan(0);
+	});
+});
 
 describe("archiveChat optimistic update", () => {
 	it("optimistically sets archived to true in the chats list", async () => {

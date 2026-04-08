@@ -135,7 +135,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				)}
 			>
 				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
+					<Outlet context={outletContext} />
 				) : (
 					<>
 						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">

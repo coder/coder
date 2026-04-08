@@ -47,6 +47,8 @@ export const readInfiniteChatsCache = (
 	return undefined;
 };
 
+const CHAT_QUERY_STALE_TIME_MS = 30 * 1000;
+
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 
 export const infiniteChats = (opts?: { q?: string }) => {
@@ -84,6 +86,7 @@ export const chats = () => ({
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.getChat(chatId),
+	staleTime: CHAT_QUERY_STALE_TIME_MS,
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({

@@ -209,6 +209,9 @@ export default defineConfig({
 			utils: path.resolve(__dirname, "./src/utils"),
 		},
 	},
+	benchmark: {
+		include: ["src/**/*.bench.?(m)ts?(x)"],
+	},
 	test: {
 		include: ["src/**/*.test.?(m)ts?(x)"],
 		globals: true,

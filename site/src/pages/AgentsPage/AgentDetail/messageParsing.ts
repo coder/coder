@@ -308,29 +308,30 @@ export const parseMessagesWithMergedTools = (
 		}
 	}
 
-	for (const { parsed } of rawParsed) {
-		const resultById = new Map<string, ParsedToolResult>();
+	return rawParsed.map(({ message, parsed }) => {
+		const resultByID = new Map<string, ParsedToolResult>();
 		for (const result of parsed.toolResults) {
-			resultById.set(result.id, result);
+			resultByID.set(result.id, result);
 		}
 		for (const call of parsed.toolCalls) {
-			if (!resultById.has(call.id)) {
+			if (!resultByID.has(call.id)) {
 				const global = globalToolResults.get(call.id);
 				if (global) {
-					resultById.set(global.id, global);
+					resultByID.set(global.id, global);
 				}
 			}
 		}
-		parsed.tools = mergeTools(
-			parsed.toolCalls,
-			Array.from(resultById.values()),
-		);
-	}
-
-	return rawParsed;
+		return {
+			message,
+			parsed: {
+				...parsed,
+				tools: mergeTools(parsed.toolCalls, Array.from(resultByID.values())),
+			},
+		};
+	});
 };
 
-export const buildSubagentTitles = (
+const buildSubagentTitles = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): Map<string, string> => {
 	const map = new Map<string, string>();
@@ -371,4 +372,89 @@ export const buildParsedMessageSections = (
 	}
 
 	return sections;
+};
+
+const DEFAULT_PARSED_CONVERSATION_CACHE_SIZE = 16;
+
+const chatMessagesEqualByRef = (
+	left: readonly TypesGen.ChatMessage[],
+	right: readonly TypesGen.ChatMessage[],
+): boolean => {
+	if (left.length !== right.length) {
+		return false;
+	}
+	for (let index = 0; index < left.length; index += 1) {
+		if (left[index] !== right[index]) {
+			return false;
+		}
+	}
+	return true;
+};
+
+type ParsedConversationSnapshot = {
+	readonly messages: readonly TypesGen.ChatMessage[];
+	readonly parsedMessages: ParsedMessageEntry[];
+	readonly subagentTitles: Map<string, string>;
+	readonly parsedSections: ParsedMessageSection[];
+};
+
+type ParsedConversation = Omit<ParsedConversationSnapshot, "messages">;
+
+interface ParsedConversationCache {
+	readonly maxSize: number;
+	readonly entriesByChatID: Map<string, ParsedConversationSnapshot>;
+}
+
+export const createParsedConversationCache = (
+	maxSize = DEFAULT_PARSED_CONVERSATION_CACHE_SIZE,
+): ParsedConversationCache => ({
+	maxSize,
+	entriesByChatID: new Map<string, ParsedConversationSnapshot>(),
+});
+
+export const resolveParsedConversation = ({
+	cache,
+	chatID,
+	messages,
+}: {
+	cache: ParsedConversationCache;
+	chatID: string;
+	messages: readonly TypesGen.ChatMessage[];
+}): ParsedConversation => {
+	const existing = cache.entriesByChatID.get(chatID);
+	if (existing && chatMessagesEqualByRef(existing.messages, messages)) {
+		// Keep LRU order up to date.
+		cache.entriesByChatID.delete(chatID);
+		cache.entriesByChatID.set(chatID, existing);
+		return {
+			parsedMessages: existing.parsedMessages,
+			subagentTitles: existing.subagentTitles,
+			parsedSections: existing.parsedSections,
+		};
+	}
+
+	const parsedMessages = parseMessagesWithMergedTools(messages);
+	const subagentTitles = buildSubagentTitles(parsedMessages);
+	const parsedSections = buildParsedMessageSections(parsedMessages);
+	const snapshot: ParsedConversationSnapshot = {
+		messages,
+		parsedMessages,
+		subagentTitles,
+		parsedSections,
+	};
+
+	cache.entriesByChatID.delete(chatID);
+	cache.entriesByChatID.set(chatID, snapshot);
+	if (cache.entriesByChatID.size > cache.maxSize) {
+		const oldestChatID = cache.entriesByChatID.keys().next().value;
+		if (oldestChatID) {
+			cache.entriesByChatID.delete(oldestChatID);
+		}
+	}
+
+	return {
+		parsedMessages,
+		subagentTitles,
+		parsedSections,
+	};
 };

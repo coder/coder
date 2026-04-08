@@ -135,4 +135,84 @@ describe("useConversationEditingState", () => {
 		});
 		unmount();
 	});
+
+	it("loads the new chat draft and clears edit state when chatID changes", async () => {
+		const chatOne = "chat-one";
+		const chatTwo = "chat-two";
+		localStorage.setItem(
+			`${draftInputStorageKeyPrefix}${chatOne}`,
+			"draft one",
+		);
+		localStorage.setItem(
+			`${draftInputStorageKeyPrefix}${chatTwo}`,
+			"draft two",
+		);
+
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef: import("react").RefObject<string> = { current: "" };
+
+		const { result, rerender } = renderHook(
+			({ chatID }: { chatID: string | undefined }) =>
+				useConversationEditingState({
+					chatID,
+					onSend,
+					onDeleteQueuedMessage,
+					chatInputRef,
+					inputValueRef,
+				}),
+			{
+				initialProps: { chatID: chatOne },
+			},
+		);
+
+		expect(result.current.editorInitialValue).toBe("draft one");
+		act(() => {
+			result.current.handleEditUserMessage(42, "editing now");
+		});
+		expect(result.current.editingMessageId).toBe(42);
+
+		rerender({ chatID: chatTwo });
+
+		await vi.waitFor(() => {
+			expect(result.current.editorInitialValue).toBe("draft two");
+			expect(result.current.inputValueRef.current).toBe("draft two");
+			expect(result.current.editingMessageId).toBeNull();
+			expect(result.current.editingQueuedMessageID).toBeNull();
+		});
+	});
+
+	it("clears the input state when switching to an undefined chatID", async () => {
+		const chatID = "chat-one";
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatID}`, "draft one");
+
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef: import("react").RefObject<string> = { current: "" };
+		const initialProps: { nextChatID: string | undefined } = {
+			nextChatID: chatID,
+		};
+
+		const { result, rerender } = renderHook(
+			({ nextChatID }: { nextChatID: string | undefined }) =>
+				useConversationEditingState({
+					chatID: nextChatID,
+					onSend,
+					onDeleteQueuedMessage,
+					chatInputRef,
+					inputValueRef,
+				}),
+			{ initialProps },
+		);
+
+		expect(result.current.editorInitialValue).toBe("draft one");
+		rerender({ nextChatID: undefined });
+
+		await vi.waitFor(() => {
+			expect(result.current.editorInitialValue).toBe("");
+			expect(result.current.inputValueRef.current).toBe("");
+		});
+	});
 });

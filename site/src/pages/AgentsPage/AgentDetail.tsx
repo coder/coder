@@ -61,9 +61,8 @@ import {
 	getWorkspaceAgent,
 } from "./AgentDetail/chatHelpers";
 import {
-	buildParsedMessageSections,
-	buildSubagentTitles,
-	parseMessagesWithMergedTools,
+	createParsedConversationCache,
+	resolveParsedConversation,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
@@ -144,17 +143,18 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			messages,
 			resetKey: chatID,
 		});
-	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(windowedMessages),
-		[windowedMessages],
+	const parsedConversationCache = useMemo(
+		() => createParsedConversationCache(),
+		[],
 	);
-	const subagentTitles = useMemo(
-		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
-	const parsedSections = useMemo(
-		() => buildParsedMessageSections(parsedMessages),
-		[parsedMessages],
+	const { parsedSections, subagentTitles } = useMemo(
+		() =>
+			resolveParsedConversation({
+				cache: parsedConversationCache,
+				chatID,
+				messages: windowedMessages,
+			}),
+		[chatID, parsedConversationCache, windowedMessages],
 	);
 	const detailErrorMessage =
 		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
@@ -466,6 +466,19 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 
+	useEffect(() => {
+		const nextDraft =
+			typeof window !== "undefined" && draftStorageKey
+				? (localStorage.getItem(draftStorageKey) ?? "")
+				: "";
+		setEditorInitialValue(nextDraft);
+		inputValueRef.current = nextDraft;
+		setEditingMessageId(null);
+		setDraftBeforeHistoryEdit(null);
+		setEditingFileBlocks([]);
+		setEditingQueuedMessageID(null);
+		setDraftBeforeQueueEdit(null);
+	}, [draftStorageKey, inputValueRef]);
 	const handleStartQueueEdit = useCallback(
 		(id: number, text: string) => {
 			setDraftBeforeQueueEdit((prev) =>
@@ -576,6 +589,15 @@ const AgentDetail: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
 
+	useEffect(() => {
+		if (agentId === undefined) {
+			setSelectedModel("");
+			setPendingEditMessageId(null);
+			return;
+		}
+		setSelectedModel("");
+		setPendingEditMessageId(null);
+	}, [agentId]);
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
