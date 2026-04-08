@@ -1129,16 +1129,38 @@ func TestExpAgents(t *testing.T) {
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusWaiting)
 			model.chat = &chat
+			model.activeChatID = chat.ID
 			model.chatStatus = codersdk.ChatStatusWaiting
 
 			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
 				Type:   codersdk.ChatStreamEventTypeStatus,
+				ChatID: chat.ID,
 				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
 			}})
 			require.NotNil(t, cmd)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
 			require.NotNil(t, updated.chat)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chat.Status)
+		})
+
+		t.Run("StatusFromDifferentChatIsIgnored", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusWaiting)
+			model.chat = &chat
+			model.activeChatID = chat.ID
+			model.chatStatus = codersdk.ChatStatusWaiting
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeStatus,
+				ChatID: uuid.New(),
+				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
+			}})
+			require.Nil(t, cmd)
+			require.Equal(t, codersdk.ChatStatusWaiting, updated.chatStatus)
+			require.NotNil(t, updated.chat)
+			require.Equal(t, codersdk.ChatStatusWaiting, updated.chat.Status)
 		})
 
 		t.Run("ErrorSetsErr", func(t *testing.T) {
@@ -2458,6 +2480,70 @@ func TestExpAgents(t *testing.T) {
 			require.True(t, rows[0].isExpanded)
 			require.Equal(t, child.ID, rows[1].chat.ID)
 			require.True(t, rows[1].isSubagent)
+		})
+
+		t.Run("DisplayRowsRenderNestedSubagentsRecursively", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			parent := testChat(codersdk.ChatStatusRunning)
+			parent.Title = "Parent chat"
+			child := testChat(codersdk.ChatStatusWaiting)
+			child.Title = "Child subagent"
+			child.ParentChatID = &parent.ID
+			grandchild := testChat(codersdk.ChatStatusPending)
+			grandchild.Title = "Grandchild subagent"
+			grandchild.ParentChatID = &child.ID
+			model.chats = []codersdk.Chat{parent, child, grandchild}
+			model.expanded[parent.ID] = true
+			model.expanded[child.ID] = true
+
+			rows := model.displayRows()
+			require.Len(t, rows, 3)
+			require.Equal(t, parent.ID, rows[0].chat.ID)
+			require.Equal(t, 0, rows[0].depth)
+			require.Equal(t, child.ID, rows[1].chat.ID)
+			require.True(t, rows[1].isSubagent)
+			require.Equal(t, 1, rows[1].depth)
+			require.Equal(t, 1, rows[1].childCount)
+			require.True(t, rows[1].isExpanded)
+			require.Equal(t, grandchild.ID, rows[2].chat.ID)
+			require.True(t, rows[2].isSubagent)
+			require.Equal(t, 2, rows[2].depth)
+
+			output := plainText(model.View())
+			require.Contains(t, output, "▼ Child subagent")
+			require.Contains(t, output, "Grandchild subagent")
+		})
+
+		t.Run("ExpandKeyExpandsNestedSubagent", func(t *testing.T) {
+			t.Parallel()
+
+			model := newReadyChatListModel()
+			model.width = 100
+			model.height = 10
+
+			parent := testChat(codersdk.ChatStatusRunning)
+			parent.Title = "Parent chat"
+			child := testChat(codersdk.ChatStatusWaiting)
+			child.Title = "Child subagent"
+			child.ParentChatID = &parent.ID
+			grandchild := testChat(codersdk.ChatStatusPending)
+			grandchild.Title = "Grandchild subagent"
+			grandchild.ParentChatID = &child.ID
+			model.chats = []codersdk.Chat{parent, child, grandchild}
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+			require.True(t, updated.expanded[parent.ID])
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			require.Equal(t, child.ID, updated.selectedChat().ID)
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRight})
+			require.True(t, updated.expanded[child.ID])
+			require.Contains(t, plainText(updated.View()), "Grandchild subagent")
 		})
 
 		t.Run("NavigationKeysMoveCursorWithinBounds", func(t *testing.T) {

@@ -789,7 +789,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 		}
 
 	case codersdk.ChatStreamEventTypeStatus:
-		if event.Status != nil {
+		if event.Status != nil && event.ChatID == m.activeChatID {
 			m.chatStatus = event.Status.Status
 			if m.chat != nil {
 				m.chat.Status = event.Status.Status

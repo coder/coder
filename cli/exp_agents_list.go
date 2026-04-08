@@ -23,6 +23,7 @@ type (
 
 type chatDisplayRow struct {
 	chat       codersdk.Chat
+	depth      int
 	isSubagent bool
 	childCount int
 	isExpanded bool
@@ -115,27 +116,31 @@ func (m chatListModel) displayRows() []chatDisplayRow {
 
 	rows := make([]chatDisplayRow, 0, len(filtered))
 	queryActive := m.searchQuery() != ""
-	for _, root := range roots {
-		children := childrenOf[root.ID]
-		isExpanded := m.expanded[root.ID]
+	var appendRows func(codersdk.Chat, int)
+	appendRows = func(chat codersdk.Chat, depth int) {
+		children := childrenOf[chat.ID]
+		isExpanded := m.expanded[chat.ID]
 		if queryActive && len(children) > 0 {
 			isExpanded = true
 		}
 
 		rows = append(rows, chatDisplayRow{
-			chat:       root,
+			chat:       chat,
+			depth:      depth,
+			isSubagent: depth > 0,
 			childCount: len(children),
 			isExpanded: isExpanded,
 		})
 		if !isExpanded {
-			continue
+			return
 		}
 		for _, child := range children {
-			rows = append(rows, chatDisplayRow{
-				chat:       child,
-				isSubagent: true,
-			})
+			appendRows(child, depth+1)
 		}
+	}
+
+	for _, root := range roots {
+		appendRows(root, 0)
 	}
 
 	return rows
@@ -172,7 +177,7 @@ func (m *chatListModel) updateSelectedRowExpansion(intent chatExpansionIntent) b
 	if !ok {
 		return false
 	}
-	if row.isSubagent {
+	if row.childCount == 0 {
 		if intent == chatExpansionExpand || row.chat.ParentChatID == nil {
 			return false
 		}
@@ -180,9 +185,6 @@ func (m *chatListModel) updateSelectedRowExpansion(intent chatExpansionIntent) b
 		m.expanded[parentID] = false
 		m.moveCursorToChat(parentID)
 		return true
-	}
-	if row.childCount == 0 {
-		return false
 	}
 
 	switch intent {
@@ -192,10 +194,20 @@ func (m *chatListModel) updateSelectedRowExpansion(intent chatExpansionIntent) b
 		}
 		m.expanded[row.chat.ID] = true
 	case chatExpansionCollapse:
-		if !m.expanded[row.chat.ID] {
+		if row.isExpanded {
+			m.expanded[row.chat.ID] = false
+			return true
+		}
+		if row.chat.ParentChatID == nil {
 			return false
 		}
-		m.expanded[row.chat.ID] = false
+		parentID := *row.chat.ParentChatID
+		if !m.expanded[parentID] {
+			return false
+		}
+		m.expanded[parentID] = false
+		m.moveCursorToChat(parentID)
+		return true
 	case chatExpansionToggle:
 		if row.isExpanded {
 			if !m.expanded[row.chat.ID] {
@@ -422,9 +434,10 @@ func (m chatListModel) View() string {
 			rowPrefix = "> "
 			rowStyle = m.styles.selectedItem
 		}
-		if row.isSubagent {
-			rowPrefix += "  "
-		} else if row.childCount > 0 {
+		if row.depth > 0 {
+			rowPrefix += strings.Repeat("  ", row.depth)
+		}
+		if row.childCount > 0 {
 			if row.isExpanded {
 				rowPrefix += "▼ "
 			} else {
@@ -448,8 +461,8 @@ func (m chatListModel) View() string {
 		if row.chat.Status == codersdk.ChatStatusError && row.chat.LastError != nil {
 			errWidth := max(m.width-4, 20)
 			errPrefix := "    "
-			if row.isSubagent {
-				errPrefix += "  "
+			if row.depth > 0 {
+				errPrefix += strings.Repeat("  ", row.depth)
 			}
 			lines = append(lines, errPrefix+m.styles.dimmedText.Render(m.styles.truncate(*row.chat.LastError, errWidth)))
 		}
