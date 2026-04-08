@@ -325,6 +325,165 @@ func TestExpAgents(t *testing.T) {
 			updated = mustTUIModel(t, updatedModel, cmd)
 			require.Contains(t, plainText(updated.View()), "connection refused")
 		})
+
+		t.Run("OverlayDismissedOnViewSwitch", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayModelPicker
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.True(t, updated.list.loading)
+			require.NotNil(t, cmd)
+		})
+
+		t.Run("OverlaysMutuallyExclusive", func(t *testing.T) {
+			t.Parallel()
+
+			catalog := codersdk.ChatModelsResponse{
+				Providers: []codersdk.ChatModelProvider{{
+					Provider:  "provider",
+					Available: true,
+					Models: []codersdk.ChatModel{{
+						ID:          uuid.New().String(),
+						Provider:    "provider",
+						Model:       "model-a",
+						DisplayName: "Model A",
+					}},
+				}},
+			}
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayModelPicker
+			model.catalog = &catalog
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat.chat = &chat
+			model.chat.gitChanges = []codersdk.ChatGitChange{}
+
+			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayDiffDrawer, updated.overlay)
+
+			updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayModelPicker, updated.overlay)
+		})
+
+		t.Run("OverlayBlocksViewKeys", func(t *testing.T) {
+			t.Parallel()
+
+			catalog := codersdk.ChatModelsResponse{
+				Providers: []codersdk.ChatModelProvider{{
+					Provider:  "provider",
+					Available: true,
+					Models: []codersdk.ChatModel{{
+						ID:          uuid.New().String(),
+						Provider:    "provider",
+						Model:       "model-a",
+						DisplayName: "Model A",
+					}},
+				}},
+			}
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.catalog = &catalog
+			model.chat.modelPickerFlat = catalog.Providers[0].Models
+
+			updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayModelPicker, updated.overlay)
+
+			updatedModel, cmd = updated.Update(keyRunes("n"))
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.Equal(t, overlayModelPicker, updated.overlay)
+			require.False(t, updated.chat.draft)
+		})
+
+		t.Run("RapidViewSwitching", func(t *testing.T) {
+			t.Parallel()
+
+			firstChatID := uuid.New()
+			secondChatID := uuid.New()
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.width = 100
+			model.height = 40
+
+			updatedModel, cmd := model.Update(openSelectedChatMsg{chatID: firstChatID})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.True(t, updated.chat.loading)
+			require.Nil(t, updated.chat.chat)
+			require.Empty(t, updated.chat.messages)
+			require.Len(t, mustBatchMsg(t, cmd), 3)
+
+			firstChat := testChat(codersdk.ChatStatusCompleted)
+			firstChat.ID = firstChatID
+			updated.chat.chat = &firstChat
+			updated.chat.loading = false
+			updated.chat.messages = []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "from chat A"})}
+			updated.chat.composer.SetValue("stale draft")
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.True(t, updated.list.loading)
+
+			updatedModel, cmd = updated.Update(openSelectedChatMsg{chatID: secondChatID})
+			updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.True(t, updated.chat.loading)
+			require.Nil(t, updated.chat.chat)
+			require.Empty(t, updated.chat.messages)
+			require.Empty(t, updated.chat.composer.Value())
+			require.False(t, updated.chat.draft)
+			require.Len(t, mustBatchMsg(t, cmd), 3)
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.True(t, updated.list.loading)
+		})
+
+		t.Run("RapidOverlayToggling", func(t *testing.T) {
+			t.Parallel()
+
+			catalog := codersdk.ChatModelsResponse{
+				Providers: []codersdk.ChatModelProvider{{
+					Provider:  "provider",
+					Available: true,
+					Models: []codersdk.ChatModel{{
+						ID:          uuid.New().String(),
+						Provider:    "provider",
+						Model:       "model-a",
+						DisplayName: "Model A",
+					}},
+				}},
+			}
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.catalog = &catalog
+
+			expectedStates := []tuiOverlay{overlayModelPicker, overlayNone, overlayModelPicker, overlayNone}
+			updated := model
+			for _, expected := range expectedStates {
+				updatedModel, cmd := updated.Update(toggleModelPickerMsg{})
+				updated = mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, expected, updated.overlay)
+			}
+		})
 	})
 
 	t.Run("ChatView/MessageReceiving", func(t *testing.T) {
@@ -783,7 +942,7 @@ func TestExpAgents(t *testing.T) {
 			require.Empty(t, retried.composer.Value())
 			_, ok := mustMsg(t, retryCmd).(chatCreatedMsg)
 			require.True(t, ok)
-			})
+		})
 
 		t.Run("EmptyComposerDoesNotSend", func(t *testing.T) {
 			t.Parallel()
@@ -981,6 +1140,48 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, model.composerFocused, updated.composerFocused)
 			_, ok := mustMsg(t, cmd).(toggleDiffDrawerMsg)
 			require.True(t, ok)
+		})
+
+		t.Run("TabDoesNothingInListView", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewList
+			model.list.loading = false
+			model.list.cursor = 1
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.Equal(t, 1, updated.list.cursor)
+			require.False(t, updated.list.searching)
+		})
+
+		t.Run("CtrlPFromListViewDoesNotOpenModelPicker", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewList
+			model.list.loading = false
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+		})
+
+		t.Run("CtrlIOnlyWorksWhenChatIsInterruptible", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusCompleted
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlI})
+			require.Nil(t, cmd)
+			require.False(t, updated.interrupting)
 		})
 	})
 
@@ -1208,6 +1409,246 @@ func TestExpAgents(t *testing.T) {
 			for _, line := range strings.Split(view, "\n") {
 				require.LessOrEqual(t, lipgloss.Width(line), model.width, "line too wide: %q", line)
 			}
+		})
+	})
+
+	t.Run("ChatView/StatePersistence", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ComposerTextSurvivesOverlayToggle", func(t *testing.T) {
+			t.Parallel()
+
+			catalog := codersdk.ChatModelsResponse{
+				Providers: []codersdk.ChatModelProvider{{
+					Provider:  "provider",
+					Available: true,
+					Models: []codersdk.ChatModel{{
+						ID:          uuid.New().String(),
+						Provider:    "provider",
+						Model:       "model-a",
+						DisplayName: "Model A",
+					}},
+				}},
+			}
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.catalog = &catalog
+			model.chat.modelPickerFlat = catalog.Providers[0].Models
+			model.chat.loading = false
+			model.chat.composer.SetValue("keep this draft")
+
+			updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, "keep this draft", updated.chat.composer.Value())
+
+			updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, "keep this draft", updated.chat.composer.Value())
+		})
+
+		t.Run("ComposerTextSurvivesFocusSwitch", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composer.SetValue("keep this draft")
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.False(t, updated.composerFocused)
+			require.Equal(t, "keep this draft", updated.composer.Value())
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.True(t, updated.composerFocused)
+			require.Equal(t, "keep this draft", updated.composer.Value())
+		})
+
+		t.Run("ViewportScrollPositionSurvivesOverlayToggle", func(t *testing.T) {
+			t.Parallel()
+
+			overflowingMessages := func(count int) []codersdk.ChatMessage {
+				messages := make([]codersdk.ChatMessage, 0, count)
+				for i := 0; i < count; i++ {
+					role := codersdk.ChatMessageRoleUser
+					if i%2 == 1 {
+						role = codersdk.ChatMessageRoleAssistant
+					}
+					messages = append(messages, testMessage(
+						int64(i+1),
+						role,
+						codersdk.ChatMessagePart{
+							Type: codersdk.ChatMessagePartTypeText,
+							Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
+						},
+					))
+				}
+				return messages
+			}
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			updated.chat.loading = false
+			chat := testChat(codersdk.ChatStatusCompleted)
+			updated.chat.chat = &chat
+			updated.chat.messages = overflowingMessages(10)
+			updated.chat.gitChanges = []codersdk.ChatGitChange{}
+			diff := codersdk.ChatDiffContents{ChatID: chat.ID, Diff: "diff --git a/file b/file"}
+			updated.chat.diffContents = &diff
+			updated.chat.rebuildBlocks()
+			updated.chat.composerFocused = false
+			updated.chat.autoFollow = true
+			(&updated.chat).syncViewportContent()
+			updated.chat.viewport.GotoBottom()
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.False(t, updated.chat.viewport.AtBottom())
+			yBefore := updated.chat.viewport.YOffset
+
+			updatedModel, cmd = updated.Update(toggleDiffDrawerMsg{})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayDiffDrawer, updated.overlay)
+			require.Equal(t, yBefore, updated.chat.viewport.YOffset)
+
+			updatedModel, cmd = updated.Update(toggleDiffDrawerMsg{})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.Equal(t, yBefore, updated.chat.viewport.YOffset)
+		})
+
+		t.Run("SelectedModelSurvivesPickerReopen", func(t *testing.T) {
+			t.Parallel()
+
+			firstModelID := uuid.New()
+			secondModelID := uuid.New()
+			catalog := codersdk.ChatModelsResponse{
+				Providers: []codersdk.ChatModelProvider{{
+					Provider:  "provider",
+					Available: true,
+					Models: []codersdk.ChatModel{
+						{
+							ID:          firstModelID.String(),
+							Provider:    "provider",
+							Model:       "model-a",
+							DisplayName: "Model A",
+						},
+						{
+							ID:          secondModelID.String(),
+							Provider:    "provider",
+							Model:       "model-b",
+							DisplayName: "Model B",
+						},
+					},
+				}},
+			}
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+
+			updatedModel, cmd := model.Update(modelsListedMsg{catalog: catalog})
+			updated := mustTUIModel(t, updatedModel, cmd)
+
+			updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayModelPicker, updated.overlay)
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, 1, updated.chat.modelPickerCursor)
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.NotNil(t, updated.chat.modelOverride)
+			require.NotNil(t, updated.modelOverride)
+			require.Equal(t, secondModelID, *updated.chat.modelOverride)
+			require.Equal(t, secondModelID, *updated.modelOverride)
+
+			updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, overlayModelPicker, updated.overlay)
+			require.Equal(t, 1, updated.chat.modelPickerCursor)
+			require.NotNil(t, updated.chat.modelOverride)
+			require.Equal(t, secondModelID, *updated.chat.modelOverride)
+		})
+	})
+
+	t.Run("ChatView/ChatLifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("DraftChatSwitchBackToListDoesNotCrash", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+
+			updatedModel, cmd := model.Update(openDraftChatMsg{})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.True(t, updated.chat.draft)
+			require.Nil(t, cmd)
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.True(t, updated.list.loading)
+			require.False(t, updated.chat.streaming)
+		})
+
+		t.Run("StreamingChatSwitchBackToList", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.chat.chat = &chat
+			model.chat.chatStatus = codersdk.ChatStatusRunning
+			model.chat.streaming = true
+			model.chat.streamCloser = io.NopCloser(strings.NewReader("stream"))
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.True(t, updated.list.loading)
+			require.False(t, updated.chat.streaming)
+			require.Nil(t, updated.chat.streamCloser)
+			require.NotNil(t, cmd)
+		})
+
+		t.Run("ReOpenSameChatAfterEsc", func(t *testing.T) {
+			t.Parallel()
+
+			chatID := uuid.New()
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.width = 100
+			model.height = 40
+
+			updatedModel, cmd := model.Update(openSelectedChatMsg{chatID: chatID})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.Len(t, mustBatchMsg(t, cmd), 3)
+
+			openedChat := testChat(codersdk.ChatStatusCompleted)
+			openedChat.ID = chatID
+			updated.chat.chat = &openedChat
+			updated.chat.loading = false
+			updated.chat.messages = []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "stale message"})}
+			updated.chat.composer.SetValue("stale draft")
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.True(t, updated.list.loading)
+
+			updatedModel, cmd = updated.Update(openSelectedChatMsg{chatID: chatID})
+			updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.True(t, updated.chat.loading)
+			require.Nil(t, updated.chat.chat)
+			require.Empty(t, updated.chat.messages)
+			require.Empty(t, updated.chat.composer.Value())
+			require.Len(t, mustBatchMsg(t, cmd), 3)
 		})
 	})
 

@@ -115,6 +115,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			if m.currentView == viewChat {
+				m.chat.stopStream()
 				m.currentView = viewList
 				m.list.loading = true
 				return m, listChatsCmd(m.ctx, m.client)
