@@ -174,8 +174,8 @@ const BehaviorRouteElement = () => {
 			}}
 			userDebugLoggingData={{
 				debug_logging_enabled: false,
-				forced_by_deployment: false,
 				user_toggle_allowed: false,
+				forced_by_deployment: false,
 			}}
 			workspaceTTLData={{ workspace_ttl_ms: 0 }}
 			isWorkspaceTTLLoading={false}
