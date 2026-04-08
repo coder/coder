@@ -1,7 +1,8 @@
-import type {
-	InfiniteData,
-	QueryClient,
-	UseInfiniteQueryOptions,
+import {
+	type InfiniteData,
+	type QueryClient,
+	queryOptions,
+	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
 	API,
@@ -860,7 +861,45 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 });
 
 export const chatDebugRunsKey = (chatId: string) =>
-	["chats", chatId, "debug-runs"] as const;
+	[...chatKey(chatId), "debug-runs"] as const;
+
+const chatDebugRunKey = (chatId: string, runId: string) =>
+	[...chatDebugRunsKey(chatId), runId] as const;
+
+const debugRunTerminalStatuses = new Set(["completed", "error", "interrupted"]);
+
+export const chatDebugRuns = (chatId: string) =>
+	queryOptions({
+		queryKey: chatDebugRunsKey(chatId),
+		queryFn: () => API.experimental.getChatDebugRuns(chatId),
+		refetchInterval: ({ state }) => {
+			if (state.status === "error") {
+				return false;
+			}
+			// Keep polling at a consistent foreground cadence while the
+			// Debug tab is open. A slower terminal-state interval delays
+			// discovery of newly-started runs until the user switches tabs.
+			return 5_000;
+		},
+		refetchIntervalInBackground: false,
+	});
+
+export const chatDebugRun = (chatId: string, runId: string) =>
+	queryOptions({
+		queryKey: chatDebugRunKey(chatId, runId),
+		queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
+		refetchInterval: ({ state }) => {
+			if (state.status === "error") {
+				return false;
+			}
+			const status = state.data?.status;
+			if (status && debugRunTerminalStatuses.has(status.toLowerCase())) {
+				return false;
+			}
+			return 5_000;
+		},
+		refetchIntervalInBackground: false,
+	});
 
 const invalidateChatDebugRuns = (queryClient: QueryClient, chatId: string) => {
 	return queryClient.invalidateQueries({

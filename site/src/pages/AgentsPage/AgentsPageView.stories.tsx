@@ -168,6 +168,15 @@ const BehaviorRouteElement = () => {
 			}}
 			userPromptData={{ custom_prompt: "" }}
 			desktopEnabledData={{ enable_desktop: false }}
+			debugLoggingData={{
+				allow_users: false,
+				forced_by_deployment: false,
+			}}
+			userDebugLoggingData={{
+				debug_logging_enabled: false,
+				forced_by_deployment: false,
+				user_toggle_allowed: false,
+			}}
 			workspaceTTLData={{ workspace_ttl_ms: 0 }}
 			isWorkspaceTTLLoading={false}
 			isWorkspaceTTLLoadError={false}
@@ -189,6 +198,12 @@ const BehaviorRouteElement = () => {
 			onSaveDesktopEnabled={fn()}
 			isSavingDesktopEnabled={false}
 			isSaveDesktopEnabledError={false}
+			onSaveDebugLogging={fn()}
+			isSavingDebugLogging={false}
+			isSaveDebugLoggingError={false}
+			onSaveUserDebugLogging={fn()}
+			isSavingUserDebugLogging={false}
+			isSaveUserDebugLoggingError={false}
 			onSaveWorkspaceTTL={fn()}
 			isSavingWorkspaceTTL={false}
 			isSaveWorkspaceTTLError={false}

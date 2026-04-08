@@ -93,13 +93,22 @@ const humanizeToken = (value: string): string => {
 		.replace(/\b\w/g, (match) => match.toUpperCase());
 };
 
-const safeJsonStringify = (value: unknown): string => {
+export const safeJsonStringify = (value: unknown): string => {
 	if (typeof value === "string") {
 		return value;
 	}
+	if (value === undefined) {
+		// JSON.stringify(undefined) returns undefined (not a string), which
+		// would break the string return contract and surface "undefined" in
+		// the debug panel as literal text from String(undefined).
+		return "";
+	}
 
 	try {
-		return JSON.stringify(value, null, 2);
+		const serialized = JSON.stringify(value, null, 2);
+		// JSON.stringify returns undefined for values like functions or
+		// symbols. Fall back to String() so the caller always gets a string.
+		return serialized ?? String(value);
 	} catch {
 		return String(value);
 	}
@@ -810,44 +819,41 @@ const coerceToolCalls = (value: unknown): ToolCallPart[] => {
 // Known option / policy field extraction.
 // ---------------------------------------------------------------------------
 
-const OPTION_KEYS: readonly string[] = [
-	"temperature",
-	"top_p",
-	"topP",
-	"top_k",
-	"topK",
-	"max_output_tokens",
-	"maxOutputTokens",
-	"max_tokens",
-	"maxTokens",
-	"frequency_penalty",
-	"frequencyPenalty",
-	"presence_penalty",
-	"presencePenalty",
-	"seed",
-	"stop",
+// Option/policy keys are expressed as `[canonical, ...aliases]`. AI
+// providers mix snake_case and camelCase for the same concept; we
+// canonicalize to snake_case here so downstream renderers don't have to
+// check both variants (and so the key-value grid never shows duplicate
+// rows for the same value).
+const OPTION_KEYS: ReadonlyArray<readonly [string, ...string[]]> = [
+	["temperature"],
+	["top_p", "topP"],
+	["top_k", "topK"],
+	["max_output_tokens", "maxOutputTokens", "max_tokens", "maxTokens"],
+	["frequency_penalty", "frequencyPenalty"],
+	["presence_penalty", "presencePenalty"],
+	["seed"],
+	["stop"],
 ];
 
-const POLICY_KEYS: readonly string[] = [
-	"tool_choice",
-	"toolChoice",
-	"response_format",
-	"responseFormat",
-	"structured_output",
-	"structuredOutput",
-	"parallel_tool_calls",
-	"parallelToolCalls",
+const POLICY_KEYS: ReadonlyArray<readonly [string, ...string[]]> = [
+	["tool_choice", "toolChoice"],
+	["response_format", "responseFormat"],
+	["structured_output", "structuredOutput"],
+	["parallel_tool_calls", "parallelToolCalls"],
 ];
 
 const extractKnownFields = (
 	obj: Record<string, unknown>,
-	keys: readonly string[],
+	keys: ReadonlyArray<readonly [string, ...string[]]>,
 ): Record<string, unknown> => {
 	const result: Record<string, unknown> = {};
-	for (const key of keys) {
-		const value = obj[key];
-		if (value !== undefined && value !== null) {
-			result[key] = deepParse(value);
+	for (const [canonical, ...aliases] of keys) {
+		for (const candidate of [canonical, ...aliases]) {
+			const value = obj[candidate];
+			if (value !== undefined && value !== null) {
+				result[canonical] = deepParse(value);
+				break;
+			}
 		}
 	}
 	return result;
@@ -1237,7 +1243,31 @@ export const clampContent = (text: string, maxLen: number): string => {
 	if (trimmed.length <= maxLen) {
 		return trimmed;
 	}
-	return `${trimmed.slice(0, maxLen).trimEnd()}…`;
+	// Use Array.from to split on code points rather than UTF-16 code
+	// units. A plain String.slice can cut a surrogate pair in half,
+	// producing a lone high surrogate rendered as U+FFFD.
+	const codePoints = Array.from(trimmed);
+	if (codePoints.length <= maxLen) {
+		return trimmed;
+	}
+	return `${codePoints.slice(0, maxLen).join("").trimEnd()}…`;
+};
+
+/**
+ * Returns true when the text is long enough that clampContent would
+ * actually truncate it. Uses the same trim+code-point count so callers
+ * never offer a "see more" control for text that clampContent returns
+ * unchanged.
+ */
+export const exceedsClampThreshold = (
+	text: string,
+	maxLen: number,
+): boolean => {
+	const trimmed = text.trim();
+	if (trimmed.length <= maxLen) {
+		return false;
+	}
+	return Array.from(trimmed).length > maxLen;
 };
 
 // ---------------------------------------------------------------------------

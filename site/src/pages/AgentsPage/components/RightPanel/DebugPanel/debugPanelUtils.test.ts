@@ -6,6 +6,7 @@ import {
 	coerceUsageRecord,
 	compactDuration,
 	computeDurationMs,
+	exceedsClampThreshold,
 	extractTokenCounts,
 	formatTokenSummary,
 	getRoleBadgeVariant,
@@ -13,7 +14,91 @@ import {
 	getStatusBadgeVariant,
 	isActiveStatus,
 	normalizeAttempts,
+	safeJsonStringify,
 } from "./debugPanelUtils";
+
+describe("safeJsonStringify", () => {
+	it("returns strings unchanged", () => {
+		expect(safeJsonStringify("hello")).toBe("hello");
+	});
+
+	it("pretty-prints JSON for objects and arrays", () => {
+		expect(safeJsonStringify({ a: 1 })).toBe('{\n  "a": 1\n}');
+	});
+
+	it("returns an empty string for undefined instead of the value undefined", () => {
+		const result = safeJsonStringify(undefined);
+		expect(typeof result).toBe("string");
+		expect(result).toBe("");
+	});
+
+	it("falls back to String(value) when JSON.stringify yields undefined", () => {
+		// Functions are skipped by JSON.stringify at the top level.
+		const result = safeJsonStringify(() => "noop");
+		expect(typeof result).toBe("string");
+		expect(result.length).toBeGreaterThan(0);
+	});
+});
+
+describe("clampContent", () => {
+	it("returns the input unchanged when shorter than the limit", () => {
+		expect(clampContent("hello", 10)).toBe("hello");
+	});
+
+	it("trims whitespace before measuring length", () => {
+		expect(clampContent("  hi  ", 5)).toBe("hi");
+	});
+
+	it("truncates at code-point boundaries so surrogate pairs stay intact", () => {
+		// 79 one-code-point chars + one two-UTF-16-unit emoji = 80 code
+		// points (and 81 UTF-16 code units). A plain String.slice at 80
+		// would split the surrogate pair; Array.from keeps it whole.
+		const input = `${"a".repeat(79)}🎉extra`;
+		const clamped = clampContent(input, 80);
+		expect(clamped.endsWith("🎉…")).toBe(true);
+		// No stray lone surrogates should remain in the output.
+		for (let i = 0; i < clamped.length; i++) {
+			const code = clamped.charCodeAt(i);
+			if (code >= 0xd800 && code <= 0xdbff) {
+				// high surrogate must be followed by a low surrogate
+				const next = clamped.charCodeAt(i + 1);
+				expect(next >= 0xdc00 && next <= 0xdfff).toBe(true);
+			}
+		}
+	});
+
+	it("appends an ellipsis when truncating", () => {
+		expect(clampContent("abcdefghij", 4)).toBe("abcd…");
+	});
+
+	it("returns an empty string for whitespace-only input", () => {
+		expect(clampContent("   ", 10)).toBe("");
+	});
+
+	it("keeps text exactly at the limit unchanged", () => {
+		expect(clampContent("abcde", 5)).toBe("abcde");
+	});
+
+	it("strips trailing whitespace before appending the ellipsis", () => {
+		expect(clampContent("abc     defghij", 6)).toBe("abc…");
+	});
+});
+
+describe("exceedsClampThreshold", () => {
+	it("returns false when the trimmed content fits", () => {
+		expect(exceedsClampThreshold("  short  ", 10)).toBe(false);
+	});
+
+	it("returns false when UTF-16 length exceeds but code-point count fits", () => {
+		// A string of 80 emoji is 160 UTF-16 units but 80 code points.
+		const emoji = "🎉".repeat(80);
+		expect(exceedsClampThreshold(emoji, 80)).toBe(false);
+	});
+
+	it("returns true when code-point count exceeds the limit", () => {
+		expect(exceedsClampThreshold("🎉".repeat(81), 80)).toBe(true);
+	});
+});
 
 describe("coerceStepResponse", () => {
 	it("keeps tool-result content emitted in normalized response parts", () => {
@@ -903,26 +988,37 @@ describe("coerceStepRequest", () => {
 		expect(request.options).toEqual({ temperature: 0.5 });
 		expect(request.policy).toEqual({ tool_choice: "none" });
 	});
-});
 
-describe("clampContent", () => {
-	it("returns the trimmed text when under the limit", () => {
-		expect(clampContent("  hello  ", 20)).toBe("hello");
+	it("canonicalizes camelCase option aliases to snake_case", () => {
+		const request = coerceStepRequest({
+			messages: [],
+			tools: [],
+			options: {
+				maxOutputTokens: 2048,
+				topP: 0.9,
+			},
+			policy: {
+				toolChoice: "auto",
+			},
+		});
+
+		expect(request.options).toEqual({
+			max_output_tokens: 2048,
+			top_p: 0.9,
+		});
+		expect(request.policy).toEqual({
+			tool_choice: "auto",
+		});
 	});
 
-	it("truncates and appends an ellipsis when over the limit", () => {
-		expect(clampContent("hello world", 5)).toBe("hello…");
-	});
+	it("prefers the snake_case key when both variants are present", () => {
+		const request = coerceStepRequest({
+			options: {
+				max_output_tokens: 1024,
+				maxOutputTokens: 2048,
+			},
+		});
 
-	it("returns an empty string for whitespace-only input", () => {
-		expect(clampContent("   ", 10)).toBe("");
-	});
-
-	it("keeps text exactly at the limit unchanged", () => {
-		expect(clampContent("abcde", 5)).toBe("abcde");
-	});
-
-	it("strips trailing whitespace before appending the ellipsis", () => {
-		expect(clampContent("abc     defghij", 6)).toBe("abc…");
+		expect(request.options).toEqual({ max_output_tokens: 1024 });
 	});
 });

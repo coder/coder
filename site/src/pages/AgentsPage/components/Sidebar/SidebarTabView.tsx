@@ -11,6 +11,7 @@ import { type FC, useEffect, useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { DesktopPanel } from "../RightPanel/DesktopPanel";
+import { getEffectiveTabId } from "./getEffectiveTabId";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -115,23 +116,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	onActiveTabChange,
 }) => {
 	const tabIdPrefix = useId();
-	// Build the full list of tab IDs including the desktop tab
-	// so that effectiveTabId validation covers it.
-	const allTabIds = new Set(tabs.map((t) => t.id));
-	if (desktopChatId) {
-		allTabIds.add("desktop");
-	}
-
-	// Derive the effective tab. Fall back to the first tab if
-	// the stored activeTabId no longer matches any tab in the list.
-	const effectiveTabId =
-		activeTabId !== null && allTabIds.has(activeTabId)
-			? activeTabId
-			: tabs.length > 0
-				? tabs[0].id
-				: desktopChatId
-					? "desktop"
-					: null;
+	const tabIds = tabs.map((t) => t.id);
+	const effectiveTabId = getEffectiveTabId(tabIds, activeTabId, desktopChatId);
 
 	// Unified list of panels for rendering. Includes the desktop
 	// tab when available so we don't need to special-case it.
