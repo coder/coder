@@ -56,7 +56,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		(workspace.latest_build.status === "failed" ||
 			workspace.latest_build.status === "canceled");
 
-	const hasTask = !!workspace.task_id;
+	const hasTask = Boolean(workspace.task_id);
 
 	return (
 		<ConfirmDialog

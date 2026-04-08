@@ -67,7 +67,7 @@ const GroupPage: FC = () => {
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery({
 		...groupPermissions(groupData?.id ?? ""),
-		enabled: !!groupData,
+		enabled: Boolean(groupData),
 	});
 	const deleteGroupMutation = useMutation(
 		deleteGroup(queryClient, organization),
