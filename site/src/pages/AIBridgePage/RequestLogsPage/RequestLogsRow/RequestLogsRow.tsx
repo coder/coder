@@ -217,7 +217,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						</TooltipProvider>
 					</div>
 				</TableCell>
-				<TableCell className="w-32 text-center">{toolCalls}</TableCell>
+				<TableCell className="w-32 text-center">
+					<Badge>{toolCalls}</Badge>
+				</TableCell>
 			</TableRow>
 			{isOpen && (
 				<TableRow>
@@ -305,7 +307,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
-									{interception.tool_usages.length}
+									<Badge>{interception.tool_usages.length}</Badge>
 								</dd>
 
 								<dt>Input/Output Tokens:</dt>
