@@ -2,7 +2,6 @@ package chatdebug
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"unicode/utf8"
 
@@ -15,15 +14,6 @@ func TestBeginStep_SkipsNilRunID(t *testing.T) {
 
 	ctx := ContextWithRun(context.Background(), &RunContext{ChatID: uuid.New()})
 	handle, enriched := beginStep(ctx, &Service{}, RecorderOptions{ChatID: uuid.New()}, OperationGenerate, nil)
-	require.Nil(t, handle)
-	require.Equal(t, ctx, enriched)
-}
-
-func TestNewStepHandle_SkipsNilRunID(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	handle, enriched := newStepHandle(ctx, &RunContext{ChatID: uuid.New()}, RecorderOptions{ChatID: uuid.New()}, OperationGenerate)
 	require.Nil(t, handle)
 	require.Equal(t, ctx, enriched)
 }
@@ -57,26 +47,4 @@ func TestTruncateLabel(t *testing.T) {
 			require.LessOrEqual(t, utf8.RuneCountInString(got), max(tc.maxLen, 0))
 		})
 	}
-}
-
-// RedactedValue replaces sensitive values in debug payloads.
-const RedactedValue = "[REDACTED]"
-
-// RecordingTransport is the branch-02 placeholder HTTP recording transport.
-type RecordingTransport struct {
-	Base http.RoundTripper
-}
-
-var _ http.RoundTripper = (*RecordingTransport)(nil)
-
-func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req == nil {
-		panic("chatdebug: nil request")
-	}
-
-	base := t.Base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	return base.RoundTrip(req)
 }
