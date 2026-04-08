@@ -1610,6 +1610,42 @@ func TestListChatProviders(t *testing.T) {
 		t.Fatal("openai provider not found")
 	})
 
+	t.Run("CentralDisabledSiblingDoesNotLeakEffectiveKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "openai",
+			DisplayName:          "OpenAI Keyed",
+			APIKey:               "sk-sibling-a-key",
+			CentralAPIKeyEnabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		siblingB, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "openai",
+			DisplayName:          "OpenAI No Central",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+
+		for _, listed := range providers {
+			if listed.ID == siblingB.ID {
+				require.False(t, listed.HasEffectiveAPIKey,
+					"sibling with CentralAPIKeyEnabled=false must not leak effective key from keyed sibling")
+				return
+			}
+		}
+		t.Fatal("sibling B not found in listed providers")
+	})
+
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -2567,6 +2603,65 @@ func TestDeleteChatProvider(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, boundModel.ID, storedChat.LastModelConfigID,
 			"chat history should still reference the soft-deleted bound model")
+	})
+
+	t.Run("ReassignsDefaultAfterDeletingProviderOwnedDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+
+		providerConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Default", nil)
+		_ = createProviderConfig(ctx, t, client, "openai", "OpenAI Survivor Provider", nil)
+
+		contextLimit := int64(4096)
+		isDefault := true
+		defaultModel, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:         "openai",
+			Model:            "gpt-4o-mini",
+			DisplayName:      "GPT-4o Mini Default",
+			ContextLimit:     &contextLimit,
+			ProviderConfigID: &providerConfig.ID,
+			IsDefault:        &isDefault,
+		})
+		require.NoError(t, err)
+		require.True(t, defaultModel.IsDefault)
+
+		survivor, err := store.InsertChatModelConfig(dbauthz.AsSystemRestricted(ctx), database.InsertChatModelConfigParams{
+			Provider:             "openai",
+			Model:                "gpt-4o",
+			DisplayName:          "GPT-4o Survivor",
+			Enabled:              true,
+			IsDefault:            false,
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+			ProviderConfigID:     uuid.NullUUID{},
+			CreatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteChatProvider(ctx, providerConfig.ID)
+		require.NoError(t, err)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		var foundSurvivor bool
+		for _, c := range configs {
+			require.NotEqual(t, defaultModel.ID, c.ID,
+				"bound default model should be soft-deleted after provider deletion")
+			if c.ID == survivor.ID {
+				foundSurvivor = true
+				require.Nil(t, c.ProviderConfigID,
+					"surviving model config should remain unbound")
+				require.True(t, c.IsDefault,
+					"surviving model config should become the new default")
+			}
+		}
+		require.True(t, foundSurvivor, "survivor model config must still exist")
 	})
 
 	t.Run("DeleteProviderWithActiveChatsSoftDeletesBoundModels", func(t *testing.T) {
@@ -3727,6 +3822,60 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
 	})
 
+	t.Run("ProviderConfigIDNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		missingProviderConfigID := uuid.New()
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ProviderConfigID: ptr.Ref(&missingProviderConfigID),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Provider config not found.", sdkErr.Message)
+	})
+
+	t.Run("ProviderConfigIDDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		providerConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Disabled", nil)
+		disabled := false
+		_, err := client.UpdateChatProvider(ctx, providerConfig.ID, codersdk.UpdateChatProviderConfigRequest{
+			DisplayName: providerConfig.DisplayName,
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ProviderConfigID: ptr.Ref(&providerConfig.ID),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Provider config is disabled.", sdkErr.Message)
+	})
+
+	t.Run("ProviderConfigIDWrongFamily", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		providerConfig := createProviderConfig(ctx, t, client, "anthropic", "Anthropic Wrong Family", nil)
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ProviderConfigID: ptr.Ref(&providerConfig.ID),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Provider config does not match the requested provider.", sdkErr.Message)
+	})
 	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
 		t.Parallel()
 
