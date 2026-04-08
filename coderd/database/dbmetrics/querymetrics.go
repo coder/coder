@@ -968,6 +968,14 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveChatsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetActiveChatsByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveChatsByAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetActivePresetPrebuildSchedules(ctx)
@@ -4101,6 +4109,14 @@ func (m queryMetricsStore) SoftDeleteChatMessagesAfterID(ctx context.Context, ar
 	r0 := m.s.SoftDeleteChatMessagesAfterID(ctx, arg)
 	m.queryLatencies.WithLabelValues("SoftDeleteChatMessagesAfterID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteChatMessagesAfterID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.SoftDeleteContextFileMessages(ctx, chatID)
+	m.queryLatencies.WithLabelValues("SoftDeleteContextFileMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteContextFileMessages").Inc()
 	return r0
 }
 

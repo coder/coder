@@ -42,6 +42,8 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -2391,4 +2393,567 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 		sdk = append(sdk, db2sdk.WorkspaceAgentLog(logEntry))
 	}
 	return sdk
+}
+
+// maxChatContextParts caps the number of parts per request to
+// prevent unbounded message payloads.
+const maxChatContextParts = 100
+
+// maxChatContextRequestBodyBytes caps the JSON request body size for
+// agent-added context to roughly the same per-part budget used when
+// reading instruction files from disk.
+const maxChatContextRequestBodyBytes int64 = maxChatContextParts * 64 * 1024
+
+// @Summary Add workspace agent chat context
+// @ID add-workspace-agent-chat-context
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body agentsdk.AddChatContextRequest true "Chat context request"
+// @Success 200 {object} agentsdk.AddChatContextResponse
+// @Router /workspaceagents/me/experimental/chat-context [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	r.Body = http.MaxBytesReader(rw, r.Body, maxChatContextRequestBodyBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", maxChatContextRequestBodyBytes),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	var req agentsdk.AddChatContextRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.Parts) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No context parts provided.",
+		})
+		return
+	}
+
+	if len(req.Parts) > maxChatContextParts {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Too many context parts (%d). Maximum is %d.", len(req.Parts), maxChatContextParts),
+		})
+		return
+	}
+
+	// Filter to only context-file and skill parts.
+	var filtered []codersdk.ChatMessagePart
+	for _, p := range req.Parts {
+		if p.Type == codersdk.ChatMessagePartTypeContextFile || p.Type == codersdk.ChatMessagePartTypeSkill {
+			filtered = append(filtered, p)
+		}
+	}
+	if len(filtered) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No context-file or skill parts provided.",
+		})
+		return
+	}
+	req.Parts = filtered
+	responsePartCount := len(req.Parts)
+
+	// Use system context for chat operations since the
+	// workspace agent scope does not include chat resources.
+	// We verify agent-to-chat ownership explicitly below.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+
+	// Stamp each persisted part with the agent identity. Context-file
+	// parts also get server-authoritative workspace metadata.
+	directory := workspaceAgent.ExpandedDirectory
+	if directory == "" {
+		directory = workspaceAgent.Directory
+	}
+	for i := range req.Parts {
+		req.Parts[i].ContextFileAgentID = uuid.NullUUID{
+			UUID:  workspaceAgent.ID,
+			Valid: true,
+		}
+		if req.Parts[i].Type != codersdk.ChatMessagePartTypeContextFile {
+			continue
+		}
+		req.Parts[i].ContextFileContent = chatd.SanitizePromptText(req.Parts[i].ContextFileContent)
+		req.Parts[i].ContextFileOS = workspaceAgent.OperatingSystem
+		req.Parts[i].ContextFileDirectory = directory
+	}
+	// Skill-only messages need a sentinel context-file part so the turn
+	// pipeline trusts the associated skill metadata.
+	req.Parts = prependAgentChatContextSentinelIfNeeded(
+		req.Parts,
+		workspaceAgent.ID,
+		workspaceAgent.OperatingSystem,
+		directory,
+	)
+
+	content, err := chatprompt.MarshalParts(req.Parts)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to marshal context parts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.InTx(func(tx database.Store) error {
+		locked, err := tx.GetChatByIDForUpdate(sysCtx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+		if !isActiveAgentChat(locked) {
+			return errChatNotActive
+		}
+		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleUser,
+			content,
+			database.ChatMessageVisibilityBoth,
+			chat.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+			uuid.Nil,
+		)); err != nil {
+			return xerrors.Errorf("insert context message: %w", err)
+		}
+		if err := updateAgentChatLastInjectedContextFromMessages(sysCtx, api.Logger, tx, chat.ID); err != nil {
+			return xerrors.Errorf("rebuild injected context cache: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		if errors.Is(err, errChatNotActive) {
+			writeAgentChatError(ctx, rw, err)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to persist context message.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AddChatContextResponse{
+		ChatID: chat.ID,
+		Count:  responsePartCount,
+	})
+}
+
+// @Summary Clear workspace agent chat context
+// @ID clear-workspace-agent-chat-context
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body agentsdk.ClearChatContextRequest true "Clear context request"
+// @Success 200 {object} agentsdk.ClearChatContextResponse
+// @Router /workspaceagents/me/experimental/chat-context [delete]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ClearChatContextRequest
+	if r.Body != http.NoBody {
+		r.Body = http.MaxBytesReader(rw, r.Body, maxChatContextRequestBodyBytes)
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Request body too large.",
+					Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", maxChatContextRequestBodyBytes),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to read request body.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(bytes.TrimSpace(body)) > 0 {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			if !httpapi.Read(ctx, rw, r, &req) {
+				return
+			}
+		}
+	}
+
+	// Use system context for chat operations since the
+	// workspace agent scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	if err != nil {
+		// Zero active chats is not an error for clear.
+		if errors.Is(err, errNoActiveChats) {
+			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{})
+			return
+		}
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+
+	err = clearAgentChatContext(sysCtx, api.Database, chat.ID)
+	if err != nil {
+		if errors.Is(err, errChatNotActive) {
+			writeAgentChatError(ctx, rw, err)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to clear context from chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
+		ChatID: chat.ID,
+	})
+}
+
+var (
+	errNoActiveChats            = xerrors.New("no active chats found")
+	errChatNotFound             = xerrors.New("chat not found")
+	errChatNotActive            = xerrors.New("chat is not active")
+	errChatDoesNotBelongToAgent = xerrors.New("chat does not belong to this agent")
+)
+
+type multipleActiveChatsError struct {
+	count int
+}
+
+func (e *multipleActiveChatsError) Error() string {
+	return fmt.Sprintf(
+		"multiple active chats (%d) found for this agent, specify a chat ID",
+		e.count,
+	)
+}
+
+// resolveAgentChat finds the target chat from either an explicit ID
+// or auto-detection via the agent's active chats.
+func resolveAgentChat(
+	ctx context.Context,
+	db database.Store,
+	agentID uuid.UUID,
+	explicitChatID uuid.UUID,
+) (database.Chat, error) {
+	if explicitChatID == uuid.Nil {
+		chats, err := db.GetActiveChatsByAgentID(ctx, agentID)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("list active chats: %w", err)
+		}
+		switch len(chats) {
+		case 0:
+			return database.Chat{}, errNoActiveChats
+		case 1:
+			return chats[0], nil
+		default:
+			return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
+		}
+	}
+
+	chat, err := db.GetChatByID(ctx, explicitChatID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.Chat{}, errChatNotFound
+		}
+		return database.Chat{}, xerrors.Errorf("get chat by id: %w", err)
+	}
+	if !chat.AgentID.Valid || chat.AgentID.UUID != agentID {
+		return database.Chat{}, errChatDoesNotBelongToAgent
+	}
+	if !isActiveAgentChat(chat) {
+		return database.Chat{}, errChatNotActive
+	}
+	return chat, nil
+}
+
+func isActiveAgentChat(chat database.Chat) bool {
+	if chat.Archived {
+		return false
+	}
+
+	switch chat.Status {
+	case database.ChatStatusWaiting,
+		database.ChatStatusPending,
+		database.ChatStatusRunning,
+		database.ChatStatusPaused:
+		return true
+	default:
+		return false
+	}
+}
+
+func clearAgentChatContext(
+	ctx context.Context,
+	db database.Store,
+	chatID uuid.UUID,
+) error {
+	return db.InTx(func(tx database.Store) error {
+		locked, err := tx.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+		if !isActiveAgentChat(locked) {
+			return errChatNotActive
+		}
+		if err := tx.SoftDeleteContextFileMessages(ctx, chatID); err != nil {
+			return xerrors.Errorf("soft delete context-file messages: %w", err)
+		}
+
+		messages, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("get chat messages: %w", err)
+		}
+		for _, msg := range messages {
+			if !msg.Content.Valid || !messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeSkill) {
+				continue
+			}
+			if err := tx.SoftDeleteChatMessageByID(ctx, msg.ID); err != nil {
+				return xerrors.Errorf("soft delete context message %d: %w", msg.ID, err)
+			}
+		}
+		// Clear the injected-context cache inside the transaction so it is
+		// atomic with the soft-deletes.
+		if err := updateAgentChatLastInjectedContext(ctx, tx, chatID, nil); err != nil {
+			return xerrors.Errorf("clear injected context cache: %w", err)
+		}
+		return nil
+	}, nil)
+}
+
+// prependAgentChatContextSentinelIfNeeded adds an empty context-file
+// part when the request only carries skills. The turn pipeline uses
+// the sentinel's agent metadata to trust the skill parts.
+func prependAgentChatContextSentinelIfNeeded(
+	parts []codersdk.ChatMessagePart,
+	agentID uuid.UUID,
+	operatingSystem string,
+	directory string,
+) []codersdk.ChatMessagePart {
+	hasContextFile := false
+	hasSkill := false
+	for _, part := range parts {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeContextFile:
+			hasContextFile = true
+		case codersdk.ChatMessagePartTypeSkill:
+			hasSkill = true
+		}
+		if hasContextFile && hasSkill {
+			return parts
+		}
+	}
+	if !hasSkill || hasContextFile {
+		return parts
+	}
+	return append([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeContextFile,
+		ContextFileAgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+		ContextFileOS:        operatingSystem,
+		ContextFileDirectory: directory,
+	}}, parts...)
+}
+
+// updateAgentChatLastInjectedContextFromMessages rebuilds the
+// injected-context cache from all persisted context-file and skill parts.
+func updateAgentChatLastInjectedContextFromMessages(
+	ctx context.Context,
+	logger slog.Logger,
+	db database.Store,
+	chatID uuid.UUID,
+) error {
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return xerrors.Errorf("load context messages for injected context: %w", err)
+	}
+
+	parts, err := collectAgentChatContextPartsWithLogger(ctx, logger, messages)
+	if err != nil {
+		return xerrors.Errorf("collect injected context parts: %w", err)
+	}
+
+	if err := updateAgentChatLastInjectedContext(ctx, db, chatID, parts); err != nil {
+		return xerrors.Errorf("update injected context: %w", err)
+	}
+	return nil
+}
+
+// collectAgentChatContextParts returns every persisted context-file and
+// skill part from the provided chat messages.
+func collectAgentChatContextParts(messages []database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+	return collectAgentChatContextPartsWithLogger(context.Background(), slog.Make(), messages)
+}
+
+func collectAgentChatContextPartsWithLogger(
+	ctx context.Context,
+	logger slog.Logger,
+	messages []database.ChatMessage,
+) ([]codersdk.ChatMessagePart, error) {
+	var collected []codersdk.ChatMessagePart
+	for _, msg := range messages {
+		if !msg.Content.Valid {
+			continue
+		}
+
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			logger.Warn(ctx, "skipping malformed chat context message",
+				slog.F("chat_message_id", msg.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeContextFile:
+				if part.ContextFileContent == "" {
+					continue
+				}
+			case codersdk.ChatMessagePartTypeSkill:
+			default:
+				continue
+			}
+			collected = append(collected, part)
+		}
+	}
+	return collected, nil
+}
+
+func updateAgentChatLastInjectedContext(
+	ctx context.Context,
+	db database.Store,
+	chatID uuid.UUID,
+	parts []codersdk.ChatMessagePart,
+) error {
+	param := pqtype.NullRawMessage{Valid: false}
+	if parts != nil {
+		var stripped []codersdk.ChatMessagePart
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeContextFile:
+				if part.ContextFileContent == "" {
+					continue
+				}
+			case codersdk.ChatMessagePartTypeSkill:
+			default:
+				continue
+			}
+			cp := part
+			cp.StripInternal()
+			stripped = append(stripped, cp)
+		}
+		if stripped != nil {
+			raw, err := json.Marshal(stripped)
+			if err != nil {
+				return xerrors.Errorf("marshal injected context: %w", err)
+			}
+			param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+		}
+	}
+	if _, err := db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
+		ID:                  chatID,
+		LastInjectedContext: param,
+	}); err != nil {
+		return xerrors.Errorf("update injected context: %w", err)
+	}
+	return nil
+}
+
+func messageHasPartTypes(raw []byte, types ...codersdk.ChatMessagePartType) bool {
+	var parts []codersdk.ChatMessagePart
+	if err := json.Unmarshal(raw, &parts); err != nil {
+		return false
+	}
+	for _, part := range parts {
+		for _, typ := range types {
+			if part.Type == typ {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// writeAgentChatError translates resolveAgentChat errors to HTTP
+// responses.
+func writeAgentChatError(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	err error,
+) {
+	if errors.Is(err, errNoActiveChats) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "No active chats found for this agent.",
+		})
+		return
+	}
+	if errors.Is(err, errChatNotFound) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Chat not found.",
+		})
+		return
+	}
+	if errors.Is(err, errChatDoesNotBelongToAgent) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Chat does not belong to this agent.",
+		})
+		return
+	}
+	if errors.Is(err, errChatNotActive) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot modify context: this chat is no longer active.",
+		})
+		return
+	}
+
+	var multipleErr *multipleActiveChatsError
+	if errors.As(err, &multipleErr) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to resolve chat.",
+		Detail:  err.Error(),
+	})
 }

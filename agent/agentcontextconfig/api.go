@@ -134,6 +134,30 @@ func Config(workingDir string) (workspacesdk.ContextConfigResponse, []string) {
 	}, ResolvePaths(mcpConfigFile, workingDir)
 }
 
+// ContextPartsFromDir reads instruction files and discovers skills
+// from a specific directory, using default file names. This is used
+// by the CLI chat context commands to read context from an arbitrary
+// directory without consulting agent env vars.
+func ContextPartsFromDir(dir string) []codersdk.ChatMessagePart {
+	var parts []codersdk.ChatMessagePart
+
+	if entry, found := readInstructionFileFromDir(dir, DefaultInstructionsFile); found {
+		parts = append(parts, entry)
+	}
+
+	// Check for skills in a .agents/skills subdirectory.
+	skillsDir := filepath.Join(dir, DefaultSkillsDir)
+	skillParts := discoverSkills([]string{skillsDir}, DefaultSkillMetaFile)
+	parts = append(parts, skillParts...)
+
+	// Guarantee non-nil slice.
+	if parts == nil {
+		parts = []codersdk.ChatMessagePart{}
+	}
+
+	return parts
+}
+
 // MCPConfigFiles returns the resolved MCP configuration file
 // paths for the agent's MCP manager.
 func (api *API) MCPConfigFiles() []string {

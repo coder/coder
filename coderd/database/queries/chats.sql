@@ -1293,3 +1293,18 @@ GROUP BY cm.chat_id;
 SELECT id, provider, model, context_limit, enabled, is_default
 FROM chat_model_configs
 WHERE deleted = false;
+-- name: GetActiveChatsByAgentID :many
+SELECT *
+FROM chats
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    -- Active statuses only: waiting, pending, running, paused.
+    -- Excludes completed and error (terminal states).
+    AND status IN ('waiting', 'running', 'paused', 'pending')
+ORDER BY updated_at DESC;
+
+-- name: SoftDeleteContextFileMessages :exec
+UPDATE chat_messages SET deleted = true
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND content::jsonb @> '[{"type": "context-file"}]';

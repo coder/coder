@@ -1653,6 +1653,10 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
+				r.Route("/experimental", func(r chi.Router) {
+					r.Post("/chat-context", api.workspaceAgentAddChatContext)
+					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
 				})

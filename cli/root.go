@@ -148,6 +148,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 	return []*serpent.Command{
 		r.scaletestCmd(),
 		r.errorExample(),
+		r.chatCommand(),
 		r.mcpCommand(),
 		r.promptExample(),
 		r.rptyCommand(),

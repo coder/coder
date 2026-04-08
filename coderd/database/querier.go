@@ -215,6 +215,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
+	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
@@ -893,6 +894,7 @@ type sqlcQuerier interface {
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
+	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

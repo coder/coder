@@ -2562,6 +2562,28 @@ func appendChatMessage(
 	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
 }
 
+// BuildSingleChatMessageInsertParams creates batch insert params for one
+// message using the shared chat message builder.
+func BuildSingleChatMessageInsertParams(
+	chatID uuid.UUID,
+	role database.ChatMessageRole,
+	content pqtype.NullRawMessage,
+	visibility database.ChatMessageVisibility,
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+	createdBy uuid.UUID,
+) database.InsertChatMessagesParams {
+	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: chatID,
+	}
+	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
+	if createdBy != uuid.Nil {
+		msg = msg.withCreatedBy(createdBy)
+	}
+	appendChatMessage(&params, msg)
+	return params
+}
+
 func insertUserMessageAndSetPending(
 	ctx context.Context,
 	store database.Store,

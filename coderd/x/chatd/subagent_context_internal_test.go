@@ -1,0 +1,187 @@
+package chatd
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
+)
+
+func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-with-context",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	inheritedParts := []codersdk.ChatMessagePart{
+		{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/home/coder/project/AGENTS.md",
+			ContextFileContent:   "# Project instructions",
+			ContextFileOS:        "linux",
+			ContextFileDirectory: "/home/coder/project",
+		},
+		{
+			Type:                     codersdk.ChatMessagePartTypeSkill,
+			SkillName:                "my-skill",
+			SkillDescription:         "A test skill",
+			SkillDir:                 "/home/coder/project/.agents/skills/my-skill",
+			ContextFileSkillMetaFile: "SKILL.md",
+		},
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: "/home/coder/project/.agents/skills/my-skill/SKILL.md",
+		},
+	}
+	content, err := json.Marshal(inheritedParts)
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              parent.ID,
+		CreatedBy:           []uuid.UUID{user.ID},
+		ModelConfigID:       []uuid.UUID{model.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+		Content:             []string{string(content)},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.True(t, childChat.LastInjectedContext.Valid)
+
+	var cached []codersdk.ChatMessagePart
+	require.NoError(t, json.Unmarshal(childChat.LastInjectedContext.RawMessage, &cached))
+	require.Len(t, cached, 2)
+
+	var sawContextFile bool
+	var sawSkill bool
+	for _, part := range cached {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeContextFile:
+			sawContextFile = true
+			require.Equal(t, "/home/coder/project/AGENTS.md", part.ContextFilePath)
+			require.Empty(t, part.ContextFileContent)
+			require.Empty(t, part.ContextFileOS)
+			require.Empty(t, part.ContextFileDirectory)
+		case codersdk.ChatMessagePartTypeSkill:
+			sawSkill = true
+			require.Equal(t, "my-skill", part.SkillName)
+			require.Equal(t, "A test skill", part.SkillDescription)
+			require.Empty(t, part.SkillDir)
+			require.Empty(t, part.ContextFileSkillMetaFile)
+		default:
+			t.Fatalf("unexpected cached part type %q", part.Type)
+		}
+	}
+	require.True(t, sawContextFile)
+	require.True(t, sawSkill)
+
+	// Verify messages were actually inserted in the child chat DB.
+	childMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  child.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var (
+		contextMessageIndexes      []int
+		userPromptIndex            = -1
+		sawDBAgentsContextFile     bool
+		sawDBSkillCompanionContext bool
+		sawDBSkill                 bool
+	)
+	for i, msg := range childMessages {
+		if !msg.Content.Valid {
+			continue
+		}
+
+		var parts []codersdk.ChatMessagePart
+		require.NoError(t, json.Unmarshal(msg.Content.RawMessage, &parts))
+
+		if len(parts) == 1 && parts[0].Type == codersdk.ChatMessagePartTypeText && parts[0].Text == "inspect bindings" {
+			require.Equal(t, database.ChatMessageRoleUser, msg.Role)
+			userPromptIndex = i
+			continue
+		}
+
+		hasInheritedContext := false
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeContextFile:
+				hasInheritedContext = true
+				switch part.ContextFilePath {
+				case "/home/coder/project/AGENTS.md":
+					sawDBAgentsContextFile = true
+					require.Equal(t, "# Project instructions", part.ContextFileContent)
+					require.Equal(t, "linux", part.ContextFileOS)
+					require.Equal(t, "/home/coder/project", part.ContextFileDirectory)
+				case "/home/coder/project/.agents/skills/my-skill/SKILL.md":
+					sawDBSkillCompanionContext = true
+					require.Empty(t, part.ContextFileContent)
+					require.Empty(t, part.ContextFileOS)
+					require.Empty(t, part.ContextFileDirectory)
+				default:
+					t.Fatalf("unexpected child inherited context file path %q", part.ContextFilePath)
+				}
+			case codersdk.ChatMessagePartTypeSkill:
+				hasInheritedContext = true
+				sawDBSkill = true
+				require.Equal(t, "my-skill", part.SkillName)
+				require.Equal(t, "A test skill", part.SkillDescription)
+				require.Equal(t, "/home/coder/project/.agents/skills/my-skill", part.SkillDir)
+				require.Equal(t, "SKILL.md", part.ContextFileSkillMetaFile)
+			default:
+				t.Fatalf("unexpected child inherited part type %q", part.Type)
+			}
+		}
+		if hasInheritedContext {
+			require.Equal(t, database.ChatMessageRoleUser, msg.Role)
+			contextMessageIndexes = append(contextMessageIndexes, i)
+		}
+	}
+
+	require.NotEmpty(t, contextMessageIndexes)
+	require.NotEqual(t, -1, userPromptIndex)
+	for _, idx := range contextMessageIndexes {
+		require.Less(t, idx, userPromptIndex)
+	}
+	require.True(t, sawDBAgentsContextFile)
+	require.True(t, sawDBSkillCompanionContext)
+	require.True(t, sawDBSkill)
+}

@@ -165,7 +165,6 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			if strings.HasSuffix(route, "/*") {
 				return
 			}
-
 			c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
 			assert.NotNil(t, c, "Missing @Router annotation")
 			if c == nil {

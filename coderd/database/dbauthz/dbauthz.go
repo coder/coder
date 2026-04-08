@@ -2413,6 +2413,10 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveAISeatCount(ctx)
 }
 
+func (q *querier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetActiveChatsByAgentID)(ctx, agentID)
+}
+
 func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
@@ -5726,6 +5730,17 @@ func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg databas
 		return err
 	}
 	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
+}
+
+func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteContextFileMessages(ctx, chatID)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

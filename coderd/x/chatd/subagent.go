@@ -11,6 +11,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -452,29 +453,245 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.New("parent chat model config id is required")
 	}
 
-	child, err := p.CreateChat(ctx, CreateOptions{
-		OwnerID:     parent.OwnerID,
-		WorkspaceID: parent.WorkspaceID,
-		BuildID:     parent.BuildID,
-		AgentID:     parent.AgentID,
-		ParentChatID: uuid.NullUUID{
-			UUID:  parent.ID,
-			Valid: true,
-		},
-		RootChatID: uuid.NullUUID{
-			UUID:  rootChatID,
-			Valid: true,
-		},
-		ModelConfigID:      parent.LastModelConfigID,
-		Title:              title,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
-		MCPServerIDs:       parent.MCPServerIDs,
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
+	mcpServerIDs := parent.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
 	}
 
+	labelsJSON, err := json.Marshal(database.StringMap{})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
+	}
+
+	var child database.Chat
+	txErr := p.db.InTx(func(tx database.Store) error {
+		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID); limitErr != nil {
+			return limitErr
+		}
+
+		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           parent.OwnerID,
+			WorkspaceID:       parent.WorkspaceID,
+			BuildID:           parent.BuildID,
+			AgentID:           parent.AgentID,
+			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
+			LastModelConfigID: parent.LastModelConfigID,
+			Title:             title,
+			Mode:              database.NullChatMode{},
+			Status:            database.ChatStatusPending,
+			MCPServerIDs:      mcpServerIDs,
+			Labels: pqtype.NullRawMessage{
+				RawMessage: labelsJSON,
+				Valid:      true,
+			},
+			DynamicTools: pqtype.NullRawMessage{},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert child chat: %w", err)
+		}
+
+		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		if insertedChat.WorkspaceID.Valid {
+			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
+		}
+		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(workspaceAwareness),
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal workspace awareness: %w", err)
+		}
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return xerrors.Errorf("marshal initial user content: %w", err)
+		}
+
+		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: insertedChat.ID,
+		}
+		if deploymentPrompt != "" {
+			deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(deploymentPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal deployment system prompt: %w", err)
+			}
+			appendChatMessage(&systemParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				deploymentContent,
+				database.ChatMessageVisibilityModel,
+				parent.LastModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+		appendChatMessage(&systemParams, newChatMessage(
+			database.ChatMessageRoleSystem,
+			workspaceAwarenessContent,
+			database.ChatMessageVisibilityModel,
+			parent.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+		))
+		if _, err := tx.InsertChatMessages(ctx, systemParams); err != nil {
+			return xerrors.Errorf("insert initial child system messages: %w", err)
+		}
+
+		child = insertedChat
+
+		// Copy persisted context before the initial child prompt so the
+		// child cannot be acquired until its inherited context is in
+		// place. signalWake runs only after commit.
+		copiedContextParts, err := copyParentContextMessages(ctx, p.logger, tx, parent, child)
+		if err != nil {
+			return xerrors.Errorf("copy parent context messages: %w", err)
+		}
+		if err := updateChildLastInjectedContext(ctx, p.logger, tx, child.ID, copiedContextParts); err != nil {
+			return xerrors.Errorf("update child injected context: %w", err)
+		}
+
+		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: insertedChat.ID,
+		}
+		appendChatMessage(&userParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			userContent,
+			database.ChatMessageVisibilityBoth,
+			parent.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCreatedBy(parent.OwnerID))
+		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
+			return xerrors.Errorf("insert initial child user message: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if txErr != nil {
+		return database.Chat{}, xerrors.Errorf("create child chat: %w", txErr)
+	}
+
+	p.publishChatPubsubEvent(child, coderdpubsub.ChatEventKindCreated, nil)
+	p.signalWake()
 	return child, nil
+}
+
+// copyParentContextMessages reads persisted context-file and skill
+// messages from the parent chat and inserts copies into the child
+// chat. This ensures sub-agents inherit the same instruction and
+// skill context as their parent without independently re-fetching
+// from the agent.
+func copyParentContextMessages(
+	ctx context.Context,
+	logger slog.Logger,
+	store database.Store,
+	parent database.Chat,
+	child database.Chat,
+) ([]codersdk.ChatMessagePart, error) {
+	parentMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  parent.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get parent messages: %w", err)
+	}
+
+	var copiedParts []codersdk.ChatMessagePart
+	for _, msg := range parentMessages {
+		if !msg.Content.Valid {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			logger.Warn(ctx, "failed to unmarshal parent context message",
+				slog.F("parent_chat_id", parent.ID),
+				slog.F("message_id", msg.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		var messageContextParts []codersdk.ChatMessagePart
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile && part.Type != codersdk.ChatMessagePartTypeSkill {
+				continue
+			}
+			messageContextParts = append(messageContextParts, part)
+		}
+		if len(messageContextParts) == 0 {
+			continue
+		}
+
+		filteredContent, err := chatprompt.MarshalParts(messageContextParts)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
+		}
+
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: child.ID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			msg.Role,
+			filteredContent,
+			msg.Visibility,
+			child.LastModelConfigID,
+			msg.ContentVersion,
+		))
+		if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
+			return nil, xerrors.Errorf("insert context message: %w", err)
+		}
+		copiedParts = append(copiedParts, messageContextParts...)
+	}
+
+	return copiedParts, nil
+}
+
+func updateChildLastInjectedContext(
+	ctx context.Context,
+	logger slog.Logger,
+	store database.Store,
+	chatID uuid.UUID,
+	parts []codersdk.ChatMessagePart,
+) error {
+	param := pqtype.NullRawMessage{Valid: false}
+	if parts != nil {
+		var stripped []codersdk.ChatMessagePart
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeContextFile:
+				if part.ContextFileContent == "" {
+					continue
+				}
+			case codersdk.ChatMessagePartTypeSkill:
+			default:
+				continue
+			}
+			cp := part
+			cp.StripInternal()
+			stripped = append(stripped, cp)
+		}
+		if stripped != nil {
+			raw, err := json.Marshal(stripped)
+			if err != nil {
+				logger.Warn(ctx, "failed to marshal inherited injected context",
+					slog.F("chat_id", chatID),
+					slog.Error(err),
+				)
+				return xerrors.Errorf("marshal inherited injected context: %w", err)
+			}
+			param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+		}
+	}
+	if _, err := store.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
+		ID:                  chatID,
+		LastInjectedContext: param,
+	}); err != nil {
+		logger.Warn(ctx, "failed to update inherited injected context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return xerrors.Errorf("update inherited injected context: %w", err)
+	}
+
+	return nil
 }
 
 func (p *Server) sendSubagentMessage(
