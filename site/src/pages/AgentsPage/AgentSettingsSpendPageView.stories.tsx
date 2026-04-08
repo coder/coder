@@ -114,7 +114,7 @@ const mockConfigData = {
 			spend_limit_micros: 100_000_000,
 		},
 		{
-			user_id: "user-3",
+			user_id: "user-4",
 			username: "charlie",
 			name: "Charlie Chaplin",
 			avatar_url: "",
@@ -349,5 +349,61 @@ export const SpendRefetchOverlay: Story = {
 export const SpendConfigLoading: Story = {
 	args: {
 		isLoadingConfig: true,
+	},
+};
+
+export const SpendConfigError: Story = {
+	args: {
+		configError: new Error("Network error: failed to fetch config"),
+		usersData: mockUsersResponse,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The inline config error should be visible.
+		await canvas.findByText("Network error: failed to fetch config");
+		await expect(canvas.getByText("Retry")).toBeInTheDocument();
+
+		// The usage table should still render despite the config error.
+		await expect(canvas.getByText("Alice Liddell")).toBeInTheDocument();
+		await expect(canvas.getByText("Bob Builder")).toBeInTheDocument();
+	},
+};
+
+export const SpendUsersLoading: Story = {
+	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
+		isUsersLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Config sections should still render.
+		await canvas.findByText("Default spend limit");
+
+		// The loading spinner for users should be visible.
+		await expect(
+			await canvas.findByRole("status", { name: "Loading usage" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpendUsersError: Story = {
+	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
+		usersError: new Error("Failed to load usage data"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Config sections should still render.
+		await canvas.findByText("Default spend limit");
+
+		// The usage error should be visible with retry.
+		await expect(
+			canvas.getByText("Failed to load usage data"),
+		).toBeInTheDocument();
 	},
 };

@@ -1,9 +1,8 @@
-import { ChevronLeftIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, useState } from "react";
 
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatUsageLimitPeriod, Group, User } from "#/api/typesGenerated";
+import type { Group, User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import {
@@ -36,192 +35,17 @@ import {
 	microsToDollars,
 } from "#/utils/currency";
 import { AdminBadge } from "./components/AdminBadge";
-import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import {
+	DefaultLimitController,
+	type DefaultLimitFormValues,
+} from "./components/LimitsTab/DefaultLimitController";
 import { DefaultLimitSection } from "./components/LimitsTab/DefaultLimitSection";
 import { GroupLimitsSection } from "./components/LimitsTab/GroupLimitsSection";
 import { normalizeChatUsageLimitPeriod } from "./components/LimitsTab/limitsFormLogic";
 import { UserOverridesSection } from "./components/LimitsTab/UserOverridesSection";
 import { SectionHeader } from "./components/SectionHeader";
+import { SpendDrillInView } from "./components/SpendDrillInView";
 import { formatUsageDateRange, toInclusiveDateRange } from "./utils/dateRange";
-
-// ── Local render-prop controller for the default limit form ──
-
-interface DefaultLimitFormValues {
-	enabled: boolean;
-	period: ChatUsageLimitPeriod;
-	amountDollars: string;
-}
-
-interface DefaultLimitControllerProps {
-	initialValues: DefaultLimitFormValues;
-	onSave: (values: DefaultLimitFormValues) => void;
-	children: (props: {
-		enabled: boolean;
-		onEnabledChange: (enabled: boolean) => void;
-		period: ChatUsageLimitPeriod;
-		onPeriodChange: (period: ChatUsageLimitPeriod) => void;
-		amountDollars: string;
-		onAmountDollarsChange: (amount: string) => void;
-		isAmountValid: boolean;
-		saveDefault: () => void;
-	}) => ReactNode;
-}
-
-const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
-	initialValues,
-	onSave,
-	children,
-}) => {
-	const [enabled, setEnabled] = useState(initialValues.enabled);
-	const [period, setPeriod] = useState<ChatUsageLimitPeriod>(
-		initialValues.period,
-	);
-	const [amountDollars, setAmountDollars] = useState(
-		initialValues.amountDollars,
-	);
-	const isAmountValid = !enabled || isPositiveFiniteDollarAmount(amountDollars);
-
-	const handleSave = () => {
-		if (enabled && !isPositiveFiniteDollarAmount(amountDollars)) {
-			return;
-		}
-
-		onSave({ enabled, period, amountDollars });
-	};
-
-	return children({
-		enabled,
-		onEnabledChange: setEnabled,
-		period,
-		onPeriodChange: setPeriod,
-		amountDollars,
-		onAmountDollarsChange: setAmountDollars,
-		isAmountValid,
-		saveDefault: handleSave,
-	});
-};
-
-// ── Drill-in view for a single user ──
-
-interface SpendDrillInViewProps {
-	selectedUser: TypesGen.User | null;
-	isLoading: boolean;
-	isError: boolean;
-	error: unknown;
-	onRetry: () => void;
-	onBack: () => void;
-	displayDateRange: DateRangeValue;
-	onDateRangeChange: (value: DateRangeValue) => void;
-	dateRangeLabel: string;
-	summaryData: TypesGen.ChatCostSummary | undefined;
-	isSummaryLoading: boolean;
-	summaryError: unknown;
-	onSummaryRetry: () => void;
-}
-
-const SpendDrillInView: FC<SpendDrillInViewProps> = ({
-	selectedUser,
-	isLoading,
-	isError,
-	error,
-	onRetry,
-	onBack,
-	displayDateRange,
-	onDateRangeChange,
-	dateRangeLabel,
-	summaryData,
-	isSummaryLoading,
-	summaryError,
-	onSummaryRetry,
-}) => {
-	const backButton = (
-		<button
-			type="button"
-			onClick={onBack}
-			className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-		>
-			<ChevronLeftIcon className="h-4 w-4" />
-			Back
-		</button>
-	);
-
-	const header = (
-		<SectionHeader
-			label="Spend management"
-			description="Review deployment Coder Agents usage for a specific user."
-			badge={<AdminBadge />}
-			action={
-				<DateRangePicker
-					value={displayDateRange}
-					onChange={onDateRangeChange}
-				/>
-			}
-		/>
-	);
-
-	if (isLoading) {
-		return (
-			<div className="space-y-6">
-				<div>
-					{backButton}
-					{header}
-				</div>
-				<div className="flex min-h-[240px] items-center justify-center">
-					<Spinner size="lg" loading className="text-content-secondary" />
-				</div>
-			</div>
-		);
-	}
-
-	if (isError || !selectedUser) {
-		return (
-			<div className="space-y-6">
-				<div>
-					{backButton}
-					{header}
-				</div>
-				<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
-					<p className="m-0 text-sm text-content-secondary">
-						{getErrorMessage(error, "Failed to load user profile.")}
-					</p>
-					<Button variant="outline" size="sm" type="button" onClick={onRetry}>
-						Retry
-					</Button>
-				</div>
-			</div>
-		);
-	}
-
-	return (
-		<div className="space-y-6">
-			<div>
-				{backButton}
-				{header}
-			</div>
-			<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
-				<AvatarData
-					title={selectedUser.name || selectedUser.username}
-					subtitle={`@${selectedUser.username}`}
-					src={selectedUser.avatar_url}
-					imgFallbackText={selectedUser.username}
-				/>
-				<div className="min-w-0 text-xs text-content-secondary">
-					<div>User ID: {selectedUser.id}</div>
-					<div>{dateRangeLabel}</div>
-				</div>
-			</div>
-			<ChatCostSummaryView
-				key={selectedUser.id}
-				summary={summaryData}
-				isLoading={isSummaryLoading}
-				error={summaryError}
-				onRetry={onSummaryRetry}
-				loadingLabel="Loading usage details"
-				emptyMessage="No usage data for this user in the selected period."
-			/>
-		</div>
-	);
-};
 
 // ── UserRow sub-component ──
 
@@ -600,45 +424,12 @@ export const AgentSettingsSpendPageView: FC<
 		});
 	};
 
-	const handleDeleteGroupOverride = (groupID: string) => {
-		onDeleteGroupOverride(groupID);
-	};
-
-	const handleDeleteOverride = (userID: string) => {
-		onDeleteOverride(userID);
-	};
-
 	// ── Loading / error states for config ──
 	if (isLoadingConfig) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				<div className="flex flex-1 items-center justify-center px-6 py-5">
 					<Spinner loading className="h-6 w-6" />
-				</div>
-			</div>
-		);
-	}
-
-	if (configError) {
-		return (
-			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div className="flex flex-1 items-center justify-center px-6 py-5">
-					<div className="space-y-4 py-4 text-center">
-						<p className="text-sm text-content-secondary">
-							{getErrorMessage(
-								configError,
-								"Failed to load spend limit settings.",
-							)}
-						</p>
-						<Button
-							variant="outline"
-							size="sm"
-							type="button"
-							onClick={() => void refetchConfig()}
-						>
-							Retry
-						</Button>
-					</div>
 				</div>
 			</div>
 		);
@@ -675,105 +466,133 @@ export const AgentSettingsSpendPageView: FC<
 				description="Configure spend limits and monitor usage across your deployment."
 				badge={<AdminBadge />}
 			/>
-
-			{/* Section 1: Default spend limit */}
-			<DefaultLimitController
-				key={defaultLimitKey}
-				initialValues={defaultLimitValues}
-				onSave={handleSaveDefault}
-			>
-				{({
-					enabled,
-					onEnabledChange,
-					period,
-					onPeriodChange,
-					amountDollars,
-					onAmountDollarsChange,
-					isAmountValid,
-					saveDefault,
-				}) => (
-						<section>
-							<SectionHeader label="Default spend limit" description="Set a deployment-wide spend cap that applies to all users by default." />
-						<DefaultLimitSection
-							hideHeader
-							adminBadge={null}
-							enabled={enabled}
-							onEnabledChange={(nextEnabled) => {
-								handleResetUpdateConfig();
-								onEnabledChange(nextEnabled);
-							}}
-							period={period}
-							onPeriodChange={(nextPeriod) => {
-								handleResetUpdateConfig();
-								onPeriodChange(nextPeriod);
-							}}
-							amountDollars={amountDollars}
-							onAmountDollarsChange={(nextAmountDollars) => {
-								handleResetUpdateConfig();
-								onAmountDollarsChange(nextAmountDollars);
-							}}
-							unpricedModelCount={unpricedModelCount}
-						/>
-						<div className="flex items-center justify-end gap-3 pt-4">
-							<div className="min-h-4 text-xs">
-								{updateConfigError && (
-									<p className="m-0 text-content-destructive">
-										{getErrorMessage(
-											updateConfigError,
-											"Failed to save the default spend limit.",
+			{configError ? (
+				<div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border-default px-6 py-10 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						{getErrorMessage(
+							configError,
+							"Failed to load spend limit settings.",
+						)}
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => void refetchConfig()}
+					>
+						Retry
+					</Button>
+				</div>
+			) : (
+				<>
+					{/* Section 1: Default spend limit */}
+					<DefaultLimitController
+						key={defaultLimitKey}
+						initialValues={defaultLimitValues}
+						onSave={handleSaveDefault}
+					>
+						{({
+							enabled,
+							onEnabledChange,
+							period,
+							onPeriodChange,
+							amountDollars,
+							onAmountDollarsChange,
+							isAmountValid,
+							saveDefault,
+						}) => (
+							<section>
+								<SectionHeader
+									label="Default spend limit"
+									description="Set a deployment-wide spend cap that applies to all users by default."
+								/>
+								<DefaultLimitSection
+									hideHeader
+									adminBadge={null}
+									enabled={enabled}
+									onEnabledChange={(nextEnabled) => {
+										handleResetUpdateConfig();
+										onEnabledChange(nextEnabled);
+									}}
+									period={period}
+									onPeriodChange={(nextPeriod) => {
+										handleResetUpdateConfig();
+										onPeriodChange(nextPeriod);
+									}}
+									amountDollars={amountDollars}
+									onAmountDollarsChange={(nextAmountDollars) => {
+										handleResetUpdateConfig();
+										onAmountDollarsChange(nextAmountDollars);
+									}}
+									unpricedModelCount={unpricedModelCount}
+								/>
+								<div className="flex items-center justify-end gap-3 pt-4">
+									<div className="min-h-4 text-xs">
+										{updateConfigError && (
+											<p className="m-0 text-content-destructive">
+												{getErrorMessage(
+													updateConfigError,
+													"Failed to save the default spend limit.",
+												)}
+											</p>
 										)}
-									</p>
-								)}
-								{isUpdateConfigSuccess && (
-									<p className="m-0 text-content-success">Saved!</p>
-								)}
-							</div>
-							<Button
-								size="sm"
-								type="button"
-								onClick={saveDefault}
-								disabled={isUpdatingConfig || !isAmountValid}
-							>
-								{isUpdatingConfig ? (
-									<Spinner loading className="h-4 w-4" />
-								) : null}
-								Save default limit
-							</Button>
-						</div>
-						</section>
-				)}
-			</DefaultLimitController>
+										{isUpdateConfigSuccess && (
+											<p className="m-0 text-content-success">Saved!</p>
+										)}
+									</div>
+									<Button
+										size="sm"
+										type="button"
+										onClick={saveDefault}
+										disabled={isUpdatingConfig || !isAmountValid}
+									>
+										{isUpdatingConfig ? (
+											<Spinner loading className="h-4 w-4" />
+										) : null}
+										Save default limit
+									</Button>
+								</div>
+							</section>
+						)}
+					</DefaultLimitController>
 
-			{/* Section 2: Group limits */}
-				<section>
-					<SectionHeader label="Group limits" description="Override the default limit for specific groups. The lowest group limit applies." />
-				<GroupLimitsSection
-					hideHeader
-					groupOverrides={groupOverrides}
-					showGroupForm={showGroupForm}
-					onShowGroupFormChange={handleShowGroupFormChange}
-					selectedGroup={selectedGroup}
-					onSelectedGroupChange={setSelectedGroup}
-					groupAmount={groupAmount}
-					onGroupAmountChange={setGroupAmount}
-					availableGroups={availableGroups}
-					groupAutocompleteNoOptionsText={groupAutocompleteNoOptionsText}
-					groupsLoading={isLoadingGroups}
-					editingGroupOverride={editingGroupOverride}
-					onEditGroupOverride={handleEditGroupOverride}
-					onAddGroupOverride={handleAddGroupOverride}
-					onDeleteGroupOverride={handleDeleteGroupOverride}
-					upsertPending={isUpsertingGroupOverride}
-					upsertError={upsertGroupOverrideError}
-					deletePending={isDeletingGroupOverride}
-					deleteError={deleteGroupOverrideError}
-					groupsError={groupsError}
+					{/* Section 2: Group limits */}
+					<section>
+						<SectionHeader
+							label="Group limits"
+							description="Override the default limit for specific groups. The lowest group limit applies."
+						/>{" "}
+						<GroupLimitsSection
+							hideHeader
+							groupOverrides={groupOverrides}
+							showGroupForm={showGroupForm}
+							onShowGroupFormChange={handleShowGroupFormChange}
+							selectedGroup={selectedGroup}
+							onSelectedGroupChange={setSelectedGroup}
+							groupAmount={groupAmount}
+							onGroupAmountChange={setGroupAmount}
+							availableGroups={availableGroups}
+							groupAutocompleteNoOptionsText={groupAutocompleteNoOptionsText}
+							groupsLoading={isLoadingGroups}
+							editingGroupOverride={editingGroupOverride}
+							onEditGroupOverride={handleEditGroupOverride}
+							onAddGroupOverride={handleAddGroupOverride}
+							onDeleteGroupOverride={onDeleteGroupOverride}
+							upsertPending={isUpsertingGroupOverride}
+							upsertError={upsertGroupOverrideError}
+							deletePending={isDeletingGroupOverride}
+							deleteError={deleteGroupOverrideError}
+							groupsError={groupsError}
+						/>
+					</section>
+				</>
+			)}
+			{/* Section 3: Per-user spend */}{" "}
+			<section>
+				<SectionHeader
+					label="Per-user spend"
+					description="User overrides take highest priority, followed by group limits, then the default."
 				/>
-				</section>
-
-			{/* Section 3: Per-user spend */}
-				<section>
-					<SectionHeader label="Per-user spend" description="User overrides take highest priority, followed by group limits, then the default." />
 				<div className="flex items-center justify-between pb-4">
 					<span className="text-sm font-medium text-content-primary">
 						Date range
@@ -783,27 +602,29 @@ export const AgentSettingsSpendPageView: FC<
 						onChange={onDateRangeChange}
 					/>
 				</div>
-				<UserOverridesSection
-					hideHeader
-					overrides={overrides}
-					showUserForm={showUserForm}
-					onShowUserFormChange={handleShowUserFormChange}
-					selectedUser={selectedUserOverride}
-					onSelectedUserChange={setSelectedUserOverride}
-					userOverrideAmount={userOverrideAmount}
-					onUserOverrideAmountChange={setUserOverrideAmount}
-					selectedUserAlreadyOverridden={
-						editingUserOverride ? false : selectedUserAlreadyOverridden
-					}
-					editingUserOverride={editingUserOverride}
-					onEditUserOverride={handleEditUserOverride}
-					onAddOverride={handleAddOverride}
-					onDeleteOverride={handleDeleteOverride}
-					upsertPending={isUpsertingOverride}
-					upsertError={upsertOverrideError}
-					deletePending={isDeletingOverride}
-					deleteError={deleteOverrideError}
-				/>
+				{!configError && (
+					<UserOverridesSection
+						hideHeader
+						overrides={overrides}
+						showUserForm={showUserForm}
+						onShowUserFormChange={handleShowUserFormChange}
+						selectedUser={selectedUserOverride}
+						onSelectedUserChange={setSelectedUserOverride}
+						userOverrideAmount={userOverrideAmount}
+						onUserOverrideAmountChange={setUserOverrideAmount}
+						selectedUserAlreadyOverridden={
+							editingUserOverride ? false : selectedUserAlreadyOverridden
+						}
+						editingUserOverride={editingUserOverride}
+						onEditUserOverride={handleEditUserOverride}
+						onAddOverride={handleAddOverride}
+						onDeleteOverride={onDeleteOverride}
+						upsertPending={isUpsertingOverride}
+						upsertError={upsertOverrideError}
+						deletePending={isDeletingOverride}
+						deleteError={deleteOverrideError}
+					/>
+				)}{" "}
 				{/* Search + pagination amount */}
 				<div className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
 					<div className="w-full md:max-w-sm">
@@ -811,7 +632,6 @@ export const AgentSettingsSpendPageView: FC<
 							value={searchFilter}
 							onChange={(value) => {
 								onSearchFilterChange(value);
-								onPageChange(1);
 							}}
 							placeholder="Search by name or username"
 							aria-label="Search usage by name or username"
@@ -911,7 +731,7 @@ export const AgentSettingsSpendPageView: FC<
 						)}
 					</div>
 				)}
-				</section>
+			</section>
 		</div>
 	);
 };

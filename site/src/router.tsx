@@ -710,6 +710,8 @@ export const router = createBrowserRouter(
 							element={<AgentSettingsMCPServersPage />}
 						/>
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
+						<Route path="limits" element={<Navigate to="spend" replace />} />
+						<Route path="usage" element={<Navigate to="spend" replace />} />
 						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>

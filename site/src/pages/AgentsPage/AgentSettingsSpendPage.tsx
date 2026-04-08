@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -73,14 +73,45 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 	// --------------- Usage state & queries ---------------
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [searchFilter, setSearchFilter] = useState("");
+
+	// All ephemeral UI state lives in URL search params so the page
+	// is deep-linkable and survives navigation.
+	const searchFilter = searchParams.get("search") ?? "";
 	const debouncedSearch = useDebouncedValue(searchFilter, 300);
-	const [page, setPage] = useState(1);
+	const page = Number(searchParams.get("page") ?? "1") || 1;
+
+	const setSearchFilter = (value: string) => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			if (value) {
+				next.set("search", value);
+			} else {
+				next.delete("search");
+			}
+			// Reset to page 1 when the search changes.
+			next.delete("page");
+			return next;
+		});
+	};
+
+	const setPage = (newPage: number) => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			if (newPage > 1) {
+				next.set("page", String(newPage));
+			} else {
+				next.delete("page");
+			}
+			return next;
+		});
+	};
 
 	const startDateParam =
 		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
 	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
-	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
+
+	// Capture the default once so it doesn't shift on re-render.
+	const defaultDateRange = getDefaultUsageDateRange(now);
 	let dateRange = defaultDateRange;
 	let hasExplicitDateRange = false;
 
@@ -108,12 +139,12 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 	const offset = (page - 1) * pageSize;
 
 	const onDateRangeChange = (value: DateRangeValue) => {
-		// Reset pagination but preserve user selection and other params.
-		setPage(1);
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
 			next.set(usageStartDateSearchParam, value.startDate.toISOString());
 			next.set(usageEndDateSearchParam, value.endDate.toISOString());
+			// Reset pagination when date range changes.
+			next.delete("page");
 			return next;
 		});
 	};
