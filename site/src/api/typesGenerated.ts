@@ -913,6 +913,7 @@ export interface AuditLog {
 export interface AuditLogResponse {
 	readonly audit_logs: readonly AuditLog[];
 	readonly count: number;
+	readonly count_cap: number;
 }
 
 // From codersdk/audit.go
@@ -1200,6 +1201,7 @@ export interface Chat {
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
+	readonly files?: readonly ChatFileMetadata[];
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
@@ -1213,7 +1215,13 @@ export interface Chat {
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
+	readonly warnings?: readonly string[];
 }
+
+// From codersdk/chats.go
+export type ChatBusyBehavior = "interrupt" | "queue";
+
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
 
 // From codersdk/chats.go
 /**
@@ -1263,6 +1271,7 @@ export interface ChatCostChatBreakdown {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1280,6 +1289,7 @@ export interface ChatCostModelBreakdown {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1296,6 +1306,7 @@ export interface ChatCostSummary {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
 	readonly usage_limit?: ChatUsageLimitStatus;
@@ -1326,6 +1337,7 @@ export interface ChatCostUserRollup {
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
 	readonly total_cache_creation_tokens: number;
+	readonly total_runtime_ms: number;
 }
 
 // From codersdk/chats.go
@@ -1396,6 +1408,20 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatFileMetadata contains lightweight metadata about a file
+ * associated with a chat, excluding the file content itself.
+ */
+export interface ChatFileMetadata {
+	readonly id: string;
+	readonly owner_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly mime_type: string;
+	readonly created_at: string;
 }
 
 // From codersdk/chats.go
@@ -1878,6 +1904,14 @@ export interface ChatReasoningPart {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatRetentionDaysResponse contains the current chat retention setting.
+ */
+export interface ChatRetentionDaysResponse {
+	readonly retention_days: number;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -1906,6 +1940,7 @@ export type ChatStatus =
 	| "error"
 	| "paused"
 	| "pending"
+	| "requires_action"
 	| "running"
 	| "waiting";
 
@@ -1914,9 +1949,18 @@ export const ChatStatuses: ChatStatus[] = [
 	"error",
 	"paused",
 	"pending",
+	"requires_action",
 	"running",
 	"waiting",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatStreamActionRequired is the payload of an action_required stream event.
+ */
+export interface ChatStreamActionRequired {
+	readonly tool_calls: readonly ChatStreamToolCall[];
+}
 
 // From codersdk/chats.go
 /**
@@ -1958,10 +2002,12 @@ export interface ChatStreamEvent {
 	readonly error?: ChatStreamError;
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
+	readonly action_required?: ChatStreamActionRequired;
 }
 
 // From codersdk/chats.go
 export type ChatStreamEventType =
+	| "action_required"
 	| "error"
 	| "message"
 	| "message_part"
@@ -1970,6 +2016,7 @@ export type ChatStreamEventType =
 	| "status";
 
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
+	"action_required",
 	"error",
 	"message",
 	"message_part",
@@ -2033,6 +2080,17 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatStreamToolCall describes a pending dynamic tool call that the client
+ * must execute.
+ */
+export interface ChatStreamToolCall {
+	readonly tool_call_id: string;
+	readonly tool_name: string;
+	readonly args: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatSystemPromptResponse is the response body for the chat system prompt
  * configuration endpoint.
  */
@@ -2071,6 +2129,12 @@ export interface ChatToolCallPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * CreatedAt records when this part was produced. Present on
+	 * tool-call and tool-result parts so the frontend can compute
+	 * tool execution duration.
+	 */
+	readonly created_at?: string;
 }
 
 // From codersdk/chats.go
@@ -2087,6 +2151,12 @@ export interface ChatToolResultPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * CreatedAt records when this part was produced. Present on
+	 * tool-call and tool-result parts so the frontend can compute
+	 * tool execution duration.
+	 */
+	readonly created_at?: string;
 }
 
 // From codersdk/chats.go
@@ -2185,6 +2255,38 @@ export interface ChatUsageLimitStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatWatchEvent represents an event from the global chat watch stream.
+ * It delivers lifecycle events (created, status change, title change)
+ * for all of the authenticated user's chats. When Kind is
+ * ActionRequired, ToolCalls contains the pending dynamic tool
+ * invocations the client must execute and submit back.
+ */
+export interface ChatWatchEvent {
+	readonly kind: ChatWatchEventKind;
+	readonly chat: Chat;
+	readonly tool_calls?: readonly ChatStreamToolCall[];
+}
+
+// From codersdk/chats.go
+export type ChatWatchEventKind =
+	| "action_required"
+	| "created"
+	| "deleted"
+	| "diff_status_change"
+	| "status_change"
+	| "title_change";
+
+export const ChatWatchEventKinds: ChatWatchEventKind[] = [
+	"action_required",
+	"created",
+	"deleted",
+	"diff_status_change",
+	"status_change",
+	"title_change",
+];
+
+// From codersdk/chats.go
+/**
  * ChatWorkspaceTTLResponse is the response for getting the chat
  * workspace TTL setting.
  */
@@ -2244,6 +2346,7 @@ export interface ConnectionLog {
 export interface ConnectionLogResponse {
 	readonly connection_logs: readonly ConnectionLog[];
 	readonly count: number;
+	readonly count_cap: number;
 }
 
 // From codersdk/connectionlog.go
@@ -2334,6 +2437,7 @@ export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
+	readonly busy_behavior?: ChatBusyBehavior;
 }
 
 // From codersdk/chats.go
@@ -2344,6 +2448,7 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -2382,10 +2487,17 @@ export interface CreateChatProviderConfigRequest {
  */
 export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
+	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	/**
+	 * UnsafeDynamicTools declares client-executed tools that the
+	 * LLM can invoke. This API is highly experimental and highly
+	 * subject to change.
+	 */
+	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 }
 
 // From codersdk/users.go
@@ -3188,10 +3300,62 @@ export interface DynamicParametersResponse {
 
 // From codersdk/chats.go
 /**
+ * DynamicTool describes a client-declared tool definition. On the
+ * client side, the Handler callback executes the tool when the LLM
+ * invokes it. On the server side, only Name, Description, and
+ * InputSchema are used (Handler is not serialized).
+ */
+export interface DynamicTool {
+	readonly name: string;
+	readonly description?: string;
+	/**
+	 * InputSchema's JSON key "input_schema" uses snake_case for
+	 * SDK consistency, deviating from the camelCase "inputSchema"
+	 * convention used by MCP.
+	 */
+	readonly input_schema: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * DynamicToolCall represents a pending tool invocation from the
+ * chat stream that the client must execute and submit back.
+ */
+export interface DynamicToolCall {
+	readonly tool_call_id: string;
+	readonly tool_name: string;
+	readonly args: string;
+}
+
+// From codersdk/chats.go
+/**
+ * DynamicToolResponse holds the output of a dynamic tool
+ * execution. IsError indicates a tool-level error the LLM
+ * should see, as opposed to an infrastructure failure
+ * (returned as the error return value).
+ */
+export interface DynamicToolResponse {
+	readonly content: string;
+	readonly is_error: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * EditChatMessageRequest is the request to edit a user message in a chat.
  */
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
+}
+
+// From codersdk/chats.go
+/**
+ * EditChatMessageResponse is the response from editing a message in a chat.
+ * Edits are always synchronous (no queueing), so the message is returned
+ * directly.
+ */
+export interface EditChatMessageResponse {
+	readonly message: ChatMessage;
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/externalauth.go
@@ -3470,6 +3634,7 @@ export type FeatureName =
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
+	| "service_accounts"
 	| "task_batch_actions"
 	| "template_rbac"
 	| "user_limit"
@@ -3498,6 +3663,7 @@ export const FeatureNames: FeatureName[] = [
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
+	"service_accounts",
 	"task_batch_actions",
 	"template_rbac",
 	"user_limit",
@@ -4100,6 +4266,15 @@ export interface MatchedProvisioners {
 	 */
 	readonly most_recently_seen?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * MaxChatFileIDs is the maximum number of file IDs that can be
+ * associated with a single chat. This limit prevents unbounded
+ * growth in the chat_file_links table. It is easier to raise
+ * this limit than to lower it.
+ */
+export const MaxChatFileIDs = 20;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {
@@ -6372,6 +6547,14 @@ export interface StreamChatOptions {
 export const SubdomainAppSessionTokenCookie =
 	"coder_subdomain_app_session_token";
 
+// From codersdk/chats.go
+/**
+ * SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
+ */
+export interface SubmitToolResultsRequest {
+	readonly results: readonly ToolResult[];
+}
+
 // From codersdk/deployment.go
 export interface SupportConfig {
 	readonly links: SerpentStruct<LinkConfig[]>;
@@ -7120,6 +7303,16 @@ export interface TokensFilter {
 	readonly include_expired: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * ToolResult is the client's response to a dynamic tool call.
+ */
+export interface ToolResult {
+	readonly tool_call_id: string;
+	readonly output: Record<string, string>;
+	readonly is_error: boolean;
+}
+
 // From codersdk/deployment.go
 export interface TraceConfig {
 	readonly enable: boolean;
@@ -7207,6 +7400,15 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatRetentionDaysRequest is a request to update the chat
+ * retention period.
+ */
+export interface UpdateChatRetentionDaysRequest {
+	readonly retention_days: number;
 }
 
 // From codersdk/chats.go

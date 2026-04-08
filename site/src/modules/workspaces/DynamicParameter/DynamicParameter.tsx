@@ -859,7 +859,7 @@ export const useValidationSchemaForDynamicParameters = (
 										(v) =>
 											v.validation_regex !== null && v.validation_regex !== "",
 									);
-									if (!regex || !regex.validation_regex) {
+									if (!regex?.validation_regex) {
 										return true;
 									}
 

@@ -1,10 +1,14 @@
 import Collapse from "@mui/material/Collapse";
-import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { PlayIcon, SquareCheckBigIcon } from "lucide-react";
+import {
+	CopyIcon,
+	EllipsisIcon,
+	PlayIcon,
+	SquareCheckBigIcon,
+} from "lucide-react";
 import {
 	type FC,
-	useCallback,
+	type ReactNode,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -19,8 +23,16 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "#/api/typesGenerated";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import {
@@ -29,7 +41,9 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
+import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
@@ -42,7 +56,7 @@ import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
-import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
+import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
@@ -147,7 +161,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
 	// This makes it feel similar to a terminal that auto-scrolls downwards!
-	const handleLogScroll = useCallback((props: ListOnScrollProps) => {
+	const handleLogScroll = (props: ListOnScrollProps) => {
 		if (
 			props.scrollOffset === 0 ||
 			props.scrollUpdateWasRequested ||
@@ -164,7 +178,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			logListDivRef.current.scrollHeight -
 			(props.scrollOffset + parent.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
-	}, []);
+	};
 
 	const devcontainers = useAgentContainers(agent);
 
@@ -226,7 +240,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		.filter((tab) => tab !== startupScriptLogTab)
 		.sort((a, b) => a.title.localeCompare(b.title));
 	const logTabs: {
-		startIcon?: React.ReactNode;
+		startIcon?: ReactNode;
 		title: string;
 		value: string;
 	}[] = [
@@ -237,6 +251,19 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
 	];
+	const {
+		containerRef: logTabsListContainerRef,
+		visibleTabs: visibleLogTabs,
+		overflowTabs: overflowLogTabs,
+		getTabMeasureProps,
+	} = useKebabMenu({
+		tabs: logTabs,
+		enabled: true,
+		isActive: showLogs,
+	});
+	const overflowLogTabValuesSet = new Set(
+		overflowLogTabs.map((tab) => tab.value),
+	);
 	const selectedLogs =
 		selectedLogTab === "all"
 			? agentLogs
@@ -248,6 +275,29 @@ export const AgentRow: FC<AgentRowProps> = ({
 		level: log.level,
 		sourceId: log.source_id,
 	}));
+	const allLogsText = agentLogs.map((log) => log.output).join("\n");
+	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
+	const hasSelectedLogs = selectedLogs.length > 0;
+	const hasAnyLogs = agentLogs.length > 0;
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const downloadableLogSets = logTabs
+		.filter((tab) => tab.value !== "all")
+		.map((tab) => {
+			const logsText = agentLogs
+				.filter((log) => log.source_id === tab.value)
+				.map((log) => log.output)
+				.join("\n");
+			const filenameSuffix = tab.title
+				.toLowerCase()
+				.replaceAll(/[^a-z0-9]+/g, "-")
+				.replaceAll(/(^-|-$)/g, "");
+			return {
+				label: tab.title,
+				filenameSuffix: filenameSuffix || tab.value,
+				logsText,
+				startIcon: tab.startIcon,
+			};
+		});
 
 	return (
 		<div
@@ -411,17 +461,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 			{hasStartupFeatures && (
 				<section className="border-0 border-t border-solid border-border">
-					<div className="flex flex-row gap-2 px-4 py-3">
+					<div className="px-4 py-2 relative">
 						<Button
-							size="sm"
 							variant="subtle"
 							onClick={() => setShowLogs((v) => !v)}
+							className="after:content-[''] after:absolute after:inset-0"
 						>
 							<ChevronDownIcon open={showLogs} />
-							Logs
+							<span>Logs</span>
 						</Button>
-						<Divider orientation="vertical" variant="middle" flexItem />
-						<DownloadAgentLogsButton agent={agent} />
 					</div>
 					<Collapse in={showLogs}>
 						<div className="px-4 pb-4">
@@ -431,14 +479,89 @@ export const AgentRow: FC<AgentRowProps> = ({
 									value={selectedLogTab}
 									onValueChange={setSelectedLogTab}
 								>
-									<TabsList variant="insideBox">
-										{logTabs.map((tab) => (
-											<TabsTrigger key={tab.value} value={tab.value}>
-												{tab.startIcon}
-												<span>{tab.title}</span>
-											</TabsTrigger>
-										))}
-									</TabsList>
+									<div className="flex items-stretch">
+										<div
+											ref={logTabsListContainerRef}
+											className="min-w-0 flex-1"
+										>
+											<TabsList variant="insideBox" overflowKebabMenu>
+												{visibleLogTabs.map((tab) => (
+													<TabsTrigger
+														key={tab.value}
+														value={tab.value}
+														{...getTabMeasureProps(tab.value)}
+													>
+														{tab.startIcon}
+														<span className="whitespace-nowrap">
+															{tab.title}
+														</span>
+													</TabsTrigger>
+												))}
+												{overflowLogTabs.length > 0 && (
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<button
+																type="button"
+																data-slot="tabs-trigger"
+																data-log-overflow-trigger
+																data-state={
+																	overflowLogTabValuesSet.has(selectedLogTab)
+																		? "active"
+																		: "inactive"
+																}
+																aria-label="More log tabs"
+																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+															>
+																<EllipsisIcon className="size-icon-sm" />
+																<span className="sr-only">More log tabs</span>
+															</button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuRadioGroup
+																value={selectedLogTab}
+																onValueChange={setSelectedLogTab}
+															>
+																{overflowLogTabs.map((tab) => (
+																	<DropdownMenuRadioItem
+																		key={tab.value}
+																		value={tab.value}
+																		className="gap-2"
+																	>
+																		{tab.startIcon}
+																		<span className="whitespace-nowrap">
+																			{tab.title}
+																		</span>
+																	</DropdownMenuRadioItem>
+																))}
+															</DropdownMenuRadioGroup>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												)}
+											</TabsList>
+										</div>
+										<div
+											className={cn(
+												"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
+												"border-solid border-0 border-b",
+											)}
+										>
+											<Button
+												variant="subtle"
+												size="sm"
+												disabled={!hasSelectedLogs}
+												onClick={() => copyToClipboard(selectedLogsText)}
+											>
+												{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+												<span>Copy logs</span>
+											</Button>
+											<DownloadSelectedAgentLogsButton
+												agentName={agent.name}
+												logSets={downloadableLogSets}
+												allLogsText={allLogsText}
+												disabled={!hasAnyLogs}
+											/>
+										</div>
+									</div>
 									{/*
 										Using a singular TabsContent is necessary to avoid scrolling
 										issues when the selected log tab changes.

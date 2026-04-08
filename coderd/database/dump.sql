@@ -293,7 +293,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'paused',
     'completed',
-    'error'
+    'error',
+    'requires_action'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -313,6 +314,11 @@ CREATE TYPE connection_type AS ENUM (
 CREATE TYPE cors_behavior AS ENUM (
     'simple',
     'passthru'
+);
+
+CREATE TYPE credential_kind AS ENUM (
+    'centralized',
+    'byok'
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
@@ -1101,7 +1107,9 @@ CREATE TABLE aibridge_interceptions (
     thread_root_id uuid,
     client_session_id character varying(256),
     session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL,
-    provider_name text DEFAULT ''::text NOT NULL
+    provider_name text DEFAULT ''::text NOT NULL,
+    credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
+    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1117,6 +1125,10 @@ COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID su
 COMMENT ON COLUMN aibridge_interceptions.session_id IS 'Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception''s own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.';
 
 COMMENT ON COLUMN aibridge_interceptions.provider_name IS 'The provider instance name which may differ from provider when multiple instances of the same provider type exist.';
+
+COMMENT ON COLUMN aibridge_interceptions.credential_kind IS 'How the request was authenticated: centralized or byok.';
+
+COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential identifier for audit (e.g. sk-a***efgh).';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -1269,6 +1281,11 @@ CREATE TABLE chat_diff_statuses (
     head_branch text
 );
 
+CREATE TABLE chat_file_links (
+    chat_id uuid NOT NULL,
+    file_id uuid NOT NULL
+);
+
 CREATE TABLE chat_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -1413,7 +1430,8 @@ CREATE TABLE chats (
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
-    last_injected_context jsonb
+    last_injected_context jsonb,
+    dynamic_tools jsonb
 );
 
 CREATE TABLE connection_logs (
@@ -3344,6 +3362,9 @@ ALTER TABLE ONLY boundary_usage_stats
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
+
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
@@ -3734,6 +3755,8 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
+
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
@@ -4035,6 +4058,12 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_file_id_fkey FOREIGN KEY (file_id) REFERENCES chat_files(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

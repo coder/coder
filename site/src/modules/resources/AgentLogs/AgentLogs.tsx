@@ -124,8 +124,6 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					return (
 						<AgentLogLine
 							line={log}
-							number={index + 1}
-							maxLineNumber={logs.length}
 							style={style}
 							sourceIcon={
 								<Tooltip>

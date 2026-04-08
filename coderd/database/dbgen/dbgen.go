@@ -1597,6 +1597,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) datab
 		Name:        takeFirst(seed.Name, "secret-name"),
 		Description: takeFirst(seed.Description, "secret description"),
 		Value:       takeFirst(seed.Value, "secret value"),
+		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
 	})
@@ -1643,6 +1644,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
 		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
 		ClientSessionID:            seed.ClientSessionID,
+		CredentialKind:             takeFirst(seed.CredentialKind, database.CredentialKindCentralized),
+		CredentialHint:             takeFirst(seed.CredentialHint, ""),
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

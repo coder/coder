@@ -15,6 +15,7 @@ const buildSummary = (
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,
 	total_cache_creation_tokens: 5_432,
+	total_runtime_ms: 0,
 	by_model: [
 		{
 			model_config_id: "model-config-1",
@@ -27,6 +28,7 @@ const buildSummary = (
 			total_output_tokens: 200_000,
 			total_cache_read_tokens: 7_654,
 			total_cache_creation_tokens: 3_210,
+			total_runtime_ms: 0,
 		},
 	],
 	by_chat: [
@@ -39,6 +41,7 @@ const buildSummary = (
 			total_output_tokens: 80_000,
 			total_cache_read_tokens: 4_321,
 			total_cache_creation_tokens: 1_234,
+			total_runtime_ms: 0,
 		},
 	],
 	...overrides,

@@ -1,6 +1,6 @@
-import IconButton from "@mui/material/IconButton";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import {
 	Tooltip,
@@ -32,16 +32,17 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 			</CopyableValue>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<IconButton
-						className="text-inherit"
+					<Button
 						onClick={() => {
 							setShouldDisplay((value) => !value);
 						}}
-						size="small"
+						size="icon"
+						variant="subtle"
+						className="size-6"
 						aria-label={buttonLabel}
 					>
 						{icon}
-					</IconButton>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">{buttonLabel}</TooltipContent>
 			</Tooltip>

@@ -495,7 +495,8 @@
 						{
 							"title": "Headless Authentication",
 							"description": "Create and manage headless service accounts for automated systems and API integrations",
-							"path": "./admin/users/headless-auth.md"
+							"path": "./admin/users/headless-auth.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Groups \u0026 Roles",
@@ -1263,6 +1264,12 @@
 							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["early access"]
+						},
+						{
+							"title": "Chat Data Retention",
+							"description": "Automatic cleanup of old chat data",
+							"path": "./ai-coder/agents/chat-retention.md",
+							"state": ["early access"]
 						}
 					]
 				}
@@ -1298,6 +1305,12 @@
 					"title": "Configuring Okta",
 					"description": "Custom claims/scopes with Okta for group/role sync",
 					"path": "./tutorials/configuring-okta.md"
+				},
+				{
+					"title": "Persistent Shared Workspaces",
+					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing",
+					"path": "./tutorials/persistent-shared-workspaces.md",
+					"state": ["premium"]
 				},
 				{
 					"title": "Google to AWS Federation",

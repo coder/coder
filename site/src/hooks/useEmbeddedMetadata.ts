@@ -241,7 +241,7 @@ export function makeUseEmbeddedMetadata(
 				metadata,
 				clearMetadataByKey: manager.clearMetadataByKey,
 			};
-		}, [manager, metadata]);
+		}, [metadata]);
 
 		return stableMetadataResult;
 	};

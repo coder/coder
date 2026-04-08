@@ -770,6 +770,22 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatRetentionDaysKey = ["chat-retention-days"] as const;
+
+export const chatRetentionDays = () => ({
+	queryKey: chatRetentionDaysKey,
+	queryFn: () => API.experimental.getChatRetentionDays(),
+});
+
+export const updateChatRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatRetentionDaysKey,
+		});
+	},
+});
+
 const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
 
 export const chatTemplateAllowlist = () => ({

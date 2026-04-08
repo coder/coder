@@ -298,7 +298,7 @@ export const parseMessagesWithMergedTools = (
 			if (tool.name !== "process_signal") continue;
 			const args = asRecord(tool.args);
 			const result = asRecord(tool.result);
-			if (!args || !result || !result.success) continue;
+			if (!args || !result?.success) continue;
 			const pid = asString(args.process_id);
 			const sig = asString(args.signal);
 			if (pid && (sig === "kill" || sig === "terminate"))
