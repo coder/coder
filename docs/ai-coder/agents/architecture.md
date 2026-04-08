@@ -233,10 +233,11 @@ Because state lives in the database:
 - The agent can resume work by targeting a new workspace and continuing from the
   last git branch or checkpoint.
 
-## Security implications
+## Security posture
 
-The control plane architecture provides several security advantages for AI
-coding workflows.
+The control plane architecture provides built-in security properties for AI
+coding workflows. These are structural guarantees, not configuration options —
+they hold by default for every agent session.
 
 ### No API keys in workspaces
 
