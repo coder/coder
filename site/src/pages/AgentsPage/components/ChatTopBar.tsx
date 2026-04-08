@@ -10,7 +10,6 @@ import {
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
-	PencilIcon,
 	SaveIcon,
 	TerminalIcon,
 	Trash2Icon,
@@ -227,11 +226,19 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 									>
 										{chatTitle}
 									</span>
-									{!showSaved && (
-										<PencilIcon
-											className="h-3 w-3 shrink-0 text-content-secondary opacity-0 transition-opacity group-hover/title:opacity-100"
-											aria-hidden
-										/>
+									{!showSaved && onRegenerateTitle && (
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												onRegenerateTitle();
+											}}
+											disabled={isRegenerateTitleDisabled}
+											aria-label="Generate new title"
+											className="shrink-0 opacity-0 transition-opacity group-hover/title:opacity-100 text-content-secondary hover:text-content-primary disabled:opacity-50"
+										>
+											<WandSparklesIcon className="h-3 w-3" />
+										</button>
 									)}{" "}
 								</>
 							)
