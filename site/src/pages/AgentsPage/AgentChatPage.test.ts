@@ -327,6 +327,65 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("exits history edit mode immediately while a submission is pending", () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("edited message");
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockImplementation(() => new Promise(() => {}));
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+
+		act(() => {
+			void result.current.handleSendFromInput("edited message");
+		});
+
+		expect(onSend).toHaveBeenCalledWith("edited message", undefined, 7);
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("");
+		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editingFileBlocks).toEqual([]);
+		unmount();
+	});
+
+	it("restores the edit draft when an optimistically cleared submission fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("edited message");
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [{ text: "edited message" }],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleContentChange("edited message", editorState, false);
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput("edited message"),
+			).rejects.toThrow("boom");
+		});
+
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("edited message");
+		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editingFileBlocks).toEqual([]);
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.initialEditorState).toBe(editorState);
+		unmount();
+	});
+
 	it("clears the composer and persisted draft after a successful send", async () => {
 		localStorage.setItem(expectedKey, "draft to clear");
 		const { result, onSend, unmount } = renderEditing();

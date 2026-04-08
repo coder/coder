@@ -4213,6 +4213,103 @@ describe("store/cache desync protection", () => {
 			expect(result.current.orderedMessageIDs).toEqual([1]);
 		});
 	});
+
+	it("skips REST message sync while a local history edit is driving the store", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-local-edit-sync";
+		const msg1 = makeMessage(chatID, 1, "user", "first");
+		const msg2 = makeMessage(chatID, 2, "assistant", "second");
+		const msg3 = makeMessage(chatID, 3, "user", "third");
+		const authoritativeReplacement = makeMessage(chatID, 9, "user", "edited");
+
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper: FC<PropsWithChildren> = ({ children }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const skipMessageSyncRef = { current: false };
+		const initialOptions = {
+			chatID,
+			chatMessages: [msg1, msg2, msg3],
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: [msg1, msg2, msg3],
+				queued_messages: [],
+				has_more: false,
+			},
+			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
+			skipMessageSyncRef,
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					store,
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		skipMessageSyncRef.current = true;
+		act(() => {
+			result.current.store.replaceMessages([
+				msg1,
+				msg2,
+				{ ...msg3, content: [{ type: "text", text: "edited" }] },
+			]);
+		});
+
+		const truncatedMsg1 = makeMessage(chatID, 1, "user", "first");
+		const truncatedMsg2 = makeMessage(chatID, 2, "assistant", "second");
+		rerender({
+			...initialOptions,
+			chatMessages: [truncatedMsg1, truncatedMsg2],
+			chatMessagesData: {
+				messages: [truncatedMsg1, truncatedMsg2],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			result.current.store.replaceMessages([
+				msg1,
+				msg2,
+				authoritativeReplacement,
+			]);
+		});
+		skipMessageSyncRef.current = false;
+		const refreshedMsg1 = makeMessage(chatID, 1, "user", "first");
+		const refreshedMsg2 = makeMessage(chatID, 2, "assistant", "second");
+		rerender({
+			...initialOptions,
+			chatMessages: [refreshedMsg1, refreshedMsg2, authoritativeReplacement],
+			chatMessagesData: {
+				messages: [refreshedMsg1, refreshedMsg2, authoritativeReplacement],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
+		});
+	});
 });
 
 describe("parse errors", () => {

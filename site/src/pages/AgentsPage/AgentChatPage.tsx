@@ -130,6 +130,9 @@ export function useConversationEditingState(deps: {
 			};
 		},
 	);
+	const serializedEditorStateRef = useRef<string | undefined>(
+		initialEditorState,
+	);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -176,6 +179,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
@@ -188,6 +192,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingMessageId(null);
@@ -221,6 +226,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks);
@@ -233,6 +239,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingQueuedMessageID(null);
@@ -246,19 +253,45 @@ export function useConversationEditingState(deps: {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
+		const submittedEditorState = serializedEditorStateRef.current;
+		const submittedEditingFileBlocks = editingFileBlocks;
+		const shouldClearInputOptimistically = editedMessageID !== undefined;
+		const sendPromise = onSend(message, fileIds, editedMessageID);
 
-		await onSend(message, fileIds, editedMessageID);
+		if (shouldClearInputOptimistically) {
+			chatInputRef.current?.clear();
+			inputValueRef.current = "";
+			setEditingMessageId(null);
+			setEditingFileBlocks([]);
+		}
+
+		try {
+			await sendPromise;
+		} catch (error) {
+			if (shouldClearInputOptimistically) {
+				setDraftState({
+					editorInitialValue: message,
+					initialEditorState: submittedEditorState,
+				});
+				serializedEditorStateRef.current = submittedEditorState;
+				setRemountKey((k) => k + 1);
+				inputValueRef.current = message;
+				setEditingMessageId(editedMessageID ?? null);
+				setEditingFileBlocks(submittedEditingFileBlocks);
+			}
+			throw error;
+		}
 		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
 		}
 		inputValueRef.current = "";
+		serializedEditorStateRef.current = undefined;
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
-		if (editingMessageId !== null) {
-			setEditingMessageId(null);
+		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
@@ -276,6 +309,7 @@ export function useConversationEditingState(deps: {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
+		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
 		// history or queued message — the original draft (possibly
@@ -412,6 +446,43 @@ type _UncoveredAgentFields = Omit<
 // to the excluded section of the Omit.
 const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
 
+const buildOptimisticEditedContent = ({
+	requestContent,
+	originalMessage,
+}: {
+	requestContent: readonly TypesGen.ChatInputPart[];
+	originalMessage: TypesGen.ChatMessage;
+}): readonly TypesGen.ChatMessagePart[] => {
+	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
+	for (const part of originalMessage.content ?? []) {
+		if (part.type === "file" && part.file_id) {
+			existingFilePartsByID.set(part.file_id, part);
+		}
+	}
+
+	return requestContent.map((part): TypesGen.ChatMessagePart => {
+		if (part.type === "text") {
+			return { type: "text", text: part.text ?? "" };
+		}
+		if (part.type === "file-reference") {
+			return {
+				type: "file-reference",
+				file_name: part.file_name ?? "",
+				start_line: part.start_line ?? 1,
+				end_line: part.end_line ?? 1,
+				content: part.content ?? "",
+			};
+		}
+		return (
+			existingFilePartsByID.get(part.file_id ?? "") ?? {
+				type: "file",
+				file_id: part.file_id,
+				media_type: "application/octet-stream",
+			}
+		);
+	});
+};
+
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -430,9 +501,7 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [pendingEditMessageId, setPendingEditMessageId] = useState<
-		number | null
-	>(null);
+	const skipMessageSyncRef = useRef(false);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -657,6 +726,7 @@ const AgentChatPage: FC = () => {
 		chatRecord,
 		chatMessagesData,
 		chatQueuedMessages,
+		skipMessageSyncRef,
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
@@ -828,18 +898,74 @@ const AgentChatPage: FC = () => {
 			const request: TypesGen.EditChatMessageRequest = { content };
 			clearChatErrorReason(agentId);
 			clearStreamError();
-			setPendingEditMessageId(editedMessageID);
+
+			const previousSnapshot = store.getSnapshot();
+			const previousMessages = previousSnapshot.orderedMessageIDs
+				.map((id) => previousSnapshot.messagesByID.get(id))
+				.filter((existingMessage): existingMessage is TypesGen.ChatMessage =>
+					Boolean(existingMessage),
+				);
+			const originalEditedMessage = previousMessages.find(
+				(existingMessage) => existingMessage.id === editedMessageID,
+			);
+			const messagesBeforeEditedMessage = previousMessages.filter(
+				(existingMessage) => existingMessage.id < editedMessageID,
+			);
+
+			if (originalEditedMessage) {
+				skipMessageSyncRef.current = true;
+				store.batch(() => {
+					store.replaceMessages([
+						...messagesBeforeEditedMessage,
+						{
+							...originalEditedMessage,
+							content: buildOptimisticEditedContent({
+								requestContent: request.content,
+								originalMessage: originalEditedMessage,
+							}),
+						},
+					]);
+					store.setQueuedMessages([]);
+					store.setChatStatus("running");
+					store.clearStreamState();
+				});
+			}
+
 			scrollToBottomRef.current?.();
 			try {
-				await editMessage({
+				const editResponse = await editMessage({
 					messageId: editedMessageID,
 					req: request,
 				});
-				store.clearStreamState();
-				store.setChatStatus("running");
-				setPendingEditMessageId(null);
+				const responseMessage = editResponse.message;
+				if (originalEditedMessage) {
+					store.batch(() => {
+						store.replaceMessages([
+							...messagesBeforeEditedMessage,
+							responseMessage,
+						]);
+						store.setQueuedMessages([]);
+						store.setChatStatus("running");
+						store.clearStreamState();
+					});
+					skipMessageSyncRef.current = false;
+				} else {
+					store.clearStreamState();
+					store.setChatStatus("running");
+				}
+				upsertCacheMessages([responseMessage]);
 			} catch (error) {
-				setPendingEditMessageId(null);
+				if (originalEditedMessage) {
+					store.batch(() => {
+						store.replaceMessages(previousMessages);
+						store.setQueuedMessages(previousSnapshot.queuedMessages);
+						store.setChatStatus(previousSnapshot.chatStatus);
+						if (previousSnapshot.streamState === null) {
+							store.clearStreamState();
+						}
+					});
+					skipMessageSyncRef.current = false;
+				}
 				handleUsageLimitError(error);
 				throw error;
 			}
@@ -1133,7 +1259,7 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			store={store}
 			editing={editing}
-			pendingEditMessageId={pendingEditMessageId}
+			pendingEditMessageId={null}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
