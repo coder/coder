@@ -123,9 +123,7 @@ export const DeleteUserOverride: Story = {
 		const dialog = await body.findByRole("dialog");
 		await expect(dialog).toBeInTheDocument();
 		await expect(
-			body.getByText(
-				/Are you sure you want to delete this user limit override/i,
-			),
+			body.getByText(/Are you sure you want to delete this user override/i),
 		).toBeInTheDocument();
 	},
 };

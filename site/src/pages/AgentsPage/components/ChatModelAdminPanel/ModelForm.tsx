@@ -9,14 +9,6 @@ import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
@@ -41,6 +33,7 @@ import {
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
@@ -646,37 +639,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</div>
 			</form>
 			{editingModel && onDeleteModel && (
-				<Dialog
+				<ConfirmDeleteDialog
+					entity="model"
+					onConfirm={() => void onDeleteModel(editingModel.id)}
+					isPending={isDeleting}
 					open={confirmingDelete}
 					onOpenChange={(open) => !open && setConfirmingDelete(false)}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete model</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete this model? This action is
-								irreversible.
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setConfirmingDelete(false)}
-								disabled={isDeleting}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={() => void onDeleteModel(editingModel.id)}
-								disabled={isDeleting}
-							>
-								{isDeleting && <Spinner className="h-4 w-4" loading />}
-								Delete model
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				/>
 			)}{" "}
 		</div>
 	);
