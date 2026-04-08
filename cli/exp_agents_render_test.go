@@ -146,7 +146,7 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 			},
 			{
-				name: "MergesToolCallsWithLaterResultsByToolID",
+				name: "KeepsToolCallsAndLaterResultsSeparateByToolID",
 				messages: []codersdk.ChatMessage{
 					{
 						Role: codersdk.ChatMessageRoleAssistant,
@@ -167,17 +167,17 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
-					require.Len(t, blocks, 3)
-					require.Equal(t, chatBlock{
-						kind:     blockToolResult,
-						role:     codersdk.ChatMessageRoleTool,
-						toolName: "github__get_pull_request",
-						toolID:   "call-1",
-						args:     `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`,
-						result:   `{"base":{"ref":"main"}}`,
-					}, blocks[0])
+					require.Len(t, blocks, 6)
+					require.Equal(t, blockToolCall, blocks[0].kind)
+					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`, blocks[0].args)
+					require.Equal(t, blockToolCall, blocks[1].kind)
 					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58037}`, blocks[1].args)
+					require.Equal(t, blockToolCall, blocks[2].kind)
 					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58038}`, blocks[2].args)
+					require.Equal(t, blockToolResult, blocks[3].kind)
+					require.Equal(t, `{"base":{"ref":"main"}}`, blocks[3].result)
+					require.Equal(t, blockToolResult, blocks[4].kind)
+					require.Equal(t, blockToolResult, blocks[5].kind)
 				},
 			},
 			{
@@ -379,6 +379,19 @@ func TestExpAgentsRender(t *testing.T) {
 				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", args: `{"path":"main.go"}`},
 				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "still thinking"},
 				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", result: `{"content":"hello"}`},
+			}
+
+			merged := mergeConsecutiveToolBlocks(blocks)
+			require.Equal(t, blocks, merged)
+		})
+
+		t.Run("DoesNotMergeNonAdjacentMatchingToolID", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-1", args: `{"path":"main.go"}`},
+				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "still thinking"},
+				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-1", result: `{"content":"hello"}`},
 			}
 
 			merged := mergeConsecutiveToolBlocks(blocks)

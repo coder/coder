@@ -620,52 +620,28 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 	if len(blocks) < 2 {
 		return blocks
 	}
-	callByToolID := make(map[string]struct{}, len(blocks))
-	resultByToolID := make(map[string]chatBlock, len(blocks))
-	for i := range blocks {
-		block := blocks[i]
-		switch {
-		case block.kind == blockToolCall && block.toolID != "":
-			callByToolID[block.toolID] = struct{}{}
-		case block.kind == blockToolResult && block.toolID != "":
-			resultByToolID[block.toolID] = block
-		}
-	}
+
 	merged := make([]chatBlock, 0, len(blocks))
-	for i := range blocks {
+	for i := 0; i < len(blocks); i++ {
 		block := blocks[i]
-		switch {
-		case block.kind == blockToolCall && block.toolID != "":
-			if result, ok := resultByToolID[block.toolID]; ok {
-				merged = append(merged, mergeToolResult(block, result))
-				continue
-			}
-		case block.kind == blockToolResult && block.toolID != "":
-			if _, ok := callByToolID[block.toolID]; ok {
-				continue
+		if i+1 < len(blocks) {
+			next := blocks[i+1]
+			if block.kind == blockToolCall && next.kind == blockToolResult {
+				switch {
+				case block.toolID != "" && block.toolID == next.toolID:
+					merged = append(merged, mergeToolResult(block, next))
+					i++
+					continue
+				case block.toolID == "" && next.toolID == "" && block.toolName == next.toolName:
+					merged = append(merged, mergeToolResult(block, next))
+					i++
+					continue
+				}
 			}
 		}
 		merged = append(merged, block)
 	}
-	if len(merged) < 2 {
-		return merged
-	}
-	fallbackMerged := make([]chatBlock, 0, len(merged))
-	for i := 0; i < len(merged); i++ {
-		block := merged[i]
-		if i+1 < len(merged) {
-			next := merged[i+1]
-			if block.kind == blockToolCall && block.toolID == "" &&
-				next.kind == blockToolResult && next.toolID == "" &&
-				block.toolName == next.toolName {
-				fallbackMerged = append(fallbackMerged, mergeToolResult(block, next))
-				i++
-				continue
-			}
-		}
-		fallbackMerged = append(fallbackMerged, block)
-	}
-	return fallbackMerged
+	return merged
 }
 
 //nolint:revive // Signature keeps block expansion state explicit at the callsite.

@@ -165,6 +165,48 @@ func modelOverrideUUID(modelOverride *string) *uuid.UUID {
 	return &modelConfigID
 }
 
+func canonicalChatModelID(provider, model string) string {
+	return strings.ToLower(strings.TrimSpace(provider)) + ":" + strings.TrimSpace(model)
+}
+
+func normalizeChatModelOverride(modelOverride string) string {
+	modelOverride = strings.TrimSpace(modelOverride)
+	provider, model, ok := strings.Cut(modelOverride, "/")
+	if ok {
+		return canonicalChatModelID(provider, model)
+	}
+	provider, model, ok = strings.Cut(modelOverride, ":")
+	if ok {
+		return canonicalChatModelID(provider, model)
+	}
+	return modelOverride
+}
+
+func resolveModelConfigID(ctx context.Context, client *codersdk.ExperimentalClient, modelOverride *string) (*uuid.UUID, error) {
+	if modelOverride == nil {
+		return nil, xerrors.New("model override is required")
+	}
+	if modelConfigID := modelOverrideUUID(modelOverride); modelConfigID != nil {
+		return modelConfigID, nil
+	}
+
+	configs, err := client.ListChatModelConfigs(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("list chat model configs: %w", err)
+	}
+
+	canonicalOverride := normalizeChatModelOverride(*modelOverride)
+	for _, config := range configs {
+		if canonicalChatModelID(config.Provider, config.Model) != canonicalOverride {
+			continue
+		}
+		modelConfigID := config.ID
+		return &modelConfigID, nil
+	}
+
+	return nil, xerrors.Errorf("resolve model config ID for %q: no matching enabled model config", *modelOverride)
+}
+
 func newChatViewModel(
 	ctx context.Context,
 	client *codersdk.ExperimentalClient,
@@ -318,14 +360,14 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 			ModelConfigID: modelConfigID,
 		}
 		m.creatingChat = true
-		return m, createChatCmd(m.ctx, m.client, req, m.chatGeneration)
+		return m, createChatCmd(m.ctx, m.client, req, m.modelOverride, m.chatGeneration)
 	}
 
 	req := codersdk.CreateChatMessageRequest{
 		Content:       content,
 		ModelConfigID: modelConfigID,
 	}
-	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req, m.chatGeneration)
+	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req, m.modelOverride, m.chatGeneration)
 }
 
 // startStream opens a streaming connection from the latest known message ID.

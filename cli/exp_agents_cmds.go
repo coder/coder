@@ -105,14 +105,32 @@ func loadChatHistoryCmd(ctx context.Context, client *codersdk.ExperimentalClient
 	})
 }
 
-func createChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, req codersdk.CreateChatRequest, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.Chat, error) { return client.CreateChat(ctx, req) }, func(chat codersdk.Chat, err error) tea.Msg {
+func createChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, req codersdk.CreateChatRequest, modelOverride *string, generation uint64) tea.Cmd {
+	return apiCmd(func() (codersdk.Chat, error) {
+		if req.ModelConfigID == nil && modelOverride != nil {
+			modelConfigID, err := resolveModelConfigID(ctx, client, modelOverride)
+			if err != nil {
+				return codersdk.Chat{}, err
+			}
+			req.ModelConfigID = modelConfigID
+		}
+		return client.CreateChat(ctx, req)
+	}, func(chat codersdk.Chat, err error) tea.Msg {
 		return chatCreatedMsg{generation: generation, chatID: chat.ID, chat: chat, err: err}
 	})
 }
 
-func sendMessageCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, req codersdk.CreateChatMessageRequest, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.CreateChatMessageResponse, error) { return client.CreateChatMessage(ctx, chatID, req) }, func(resp codersdk.CreateChatMessageResponse, err error) tea.Msg {
+func sendMessageCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, req codersdk.CreateChatMessageRequest, modelOverride *string, generation uint64) tea.Cmd {
+	return apiCmd(func() (codersdk.CreateChatMessageResponse, error) {
+		if req.ModelConfigID == nil && modelOverride != nil {
+			modelConfigID, err := resolveModelConfigID(ctx, client, modelOverride)
+			if err != nil {
+				return codersdk.CreateChatMessageResponse{}, err
+			}
+			req.ModelConfigID = modelConfigID
+		}
+		return client.CreateChatMessage(ctx, chatID, req)
+	}, func(resp codersdk.CreateChatMessageResponse, err error) tea.Msg {
 		return messageSentMsg{generation: generation, chatID: chatID, resp: resp, err: err}
 	})
 }

@@ -1808,6 +1808,102 @@ func TestExpAgents(t *testing.T) {
 		require.Empty(t, updated.composer.Value())
 	})
 
+	t.Run("ChatView/ModelOverrideMapsCanonicalModelIDForDraftCreate", func(t *testing.T) {
+		t.Parallel()
+
+		modelConfigID := uuid.New()
+		createdChat := testChat(codersdk.ChatStatusWaiting)
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/experimental/chats/model-configs":
+				require.NoError(t, json.NewEncoder(rw).Encode([]codersdk.ChatModelConfig{{
+					ID:       modelConfigID,
+					Provider: "provider",
+					Model:    "model",
+				}}))
+			case req.Method == http.MethodPost && req.URL.Path == "/api/experimental/chats":
+				var createReq codersdk.CreateChatRequest
+				require.NoError(t, json.NewDecoder(req.Body).Decode(&createReq))
+				require.NotNil(t, createReq.ModelConfigID)
+				require.Equal(t, modelConfigID, *createReq.ModelConfigID)
+				rw.WriteHeader(http.StatusCreated)
+				require.NoError(t, json.NewEncoder(rw).Encode(createdChat))
+			default:
+				t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+			}
+		}))
+		defer server.Close()
+
+		serverURL, err := url.Parse(server.URL)
+		require.NoError(t, err)
+
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+		model := newTestChatViewModel(client)
+		model.draft = true
+		model.loading = false
+		modelOverride := "provider:model"
+		model.modelOverride = &modelOverride
+		model.composer.SetValue("hello")
+
+		updated, cmd := model.sendMessage()
+		require.NotNil(t, cmd)
+		require.Empty(t, updated.composer.Value())
+
+		msg, ok := mustMsg(t, cmd).(chatCreatedMsg)
+		require.True(t, ok)
+		require.NoError(t, msg.err)
+		require.Equal(t, createdChat.ID, msg.chat.ID)
+	})
+
+	t.Run("ChatView/ModelOverrideMapsCanonicalModelIDForSendMessage", func(t *testing.T) {
+		t.Parallel()
+
+		modelConfigID := uuid.New()
+		chat := testChat(codersdk.ChatStatusCompleted)
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			wantPath := fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID)
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/experimental/chats/model-configs":
+				require.NoError(t, json.NewEncoder(rw).Encode([]codersdk.ChatModelConfig{{
+					ID:       modelConfigID,
+					Provider: "provider",
+					Model:    "model",
+				}}))
+			case req.Method == http.MethodPost && req.URL.Path == wantPath:
+				var messageReq codersdk.CreateChatMessageRequest
+				require.NoError(t, json.NewDecoder(req.Body).Decode(&messageReq))
+				require.NotNil(t, messageReq.ModelConfigID)
+				require.Equal(t, modelConfigID, *messageReq.ModelConfigID)
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.CreateChatMessageResponse{}))
+			default:
+				t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+			}
+		}))
+		defer server.Close()
+
+		serverURL, err := url.Parse(server.URL)
+		require.NoError(t, err)
+
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+		model := newTestChatViewModel(client)
+		model.chat = &chat
+		model.chatStatus = chat.Status
+		model.loading = false
+		modelOverride := "provider:model"
+		model.modelOverride = &modelOverride
+		model.composer.SetValue("hello")
+
+		updated, cmd := model.sendMessage()
+		require.NotNil(t, cmd)
+		require.Empty(t, updated.composer.Value())
+
+		msg, ok := mustMsg(t, cmd).(messageSentMsg)
+		require.True(t, ok)
+		require.NoError(t, msg.err)
+	})
+
 	t.Run("ChatView/DraftPromotion", func(t *testing.T) {
 		t.Parallel()
 
