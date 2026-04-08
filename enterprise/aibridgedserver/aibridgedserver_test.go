@@ -556,14 +556,15 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse interception initiator UUID")
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
-						ID:           interceptionID,
-						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID:  initiatorID,
-						Provider:     "copilot",
-						ProviderName: "copilot-business",
-						Model:        req.GetModel(),
-						Metadata:     json.RawMessage("{}"),
-						StartedAt:    req.StartedAt.AsTime().UTC(),
+						ID:             interceptionID,
+						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:    initiatorID,
+						Provider:       "copilot",
+						ProviderName:   "copilot-business",
+						Model:          req.GetModel(),
+						Metadata:       json.RawMessage("{}"),
+						StartedAt:      req.StartedAt.AsTime().UTC(),
+						CredentialKind: database.CredentialKindCentralized,
 					}).Return(database.AIBridgeInterception{
 						ID:           interceptionID,
 						InitiatorID:  initiatorID,
@@ -591,14 +592,15 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse interception initiator UUID")
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
-						ID:           interceptionID,
-						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID:  initiatorID,
-						Provider:     "copilot",
-						ProviderName: "copilot",
-						Model:        req.GetModel(),
-						Metadata:     json.RawMessage("{}"),
-						StartedAt:    req.StartedAt.AsTime().UTC(),
+						ID:             interceptionID,
+						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:    initiatorID,
+						Provider:       "copilot",
+						ProviderName:   "copilot",
+						Model:          req.GetModel(),
+						Metadata:       json.RawMessage("{}"),
+						StartedAt:      req.StartedAt.AsTime().UTC(),
+						CredentialKind: database.CredentialKindCentralized,
 					}).Return(database.AIBridgeInterception{
 						ID:           interceptionID,
 						InitiatorID:  initiatorID,
@@ -627,14 +629,15 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse interception initiator UUID")
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
-						ID:           interceptionID,
-						APIKeyID:     sql.NullString{String: req.ApiKeyId, Valid: true},
-						InitiatorID:  initiatorID,
-						Provider:     "copilot",
-						ProviderName: "copilot",
-						Model:        req.GetModel(),
-						Metadata:     json.RawMessage("{}"),
-						StartedAt:    req.StartedAt.AsTime().UTC(),
+						ID:             interceptionID,
+						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:    initiatorID,
+						Provider:       "copilot",
+						ProviderName:   "copilot",
+						Model:          req.GetModel(),
+						Metadata:       json.RawMessage("{}"),
+						StartedAt:      req.StartedAt.AsTime().UTC(),
+						CredentialKind: database.CredentialKindCentralized,
 					}).Return(database.AIBridgeInterception{
 						ID:           interceptionID,
 						InitiatorID:  initiatorID,
