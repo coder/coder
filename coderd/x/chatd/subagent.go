@@ -609,13 +609,7 @@ func copyParentContextMessages(
 			continue
 		}
 
-		var messageContextParts []codersdk.ChatMessagePart
-		for _, part := range parts {
-			if part.Type != codersdk.ChatMessagePartTypeContextFile && part.Type != codersdk.ChatMessagePartTypeSkill {
-				continue
-			}
-			messageContextParts = append(messageContextParts, part)
-		}
+		messageContextParts := FilterContextParts(parts, true)
 		if len(messageContextParts) == 0 {
 			continue
 		}
@@ -651,34 +645,13 @@ func updateChildLastInjectedContext(
 	chatID uuid.UUID,
 	parts []codersdk.ChatMessagePart,
 ) error {
-	param := pqtype.NullRawMessage{Valid: false}
-	if parts != nil {
-		var stripped []codersdk.ChatMessagePart
-		for _, part := range parts {
-			switch part.Type {
-			case codersdk.ChatMessagePartTypeContextFile:
-				if part.ContextFileContent == "" {
-					continue
-				}
-			case codersdk.ChatMessagePartTypeSkill:
-			default:
-				continue
-			}
-			cp := part
-			cp.StripInternal()
-			stripped = append(stripped, cp)
-		}
-		if stripped != nil {
-			raw, err := json.Marshal(stripped)
-			if err != nil {
-				logger.Warn(ctx, "failed to marshal inherited injected context",
-					slog.F("chat_id", chatID),
-					slog.Error(err),
-				)
-				return xerrors.Errorf("marshal inherited injected context: %w", err)
-			}
-			param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
-		}
+	param, err := BuildLastInjectedContext(parts)
+	if err != nil {
+		logger.Warn(ctx, "failed to marshal inherited injected context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return xerrors.Errorf("marshal inherited injected context: %w", err)
 	}
 	if _, err := store.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
 		ID:                  chatID,
