@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/serpent"
 )
 
@@ -89,11 +91,11 @@ func main() {
 				Handler: func(inv *serpent.Invocation) error {
 					newVer, ok := parseVersion(versionFlag)
 					if !ok {
-						return fmt.Errorf("invalid version %q", versionFlag)
+						return xerrors.Errorf("invalid version %q", versionFlag)
 					}
 					prevVer, ok := parseVersion(prevVersionFlag)
 					if !ok {
-						return fmt.Errorf("invalid previous version %q", prevVersionFlag)
+						return xerrors.Errorf("invalid previous version %q", prevVersionFlag)
 					}
 					notes, err := generateReleaseNotes(newVer, prevVer, channelFlag)
 					if err != nil {
@@ -125,7 +127,7 @@ func main() {
 				Handler: func(inv *serpent.Invocation) error {
 					ver, ok := parseVersion(versionFlag)
 					if !ok {
-						return fmt.Errorf("invalid version %q", versionFlag)
+						return xerrors.Errorf("invalid version %q", versionFlag)
 					}
 					changed, err := updateReleaseDocs(ver, channelFlag)
 					if err != nil {
