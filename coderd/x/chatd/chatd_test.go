@@ -1019,7 +1019,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	require.Len(t, afterChats, len(beforeChats))
 }
 
-func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing.T) {
+func TestPromoteQueuedRejectsWhenAccountLimitReached(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)

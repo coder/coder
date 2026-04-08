@@ -364,13 +364,16 @@ type ChatInputPart struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content          []ChatInputPart   `json:"content"`
-	SystemPrompt     string            `json:"system_prompt,omitempty"`
-	WorkspaceID      *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID    *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs     []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels           map[string]string `json:"labels,omitempty"`
-	SpendLimitMicros *int64            `json:"spend_limit_micros,omitempty"`
+	Content       []ChatInputPart   `json:"content"`
+	SystemPrompt  string            `json:"system_prompt,omitempty"`
+	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	// SpendLimitMicros is the lifetime spend limit in micros for this
+	// chat tree (root plus all subagent descendants), or nil for no
+	// limit. Must be greater than zero when set.
+	SpendLimitMicros *int64 `json:"spend_limit_micros,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -1083,6 +1086,12 @@ type ChatCostUsersResponse struct {
 // chat operation exceeds the caller's usage limit. The structured fields let
 // frontends render user-friendly spend, limit, and reset information without
 // parsing debug text.
+//
+// Scope determines which limit was hit:
+//   - "account_period": the user's account-level periodic budget. ResetsAt
+//     is always populated with the period boundary.
+//   - "chat_lifetime": the root chat's lifetime spend cap. ResetsAt is
+//     always nil because the limit does not reset.
 type ChatUsageLimitExceededResponse struct {
 	Response
 	Scope       string     `json:"scope"`
@@ -1134,7 +1143,8 @@ func readBodyAsChatUsageLimitError(res *http.Response) error {
 }
 
 func isChatUsageLimitExceededResponse(resp ChatUsageLimitExceededResponse) bool {
-	return resp.Message != "" && resp.Scope != ""
+	return resp.Message != "" &&
+		(resp.Scope == "account_period" || resp.Scope == "chat_lifetime")
 }
 
 func readRawBodyAsError(res *http.Response, rawBody []byte) error {

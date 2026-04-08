@@ -749,7 +749,8 @@ func formatMicrosAsDollars(micros int64) string {
 
 func (e *UsageLimitExceededError) Error() string {
 	msg := fmt.Sprintf(
-		"usage limit exceeded: spent %s of %s limit",
+		"usage limit exceeded (scope: %s): spent %s of %s limit",
+		e.Scope,
 		formatMicrosAsDollars(e.ConsumedMicros),
 		formatMicrosAsDollars(e.LimitMicros),
 	)
@@ -1156,9 +1157,12 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-// checkChatTreeSpendLimit resolves the root chat's lifetime spend limit
-// and checks whether the tree's total spend has reached or exceeded it.
-// It fails open (allows the message) on any lookup error.
+// checkChatTreeSpendLimit enforces the root chat's lifetime spend
+// cap against the cumulative cost of all messages in the chat tree.
+// It fails open: if the root chat or tree spend total cannot be
+// resolved, the message is allowed and a warning is logged. This
+// matches the account-period limit's fail-open behavior and avoids
+// blocking users when the database is temporarily degraded.
 func (p *Server) checkChatTreeSpendLimit(ctx context.Context, store database.Store, chat database.Chat) error {
 	// Resolve root chat ID: prefer RootChatID, then ParentChatID, then own ID.
 	rootChatID := chat.ID
@@ -1189,6 +1193,16 @@ func (p *Server) checkChatTreeSpendLimit(ctx context.Context, store database.Sto
 			return nil
 		}
 		limitMicros = rootChat.SpendLimitMicros.Int64
+	}
+
+	if limitMicros <= 0 {
+		// Should never happen due to CHECK constraint, but fail open
+		// to avoid blocking users on data corruption.
+		p.logger.Warn(ctx, "chat tree spend limit is non-positive, allowing message",
+			slog.F("root_chat_id", rootChatID),
+			slog.F("limit_micros", limitMicros),
+		)
+		return nil
 	}
 
 	spent, err := store.GetChatTreeSpendTotal(ctx, rootChatID)

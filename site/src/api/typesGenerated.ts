@@ -2146,6 +2146,12 @@ export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
  * chat operation exceeds the caller's usage limit. The structured fields let
  * frontends render user-friendly spend, limit, and reset information without
  * parsing debug text.
+ *
+ * Scope determines which limit was hit:
+ *   - "account_period": the user's account-level periodic budget. ResetsAt
+ *     is always populated with the period boundary.
+ *   - "chat_lifetime": the root chat's lifetime spend cap. ResetsAt is
+ *     always nil because the limit does not reset.
  */
 export interface ChatUsageLimitExceededResponse extends Response {
 	readonly scope: string;
@@ -2416,6 +2422,11 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	/**
+	 * SpendLimitMicros is the lifetime spend limit in micros for this
+	 * chat tree (root plus all subagent descendants), or nil for no
+	 * limit. Must be greater than zero when set.
+	 */
 	readonly spend_limit_micros?: number;
 }
 
