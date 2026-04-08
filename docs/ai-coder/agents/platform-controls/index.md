@@ -103,10 +103,6 @@ It requires:
 - An Anthropic provider to be configured (computer use is an Anthropic
   capability).
 
-> [!NOTE]
-> Virtual desktop is a work-in-progress feature. You may encounter bugs
-> when enabling it.
-
 ### Workspace autostop fallback
 
 Administrators can set a default autostop timer for agent-created workspaces
