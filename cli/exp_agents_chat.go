@@ -104,6 +104,10 @@ type chatViewModel struct {
 	blocks              []chatBlock
 	loading             bool
 	err                 error
+	metadataResolved    bool
+	historyResolved     bool
+	metadataErr         error
+	historyErr          error
 	draft               bool
 	composer            textinput.Model
 	viewport            viewport.Model
@@ -120,6 +124,7 @@ type chatViewModel struct {
 	workspaceID         *uuid.UUID
 	modelOverride       *uuid.UUID
 	activeChatID        uuid.UUID
+	chatGeneration      uint64
 	intentionalClose    bool
 	creatingChat        bool
 	pendingComposerText string
@@ -164,18 +169,20 @@ func newChatViewModel(
 	s.Spinner = spinner.Dot
 
 	model := chatViewModel{
-		ctx:             ctx,
-		client:          client,
-		workspaceID:     workspaceID,
-		modelOverride:   modelOverride,
-		styles:          styles,
-		loading:         true,
-		composerFocused: true,
-		expandedBlocks:  make(map[int]bool),
-		autoFollow:      true,
-		composer:        composer,
-		viewport:        viewport.New(0, 0),
-		spinner:         s,
+		ctx:              ctx,
+		client:           client,
+		workspaceID:      workspaceID,
+		modelOverride:    modelOverride,
+		styles:           styles,
+		loading:          false,
+		metadataResolved: true,
+		historyResolved:  true,
+		composerFocused:  true,
+		expandedBlocks:   make(map[int]bool),
+		autoFollow:       true,
+		composer:         composer,
+		viewport:         viewport.New(0, 0),
+		spinner:          s,
 	}
 	model.setComposerWidth()
 	return model
@@ -183,6 +190,24 @@ func newChatViewModel(
 
 func (m *chatViewModel) setComposerWidth() {
 	m.composer.Width = max(10, m.width-4)
+}
+
+// combinedError returns the first non-nil error from the
+// open/history resolution pair.
+func (m chatViewModel) combinedError() error {
+	if m.metadataErr != nil {
+		return m.metadataErr
+	}
+	return m.historyErr
+}
+
+// restorePendingComposerIfEmpty restores pending text to the
+// composer only when the user has not typed new input since the
+// original send was dispatched.
+func (m *chatViewModel) restorePendingComposerIfEmpty() {
+	if m.pendingComposerText != "" && m.composer.Value() == "" {
+		m.composer.SetValue(m.pendingComposerText)
+	}
 }
 
 func (m *chatViewModel) stopStream() {
@@ -195,13 +220,18 @@ func (m *chatViewModel) stopStream() {
 	}
 }
 
-// matchesActiveChat returns true when chatID matches the current active
-// chat, or when activeChatID is nil (permissive fallback for new drafts).
-func (m chatViewModel) matchesActiveChat(chatID uuid.UUID) bool {
-	return m.activeChatID == uuid.Nil || m.activeChatID == chatID
+// matchesGeneration returns true when the generation embedded in an
+// async message matches the current chat session generation. This
+// prevents stale results from previous sessions (including drafts)
+// from mutating the active view.
+func (m chatViewModel) matchesGeneration(gen uint64) bool {
+	return m.chatGeneration == gen
 }
 
 func (m *chatViewModel) setChat(chat codersdk.Chat) {
+	if m.chatGeneration == 0 {
+		m.chatGeneration = 1
+	}
 	m.chat = &chat
 	m.activeChatID = chat.ID
 	m.chatStatus = chat.Status
@@ -238,6 +268,9 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 	if text == "" {
 		return m, nil
 	}
+	if m.loading {
+		return m, nil
+	}
 	if m.draft && m.creatingChat {
 		return m, nil
 	}
@@ -256,7 +289,7 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 			ModelConfigID: m.modelOverride,
 		}
 		m.creatingChat = true
-		return m, createChatCmd(m.ctx, m.client, req)
+		return m, createChatCmd(m.ctx, m.client, req, m.chatGeneration)
 	}
 
 	if m.chat == nil {
@@ -267,7 +300,7 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 		Content:       content,
 		ModelConfigID: m.modelOverride,
 	}
-	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req)
+	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req, m.chatGeneration)
 }
 
 // startStream opens a streaming connection from the latest known message ID.
@@ -293,7 +326,7 @@ func (m chatViewModel) startStream() (chatViewModel, tea.Cmd) {
 	m.streamEventCh = eventCh
 	m.reconnecting = false
 	(&m).syncViewportContent()
-	return m, listenToStream(m.activeChatID, m.streamEventCh)
+	return m, listenToStream(m.activeChatID, m.chatGeneration, m.streamEventCh)
 }
 
 // rebuildBlocks merges persisted messages + accumulator into renderable blocks.
@@ -525,7 +558,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		case tea.KeyCtrlI:
 			if m.isInterruptible() && !m.interrupting && m.chat != nil {
 				m.interrupting = true
-				return m, interruptChatCmd(m.ctx, m.client, m.chat.ID)
+				return m, interruptChatCmd(m.ctx, m.client, m.chat.ID, m.chatGeneration)
 			}
 			return m, nil
 		}
@@ -564,57 +597,61 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, nil
 
 	case chatOpenedMsg:
-		if !m.matchesActiveChat(msg.chatID) {
+		if !m.matchesGeneration(msg.generation) {
 			return m, nil
 		}
+		m.metadataResolved = true
 		if msg.err != nil {
-			m.err = msg.err
-			m.loading = false
-			return m, nil
+			m.metadataErr = msg.err
+		} else {
+			m.metadataErr = nil
+			chat := msg.chat
+			m.setChat(chat)
 		}
-		chat := msg.chat
-		m.setChat(chat)
-		m.err = nil
-		m.loading = false
-		if len(m.messages) > 0 && !m.streaming {
+		m.err = m.combinedError()
+		m.loading = !m.metadataResolved || !m.historyResolved
+		if !m.loading && m.err == nil && len(m.messages) > 0 && !m.streaming {
 			updated, cmd := m.startStream()
 			return updated, startSpinner(updated, cmd)
 		}
 		return m, startSpinner(m, nil)
 
 	case chatHistoryMsg:
-		if !m.matchesActiveChat(msg.chatID) {
+		if !m.matchesGeneration(msg.generation) {
 			return m, nil
 		}
+		m.historyResolved = true
 		if msg.err != nil {
-			m.err = msg.err
-			m.loading = false
-			return m, nil
-		}
-		m.err = nil
-		m.messages = msg.messages
-		for i := len(m.messages) - 1; i >= 0; i-- {
-			if m.messages[i].Usage != nil {
-				m.lastUsage = m.messages[i].Usage
-				break
+			m.historyErr = msg.err
+		} else {
+			m.historyErr = nil
+			m.messages = msg.messages
+			m.lastUsage = nil
+			for i := len(m.messages) - 1; i >= 0; i-- {
+				if m.messages[i].Usage != nil {
+					m.lastUsage = m.messages[i].Usage
+					break
+				}
 			}
+			m.autoFollow = true
+			m.rebuildBlocks()
 		}
-		m.autoFollow = true
-		m.rebuildBlocks()
-		m.loading = false
-		if m.chat != nil && !m.streaming {
+		m.err = m.combinedError()
+		m.loading = !m.metadataResolved || !m.historyResolved
+		if !m.loading && m.err == nil && m.chat != nil && !m.streaming {
 			updated, cmd := m.startStream()
 			return updated, startSpinner(updated, cmd)
 		}
 		return m, startSpinner(m, nil)
 
 	case chatCreatedMsg:
+		if !m.matchesGeneration(msg.generation) {
+			return m, nil
+		}
 		m.creatingChat = false
 		if msg.err != nil {
 			m.err = msg.err
-			if m.pendingComposerText != "" {
-				m.composer.SetValue(m.pendingComposerText)
-			}
+			m.restorePendingComposerIfEmpty()
 			return m, nil
 		}
 		chat := msg.chat
@@ -626,11 +663,12 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return updated, startSpinner(updated, cmd)
 
 	case messageSentMsg:
+		if !m.matchesGeneration(msg.generation) {
+			return m, nil
+		}
 		if msg.err != nil {
 			m.err = msg.err
-			if m.pendingComposerText != "" {
-				m.composer.SetValue(m.pendingComposerText)
-			}
+			m.restorePendingComposerIfEmpty()
 			return m, nil
 		}
 		m.pendingComposerText = ""
@@ -644,6 +682,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, startSpinner(m, nil)
 
 	case chatInterruptedMsg:
+		if !m.matchesGeneration(msg.generation) {
+			return m, nil
+		}
 		m.interrupting = false
 		if msg.err != nil {
 			m.err = msg.err
@@ -656,7 +697,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, startSpinner(m, nil)
 
 	case chatStreamEventMsg:
-		if !m.matchesActiveChat(msg.chatID) {
+		if !m.matchesGeneration(msg.generation) {
 			return m, nil
 		}
 		if msg.err != nil {
@@ -700,7 +741,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, nil
 
 	case gitChangesMsg:
-		if !m.matchesActiveChat(msg.chatID) {
+		if !m.matchesGeneration(msg.generation) {
 			return m, nil
 		}
 		if msg.err != nil {
@@ -711,7 +752,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, nil
 
 	case diffContentsMsg:
-		if !m.matchesActiveChat(msg.chatID) {
+		if !m.matchesGeneration(msg.generation) {
 			return m, nil
 		}
 		if msg.err != nil {
@@ -770,7 +811,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 	}
 
 	if m.streaming && m.streamEventCh != nil {
-		return m, listenToStream(m.activeChatID, m.streamEventCh)
+		return m, listenToStream(m.activeChatID, m.chatGeneration, m.streamEventCh)
 	}
 	return m, nil
 }

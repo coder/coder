@@ -27,20 +27,21 @@ const (
 type terminateTUIMsg struct{}
 
 type expChatsTUIModel struct {
-	ctx           context.Context
-	client        *codersdk.ExperimentalClient
-	styles        tuiStyles
-	currentView   tuiView
-	overlay       tuiOverlay
-	list          chatListModel
-	chat          chatViewModel
-	initialChatID *uuid.UUID
-	workspaceID   *uuid.UUID
-	modelOverride *uuid.UUID
-	catalog       *codersdk.ChatModelsResponse
-	quitting      bool
-	width         int
-	height        int
+	ctx            context.Context
+	client         *codersdk.ExperimentalClient
+	styles         tuiStyles
+	currentView    tuiView
+	overlay        tuiOverlay
+	list           chatListModel
+	chat           chatViewModel
+	initialChatID  *uuid.UUID
+	workspaceID    *uuid.UUID
+	modelOverride  *uuid.UUID
+	chatGeneration uint64
+	catalog        *codersdk.ChatModelsResponse
+	quitting       bool
+	width          int
+	height         int
 }
 
 func newExpChatsTUIModel(
@@ -57,22 +58,45 @@ func newExpChatsTUIModel(
 	}
 
 	chat := newChatViewModel(ctx, client, workspaceID, modelOverride, styles)
+	chatGeneration := uint64(0)
 	if initialChatID != nil {
 		chat.activeChatID = *initialChatID
+		chat.chatGeneration = 1
+		chat.loading = true
+		chat.metadataResolved = false
+		chat.historyResolved = false
+		chatGeneration = 1
 	}
 
 	return expChatsTUIModel{
-		ctx:           ctx,
-		client:        client,
-		styles:        styles,
-		currentView:   currentView,
-		overlay:       overlayNone,
-		list:          newChatListModel(styles),
-		chat:          chat,
-		initialChatID: initialChatID,
-		workspaceID:   workspaceID,
-		modelOverride: modelOverride,
+		ctx:            ctx,
+		client:         client,
+		styles:         styles,
+		currentView:    currentView,
+		overlay:        overlayNone,
+		list:           newChatListModel(styles),
+		chat:           chat,
+		initialChatID:  initialChatID,
+		workspaceID:    workspaceID,
+		modelOverride:  modelOverride,
+		chatGeneration: chatGeneration,
 	}
+}
+
+// resetChatSession creates a fresh chatViewModel, preserves the
+// window dimensions from the previous session, and advances
+// the monotonic generation counter so in-flight async messages
+// from the old session are ignored.
+func (m *expChatsTUIModel) resetChatSession() {
+	old := m.chat
+	m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
+	m.chat.width = old.width
+	m.chat.height = old.height
+	m.chat.loading = true
+	m.chat.metadataResolved = false
+	m.chat.historyResolved = false
+	m.chatGeneration++
+	m.chat.chatGeneration = m.chatGeneration
 }
 
 func (m expChatsTUIModel) Init() tea.Cmd {
@@ -80,8 +104,8 @@ func (m expChatsTUIModel) Init() tea.Cmd {
 		m.chat.activeChatID = *m.initialChatID
 		return tea.Batch(
 			m.chat.Init(),
-			openChatCmd(m.ctx, m.client, *m.initialChatID),
-			loadChatHistoryCmd(m.ctx, m.client, *m.initialChatID),
+			openChatCmd(m.ctx, m.client, *m.initialChatID, m.chat.chatGeneration),
+			loadChatHistoryCmd(m.ctx, m.client, *m.initialChatID, m.chat.chatGeneration),
 		)
 	}
 
@@ -166,27 +190,23 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openSelectedChatMsg:
 		m.currentView = viewChat
 		m.chat.stopStream()
-		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
+		m.resetChatSession()
 		m.chat.activeChatID = msg.chatID
 		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
-		m.chat.width = childMsg.Width
-		m.chat.height = childMsg.Height
 		m.chat, _ = m.chat.Update(childMsg)
 		return m, tea.Batch(
 			m.chat.Init(),
-			openChatCmd(m.ctx, m.client, msg.chatID),
-			loadChatHistoryCmd(m.ctx, m.client, msg.chatID),
+			openChatCmd(m.ctx, m.client, msg.chatID, m.chat.chatGeneration),
+			loadChatHistoryCmd(m.ctx, m.client, msg.chatID, m.chat.chatGeneration),
 		)
 
 	case openDraftChatMsg:
 		m.currentView = viewChat
 		m.chat.stopStream()
-		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
+		m.resetChatSession()
 		m.chat.draft = true
 		m.chat.loading = false
 		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
-		m.chat.width = childMsg.Width
-		m.chat.height = childMsg.Height
 		m.chat, _ = m.chat.Update(childMsg)
 		return m, nil
 
@@ -213,8 +233,8 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.chat.diffErr = nil
 				chatID := m.chat.chat.ID
 				return m, tea.Batch(
-					loadGitChangesCmd(m.ctx, m.client, chatID),
-					loadDiffContentsCmd(m.ctx, m.client, chatID),
+					loadGitChangesCmd(m.ctx, m.client, chatID, m.chat.chatGeneration),
+					loadDiffContentsCmd(m.ctx, m.client, chatID, m.chat.chatGeneration),
 				)
 			}
 		}
