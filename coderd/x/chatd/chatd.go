@@ -108,9 +108,11 @@ const (
 	// cross-replica relay subscribers time to connect and
 	// snapshot the buffer before it is garbage-collected.
 	bufferRetainGracePeriod = 5 * time.Second
-	// chatStreamFetchTimeout bounds detached singleflight-backed
-	// DB reads when the caller context has no deadline.
-	chatStreamFetchTimeout = 5 * time.Second
+	// chatStreamControlFetchTimeout bounds detached control-path
+	// DB reads when the caller context has no deadline. History
+	// snapshots use a different helper because they may
+	// legitimately run longer than an arbitrary wall-clock cap.
+	chatStreamControlFetchTimeout = 5 * time.Second
 
 	// streamJanitorInterval is how often sweepIdleStreams runs.
 	// Worst-case retention is bufferRetainGracePeriod +
@@ -4270,18 +4272,35 @@ func cloneQueuedMessagesForStream(messages []database.ChatQueuedMessage) []datab
 	return cloned
 }
 
-// streamFetchContext detaches subscriber cancellation from a shared fetch while
-// preserving any existing deadline. When the caller has no deadline, it applies
-// a bounded timeout so the leader cannot run an unbounded DB query.
-func streamFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
+// streamHistoryFetchContext detaches subscriber cancellation from a shared
+// history fetch while preserving any real caller deadline. When the caller has
+// no deadline, it intentionally does not invent a shorter one because initial
+// and catch-up history scans may legitimately outlive an arbitrary wall-clock
+// timeout.
+func streamHistoryFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.WithTimeout(context.Background(), chatStreamFetchTimeout)
+		return context.Background(), func() {}
 	}
 	detached := context.WithoutCancel(ctx)
 	if deadline, ok := ctx.Deadline(); ok {
 		return context.WithDeadline(detached, deadline)
 	}
-	return context.WithTimeout(detached, chatStreamFetchTimeout)
+	return detached, func() {}
+}
+
+// streamControlFetchContext detaches subscriber cancellation from a small
+// control-path fetch while preserving any existing deadline. When the caller
+// has no deadline, it applies a bounded timeout so metadata queries cannot hang
+// indefinitely.
+func streamControlFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), chatStreamControlFetchTimeout)
+	}
+	detached := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(detached, deadline)
+	}
+	return context.WithTimeout(detached, chatStreamControlFetchTimeout)
 }
 
 // getStreamChatMessages loads durable chat messages for an already-authorized
@@ -4300,7 +4319,7 @@ func (p *Server) getStreamChatMessages(
 		&p.streamMessageFetches,
 		fmt.Sprintf("chat-messages:%s:after:%d", params.ChatID, params.AfterID),
 		func() ([]database.ChatMessage, error) {
-			fetchCtx, cancel := streamFetchContext(ctx)
+			fetchCtx, cancel := streamHistoryFetchContext(ctx)
 			defer cancel()
 			//nolint:gocritic // SubscribeAuthorized already validated the
 			// caller; the shared singleflight fetch runs as chatd so the
@@ -4330,7 +4349,7 @@ func (p *Server) getStreamQueuedMessages(
 		&p.streamQueueFetches,
 		fmt.Sprintf("chat-queue:%s", chatID),
 		func() ([]database.ChatQueuedMessage, error) {
-			fetchCtx, cancel := streamFetchContext(ctx)
+			fetchCtx, cancel := streamControlFetchContext(ctx)
 			defer cancel()
 			//nolint:gocritic // SubscribeAuthorized already validated the
 			// caller; the shared singleflight fetch runs as chatd so the
@@ -4392,7 +4411,9 @@ func (p *Server) Subscribe(
 }
 
 // SubscribeAuthorized subscribes an already-authorized chat to merged stream
-// updates.
+// updates. The passed chat row proves authorization, but SubscribeAuthorized
+// still reloads the chat after the stream subscriptions are armed so the
+// initial status and relay setup use fresh state.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
@@ -4485,6 +4506,26 @@ func (p *Server) SubscribeAuthorized(
 		}
 	}
 
+	// Re-read the chat after the local/pubsub subscriptions are active so
+	// the initial status event and any enterprise relay setup use fresh
+	// state instead of the middleware-loaded row.
+	refreshCtx, refreshCancel := streamControlFetchContext(ctx)
+	snapshotChat, err := func() (database.Chat, error) {
+		defer refreshCancel()
+		//nolint:gocritic // SubscribeAuthorized already validated the
+		// caller; this refresh only loads the latest status/worker for
+		// the already-authorized stream subscription.
+		return p.db.GetChatByID(dbauthz.AsChatd(refreshCtx), chatID)
+	}()
+	if err != nil {
+		p.logger.Error(ctx, "failed to refresh chat for stream subscription",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		cancel()
+		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+	}
+
 	// Build initial snapshot synchronously. The pubsub subscription
 	// is already active so no notifications can be lost during this
 	// window.
@@ -4564,7 +4605,7 @@ func (p *Server) SubscribeAuthorized(
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		ChatID: chatID,
 		Status: &codersdk.ChatStreamStatus{
-			Status: codersdk.ChatStatus(chat.Status),
+			Status: codersdk.ChatStatus(snapshotChat.Status),
 		},
 	}
 	// Prepend so the frontend sees the current stream phases
@@ -4593,7 +4634,7 @@ func (p *Server) SubscribeAuthorized(
 		statusNotifications = make(chan StatusNotification, 10)
 		relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
 			ChatID:              chatID,
-			Chat:                chat,
+			Chat:                snapshotChat,
 			WorkerID:            p.workerID,
 			StatusNotifications: statusNotifications,
 			RequestHeader:       requestHeader,

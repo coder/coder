@@ -433,8 +433,13 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 
 	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-snapshot")
+	staleChat := chat
+	staleChat.Status = database.ChatStatusWaiting
+	staleChat.WorkerID = uuid.NullUUID{}
+	staleChat.StartedAt = sql.NullTime{}
+	staleChat.HeartbeatAt = sql.NullTime{}
 
-	initialSnapshot, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	initialSnapshot, events, cancel, ok := subscriber.SubscribeAuthorized(ctx, staleChat, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -458,15 +463,15 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 
 	require.Equal(t, []string{"snap-one", "snap-two", "live-part"}, receivedTexts)
 
-	// The initial snapshot should still contain the status event
-	// from the OSS preamble.
-	var hasStatus bool
+	// The initial snapshot should contain the refreshed running status,
+	// not the stale waiting status passed into SubscribeAuthorized.
+	var snapshotStatus codersdk.ChatStatus
 	for _, event := range initialSnapshot {
-		if event.Type == codersdk.ChatStreamEventTypeStatus {
-			hasStatus = true
+		if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+			snapshotStatus = event.Status.Status
 		}
 	}
-	require.True(t, hasStatus, "initial snapshot should contain status event")
+	require.Equal(t, codersdk.ChatStatusRunning, snapshotStatus)
 }
 
 func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
