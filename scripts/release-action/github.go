@@ -23,24 +23,6 @@ func ghOutput(args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// checkGHAuth verifies that the gh CLI is installed and
-// authenticated. Returns true if gh is available.
-func checkGHAuth() bool {
-	cmd := exec.Command("gh", "auth", "status")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run() == nil
-}
-
-// ghPR is a minimal pull request representation parsed from gh CLI
-// JSON output.
-type ghPR struct {
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-	Author string `json:"author"`
-	Labels []string
-}
-
 // prMetadata holds labels and author for a merged PR.
 type prMetadata struct {
 	Labels []string

@@ -83,19 +83,19 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 	var notes strings.Builder
 
 	if channel == "stable" {
-		fmt.Fprintf(&notes, "> ## Stable (since %s)\n\n", time.Now().Format("January 02, 2006"))
+		_, _ = fmt.Fprintf(&notes, "> ## Stable (since %s)\n\n", time.Now().Format("January 02, 2006"))
 	}
-	fmt.Fprintln(&notes, "## Changelog")
+	_, _ = fmt.Fprintln(&notes, "## Changelog")
 
 	switch channel {
 	case "rc":
-		fmt.Fprintln(&notes)
-		fmt.Fprintln(&notes, "> [!NOTE]")
-		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		_, _ = fmt.Fprintln(&notes)
+		_, _ = fmt.Fprintln(&notes, "> [!NOTE]")
+		_, _ = fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
 	case "mainline":
-		fmt.Fprintln(&notes)
-		fmt.Fprintln(&notes, "> [!NOTE]")
-		fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		_, _ = fmt.Fprintln(&notes)
+		_, _ = fmt.Fprintln(&notes, "> [!NOTE]")
+		_, _ = fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
 	}
 
 	hasContent := false
@@ -104,32 +104,32 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		if !ok || len(entries) == 0 {
 			continue
 		}
-		fmt.Fprintf(&notes, "\n### %s\n\n", s.Title)
+		_, _ = fmt.Fprintf(&notes, "\n### %s\n\n", s.Title)
 		if s.Key == "experimental" {
-			fmt.Fprintln(&notes, "These changes are feature-flagged and can be enabled with the `--experiments` server flag. They may change or be removed in future releases.")
-			fmt.Fprintln(&notes)
+			_, _ = fmt.Fprintln(&notes, "These changes are feature-flagged and can be enabled with the `--experiments` server flag. They may change or be removed in future releases.")
+			_, _ = fmt.Fprintln(&notes)
 		}
 		for _, e := range entries {
-			fmt.Fprintln(&notes, e)
+			_, _ = fmt.Fprintln(&notes, e)
 		}
 		hasContent = true
 	}
 
 	if !hasContent {
-		fmt.Fprintf(&notes, "\n_No changes since %s._\n", previousVersion.String())
+		_, _ = fmt.Fprintf(&notes, "\n_No changes since %s._\n", previousVersion.String())
 	}
 
 	// Compare link.
-	fmt.Fprintf(&notes, "\nCompare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n",
+	_, _ = fmt.Fprintf(&notes, "\nCompare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n",
 		previousVersion, newVersion, owner, repo, previousVersion, newVersion)
 
 	// Container image.
 	imageTag := fmt.Sprintf("ghcr.io/coder/coder:%s", strings.TrimPrefix(newVersion.String(), "v"))
-	fmt.Fprintf(&notes, "\n## Container image\n\n- `docker pull %s`\n", imageTag)
+	_, _ = fmt.Fprintf(&notes, "\n## Container image\n\n- `docker pull %s`\n", imageTag)
 
 	// Install/upgrade links.
-	fmt.Fprintln(&notes, "\n## Install/upgrade")
-	fmt.Fprintln(&notes, "\nRefer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.")
+	_, _ = fmt.Fprintln(&notes, "\n## Install/upgrade")
+	_, _ = fmt.Fprintln(&notes, "\nRefer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.")
 
 	return notes.String(), nil
 }
