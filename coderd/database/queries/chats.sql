@@ -1298,9 +1298,10 @@ SELECT *
 FROM chats
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, pending, running, paused.
+    -- Active statuses only: waiting, pending, running, paused,
+    -- requires_action.
     -- Excludes completed and error (terminal states).
-    AND status IN ('waiting', 'running', 'paused', 'pending')
+    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec

@@ -2704,7 +2704,8 @@ func isActiveAgentChat(chat database.Chat) bool {
 	case database.ChatStatusWaiting,
 		database.ChatStatusPending,
 		database.ChatStatusRunning,
-		database.ChatStatusPaused:
+		database.ChatStatusPaused,
+		database.ChatStatusRequiresAction:
 		return true
 	default:
 		return false

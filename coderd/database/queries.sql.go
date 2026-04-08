@@ -4608,9 +4608,10 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats
 WHERE agent_id = $1::uuid
     AND archived = false
-    -- Active statuses only: waiting, pending, running, paused.
+    -- Active statuses only: waiting, pending, running, paused,
+    -- requires_action.
     -- Excludes completed and error (terminal states).
-    AND status IN ('waiting', 'running', 'paused', 'pending')
+    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
 ORDER BY updated_at DESC
 `
 
