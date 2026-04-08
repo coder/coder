@@ -754,7 +754,7 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Parallel()
 
 			output := plainText(renderBlock(styles, chatBlock{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, collapsedCount: 3}, false, 80))
-			require.Contains(t, output, "⏳ get pull request... (x3 running)")
+			require.Contains(t, output, "⏳ get pull request...")
 		})
 
 		t.Run("CollapsedToolResultShowsRunCount", func(t *testing.T) {
@@ -964,7 +964,7 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 80))
 			require.Equal(t, 1, strings.Count(output, "⏳"))
-			require.Contains(t, output, "get pull request... (x3 running)")
+			require.Contains(t, output, "get pull request...")
 		})
 
 		t.Run("CollapsesConsecutiveSameNameToolResults", func(t *testing.T) {

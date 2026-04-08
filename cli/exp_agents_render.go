@@ -174,7 +174,7 @@ func toolDisplayLabel(toolName string, kind chatBlockKind, collapsedCount int) s
 
 	switch kind {
 	case blockToolCall:
-		return fmt.Sprintf("%s... (x%d running)", label, collapsedCount)
+		return label + "..."
 	case blockToolResult:
 		return fmt.Sprintf("%s (x%d)", label, collapsedCount)
 	default:
