@@ -291,6 +291,19 @@ specification, however, it's still possible to merge PRs on GitHub with a badly
 formatted title. Take care when merging single-commit PRs as GitHub may prefer
 to use the original commit title instead of the PR title.
 
+### Cherry-picking to the latest release branch
+
+When a merged PR on `main` should also ship in the current release,
+add the **`cherry-pick`** label to the PR (before or after merge).
+
+The automation detects the latest `release/*` branch, cherry-picks the
+merge commit, and opens a PR for review. The PR reuses the original
+title (e.g. `fix(site): correct button alignment (#12345)`) so the
+change is meaningful in release notes.
+
+If the cherry-pick encounters conflicts, the PR is still created with
+instructions for manual resolution.
+
 ### Breaking changes
 
 Breaking changes can be triggered in two ways:
