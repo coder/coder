@@ -1,6 +1,5 @@
 /**
- * Copied from shadcn/ui on 06/20/2025, extended with shape variants and
- * width/height props to ease migration from MUI Skeleton.
+ * Copied from shadcn/ui on 06/20/2025.
  * @see {@link https://ui.shadcn.com/docs/components/skeleton}
  */
 import { cva, type VariantProps } from "class-variance-authority";
@@ -10,7 +9,7 @@ const skeletonVariants = cva("bg-surface-tertiary animate-pulse", {
 	variants: {
 		variant: {
 			default: "rounded-md",
-			text: "rounded",
+			text: "rounded-full py-1",
 			circular: "rounded-full",
 		},
 	},
@@ -27,26 +26,20 @@ type SkeletonProps = React.ComponentProps<"div"> &
 		height?: number | string;
 	};
 
-function Skeleton({
+export const Skeleton: React.FC<SkeletonProps> = ({
 	className,
 	variant,
 	width,
 	height,
 	style,
 	...props
-}: SkeletonProps) {
+}) => {
 	return (
 		<div
 			data-slot="skeleton"
 			className={cn(skeletonVariants({ variant }), className)}
-			style={{
-				width: typeof width === "number" ? `${width}px` : width,
-				height: typeof height === "number" ? `${height}px` : height,
-				...style,
-			}}
+			style={{ width, height, ...style }}
 			{...props}
 		/>
 	);
-}
-
-export { Skeleton };
+};
