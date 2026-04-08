@@ -61,35 +61,23 @@ func newTUIStyles() tuiStyles {
 }
 
 func (s tuiStyles) statusColor(status codersdk.ChatStatus) lipgloss.Style {
+	color := lipgloss.Color("7")
 	switch status {
 	case codersdk.ChatStatusWaiting, codersdk.ChatStatusPending:
-		return s.statusBadge.Foreground(lipgloss.Color("3"))
+		color = lipgloss.Color("3")
 	case codersdk.ChatStatusRunning:
-		return s.statusBadge.Foreground(lipgloss.Color("4"))
+		color = lipgloss.Color("4")
 	case codersdk.ChatStatusPaused:
-		return s.statusBadge.Foreground(lipgloss.Color("5"))
+		color = lipgloss.Color("5")
 	case codersdk.ChatStatusCompleted:
-		return s.statusBadge.Foreground(lipgloss.Color("2"))
+		color = lipgloss.Color("2")
 	case codersdk.ChatStatusError:
-		return s.statusBadge.Foreground(lipgloss.Color("1"))
-	default:
-		return s.statusBadge.Foreground(lipgloss.Color("7"))
+		color = lipgloss.Color("1")
 	}
+	return s.statusBadge.Foreground(color)
 }
 
 func (s tuiStyles) truncate(text string, maxWidth int) string {
 	_ = s
-	if maxWidth <= 0 {
-		return ""
-	}
-	if maxWidth <= 3 {
-		return "…"
-	}
-
-	runes := []rune(text)
-	if len(runes) <= maxWidth {
-		return text
-	}
-
-	return string(runes[:maxWidth-1]) + "…"
+	return truncateText(text, maxWidth, "", 3)
 }

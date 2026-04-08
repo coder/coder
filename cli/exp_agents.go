@@ -53,27 +53,24 @@ func fitHelpText(width int, candidates ...string) string {
 			return candidate
 		}
 	}
-	return truncateHelpText(candidates[len(candidates)-1], width)
+	return truncateText(candidates[len(candidates)-1], width, " •|│:", 1)
 }
 
-func truncateHelpText(text string, width int) string {
+func truncateText(text string, width int, trimRightCutset string, ellipsisWidth int) string {
 	if width <= 0 {
 		return ""
 	}
 	if lipgloss.Width(text) <= width {
 		return text
 	}
-	if width == 1 {
+	if width <= ellipsisWidth {
 		return "…"
 	}
-
-	runes := []rune(text)
-	for len(runes) > 0 {
-		truncated := strings.TrimRight(string(runes), " •|│:") + "…"
+	for runes := []rune(text); len(runes) > 0; runes = runes[:len(runes)-1] {
+		truncated := strings.TrimRight(string(runes), trimRightCutset) + "…"
 		if lipgloss.Width(truncated) <= width {
 			return truncated
 		}
-		runes = runes[:len(runes)-1]
 	}
 	return "…"
 }

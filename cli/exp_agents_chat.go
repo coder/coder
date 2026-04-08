@@ -88,18 +88,9 @@ func (a *streamAccumulator) applyDelta(mp codersdk.ChatStreamMessagePart) {
 		} else {
 			a.parts = append(a.parts, part)
 		}
-	case codersdk.ChatMessagePartTypeToolResult:
-		a.parts = append(a.parts, part)
 	default:
 		a.parts = append(a.parts, part)
 	}
-}
-
-func (a *streamAccumulator) reset() {
-	a.parts = nil
-	a.role = ""
-	a.pending = false
-	a.toolDeltas = nil
 }
 
 func (a streamAccumulator) isPending() bool {
@@ -199,6 +190,15 @@ func (m *chatViewModel) stopStream() {
 	}
 }
 
+func (m *chatViewModel) setChat(chat codersdk.Chat) {
+	m.chat = &chat
+	m.chatStatus = chat.Status
+	m.diffStatus = chat.DiffStatus
+	m.gitChanges = nil
+	m.diffContents = nil
+	m.diffErr = nil
+}
+
 func (m chatViewModel) isInterruptible() bool {
 	return m.chatStatus == codersdk.ChatStatusPending ||
 		m.chatStatus == codersdk.ChatStatusRunning
@@ -209,10 +209,14 @@ func (m chatViewModel) Init() tea.Cmd {
 }
 
 func (m chatViewModel) spinnerActive() bool {
-	return m.reconnecting ||
-		m.accumulator.isPending() ||
-		m.chatStatus == codersdk.ChatStatusPending ||
-		m.chatStatus == codersdk.ChatStatusRunning
+	return m.reconnecting || m.accumulator.pending || m.isInterruptible()
+}
+
+func (m chatViewModel) spinnerLabel() string {
+	if m.reconnecting {
+		return "Reconnecting..."
+	}
+	return "Thinking..."
 }
 
 // sendMessage trims the composer, builds the content, and dispatches
@@ -279,7 +283,7 @@ func (m *chatViewModel) rebuildBlocks() {
 	oldBlocks := m.blocks
 	m.blocks = messagesToBlocks(m.messages)
 
-	if m.accumulator.isPending() {
+	if m.accumulator.pending {
 		finalizedToolIDs := make(map[string]struct{}, len(m.blocks))
 		for _, block := range m.blocks {
 			if block.toolID == "" {
@@ -330,21 +334,22 @@ func (m *chatViewModel) rebuildBlocks() {
 }
 
 func (m *chatViewModel) getOrCreateMarkdownRenderer(width int) *glamour.TermRenderer {
-	if m.cachedRenderer != nil && m.cachedRendererWidth == width {
+	if m.cachedRendererWidth == width && m.cachedRenderer != nil {
 		return m.cachedRenderer
 	}
 
+	m.cachedRendererWidth = width
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(width),
 	)
 	if err != nil {
+		m.cachedRenderer = nil
 		return nil
 	}
 
 	m.cachedRenderer = renderer
-	m.cachedRendererWidth = width
-	return m.cachedRenderer
+	return renderer
 }
 
 func (m *chatViewModel) syncViewportContent() {
@@ -363,11 +368,8 @@ func (m *chatViewModel) syncViewportContent() {
 		m.getOrCreateMarkdownRenderer(wrapWidth),
 	)
 
-	if m.reconnecting || m.accumulator.isPending() || m.chatStatus == codersdk.ChatStatusPending || m.chatStatus == codersdk.ChatStatusRunning {
-		indicator := m.spinner.View() + " Thinking..."
-		if m.reconnecting {
-			indicator = m.spinner.View() + " Reconnecting..."
-		}
+	if m.spinnerActive() {
+		indicator := m.spinner.View() + " " + m.spinnerLabel()
 		transcript += "\n" + m.styles.dimmedText.Render(indicator)
 	}
 
@@ -396,35 +398,24 @@ func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) c
 	case codersdk.ChatMessagePartTypeReasoning:
 		return chatBlock{kind: blockReasoning, role: role, text: part.Text}
 	case codersdk.ChatMessagePartTypeToolCall:
+		kind := blockToolCall
 		if part.ToolName == "context_compaction" {
-			return chatBlock{
-				kind:     blockCompaction,
-				role:     role,
-				toolName: part.ToolName,
-				toolID:   part.ToolCallID,
-				args:     compactTranscriptJSON(part.Args),
-			}
+			kind = blockCompaction
 		}
 		return chatBlock{
-			kind:     blockToolCall,
+			kind:     kind,
 			role:     role,
 			toolName: part.ToolName,
 			toolID:   part.ToolCallID,
 			args:     compactTranscriptJSON(part.Args),
 		}
 	case codersdk.ChatMessagePartTypeToolResult:
+		kind := blockToolResult
 		if part.ToolName == "context_compaction" {
-			return chatBlock{
-				kind:     blockCompaction,
-				role:     role,
-				toolName: part.ToolName,
-				toolID:   part.ToolCallID,
-				result:   compactTranscriptJSON(part.Result),
-				isError:  part.IsError,
-			}
+			kind = blockCompaction
 		}
 		return chatBlock{
-			kind:     blockToolResult,
+			kind:     kind,
 			role:     role,
 			toolName: part.ToolName,
 			toolID:   part.ToolCallID,
@@ -534,33 +525,24 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		case "up", "k":
 			m.viewport.LineUp(3)
 			m.autoFollow = false
-			return m, nil
 		case "down", "j":
 			m.viewport.LineDown(3)
-			if m.viewport.AtBottom() {
-				m.autoFollow = true
-			}
-			return m, nil
+			m.autoFollow = m.viewport.AtBottom()
 		case "pgup":
 			m.viewport.HalfViewUp()
 			m.autoFollow = false
-			return m, nil
 		case "pgdown":
 			m.viewport.HalfViewDown()
-			if m.viewport.AtBottom() {
-				m.autoFollow = true
-			}
-			return m, nil
+			m.autoFollow = m.viewport.AtBottom()
 		case "home":
 			m.viewport.GotoTop()
 			m.autoFollow = false
-			return m, nil
 		case "end":
 			m.viewport.GotoBottom()
 			m.autoFollow = true
+		default:
 			return m, nil
 		}
-
 		return m, nil
 
 	case chatOpenedMsg:
@@ -570,12 +552,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 		chat := msg.chat
-		m.chat = &chat
-		m.chatStatus = chat.Status
-		m.diffStatus = chat.DiffStatus
-		m.gitChanges = nil
-		m.diffContents = nil
-		m.diffErr = nil
+		m.setChat(chat)
 		m.err = nil
 		m.loading = false
 		if len(m.messages) > 0 && !m.streaming {
@@ -613,12 +590,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 		chat := msg.chat
-		m.chat = &chat
-		m.chatStatus = chat.Status
-		m.diffStatus = chat.DiffStatus
-		m.gitChanges = nil
-		m.diffContents = nil
-		m.diffErr = nil
+		m.setChat(chat)
 		m.draft = false
 		m.err = nil
 		updated, cmd := m.startStream()
@@ -723,7 +695,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 			if event.Message.Usage != nil {
 				m.lastUsage = event.Message.Usage
 			}
-			m.accumulator.reset()
+			m.accumulator = streamAccumulator{}
 			m.reconnecting = false
 			m.rebuildBlocks()
 		}
@@ -771,11 +743,6 @@ func (m chatViewModel) View() string {
 			shortID = chatID[:8]
 		}
 		header = fmt.Sprintf("%s (%s)", m.chat.Title, shortID)
-	}
-
-	statusLine := ""
-	if m.chat != nil {
-		statusLine = "Status: " + m.styles.statusColor(m.chatStatus).Render(string(m.chatStatus))
 	}
 
 	statusBar := renderStatusBar(
@@ -836,23 +803,20 @@ func (m chatViewModel) View() string {
 	longHelpParts = append(longHelpParts, "ctrl+p: models", "ctrl+d: diff")
 	shortHelpParts = append(shortHelpParts, "ctrl+p", "ctrl+d")
 	compactHelpParts = append(compactHelpParts, "^P", "^D")
-	helpRow := fitHelpText(
+
+	helpRow := m.styles.helpText.Render(fitHelpText(
 		viewWidth,
 		strings.Join(longHelpParts, " | "),
 		strings.Join(shortHelpParts, " │ "),
 		strings.Join(compactHelpParts, " "),
-	)
-	helpRow = m.styles.helpText.Render(helpRow)
-
+	))
+	separator := m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1)))
 	sections := []string{header}
-	if statusLine != "" {
-		sections = append(sections, statusLine)
+	if m.chat != nil {
+		sections = append(sections, "Status: "+m.styles.statusColor(m.chatStatus).Render(string(m.chatStatus)))
 	}
-	sections = append(sections,
-		m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1))),
-		viewportView,
-		m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1))),
-	)
+
+	sections = append(sections, separator, viewportView, separator)
 	if statusBar != "" {
 		sections = append(sections, statusBar)
 	}
