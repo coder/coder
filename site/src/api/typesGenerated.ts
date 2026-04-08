@@ -3310,8 +3310,8 @@ export interface DynamicTool {
  * chat stream that the client must execute and submit back.
  */
 export interface DynamicToolCall {
-	readonly id: string;
-	readonly name: string;
+	readonly tool_call_id: string;
+	readonly tool_name: string;
 	readonly args: string;
 }
 
@@ -7297,11 +7297,7 @@ export interface TokensFilter {
  */
 export interface ToolResult {
 	readonly tool_call_id: string;
-	/**
-	 * Output must be valid JSON. The handler validates this
-	 * and returns 400 if invalid.
-	 */
-	readonly output: string;
+	readonly output: Record<string, string>;
 	readonly is_error: boolean;
 }
 

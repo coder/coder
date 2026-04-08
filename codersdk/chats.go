@@ -370,11 +370,9 @@ type SubmitToolResultsRequest struct {
 
 // ToolResult is the client's response to a dynamic tool call.
 type ToolResult struct {
-	ToolCallID string `json:"tool_call_id"`
-	// Output must be valid JSON. The handler validates this
-	// and returns 400 if invalid.
-	Output  string `json:"output"`
-	IsError bool   `json:"is_error"`
+	ToolCallID string          `json:"tool_call_id"`
+	Output     json.RawMessage `json:"output"`
+	IsError    bool            `json:"is_error"`
 }
 
 // CreateChatRequest is the request to create a new chat.
@@ -1025,9 +1023,9 @@ type ChatStreamToolCall struct {
 // DynamicToolCall represents a pending tool invocation from the
 // chat stream that the client must execute and submit back.
 type DynamicToolCall struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Args string `json:"args"`
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Args       string `json:"args"`
 }
 
 // DynamicToolResponse holds the output of a dynamic tool

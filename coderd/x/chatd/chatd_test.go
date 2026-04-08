@@ -2071,7 +2071,7 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	require.NotEmpty(t, toolCallID)
 
 	// 3. Submit tool results via SubmitToolResults.
-	toolResultOutput := `{"result":"dynamic tool output"}`
+	toolResultOutput := json.RawMessage(`{"result":"dynamic tool output"}`)
 	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
@@ -2276,7 +2276,7 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 		ModelConfigID: chatResult.LastModelConfigID,
 		Results: []codersdk.ToolResult{{
 			ToolCallID: toolCallID,
-			Output:     `{"result":"dynamic output"}`,
+			Output:     json.RawMessage(`{"result":"dynamic output"}`),
 		}},
 		DynamicTools: dynamicToolsJSON,
 	})
@@ -2422,7 +2422,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 				ModelConfigID: chatResult.LastModelConfigID,
 				Results: []codersdk.ToolResult{{
 					ToolCallID: toolCallID,
-					Output:     `{"result":"concurrent output"}`,
+					Output:     json.RawMessage(`{"result":"concurrent output"}`),
 				}},
 				DynamicTools: dynamicToolsJSON,
 			})

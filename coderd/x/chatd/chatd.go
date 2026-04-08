@@ -1706,7 +1706,7 @@ func (p *Server) SubmitToolResults(
 		// Marshal each tool result into a separate message row.
 		resultContents := make([]pqtype.NullRawMessage, 0, len(opts.Results))
 		for _, result := range opts.Results {
-			if !json.Valid([]byte(result.Output)) {
+			if !json.Valid(result.Output) {
 				return &ToolResultValidationError{
 					Message: "Tool result output must be valid JSON.",
 					Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", result.ToolCallID),
@@ -1716,7 +1716,7 @@ func (p *Server) SubmitToolResults(
 				Type:       codersdk.ChatMessagePartTypeToolResult,
 				ToolCallID: result.ToolCallID,
 				ToolName:   toolCallIDToName[result.ToolCallID],
-				Result:     json.RawMessage(result.Output),
+				Result:     result.Output,
 				IsError:    result.IsError,
 			}
 			marshaled, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})

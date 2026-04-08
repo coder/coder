@@ -8307,8 +8307,8 @@ func TestSubmitToolResults(t *testing.T) {
 
 		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_abc", Output: `"result_a"`},
-				{ToolCallID: "call_def", Output: `"result_b"`},
+				{ToolCallID: "call_abc", Output: json.RawMessage(`"result_a"`)},
+				{ToolCallID: "call_def", Output: json.RawMessage(`"result_b"`)},
 			},
 		})
 		require.NoError(t, err)
@@ -8355,7 +8355,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_xyz", Output: `"nope"`},
+				{ToolCallID: "call_xyz", Output: json.RawMessage(`"nope"`)},
 			},
 		})
 		requireSDKError(t, err, http.StatusConflict)
@@ -8377,7 +8377,7 @@ func TestSubmitToolResults(t *testing.T) {
 		// Submit only one of the two required results.
 		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_one", Output: `"partial"`},
+				{ToolCallID: "call_one", Output: json.RawMessage(`"partial"`)},
 			},
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -8399,7 +8399,7 @@ func TestSubmitToolResults(t *testing.T) {
 		// Submit a result with a wrong tool_call_id.
 		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_bogus", Output: `"wrong"`},
+				{ToolCallID: "call_bogus", Output: json.RawMessage(`"wrong"`)},
 			},
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -8420,7 +8420,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_json", Output: "not-json"},
+				{ToolCallID: "call_json", Output: json.RawMessage("not-json")},
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -8442,12 +8442,60 @@ func TestSubmitToolResults(t *testing.T) {
 
 		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_dup1", Output: `"result_a"`},
-				{ToolCallID: "call_dup1", Output: `"result_b"`},
+				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_a"`)},
+				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_b"`)},
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Contains(t, sdkErr.Message, "Duplicate tool_call_id")
+	})
+
+	t.Run("EmptyResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_empty"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_other"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Create a second user and try to submit tool results
+		// to user A's chat.
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(
+			t, client.Client, user.OrganizationID,
+			rbac.RoleAgentsAccess(),
+		)
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
+
+		err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_other", Output: json.RawMessage(`"nope"`)},
+			},
+		})
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
 
