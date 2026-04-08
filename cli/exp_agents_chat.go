@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -754,12 +755,9 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 }
 
 func (m chatViewModel) View() string {
-	if m.loading {
-		return "Loading chat…"
-	}
-
-	if m.err != nil {
-		return m.styles.errorText.Render(m.err.Error())
+	viewWidth := m.width
+	if viewWidth <= 0 {
+		viewWidth = 80
 	}
 
 	header := "New Chat (draft)"
@@ -785,10 +783,35 @@ func (m chatViewModel) View() string {
 		len(m.queuedMessages),
 		m.interrupting,
 		m.reconnecting,
-		m.width,
+		viewWidth,
 	)
 
-	composerView := m.styles.composerStyle.Width(max(10, m.width-2)).Render(m.composer.View())
+	errorBanner := ""
+	if m.err != nil {
+		errorBanner = m.styles.errorText.Render(m.styles.truncate(strings.ReplaceAll(m.err.Error(), "\n", " "), viewWidth))
+	}
+
+	viewportHeight := max(m.viewport.Height, 0)
+	if errorBanner != "" {
+		viewportHeight = max(viewportHeight-1, 0)
+	}
+
+	viewportView := m.viewport.View()
+	if m.loading && len(m.blocks) == 0 {
+		viewportWidth := max(max(m.viewport.Width, viewWidth), 1)
+		viewportHeight = max(viewportHeight, 1)
+		viewportView = lipgloss.Place(
+			viewportWidth,
+			viewportHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			m.styles.dimmedText.Render("Loading chat..."),
+		)
+	} else if errorBanner != "" {
+		viewportView = clampLines(viewportView, viewportHeight)
+	}
+
+	composerView := m.styles.composerStyle.Width(max(10, viewWidth-2)).Render(m.composer.View())
 
 	longHelpParts := []string{"tab: switch focus", "esc: back"}
 	shortHelpParts := []string{"tab focus", "esc back"}
@@ -811,7 +834,7 @@ func (m chatViewModel) View() string {
 	shortHelpParts = append(shortHelpParts, "ctrl+p", "ctrl+d")
 	compactHelpParts = append(compactHelpParts, "^P", "^D")
 	helpRow := fitHelpText(
-		m.width,
+		viewWidth,
 		strings.Join(longHelpParts, " | "),
 		strings.Join(shortHelpParts, " │ "),
 		strings.Join(compactHelpParts, " "),
@@ -823,12 +846,15 @@ func (m chatViewModel) View() string {
 		sections = append(sections, statusLine)
 	}
 	sections = append(sections,
-		m.styles.separator.Render(strings.Repeat("─", max(m.width, 1))),
-		m.viewport.View(),
-		m.styles.separator.Render(strings.Repeat("─", max(m.width, 1))),
+		m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1))),
+		viewportView,
+		m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1))),
 	)
 	if statusBar != "" {
 		sections = append(sections, statusBar)
+	}
+	if errorBanner != "" {
+		sections = append(sections, errorBanner)
 	}
 	sections = append(sections, composerView, helpRow)
 

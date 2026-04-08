@@ -783,18 +783,46 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 			model.loading = false
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat = &chat
+			model.chatStatus = chat.Status
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing response"}),
+			}
+			model.rebuildBlocks()
 
 			updated, cmd := model.Update(chatStreamEventMsg{err: xerrors.New("websocket closed")})
 			require.Nil(t, cmd)
 			require.NotNil(t, updated.err)
-			require.Contains(t, updated.View(), "websocket closed")
+
+			view := plainText(updated.View())
+			require.Contains(t, view, chat.Title)
+			require.Contains(t, view, "existing response")
+			require.Contains(t, view, "websocket closed")
+			require.Contains(t, view, "Type a message")
+			require.Contains(t, view, "esc: back")
+		})
+
+		t.Run("LoadingViewKeepsChatChrome", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+
+			view := plainText(model.View())
+			require.Contains(t, view, "New Chat (draft)")
+			require.Contains(t, view, "Loading chat...")
+			require.Contains(t, view, "Type a message")
+			require.Contains(t, view, "esc: back")
 		})
 
 		t.Run("MultipleStreamErrorsOnlyShowLatest", func(t *testing.T) {
 			t.Parallel()
 
 			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 			model.loading = false
 
 			updated, _ := model.Update(chatStreamEventMsg{err: xerrors.New("first error")})
