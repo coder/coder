@@ -47,6 +47,13 @@ func calculateRC(commitSHA string) (*CalculateResult, error) {
 		return nil, xerrors.New("--commit is required for RC releases")
 	}
 
+	// Validate that the commit SHA looks like a hex string to
+	// prevent shell injection via git arguments.
+	hexRe := regexp.MustCompile(`^[0-9a-fA-F]+$`)
+	if !hexRe.MatchString(commitSHA) {
+		return nil, xerrors.Errorf("--commit must be a hex SHA (got %q)", commitSHA)
+	}
+
 	// Verify the commit is an ancestor of origin/main.
 	if err := gitRun("merge-base", "--is-ancestor", commitSHA, "origin/main"); err != nil {
 		return nil, xerrors.Errorf("commit %s is not an ancestor of origin/main", commitSHA)
@@ -119,6 +126,9 @@ func calculateRC(commitSHA string) (*CalculateResult, error) {
 			Pre:   "rc.0",
 		}
 	default:
+		// No previous tags at all — use a sentinel so release
+		// notes generation can still produce a valid range.
+		prevVersionStr = "v0.0.0"
 		suggested = version{Major: 2, Minor: 0, Patch: 0, Pre: "rc.0"}
 	}
 
@@ -137,6 +147,11 @@ func calculateRelease(branch string) (*CalculateResult, error) {
 	}
 	branchMajor, _ := strconv.Atoi(m[1])
 	branchMinor, _ := strconv.Atoi(m[2])
+
+	allTags, err := allSemverTags()
+	if err != nil {
+		return nil, xerrors.Errorf("listing tags: %w", err)
+	}
 
 	// Resolve the branch HEAD as the target ref.
 	targetRef, err := gitOutput("rev-parse", "origin/"+branch)
@@ -183,6 +198,9 @@ func calculateRelease(branch string) (*CalculateResult, error) {
 		// Use the latest RC as previous version for notes.
 		if len(branchTags) > 0 {
 			prevVersionStr = branchTags[0].String()
+		} else {
+			// No tags at all on this branch — use a sentinel.
+			prevVersionStr = "v0.0.0"
 		}
 	} else {
 		prevVersionStr = latestNonRC.String()
@@ -195,7 +213,7 @@ func calculateRelease(branch string) (*CalculateResult, error) {
 
 	// Determine channel: compare this minor against the
 	// latest mainline release globally.
-	channel := determineChannel(branchMajor, branchMinor)
+	channel := determineChannel(branchMajor, branchMinor, allTags)
 
 	return &CalculateResult{
 		Version:         suggested.String(),
@@ -208,13 +226,7 @@ func calculateRelease(branch string) (*CalculateResult, error) {
 // determineChannel finds the latest mainline (non-RC,
 // non-prerelease) release globally and compares it against the
 // given major.minor to decide the channel.
-func determineChannel(major, minor int) string {
-	allTags, err := allSemverTags()
-	if err != nil {
-		// Default to mainline if we cannot determine.
-		return "mainline"
-	}
-
+func determineChannel(major, minor int, allTags []version) string {
 	var latestMainline *version
 	for _, t := range allTags {
 		if t.Pre == "" {

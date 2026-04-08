@@ -124,8 +124,13 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF"
-          git push origin "$VERSION"
+          # Skip tag creation if it already exists (idempotent for retries).
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping creation."
+          else
+            git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF"
+            git push origin "$VERSION"
+          fi
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
           TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
@@ -134,8 +139,8 @@ jobs:
         if: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          # Create local tag so version.sh works during build
-          git tag -a "$VERSION" -m "Dry-run release $VERSION" "$TARGET_REF"
+          # Create local tag so version.sh works during build.
+          git tag -a "$VERSION" -m "Dry-run release $VERSION" "$TARGET_REF" 2>/dev/null || true
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
           TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
@@ -185,7 +190,7 @@ jobs:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
-      version: ${{ needs.prepare-release.outputs.version }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -209,24 +214,28 @@ jobs:
       - name: Checkout release commit
         run: |
           set -euo pipefail
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            git checkout "${{ needs.prepare-release.outputs.target_ref }}"
-            # Re-create tag locally for version.sh
-            git tag -a "${{ needs.prepare-release.outputs.version }}" -m "Dry-run" HEAD 2>/dev/null || true
+          if [[ "$DRY_RUN" == "true" ]]; then
+            git checkout "$TARGET_REF"
+            # Re-create tag locally so version.sh works during build.
+            git tag -a "$VERSION" -m "Dry-run" HEAD 2>/dev/null || true
           else
-            git checkout "refs/tags/${{ needs.prepare-release.outputs.version }}"
+            git checkout "refs/tags/$VERSION"
           fi
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          TARGET_REF: ${{ needs.prepare-release.outputs.target_ref }}
 
       - name: Print version
         id: version
         run: |
           set -euo pipefail
-          version="${{ needs.prepare-release.outputs.version }}"
-          # Strip the leading v for CODER_FORCE_VERSION
-          version="${version#v}"
+          version="${VERSION#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
           echo "$version"
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
 
       - name: Download release notes
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1

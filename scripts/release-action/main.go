@@ -16,13 +16,24 @@ const (
 )
 
 func main() {
+	// calculate-version flags
 	var (
-		releaseType     string
-		commitSHA       string
-		branch          string
-		versionFlag     string
-		prevVersionFlag string
-		channelFlag     string
+		releaseType string
+		commitSHA   string
+		branch      string
+	)
+
+	// generate-notes flags
+	var (
+		gnVersion     string
+		gnPrevVersion string
+		gnChannel     string
+	)
+
+	// update-docs flags
+	var (
+		udVersion string
+		udChannel string
 	)
 
 	root := &serpent.Command{
@@ -71,33 +82,33 @@ func main() {
 						Flag:        "version",
 						Description: "New version tag (e.g. v2.32.0).",
 						Required:    true,
-						Value:       serpent.StringOf(&versionFlag),
+						Value:       serpent.StringOf(&gnVersion),
 					},
 					{
 						Name:        "previous-version",
 						Flag:        "previous-version",
 						Description: "Previous version tag for changelog range.",
 						Required:    true,
-						Value:       serpent.StringOf(&prevVersionFlag),
+						Value:       serpent.StringOf(&gnPrevVersion),
 					},
 					{
 						Name:        "channel",
 						Flag:        "channel",
 						Description: "Release channel: rc, mainline, or stable.",
 						Required:    true,
-						Value:       serpent.StringOf(&channelFlag),
+						Value:       serpent.StringOf(&gnChannel),
 					},
 				},
 				Handler: func(inv *serpent.Invocation) error {
-					newVer, ok := parseVersion(versionFlag)
+					newVer, ok := parseVersion(gnVersion)
 					if !ok {
-						return xerrors.Errorf("invalid version %q", versionFlag)
+						return xerrors.Errorf("invalid version %q", gnVersion)
 					}
-					prevVer, ok := parseVersion(prevVersionFlag)
+					prevVer, ok := parseVersion(gnPrevVersion)
 					if !ok {
-						return xerrors.Errorf("invalid previous version %q", prevVersionFlag)
+						return xerrors.Errorf("invalid previous version %q", gnPrevVersion)
 					}
-					notes, err := generateReleaseNotes(newVer, prevVer, channelFlag)
+					notes, err := generateReleaseNotes(newVer, prevVer, gnChannel)
 					if err != nil {
 						return err
 					}
@@ -114,22 +125,22 @@ func main() {
 						Flag:        "version",
 						Description: "New version tag (e.g. v2.32.0).",
 						Required:    true,
-						Value:       serpent.StringOf(&versionFlag),
+						Value:       serpent.StringOf(&udVersion),
 					},
 					{
 						Name:        "channel",
 						Flag:        "channel",
 						Description: "Release channel: mainline or stable.",
 						Required:    true,
-						Value:       serpent.StringOf(&channelFlag),
+						Value:       serpent.StringOf(&udChannel),
 					},
 				},
 				Handler: func(inv *serpent.Invocation) error {
-					ver, ok := parseVersion(versionFlag)
+					ver, ok := parseVersion(udVersion)
 					if !ok {
-						return xerrors.Errorf("invalid version %q", versionFlag)
+						return xerrors.Errorf("invalid version %q", udVersion)
 					}
-					changed, err := updateReleaseDocs(ver, channelFlag)
+					changed, err := updateReleaseDocs(ver, udChannel)
 					if err != nil {
 						return err
 					}

@@ -11,7 +11,7 @@ import (
 // generateReleaseNotes produces release notes markdown for the
 // given version range and channel.
 func generateReleaseNotes(newVersion, previousVersion version, channel string) (string, error) {
-	commitRange := previousVersion.String() + "..." + newVersion.String()
+	commitRange := previousVersion.String() + ".." + newVersion.String()
 
 	commits, err := commitLog(commitRange)
 	if err != nil {

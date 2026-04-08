@@ -63,6 +63,7 @@ func parseCalendarTable(content string) ([]calendarRow, error) {
 			continue
 		}
 
+		// Split on "|" gives empty first and last elements.
 		cols := strings.Split(line, "|")
 		if len(cols) < 5 {
 			continue
@@ -92,6 +93,7 @@ func parseCalendarTable(content string) ([]calendarRow, error) {
 // parseReleaseName extracts major.minor from a release name
 // like "2.30" or "[2.30](https://...)".
 func parseReleaseName(name string) (major, minor int) {
+	// Strip markdown link if present.
 	re := regexp.MustCompile(`\[(\d+\.\d+)\]`)
 	if m := re.FindStringSubmatch(name); len(m) > 1 {
 		name = m[1]
@@ -218,6 +220,7 @@ func updateCalendar(
 func trimOldestNotSupported(rows []calendarRow) []calendarRow {
 	const maxRows = 8
 	for len(rows) > maxRows {
+		// Find the first "Not Supported" row.
 		found := -1
 		for i, r := range rows {
 			if r.Status == "Not Supported" {
@@ -228,6 +231,7 @@ func trimOldestNotSupported(rows []calendarRow) []calendarRow {
 		if found == -1 {
 			break
 		}
+		// Keep at least one "Not Supported" row.
 		nsCount := 0
 		for _, r := range rows {
 			if r.Status == "Not Supported" {
