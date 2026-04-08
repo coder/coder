@@ -108,10 +108,13 @@ const (
 	// cross-replica relay subscribers time to connect and
 	// snapshot the buffer before it is garbage-collected.
 	bufferRetainGracePeriod = 5 * time.Second
+	// chatStreamHistoryFetchTimeout bounds detached history-path
+	// DB reads when the caller context has no deadline. It is
+	// intentionally generous because initial and catch-up scans
+	// may be larger than control-path metadata lookups.
+	chatStreamHistoryFetchTimeout = 30 * time.Second
 	// chatStreamControlFetchTimeout bounds detached control-path
-	// DB reads when the caller context has no deadline. History
-	// snapshots use a different helper because they may
-	// legitimately run longer than an arbitrary wall-clock cap.
+	// DB reads when the caller context has no deadline.
 	chatStreamControlFetchTimeout = 5 * time.Second
 
 	// streamJanitorInterval is how often sweepIdleStreams runs.
@@ -4274,18 +4277,17 @@ func cloneQueuedMessagesForStream(messages []database.ChatQueuedMessage) []datab
 
 // streamHistoryFetchContext detaches subscriber cancellation from a shared
 // history fetch while preserving any real caller deadline. When the caller has
-// no deadline, it intentionally does not invent a shorter one because initial
-// and catch-up history scans may legitimately outlive an arbitrary wall-clock
-// timeout.
+// no deadline, it applies a generous timeout so detached history scans cannot
+// run forever after every subscriber has already gone away.
 func streamHistoryFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.Background(), func() {}
+		return context.WithTimeout(context.Background(), chatStreamHistoryFetchTimeout)
 	}
 	detached := context.WithoutCancel(ctx)
 	if deadline, ok := ctx.Deadline(); ok {
 		return context.WithDeadline(detached, deadline)
 	}
-	return detached, func() {}
+	return context.WithTimeout(detached, chatStreamHistoryFetchTimeout)
 }
 
 // streamControlFetchContext detaches subscriber cancellation from a small
