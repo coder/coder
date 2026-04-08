@@ -227,19 +227,26 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										{chatTitle}
 									</span>
 									{!showSaved && onRegenerateTitle && (
-										<button
-											type="button"
+										<WandSparklesIcon
+											role="button"
+											tabIndex={0}
 											onClick={(e) => {
 												e.stopPropagation();
-												onRegenerateTitle();
+												if (!isRegenerateTitleDisabled) onRegenerateTitle();
 											}}
-											disabled={isRegenerateTitleDisabled}
+											onKeyDown={(e) => {
+												if (
+													(e.key === "Enter" || e.key === " ") &&
+													!isRegenerateTitleDisabled
+												) {
+													e.preventDefault();
+													onRegenerateTitle();
+												}
+											}}
 											aria-label="Generate new title"
-											className="shrink-0 opacity-0 transition-opacity group-hover/title:opacity-100 text-content-secondary hover:text-content-primary disabled:opacity-50"
-										>
-											<WandSparklesIcon className="h-3 w-3" />
-										</button>
-									)}{" "}
+											className="h-3.5 w-3.5 shrink-0 cursor-pointer text-content-secondary opacity-0 transition-opacity group-hover/title:opacity-100 hover:text-content-primary"
+										/>
+									)}
 								</>
 							)
 						) : (
