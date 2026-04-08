@@ -2,6 +2,7 @@ package cli //nolint:testpackage // Tests unexported chat TUI render helpers.
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -1116,6 +1117,30 @@ func TestExpAgentsRender(t *testing.T) {
 			})
 		}
 	})
+	t.Run("KeepsCursorVisibleWithinWindow", func(t *testing.T) {
+		t.Parallel()
+
+		styles := newTUIStyles()
+		models := make([]codersdk.ChatModel, 0, 6)
+		for i := 1; i <= 6; i++ {
+			models = append(models, codersdk.ChatModel{
+				ID:          fmt.Sprintf("provider:model-%d", i),
+				Provider:    "provider",
+				Model:       fmt.Sprintf("model-%d", i),
+				DisplayName: fmt.Sprintf("Model %d", i),
+			})
+		}
+		catalog := codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			Provider:  "provider",
+			Available: true,
+			Models:    models,
+		}}}
+
+		output := plainText(renderModelPicker(styles, catalog, "provider:model-5", 4, 60, 8))
+		require.Contains(t, output, "> Model 5")
+		require.NotContains(t, output, "Model 1")
+	})
+
 	t.Run("RenderAssistantMarkdown", func(t *testing.T) {
 		t.Parallel()
 

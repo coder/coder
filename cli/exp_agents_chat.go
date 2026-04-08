@@ -306,6 +306,13 @@ func (m chatViewModel) isInterruptible() bool {
 		m.chatStatus == codersdk.ChatStatusRunning
 }
 
+func (m chatViewModel) shouldReconnect() bool {
+	if m.chat == nil {
+		return false
+	}
+	return m.isInterruptible() || m.chatStatus == codersdk.ChatStatusWaiting
+}
+
 func (m chatViewModel) Init() tea.Cmd {
 	return m.spinner.Tick
 }
@@ -791,7 +798,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 				m.intentionalClose = false
 				return m, nil
 			}
-			if m.isInterruptible() && m.chat != nil {
+			if m.shouldReconnect() {
 				m.clearPendingStreamAccumulator()
 				m.reconnecting = true
 				(&m).syncViewportContent()

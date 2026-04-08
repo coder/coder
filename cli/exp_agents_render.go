@@ -367,6 +367,7 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, selected string, cursor int, width, height int) string {
 	innerWidth := contentWidth(width, 6)
 	lines := []string{styles.title.Render("Select Model")}
+	cursorLine := 0
 	hasModels := false
 	flatIndex := 0
 	for _, provider := range catalog.Providers {
@@ -400,6 +401,9 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 				rowStyle = styles.selectedItem
 			}
 			lines = append(lines, marker+rowStyle.Render(styles.truncate(name, max(innerWidth-2, 0))))
+			if flatIndex == cursor {
+				cursorLine = len(lines) - 1
+			}
 			flatIndex++
 		}
 		lines = append(lines, "")
@@ -417,7 +421,14 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	if maxContentLines < 1 {
 		maxContentLines = 1
 	}
-	content := clampLineSlice(contentLines, maxContentLines)
+	windowStart := 0
+	if cursorLine >= maxContentLines {
+		windowStart = cursorLine - maxContentLines + 1
+	}
+	maxWindowStart := max(len(contentLines)-maxContentLines, 0)
+	windowStart = min(windowStart, maxWindowStart)
+	windowEnd := min(windowStart+maxContentLines, len(contentLines))
+	content := append([]string(nil), contentLines[windowStart:windowEnd]...)
 	content = append(content, help)
 	return renderOverlayFrame(styles, width, strings.Join(content, "\n"))
 }

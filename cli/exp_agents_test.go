@@ -1580,6 +1580,21 @@ func TestExpAgents(t *testing.T) {
 			require.NotNil(t, updated.err)
 		})
 
+		t.Run("EOFAttemptsReconnectWhenWaiting", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusWaiting)
+			model.setChat(chat)
+			model.streaming = true
+
+			updated, cmd := model.Update(chatStreamEventMsg{chatID: chat.ID, err: io.EOF})
+			require.NotNil(t, cmd)
+			require.False(t, updated.streaming)
+			require.True(t, updated.reconnecting)
+			require.NotNil(t, updated.err)
+		})
+
 		t.Run("EOFReconnectClearsPendingAccumulator", func(t *testing.T) {
 			t.Parallel()
 
