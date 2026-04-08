@@ -76,7 +76,7 @@ describe("isRcBuild", () => {
 		expect(isRcBuild({ ...baseBuildInfo, version: "" })).toBe(false);
 	});
 
-	it("returns false for versions with rc but no dot-number", () => {
+	it("returns false for versions with rc but no dot", () => {
 		expect(isRcBuild({ ...baseBuildInfo, version: "v2.32.0-rc" })).toBe(false);
 	});
 });
