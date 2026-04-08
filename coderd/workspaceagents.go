@@ -2528,6 +2528,9 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if !isActiveAgentChat(locked) {
 			return errChatNotActive
 		}
+		if !locked.AgentID.Valid || locked.AgentID.UUID != workspaceAgent.ID {
+			return errChatDoesNotBelongToAgent
+		}
 		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleChatMessageInsertParams(
 			chat.ID,
 			database.ChatMessageRoleUser,
@@ -2545,7 +2548,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return nil
 	}, nil)
 	if err != nil {
-		if errors.Is(err, errChatNotActive) {
+		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) {
 			writeAgentChatError(ctx, rw, err)
 			return
 		}
@@ -2620,9 +2623,9 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = clearAgentChatContext(sysCtx, api.Database, chat.ID)
+	err = clearAgentChatContext(sysCtx, api.Database, chat.ID, workspaceAgent.ID)
 	if err != nil {
-		if errors.Is(err, errChatNotActive) {
+		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) {
 			writeAgentChatError(ctx, rw, err)
 			return
 		}
@@ -2716,6 +2719,7 @@ func clearAgentChatContext(
 	ctx context.Context,
 	db database.Store,
 	chatID uuid.UUID,
+	agentID uuid.UUID,
 ) error {
 	return db.InTx(func(tx database.Store) error {
 		locked, err := tx.GetChatByIDForUpdate(ctx, chatID)
@@ -2724,6 +2728,9 @@ func clearAgentChatContext(
 		}
 		if !isActiveAgentChat(locked) {
 			return errChatNotActive
+		}
+		if !locked.AgentID.Valid || locked.AgentID.UUID != agentID {
+			return errChatDoesNotBelongToAgent
 		}
 		if err := tx.SoftDeleteContextFileMessages(ctx, chatID); err != nil {
 			return xerrors.Errorf("soft delete context-file messages: %w", err)
