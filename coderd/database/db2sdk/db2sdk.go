@@ -1608,7 +1608,6 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 			chat.LastInjectedContext = parts
 		}
 	}
-
 	return chat
 }
 
