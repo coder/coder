@@ -2471,12 +2471,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Filter to only context-file and skill parts.
-	var filtered []codersdk.ChatMessagePart
-	for _, p := range req.Parts {
-		if p.Type == codersdk.ChatMessagePartTypeContextFile || p.Type == codersdk.ChatMessagePartTypeSkill {
-			filtered = append(filtered, p)
-		}
-	}
+	filtered := chatd.FilterContextParts(req.Parts, true)
 	if len(filtered) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "No context-file or skill parts provided.",
@@ -2745,7 +2740,14 @@ func clearAgentChatContext(
 		}
 		// Clear the injected-context cache inside the transaction so it is
 		// atomic with the soft-deletes.
-		if err := updateAgentChatLastInjectedContext(ctx, tx, chatID, nil); err != nil {
+		param, err := chatd.BuildLastInjectedContext(nil)
+		if err != nil {
+			return xerrors.Errorf("clear injected context cache: %w", err)
+		}
+		if _, err := tx.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
+			ID:                  chatID,
+			LastInjectedContext: param,
+		}); err != nil {
 			return xerrors.Errorf("clear injected context cache: %w", err)
 		}
 		return nil
@@ -2804,89 +2806,14 @@ func updateAgentChatLastInjectedContextFromMessages(
 		return xerrors.Errorf("load context messages for injected context: %w", err)
 	}
 
-	parts, err := collectAgentChatContextPartsWithLogger(ctx, logger, messages)
+	parts, err := chatd.CollectContextPartsFromMessages(ctx, logger, messages, false)
 	if err != nil {
 		return xerrors.Errorf("collect injected context parts: %w", err)
 	}
 
-	if err := updateAgentChatLastInjectedContext(ctx, db, chatID, parts); err != nil {
+	param, err := chatd.BuildLastInjectedContext(parts)
+	if err != nil {
 		return xerrors.Errorf("update injected context: %w", err)
-	}
-	return nil
-}
-
-// collectAgentChatContextParts returns every persisted context-file and
-// skill part from the provided chat messages.
-func collectAgentChatContextParts(messages []database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
-	return collectAgentChatContextPartsWithLogger(context.Background(), slog.Make(), messages)
-}
-
-func collectAgentChatContextPartsWithLogger(
-	ctx context.Context,
-	logger slog.Logger,
-	messages []database.ChatMessage,
-) ([]codersdk.ChatMessagePart, error) {
-	var collected []codersdk.ChatMessagePart
-	for _, msg := range messages {
-		if !msg.Content.Valid {
-			continue
-		}
-
-		var parts []codersdk.ChatMessagePart
-		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
-			logger.Warn(ctx, "skipping malformed chat context message",
-				slog.F("chat_message_id", msg.ID),
-				slog.Error(err),
-			)
-			continue
-		}
-
-		for _, part := range parts {
-			switch part.Type {
-			case codersdk.ChatMessagePartTypeContextFile:
-				if part.ContextFileContent == "" {
-					continue
-				}
-			case codersdk.ChatMessagePartTypeSkill:
-			default:
-				continue
-			}
-			collected = append(collected, part)
-		}
-	}
-	return collected, nil
-}
-
-func updateAgentChatLastInjectedContext(
-	ctx context.Context,
-	db database.Store,
-	chatID uuid.UUID,
-	parts []codersdk.ChatMessagePart,
-) error {
-	param := pqtype.NullRawMessage{Valid: false}
-	if parts != nil {
-		var stripped []codersdk.ChatMessagePart
-		for _, part := range parts {
-			switch part.Type {
-			case codersdk.ChatMessagePartTypeContextFile:
-				if part.ContextFileContent == "" {
-					continue
-				}
-			case codersdk.ChatMessagePartTypeSkill:
-			default:
-				continue
-			}
-			cp := part
-			cp.StripInternal()
-			stripped = append(stripped, cp)
-		}
-		if stripped != nil {
-			raw, err := json.Marshal(stripped)
-			if err != nil {
-				return xerrors.Errorf("marshal injected context: %w", err)
-			}
-			param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
-		}
 	}
 	if _, err := db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
 		ID:                  chatID,
