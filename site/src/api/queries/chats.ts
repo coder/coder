@@ -858,6 +858,15 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatDebugRunsKey = (chatId: string) =>
+	["chats", chatId, "debug-runs"] as const;
+
+const invalidateChatDebugRuns = (queryClient: QueryClient, chatId: string) => {
+	return queryClient.invalidateQueries({
+		queryKey: chatDebugRunsKey(chatId),
+	});
+};
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
@@ -870,14 +879,17 @@ export const createChat = (queryClient: QueryClient) => ({
 });
 
 export const createChatMessage = (
-	_queryClient: QueryClient,
+	queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
-	// No onSuccess invalidation needed: the per-chat WebSocket delivers
-	// the response message via upsertDurableMessage, and the global
-	// watchChats() WebSocket updates the sidebar sort order.
+	onSuccess: async () => {
+		await invalidateChatDebugRuns(queryClient, chatId);
+	},
+	// The per-chat and sidebar WebSockets cover message/status updates,
+	// but the Debug panel uses polling. Kick its list query immediately
+	// so newly-started runs appear without tab switching.
 });
 
 type EditChatMessageMutationArgs = {
@@ -961,6 +973,7 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -990,14 +1003,16 @@ export const deleteChatQueuedMessage = (
 });
 
 export const promoteChatQueuedMessage = (
-	_queryClient: QueryClient,
+	queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
-	// No onSuccess invalidation needed: the caller upserts the
-	// promoted message from the response, and the per-chat
-	// WebSocket delivers queue and status updates in real-time.
+	onSuccess: async () => {
+		await invalidateChatDebugRuns(queryClient, chatId);
+	},
+	// The caller still upserts the promoted message directly, but the
+	// Debug panel needs an explicit refresh to discover the new run.
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -1071,6 +1086,44 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatDesktopEnabledKey,
+		});
+	},
+});
+
+const chatDebugLoggingKey = ["chat-debug-logging"] as const;
+const userChatDebugLoggingKey = ["user-chat-debug-logging"] as const;
+
+/** @public Consumed by the Debug settings UI in a higher stack layer. */
+export const chatDebugLogging = () => ({
+	queryKey: chatDebugLoggingKey,
+	queryFn: () => API.experimental.getChatDebugLogging(),
+});
+
+/** @public Consumed by the Debug settings UI in a higher stack layer. */
+export const userChatDebugLogging = () => ({
+	queryKey: userChatDebugLoggingKey,
+	queryFn: () => API.experimental.getUserChatDebugLogging(),
+});
+
+/** @public Consumed by the Debug settings UI in a higher stack layer. */
+export const updateChatDebugLogging = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatDebugLogging,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDebugLoggingKey,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: userChatDebugLoggingKey,
+		});
+	},
+});
+
+/** @public Consumed by the Debug settings UI in a higher stack layer. */
+export const updateUserChatDebugLogging = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateUserChatDebugLogging,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: userChatDebugLoggingKey,
 		});
 	},
 });
