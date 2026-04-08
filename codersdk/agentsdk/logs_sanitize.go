@@ -7,8 +7,5 @@ import "strings"
 // rejects NUL bytes in text columns.
 func SanitizeLogOutput(s string) string {
 	s = strings.ToValidUTF8(s, "❌")
-	if !strings.ContainsRune(s, '\x00') {
-		return s
-	}
 	return strings.ReplaceAll(s, "\x00", "❌")
 }

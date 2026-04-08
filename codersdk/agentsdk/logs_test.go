@@ -45,6 +45,16 @@ func TestSanitizeLogOutput(t *testing.T) {
 			in:   "before\x00middle\xc3\x28after",
 			want: "before❌middle❌(after",
 		},
+		{
+			name: "nul byte at edges",
+			in:   "\x00middle\x00",
+			want: "❌middle❌",
+		},
+		{
+			name: "invalid utf8 at edges",
+			in:   "\xc3middle\xc3",
+			want: "❌middle❌",
+		},
 	}
 
 	for _, tt := range tests {
