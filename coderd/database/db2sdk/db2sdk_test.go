@@ -552,6 +552,10 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
 			Valid:      true,
 		},
+		DynamicTools: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
+			Valid:      true,
+		},
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus

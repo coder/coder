@@ -291,6 +291,23 @@ specification, however, it's still possible to merge PRs on GitHub with a badly
 formatted title. Take care when merging single-commit PRs as GitHub may prefer
 to use the original commit title instead of the PR title.
 
+### Backporting fixes to release branches
+
+When a merged PR on `main` should also ship in older releases, add the
+`backport` label to the PR. The
+[backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
+will automatically detect the latest three `release/*` branches,
+cherry-pick the merge commit onto each one, and open PRs for
+review.
+
+The label can be added before or after the PR is merged. Each backport
+PR reuses the original title (e.g.
+`fix(site): correct button alignment (#12345)`) so the change is
+meaningful in release notes.
+
+If the cherry-pick encounters conflicts, the backport PR is still created
+with instructions for manual resolution — no conflict markers are committed.
+
 ### Breaking changes
 
 Breaking changes can be triggered in two ways:

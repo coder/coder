@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, InfoIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import {
 	type CSSProperties,
 	type FC,
@@ -10,14 +10,6 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -27,6 +19,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "../../utils/modelOptions";
+import { BackButton } from "../BackButton";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
@@ -241,15 +235,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
-
+			<BackButton onClick={onBack} />
 			{/* Provider header, editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />
@@ -273,7 +259,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				</Tooltip>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
-
 			{isAPIKeyEnvManaged ? (
 				<Alert severity="info">
 					<AlertTitle>API key managed by environment variable</AlertTitle>
@@ -408,38 +393,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					</div>
 				</form>
 			)}
-
 			{providerConfig && (
-				<Dialog
+				<ConfirmDeleteDialog
+					entity="provider"
+					description={deleteProviderDescription}
+					onConfirm={() => void onDeleteProvider(providerConfig.id)}
+					isPending={isProviderMutationPending}
 					open={confirmingDelete}
 					onOpenChange={(open) => !open && setConfirmingDelete(false)}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete provider</DialogTitle>
-							<DialogDescription>{deleteProviderDescription}</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setConfirmingDelete(false)}
-								disabled={isProviderMutationPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={() => void onDeleteProvider(providerConfig.id)}
-								disabled={isProviderMutationPending}
-							>
-								{isProviderMutationPending && (
-									<Spinner className="h-4 w-4" loading />
-								)}
-								Delete provider
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				/>
 			)}
 		</div>
 	);

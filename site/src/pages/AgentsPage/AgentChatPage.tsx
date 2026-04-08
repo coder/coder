@@ -573,22 +573,6 @@ const AgentChatPage: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
-	// Extract the primitive fields used by the transform so the
-	// compiler can see the real dependencies and avoid invalidating
-	// the closure when the workspace object reference changes but
-	// the relevant fields haven't.
-	const proxyHost = proxy.preferredWildcardHostname;
-	const agentName = workspaceAgent?.name;
-	const wsName = workspace?.name;
-	const wsOwner = workspace?.owner_name;
-
-	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
-			return url;
-		}
-		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
-	};
-
 	const chatRecord = chatQuery.data;
 
 	// Initialize MCP selection from chat record or defaults.
@@ -1089,6 +1073,19 @@ const AgentChatPage: FC = () => {
 		chatMessagesQuery.isSuccess,
 		agentId,
 	]);
+
+	// Primitives extracted from proxy/workspace so the compiler
+	// tracks stable strings, not object identity.
+	const proxyHost = proxy.preferredWildcardHostname;
+	const agentName = workspaceAgent?.name;
+	const wsName = workspace?.name;
+	const wsOwner = workspace?.owner_name;
+	const urlTransform: UrlTransform = (url) => {
+		if (!proxyHost || !agentName || !wsName || !wsOwner) {
+			return url;
+		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
+	};
 
 	const handleRegenerateTitle = () => {
 		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
