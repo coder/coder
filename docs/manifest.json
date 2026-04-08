@@ -1246,7 +1246,7 @@
 									"state": ["early access"]
 								},
 								{
-									"title": "Usage \u0026 Analytics",
+									"title": "Spend Management",
 									"description": "Spend limits and cost tracking for Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 									"state": ["early access"]

@@ -113,14 +113,14 @@ This setting is available under **Agents** > **Settings** > **Behavior**.
 The maximum configurable value is 30 days. When disabled, workspaces follow
 their template's autostop rules (or none, if the template does not define any).
 
-### Usage limits and analytics
+### Spend management
 
 Administrators can set spend limits to cap LLM usage per user within a rolling
 time period, with per-user and per-group overrides. The cost tracking dashboard
 provides visibility into per-user spending, token consumption, and per-model
 breakdowns.
 
-See [Usage & Analytics](./usage-insights.md) for details.
+See [Spend Management](./usage-insights.md) for details.
 
 ### Data retention
 
