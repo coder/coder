@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { TemplateExample } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
-import type { StarterTemplatesByTag } from "utils/starterTemplates";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Stack } from "#/components/Stack/Stack";
+import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
+import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
 	const labelByTag: Record<string, string> = {
@@ -66,7 +66,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	return (
 		<Stack direction="row" spacing={4} alignItems="flex-start">
 			{starterTemplatesByTag && tags && (
-				<Stack css={{ width: 202, flexShrink: 0, position: "sticky" }}>
+				<Stack className="w-[202px] shrink-0 sticky">
 					<h2 css={styles.sectionTitle}>Choose a starter template</h2>
 					<span css={styles.filterCaption}>Filter</span>
 					{tags.map((tag) => (
@@ -81,14 +81,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 				</Stack>
 			)}
 
-			<div
-				css={{
-					display: "flex",
-					flexWrap: "wrap",
-					gap: 32,
-					height: "max-content",
-				}}
-			>
+			<div className="flex flex-wrap gap-8 h-max">
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
 						css={(theme) => ({

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import { useState } from "react";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import { PasswordField } from "./PasswordField";
 
 const meta: Meta<typeof PasswordField> = {
@@ -9,14 +9,25 @@ const meta: Meta<typeof PasswordField> = {
 	component: PasswordField,
 	args: {
 		label: "Password",
+		field: {
+			id: "password",
+			name: "password",
+			error: false,
+			onBlur: fn(),
+			onChange: fn(),
+		},
 	},
 	render: function StatefulPasswordField(args) {
 		const [value, setValue] = useState("");
+
 		return (
 			<PasswordField
 				{...args}
-				value={value}
-				onChange={(e) => setValue(e.currentTarget.value)}
+				field={{
+					...args.field,
+					value,
+					onChange: (e) => setValue(e.currentTarget.value),
+				}}
 			/>
 		);
 	},

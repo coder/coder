@@ -31,7 +31,7 @@ func Subset[T, U comparable](a, b map[T]U) bool {
 }
 
 // SortedKeys returns the keys of m in sorted order.
-func SortedKeys[T constraints.Ordered](m map[T]any) (keys []T) {
+func SortedKeys[K constraints.Ordered, V any](m map[K]V) (keys []K) {
 	for k := range m {
 		keys = append(keys, k)
 	}

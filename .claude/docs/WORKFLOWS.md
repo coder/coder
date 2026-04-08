@@ -136,9 +136,11 @@ Then make your changes and push normally. Don't use `git push --force` unless th
 
 ## Commit Style
 
-- Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
-- Format: `type(scope): message`
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+Format: `type(scope): message`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+- Scopes must be a real path (directory or file stem) containing all changed files
+- Omit scope if changes span multiple top-level directories
 - Keep message titles concise (~70 characters)
 - Use imperative, present tense in commit titles
 

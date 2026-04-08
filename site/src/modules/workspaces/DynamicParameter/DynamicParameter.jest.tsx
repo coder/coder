@@ -1,7 +1,7 @@
-import { render } from "testHelpers/renderHelpers";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { PreviewParameter } from "api/typesGenerated";
+import type { PreviewParameter } from "#/api/typesGenerated";
+import { render } from "#/testHelpers/renderHelpers";
 import { DynamicParameter } from "./DynamicParameter";
 
 const createMockParameter = (
@@ -191,7 +191,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("button");
+			const select = screen.getByRole("combobox");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -211,7 +211,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("button");
+			const select = screen.getByRole("combobox");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -703,7 +703,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByRole("button")).toBeInTheDocument();
+			expect(screen.getByRole("combobox")).toBeInTheDocument();
 		});
 
 		it("handles null/undefined values", () => {

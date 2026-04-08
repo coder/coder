@@ -155,6 +155,41 @@ type nopEncoder struct {
 
 func (nopEncoder) Close() error { return nil }
 
+func TestCompressorPresetHeaders(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.Logger(t)
+	tempDir := t.TempDir()
+	cacheDir := filepath.Join(tempDir, "cache")
+	err := os.MkdirAll(cacheDir, 0o700)
+	require.NoError(t, err)
+	srcDir := filepath.Join(tempDir, "src")
+	err = os.MkdirAll(srcDir, 0o700)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(srcDir, "file.html"), []byte("textstring"), 0o600)
+	require.NoError(t, err)
+
+	compressor := NewCompressor(logger, 5, cacheDir, http.FS(os.DirFS(srcDir)))
+
+	for range 2 {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req := httptest.NewRequestWithContext(ctx, "GET", "/file.html", nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+
+		respRec := httptest.NewRecorder()
+		respRec.Header().Set("X-Original-Content-Length", "10")
+		respRec.Header().Set("ETag", `"abc123"`)
+
+		compressor.ServeHTTP(respRec, req)
+		resp := respRec.Result()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, []string{"10"}, resp.Header.Values("X-Original-Content-Length"))
+		require.Equal(t, []string{`"abc123"`}, resp.Header.Values("ETag"))
+		require.NoError(t, resp.Body.Close())
+	}
+}
+
 // nolint: tparallel // we want to assert the state of the cache, so run synchronously
 func TestCompressorHeadings(t *testing.T) {
 	t.Parallel()

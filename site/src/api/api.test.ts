@@ -7,7 +7,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
@@ -147,12 +147,9 @@ describe("api.ts", () => {
 				{ q: "owner:me" },
 				"/api/v2/workspaces?q=owner%3Ame",
 			],
-		])(
-			"Workspaces - getURLWithSearchParams(%p, %p) returns %p",
-			(basePath, filter, expected) => {
-				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
-			},
-		);
+		])("Workspaces - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
+			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+		});
 	});
 
 	describe("getURLWithSearchParams - users", () => {
@@ -164,12 +161,9 @@ describe("api.ts", () => {
 				"/api/v2/users?q=status%3Aactive",
 			],
 			["/api/v2/users", { q: "" }, "/api/v2/users"],
-		])(
-			"Users - getURLWithSearchParams(%p, %p) returns %p",
-			(basePath, filter, expected) => {
-				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
-			},
-		);
+		])("Users - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
+			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+		});
 	});
 
 	describe("update", () => {
@@ -285,19 +279,19 @@ describe("api.ts", () => {
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
 				"/api/experimental/chats/models",
-				() => API.getChatModels(),
+				() => API.experimental.getChatModels(),
 				{
 					providers: [],
 				},
 			],
 			[
 				"/api/experimental/chats/providers",
-				() => API.getChatProviderConfigs(),
+				() => API.experimental.getChatProviderConfigs(),
 				[],
 			],
 			[
 				"/api/experimental/chats/model-configs",
-				() => API.getChatModelConfigs(),
+				() => API.experimental.getChatModelConfigs(),
 				[],
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
@@ -312,11 +306,17 @@ describe("api.ts", () => {
 		});
 
 		it.each<[string, () => Promise<unknown>]>([
-			["/api/experimental/chats/models", () => API.getChatModels()],
-			["/api/experimental/chats/providers", () => API.getChatProviderConfigs()],
+			[
+				"/api/experimental/chats/models",
+				() => API.experimental.getChatModels(),
+			],
+			[
+				"/api/experimental/chats/providers",
+				() => API.experimental.getChatProviderConfigs(),
+			],
 			[
 				"/api/experimental/chats/model-configs",
-				() => API.getChatModelConfigs(),
+				() => API.experimental.getChatModelConfigs(),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");

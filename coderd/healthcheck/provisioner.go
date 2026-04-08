@@ -71,8 +71,8 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		return
 	}
 
-	// nolint: gocritic // need an actor to fetch provisioner daemons
-	daemons, err := opts.Store.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+	// nolint: gocritic // Read-only access to provisioner daemons for health check
+	daemons, err := opts.Store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
 	if err != nil {
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref("error fetching provisioner daemons: " + err.Error())

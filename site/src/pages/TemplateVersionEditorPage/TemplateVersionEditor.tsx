@@ -1,30 +1,3 @@
-import IconButton from "@mui/material/IconButton";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import type {
-	ProvisionerJobLog,
-	Template,
-	TemplateVersion,
-	TemplateVersionVariable,
-	VariableValue,
-	WorkspaceResource,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Sidebar } from "components/FullPageLayout/Sidebar";
-import {
-	Topbar,
-	TopbarAvatar,
-	TopbarButton,
-	TopbarData,
-	TopbarDivider,
-	TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
-import { Loader } from "components/Loader/Loader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -33,18 +6,6 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import {
-	AlertVariant,
-	ProvisionerAlert,
-} from "modules/provisioners/ProvisionerAlert";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
-import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
@@ -52,7 +13,45 @@ import {
 	unstable_usePrompt as usePrompt,
 } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import type {
+	ProvisionerJobLog,
+	Template,
+	TemplateVersion,
+	TemplateVersionVariable,
+	VariableValue,
+	WorkspaceResource,
+} from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Sidebar } from "#/components/FullPageLayout/Sidebar";
+import {
+	Topbar,
+	TopbarAvatar,
+	TopbarButton,
+	TopbarData,
+	TopbarDivider,
+	TopbarIconButton,
+} from "#/components/FullPageLayout/Topbar";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import {
+	AlertVariant,
+	ProvisionerAlert,
+} from "#/modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { WildcardHostnameWarning } from "#/modules/resources/WildcardHostnameWarning";
+import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
+import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
+import { cn } from "#/utils/cn";
 import {
 	createFile,
 	existsFile,
@@ -62,7 +61,7 @@ import {
 	moveFile,
 	removeFile,
 	updateFile,
-} from "utils/filetree";
+} from "#/utils/filetree";
 import {
 	CreateFileDialog,
 	DeleteFileDialog,
@@ -222,8 +221,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					<div>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TopbarIconButton component={RouterLink} to={templateLink}>
-									<ChevronLeftIcon className="size-icon-sm" />
+								<TopbarIconButton asChild>
+									<RouterLink to={templateLink}>
+										<ChevronLeftIcon />
+									</RouterLink>
 								</TopbarIconButton>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
@@ -306,16 +307,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								prominent
 								dismissible
 								actions={
-									<Button
-										variant="subtle"
-										size="sm"
-										onClick={onCreateWorkspace}
-									>
+									<Button size="sm" onClick={onCreateWorkspace}>
 										Create a workspace
 									</Button>
 								}
 							>
-								Successfully published {publishedVersion.name}!
+								<AlertTitle>
+									Successfully published {publishedVersion.name}!
+								</AlertTitle>
 							</Alert>
 						</div>
 					)}
@@ -327,15 +326,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							<div className="ml-auto [&_svg]:fill-content-primary">
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<IconButton
+										<Button
+											size="icon"
+											variant="subtle"
 											aria-label="Create File"
 											onClick={(event) => {
 												setCreateFileOpen(true);
 												event.currentTarget.blur();
 											}}
 										>
-											<PlusIcon className="size-icon-xs" />
-										</IconButton>
+											<PlusIcon />
+										</Button>
 									</TooltipTrigger>
 									<TooltipContent>Create File</TooltipContent>
 								</Tooltip>
@@ -486,17 +487,18 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								)}
 
 								{selectedTab && (
-									<IconButton
+									<Button
+										size="icon"
+										variant="subtle"
 										onClick={() => {
 											setSelectedTab(undefined);
 										}}
 										className={cn(
-											"w-9 h-9 rounded-none",
 											(selectedTab !== "logs" || !gotBuildLogs) && "ml-auto",
 										)}
 									>
-										<XIcon className="size-icon-xs" />
-									</IconButton>
+										<XIcon />
+									</Button>
 								)}
 							</div>
 

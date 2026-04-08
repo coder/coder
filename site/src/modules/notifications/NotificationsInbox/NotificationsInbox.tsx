@@ -1,13 +1,12 @@
-import { watchInboxNotifications } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { type FC, useEffect, useEffectEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { watchInboxNotifications } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ListInboxNotificationsResponse,
 	UpdateInboxNotificationReadStatusResponse,
-} from "api/typesGenerated";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { type FC, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
+} from "#/api/typesGenerated";
 import { InboxPopover } from "./InboxPopover";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
@@ -86,7 +85,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		});
 
 		return () => socket.close();
-	}, [updateNotificationsCache]);
+	}, []);
 
 	const {
 		mutate: loadMoreNotifications,

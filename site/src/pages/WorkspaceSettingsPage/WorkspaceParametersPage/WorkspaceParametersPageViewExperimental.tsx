@@ -1,25 +1,25 @@
+import { useFormik } from "formik";
+import type { FC } from "react";
 import type {
 	PreviewParameter,
 	Workspace,
 	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
-import type { FC } from "react";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
-import type { AutofillBuildParameter } from "utils/richParameters";
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
@@ -28,6 +28,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
 	isSubmitting: boolean;
+	submitLabel: string;
 	onCancel: () => void;
 	onSubmit: (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];
@@ -45,6 +46,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	diagnostics,
 	canChangeVersions,
 	isSubmitting,
+	submitLabel,
 	onSubmit,
 	sendMessage,
 	onCancel,
@@ -257,7 +259,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				)}
 
 				<div className="flex justify-end gap-2">
-					<Button onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline" disabled={isSubmitting}>
 						Cancel
 					</Button>
 					<Button
@@ -277,7 +279,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						}
 					>
 						<Spinner loading={isSubmitting} />
-						Update and restart
+						{submitLabel}
 					</Button>
 				</div>
 			</form>

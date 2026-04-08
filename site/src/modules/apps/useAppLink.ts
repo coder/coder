@@ -1,13 +1,13 @@
-import { apiKey } from "api/queries/users";
+import type React from "react";
+import { useQuery } from "react-query";
+import { toast } from "sonner";
+import { apiKey } from "#/api/queries/users";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
-import { useProxy } from "contexts/ProxyContext";
-import type React from "react";
-import { useQuery } from "react-query";
-import { toast } from "sonner";
+} from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
 import {
 	getAppHref,
 	isExternalApp,

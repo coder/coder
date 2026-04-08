@@ -1,27 +1,27 @@
 import Checkbox from "@mui/material/Checkbox";
-import type { SlimRole } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
+import { UserIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import type { SlimRole } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { EditSquare } from "components/Icons/EditSquare";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
+import { EditSquare } from "#/components/Icons/EditSquare";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
+} from "#/components/Popover/Popover";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UserIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 const roleDescriptions: Record<string, string> = {
 	owner:
@@ -29,6 +29,7 @@ const roleDescriptions: Record<string, string> = {
 	"user-admin": "User admin can manage all users and groups.",
 	"template-admin": "Template admin can manage all templates and workspaces.",
 	auditor: "Auditor can access the audit logs.",
+	"agents-access": "Coder Agents User allows creating and using Coder Agents.",
 	member:
 		"Everybody is a member. This is a shared and default role for all users.",
 };
@@ -86,15 +87,15 @@ export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
 
 	if (!canSetRoles) {
 		return (
-			<HelpTooltip>
-				<HelpTooltipIconTrigger size="small" />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-					<HelpTooltipText>
+			<HelpPopover>
+				<HelpPopoverIconTrigger size="small" />
+				<HelpPopoverContent>
+					<HelpPopoverTitle>Externally controlled</HelpPopoverTitle>
+					<HelpPopoverText>
 						Roles for this user are controlled by the OIDC identity provider.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
+					</HelpPopoverText>
+				</HelpPopoverContent>
+			</HelpPopover>
 		);
 	}
 

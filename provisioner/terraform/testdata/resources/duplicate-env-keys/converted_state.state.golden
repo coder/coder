@@ -22,11 +22,13 @@
           "extra_envs": [
             {
               "name": "PATH",
-              "value": "/a/bin"
+              "value": "/a/bin",
+              "merge_strategy": "append"
             },
             {
               "name": "PATH",
-              "value": "/b/bin"
+              "value": "/b/bin",
+              "merge_strategy": "append"
             },
             {
               "name": "UNIQUE",

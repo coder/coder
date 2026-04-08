@@ -75,9 +75,12 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.15:
 //   - Removed `stop_modules` from CompleteJob. Was a duplicate of start_modules
 //   - Add `id`, `subagent_id`, `apps`, `scripts` and `envs` to `provisioner.Devcontainer`
+//
+// API v1.16:
+//   - Added `merge_strategy` field to `provisioner.Env` message
 const (
 	CurrentMajor = 1
-	CurrentMinor = 15
+	CurrentMinor = 16
 )
 
 // CurrentVersion is the current provisionerd API version.

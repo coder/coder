@@ -24,6 +24,10 @@ OPTIONS:
   -p, --password string
           Specifies a password for the new user.
 
+      --service-account bool
+          Create a user account intended to be used by a service or as an
+          intermediary rather than by a human.
+
   -u, --username string
           Specifies a username for the new user.
 

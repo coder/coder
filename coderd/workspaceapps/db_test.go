@@ -1016,7 +1016,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 		w := rw.Result()
 		defer w.Body.Close()
-		require.Equal(t, http.StatusBadGateway, w.StatusCode)
+		require.Equal(t, http.StatusNotFound, w.StatusCode)
 		assertConnLogContains(t, rw, r, connLogger, workspace, agentNameUnhealthy, appNameAgentUnhealthy, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 
@@ -1281,7 +1281,7 @@ func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.
 		WorkspaceName:    workspace.Name,
 		AgentName:        agentName,
 		Type:             typ,
-		Ip:               database.ParseIP(r.RemoteAddr),
+		IP:               database.ParseIP(r.RemoteAddr),
 		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
 		Code: sql.NullInt32{
 			Int32: int32(resp.StatusCode), // nolint:gosec

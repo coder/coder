@@ -2,6 +2,7 @@ package rolestore
 
 import (
 	"context"
+	"maps"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -161,13 +162,28 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	return role, nil
 }
 
-// ReconcileSystemRoles ensures that every organization's org-member
-// system role in the DB is up-to-date with permissions reflecting
-// current RBAC resources and the organization's
-// workspace_sharing_disabled setting. Uses PostgreSQL advisory lock
-// (LockIDReconcileSystemRoles) to safely handle multi-instance
-// deployments. Uses set-based comparison to avoid unnecessary
-// database writes when permissions haven't changed.
+// System roles are defined in code but stored in the database,
+// allowing their permissions to be adjusted per-organization at
+// runtime based on org settings (e.g. workspace sharing).
+var systemRoles = map[string]permissionsFunc{
+	rbac.RoleOrgMember():         rbac.OrgMemberPermissions,
+	rbac.RoleOrgServiceAccount(): rbac.OrgServiceAccountPermissions,
+}
+
+// permissionsFunc produces the desired permissions for a system role
+// given organization settings.
+type permissionsFunc func(rbac.OrgSettings) rbac.OrgRolePermissions
+
+func IsSystemRoleName(name string) bool {
+	_, ok := systemRoles[name]
+	return ok
+}
+
+var SystemRoleNames = maps.Keys(systemRoles)
+
+// ReconcileSystemRoles ensures that every organization's system roles
+// in the DB are up-to-date with the current RBAC definitions and
+// organization settings.
 func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Store) error {
 	return db.InTx(func(tx database.Store) error {
 		// Acquire advisory lock to prevent concurrent updates from
@@ -193,36 +209,45 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 			return xerrors.Errorf("fetch custom roles: %w", err)
 		}
 
-		// Find org-member roles and index by organization ID for quick lookup.
-		rolesByOrg := make(map[uuid.UUID]database.CustomRole)
+		// Index system roles by (org ID, role name) for quick lookup.
+		type orgRoleKey struct {
+			OrgID    uuid.UUID
+			RoleName string
+		}
+		roleIndex := make(map[orgRoleKey]database.CustomRole)
 		for _, role := range customRoles {
-			if role.IsSystem && role.Name == rbac.RoleOrgMember() && role.OrganizationID.Valid {
-				rolesByOrg[role.OrganizationID.UUID] = role
+			if role.IsSystem && IsSystemRoleName(role.Name) && role.OrganizationID.Valid {
+				roleIndex[orgRoleKey{role.OrganizationID.UUID, role.Name}] = role
 			}
 		}
 
 		for _, org := range orgs {
-			role, exists := rolesByOrg[org.ID]
-			if !exists {
-				// Something is very wrong: the role should have been created by the
-				// database trigger or migration. Log loudly and try creating it as
-				// a last-ditch effort before giving up.
-				log.Critical(ctx, "missing organization-member system role; trying to re-create",
-					slog.F("organization_id", org.ID))
+			for roleName := range systemRoles {
+				role, exists := roleIndex[orgRoleKey{org.ID, roleName}]
+				if !exists {
+					// Something is very wrong: the role should have been
+					// created by the db trigger or migration. Log loudly and
+					// try creating it as a last-ditch effort before giving up.
+					log.Critical(ctx, "missing system role; trying to re-create",
+						slog.F("organization_id", org.ID),
+						slog.F("role_name", roleName))
 
-				if err := CreateOrgMemberRole(ctx, tx, org); err != nil {
-					return xerrors.Errorf("create missing organization-member role for organization %s: %w",
-						org.ID, err)
+					err := CreateSystemRole(ctx, tx, org, roleName)
+					if err != nil {
+						return xerrors.Errorf("create missing %s system role for organization %s: %w",
+							roleName, org.ID, err)
+					}
+
+					// Nothing more to do; the new role's permissions are
+					// up-to-date.
+					continue
 				}
 
-				// Nothing more to do; the new role's permissions are up-to-date.
-				continue
-			}
-
-			_, _, err := ReconcileOrgMemberRole(ctx, tx, role, org.WorkspaceSharingDisabled)
-			if err != nil {
-				return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
-					org.ID, err)
+				_, _, err := ReconcileSystemRole(ctx, tx, role, org)
+				if err != nil {
+					return xerrors.Errorf("reconcile %s system role for organization %s: %w",
+						roleName, org.ID, err)
+				}
 			}
 		}
 
@@ -230,28 +255,30 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 	}, nil)
 }
 
-// ReconcileOrgMemberRole ensures passed-in org-member role's perms
-// are correct (current) and stored in the DB. Uses set-based
-// comparison to avoid unnecessary database writes when permissions
-// haven't changed. Returns the correct role and a boolean indicating
-// whether the reconciliation was necessary.
-// NOTE: Callers must acquire `database.LockIDReconcileSystemRoles` at
-// the start of the transaction and hold it for the transaction’s
-// duration. This prevents concurrent org-member reconciliation from
-// racing and producing inconsistent writes.
-func ReconcileOrgMemberRole(
+// ReconcileSystemRole compares the given role's permissions against
+// the desired permissions produced by the permissions function based
+// on the organization's settings. If they differ, the DB row is
+// updated. Uses set-based comparison so permission ordering doesn't
+// matter. Returns the correct role and a boolean indicating whether
+// the reconciliation was necessary.
+//
+// IMPORTANT: Callers must hold database.LockIDReconcileSystemRoles
+// for the duration of the enclosing transaction.
+func ReconcileSystemRole(
 	ctx context.Context,
 	tx database.Store,
 	in database.CustomRole,
-	workspaceSharingDisabled bool,
-) (
-	database.CustomRole, bool, error,
-) {
+	org database.Organization,
+) (database.CustomRole, bool, error) {
+	permsFunc, ok := systemRoles[in.Name]
+	if !ok {
+		panic("dev error: no permissions function exists for role " + in.Name)
+	}
+
 	// All fields except OrgPermissions and MemberPermissions will be the same.
 	out := in
 
 	// Paranoia check: we don't use these in custom roles yet.
-	// TODO(geokat): Have these as check constraints in DB for now?
 	out.SitePermissions = database.CustomRolePermissions{}
 	out.UserPermissions = database.CustomRolePermissions{}
 	out.DisplayName = ""
@@ -259,15 +286,14 @@ func ReconcileOrgMemberRole(
 	inOrgPerms := ConvertDBPermissions(in.OrgPermissions)
 	inMemberPerms := ConvertDBPermissions(in.MemberPermissions)
 
-	outOrgPerms, outMemberPerms := rbac.OrgMemberPermissions(workspaceSharingDisabled)
+	outPerms := permsFunc(orgSettings(org))
 
-	// Compare using set-based comparison (order doesn't matter).
-	match := rbac.PermissionsEqual(inOrgPerms, outOrgPerms) &&
-		rbac.PermissionsEqual(inMemberPerms, outMemberPerms)
+	match := rbac.PermissionsEqual(inOrgPerms, outPerms.Org) &&
+		rbac.PermissionsEqual(inMemberPerms, outPerms.Member)
 
 	if !match {
-		out.OrgPermissions = ConvertPermissionsToDB(outOrgPerms)
-		out.MemberPermissions = ConvertPermissionsToDB(outMemberPerms)
+		out.OrgPermissions = ConvertPermissionsToDB(outPerms.Org)
+		out.MemberPermissions = ConvertPermissionsToDB(outPerms.Member)
 
 		_, err := tx.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
 			Name:              out.Name,
@@ -279,30 +305,50 @@ func ReconcileOrgMemberRole(
 			MemberPermissions: out.MemberPermissions,
 		})
 		if err != nil {
-			return out, !match, xerrors.Errorf("update organization-member custom role for organization %s: %w",
-				in.OrganizationID.UUID, err)
+			return out, !match, xerrors.Errorf("update %s system role for organization %s: %w",
+				in.Name, in.OrganizationID.UUID, err)
 		}
 	}
 
 	return out, !match, nil
 }
 
-// CreateOrgMemberRole creates an org-member system role for an organization.
-func CreateOrgMemberRole(ctx context.Context, tx database.Store, org database.Organization) error {
-	orgPerms, memberPerms := rbac.OrgMemberPermissions(org.WorkspaceSharingDisabled)
+// orgSettings maps database.Organization fields to the
+// rbac.OrgSettings struct, bridging the database and rbac packages
+// without introducing a circular dependency.
+func orgSettings(org database.Organization) rbac.OrgSettings {
+	return rbac.OrgSettings{
+		ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners),
+	}
+}
+
+// CreateSystemRole inserts a new system role into the database with
+// permissions produced by permsFunc based on the organization's current
+// settings.
+func CreateSystemRole(
+	ctx context.Context,
+	tx database.Store,
+	org database.Organization,
+	roleName string,
+) error {
+	permsFunc, ok := systemRoles[roleName]
+	if !ok {
+		panic("dev error: no permissions function exists for role " + roleName)
+	}
+	perms := permsFunc(orgSettings(org))
 
 	_, err := tx.InsertCustomRole(ctx, database.InsertCustomRoleParams{
-		Name:              rbac.RoleOrgMember(),
+		Name:              roleName,
 		DisplayName:       "",
 		OrganizationID:    uuid.NullUUID{UUID: org.ID, Valid: true},
 		SitePermissions:   database.CustomRolePermissions{},
-		OrgPermissions:    ConvertPermissionsToDB(orgPerms),
+		OrgPermissions:    ConvertPermissionsToDB(perms.Org),
 		UserPermissions:   database.CustomRolePermissions{},
-		MemberPermissions: ConvertPermissionsToDB(memberPerms),
+		MemberPermissions: ConvertPermissionsToDB(perms.Member),
 		IsSystem:          true,
 	})
 	if err != nil {
-		return xerrors.Errorf("insert org-member role: %w", err)
+		return xerrors.Errorf("insert %s role: %w", roleName, err)
 	}
 
 	return nil

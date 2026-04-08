@@ -1,5 +1,5 @@
 import set from "lodash/set";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import type { FileTree } from "./filetree";
 import { TarFileTypeCodes, TarReader } from "./tar";
 

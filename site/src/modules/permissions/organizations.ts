@@ -1,4 +1,4 @@
-import type { AuthorizationCheck } from "api/typesGenerated";
+import type { AuthorizationCheck } from "#/api/typesGenerated";
 
 export type OrganizationPermissions = {
 	[k in OrganizationPermissionName]: boolean;

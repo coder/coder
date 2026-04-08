@@ -1,31 +1,34 @@
-import { workspaceSharingSettings } from "api/queries/organizations";
+import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import type { FC, ReactNode } from "react";
+import { useQuery } from "react-query";
+import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
 	Group,
 	WorkspaceACL,
 	WorkspaceGroup,
 	WorkspaceRole,
 	WorkspaceUser,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
-import { Spinner } from "components/Spinner/Spinner";
+} from "#/components/Select/Select";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -33,12 +36,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import type { FC, ReactNode } from "react";
-import { useQuery } from "react-query";
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 
 interface RoleSelectProps {
 	value: WorkspaceRole;

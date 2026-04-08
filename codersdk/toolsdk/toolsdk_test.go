@@ -64,6 +64,75 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 // These tests are dependent on the state of the coder server.
 // Running them in parallel is prone to racy behavior.
 // nolint:tparallel,paralleltest
+func TestGenericToolMCPAnnotations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		toolName        string
+		readOnlyHint    bool
+		destructiveHint bool
+		idempotentHint  bool
+		openWorldHint   bool
+	}{
+		{
+			name:            "ReadOnlyTool",
+			toolName:        toolsdk.ToolNameGetAuthenticatedUser,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "DestructiveTool",
+			toolName:        toolsdk.ToolNameWorkspaceWriteFile,
+			readOnlyHint:    false,
+			destructiveHint: true,
+			idempotentHint:  false,
+			openWorldHint:   false,
+		},
+		{
+			name:            "MutatingTool",
+			toolName:        toolsdk.ToolNameCreateWorkspace,
+			readOnlyHint:    false,
+			destructiveHint: false,
+			idempotentHint:  false,
+			openWorldHint:   false,
+		},
+		{
+			name:            "PortForwardIsReadOnly",
+			toolName:        toolsdk.ToolNameWorkspacePortForward,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var found *toolsdk.GenericTool
+			for i := range toolsdk.All {
+				if toolsdk.All[i].Name == tc.toolName {
+					found = &toolsdk.All[i]
+					break
+				}
+			}
+			require.NotNil(t, found)
+			assert.Equal(t, tc.readOnlyHint, found.MCPAnnotations.ReadOnlyHint)
+			assert.Equal(t, tc.destructiveHint, found.MCPAnnotations.DestructiveHint)
+			assert.Equal(t, tc.idempotentHint, found.MCPAnnotations.IdempotentHint)
+			assert.Equal(t, tc.openWorldHint, found.MCPAnnotations.OpenWorldHint)
+		})
+	}
+}
+
+// These tests are dependent on the state of the coder server.
+// Running them in parallel is prone to racy behavior.
+// nolint:tparallel,paralleltest
 func TestTools(t *testing.T) {
 	// Given: a running coderd instance using SSH test setup pattern
 	setupCtx := testutil.Context(t, testutil.WaitShort)

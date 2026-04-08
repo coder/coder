@@ -13,6 +13,8 @@ export interface FieldSchema {
 	type: "string" | "integer" | "number" | "boolean" | "array" | "object";
 	/** Human-readable description of the field. May be absent for some fields. */
 	description?: string;
+	/** Optional display label override. When absent, derive from json_name. */
+	label?: string;
 	/** Whether this field is required when configuring the provider. */
 	required: boolean;
 	/** Hint for how the frontend should render the input control. */
@@ -48,12 +50,54 @@ export interface ModelOptionsSchema {
 export const modelOptionsSchema: ModelOptionsSchema =
 	schema as ModelOptionsSchema;
 
+const syntheticGeneralFields: FieldSchema[] = [
+	{
+		json_name: "cost.input_price_per_million_tokens",
+		go_name: "Cost.InputPricePerMillionTokens",
+		type: "number",
+		description: "Input token price in USD per 1M tokens",
+		required: false,
+		input_type: "input",
+	},
+	{
+		json_name: "cost.output_price_per_million_tokens",
+		go_name: "Cost.OutputPricePerMillionTokens",
+		type: "number",
+		description: "Output token price in USD per 1M tokens",
+		required: false,
+		input_type: "input",
+	},
+	{
+		json_name: "cost.cache_read_price_per_million_tokens",
+		go_name: "Cost.CacheReadPricePerMillionTokens",
+		type: "number",
+		description: "Cache read token price in USD per 1M tokens",
+		required: false,
+		input_type: "input",
+	},
+	{
+		json_name: "cost.cache_write_price_per_million_tokens",
+		go_name: "Cost.CacheWritePricePerMillionTokens",
+		type: "number",
+		description:
+			"Cache write or cache creation token price in USD per 1M tokens",
+		required: false,
+		input_type: "input",
+	},
+];
+
 /**
  * Get the general (provider-independent) fields such as temperature
  * and max_output_tokens.
  */
 export function getGeneralFields(): FieldSchema[] {
-	return modelOptionsSchema.general.fields;
+	const fields = [...modelOptionsSchema.general.fields];
+	for (const field of syntheticGeneralFields) {
+		if (!fields.some((existing) => existing.json_name === field.json_name)) {
+			fields.push(field);
+		}
+	}
+	return fields;
 }
 
 /**

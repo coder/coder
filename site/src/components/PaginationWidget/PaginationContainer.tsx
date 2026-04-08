@@ -1,5 +1,5 @@
-import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import type { FC, HTMLAttributes } from "react";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { PaginationAmount } from "./PaginationAmount";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
@@ -27,12 +27,14 @@ export const PaginationContainer: FC<PaginationProps> = ({
 				totalRecords={query.totalRecords}
 				currentOffsetStart={query.currentOffsetStart}
 				paginationUnitLabel={paginationUnitLabel}
+				countIsCapped={query.countIsCapped}
 				className="justify-end"
 			/>
 
 			{query.isSuccess && (
 				<PaginationWidgetBase
 					totalRecords={query.totalRecords}
+					totalPages={query.totalPages}
 					currentPage={query.currentPage}
 					pageSize={query.limit}
 					onPageChange={query.onPageChange}

@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
-import { useEffectEvent } from "./hookPolyfills";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
@@ -55,7 +60,7 @@ export const useClipboard = (
 		return clearTimeoutOnUnmount;
 	}, []);
 
-	const stableOnError = useEffectEvent(() => onError(COPY_FAILED_MESSAGE));
+	const onErrorEvent = useEffectEvent(() => onError(COPY_FAILED_MESSAGE));
 	const handleSuccessfulCopy = useEffectEvent(() => {
 		setShowCopiedSuccess(true);
 		if (clearErrorOnSuccess) {
@@ -67,30 +72,27 @@ export const useClipboard = (
 		}, CLIPBOARD_TIMEOUT_MS);
 	});
 
-	const copyToClipboard = useCallback(
-		async (textToCopy: string) => {
-			try {
-				await window.navigator.clipboard.writeText(textToCopy);
+	const copyToClipboard = useCallback(async (textToCopy: string) => {
+		try {
+			await window.navigator.clipboard.writeText(textToCopy);
+			handleSuccessfulCopy();
+		} catch (err) {
+			const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
+			if (fallbackCopySuccessful) {
 				handleSuccessfulCopy();
-			} catch (err) {
-				const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
-				if (fallbackCopySuccessful) {
-					handleSuccessfulCopy();
-					return;
-				}
-
-				const wrappedErr = new Error(COPY_FAILED_MESSAGE);
-				if (err instanceof Error) {
-					wrappedErr.stack = err.stack;
-				}
-
-				console.error(wrappedErr);
-				setError(wrappedErr);
-				stableOnError();
+				return;
 			}
-		},
-		[stableOnError, handleSuccessfulCopy],
-	);
+
+			const wrappedErr = new Error(COPY_FAILED_MESSAGE);
+			if (err instanceof Error) {
+				wrappedErr.stack = err.stack;
+			}
+
+			console.error(wrappedErr);
+			setError(wrappedErr);
+			onErrorEvent();
+		}
+	}, []);
 
 	return { showCopiedSuccess, error, copyToClipboard };
 };

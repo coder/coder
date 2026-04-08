@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/table}
  */
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 export const Table: React.FC<React.ComponentPropsWithRef<"table">> = ({
 	className,
@@ -72,7 +72,7 @@ const tableRowVariants = cva(
 			hover: {
 				false: null,
 				true: cn(
-					"cursor-pointer hover:outline focus:outline outline-1 -outline-offset-1 outline-border-hover",
+					"cursor-pointer hover:outline focus-visible:outline outline-1 -outline-offset-1 outline-border-hover",
 					"first:rounded-t-md last:rounded-b-md",
 				),
 			},

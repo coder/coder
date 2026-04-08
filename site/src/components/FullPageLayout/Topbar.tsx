@@ -1,7 +1,4 @@
 import { useTheme } from "@emotion/react";
-import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	cloneElement,
 	type FC,
@@ -9,7 +6,9 @@ import {
 	type ReactElement,
 	type Ref,
 } from "react";
-import { cn } from "utils/cn";
+import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
+import { Button, type ButtonProps } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	className,
@@ -26,15 +25,21 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-export const TopbarIconButton = (({ className, ...props }: IconButtonProps) => {
+type TopbarIconButtonProps = ButtonProps;
+
+export const TopbarIconButton = ({
+	className,
+	...props
+}: TopbarIconButtonProps) => {
 	return (
-		<IconButton
+		<Button
 			{...props}
-			size="small"
-			className={cn("p-0 rounded-none size-12 [&_svg]:size-icon-sm", className)}
+			size="icon-lg"
+			variant="subtle"
+			className={cn("p-0 rounded-none size-12", className)}
 		/>
 	);
-}) as typeof IconButton;
+};
 
 export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
 	return <Button variant="outline" size="sm" {...props} />;

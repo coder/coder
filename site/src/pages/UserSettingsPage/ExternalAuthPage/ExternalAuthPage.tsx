@@ -1,14 +1,14 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	externalAuths,
 	unlinkExternalAuths,
 	validateExternalAuth,
-} from "api/queries/externalAuth";
-import type { ExternalAuthLinkProvider } from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
+} from "#/api/queries/externalAuth";
+import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Section } from "../Section";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
@@ -70,9 +70,12 @@ const ExternalAuthPage: FC = () => {
 				entity="application"
 				onCancel={() => setAppToUnlink(undefined)}
 				onConfirm={async () => {
+					if (!appToUnlink) {
+						return;
+					}
 					try {
 						const unlinkResp = await unlinkAppMutation.mutateAsync(
-							appToUnlink?.id!,
+							appToUnlink.id,
 						);
 						// setAppToUnlink closes the modal
 						setAppToUnlink(undefined);

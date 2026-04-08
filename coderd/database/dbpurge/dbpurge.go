@@ -34,6 +34,11 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
+	// Batch sizes for chat purging. Both use 1000, which is smaller
+	// than audit/connection log batches (10000), because chat_files
+	// rows contain bytea blob data that make large batches heavier.
+	chatsBatchSize     = 1000
+	chatFilesBatchSize = 1000
 )
 
 // New creates a new periodically purging database instance.
@@ -109,6 +114,17 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purgeTick performs a single purge iteration. It returns an error if the
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
+	// Read chat retention config outside the transaction to
+	// avoid poisoning the tx if the stored value is corrupt.
+	// A SQL-level cast error (e.g. non-numeric text) puts PG
+	// into error state, failing all subsequent queries in the
+	// same transaction.
+	chatRetentionDays, err := db.GetChatRetentionDays(ctx)
+	if err != nil {
+		i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
+		chatRetentionDays = 0
+	}
+
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
 	return db.InTx(func(tx database.Store) error {
@@ -213,12 +229,43 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		// Chat retention is configured via site_configs. When
+		// enabled, old archived chats are deleted first, then
+		// orphaned chat files. Deleting a chat cascades to
+		// chat_file_links (removing references) but not to
+		// chat_files directly, so files from deleted chats
+		// become orphaned and are caught by DeleteOldChatFiles
+		// in the same tick.
+		var purgedChats int64
+		var purgedChatFiles int64
+		if chatRetentionDays > 0 {
+			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
+			deleteChatsBefore := start.Add(-chatRetention)
+
+			purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+				BeforeTime: deleteChatsBefore,
+				LimitCount: chatsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chats: %w", err)
+			}
+
+			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+				BeforeTime: deleteChatsBefore,
+				LimitCount: chatFilesBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chat files: %w", err)
+			}
+		}
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
 			slog.F("aibridge_records", purgedAIBridgeRecords),
 			slog.F("connection_logs", purgedConnectionLogs),
 			slog.F("audit_logs", purgedAuditLogs),
+			slog.F("chats", purgedChats),
+			slog.F("chat_files", purgedChatFiles),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -232,6 +279,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
 			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
+			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
 		}
 
 		return nil

@@ -28,7 +28,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.AI.BridgeConfig.Enabled = true
-		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -38,7 +38,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		now := dbtime.Now()
 		interception1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
@@ -49,11 +49,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			InitiatorID: member.ID,
 			StartedAt:   now,
 		}, &interception2EndedAt)
-		// Should not be returned because the user can't see it.
-		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		interception3EndedAt := now.Add(-time.Hour)
+		interception3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: owner.UserID,
 			StartedAt:   now.Add(-2 * time.Hour),
-		}, nil)
+		}, &interception3EndedAt)
 
 		args := []string{
 			"aibridge",
@@ -61,7 +61,8 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			"list",
 		}
 		inv, root := newCLI(t, args...)
-		clitest.SetupConfig(t, memberClient, root)
+		//nolint:gocritic // Owner can read all interceptions.
+		clitest.SetupConfig(t, ownerClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -70,8 +71,8 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// Reverse order because the order is `started_at ASC`.
-		requireHasInterceptions(t, out.Bytes(), []uuid.UUID{interception2.ID, interception1.ID})
+		// Owner sees all interceptions. Ordered by started_at DESC.
+		requireHasInterceptions(t, out.Bytes(), []uuid.UUID{interception2.ID, interception1.ID, interception3.ID})
 	})
 
 	t.Run("Filter", func(t *testing.T) {
@@ -79,7 +80,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.AI.BridgeConfig.Enabled = true
-		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -89,7 +90,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 		now := dbtime.Now()
 
@@ -143,12 +144,13 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			"list",
 			"--started-after", now.Add(-time.Hour).Format(time.RFC3339),
 			"--started-before", now.Add(time.Hour).Format(time.RFC3339),
-			"--initiator", codersdk.Me,
+			"--initiator", member.Username,
 			"--provider", goodInterception.Provider,
 			"--model", goodInterception.Model,
 		}
 		inv, root := newCLI(t, args...)
-		clitest.SetupConfig(t, memberClient, root)
+		//nolint:gocritic // Owner can read all interceptions.
+		clitest.SetupConfig(t, ownerClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -160,12 +162,12 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		requireHasInterceptions(t, out.Bytes(), []uuid.UUID{goodInterception.ID})
 	})
 
-	t.Run("Pagination", func(t *testing.T) {
+	t.Run("FilterByMe", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.AI.BridgeConfig.Enabled = true
-		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -175,20 +177,64 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		now := dbtime.Now()
+
+		// Create an interception initiated by the member.
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: member.ID,
+			StartedAt:   now,
+		}, nil)
+
+		args := []string{
+			"aibridge",
+			"interceptions",
+			"list",
+			"--initiator", codersdk.Me,
+		}
+		inv, root := newCLI(t, args...)
+		clitest.SetupConfig(t, memberClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Member cannot read their own interceptions.
+		requireHasInterceptions(t, out.Bytes(), []uuid.UUID{})
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = true
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
 
 		now := dbtime.Now()
 		firstInterceptionEndedAt := now.Add(time.Minute)
 		firstInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: member.ID,
+			InitiatorID: owner.UserID,
 			StartedAt:   now,
 		}, &firstInterceptionEndedAt)
 		returnedInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: member.ID,
+			InitiatorID: owner.UserID,
 			StartedAt:   now.Add(-time.Hour),
 		}, &now)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: member.ID,
+			InitiatorID: owner.UserID,
 			StartedAt:   now.Add(-2 * time.Hour),
 		}, nil)
 
@@ -200,7 +246,8 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			"--after-id", firstInterception.ID.String(),
 		}
 		inv, root := newCLI(t, args...)
-		clitest.SetupConfig(t, memberClient, root)
+		//nolint:gocritic // Owner can read all interceptions.
+		clitest.SetupConfig(t, ownerClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 

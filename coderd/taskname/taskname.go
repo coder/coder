@@ -96,6 +96,27 @@ var (
 	ErrNoNameGenerated = xerrors.New("no task name generated")
 )
 
+// extractJSON strips optional markdown code fences (```json or
+// ```) that LLMs sometimes wrap around JSON output, returning
+// only the inner JSON string. Only well-formed fences with a
+// newline after the opening backticks are stripped; malformed
+// fences are left untouched so that json.Unmarshal fails
+// cleanly and the caller can fall back to other strategies.
+func extractJSON(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```") {
+		// Only strip when there is a newline separating the
+		// fence line from the body. Without one we cannot
+		// reliably tell the fence from the content.
+		if idx := strings.Index(s, "\n"); idx != -1 {
+			s = s[idx+1:]
+			s = strings.TrimSuffix(s, "```")
+			s = strings.TrimSpace(s)
+		}
+	}
+	return s
+}
+
 type TaskName struct {
 	Name        string `json:"task_name"`
 	DisplayName string `json:"display_name"`
@@ -188,7 +209,7 @@ func generateFromPrompt(prompt string) (TaskName, error) {
 // generateFromAnthropic uses Claude (Anthropic) to generate semantic task and display names from a user prompt.
 // It sends the prompt to Claude with a structured system prompt requesting JSON output containing both names.
 // Returns an error if the API call fails, the response is invalid, or Claude returns an "unnamed" placeholder.
-func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, model anthropic.Model) (TaskName, error) {
+func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, model anthropic.Model, opts ...anthropicoption.RequestOption) (TaskName, error) {
 	anthropicModel := model
 	if anthropicModel == "" {
 		anthropicModel = defaultModel
@@ -216,6 +237,7 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 
 	anthropicOptions := anthropic.DefaultClientOptions()
 	anthropicOptions = append(anthropicOptions, anthropicoption.WithAPIKey(apiKey))
+	anthropicOptions = append(anthropicOptions, opts...)
 	anthropicClient := anthropic.NewClient(anthropicOptions...)
 
 	stream, err := anthropicDataStream(ctx, anthropicClient, anthropicModel, conversation)
@@ -234,9 +256,11 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 		return TaskName{}, ErrNoNameGenerated
 	}
 
-	// Parse the JSON response
+	// Parse the JSON response. LLMs sometimes wrap JSON in
+	// markdown code fences (```json ... ```), so we strip
+	// those before unmarshalling.
 	var taskNameResponse TaskName
-	if err := json.Unmarshal([]byte(acc.Messages()[0].Content), &taskNameResponse); err != nil {
+	if err := json.Unmarshal([]byte(extractJSON(acc.Messages()[0].Content)), &taskNameResponse); err != nil {
 		return TaskName{}, xerrors.Errorf("failed to parse anthropic response: %w", err)
 	}
 

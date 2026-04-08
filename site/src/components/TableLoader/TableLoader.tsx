@@ -1,9 +1,9 @@
+import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
 import {
 	TableCell,
 	TableRow,
 	type TableRowProps,
-} from "components/Table/Table";
-import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
+} from "#/components/Table/Table";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {

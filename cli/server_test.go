@@ -2123,7 +2123,6 @@ func TestServer_TelemetryDisable(t *testing.T) {
 	// Set the default telemetry to true (normally disabled in tests).
 	t.Setenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE", "true")
 
-	//nolint:paralleltest // No need to reinitialise the variable tt (Go version).
 	for _, tt := range []struct {
 		key  string
 		val  string

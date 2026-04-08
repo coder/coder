@@ -5,7 +5,9 @@
 	"ignore": ["**/*Generated.ts", "src/api/chatModelOptions.ts"],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
+		"@babel/plugin-syntax-typescript",
 		"@types/react-virtualized-auto-sizer",
+		"babel-plugin-react-compiler",
 		"jest_workaround",
 		"ts-proto"
 	],

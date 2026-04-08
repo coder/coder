@@ -53,7 +53,7 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("COALESCE(audit_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
+		sqltypes.UUIDVarMatcher("audit_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Audit logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
@@ -67,7 +67,7 @@ func AuditLogConverter() *sqltypes.VariableConverter {
 func ConnectionLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("COALESCE(connection_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
+		sqltypes.UUIDVarMatcher("connection_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Connection logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
@@ -116,6 +116,30 @@ func NoACLConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
 		organizationOwnerMatcher(),
+		userOwnerMatcher(),
+	)
+	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+
+	return matcher
+}
+
+// ChatConverter should be used for the chats table, which has no
+// organization_id, group_acl, or user_acl columns.
+func ChatConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		// The chats table has no organization_id column. Map org_owner
+		// to a literal empty string so that:
+		//  - User-level ownership checks (org_owner = '') activate correctly.
+		//  - Org-scoped permissions never match (org_owner will never equal
+		//    a real org UUID), which is intentional since chats are not
+		//    org-scoped resources.
+		// Note: custom org roles that include "chat" permissions will
+		// silently have no effect because of this mapping.
+		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
 		userOwnerMatcher(),
 	)
 	matcher.RegisterMatcher(

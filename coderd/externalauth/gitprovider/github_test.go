@@ -657,7 +657,7 @@ func TestFetchPullRequestStatus(t *testing.T) {
 	}{
 		{
 			name:             "OpenPR/NoReviews",
-			pullJSON:         `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON:         `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews:          []review{},
 			expectedState:    gitprovider.PRStateOpen,
 			expectedDraft:    false,
@@ -665,14 +665,14 @@ func TestFetchPullRequestStatus(t *testing.T) {
 		},
 		{
 			name:             "OpenPR/SingleChangesRequested",
-			pullJSON:         `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON:         `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews:          []review{makeReview(1, "CHANGES_REQUESTED", "alice")},
 			expectedState:    gitprovider.PRStateOpen,
 			changesRequested: true,
 		},
 		{
 			name:     "OpenPR/ChangesRequestedThenApproved",
-			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews: []review{
 				makeReview(1, "CHANGES_REQUESTED", "alice"),
 				makeReview(2, "APPROVED", "alice"),
@@ -682,7 +682,7 @@ func TestFetchPullRequestStatus(t *testing.T) {
 		},
 		{
 			name:     "OpenPR/ChangesRequestedThenDismissed",
-			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews: []review{
 				makeReview(1, "CHANGES_REQUESTED", "alice"),
 				makeReview(2, "DISMISSED", "alice"),
@@ -692,7 +692,7 @@ func TestFetchPullRequestStatus(t *testing.T) {
 		},
 		{
 			name:     "OpenPR/MultipleReviewersMixed",
-			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews: []review{
 				makeReview(1, "APPROVED", "alice"),
 				makeReview(2, "CHANGES_REQUESTED", "bob"),
@@ -702,7 +702,7 @@ func TestFetchPullRequestStatus(t *testing.T) {
 		},
 		{
 			name:     "OpenPR/CommentedDoesNotAffect",
-			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON: `{"state":"open","merged":false,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews: []review{
 				makeReview(1, "COMMENTED", "alice"),
 			},
@@ -711,14 +711,14 @@ func TestFetchPullRequestStatus(t *testing.T) {
 		},
 		{
 			name:             "MergedPR",
-			pullJSON:         `{"state":"closed","merged":true,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON:         `{"state":"closed","merged":true,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews:          []review{},
 			expectedState:    gitprovider.PRStateMerged,
 			changesRequested: false,
 		},
 		{
 			name:             "DraftPR",
-			pullJSON:         `{"state":"open","merged":false,"draft":true,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123"}}`,
+			pullJSON:         `{"state":"open","merged":false,"draft":true,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
 			reviews:          []review{},
 			expectedState:    gitprovider.PRStateOpen,
 			expectedDraft:    true,
@@ -762,6 +762,7 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			assert.Equal(t, tc.expectedDraft, status.Draft)
 			assert.Equal(t, tc.changesRequested, status.ChangesRequested)
 			assert.Equal(t, "abc123", status.HeadSHA)
+			assert.Equal(t, "feature-branch", status.HeadBranch)
 			assert.Equal(t, int32(10), status.DiffStats.Additions)
 			assert.Equal(t, int32(5), status.DiffStats.Deletions)
 			assert.Equal(t, int32(3), status.DiffStats.ChangedFiles)

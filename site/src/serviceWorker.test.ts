@@ -1,4 +1,4 @@
-import type { WebpushMessage } from "api/typesGenerated";
+import type { WebpushMessage } from "#/api/typesGenerated";
 
 // We need to mock the ServiceWorkerGlobalScope before importing the
 // module, since serviceWorker.ts registers event listeners at the

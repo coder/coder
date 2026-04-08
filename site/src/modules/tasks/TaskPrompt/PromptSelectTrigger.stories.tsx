@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Select, SelectContent, SelectItem } from "components/Select/Select";
 import { userEvent, within } from "storybook/test";
+import { Select, SelectContent, SelectItem } from "#/components/Select/Select";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 
 const meta: Meta<typeof PromptSelectTrigger> = {

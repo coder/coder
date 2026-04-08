@@ -89,6 +89,7 @@ Examples:
 			Required: []string{"workspace", "command"},
 		},
 	},
+	MCPAnnotations: mcpDestructiveAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceBashArgs) (res WorkspaceBashResult, err error) {
 		if args.Workspace == "" {
 			return WorkspaceBashResult{}, xerrors.New("workspace name cannot be empty")

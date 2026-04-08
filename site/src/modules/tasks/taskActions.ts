@@ -1,4 +1,4 @@
-import type { TaskStatus } from "api/typesGenerated";
+import type { TaskStatus } from "#/api/typesGenerated";
 
 /**
  * Task statuses that allow pausing.

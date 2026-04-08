@@ -88,7 +88,7 @@ var (
 func (a Addon) Features() []FeatureName {
 	switch a {
 	case AddonAIGovernance:
-		// Return all AI governance features.
+		// Return all AI Governance features.
 		var features []FeatureName
 		for _, featureName := range FeatureNames {
 			if featureName.IsAIGovernanceAddon() {
@@ -196,6 +196,7 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
+	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
@@ -227,6 +228,7 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundary,
+		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
 	}
 
@@ -275,6 +277,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
 		FeatureBoundary:                   true,
+		FeatureServiceAccounts:            true,
 	}[n]
 }
 
@@ -282,7 +285,7 @@ func (n FeatureName) AlwaysEnable() bool {
 func (n FeatureName) Enterprise() bool {
 	switch n {
 	// Add all features that should be excluded in the Enterprise feature set.
-	case FeatureMultipleOrganizations, FeatureCustomRoles:
+	case FeatureMultipleOrganizations, FeatureCustomRoles, FeatureServiceAccounts:
 		return false
 	default:
 		return true
@@ -306,7 +309,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+// IsAIGovernanceAddon returns true if the feature is an AI Governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
 }
@@ -970,9 +973,12 @@ type ExternalAuthConfig struct {
 	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
-	MCPURL              string   `json:"mcp_url" yaml:"mcp_url"`
-	MCPToolAllowRegex   string   `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
-	MCPToolDenyRegex    string   `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPURL string `json:"mcp_url" yaml:"mcp_url"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPToolAllowRegex string `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPToolDenyRegex string `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
@@ -1248,7 +1254,11 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 }
 
 func removeTrailingVersionInfo(v string) string {
-	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+	// Strip build metadata (everything after '+').
+	v, _, _ = strings.Cut(v, "+")
+	// Strip '-devel' suffix if present.
+	v = strings.TrimSuffix(v, "-devel")
+	return v
 }
 
 func DefaultDocsURL() string {
@@ -1433,6 +1443,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupChat = serpent.Group{
+			Name:        "Chat",
+			YAML:        "chat",
+			Description: "Configure the background chat processing daemon.",
 		}
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
@@ -3597,6 +3612,18 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+		// Chat Options
+		{
+			Name:        "Chat: Acquire Batch Size",
+			Description: "How many pending chats a worker should acquire per polling cycle.",
+			Flag:        "chat-acquire-batch-size",
+			Env:         "CODER_CHAT_ACQUIRE_BATCH_SIZE",
+			Value:       &c.AI.Chat.AcquireBatchSize,
+			Default:     "10",
+			Group:       &deploymentGroupChat,
+			YAML:        "acquireBatchSize",
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -3712,13 +3739,14 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Description: "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "inject_coder_mcp_tools",
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Data Retention Duration",
@@ -3902,15 +3930,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "key_file",
 		},
 		{
-			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
-			Flag:        "aibridge-proxy-domain-allowlist",
-			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
-			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
-			Hidden:      true,
-			Group:       &deploymentGroupAIBridgeProxy,
-			YAML:        "domain_allowlist",
+			Name: "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. " +
+				"Requests to other domains will be tunneled directly without decryption. " +
+				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.",
+			Flag:    "aibridge-proxy-domain-allowlist",
+			Env:     "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:   &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridgeProxy,
+			YAML:    "domain_allowlist",
 		},
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",
@@ -3931,6 +3961,16 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "upstream_proxy_ca",
+		},
+		{
+			Name:        "AI Bridge Proxy Allowed Private CIDRs",
+			Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
+			Flag:        "aibridge-proxy-allowed-private-cidrs",
+			Env:         "CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS",
+			Value:       &c.AI.BridgeProxyConfig.AllowedPrivateCIDRs,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "allowed_private_cidrs",
 		},
 
 		// Retention settings
@@ -3997,16 +4037,17 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
-	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
-	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
-	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
-	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
-	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
+	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
+	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
+	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
@@ -4036,20 +4077,26 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
-	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
-	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
-	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
-	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
-	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
-	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
-	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
-	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
+	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
+	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	MITMKeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist     serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+}
+
+type ChatConfig struct {
+	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
 }
 
 type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
+	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
 
 type SupportConfig struct {
@@ -4293,14 +4340,15 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample            Experiment = "example"              // This isn't used for anything.
-	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
-	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
-	ExperimentAgents             Experiment = "agents"               // Enables agent-powered chat functionality.
-	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
+	ExperimentExample               Experiment = "example"                 // This isn't used for anything.
+	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
+	ExperimentWebPush               Experiment = "web-push"                // Enables web push notifications through the browser.
+	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
+	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
+	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
+	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4321,6 +4369,8 @@ func (e Experiment) DisplayName() string {
 		return "Agents"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
+	case ExperimentWorkspaceBuildUpdates:
+		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4339,6 +4389,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentAgents,
 	ExperimentMCPServerHTTP,
+	ExperimentWorkspaceBuildUpdates,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -149,12 +149,13 @@ type Options struct {
 	OneTimePasscodeValidityPeriod time.Duration
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon    bool
-	ProvisionerDaemonVersion    string
-	ProvisionerDaemonTags       map[string]string
-	MetricsCacheRefreshInterval time.Duration
-	AgentStatsRefreshInterval   time.Duration
-	DeploymentValues            *codersdk.DeploymentValues
+	IncludeProvisionerDaemon      bool
+	ChatdInstructionLookupTimeout time.Duration
+	ProvisionerDaemonVersion      string
+	ProvisionerDaemonTags         map[string]string
+	MetricsCacheRefreshInterval   time.Duration
+	AgentStatsRefreshInterval     time.Duration
+	DeploymentValues              *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -575,6 +576,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
@@ -879,6 +881,15 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		m(&req)
 	}
 
+	// Service accounts cannot have a password or email and must
+	// use login_type=none. Enforce this after mutators so callers
+	// only need to set ServiceAccount=true.
+	if req.ServiceAccount {
+		req.Password = ""
+		req.Email = ""
+		req.UserLoginType = codersdk.LoginTypeNone
+	}
+
 	user, err := client.CreateUserWithOrgs(context.Background(), req)
 	var apiError *codersdk.Error
 	// If the user already exists by username or email conflict, try again up to "retries" times.
@@ -891,9 +902,10 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	var sessionToken string
-	if req.UserLoginType == codersdk.LoginTypeNone {
-		// Cannot log in with a disabled login user. So make it an api key from
-		// the client making this user.
+	switch req.UserLoginType {
+	case codersdk.LoginTypeNone, codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
+		// Cannot log in with a non-password user. So make it an api key from the
+		// client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
 			Lifetime:  time.Hour * 24,
 			Scope:     codersdk.APIKeyScopeAll,
@@ -901,7 +913,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
-	} else {
+	default:
 		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
 			Password: req.Password,

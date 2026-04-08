@@ -1,17 +1,16 @@
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "#/utils/cn";
+
 export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	children,
 	...attrs
 }) => {
 	return (
 		<nav
-			css={(theme) => ({
-				width: 256,
-				flexShrink: 0,
-				borderRight: `1px solid ${theme.palette.divider}`,
-				height: "100%",
-				overflowY: "auto",
-			})}
+			className={cn(
+				"w-64 flex-shrink-0 border-solid border-0 border-r",
+				"h-full py-2 overflow-y-auto",
+			)}
 			{...attrs}
 		>
 			{children}
