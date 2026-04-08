@@ -634,12 +634,14 @@ func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string)
 }
 
 // credentialKindOrDefault converts the proto credential kind string to
-// the database enum, defaulting to "centralized" when empty.
+// the database enum, defaulting to "centralized" when the value is
+// empty or not a valid enum member.
 func credentialKindOrDefault(kind string) database.CredentialKind {
-	if kind == "" {
+	ck := database.CredentialKind(kind)
+	if !ck.Valid() {
 		return database.CredentialKindCentralized
 	}
-	return database.CredentialKind(kind)
+	return ck
 }
 
 func metadataToMap(in map[string]*anypb.Any) map[string]any {
