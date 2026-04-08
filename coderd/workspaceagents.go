@@ -2404,6 +2404,39 @@ const maxChatContextParts = 100
 // reading instruction files from disk.
 const maxChatContextRequestBodyBytes int64 = maxChatContextParts * 64 * 1024
 
+// readChatContextBody reads and validates the request body for chat
+// context endpoints. It handles MaxBytesReader wrapping, error
+// responses, and body rewind. If the body is empty or whitespace-only
+// and allowEmpty is true, it returns false without writing an error.
+//
+//nolint:revive // Add and clear endpoints only differ by empty-body handling.
+func readChatContextBody(ctx context.Context, rw http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
+	r.Body = http.MaxBytesReader(rw, r.Body, maxChatContextRequestBodyBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", maxChatContextRequestBodyBytes),
+			})
+			return false
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
+		return false
+	}
+	if allowEmpty && len(bytes.TrimSpace(body)) == 0 {
+		r.Body = http.NoBody
+		return false
+	}
+
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	return httpapi.Read(ctx, rw, r, dst)
+}
+
 // @Summary Add workspace agent chat context
 // @ID add-workspace-agent-chat-context
 // @Security CoderSessionToken
@@ -2418,27 +2451,8 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
-	r.Body = http.MaxBytesReader(rw, r.Body, maxChatContextRequestBodyBytes)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Request body too large.",
-				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", maxChatContextRequestBodyBytes),
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read request body.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	r.Body = io.NopCloser(bytes.NewReader(body))
 	var req agentsdk.AddChatContextRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !readChatContextBody(ctx, rw, r, &req, false) {
 		return
 	}
 
@@ -2580,31 +2594,9 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
 	var req agentsdk.ClearChatContextRequest
-	if r.Body != http.NoBody {
-		r.Body = http.MaxBytesReader(rw, r.Body, maxChatContextRequestBodyBytes)
-
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			var maxBytesErr *http.MaxBytesError
-			if errors.As(err, &maxBytesErr) {
-				httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-					Message: "Request body too large.",
-					Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", maxChatContextRequestBodyBytes),
-				})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to read request body.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if len(bytes.TrimSpace(body)) > 0 {
-			r.Body = io.NopCloser(bytes.NewReader(body))
-			if !httpapi.Read(ctx, rw, r, &req) {
-				return
-			}
-		}
+	populated := readChatContextBody(ctx, rw, r, &req, true)
+	if !populated && r.Body != http.NoBody {
+		return
 	}
 
 	// Use system context for chat operations since the
