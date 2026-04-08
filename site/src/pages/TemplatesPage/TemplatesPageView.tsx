@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -26,6 +25,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
@@ -290,9 +290,7 @@ const TableLoader: FC = () => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div className="flex items-center gap-2">
-						<AvatarDataSkeleton />
-					</div>
+					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell>
 					<Skeleton variant="text" width="25%" />
