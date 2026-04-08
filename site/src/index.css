@@ -89,6 +89,8 @@
 		--avatar-lg: 2.5rem;
 		--avatar-default: 2rem;
 		--avatar-sm: 1.5rem;
+		--navbar-stripe-devel: 43 96% 56%;
+		--navbar-stripe-rc: 198 93% 60%;
 	}
 	.dark {
 		--content-primary: 0 0% 100%;
@@ -153,6 +155,34 @@
 		--muted-foreground: 240 5% 65%;
 		--primary: 213 94% 68%;
 		--primary-foreground: 240 10% 4%;
+		--navbar-stripe-devel: 43 96% 56%;
+		--navbar-stripe-rc: 198 93% 60%;
+	}
+}
+
+@layer components {
+	.navbar-stripe-devel {
+		background:
+			repeating-linear-gradient(
+				-45deg,
+				transparent,
+				transparent 1em,
+				hsl(var(--navbar-stripe-devel) / 0.5) 1em,
+				hsl(var(--navbar-stripe-devel) / 0.5) 2em
+			),
+			hsl(var(--surface-primary));
+	}
+
+	.navbar-stripe-rc {
+		background:
+			repeating-linear-gradient(
+				-45deg,
+				transparent,
+				transparent 1em,
+				hsl(var(--navbar-stripe-rc) / 0.5) 1em,
+				hsl(var(--navbar-stripe-rc) / 0.5) 2em
+			),
+			hsl(var(--surface-primary));
 	}
 }
 
