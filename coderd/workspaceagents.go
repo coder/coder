@@ -2536,7 +2536,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 			database.ChatMessageRoleUser,
 			content,
 			database.ChatMessageVisibilityBoth,
-			chat.LastModelConfigID,
+			locked.LastModelConfigID,
 			chatprompt.CurrentContentVersion,
 			uuid.Nil,
 		)); err != nil {

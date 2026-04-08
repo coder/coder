@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -28,6 +29,20 @@ type agentChatContextTestSetup struct {
 	user        codersdk.CreateFirstUserResponse
 	workspace   dbfake.WorkspaceResponse
 	agentClient *agentsdk.Client
+}
+
+type agentChatContextBeforeInTxStore struct {
+	database.Store
+	beforeInTx func()
+}
+
+func (s *agentChatContextBeforeInTxStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	if s.beforeInTx != nil {
+		beforeInTx := s.beforeInTx
+		s.beforeInTx = nil
+		beforeInTx()
+	}
+	return s.Store.InTx(fn, opts)
 }
 
 func TestAgentChatContext(t *testing.T) {
@@ -165,6 +180,60 @@ func TestAgentChatContext(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("AddUsesLockedChatModelConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		baseDB, pubsub := dbtestutil.NewDB(t)
+		interceptDB := &agentChatContextBeforeInTxStore{Store: baseDB}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: interceptDB,
+			Pubsub:   pubsub,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		workspace := dbfake.WorkspaceBuild(t, baseDB, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+
+		originalModel := coderd.InsertAgentChatTestModelConfig(ctx, t, baseDB, user.UserID)
+		updatedModel := coderd.InsertAgentChatTestModelConfig(ctx, t, baseDB, user.UserID)
+		chat := createAgentChatContextChat(ctx, t, baseDB, user.UserID, originalModel.ID, workspace.Agents[0].ID, t.Name())
+
+		interceptDB.beforeInTx = func() {
+			_, err := baseDB.UpdateChatLastModelConfigByID(
+				dbauthz.AsSystemRestricted(ctx),
+				database.UpdateChatLastModelConfigByIDParams{
+					ID:                chat.ID,
+					LastModelConfigID: updatedModel.ID,
+				},
+			)
+			require.NoError(t, err)
+		}
+
+		resp, err := agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			ChatID: chat.ID,
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/instructions.md",
+				ContextFileContent: "remember this file",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.ChatID)
+		require.Equal(t, 1, resp.Count)
+
+		messages := requireAgentChatContextMessages(ctx, t, baseDB, chat.ID)
+		require.Len(t, messages, 1)
+		require.True(t, messages[0].ModelConfigID.Valid)
+		require.Equal(t, updatedModel.ID, messages[0].ModelConfigID.UUID)
+
+		persistedChat, err := baseDB.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, updatedModel.ID, persistedChat.LastModelConfigID)
+	})
 
 	t.Run("ClearDeletesSkillMessages", func(t *testing.T) {
 		t.Parallel()
