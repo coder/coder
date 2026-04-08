@@ -30,18 +30,20 @@ const (
 )
 
 type chatBlock struct {
-	kind     chatBlockKind
-	role     codersdk.ChatMessageRole
-	text     string
-	toolName string
-	toolID   string
-	args     string
-	result   string
-	isError  bool
+	kind           chatBlockKind
+	role           codersdk.ChatMessageRole
+	text           string
+	toolName       string
+	toolID         string
+	args           string
+	result         string
+	isError        bool
+	collapsedCount int
 
-	cachedRender   string
-	cachedWidth    int
-	cachedExpanded bool
+	cachedRender         string
+	cachedWidth          int
+	cachedExpanded       bool
+	cachedCollapsedCount int
 }
 
 type streamAccumulator struct {
@@ -317,6 +319,7 @@ func (m *chatViewModel) rebuildBlocks() {
 		m.blocks[i].cachedRender = oldBlocks[i].cachedRender
 		m.blocks[i].cachedWidth = oldBlocks[i].cachedWidth
 		m.blocks[i].cachedExpanded = oldBlocks[i].cachedExpanded
+		m.blocks[i].cachedCollapsedCount = oldBlocks[i].cachedCollapsedCount
 	}
 
 	if m.selectedBlock >= len(m.blocks) {

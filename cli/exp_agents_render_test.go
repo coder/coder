@@ -828,6 +828,13 @@ func TestExpAgentsRender(t *testing.T) {
 			require.NotContains(t, output, "\n")
 		})
 
+		t.Run("CollapsedToolCallShowsRunCount", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderBlock(styles, chatBlock{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, collapsedCount: 3}, false, 80))
+			require.Contains(t, output, "⏳ get pull request... (x3 running)")
+		})
+
 		t.Run("ToolCallExpandedShowsFullArgs", func(t *testing.T) {
 			t.Parallel()
 
@@ -845,6 +852,13 @@ func TestExpAgentsRender(t *testing.T) {
 			require.Contains(t, output, "✓ read file")
 			require.Contains(t, output, "(a.txt)")
 			require.NotContains(t, output, "\n")
+		})
+
+		t.Run("CollapsedToolResultShowsRunCount", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderBlock(styles, chatBlock{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, result: `{"ok":true}`, collapsedCount: 10}, false, 80))
+			require.Contains(t, output, "✓ get pull request (x10)")
 		})
 
 		t.Run("ToolResultExpandedShowsFullResult", func(t *testing.T) {
@@ -1049,6 +1063,50 @@ func TestExpAgentsRender(t *testing.T) {
 
 			renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 40)
 			require.Equal(t, cachedRender, blocks[0].cachedRender)
+		})
+
+		t.Run("CollapsesConsecutiveSameNameToolCalls", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`},
+				{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":2}`},
+				{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":3}`},
+			}
+
+			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 80))
+			require.Equal(t, 1, strings.Count(output, "⏳"))
+			require.Contains(t, output, "get pull request... (x3 running)")
+		})
+
+		t.Run("CollapsesConsecutiveSameNameToolResults", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":2}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":3}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "create_file", args: `{"path":"main.go"}`, result: `{"ok":true}`},
+			}
+
+			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 80))
+			require.Equal(t, 2, strings.Count(output, "✓"))
+			require.Contains(t, output, "get pull request (x3)")
+			require.Contains(t, output, "create file")
+		})
+
+		t.Run("ExpandedToolBlockPreventsCollapse", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":2}`, result: `{"base":{"ref":"main"}}`},
+			}
+
+			output := plainText(renderChatBlocks(styles, blocks, 1, map[int]bool{1: true}, false, 80))
+			require.Equal(t, 2, strings.Count(output, "✓"))
+			require.NotContains(t, output, "(x2)")
+			require.Contains(t, output, "result:")
 		})
 
 		t.Run("MultipleToolCalls", func(t *testing.T) {

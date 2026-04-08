@@ -203,8 +203,24 @@ func truncateToolSummary(text string, maxWidth int) string {
 	return string([]rune(text)[:maxWidth-1]) + "…"
 }
 
-func renderToolLine(styles tuiStyles, labelStyle lipgloss.Style, icon, toolName, summary string, width int) string {
-	header := toolBlockIndent + labelStyle.Render(icon) + " " + humanizeToolName(toolName)
+func toolDisplayLabel(toolName string, kind chatBlockKind, collapsedCount int) string {
+	label := humanizeToolName(toolName)
+	if collapsedCount <= 1 {
+		return label
+	}
+
+	switch kind {
+	case blockToolCall:
+		return fmt.Sprintf("%s... (x%d running)", label, collapsedCount)
+	case blockToolResult:
+		return fmt.Sprintf("%s (x%d)", label, collapsedCount)
+	default:
+		return label
+	}
+}
+
+func renderToolLine(styles tuiStyles, labelStyle lipgloss.Style, icon, label, summary string, width int) string {
+	header := toolBlockIndent + labelStyle.Render(icon) + " " + label
 	if summary == "" || width <= 0 {
 		return header
 	}
@@ -255,37 +271,67 @@ func renderExpandedToolBlock(styles tuiStyles, labelStyle lipgloss.Style, icon, 
 }
 
 func renderToolCall(styles tuiStyles, part codersdk.ChatMessagePart, width int) string {
-	if part.ToolName == contextCompactionToolName {
+	return renderToolCallBlock(styles, chatBlock{
+		kind:     blockToolCall,
+		toolName: part.ToolName,
+		args:     compactTranscriptJSON(part.Args),
+	}, width)
+}
+
+func renderToolCallBlock(styles tuiStyles, block chatBlock, width int) string {
+	if block.toolName == contextCompactionToolName {
 		return renderCompaction(styles, width)
 	}
 
-	return renderToolLine(styles, styles.toolPending, "⏳", part.ToolName, toolArgsSummary(part.ToolName, compactTranscriptJSON(part.Args)), width)
+	return renderToolLine(
+		styles,
+		styles.toolPending,
+		"⏳",
+		toolDisplayLabel(block.toolName, block.kind, block.collapsedCount),
+		toolArgsSummary(block.toolName, block.args),
+		width,
+	)
 }
 
 func renderToolResult(styles tuiStyles, part codersdk.ChatMessagePart, width int) string {
-	if part.ToolName == contextCompactionToolName {
+	return renderToolResultBlock(styles, chatBlock{
+		kind:     blockToolResult,
+		toolName: part.ToolName,
+		args:     compactTranscriptJSON(part.Args),
+		result:   compactTranscriptJSON(part.Result),
+		isError:  part.IsError,
+	}, width)
+}
+
+func renderToolResultBlock(styles tuiStyles, block chatBlock, width int) string {
+	if block.toolName == contextCompactionToolName {
 		return renderCompaction(styles, width)
 	}
 
 	icon := "✓"
 	labelStyle := styles.toolSuccess
-	if part.IsError {
+	if block.isError {
 		icon = "✗"
 		labelStyle = styles.errorText
 	}
 
-	argsJSON := compactTranscriptJSON(part.Args)
-	resultJSON := compactTranscriptJSON(part.Result)
-	summary := toolArgsSummary(part.ToolName, argsJSON)
+	summary := toolArgsSummary(block.toolName, block.args)
 	if summary == "" {
-		summary = toolResultSummary(part.ToolName, "", resultJSON)
-		if part.IsError {
-			if errorSummary := toolErrorSummary(resultJSON); errorSummary != "" {
+		summary = toolResultSummary(block.toolName, "", block.result)
+		if block.isError {
+			if errorSummary := toolErrorSummary(block.result); errorSummary != "" {
 				summary = errorSummary
 			}
 		}
 	}
-	return renderToolLine(styles, labelStyle, icon, part.ToolName, summary, width)
+	return renderToolLine(
+		styles,
+		labelStyle,
+		icon,
+		toolDisplayLabel(block.toolName, block.kind, block.collapsedCount),
+		summary,
+		width,
+	)
 }
 
 func renderCompaction(styles tuiStyles, width int) string {
@@ -458,16 +504,25 @@ func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, e
 		renderer = renderers[0]
 	}
 
-	rendered := make([]string, 0, len(blocks))
-	for i := range blocks {
-		blockView := blocks[i].cachedRender
-		if blockView == "" || blocks[i].cachedWidth != width || blocks[i].cachedExpanded != expandedBlocks[i] {
-			blockView = renderBlock(styles, blocks[i], expandedBlocks[i], width, renderer)
-			blocks[i].cachedRender = blockView
-			blocks[i].cachedWidth = width
-			blocks[i].cachedExpanded = expandedBlocks[i]
+	activeSelection := -1
+	if !composerFocused {
+		activeSelection = selectedBlock
+	}
+	visibleIndices := collapseConsecutiveSameNameBlocks(blocks, activeSelection, expandedBlocks)
+	rendered := make([]string, 0, len(visibleIndices))
+	for _, index := range visibleIndices {
+		blockView := blocks[index].cachedRender
+		if blockView == "" ||
+			blocks[index].cachedWidth != width ||
+			blocks[index].cachedExpanded != expandedBlocks[index] ||
+			blocks[index].cachedCollapsedCount != blocks[index].collapsedCount {
+			blockView = renderBlock(styles, blocks[index], expandedBlocks[index], width, renderer)
+			blocks[index].cachedRender = blockView
+			blocks[index].cachedWidth = width
+			blocks[index].cachedExpanded = expandedBlocks[index]
+			blocks[index].cachedCollapsedCount = blocks[index].collapsedCount
 		}
-		if !composerFocused && i == selectedBlock {
+		if index == activeSelection {
 			blockView = styles.selectedItem.Render(blockView)
 		}
 		rendered = append(rendered, blockView)
@@ -514,6 +569,67 @@ func renderStatusBar(styles tuiStyles, chat *codersdk.Chat, status codersdk.Chat
 		bar = bar.MaxWidth(width)
 	}
 	return bar.Render(line)
+}
+
+func collapseConsecutiveSameNameBlocks(blocks []chatBlock, selectedBlock int, expandedBlocks map[int]bool) []int {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	for i := range blocks {
+		blocks[i].collapsedCount = 0
+	}
+
+	visibleIndices := make([]int, 0, len(blocks))
+	for i := 0; i < len(blocks); {
+		runEnd := i + 1
+		for runEnd < len(blocks) && canCollapseToolBlocks(blocks[i], blocks[runEnd]) {
+			runEnd++
+		}
+
+		if runEnd-i < 2 || hasExpandedToolBlock(expandedBlocks, i, runEnd) {
+			for j := i; j < runEnd; j++ {
+				visibleIndices = append(visibleIndices, j)
+			}
+			i = runEnd
+			continue
+		}
+
+		representative := i
+		if selectedBlock >= i && selectedBlock < runEnd {
+			representative = selectedBlock
+		}
+		blocks[representative].collapsedCount = runEnd - i
+		visibleIndices = append(visibleIndices, representative)
+		i = runEnd
+	}
+
+	return visibleIndices
+}
+
+func canCollapseToolBlocks(a, b chatBlock) bool {
+	if a.kind != b.kind {
+		return false
+	}
+	if a.kind != blockToolCall && a.kind != blockToolResult {
+		return false
+	}
+	if a.toolName != b.toolName {
+		return false
+	}
+	if a.kind == blockToolResult && a.isError != b.isError {
+		return false
+	}
+	return true
+}
+
+func hasExpandedToolBlock(expandedBlocks map[int]bool, start, end int) bool {
+	for i := start; i < end; i++ {
+		if expandedBlocks[i] {
+			return true
+		}
+	}
+	return false
 }
 
 func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
@@ -670,12 +786,12 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, re
 		return styles.reasoning.Render(content)
 	case blockToolCall:
 		if !expanded {
-			return renderToolCall(styles, codersdk.ChatMessagePart{ToolName: block.toolName, Args: json.RawMessage(block.args)}, width)
+			return renderToolCallBlock(styles, block, width)
 		}
 		return renderExpandedToolBlock(styles, styles.toolPending, "⏳", block.toolName, block.args, "", width)
 	case blockToolResult:
 		if !expanded {
-			return renderToolResult(styles, codersdk.ChatMessagePart{ToolName: block.toolName, Args: json.RawMessage(block.args), Result: json.RawMessage(block.result), IsError: block.isError}, width)
+			return renderToolResultBlock(styles, block, width)
 		}
 		icon := "✓"
 		labelStyle := styles.toolSuccess
