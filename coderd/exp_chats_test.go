@@ -6018,14 +6018,14 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 	})
 
-	t.Run("PromotesAlreadyQueuedMessageAfterLimitReached", func(t *testing.T) {
+	t.Run("RejectsQueuedMessagePromotionAfterLimitReached", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
-		enableDailyChatUsageLimit(ctx, t, db, 100)
+		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			Status:            database.ChatStatusWaiting,
@@ -6069,29 +6069,34 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusConflict, promoteRes.StatusCode)
 
-		var promoted codersdk.ChatMessage
-		err = json.NewDecoder(promoteRes.Body).Decode(&promoted)
+		var limitErr codersdk.ChatUsageLimitExceededResponse
+		err = json.NewDecoder(promoteRes.Body).Decode(&limitErr)
 		require.NoError(t, err)
-		require.NotZero(t, promoted.ID)
-		require.Equal(t, chat.ID, promoted.ChatID)
-		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
-
-		foundPromotedText := false
-		for _, part := range promoted.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
-				foundPromotedText = true
-				break
-			}
-		}
-		require.True(t, foundPromotedText)
+		require.Equal(t, "Chat usage limit exceeded.", limitErr.Message)
+		require.Equal(t, "account_period", limitErr.Scope)
+		require.Equal(t, int64(100), limitErr.SpentMicros)
+		require.Equal(t, int64(100), limitErr.LimitMicros)
+		require.NotNil(t, limitErr.ResetsAt)
+		require.True(
+			t,
+			limitErr.ResetsAt.Equal(wantResetsAt),
+			"expected resets_at %s, got %s",
+			wantResetsAt.UTC().Format(time.RFC3339),
+			limitErr.ResetsAt.UTC().Format(time.RFC3339),
+		)
 
 		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
+		foundQueuedMessage := false
 		for _, queued := range queuedMessages {
-			require.NotEqual(t, queuedMessage.ID, queued.ID)
+			if queued.ID == queuedMessage.ID {
+				foundQueuedMessage = true
+				break
+			}
 		}
+		require.True(t, foundQueuedMessage)
 	})
 
 	t.Run("InvalidQueuedMessageID", func(t *testing.T) {

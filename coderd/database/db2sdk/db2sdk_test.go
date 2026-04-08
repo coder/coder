@@ -545,6 +545,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
+		SpendLimitMicros:  sql.NullInt64{Int64: 5000000, Valid: true},
 		LastInjectedContext: pqtype.NullRawMessage{
 			// Use a context-file part to verify internal
 			// fields are not present (they are stripped at
