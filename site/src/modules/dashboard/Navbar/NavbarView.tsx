@@ -67,8 +67,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 		<div
 			className={cn(
 				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6 relative",
-				isDev && "navbar-stripe-devel",
-				isRc && "navbar-stripe-rc",
+				isRc ? "navbar-stripe-rc" : isDev ? "navbar-stripe-devel" : undefined,
 			)}
 		>
 			<NavLink to="/workspaces">
@@ -89,10 +88,11 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					className="absolute top-1 left-1/2 -translate-x-1/2 no-underline z-10"
 				>
 					<Badge
-						variant={isDev ? "warning" : "info"}
+						variant={isRc ? "info" : "warning"}
 						size="sm"
 						className="font-mono"
 					>
+						{" "}
 						{buildInfo.version}
 					</Badge>
 				</a>

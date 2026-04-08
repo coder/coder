@@ -40,6 +40,15 @@ describe("isDevBuild", () => {
 		);
 	});
 
+	it("returns true for combined rc+devel versions", () => {
+		expect(
+			isDevBuild({
+				...baseBuildInfo,
+				version: "v2.33.0-rc.1-devel+727ec00f7",
+			}),
+		).toBe(true);
+	});
+
 	it("returns false for empty version", () => {
 		expect(isDevBuild({ ...baseBuildInfo, version: "" })).toBe(false);
 	});
@@ -78,5 +87,14 @@ describe("isRcBuild", () => {
 
 	it("returns false for versions with rc but no dot", () => {
 		expect(isRcBuild({ ...baseBuildInfo, version: "v2.32.0-rc" })).toBe(false);
+	});
+
+	it("returns true for combined rc+devel versions", () => {
+		expect(
+			isRcBuild({
+				...baseBuildInfo,
+				version: "v2.33.0-rc.1-devel+727ec00f7",
+			}),
+		).toBe(true);
 	});
 });

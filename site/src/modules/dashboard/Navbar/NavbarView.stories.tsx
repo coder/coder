@@ -191,3 +191,13 @@ export const RcBuild: Story = {
 		},
 	},
 };
+
+export const RcDevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.33.0-rc.1-devel+727ec00f7",
+			external_url: "https://github.com/coder/coder/commit/727ec00f7",
+		},
+	},
+};

@@ -37,13 +37,13 @@ export const isDevBuild = (input: BuildInfoResponse): boolean => {
 };
 
 // Check if the current build is a release candidate. Release
-// candidates have versions containing an "-rc." pre-release tag
-// followed by a number (e.g. v2.32.0-rc.0, v2.32.0-rc.1+abc123).
+// candidates have versions containing "-rc." (e.g. v2.32.0-rc.0,
+// v2.32.0-rc.1+abc123, v2.33.0-rc.1-devel+727ec00f7).
 export const isRcBuild = (input: BuildInfoResponse): boolean => {
 	const version = input.version;
 	if (!version) {
 		return false;
 	}
 
-	return /-rc\.\d+/.test(version);
+	return version.includes("-rc.");
 };
