@@ -398,7 +398,7 @@ describe("createReconnectingWebSocket", () => {
 			baseMs: 1000,
 			maxMs: 5000,
 			factor: 2,
-			random: deterministicRandom,
+			random: () => 1,
 		});
 
 		// Disconnect enough times that the uncapped delay would exceed
@@ -415,6 +415,37 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(4);
 		vi.advanceTimersByTime(1);
 		expect(connect).toHaveBeenCalledTimes(5);
+	});
+
+	it("still allows negative jitter below maxMs after raw backoff reaches the cap", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			maxMs: 3000,
+			factor: 2,
+			jitter: 0.3,
+			random: () => 0,
+		});
+
+		activeSocket.emit("close");
+		vi.runOnlyPendingTimers();
+		activeSocket.emit("close");
+		vi.runOnlyPendingTimers();
+		activeSocket.emit("close");
+
+		expectReconnectSchedule(disconnects[2]!, { attempt: 3, delayMs: 2800 });
 	});
 
 	it("resets backoff on successful connection", () => {
