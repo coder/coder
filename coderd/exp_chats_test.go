@@ -1703,6 +1703,36 @@ func TestListChatProviders(t *testing.T) {
 		require.True(t, providerByID[withKey.ID].HasAPIKey)
 		require.True(t, providerByID[withKey.ID].HasEffectiveAPIKey)
 	})
+
+	t.Run("ReportsStoredKeyWhenCentralDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		created, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "openai",
+			APIKey:               "stored-key",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+
+		var listed *codersdk.ChatProviderConfig
+		for i := range providers {
+			if providers[i].ID == created.ID {
+				listed = &providers[i]
+				break
+			}
+		}
+		require.NotNil(t, listed, "created provider not found in list")
+		require.True(t, listed.HasAPIKey)
+		require.False(t, listed.HasEffectiveAPIKey)
+	})
 }
 
 func TestCreateChatProvider(t *testing.T) {
@@ -1955,6 +1985,25 @@ func TestCreateChatProvider(t *testing.T) {
 		require.True(t, second.Enabled)
 		require.NotEqual(t, first.ID, second.ID)
 	})
+
+	t.Run("ReportsStoredKeyWhenCentralDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "openai",
+			APIKey:               "stored-key",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.True(t, provider.HasAPIKey)
+		require.False(t, provider.HasEffectiveAPIKey)
+		require.False(t, provider.CentralAPIKeyEnabled)
+	})
 }
 
 func TestUpdateChatProvider(t *testing.T) {
@@ -2062,7 +2111,8 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, updated.AllowUserAPIKey)
 		require.False(t, updated.CentralAPIKeyEnabled)
-		require.False(t, updated.HasAPIKey)
+		require.True(t, updated.HasAPIKey)
+		require.False(t, updated.HasEffectiveAPIKey)
 	})
 
 	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
@@ -2336,6 +2386,29 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.Contains(t, providerByID, second.ID)
 		require.False(t, providerByID[first.ID].Enabled)
 		require.True(t, providerByID[second.ID].Enabled)
+	})
+
+	t.Run("ReportsStoredKeyWhenCentralDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "stored-key",
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.HasAPIKey)
+		require.False(t, updated.HasEffectiveAPIKey)
+		require.False(t, updated.CentralAPIKeyEnabled)
 	})
 }
 
