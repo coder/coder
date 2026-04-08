@@ -22,7 +22,7 @@ const (
 	// DefaultBatchingFlushInterval is the default upper bound on how long chatd
 	// publishes wait before a scheduled flush when capacity does not trigger an
 	// immediate send.
-	DefaultBatchingFlushInterval = 10 * time.Millisecond
+	DefaultBatchingFlushInterval = 50 * time.Millisecond
 	// DefaultBatchingQueueSize is the default number of buffered chatd publish
 	// requests waiting to be flushed.
 	DefaultBatchingQueueSize = 8192
