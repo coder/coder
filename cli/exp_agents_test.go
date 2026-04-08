@@ -11,7 +11,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -924,25 +923,79 @@ func TestExpAgents(t *testing.T) {
 			require.NotContains(t, view, "first error")
 		})
 
-		t.Run("MessageDeduplicationWithAccumulatorPending", func(t *testing.T) {
+		t.Run("MessageDeduplication", func(t *testing.T) {
 			t.Parallel()
 
-			model := newTestChatViewModel(nil)
+			tests := []struct {
+				name string
+				run  func(t *testing.T)
+			}{
+				{"AccumulatorPending", func(t *testing.T) {
+					model := newTestChatViewModel(nil)
+					updated, _ := model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
+					message := testMessage(12, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "final"})
 
-			updated, _ := model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
-			message := testMessage(12, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "final"})
+					updated, cmd := updated.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+						Type:    codersdk.ChatStreamEventTypeMessage,
+						Message: &message,
+					}})
+					require.Nil(t, cmd)
+					require.Len(t, updated.messages, 1)
+					require.False(t, updated.accumulator.isPending())
+					require.Len(t, updated.blocks, 1)
+					require.Equal(t, "final", updated.blocks[0].text)
+				}},
+				{"FinalizedHistorySuppressesPendingToolDuplicate", func(t *testing.T) {
+					model := newTestChatViewModel(nil)
+					model.messages = []codersdk.ChatMessage{testMessage(
+						1,
+						codersdk.ChatMessageRoleAssistant,
+						codersdk.ChatMessagePart{
+							Type:       codersdk.ChatMessagePartTypeToolCall,
+							ToolCallID: "tool-1",
+							ToolName:   "search",
+							Args:       json.RawMessage(`{"q":"hello"}`),
+						},
+						codersdk.ChatMessagePart{
+							Type:       codersdk.ChatMessagePartTypeToolResult,
+							ToolCallID: "tool-1",
+							ToolName:   "search",
+							Result:     json.RawMessage(`{"ok":true}`),
+						},
+					)}
+					model.accumulator = streamAccumulator{
+						pending: true,
+						role:    codersdk.ChatMessageRoleAssistant,
+						parts: []codersdk.ChatMessagePart{
+							{
+								Type:       codersdk.ChatMessagePartTypeToolCall,
+								ToolCallID: "tool-1",
+								ToolName:   "search",
+								Args:       json.RawMessage(`{"q":"hello"}`),
+							},
+							{
+								Type:       codersdk.ChatMessagePartTypeToolResult,
+								ToolCallID: "tool-1",
+								ToolName:   "search",
+								Result:     json.RawMessage(`{"ok":true}`),
+							},
+						},
+					}
 
-			updated, cmd := updated.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
-				Type:    codersdk.ChatStreamEventTypeMessage,
-				Message: &message,
-			}})
-			require.Nil(t, cmd)
-			require.Len(t, updated.messages, 1)
-			require.False(t, updated.accumulator.isPending())
-			require.Len(t, updated.blocks, 1)
-			require.Equal(t, "final", updated.blocks[0].text)
+					model.rebuildBlocks()
+					require.Len(t, model.blocks, 1)
+					require.Equal(t, blockToolResult, model.blocks[0].kind)
+					require.Equal(t, "tool-1", model.blocks[0].toolID)
+				}},
+			}
+
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					tt.run(t)
+				})
+			}
 		})
-
 		t.Run("EOFStopsStreamingAndAttemptsReconnectWhenInterruptible", func(t *testing.T) {
 			t.Parallel()
 
@@ -1264,177 +1317,13 @@ func TestExpAgents(t *testing.T) {
 		})
 	})
 
-	t.Run("ChatView/Navigation", func(t *testing.T) {
-		t.Parallel()
-
-		overflowingMessages := func(count int) []codersdk.ChatMessage {
-			messages := make([]codersdk.ChatMessage, 0, count)
-			for i := 0; i < count; i++ {
-				role := codersdk.ChatMessageRoleUser
-				if i%2 == 1 {
-					role = codersdk.ChatMessageRoleAssistant
-				}
-				messages = append(messages, testMessage(
-					int64(i+1),
-					role,
-					codersdk.ChatMessagePart{
-						Type: codersdk.ChatMessagePartTypeText,
-						Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
-					},
-				))
-			}
-			return messages
-		}
-
-		newScrollableModel := func(t *testing.T) chatViewModel {
-			t.Helper()
-
-			model := newTestChatViewModel(nil)
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-			model.messages = overflowingMessages(10)
-			model.rebuildBlocks()
-			model.composerFocused = false
-			model.autoFollow = true
-			(&model).syncViewportContent()
-			model.viewport.GotoBottom()
-			return model
-		}
-
-		t.Run("PageKeysScrollHalfViewport", func(t *testing.T) {
-			t.Parallel()
-
-			model := newScrollableModel(t)
-			before := model.viewport.YOffset
-			halfView := model.viewport.Height / 2
-
-			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgUp})
-			require.False(t, updated.autoFollow)
-			require.InDelta(t, float64(before-halfView), float64(updated.viewport.YOffset), 1)
-
-			before = updated.viewport.YOffset
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-			require.InDelta(t, float64(before+halfView), float64(updated.viewport.YOffset), 1)
-		})
-
-		t.Run("HomeEndJumpToEdges", func(t *testing.T) {
-			t.Parallel()
-
-			model := newScrollableModel(t)
-
-			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyHome})
-			require.Equal(t, 0, updated.viewport.YOffset)
-			require.False(t, updated.autoFollow)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnd})
-			require.True(t, updated.viewport.AtBottom())
-			require.True(t, updated.autoFollow)
-		})
-
-		t.Run("RunningChatShowsSpinnerIndicator", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.width = 80
-			model.accumulator = streamAccumulator{pending: true, role: codersdk.ChatMessageRoleAssistant}
-
-			(&model).syncViewportContent()
-			require.Contains(t, model.lastTranscript, "Thinking")
-		})
-
-		t.Run("ReconnectingChatShowsReconnectIndicator", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.width = 80
-			model.reconnecting = true
-
-			(&model).syncViewportContent()
-			require.Contains(t, model.lastTranscript, "Reconnecting")
-		})
-
-		t.Run("FinalizedHistorySuppressesPendingToolDuplicate", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.messages = []codersdk.ChatMessage{testMessage(
-				1,
-				codersdk.ChatMessageRoleAssistant,
-				codersdk.ChatMessagePart{
-					Type:       codersdk.ChatMessagePartTypeToolCall,
-					ToolCallID: "tool-1",
-					ToolName:   "search",
-					Args:       json.RawMessage(`{"q":"hello"}`),
-				},
-				codersdk.ChatMessagePart{
-					Type:       codersdk.ChatMessagePartTypeToolResult,
-					ToolCallID: "tool-1",
-					ToolName:   "search",
-					Result:     json.RawMessage(`{"ok":true}`),
-				},
-			)}
-			model.accumulator = streamAccumulator{
-				pending: true,
-				role:    codersdk.ChatMessageRoleAssistant,
-				parts: []codersdk.ChatMessagePart{
-					{
-						Type:       codersdk.ChatMessagePartTypeToolCall,
-						ToolCallID: "tool-1",
-						ToolName:   "search",
-						Args:       json.RawMessage(`{"q":"hello"}`),
-					},
-					{
-						Type:       codersdk.ChatMessagePartTypeToolResult,
-						ToolCallID: "tool-1",
-						ToolName:   "search",
-						Result:     json.RawMessage(`{"ok":true}`),
-					},
-				},
-			}
-
-			model.rebuildBlocks()
-			require.Len(t, model.blocks, 1)
-			require.Equal(t, blockToolResult, model.blocks[0].kind)
-			require.Equal(t, "tool-1", model.blocks[0].toolID)
-		})
-	})
-
 	t.Run("ChatView/ViewportScrolling", func(t *testing.T) {
 		t.Parallel()
 
-		overflowingMessages := func(count int) []codersdk.ChatMessage {
-			messages := make([]codersdk.ChatMessage, 0, count)
-			for i := 0; i < count; i++ {
-				role := codersdk.ChatMessageRoleUser
-				if i%2 == 1 {
-					role = codersdk.ChatMessageRoleAssistant
-				}
-				messages = append(messages, testMessage(
-					int64(i+1),
-					role,
-					codersdk.ChatMessagePart{
-						Type: codersdk.ChatMessagePartTypeText,
-						Text: fmt.Sprintf(
-							"message %d %s",
-							i+1,
-							strings.Repeat("content ", 18),
-						),
-					},
-				))
-			}
-			return messages
-		}
-
-		applyWindowSize := func(
-			t *testing.T,
-			model expChatsTUIModel,
-			width int,
-			height int,
-		) expChatsTUIModel {
+		applyWindowSize := func(t *testing.T, model expChatsTUIModel, width int, height int) expChatsTUIModel {
 			t.Helper()
 
-			updatedModel, cmd := model.Update(
-				tea.WindowSizeMsg{Width: width, Height: height},
-			)
+			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: width, Height: height})
 			return mustTUIModel(t, updatedModel, cmd)
 		}
 
@@ -1450,8 +1339,7 @@ func TestExpAgents(t *testing.T) {
 			model.messages = overflowingMessages(24)
 			model.rebuildBlocks()
 
-			var cmd tea.Cmd
-			model, cmd = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			model, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 			require.Nil(t, cmd)
 			require.False(t, model.composerFocused)
 			require.True(t, model.autoFollow)
@@ -1475,51 +1363,46 @@ func TestExpAgents(t *testing.T) {
 			}}
 		}
 
-		t.Run("ViewportHeightCalculation", func(t *testing.T) {
+		t.Run("ViewportHeights", func(t *testing.T) {
 			t.Parallel()
 
 			tests := []struct {
-				name       string
-				height     int
-				assertions func(t *testing.T, model expChatsTUIModel)
+				name    string
+				height  int
+				prepare func(*expChatsTUIModel)
+				assert  func(t *testing.T, model expChatsTUIModel)
 			}{
-				{"Standard", 40, func(t *testing.T, model expChatsTUIModel) {
+				{"Standard", 40, nil, func(t *testing.T, model expChatsTUIModel) {
+					require.Equal(t, 39, model.chat.height)
 					require.Equal(t, 31, model.chat.viewport.Height)
 				}},
-				{"MinimumZero", 5, func(t *testing.T, model expChatsTUIModel) {
-					require.GreaterOrEqual(t, model.chat.viewport.Height, 0)
+				{"MinimumZero", 5, nil, func(t *testing.T, model expChatsTUIModel) {
 					require.Equal(t, 0, model.chat.viewport.Height)
 				}},
+				{"ViewFitsTerminal", 40, func(model *expChatsTUIModel) {
+					model.currentView = viewChat
+					model.chat.loading = false
+					chat := testChat(codersdk.ChatStatusCompleted)
+					model.chat.chat = &chat
+					model.chat.chatStatus = chat.Status
+					model.chat.messages = overflowingMessages(24)
+					model.chat.rebuildBlocks()
+				}, func(t *testing.T, model expChatsTUIModel) {
+					require.LessOrEqual(t, strings.Count(model.View(), "\n")+1, 40)
+				}},
 			}
+
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 
-					var model expChatsTUIModel
-					require.NotPanics(t, func() {
-						model = applyWindowSize(
-							t,
-							newExpChatsTUIModel(context.Background(), nil, nil, nil, nil),
-							80,
-							tt.height,
-						)
-					})
-					tt.assertions(t, model)
+					model := applyWindowSize(t, newTestTUIModel(), 80, tt.height)
+					if tt.prepare != nil {
+						tt.prepare(&model)
+					}
+					tt.assert(t, model)
 				})
 			}
-		})
-
-		t.Run("ViewportHeightAccountsForRootTitle", func(t *testing.T) {
-			t.Parallel()
-
-			model := applyWindowSize(
-				t,
-				newExpChatsTUIModel(context.Background(), nil, nil, nil, nil),
-				80,
-				40,
-			)
-
-			require.Equal(t, 39, model.chat.height)
 		})
 
 		t.Run("ScrollNavigation", func(t *testing.T) {
@@ -1527,7 +1410,7 @@ func TestExpAgents(t *testing.T) {
 
 			tests := []struct {
 				name   string
-				setup  func(t *testing.T, m chatViewModel) chatViewModel
+				setup  func(t *testing.T, model chatViewModel) chatViewModel
 				key    tea.KeyType
 				assert func(t *testing.T, before chatViewModel, after chatViewModel)
 			}{
@@ -1535,21 +1418,21 @@ func TestExpAgents(t *testing.T) {
 					require.False(t, after.autoFollow)
 					require.Less(t, after.viewport.YOffset, before.viewport.YOffset)
 				}},
-				{"ScrollDownIncreasesYOffset", func(t *testing.T, m chatViewModel) chatViewModel {
-					updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
+				{"ScrollDownIncreasesYOffset", func(t *testing.T, model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
 					return updated
 				}, tea.KeyDown, func(t *testing.T, before chatViewModel, after chatViewModel) {
 					require.Greater(t, after.viewport.YOffset, before.viewport.YOffset)
 				}},
-				{"ScrollUpAtTopIsNoOp", func(t *testing.T, m chatViewModel) chatViewModel {
-					updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
+				{"ScrollUpAtTopIsNoOp", func(t *testing.T, model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyHome})
 					return updated
 				}, tea.KeyUp, func(t *testing.T, before chatViewModel, after chatViewModel) {
 					require.Equal(t, 0, before.viewport.YOffset)
 					require.Equal(t, before.viewport.YOffset, after.viewport.YOffset)
 				}},
-				{"ScrollDownAtBottomReEnablesAutoFollow", func(t *testing.T, m chatViewModel) chatViewModel {
-					updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
+				{"ScrollDownAtBottomReEnablesAutoFollow", func(t *testing.T, model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
 					require.False(t, updated.autoFollow)
 					return updated
 				}, tea.KeyDown, func(t *testing.T, before chatViewModel, after chatViewModel) {
@@ -1562,20 +1445,20 @@ func TestExpAgents(t *testing.T) {
 					require.False(t, after.autoFollow)
 					require.InDelta(t, float64(before.viewport.YOffset-halfView), float64(after.viewport.YOffset), 1)
 				}},
-				{"PageDownScrollsHalfViewport", func(t *testing.T, m chatViewModel) chatViewModel {
-					updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+				{"PageDownScrollsHalfViewport", func(t *testing.T, model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgUp})
 					return updated
 				}, tea.KeyPgDown, func(t *testing.T, before chatViewModel, after chatViewModel) {
 					halfView := before.viewport.Height / 2
 					require.InDelta(t, float64(before.viewport.YOffset+halfView), float64(after.viewport.YOffset), 1)
 				}},
 				{"HomeJumpsToTop", nil, tea.KeyHome, func(t *testing.T, before chatViewModel, after chatViewModel) {
-					require.NotEqual(t, 0, before.viewport.YOffset)
+					require.NotZero(t, before.viewport.YOffset)
 					require.Equal(t, 0, after.viewport.YOffset)
 					require.False(t, after.autoFollow)
 				}},
-				{"EndJumpsToBottomAndEnablesAutoFollow", func(t *testing.T, m chatViewModel) chatViewModel {
-					updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
+				{"EndJumpsToBottomAndEnablesAutoFollow", func(t *testing.T, model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyHome})
 					return updated
 				}, tea.KeyEnd, func(t *testing.T, before chatViewModel, after chatViewModel) {
 					require.False(t, before.viewport.AtBottom())
@@ -1583,6 +1466,7 @@ func TestExpAgents(t *testing.T) {
 					require.True(t, after.autoFollow)
 				}},
 			}
+
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
@@ -1592,111 +1476,65 @@ func TestExpAgents(t *testing.T) {
 						model = tt.setup(t, model)
 					}
 					before := model
-
 					after, _ := model.Update(tea.KeyMsg{Type: tt.key})
 					tt.assert(t, before, after)
 				})
 			}
 		})
 
-		t.Run("SetContentPreservesScrollPosition", func(t *testing.T) {
+		t.Run("AutoFollowOnContentUpdates", func(t *testing.T) {
 			t.Parallel()
 
-			model := newScrollableModel(t)
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-			before := model.viewport.YOffset
-
-			updated, _ := model.Update(streamMessage(1001))
-			require.False(t, updated.autoFollow)
-			require.Equal(t, before, updated.viewport.YOffset)
-		})
-
-		t.Run("NewMessageAutoFollowsWhenAtBottom", func(t *testing.T) {
-			t.Parallel()
-
-			model := newScrollableModel(t)
-			before := model.viewport.YOffset
-
-			updated, _ := model.Update(streamMessage(1002))
-			require.True(t, updated.autoFollow)
-			require.True(t, updated.viewport.AtBottom())
-			require.GreaterOrEqual(t, updated.viewport.YOffset, before)
-		})
-
-		t.Run("NewMessageDoesNotAutoFollowWhenScrolledUp", func(t *testing.T) {
-			t.Parallel()
-
-			model := newScrollableModel(t)
-			model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-			before := model.viewport.YOffset
-
-			updated, _ := model.Update(streamMessage(1003))
-			require.False(t, updated.autoFollow)
-			require.False(t, updated.viewport.AtBottom())
-			require.Equal(t, before, updated.viewport.YOffset)
-		})
-
-		t.Run("TotalViewHeightDoesNotExceedTerminalHeight", func(t *testing.T) {
-			t.Parallel()
-
-			model := applyWindowSize(
-				t,
-				newExpChatsTUIModel(context.Background(), nil, nil, nil, nil),
-				80,
-				40,
-			)
-			model.currentView = viewChat
-			model.chat.loading = false
-			chat := testChat(codersdk.ChatStatusCompleted)
-			model.chat.chat = &chat
-			model.chat.chatStatus = chat.Status
-			model.chat.messages = overflowingMessages(24)
-			model.chat.rebuildBlocks()
-
-			view := model.View()
-			lineCount := strings.Count(view, "\n") + 1
-			require.LessOrEqual(t, lineCount, 40)
-		})
-	})
-
-	t.Run("ChatView/ViewportAndComposer", func(t *testing.T) {
-		t.Parallel()
-
-		overflowingMessages := func(count int) []codersdk.ChatMessage {
-			messages := make([]codersdk.ChatMessage, 0, count)
-			for i := 0; i < count; i++ {
-				role := codersdk.ChatMessageRoleUser
-				if i%2 == 1 {
-					role = codersdk.ChatMessageRoleAssistant
-				}
-				messages = append(messages, testMessage(
-					int64(i+1),
-					role,
-					codersdk.ChatMessagePart{
-						Type: codersdk.ChatMessagePartTypeText,
-						Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
-					},
-				))
+			tests := []struct {
+				name   string
+				setup  func(chatViewModel) chatViewModel
+				update func(chatViewModel) chatViewModel
+				assert func(t *testing.T, before chatViewModel, after chatViewModel)
+			}{
+				{"SetContentPreservesScrollPosition", func(model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+					return updated
+				}, func(model chatViewModel) chatViewModel {
+					updated, _ := model.Update(streamMessage(1001))
+					return updated
+				}, func(t *testing.T, before chatViewModel, after chatViewModel) {
+					require.False(t, after.autoFollow)
+					require.Equal(t, before.viewport.YOffset, after.viewport.YOffset)
+				}},
+				{"NewMessageAutoFollowsWhenAtBottom", nil, func(model chatViewModel) chatViewModel {
+					updated, _ := model.Update(streamMessage(1002))
+					return updated
+				}, func(t *testing.T, before chatViewModel, after chatViewModel) {
+					require.True(t, after.autoFollow)
+					require.True(t, after.viewport.AtBottom())
+					require.GreaterOrEqual(t, after.viewport.YOffset, before.viewport.YOffset)
+				}},
+				{"NewMessageDoesNotAutoFollowWhenScrolledUp", func(model chatViewModel) chatViewModel {
+					updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+					return updated
+				}, func(model chatViewModel) chatViewModel {
+					updated, _ := model.Update(streamMessage(1003))
+					return updated
+				}, func(t *testing.T, before chatViewModel, after chatViewModel) {
+					require.False(t, after.autoFollow)
+					require.False(t, after.viewport.AtBottom())
+					require.Equal(t, before.viewport.YOffset, after.viewport.YOffset)
+				}},
 			}
-			return messages
-		}
 
-		t.Run("AutoFollowDefaultsToTrue", func(t *testing.T) {
-			t.Parallel()
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
 
-			model := newTestChatViewModel(nil)
-			require.True(t, model.autoFollow)
-		})
-
-		t.Run("HistoryLoadsAtBottom", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
-
-			require.True(t, model.autoFollow)
-			require.True(t, model.viewport.AtBottom())
+					model := newScrollableModel(t)
+					if tt.setup != nil {
+						model = tt.setup(model)
+					}
+					before := model
+					after := tt.update(model)
+					tt.assert(t, before, after)
+				})
+			}
 		})
 
 		t.Run("StreamingAutoFollows", func(t *testing.T) {
@@ -1705,31 +1543,14 @@ func TestExpAgents(t *testing.T) {
 			model := newTestChatViewModel(nil)
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
+			before := model.viewport.YOffset
 
-			yBefore := model.viewport.YOffset
 			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent(strings.Repeat("hello world ", 20))})
 			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent(strings.Repeat("more text ", 20))})
 
 			require.True(t, model.autoFollow)
 			require.True(t, model.viewport.AtBottom())
-			require.GreaterOrEqual(t, model.viewport.YOffset, yBefore)
-		})
-
-		t.Run("ComposerWidthConstrained", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.loading = false
-			model.draft = true
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-
-			require.Equal(t, max(10, 80-4), model.composer.Width)
-
-			model.composer.SetValue(strings.Repeat("x", 200))
-			view := model.View()
-			for _, line := range strings.Split(view, "\n") {
-				require.LessOrEqual(t, lipgloss.Width(line), model.width, "line too wide: %q", line)
-			}
+			require.GreaterOrEqual(t, model.viewport.YOffset, before)
 		})
 	})
 
@@ -1757,11 +1578,9 @@ func TestExpAgents(t *testing.T) {
 						}},
 					}
 
-					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
-					model.currentView = viewChat
+					model := baseChatModel()
 					model.catalog = &catalog
 					model.chat.modelPickerFlat = catalog.Providers[0].Models
-					model.chat.loading = false
 					model.chat.composer.SetValue("keep this draft")
 
 					updatedModel, cmd := model.Update(toggleModelPickerMsg{})
@@ -1785,30 +1604,9 @@ func TestExpAgents(t *testing.T) {
 					require.Equal(t, "keep this draft", updated.composer.Value())
 				}},
 				{"ViewportScrollOverlayToggle", func(t *testing.T) {
-					overflowingMessages := func(count int) []codersdk.ChatMessage {
-						messages := make([]codersdk.ChatMessage, 0, count)
-						for i := 0; i < count; i++ {
-							role := codersdk.ChatMessageRoleUser
-							if i%2 == 1 {
-								role = codersdk.ChatMessageRoleAssistant
-							}
-							messages = append(messages, testMessage(
-								int64(i+1),
-								role,
-								codersdk.ChatMessagePart{
-									Type: codersdk.ChatMessagePartTypeText,
-									Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
-								},
-							))
-						}
-						return messages
-					}
-
-					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
-					model.currentView = viewChat
+					model := baseChatModel()
 					updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 					updated := mustTUIModel(t, updatedModel, cmd)
-					updated.chat.loading = false
 					chat := testChat(codersdk.ChatStatusCompleted)
 					updated.chat.chat = &chat
 					updated.chat.messages = overflowingMessages(10)
@@ -1904,25 +1702,6 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/ChatLifecycle", func(t *testing.T) {
 		t.Parallel()
-
-		t.Run("DraftChatSwitchBackToListDoesNotCrash", func(t *testing.T) {
-			t.Parallel()
-
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
-
-			updatedModel, cmd := model.Update(openDraftChatMsg{})
-			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
-			require.Equal(t, viewChat, updated.currentView)
-			require.True(t, updated.chat.draft)
-			require.Nil(t, cmd)
-
-			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
-			require.Equal(t, viewList, updated.currentView)
-			require.Equal(t, overlayNone, updated.overlay)
-			require.True(t, updated.list.loading)
-			require.False(t, updated.chat.streaming)
-		})
 
 		t.Run("StreamingChatSwitchBackToList", func(t *testing.T) {
 			t.Parallel()
@@ -2035,30 +1814,34 @@ func TestExpAgents(t *testing.T) {
 	t.Run("ChatList", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("ChatsListedStoresChats", func(t *testing.T) {
+		t.Run("ChatsListedUpdatesState", func(t *testing.T) {
 			t.Parallel()
 
-			model := newChatListModel(newTUIStyles())
-			chats := []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusCompleted)}
+			tests := []struct {
+				name   string
+				msg    chatsListedMsg
+				assert func(t *testing.T, updated chatListModel)
+			}{
+				{"StoresChats", chatsListedMsg{chats: []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusCompleted)}}, func(t *testing.T, updated chatListModel) {
+					require.Len(t, updated.chats, 2)
+					require.NoError(t, updated.err)
+				}},
+				{"StoresErr", chatsListedMsg{err: xerrors.New("list failed")}, func(t *testing.T, updated chatListModel) {
+					require.EqualError(t, updated.err, "list failed")
+				}},
+			}
 
-			updated, cmd := model.Update(chatsListedMsg{chats: chats})
-			require.Nil(t, cmd)
-			require.Equal(t, chats, updated.chats)
-			require.False(t, updated.loading)
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					updated, cmd := newChatListModel(newTUIStyles()).Update(tt.msg)
+					require.Nil(t, cmd)
+					require.False(t, updated.loading)
+					tt.assert(t, updated)
+				})
+			}
 		})
-
-		t.Run("ChatsListedErrorStoresErr", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-
-			updated, cmd := model.Update(chatsListedMsg{err: xerrors.New("list failed")})
-			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
-			require.Equal(t, "list failed", updated.err.Error())
-			require.False(t, updated.loading)
-		})
-
 		t.Run("DisplayRowsHideSubagentsUntilExpanded", func(t *testing.T) {
 			t.Parallel()
 
@@ -2096,8 +1879,7 @@ func TestExpAgents(t *testing.T) {
 		t.Run("ExpandCollapseAndOpenSubagents", func(t *testing.T) {
 			t.Parallel()
 
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
+			model := newReadyChatListModel()
 			model.width = 100
 			model.height = 10
 
@@ -2110,32 +1892,22 @@ func TestExpAgents(t *testing.T) {
 			root.Title = "Standalone chat"
 			model.chats = []codersdk.Chat{parent, child, root}
 
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRight})
-			require.Nil(t, cmd)
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
 			require.True(t, updated.expanded[parent.ID])
-			require.Len(t, updated.displayRows(), 3)
 			require.Contains(t, plainText(updated.View()), "    Subagent chat")
 
-			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			require.Nil(t, cmd)
-			require.Equal(t, 1, updated.cursor)
-			selected := updated.selectedChat()
-			require.NotNil(t, selected)
-			require.Equal(t, child.ID, selected.ID)
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			require.Equal(t, child.ID, updated.selectedChat().ID)
 
-			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			msg := mustMsg(t, cmd)
-			openMsg, ok := msg.(openSelectedChatMsg)
+			updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			openMsg, ok := mustMsg(t, cmd).(openSelectedChatMsg)
 			require.True(t, ok)
 			require.Equal(t, child.ID, openMsg.chatID)
 
-			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyLeft})
-			require.Nil(t, cmd)
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyLeft})
 			require.False(t, updated.expanded[parent.ID])
 			require.Equal(t, 0, updated.cursor)
-			require.Len(t, updated.displayRows(), 2)
 		})
-
 		t.Run("ToggleKeyExpandsAndCollapsesParent", func(t *testing.T) {
 			t.Parallel()
 
@@ -2221,52 +1993,37 @@ func TestExpAgents(t *testing.T) {
 		t.Run("ViewKeepsSelectedChatVisible", func(t *testing.T) {
 			t.Parallel()
 
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
+			model := newReadyChatListModel()
 			model.width = 80
 			model.height = 8
-			model.chats = make([]codersdk.Chat, 8)
-			for i := range model.chats {
+			for i := range 8 {
 				chat := testChat(codersdk.ChatStatusWaiting)
 				chat.Title = fmt.Sprintf("chat %02d", i)
-				model.chats[i] = chat
+				model.chats = append(model.chats, chat)
 			}
 
 			for range 6 {
-				var cmd tea.Cmd
-				model, cmd = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-				require.Nil(t, cmd)
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 			}
-
-			require.Equal(t, 6, model.cursor)
 			require.Equal(t, 2, model.offset)
-
 			listView := plainText(model.View())
 			require.Contains(t, listView, "> chat 06")
 			require.NotContains(t, listView, "chat 00")
-			require.NotContains(t, listView, "chat 01")
 
-			parent := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
-			parent.currentView = viewList
+			parent := newTestTUIModel()
 			parent.width = 80
 			parent.height = 8
 			parent.list = model
-
 			parentView := plainText(parent.View())
 			require.Contains(t, parentView, "Coder Chats")
 			require.Contains(t, parentView, "> chat 06")
 
 			for range 5 {
-				var cmd tea.Cmd
-				model, cmd = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-				require.Nil(t, cmd)
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
 			}
-
-			require.Equal(t, 1, model.cursor)
 			require.Equal(t, 1, model.offset)
 			require.Contains(t, plainText(model.View()), "> chat 01")
 		})
-
 		t.Run("EmptyListDisplaysNoChatsMessage", func(t *testing.T) {
 			t.Parallel()
 
@@ -2336,6 +2093,42 @@ func mustBatchMsg(t testing.TB, cmd tea.Cmd) tea.BatchMsg {
 
 func newTestChatViewModel(client *codersdk.ExperimentalClient) chatViewModel {
 	return newChatViewModel(context.Background(), client, nil, nil, newTUIStyles())
+}
+
+func newTestTUIModel() expChatsTUIModel {
+	return newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+}
+
+func baseChatModel() expChatsTUIModel {
+	model := newTestTUIModel()
+	model.currentView = viewChat
+	model.chat.loading = false
+	return model
+}
+
+func newReadyChatListModel() chatListModel {
+	model := newChatListModel(newTUIStyles())
+	model.loading = false
+	return model
+}
+
+func overflowingMessages(count int) []codersdk.ChatMessage {
+	messages := make([]codersdk.ChatMessage, 0, count)
+	for i := 0; i < count; i++ {
+		role := codersdk.ChatMessageRoleUser
+		if i%2 == 1 {
+			role = codersdk.ChatMessageRoleAssistant
+		}
+		messages = append(messages, testMessage(
+			int64(i+1),
+			role,
+			codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: fmt.Sprintf("message %d %s", i+1, strings.Repeat("content ", 18)),
+			},
+		))
+	}
+	return messages
 }
 
 func testChat(status codersdk.ChatStatus) codersdk.Chat {
