@@ -1,5 +1,5 @@
 import type { Theme } from "@emotion/react";
-import type { HealthSeverity } from "api/typesGenerated";
+import type { HealthSeverity } from "#/api/typesGenerated";
 
 export const healthyColor = (theme: Theme, severity: HealthSeverity) => {
 	switch (severity) {

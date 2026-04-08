@@ -1,17 +1,16 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Drawer from "@mui/material/Drawer";
-import IconButton from "@mui/material/IconButton";
-import { JobError } from "api/queries/templates";
-import type { TemplateVersion } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon, XIcon } from "lucide-react";
-import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { FC } from "react";
-import { navHeight } from "theme/constants";
+import { JobError } from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
+import { AlertVariant } from "#/modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { navHeight } from "#/theme/constants";
 
 type BuildLogsDrawerProps = {
 	error: unknown;
@@ -43,10 +42,10 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 			<div css={styles.root}>
 				<header css={styles.header}>
 					<h3 css={styles.title}>Creating template...</h3>
-					<IconButton size="small" onClick={drawerProps.onClose}>
-						<XIcon className="size-icon-sm" />
+					<Button size="icon-lg" variant="subtle" onClick={drawerProps.onClose}>
+						<XIcon />
 						<span className="sr-only">Close build logs</span>
-					</IconButton>
+					</Button>
 				</header>
 
 				{isMissingVariables ? (

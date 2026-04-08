@@ -158,7 +158,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 ## Performance
 
-- `src/pages/AgentsPage/` and `src/components/ai-elements/` are opted
+- `src/pages/AgentsPage/` (including `components/ChatElements/`) is opted
   into React Compiler via `babel-plugin-react-compiler`. The compiler
   automatically memoizes values, callbacks, and JSX at build time. Do
   not add `useMemo`, `useCallback`, or `memo()` in these directories

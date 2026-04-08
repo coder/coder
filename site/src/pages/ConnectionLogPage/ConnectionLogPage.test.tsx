@@ -1,19 +1,19 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { API } from "#/api/api";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockEntitlementsWithConnectionLog,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import ConnectionLogPage from "./ConnectionLogPage";
 
 interface RenderPageOptions {
@@ -69,6 +69,7 @@ describe("ConnectionLogPage", () => {
 					MockDisconnectedSSHConnectionLog,
 				],
 				count: 2,
+				count_cap: 0,
 			});
 
 		// When
@@ -95,6 +96,7 @@ describe("ConnectionLogPage", () => {
 				.mockResolvedValue({
 					connection_logs: [MockConnectedSSHConnectionLog],
 					count: 1,
+					count_cap: 0,
 				});
 
 			const query = "type:ssh status:ongoing";

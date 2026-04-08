@@ -66,7 +66,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	}
 
 	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
-	// nolint:exhaustruct // UserID is not obtained from the query parameters.
+	// nolint:exhaustruct // UserID and CountCap are not obtained from the query parameters.
 	countFilter := database.CountAuditLogsParams{
 		RequestID:      filter.RequestID,
 		ResourceID:     filter.ResourceID,
@@ -123,6 +123,7 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	}
 
 	// This MUST be kept in sync with the above
+	// nolint:exhaustruct // CountCap is not obtained from the query parameters.
 	countFilter := database.CountConnectionLogsParams{
 		OrganizationID:      filter.OrganizationID,
 		WorkspaceOwner:      filter.WorkspaceOwner,
@@ -155,16 +156,17 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:          parser.String(values, "", "search"),
-		Name:            parser.String(values, "", "name"),
-		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:        parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
-		CreatedAfter:    parser.Time3339Nano(values, time.Time{}, "created_after"),
-		CreatedBefore:   parser.Time3339Nano(values, time.Time{}, "created_before"),
-		GithubComUserID: parser.Int64(values, 0, "github_com_user_id"),
-		LoginType:       httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
+		Search:           parser.String(values, "", "search"),
+		Name:             parser.String(values, "", "name"),
+		Status:           httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		IsServiceAccount: parser.NullableBoolean(values, sql.NullBool{}, "service_account"),
+		RbacRole:         parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:    parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore:   parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:     parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:    parser.Time3339Nano(values, time.Time{}, "created_before"),
+		GithubComUserID:  parser.Int64(values, 0, "github_com_user_id"),
+		LoginType:        httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -468,6 +470,34 @@ func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBrid
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Model = parser.String(values, "", "model")
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBridgeClientsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeClientsParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("client", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Client = parser.String(values, "", "client")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

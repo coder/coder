@@ -59,13 +59,16 @@ type AgentConn interface {
 	SetExtraHeaders(h http.Header)
 
 	AwaitReachable(ctx context.Context) bool
+	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
+	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
+	ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error)
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
@@ -91,6 +94,8 @@ type AgentConn interface {
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
+	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
+	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (io.ReadCloser, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -593,6 +598,23 @@ type DesktopActionResponse struct {
 	ScreenshotHeight int    `json:"screenshot_height,omitempty"`
 }
 
+// StartDesktopRecordingRequest is the request body for starting a
+// desktop recording session.
+type StartDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// StopDesktopRecordingRequest is the request body for stopping a
+// desktop recording session.
+type StopDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// MaxRecordingSize is the largest desktop recording (in bytes)
+// that will be accepted. Used by both the agent-side stop handler
+// and the server-side storage pipeline.
+const MaxRecordingSize = 100 << 20 // 100 MB
+
 // ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
 // agent's desktop.
 func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error) {
@@ -638,6 +660,43 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
 	}
 	return result, nil
+}
+
+// StartDesktopRecording starts a desktop recording session on the
+// agent with the given recording ID. The recording ID is
+// caller-provided and must be unique. Idempotent — if the ID is
+// already recording, returns success.
+func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/start", req)
+	if err != nil {
+		return xerrors.Errorf("start recording request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// StopDesktopRecording stops a desktop recording session on the
+// agent and returns the MP4 data as an io.ReadCloser. The caller
+// is responsible for closing the returned reader. Idempotent —
+// safe to call on an already-stopped recording.
+func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (io.ReadCloser, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
+	if err != nil {
+		return nil, xerrors.Errorf("stop recording request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	// Caller is responsible for closing res.Body.
+	return res.Body, nil
 }
 
 // DeleteDevcontainer deletes the provided devcontainer.
@@ -923,6 +982,57 @@ type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
 }
 
+// ListMCPToolsResponse is the response from the agent's
+// MCP tool discovery endpoint.
+type ListMCPToolsResponse struct {
+	Tools []MCPToolInfo `json:"tools"`
+}
+
+// MCPToolInfo describes a single tool discovered from an MCP
+// server configured in the workspace's .mcp.json file.
+type MCPToolInfo struct {
+	// ServerName is the key from .mcp.json (e.g. "github").
+	ServerName string `json:"server_name"`
+	// Name is the prefixed tool name: "serverName__toolName".
+	Name string `json:"name"`
+	// Description is the tool's human-readable description.
+	Description string `json:"description"`
+	// Schema is the JSON Schema for the tool's input parameters.
+	Schema map[string]any `json:"schema"`
+	// Required lists required parameter names.
+	Required []string `json:"required"`
+}
+
+// ContextConfigResponse is the response from the agent's context
+// configuration endpoint. Contains pre-read instruction file
+// contents and discovered skill metadata as chat message parts.
+type ContextConfigResponse struct {
+	Parts []codersdk.ChatMessagePart `json:"parts"`
+}
+
+// CallMCPToolRequest is the request body for proxying an MCP
+// tool call through the workspace agent.
+type CallMCPToolRequest struct {
+	// ToolName is the prefixed tool name (e.g. "github__create_issue").
+	ToolName string `json:"tool_name"`
+	// Arguments is the tool input as key-value pairs.
+	Arguments map[string]any `json:"arguments"`
+}
+
+// CallMCPToolResponse is the response from a proxied MCP tool call.
+type CallMCPToolResponse struct {
+	Content []MCPToolContent `json:"content"`
+	IsError bool             `json:"is_error"`
+}
+
+// MCPToolContent is a single content block in an MCP tool response.
+type MCPToolContent struct {
+	Type      string `json:"type"` // "text", "image", "audio", "resource"
+	Text      string `json:"text,omitempty"`
+	Data      string `json:"data,omitempty"` // base64 for binary
+	MediaType string `json:"media_type,omitempty"`
+}
+
 // StartProcess starts a new process on the workspace agent.
 func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
@@ -952,6 +1062,57 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListProcessesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListMCPTools returns tools discovered from MCP servers configured
+// in the workspace.
+func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/mcp/tools", nil)
+	if err != nil {
+		return ListMCPToolsResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ListMCPToolsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ContextConfig returns the resolved context configuration from
+// the workspace agent.
+func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/context-config", nil)
+	if err != nil {
+		return ContextConfigResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ContextConfigResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// CallMCPTool proxies a tool call to an MCP server running in
+// the workspace.
+func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/mcp/call-tool", req)
+	if err != nil {
+		return CallMCPToolResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp CallMCPToolResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

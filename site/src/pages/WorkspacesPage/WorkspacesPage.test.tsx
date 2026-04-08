@@ -1,3 +1,13 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { API } from "#/api/api";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceAppHealth,
+	WorkspacesResponse,
+} from "#/api/typesGenerated";
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
@@ -8,23 +18,13 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspacesResponse,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type {
-	Workspace,
-	WorkspaceApp,
-	WorkspaceAppHealth,
-	WorkspacesResponse,
-} from "api/typesGenerated";
-import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {
@@ -369,53 +369,50 @@ describe("WorkspaceApps filtering", () => {
 		["disabled", true],
 		["unhealthy", false],
 		["initializing", false],
-	])(
-		"apps with '%s' health status should be shown: %s",
-		async (health, shouldBeVisible) => {
-			const app: WorkspaceApp = {
-				...MockWorkspaceApp,
-				id: `${health}-app`,
-				display_name: `${health} App`,
-				health,
-				hidden: false,
-			};
-			const workspace: Workspace = {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					status: "running",
-					resources: [
-						{
-							...MockWorkspace.latest_build.resources[0],
-							agents: [
-								{
-									...MockWorkspaceAgent,
-									apps: [app],
-								},
-							],
-						},
-					],
-				},
-			};
-			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
-				workspaces: [workspace],
-				count: 1,
-			});
+	])("apps with '%s' health status should be shown: %s", async (health, shouldBeVisible) => {
+		const app: WorkspaceApp = {
+			...MockWorkspaceApp,
+			id: `${health}-app`,
+			display_name: `${health} App`,
+			health,
+			hidden: false,
+		};
+		const workspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								apps: [app],
+							},
+						],
+					},
+				],
+			},
+		};
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [workspace],
+			count: 1,
+		});
 
-			renderWithAuth(<WorkspacesPage />);
-			await waitForLoaderToBeRemoved();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
 
-			const appLink = screen.queryByRole("link", {
-				name: (name) =>
-					name.toLowerCase().includes(app.display_name!.toLowerCase()),
-			});
-			if (shouldBeVisible) {
-				expect(appLink).toBeInTheDocument();
-			} else {
-				expect(appLink).not.toBeInTheDocument();
-			}
-		},
-	);
+		const appLink = screen.queryByRole("link", {
+			name: (name) =>
+				name.toLowerCase().includes(app.display_name!.toLowerCase()),
+		});
+		if (shouldBeVisible) {
+			expect(appLink).toBeInTheDocument();
+		} else {
+			expect(appLink).not.toBeInTheDocument();
+		}
+	});
 
 	it("does not show hidden apps regardless of health status", async () => {
 		const hiddenApp: WorkspaceApp = {

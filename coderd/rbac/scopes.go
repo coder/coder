@@ -135,16 +135,25 @@ func BuiltinScopeNames() []ScopeName {
 var compositePerms = map[ScopeName]map[string][]policy.Action{
 	"coder:workspaces.create": {
 		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		ResourceWorkspace.Type: {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		// When creating a workspace, users need to be able to read the org member the
+		// workspace will be owned by. Even if that owner is "yourself".
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.operate": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+		ResourceTemplate.Type:           {policy.ActionRead},
+		ResourceWorkspace.Type:          {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionRead, policy.ActionUpdate},
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.delete": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
+		ResourceTemplate.Type:           {policy.ActionRead, policy.ActionUse},
+		ResourceWorkspace.Type:          {policy.ActionRead, policy.ActionDelete},
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.access": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+		ResourceTemplate.Type:           {policy.ActionRead},
+		ResourceOrganizationMember.Type: {policy.ActionRead},
+		ResourceWorkspace.Type:          {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
 	},
 	"coder:templates.build": {
 		ResourceTemplate.Type: {policy.ActionRead},

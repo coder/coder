@@ -110,6 +110,9 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 - For experimental or unstable API paths, skip public doc generation with
   `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
   keeps them out of the published API reference until they stabilize.
+- Experimental chat endpoints in `coderd/exp_chats.go` omit swagger
+  annotations entirely. Do not add `@Summary`, `@Router`, or other
+  swagger comments to handlers in that file.
 
 ### Database Query Naming
 
@@ -296,6 +299,27 @@ comments preserve important context about why code works a certain way.
 @.claude/docs/DATABASE.md
 @.claude/docs/PR_STYLE_GUIDE.md
 @.claude/docs/DOCS_STYLE_GUIDE.md
+
+If your agent tool does not auto-load `@`-referenced files, read these
+manually before starting work:
+
+**Always read:**
+
+- `.claude/docs/WORKFLOWS.md` — dev server, git workflow, hooks
+
+**Read when relevant to your task:**
+
+- `.claude/docs/GO.md` — Go patterns and modern Go usage (any Go changes)
+- `.claude/docs/TESTING.md` — testing patterns, race conditions (any test changes)
+- `.claude/docs/DATABASE.md` — migrations, SQLC, audit table (any DB changes)
+- `.claude/docs/ARCHITECTURE.md` — system overview (orientation or architecture work)
+- `.claude/docs/PR_STYLE_GUIDE.md` — PR description format (when writing PRs)
+- `.claude/docs/OAUTH2.md` — OAuth2 and RFC compliance (when touching auth)
+- `.claude/docs/TROUBLESHOOTING.md` — common failures and fixes (when stuck)
+- `.claude/docs/DOCS_STYLE_GUIDE.md` — docs conventions (when writing `docs/`)
+
+**For frontend work**, also read `site/AGENTS.md` before making any changes
+in `site/`.
 
 ## Local Configuration
 

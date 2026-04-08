@@ -1,6 +1,6 @@
-import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-import { pageTitle } from "utils/page";
+import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
+import { pageTitle } from "#/utils/page";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const ExternalAuthSettingsPage: FC = () => {

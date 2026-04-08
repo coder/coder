@@ -36,6 +36,8 @@ const meta: Meta<typeof SidebarTabView> = {
 	component: SidebarTabView,
 	args: {
 		tabs: [gitTab],
+		activeTabId: "git",
+		onActiveTabChange: fn(),
 		isExpanded: false,
 		onToggleExpanded: fn(),
 	},

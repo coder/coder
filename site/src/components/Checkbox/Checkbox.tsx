@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 04/03/2025
  * @see {@link https://ui.shadcn.com/docs/components/checkbox}
  */
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { Check, Minus } from "lucide-react";
-import { cn } from "utils/cn";
+import { Checkbox as CheckboxPrimitive } from "radix-ui";
+import { cn } from "#/utils/cn";
 
 /**
  * To allow for an indeterminate state the checkbox must be controlled, otherwise the checked prop would remain undefined

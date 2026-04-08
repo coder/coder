@@ -1,10 +1,11 @@
-import { getErrorMessage } from "api/errors";
-import type { User } from "api/typesGenerated";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Spinner } from "components/Spinner/Spinner";
+import { type FC, useId, useState } from "react";
+import { getErrorMessage } from "#/api/errors";
+import type { User } from "#/api/typesGenerated";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -12,10 +13,13 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+} from "#/components/Table/Table";
+import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import {
+	formatCostMicros,
+	isPositiveFiniteDollarAmount,
+} from "#/utils/currency";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface UserOverridesSectionProps {
@@ -70,6 +74,9 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 }) => {
 	const userOverrideAmountId = useId();
 	const isEditing = editingUserOverride !== null;
+	const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | null>(
+		null,
+	);
 
 	return (
 		<section className="space-y-4">
@@ -77,7 +84,6 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 				label="Per-User Overrides"
 				description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
 			/>
-
 			<div className="space-y-4">
 				{overrides.length > 0 ? (
 					<Table>
@@ -119,7 +125,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 												variant="outline"
 												size="sm"
 												type="button"
-												onClick={() => void onDeleteOverride(override.user_id)}
+												onClick={() => setPendingDeleteUserId(override.user_id)}
 												disabled={deletePending || upsertPending || isEditing}
 											>
 												Delete
@@ -243,6 +249,18 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 					</p>
 				)}
 			</div>
+			{pendingDeleteUserId && (
+				<ConfirmDeleteDialog
+					entity="user override"
+					onConfirm={() => {
+						void onDeleteOverride(pendingDeleteUserId);
+						setPendingDeleteUserId(null);
+					}}
+					isPending={deletePending}
+					open={true}
+					onOpenChange={(open) => !open && setPendingDeleteUserId(null)}
+				/>
+			)}{" "}
 		</section>
 	);
 };

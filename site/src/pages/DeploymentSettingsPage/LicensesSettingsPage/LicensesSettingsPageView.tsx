@@ -1,26 +1,26 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
-import type { GetLicensesResponse } from "api/api";
-import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link as RouterLink } from "react-router";
+import type { GetLicensesResponse } from "#/api/api";
+import type { Feature, UserStatusChangeCount } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useWindowSize } from "#/hooks/useWindowSize";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";

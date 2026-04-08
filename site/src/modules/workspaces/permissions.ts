@@ -1,4 +1,4 @@
-import type { AuthorizationCheck, Workspace } from "api/typesGenerated";
+import type { AuthorizationCheck, Workspace } from "#/api/typesGenerated";
 
 export const workspaceChecks = (workspace: Workspace) =>
 	({

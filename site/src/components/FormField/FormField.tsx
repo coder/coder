@@ -1,8 +1,8 @@
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
 import { type FC, type ReactNode, useId } from "react";
-import { cn } from "utils/cn";
-import type { FormHelpers } from "utils/formUtils";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { cn } from "#/utils/cn";
+import type { FormHelpers } from "#/utils/formUtils";
 
 type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	field: FormHelpers;
@@ -24,6 +24,10 @@ export const FormField: FC<FormFieldProps> = ({
 		<div className="flex flex-col gap-2">
 			<Label htmlFor={id}>{label}</Label>
 			<Input
+				name={field.name}
+				value={field.value}
+				onChange={field.onChange}
+				onBlur={field.onBlur}
 				{...inputProps}
 				id={id}
 				aria-invalid={field.error}

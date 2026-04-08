@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -258,11 +259,13 @@ func TestAIBridgeInterception(t *testing.T) {
 			},
 			tokenUsages: []database.AIBridgeTokenUsage{
 				{
-					ID:                 uuid.New(),
-					InterceptionID:     interceptionID,
-					ProviderResponseID: "resp-123",
-					InputTokens:        100,
-					OutputTokens:       200,
+					ID:                    uuid.New(),
+					InterceptionID:        interceptionID,
+					ProviderResponseID:    "resp-123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
 					Metadata: pqtype.NullRawMessage{
 						RawMessage: json.RawMessage(`{"cache":"hit"}`),
 						Valid:      true,
@@ -412,6 +415,8 @@ func TestAIBridgeInterception(t *testing.T) {
 				require.Equal(t, tu.ProviderResponseID, result.TokenUsages[i].ProviderResponseID)
 				require.Equal(t, tu.InputTokens, result.TokenUsages[i].InputTokens)
 				require.Equal(t, tu.OutputTokens, result.TokenUsages[i].OutputTokens)
+				require.Equal(t, tu.CacheReadInputTokens, result.TokenUsages[i].CacheReadInputTokens)
+				require.Equal(t, tu.CacheWriteInputTokens, result.TokenUsages[i].CacheWriteInputTokens)
 			}
 
 			// Verify user prompts are converted correctly.
@@ -511,6 +516,191 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Len(t, queued.Content, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
 	require.Equal(t, "queued text", queued.Content[0].Text)
+}
+
+func TestChat_AllFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
+	// Every field of database.Chat is set to a non-zero value so
+	// that the reflection check below catches any field that
+	// db2sdk.Chat forgets to populate. When someone adds a new
+	// field to codersdk.Chat, this test will fail until the
+	// converter is updated.
+	now := dbtime.Now()
+	input := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		LastModelConfigID: uuid.New(),
+		Title:             "all-fields-test",
+		Status:            database.ChatStatusRunning,
+		LastError:         sql.NullString{String: "boom", Valid: true},
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Archived:          true,
+		PinOrder:          1,
+		MCPServerIDs:      []uuid.UUID{uuid.New()},
+		Labels:            database.StringMap{"env": "prod"},
+		LastInjectedContext: pqtype.NullRawMessage{
+			// Use a context-file part to verify internal
+			// fields are not present (they are stripped at
+			// write time by chatd, not at read time).
+			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
+			Valid:      true,
+		},
+		DynamicTools: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
+			Valid:      true,
+		},
+	}
+	// Only ChatID is needed here. This test checks that
+	// Chat.DiffStatus is non-nil, not that every DiffStatus
+	// field is populated — that would be a separate test for
+	// the ChatDiffStatus converter.
+	diffStatus := &database.ChatDiffStatus{
+		ChatID: input.ID,
+	}
+
+	fileRows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             uuid.New(),
+			OwnerID:        input.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "test.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+	}
+
+	got := db2sdk.Chat(input, diffStatus, fileRows)
+
+	v := reflect.ValueOf(got)
+	typ := v.Type()
+	// HasUnread is populated by ChatRows (which joins the
+	// read-cursor query), not by Chat. Warnings is a transient
+	// field populated by handlers, not the converter. Both are
+	// expected to remain zero here.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true}
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if skip[field.Name] {
+			continue
+		}
+		require.False(t, v.Field(i).IsZero(),
+			"codersdk.Chat field %q is zero-valued — db2sdk.Chat may not be populating it",
+			field.Name,
+		)
+	}
+}
+
+func TestChat_FileMetadataConversion(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	fileID := uuid.New()
+	now := dbtime.Now()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           ownerID,
+		LastModelConfigID: uuid.New(),
+		Title:             "file metadata test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	rows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             fileID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+			Name:           "screenshot.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+	}
+
+	result := db2sdk.Chat(chat, nil, rows)
+
+	require.Len(t, result.Files, 1)
+	f := result.Files[0]
+	require.Equal(t, fileID, f.ID)
+	require.Equal(t, ownerID, f.OwnerID, "OwnerID must be mapped from DB row")
+	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
+	require.Equal(t, "screenshot.png", f.Name)
+	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, now, f.CreatedAt)
+
+	// Verify JSON serialization uses snake_case for mime_type.
+	data, err := json.Marshal(f)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"mime_type"`)
+	require.NotContains(t, string(data), `"mimetype"`)
+}
+
+func TestChat_NilFilesOmitted(t *testing.T) {
+	t.Parallel()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "no files",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         dbtime.Now(),
+		UpdatedAt:         dbtime.Now(),
+	}
+
+	result := db2sdk.Chat(chat, nil, nil)
+	require.Empty(t, result.Files)
+}
+
+func TestChat_MultipleFiles(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	file1 := uuid.New()
+	file2 := uuid.New()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "multi file test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	rows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             file1,
+			OwnerID:        chat.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "a.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+		{
+			ID:             file2,
+			OwnerID:        chat.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "b.txt",
+			Mimetype:       "text/plain",
+			CreatedAt:      now,
+		},
+	}
+
+	result := db2sdk.Chat(chat, nil, rows)
+	require.Len(t, result.Files, 2)
+	require.Equal(t, "a.png", result.Files[0].Name)
+	require.Equal(t, "b.txt", result.Files[1].Name)
 }
 
 func TestChatQueuedMessage_MalformedContent(t *testing.T) {

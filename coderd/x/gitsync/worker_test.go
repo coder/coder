@@ -221,30 +221,81 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 	assert.Equal(t, int32(numRows), upsertCount.Load())
 }
 
-func TestWorker_RefresherReturnsNilNil_SkipsUpsert(t *testing.T) {
+func TestWorker_NoPR_RecentMarkStale_BacksOffShort(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
 
-	// When the Refresher returns (nil, nil) the worker skips the
-	// upsert and publish. We signal tickDone from the refresher
-	// mock since that is the last operation before the tick
-	// returns.
+	// When the Refresher returns (nil, nil) AND the row was
+	// recently marked stale (updated_at within NoPRRetryWindow),
+	// the worker should call BackoffChatDiffStatus with NoPRBackoff
+	// so the row is retried quickly.
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		Return([]database.AcquireStaleChatDiffStatusesRow{makeAcquiredRowWithBranch(chatID, ownerID, "feature")}, nil)
-
 	mClock := quartz.NewMock(t)
+
+	row := makeAcquiredRowWithBranch(chatID, ownerID, "feature")
+	row.UpdatedAt = mClock.Now() // recently marked stale
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+			assert.Equal(t, chatID, arg.ChatID)
+			expected := mClock.Now().UTC().Add(gitsync.NoPRBackoff)
+			assert.WithinDuration(t, expected, arg.StaleAt, time.Second,
+				"stale_at should be NoPRBackoff from now")
+			close(tickDone)
+			return nil
+		})
+
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	// ResolveBranchPullRequest returns nil → Refresher returns
 	// (nil, nil).
+	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
+		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			return nil, nil
+		},
+	))
+
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+}
+
+func TestWorker_NoPR_OldRow_Skips(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	// When the Refresher returns (nil, nil) but the row's
+	// updated_at is outside the NoPRRetryWindow, the worker should
+	// skip the row entirely (no backoff call) and let the 5-minute
+	// acquisition lock serve as the natural retry interval.
+	tickDone := make(chan struct{})
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	mClock := quartz.NewMock(t)
+
+	row := makeAcquiredRowWithBranch(chatID, ownerID, "feature")
+	row.UpdatedAt = mClock.Now().Add(-5 * time.Minute) // old row
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+	// BackoffChatDiffStatus should NOT be called.
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
 	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
 		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 			close(tickDone)
@@ -255,6 +306,101 @@ func TestWorker_RefresherReturnsNilNil_SkipsUpsert(t *testing.T) {
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
 	tickOnce(ctx, t, mClock, worker, tickDone)
+}
+
+func TestWorker_NoPR_BoundaryExactWindow_Skips(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	// When updated_at is exactly NoPRRetryWindow ago, the strict
+	// "<" comparison means the row should be skipped (no backoff).
+	// This pins the boundary so an accidental change to "<=" is
+	// caught.
+	tickDone := make(chan struct{})
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	mClock := quartz.NewMock(t)
+
+	row := makeAcquiredRowWithBranch(chatID, ownerID, "feature")
+	row.UpdatedAt = mClock.Now().Add(-gitsync.NoPRRetryWindow) // exactly at boundary
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+	// BackoffChatDiffStatus should NOT be called.
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
+		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			close(tickDone)
+			return nil, nil
+		},
+	))
+
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+}
+
+func TestWorker_NoPR_BackoffError_ContinuesNextRow(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chat1 := uuid.New()
+	chat2 := uuid.New()
+	ownerID := uuid.New()
+
+	// Two recent rows, both with no PR. BackoffChatDiffStatus
+	// fails for the first row but the second row should still
+	// be processed (backoff succeeds).
+	var backoffCount atomic.Int32
+	tickDone := make(chan struct{})
+	var closeOnce sync.Once
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	mClock := quartz.NewMock(t)
+
+	row1 := makeAcquiredRowWithBranch(chat1, ownerID, "no-pr-1")
+	row1.UpdatedAt = mClock.Now()
+	row2 := makeAcquiredRowWithBranch(chat2, ownerID, "no-pr-2")
+	row2.UpdatedAt = mClock.Now()
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row1, row2}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+			n := backoffCount.Add(1)
+			if arg.ChatID == chat1 {
+				return fmt.Errorf("simulated backoff error")
+			}
+			// Second call succeeds; both rows processed.
+			if n >= 2 {
+				closeOnce.Do(func() { close(tickDone) })
+			}
+			return nil
+		}).Times(2)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
+		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			return nil, nil
+		},
+	))
+
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+
+	assert.Equal(t, int32(2), backoffCount.Load(),
+		"both rows should have attempted backoff")
 }
 
 func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
@@ -470,12 +616,12 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 
 	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
+		DoAndReturn(func(_ context.Context, arg database.GetChatsParams) ([]database.GetChatsRow, error) {
 			require.Equal(t, ownerID, arg.OwnerID)
-			return []database.Chat{
-				{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
-				{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
-				{ID: chatOther, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+			return []database.GetChatsRow{
+				{Chat: database.Chat{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}},
+				{Chat: database.Chat{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}},
+				{Chat: database.Chat{ID: chatOther, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}},
 			}, nil
 		})
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
@@ -498,7 +644,12 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
-	worker.MarkStale(ctx, workspaceID, ownerID, "feature", "https://github.com/owner/repo")
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		Branch:      "feature",
+		Origin:      "https://github.com/owner/repo",
+	})
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -527,9 +678,9 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 
 	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
-		Return([]database.Chat{
-			{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
-			{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+		Return([]database.GetChatsRow{
+			{Chat: database.Chat{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}},
+			{Chat: database.Chat{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}},
 		}, nil)
 
 	mClock := quartz.NewMock(t)
@@ -537,7 +688,12 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
-	worker.MarkStale(ctx, workspaceID, ownerID, "main", "https://github.com/x/y")
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		Branch:      "main",
+		Origin:      "https://github.com/x/y",
+	})
 }
 
 func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
@@ -555,9 +711,9 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 
 	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
-		Return([]database.Chat{
-			{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
-			{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
+		Return([]database.GetChatsRow{
+			{Chat: database.Chat{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}},
+			{Chat: database.Chat{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}},
 		}, nil)
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
@@ -577,7 +733,12 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
-	worker.MarkStale(ctx, workspaceID, ownerID, "dev", "https://github.com/a/b")
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		Branch:      "dev",
+		Origin:      "https://github.com/a/b",
+	})
 
 	assert.Equal(t, int32(1), publishCount.Load())
 }
@@ -597,7 +758,12 @@ func TestWorker_MarkStale_GetChatsFails(t *testing.T) {
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
-	worker.MarkStale(ctx, uuid.New(), uuid.New(), "main", "https://github.com/x/y")
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: uuid.New(),
+		OwnerID:     uuid.New(),
+		Branch:      "main",
+		Origin:      "https://github.com/x/y",
+	})
 }
 
 func TestWorker_TickStoreError(t *testing.T) {
@@ -649,9 +815,133 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			refresher := newTestRefresher(t, mClock)
 			worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
-			worker.MarkStale(ctx, uuid.New(), uuid.New(), tc.branch, tc.origin)
+			worker.MarkStale(ctx, gitsync.MarkStaleParams{
+				WorkspaceID: uuid.New(),
+				OwnerID:     uuid.New(),
+				Branch:      tc.branch,
+				Origin:      tc.origin,
+			})
 		})
 	}
+}
+
+func TestWorker_MarkStale_WithChatID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	targetChat := uuid.New()
+
+	var mu sync.Mutex
+	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
+	var publishedIDs []uuid.UUID
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	// GetChats should NOT be called when a specific chat ID is provided.
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+		mu.Lock()
+		upsertRefCalls = append(upsertRefCalls, arg)
+		mu.Unlock()
+		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
+	}).Times(1)
+
+	pub := func(_ context.Context, chatID uuid.UUID) error {
+		mu.Lock()
+		publishedIDs = append(publishedIDs, chatID)
+		mu.Unlock()
+		return nil
+	}
+
+	mClock := quartz.NewMock(t)
+	now := mClock.Now()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := newTestRefresher(t, mClock)
+	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
+
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: uuid.New(),
+		OwnerID:     uuid.New(),
+		Branch:      "my-branch",
+		Origin:      "https://github.com/org/repo",
+		ChatID:      targetChat,
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Len(t, upsertRefCalls, 1)
+	assert.Equal(t, targetChat, upsertRefCalls[0].ChatID)
+	assert.Equal(t, "my-branch", upsertRefCalls[0].GitBranch)
+	assert.Equal(t, "https://github.com/org/repo", upsertRefCalls[0].GitRemoteOrigin)
+	assert.True(t, upsertRefCalls[0].StaleAt.Before(now),
+		"stale_at should be in the past, got %v vs now %v", upsertRefCalls[0].StaleAt, now)
+
+	require.Len(t, publishedIDs, 1)
+	assert.Equal(t, targetChat, publishedIDs[0])
+}
+
+func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	workspaceID := uuid.New()
+	ownerID := uuid.New()
+	chat1 := uuid.New()
+
+	var mu sync.Mutex
+	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
+	var publishedIDs []uuid.UUID
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	// GetChats IS called because a nil ChatID triggers the
+	// workspace-wide broadcast path.
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.GetChatsParams) ([]database.GetChatsRow, error) {
+			require.Equal(t, ownerID, arg.OwnerID)
+			return []database.GetChatsRow{
+				{Chat: database.Chat{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}},
+			}, nil
+		})
+	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+		mu.Lock()
+		upsertRefCalls = append(upsertRefCalls, arg)
+		mu.Unlock()
+		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
+	}).Times(1)
+
+	pub := func(_ context.Context, chatID uuid.UUID) error {
+		mu.Lock()
+		publishedIDs = append(publishedIDs, chatID)
+		mu.Unlock()
+		return nil
+	}
+
+	mClock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := newTestRefresher(t, mClock)
+	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
+
+	// Zero-value ChatID (uuid.Nil) triggers broadcast.
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		Branch:      "main",
+		Origin:      "https://github.com/org/repo",
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Len(t, upsertRefCalls, 1)
+	assert.Equal(t, chat1, upsertRefCalls[0].ChatID)
+	assert.Equal(t, "main", upsertRefCalls[0].GitBranch)
+
+	require.Len(t, publishedIDs, 1)
+	assert.Equal(t, chat1, publishedIDs[0])
 }
 
 // TestWorker exercises the worker tick against a
@@ -669,9 +959,10 @@ func TestWorker(t *testing.T) {
 
 	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -687,6 +978,7 @@ func TestWorker(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "integration-test",

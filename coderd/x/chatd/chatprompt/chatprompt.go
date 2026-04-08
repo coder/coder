@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"regexp"
 	"strings"
 
@@ -18,10 +19,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const syntheticPasteInlineBudget = 128 * 1024
+
+const syntheticPasteInlinePrefix = "[pasted-text] The user pasted text into the chat UI. The frontend collapsed it into an attachment, so the content is inlined below for direct model consumption.\n\n"
+
+var syntheticPasteTruncationWarning = fmt.Sprintf(
+	"\n\n[pasted-text] The pasted text was truncated to %d bytes before sending to the model.",
+	syntheticPasteInlineBudget,
+)
+
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
 // FileData holds resolved file content for LLM prompt building.
 type FileData struct {
+	Name      string
 	Data      []byte
 	MediaType string
 }
@@ -392,7 +405,7 @@ func parseToolRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error
 	}
 	parts = make([]codersdk.ChatMessagePart, 0, len(rows))
 	for _, row := range rows {
-		part := codersdk.ChatMessageToolResult(row.ToolCallID, row.ToolName, row.Result, row.IsError)
+		part := codersdk.ChatMessageToolResult(row.ToolCallID, row.ToolName, row.Result, row.IsError, row.IsMedia)
 		part.ProviderExecuted = row.ProviderExecuted
 		part.ProviderMetadata = row.ProviderMetadata
 		parts = append(parts, part)
@@ -515,6 +528,7 @@ type toolResultRaw struct {
 	ToolName         string          `json:"tool_name"`
 	Result           json.RawMessage `json:"result"`
 	IsError          bool            `json:"is_error,omitempty"`
+	IsMedia          bool            `json:"is_media,omitempty"`
 	ProviderExecuted bool            `json:"provider_executed,omitempty"`
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty"`
 }
@@ -656,8 +670,8 @@ func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype
 // tool-row format. Retained for test fixtures that create
 // legacy-format DB rows. Production write paths use MarshalParts.
 // The stored shape is
-// [{"tool_call_id":…,"tool_name":…,"result":…,"is_error":…}].
-func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool, providerExecuted bool, providerMetadata fantasy.ProviderMetadata) (pqtype.NullRawMessage, error) {
+// [{"tool_call_id":…,"tool_name":…,"result":…,"is_error":…,"is_media":…}].
+func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool, isMedia bool, providerExecuted bool, providerMetadata fantasy.ProviderMetadata) (pqtype.NullRawMessage, error) {
 	var metaJSON json.RawMessage
 	if len(providerMetadata) > 0 {
 		var err error
@@ -671,6 +685,7 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 		ToolName:         toolName,
 		Result:           result,
 		IsError:          isError,
+		IsMedia:          isMedia,
 		ProviderExecuted: providerExecuted,
 		ProviderMetadata: metaJSON,
 	}
@@ -766,18 +781,20 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 	}
 }
 
-// ToolResultToPart converts a tool call ID, raw result, and error
-// flag into a ChatMessagePart. This is the minimal conversion used
-// both during streaming and when reading from the database.
-func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isError bool) codersdk.ChatMessagePart {
-	return codersdk.ChatMessageToolResult(toolCallID, toolName, result, isError)
+// ToolResultToPart converts a tool call ID, raw result, error flag,
+// and media flag into a ChatMessagePart. This is the minimal
+// conversion used both during streaming and when reading from the
+// database.
+func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isError bool, isMedia bool) codersdk.ChatMessagePart {
+	return codersdk.ChatMessageToolResult(toolCallID, toolName, result, isError, isMedia)
 }
 
-// toolResultContentToPart converts a fantasy ToolResultContent
-// directly into a ChatMessagePart without an intermediate struct.
+// toolResultContentToPart converts a fantasy ToolResultContent into a
+// ChatMessagePart.
 func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMessagePart {
 	var result json.RawMessage
 	var isError bool
+	var isMedia bool
 
 	switch output := content.Result.(type) {
 	case fantasy.ToolResultOutputContentError:
@@ -794,16 +811,17 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 			result, _ = json.Marshal(map[string]any{"output": output.Text})
 		}
 	case fantasy.ToolResultOutputContentMedia:
-		result, _ = json.Marshal(map[string]any{
-			"data":      output.Data,
-			"mime_type": output.MediaType,
-			"text":      output.Text,
+		isMedia = true
+		result, _ = json.Marshal(persistedMediaResult{
+			Data:     output.Data,
+			MimeType: output.MediaType,
+			Text:     output.Text,
 		})
 	default:
 		result = []byte(`{}`)
 	}
 
-	part := ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
+	part := ToolResultToPart(content.ToolCallID, content.ToolName, result, isError, isMedia)
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
@@ -1120,6 +1138,43 @@ func safeToolCallArgs(input string) json.RawMessage {
 	return raw
 }
 
+// TODO: Replace filename-based detection with explicit origin metadata.
+func isSyntheticPaste(name string, mediaType string) bool {
+	if !syntheticPasteFileNamePattern.MatchString(name) {
+		return false
+	}
+	parsedMediaType, _, err := mime.ParseMediaType(mediaType)
+	if err == nil {
+		mediaType = parsedMediaType
+	}
+	if strings.HasPrefix(mediaType, "text/") {
+		return true
+	}
+	switch mediaType {
+	case "application/json", "application/xml", "application/javascript", "application/x-yaml":
+		return true
+	default:
+		return false
+	}
+}
+
+func formatSyntheticPasteText(name string, body []byte) string {
+	const syntheticPasteNameLabel = "Synthetic attachment name: "
+	const syntheticPasteNameSuffix = "\n\n"
+
+	var sb strings.Builder
+	sb.Grow(len(syntheticPasteInlinePrefix) + len(name) + min(len(body), syntheticPasteInlineBudget) + len(syntheticPasteTruncationWarning) + len(syntheticPasteNameLabel) + len(syntheticPasteNameSuffix))
+	_, _ = sb.WriteString(syntheticPasteInlinePrefix)
+	if name != "" {
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", syntheticPasteNameLabel, name, syntheticPasteNameSuffix)
+	}
+	_, _ = sb.WriteString(string(body[:min(len(body), syntheticPasteInlineBudget)]))
+	if len(body) > syntheticPasteInlineBudget {
+		_, _ = sb.WriteString(syntheticPasteTruncationWarning)
+	}
+	return sb.String()
+}
+
 // fileReferencePartToText formats a file-reference SDK part as
 // plain text for LLM consumption. LLMs don't understand
 // file-reference natively, so we convert to a readable text
@@ -1163,6 +1218,44 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		}
 	}
 
+	// IsError takes precedence and is handled above.
+	// Detect media content flagged by toolResultContentToPart.
+	// Screenshots from the computer use tool are stored as
+	// {"data":"<base64>","mime_type":"image/png","text":"..."}.
+	// Without this detection, the entire base64 payload is sent
+	// as text tokens, which quickly exceeds the context limit
+	// on follow-up messages.
+	if part.IsMedia {
+		var media persistedMediaResult
+		unmarshalErr := json.Unmarshal(part.Result, &media)
+		if unmarshalErr == nil && media.Data != "" && media.MimeType != "" {
+			return fantasy.ToolResultPart{
+				ToolCallID:       toolCallID,
+				ProviderExecuted: part.ProviderExecuted,
+				Output: fantasy.ToolResultOutputContentMedia{
+					Data:      media.Data,
+					MediaType: media.MimeType,
+					Text:      media.Text,
+				},
+				ProviderOptions: opts,
+			}
+		}
+
+		fields := []slog.Field{
+			slog.F("tool_call_id", toolCallID),
+			slog.F("tool_name", part.ToolName),
+			slog.F("has_data", media.Data != ""),
+			slog.F("has_mime_type", media.MimeType != ""),
+		}
+		if unmarshalErr != nil {
+			fields = append(fields, slog.Error(unmarshalErr))
+		}
+		logger.Warn(context.Background(),
+			"media tool result failed reconstruction, falling through to text",
+			fields...,
+		)
+	}
+
 	return fantasy.ToolResultPart{
 		ToolCallID:       toolCallID,
 		ProviderExecuted: part.ProviderExecuted,
@@ -1171,6 +1264,21 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		},
 		ProviderOptions: opts,
 	}
+}
+
+// persistedMediaResult is the JSON shape used to store media tool
+// results (e.g. computer-use screenshots) in the database. Both
+// the write path (toolResultContentToPart) and the read path
+// (toolResultPartToMessagePart) use this struct so the two sides
+// cannot drift.
+//
+// The "mime_type" key intentionally diverges from the fantasy
+// struct tag (json:"media_type"). Do not change it without
+// updating both paths.
+type persistedMediaResult struct {
+	Data     string `json:"data"`
+	MimeType string `json:"mime_type"`
+	Text     string `json:"text"`
 }
 
 // partsToMessageParts converts SDK chat message parts into fantasy
@@ -1220,13 +1328,27 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeFile:
 			data := part.Data
 			mediaType := part.MediaType
+			var name string
 			if part.FileID.Valid {
 				if fd, ok := resolved[part.FileID.UUID]; ok {
 					data = fd.Data
+					name = fd.Name
 					if mediaType == "" {
 						mediaType = fd.MediaType
 					}
 				}
+			}
+			// Providers only accept a small set of MIME types in file
+			// content blocks, typically images and PDFs. A synthetic
+			// paste sent as a text/plain FilePart is dropped or rejected,
+			// so the model sees nothing. Converting it to TextPart keeps
+			// the pasted content visible to every provider.
+			if isSyntheticPaste(name, mediaType) {
+				result = append(result, fantasy.TextPart{
+					Text:            formatSyntheticPasteText(name, data),
+					ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				})
+				continue
 			}
 			result = append(result, fantasy.FilePart{
 				Data:            data,
@@ -1238,6 +1360,32 @@ func partsToMessageParts(
 			result = append(result, fantasy.TextPart{
 				Text: fileReferencePartToText(part),
 			})
+		case codersdk.ChatMessagePartTypeContextFile:
+			if part.ContextFileContent == "" {
+				continue
+			}
+			var sb strings.Builder
+			_, _ = sb.WriteString("<workspace-context>\n")
+			if part.ContextFileOS != "" {
+				_, _ = sb.WriteString("Operating System: ")
+				_, _ = sb.WriteString(part.ContextFileOS)
+				_, _ = sb.WriteString("\n")
+			}
+			if part.ContextFileDirectory != "" {
+				_, _ = sb.WriteString("Working Directory: ")
+				_, _ = sb.WriteString(part.ContextFileDirectory)
+				_, _ = sb.WriteString("\n")
+			}
+			source := part.ContextFilePath
+			if part.ContextFileTruncated {
+				source += " (truncated to 64KiB)"
+			}
+			_, _ = sb.WriteString("\nSource: ")
+			_, _ = sb.WriteString(source)
+			_, _ = sb.WriteString("\n")
+			_, _ = sb.WriteString(part.ContextFileContent)
+			_, _ = sb.WriteString("\n</workspace-context>")
+			result = append(result, fantasy.TextPart{Text: sb.String()})
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue

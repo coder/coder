@@ -1,4 +1,4 @@
-import { mockApiError } from "testHelpers/entities";
+import { mockApiError } from "#/testHelpers/entities";
 import {
 	getErrorMessage,
 	getValidationErrorMessage,

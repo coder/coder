@@ -1,12 +1,13 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { authMethods, createUser } from "api/queries/users";
-import { Margins } from "components/Margins/Margins";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { authMethods, createUser } from "#/api/queries/users";
+import { Margins } from "#/components/Margins/Margins";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { pageTitle } from "#/utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
 const CreateUserPage: FC = () => {
@@ -15,6 +16,7 @@ const CreateUserPage: FC = () => {
 	const createUserMutation = useMutation(createUser(queryClient));
 	const authMethodsQuery = useQuery(authMethods());
 	const { showOrganizations } = useDashboard();
+	const { service_accounts: serviceAccountsEnabled } = useFeatureVisibility();
 
 	return (
 		<Margins>
@@ -58,6 +60,7 @@ const CreateUserPage: FC = () => {
 				}}
 				authMethods={authMethodsQuery.data}
 				showOrganizations={showOrganizations}
+				serviceAccountsEnabled={serviceAccountsEnabled}
 			/>
 		</Margins>
 	);

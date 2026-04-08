@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
+import { expect, fn, spyOn, userEvent } from "storybook/test";
+import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
-} from "api/typesGenerated";
-import { expect, fn, spyOn, userEvent } from "storybook/test";
+} from "#/api/typesGenerated";
 import { GitPanel } from "./GitPanel";
 
 // ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ const meta: Meta<typeof GitPanel> = {
 	title: "pages/AgentsPage/GitPanel",
 	component: GitPanel,
 	args: {
-		onRefresh: fn(),
+		onRefresh: fn().mockReturnValue(true),
 		onCommit: fn(),
 		repositories: new Map(),
 	},

@@ -1,11 +1,13 @@
-import { getErrorMessage } from "api/errors";
-import type { Group } from "api/typesGenerated";
-import { Autocomplete } from "components/Autocomplete/Autocomplete";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Spinner } from "components/Spinner/Spinner";
+import { Check } from "lucide-react";
+import { type FC, useId, useState } from "react";
+import { getErrorMessage } from "#/api/errors";
+import type { Group } from "#/api/typesGenerated";
+import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -13,11 +15,13 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { Check } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+} from "#/components/Table/Table";
+import { getGroupSubtitle } from "#/modules/groups";
+import {
+	formatCostMicros,
+	isPositiveFiniteDollarAmount,
+} from "#/utils/currency";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {
@@ -81,6 +85,9 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	const groupAutocompleteId = useId();
 	const groupAmountId = useId();
 	const isEditing = editingGroupOverride !== null;
+	const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState<
+		string | null
+	>(null);
 
 	return (
 		<section className="space-y-4">
@@ -88,7 +95,6 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 				label="Group Limits"
 				description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
 			/>
-
 			<div className="space-y-4">
 				{groupOverrides.length > 0 ? (
 					<Table>
@@ -133,7 +139,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 												size="sm"
 												type="button"
 												onClick={() =>
-													void onDeleteGroupOverride(override.group_id)
+													setPendingDeleteGroupId(override.group_id)
 												}
 												disabled={deletePending || upsertPending || isEditing}
 											>
@@ -284,6 +290,18 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 					</p>
 				)}
 			</div>
+			{pendingDeleteGroupId && (
+				<ConfirmDeleteDialog
+					entity="group override"
+					onConfirm={() => {
+						void onDeleteGroupOverride(pendingDeleteGroupId);
+						setPendingDeleteGroupId(null);
+					}}
+					isPending={deletePending}
+					open={true}
+					onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
+				/>
+			)}{" "}
 		</section>
 	);
 };

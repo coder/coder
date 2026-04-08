@@ -48,7 +48,7 @@ test("add and remove a group", async ({ page }) => {
 
 	// Select the group from the list and add it
 	await page.getByText(groupName).click();
-	await page.getByText("Add member").click();
+	await page.getByText("Add").click();
 	const row = page.locator(".MuiTableRow-root", { hasText: groupName });
 	await expect(row).toBeVisible();
 

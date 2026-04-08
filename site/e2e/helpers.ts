@@ -4,15 +4,16 @@ import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { API } from "api/api";
-import type {
-	UpdateTemplateMeta,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import express from "express";
 import capitalize from "lodash/capitalize";
 import * as ssh from "ssh2";
-import { TarWriter } from "utils/tar";
+import { API } from "#/api/api";
+import type {
+	UpdateTemplateMeta,
+	WorkspaceBuildParameter,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
+import { TarWriter } from "#/utils/tar";
 import {
 	agentPProfPort,
 	coderBinary,
@@ -423,7 +424,8 @@ export const startWorkspaceWithEphemeralParameters = async (
 	await page.getByTestId("workspace-parameters").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: "Update and restart" }).click();
+
+	await page.getByRole("button", { name: /update and start/i }).click();
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1171,12 +1173,13 @@ export const updateTemplateSettings = async (
 	await page.getByRole("button", { name: /save/i }).click();
 
 	const name = templateSettingValues.name ?? templateName;
-	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
+	await expectUrl(page).toHavePathNameEndingWith(`/${name}/docs`);
 };
 
 export const updateWorkspace = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1194,12 +1197,19 @@ export const updateWorkspace = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await page.getByRole("button", { name: /update and restart/i }).click();
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 };
 
 export const updateWorkspaceParameters = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1209,7 +1219,14 @@ export const updateWorkspaceParameters = async (
 	});
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: /update and restart/i }).click();
+
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",

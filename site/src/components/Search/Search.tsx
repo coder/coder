@@ -1,6 +1,6 @@
 import { SearchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, InputHTMLAttributes, Ref } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface SearchProps extends HTMLAttributes<HTMLDivElement> {
 	ref?: Ref<HTMLDivElement>;

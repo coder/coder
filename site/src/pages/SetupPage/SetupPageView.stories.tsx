@@ -1,6 +1,6 @@
-import { chromatic } from "testHelpers/chromatic";
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chromatic } from "#/testHelpers/chromatic";
+import { mockApiError } from "#/testHelpers/entities";
 import { SetupPageView } from "./SetupPageView";
 
 const meta: Meta<typeof SetupPageView> = {
@@ -13,6 +13,16 @@ export default meta;
 type Story = StoryObj<typeof SetupPageView>;
 
 export const Ready: Story = {};
+
+export const WithGitHub: Story = {
+	args: {
+		authMethods: {
+			github: { enabled: true, default_provider_configured: false },
+			oidc: { enabled: false, signInText: "", iconUrl: "" },
+			password: { enabled: true },
+		},
+	},
+};
 
 export const FormError: Story = {
 	args: {

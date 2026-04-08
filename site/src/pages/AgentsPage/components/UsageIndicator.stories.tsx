@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chatUsageLimitStatusKey } from "api/queries/chats";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
+import { chatUsageLimitStatusKey } from "#/api/queries/chats";
 import { UsageIndicator } from "./UsageIndicator";
 
 const withUsageLimitStatus =

@@ -36,6 +36,7 @@ typ = "typ"
 styl = "styl"
 edn = "edn"
 Inferrable = "Inferrable"
+IIF = "IIF"
 
 [files]
 extend-exclude = [

@@ -1,6 +1,6 @@
 // Those mocks are fetched from the Coder API in dev.coder.com
 
-import type { Line } from "components/Logs/LogLine";
+import type { Line } from "#/components/Logs/LogLine";
 
 export const MockSources = [
 	{

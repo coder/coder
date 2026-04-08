@@ -1,5 +1,5 @@
-import type { ChatQueuedMessage } from "api/typesGenerated";
 import { describe, expect, it } from "vitest";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { getQueuedMessageInfo } from "./QueuedMessagesList";
 
 const makeMessage = (

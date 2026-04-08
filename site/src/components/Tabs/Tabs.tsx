@@ -1,4 +1,7 @@
+import { cva, type VariantProps } from "class-variance-authority";
+import { Tabs as TabsPrimitive } from "radix-ui";
 import {
+	type ComponentProps,
 	createContext,
 	type FC,
 	type HTMLAttributes,
@@ -9,23 +12,120 @@ import {
 	useRef,
 } from "react";
 import { Link, type LinkProps } from "react-router";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
-// Keeping this for now because of a workaround in WorkspaceBUildPageView
+// --- Radix tabs (stateful panels) ---
+
+type TabsProps = ComponentProps<typeof TabsPrimitive.Root>;
+
+export const Tabs: FC<TabsProps> = ({ ...props }) => {
+	return <TabsPrimitive.Root data-slot="tabs" {...props} />;
+};
+
+const tabsListVariants = cva("flex flex-wrap items-center", {
+	variants: {
+		variant: {
+			insideBox: cn(
+				"border-solid border-x-0 border-y",
+				"[&_[data-slot=tabs-trigger][data-state=active]]:bg-surface-secondary",
+				"[&_[data-slot=tabs-trigger]]:border-x [&_[data-slot=tabs-trigger]]:border-y-0 [&_[data-slot=tabs-trigger]]:border-solid",
+				"[&_[data-slot=tabs-trigger]]:border-x-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-x-border",
+				"[&_[data-slot=tabs-trigger]]:px-4",
+				"[&_[data-slot=tabs-trigger]]:text-content-secondary",
+				"[&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
+			),
+			outsideBox: cn(
+				"border-solid border-0 border-b gap-6",
+				"[&_[data-slot=tabs-trigger]]:text-content-secondary [&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
+				"[&_[data-slot=tabs-trigger]]:border-0 [&_[data-slot=tabs-trigger]]:border-y [&_[data-slot=tabs-trigger]]:border-solid",
+				"[&_[data-slot=tabs-trigger]]:border-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-b-white",
+				"[&_[data-slot=tabs-trigger]]:hover:text-content-primary",
+				"[&_[data-slot=tabs-trigger]]:px-1",
+			),
+		},
+	},
+	defaultVariants: {
+		variant: "outsideBox",
+	},
+});
+type TabsListProps = ComponentProps<typeof TabsPrimitive.List> &
+	VariantProps<typeof tabsListVariants> & {
+		overflowKebabMenu?: boolean;
+	};
+
+export const TabsList: FC<TabsListProps> = ({
+	className,
+	variant,
+	overflowKebabMenu = false,
+	...props
+}) => {
+	return (
+		<TabsPrimitive.List
+			data-slot="tabs-list"
+			className={cn(
+				tabsListVariants({ variant }),
+				overflowKebabMenu && "flex-nowrap",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
+
+export const TabsTrigger: FC<TabsTriggerProps> = ({
+	type: triggerType = "button",
+	...props
+}) => {
+	const type = props.asChild ? undefined : triggerType;
+
+	return (
+		<TabsPrimitive.Trigger
+			data-slot="tabs-trigger"
+			type={type}
+			className={cn(
+				"border-none py-3 bg-transparent",
+				"text-inherit font-normal text-sm",
+				"inline-flex gap-2 items-center",
+				"cursor-pointer",
+				"transition-colors duration-150 ease-linear",
+			)}
+			{...props}
+		/>
+	);
+};
+
+type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
+
+export const TabsContent: FC<TabsContentProps> = ({ ...props }) => {
+	return <TabsPrimitive.Content data-slot="tabs-content" {...props} />;
+};
+
+// --- Router link tabs (URL-driven navigation) ---
+
+// Keeping this for now because of a workaround in WorkspaceBuildPageView.
 export const TAB_PADDING_X = 16;
 
-type TabsContextValue = {
+type LinkTabsContextValue = {
 	active: string;
 };
 
-const TabsContext = createContext<TabsContextValue | undefined>(undefined);
+const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
+	undefined,
+);
 
-type TabsProps = HTMLAttributes<HTMLDivElement> & TabsContextValue;
+type LinkTabsProps = HTMLAttributes<HTMLDivElement> & LinkTabsContextValue;
 
-export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
+export const LinkTabs: FC<LinkTabsProps> = ({
+	className,
+	active,
+	...htmlProps
+}) => {
 	return (
-		<TabsContext.Provider value={{ active }}>
+		<LinkTabsContext.Provider value={{ active }}>
 			<div
+				data-slot="link-tabs"
 				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
 				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
 				className={cn(
@@ -34,14 +134,17 @@ export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
 				)}
 				{...htmlProps}
 			/>
-		</TabsContext.Provider>
+		</LinkTabsContext.Provider>
 	);
 };
 
-type TabsListProps = HTMLAttributes<HTMLDivElement>;
+type LinkTabsListProps = HTMLAttributes<HTMLDivElement>;
 
-export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
-	const tabsContext = useContext(TabsContext);
+export const LinkTabsList: FC<LinkTabsListProps> = ({
+	className,
+	...props
+}) => {
+	const tabsContext = useContext(LinkTabsContext);
 	const listRef = useRef<HTMLDivElement>(null);
 	const indicatorRef = useRef<HTMLDivElement>(null);
 	const hasInitialized = useRef(false);
@@ -95,10 +198,15 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 	}, [updateIndicator]);
 
 	return (
-		<div ref={listRef} className="relative">
-			<div className={cn("flex items-baseline gap-6", className)} {...props} />
+		<div ref={listRef} data-slot="link-tabs-list-root" className="relative">
+			<div
+				data-slot="link-tabs-list"
+				className={cn("flex items-baseline gap-6", className)}
+				{...props}
+			/>
 			<div
 				ref={indicatorRef}
+				data-slot="link-tabs-indicator"
 				className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
 			/>
 		</div>
@@ -114,15 +222,16 @@ export const TabLink: FC<TabLinkProps> = ({
 	className,
 	...linkProps
 }) => {
-	const tabsContext = useContext(TabsContext);
+	const tabsContext = useContext(LinkTabsContext);
 	if (!tabsContext) {
-		throw new Error("Tab only can be used inside of Tabs");
+		throw new Error("TabLink must be used inside LinkTabs");
 	}
 
 	const isActive = tabsContext.active === value;
 
 	return (
 		<Link
+			data-slot="tab-link"
 			data-active={isActive}
 			aria-current={isActive ? "page" : undefined}
 			{...linkProps}

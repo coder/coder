@@ -1,3 +1,4 @@
+import * as Yup from "yup";
 import {
 	type FieldSchema,
 	getGeneralFields,
@@ -5,9 +6,8 @@ import {
 	getProviderNames,
 	resolveProvider,
 	snakeToCamel,
-} from "api/chatModelOptions";
-import type * as TypesGen from "api/typesGenerated";
-import * as Yup from "yup";
+} from "#/api/chatModelOptions";
+import type * as TypesGen from "#/api/typesGenerated";
 import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
@@ -25,6 +25,7 @@ export type ModelConfigFormBuildResult = {
 export type ModelFormValues = {
 	model: string;
 	displayName: string;
+	enabled: boolean;
 	contextLimit: string;
 	compressionThreshold: string;
 	isDefault: boolean;
@@ -224,6 +225,7 @@ export const buildInitialModelFormValues = (
 ): ModelFormValues => ({
 	model: editingModel?.model ?? "",
 	displayName: editingModel?.display_name ?? "",
+	enabled: editingModel?.enabled ?? true,
 	contextLimit: editingModel ? String(editingModel.context_limit) : "",
 	compressionThreshold: editingModel
 		? String(editingModel.compression_threshold)

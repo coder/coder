@@ -26,6 +26,12 @@ const RelaySourceHeader = "X-Coder-Relay-Source-Replica"
 const (
 	authorizationHeader = "Authorization"
 	cookieHeader        = "Cookie"
+
+	// relayDrainTimeout is how long an established relay is
+	// kept open after the chat leaves running state, giving
+	// buffered snapshot events time to be forwarded before
+	// the relay is torn down.
+	relayDrainTimeout = 200 * time.Millisecond
 )
 
 // MultiReplicaSubscribeConfig holds the dependencies for multi-replica chat
@@ -169,6 +175,21 @@ func NewMultiReplicaSubscribeFn(
 		var reconnectTimer *quartz.Timer
 		var reconnectCh <-chan time.Time
 
+		// drainAndClose is set when the chat transitions away
+		// from running while a relay dial is still in progress.
+		// Instead of canceling the dial immediately, we let it
+		// complete so the snapshot of buffered message_parts
+		// can be forwarded to the subscriber.
+		var drainAndClose bool
+
+		// Drain timer state. When the relay connects in
+		// drain-and-close mode, a short timer is started.
+		// During this window the normal relayPartsCh case
+		// forwards buffered snapshot events. When the timer
+		// fires the relay is torn down.
+		var drainTimer *quartz.Timer
+		var drainTimerCh <-chan time.Time
+
 		// Helper to close relay and stop any pending reconnect
 		// timer.
 		closeRelay := func() {
@@ -200,6 +221,12 @@ func NewMultiReplicaSubscribeFn(
 				reconnectTimer = nil
 				reconnectCh = nil
 			}
+			if drainTimer != nil {
+				drainTimer.Stop()
+				drainTimer = nil
+				drainTimerCh = nil
+			}
+			drainAndClose = false
 		}
 
 		// openRelayAsync dials the remote replica in a background
@@ -335,16 +362,52 @@ func NewMultiReplicaSubscribeFn(
 					// A nil parts channel signals the dial
 					// failed — schedule a retry.
 					if result.parts == nil {
-						scheduleRelayReconnect()
+						if drainAndClose {
+							// Dial failed and we were only
+							// waiting to drain — nothing to do.
+							drainAndClose = false
+						} else {
+							scheduleRelayReconnect()
+						}
 						continue
-					}
-					// An async relay dial completed; swap
+					} // An async relay dial completed; swap
 					// in the new relay channel.
 					if relayCancel != nil {
 						relayCancel()
 					}
 					relayParts = result.parts
 					relayCancel = result.cancel
+					if drainAndClose {
+						// The chat is no longer running on
+						// the remote worker, but the dial
+						// completed. Verify no new worker
+						// has claimed the chat before we
+						// drain stale parts.
+						currentChat, dbErr := params.DB.GetChatByID(ctx, chatID)
+						if dbErr != nil {
+							logger.Warn(ctx, "failed to check chat status for relay drain",
+								slog.F("chat_id", chatID),
+								slog.Error(dbErr),
+							)
+						}
+						if dbErr == nil && currentChat.Status == database.ChatStatusRunning &&
+							currentChat.WorkerID.Valid &&
+							currentChat.WorkerID.UUID != params.WorkerID {
+							// A new worker picked up the chat;
+							// discard the stale relay and let
+							// openRelayAsync handle the new one.
+							closeRelay()
+						} else {
+							// Chat is still idle — drain the
+							// buffered snapshot before closing.
+							if drainTimer != nil {
+								drainTimer.Stop()
+							}
+							drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
+							drainTimerCh = drainTimer.C
+							drainAndClose = false
+						}
+					}
 				case <-reconnectCh:
 					reconnectCh = nil
 					// Re-check whether the chat is still
@@ -374,8 +437,31 @@ func NewMultiReplicaSubscribeFn(
 					if sn.Status == database.ChatStatusRunning && sn.WorkerID != uuid.Nil && sn.WorkerID != params.WorkerID {
 						openRelayAsync(sn.WorkerID)
 					} else {
-						closeRelay()
+						switch {
+						case dialCancel != nil && relayParts == nil:
+							// In-progress dial: let it complete
+							// so its snapshot can be forwarded.
+							drainAndClose = true
+						case relayParts != nil:
+							// Active relay: give it a short
+							// window to deliver any remaining
+							// buffered parts before closing.
+							if drainTimer != nil {
+								drainTimer.Stop()
+							}
+							drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
+							drainTimerCh = drainTimer.C
+						default:
+							closeRelay()
+						}
 					}
+				case <-drainTimerCh:
+					drainTimerCh = nil
+					drainTimer = nil
+					closeRelay()
+					drainTimerCh = nil
+					drainTimer = nil
+					closeRelay()
 				case event, ok := <-relayPartsCh:
 					if !ok {
 						if relayCancel != nil {

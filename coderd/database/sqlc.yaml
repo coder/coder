@@ -65,6 +65,9 @@ sql:
           - column: "provisioner_jobs.tags"
             go_type:
               type: "StringMap"
+          - column: "chats.labels"
+            go_type:
+              type: "StringMap"
           - column: "users.rbac_roles"
             go_type: "github.com/lib/pq.StringArray"
           - column: "templates.user_acl"
@@ -244,6 +247,7 @@ sql:
           mcp_server_tool_snapshots: MCPServerToolSnapshots
           mcp_server_config_id: MCPServerConfigID
           mcp_server_ids: MCPServerIDs
+          max_file_links: MaxFileLinks
           icon_url: IconURL
           oauth2_client_id: OAuth2ClientID
           oauth2_client_secret: OAuth2ClientSecret

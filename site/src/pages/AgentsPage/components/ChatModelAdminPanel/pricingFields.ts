@@ -1,4 +1,4 @@
-import type * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
 
 // Single source of truth for the model config fields that belong in the
 // Pricing section and require non-negative validation.

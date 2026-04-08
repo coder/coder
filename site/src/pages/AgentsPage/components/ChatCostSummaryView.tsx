@@ -1,7 +1,10 @@
-import { getErrorMessage } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
+import dayjs from "dayjs";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
+import { getErrorMessage } from "#/api/errors";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -9,12 +12,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import dayjs from "dayjs";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
-import { formatTokenCount } from "utils/analytics";
-import { formatCostMicros } from "utils/currency";
+} from "#/components/Table/Table";
+import { formatTokenCount } from "#/utils/analytics";
+import { formatCostMicros } from "#/utils/currency";
 
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;
@@ -94,10 +94,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			: 0;
 	const usageProgressBarClass =
 		usageProgressPercentage > 90
-			? "bg-surface-red"
+			? "bg-content-destructive"
 			: usageProgressPercentage >= 75
-				? "bg-surface-orange"
-				: "bg-surface-green";
+				? "bg-content-warning"
+				: "bg-content-success";
 	const usageLimitExceeded =
 		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
 	const usageLimitStatusText = usageLimitExceeded
@@ -235,6 +235,14 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 			)}
 
+			<div className="flex items-start gap-3 p-4 text-sm text-content-secondary">
+				<InfoIcon className="h-5 w-5 shrink-0" />
+				<span>
+					Automatic title generation uses lightweight models and is not counted
+					towards usage limits.
+				</span>
+			</div>
+
 			{summary.by_model.length === 0 && summary.by_chat.length === 0 ? (
 				<p className="py-12 text-center text-content-secondary">
 					{emptyMessage}
@@ -298,10 +306,13 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 
 					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm" aria-label="Cost breakdown by chat">
+						<Table
+							className="text-sm"
+							aria-label="Cost breakdown by conversation"
+						>
 							<TableHeader>
 								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Chat</TableHead>
+									<TableHead className="px-4 py-3">Conversation</TableHead>
 									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
 									<TableHead className="px-4 py-3 text-right">
 										Messages
@@ -325,7 +336,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										<TableCell className="px-4 py-3">
 											{chat.chat_title || (
 												<span className="italic text-content-secondary">
-													Untitled chat
+													Untitled conversation
 												</span>
 											)}
 										</TableCell>

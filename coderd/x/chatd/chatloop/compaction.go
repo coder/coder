@@ -160,7 +160,7 @@ func tryCompact(
 		})
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleTool,
-			codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, resultJSON, false),
+			codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, resultJSON, false, false),
 		)
 	}
 
@@ -178,7 +178,7 @@ func publishCompactionError(config CompactionOptions, msg string) {
 	})
 	config.PublishMessagePart(
 		codersdk.ChatMessageRoleTool,
-		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true),
+		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true, false),
 	)
 }
 

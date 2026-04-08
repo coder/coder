@@ -262,6 +262,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
           "avatar_url": "http://example.com",
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
+          "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
@@ -290,7 +291,8 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
       "workspace_owner_username": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -3355,6 +3357,7 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -3446,6 +3449,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -3842,6 +3846,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",

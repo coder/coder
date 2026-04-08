@@ -1,14 +1,14 @@
-import TextField from "@mui/material/TextField";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Form, FormFields } from "components/Form/Form";
-import { PasswordField } from "components/PasswordField/PasswordField";
-import { Spinner } from "components/Spinner/Spinner";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Form, FormFields } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { PasswordField } from "#/components/PasswordField/PasswordField";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers } from "#/utils/formUtils";
 
 interface SecurityFormValues {
 	old_password: string;
@@ -16,27 +16,18 @@ interface SecurityFormValues {
 	confirm_password: string;
 }
 
-export const Language = {
-	oldPasswordLabel: "Old Password",
-	newPasswordLabel: "New Password",
-	confirmPasswordLabel: "Confirm Password",
-	oldPasswordRequired: "Old password is required",
-	newPasswordRequired: "New password is required",
-	confirmPasswordRequired: "Password confirmation is required",
-	passwordMinLength: "Password must be at least 8 characters",
-	passwordMaxLength: "Password must be no more than 64 characters",
-	confirmPasswordMatch: "Password and confirmation must match",
-	updatePassword: "Update password",
-};
-
 const validationSchema = Yup.object({
-	old_password: Yup.string().trim().required(Language.oldPasswordRequired),
-	password: Yup.string().trim().required(Language.newPasswordRequired),
+	old_password: Yup.string().trim().required("Old password is required"),
+	password: Yup.string().trim().required("New password is required"),
 	confirm_password: Yup.string()
 		.trim()
-		.test("passwords-match", Language.confirmPasswordMatch, function (value) {
-			return (this.parent as SecurityFormValues).password === value;
-		}),
+		.test(
+			"passwords-match",
+			"Password and confirmation must match",
+			function (value) {
+				return (this.parent as SecurityFormValues).password === value;
+			},
+		),
 });
 
 interface SecurityFormProps {
@@ -76,31 +67,28 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
 				{Boolean(error) && <ErrorAlert error={error} />}
-				<TextField
-					{...getFieldHelpers("old_password")}
-					autoComplete="old_password"
-					fullWidth
-					label={Language.oldPasswordLabel}
+				<FormField
+					field={getFieldHelpers("old_password")}
+					label="Old Password"
 					type="password"
+					autoComplete="current-password"
 				/>
 				<PasswordField
-					{...getFieldHelpers("password")}
-					autoComplete="password"
-					fullWidth
-					label={Language.newPasswordLabel}
+					field={getFieldHelpers("password")}
+					label="New Password"
+					autoComplete="new-password"
 				/>
-				<TextField
-					{...getFieldHelpers("confirm_password")}
-					autoComplete="confirm_password"
-					fullWidth
-					label={Language.confirmPasswordLabel}
+				<FormField
+					field={getFieldHelpers("confirm_password")}
+					label="Confirm Password"
 					type="password"
+					autoComplete="new-password"
 				/>
 
 				<div>
 					<Button disabled={isLoading} type="submit">
 						<Spinner loading={isLoading} />
-						{Language.updatePassword}
+						Update password
 					</Button>
 				</div>
 			</FormFields>

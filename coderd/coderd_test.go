@@ -384,9 +384,9 @@ func TestCSRFExempt(t *testing.T) {
 		data, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 
-		// A StatusBadGateway means Coderd tried to proxy to the agent and failed because the agent
+		// A StatusNotFound means Coderd tried to proxy to the agent and failed because the agent
 		// was not there. This means CSRF did not block the app request, which is what we want.
-		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "status code 500 is CSRF failure")
+		require.Equal(t, http.StatusNotFound, resp.StatusCode, "status code 500 is CSRF failure")
 		require.NotContains(t, string(data), "CSRF")
 	})
 }

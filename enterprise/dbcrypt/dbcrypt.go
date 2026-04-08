@@ -471,6 +471,57 @@ func (db *dbCrypt) UpdateChatProvider(ctx context.Context, params database.Updat
 	return provider, nil
 }
 
+func (db *dbCrypt) decryptUserChatProviderKey(key *database.UserChatProviderKey) error {
+	return db.decryptField(&key.APIKey, key.ApiKeyKeyID)
+}
+
+func (db *dbCrypt) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
+	keys, err := db.Store.GetUserChatProviderKeys(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range keys {
+		if err := db.decryptUserChatProviderKey(&keys[i]); err != nil {
+			return nil, err
+		}
+	}
+	return keys, nil
+}
+
+func (db *dbCrypt) UpsertUserChatProviderKey(ctx context.Context, params database.UpsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	if strings.TrimSpace(params.APIKey) == "" {
+		params.ApiKeyKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+
+	key, err := db.Store.UpsertUserChatProviderKey(ctx, params)
+	if err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	if err := db.decryptUserChatProviderKey(&key); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) UpdateUserChatProviderKey(ctx context.Context, params database.UpdateUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	if strings.TrimSpace(params.APIKey) == "" {
+		params.ApiKeyKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+
+	key, err := db.Store.UpdateUserChatProviderKey(ctx, params)
+	if err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	if err := db.decryptUserChatProviderKey(&key); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	return key, nil
+}
+
 // decryptMCPServerConfig decrypts all encrypted fields on a
 // single MCPServerConfig in place.
 func (db *dbCrypt) decryptMCPServerConfig(cfg *database.MCPServerConfig) error {

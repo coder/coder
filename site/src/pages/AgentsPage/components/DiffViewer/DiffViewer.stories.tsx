@@ -402,3 +402,30 @@ export const CrossSideAdditionsToDeletions: Story = {
 	},
 	play: expectAnnotationTextarea,
 };
+
+// Rename diff with long file paths to verify that:
+// 1. The arrow between old and new names is vertically centered
+// 2. The stat-count pills remain visible (not clipped)
+// 3. File names truncate with ellipsis
+// biome-ignore format: raw diff string must preserve exact whitespace
+const renameDiff = [
+"diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
+"similarity index 95%",
+"rename from site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
+"rename to site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
+"index abc1234..def5678 100644",
+"--- a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
+"+++ b/site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
+"@@ -1,3 +1,3 @@",
+" export function DefaultLimitSection() {",
+"-  return null;",
+"+  return <div />;",
+" }",
+].join("\n");
+const renameFiles = parsePatchFiles(renameDiff).flatMap((p) => p.files);
+
+export const RenameWithLongPaths: Story = {
+	args: {
+		parsedFiles: renameFiles,
+	},
+};

@@ -37,7 +37,13 @@ type ChatStreamNotifyMessage struct {
 	// from the database.
 	Retry *codersdk.ChatStreamRetry `json:"retry,omitempty"`
 
-	// Error is set when a processing error occurs.
+	// ErrorPayload carries a structured error event for cross-replica
+	// live delivery. Keep Error for backward compatibility with older
+	// replicas during rolling deploys.
+	ErrorPayload *codersdk.ChatStreamError `json:"error_payload,omitempty"`
+
+	// Error is the legacy string-only error payload kept for mixed-
+	// version compatibility during rollout.
 	Error string `json:"error,omitempty"`
 
 	// QueueUpdate is set when the queued messages change.

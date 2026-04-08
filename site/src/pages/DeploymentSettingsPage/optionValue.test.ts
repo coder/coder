@@ -1,4 +1,4 @@
-import type { SerpentOption } from "api/typesGenerated";
+import type { SerpentOption } from "#/api/typesGenerated";
 import { optionValue } from "./optionValue";
 
 const defaultOption: SerpentOption = {
@@ -166,10 +166,11 @@ describe("optionValue", () => {
 			},
 			expected: "",
 		},
-	])(
-		"[$option.name]optionValue($option.value)",
-		({ option, expected, additionalValues }) => {
-			expect(optionValue(option, additionalValues)).toEqual(expected);
-		},
-	);
+	])("[$option.name]optionValue($option.value)", ({
+		option,
+		expected,
+		additionalValues,
+	}) => {
+		expect(optionValue(option, additionalValues)).toEqual(expected);
+	});
 });

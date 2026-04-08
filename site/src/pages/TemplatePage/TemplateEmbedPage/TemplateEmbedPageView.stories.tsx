@@ -1,12 +1,12 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent } from "storybook/test";
 import {
 	MockTemplate,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockTemplateVersionParameter3,
 	MockTemplateVersionParameter4,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent } from "storybook/test";
+} from "#/testHelpers/entities";
 import { TemplateEmbedPageView } from "./TemplateEmbedPage";
 
 const meta: Meta<typeof TemplateEmbedPageView> = {

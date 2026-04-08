@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
-import { Pill } from "components/Pill/Pill";
 import { CircleCheckIcon, CircleMinusIcon, TagIcon, XIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
+import { Button } from "#/components/Button/Button";
+import { Pill } from "#/components/Pill/Pill";
 
 const parseBool = (s: string): { valid: boolean; value: boolean } => {
 	switch (s.toLowerCase()) {
@@ -35,22 +35,23 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	const { valid, value: boolValue } = parseBool(tagValue);
 	const kv = (
 		<>
-			<span css={{ fontWeight: 600 }}>{tagName}</span> <span>{tagValue}</span>
+			<span className="font-semibold">{tagName}</span> <span>{tagValue}</span>
 		</>
 	);
 	const content = onDelete ? (
 		<>
 			{kv}
-			<IconButton
-				size="small"
-				color="secondary"
+			<Button
+				size="icon"
+				variant="subtle"
 				onClick={() => {
 					onDelete(tagName);
 				}}
+				className="size-6"
 			>
 				<XIcon className="size-icon-xs" />
 				<span className="sr-only">Delete {tagName}</span>
-			</IconButton>
+			</Button>
 		</>
 	) : (
 		kv

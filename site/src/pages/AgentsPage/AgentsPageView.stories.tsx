@@ -1,17 +1,7 @@
-import {
-	MockNoPermissions,
-	MockPermissions,
-	MockUserOwner,
-} from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { Chat } from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fn,
@@ -22,14 +12,33 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	MockNoPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
 import AgentSettingsPage from "./AgentSettingsPage";
+import { AgentSettingsUsagePageView } from "./AgentSettingsUsagePageView";
 import { AgentsPageView } from "./AgentsPageView";
+import type { ModelSelectorOption } from "./components/ChatElements";
+
+const defaultModelConfigID = "model-config-1";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -38,7 +47,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
-		id: "config-openai-gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -61,9 +70,10 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,
 	total_cache_creation_tokens: 5_432,
+	total_runtime_ms: 0,
 	by_model: [
 		{
-			model_config_id: "model-config-1",
+			model_config_id: defaultModelConfigID,
 			display_name: "GPT-4.1",
 			provider: "OpenAI",
 			model: "gpt-4.1",
@@ -73,6 +83,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 200_000,
 			total_cache_read_tokens: 7_654,
 			total_cache_creation_tokens: 3_210,
+			total_runtime_ms: 0,
 		},
 	],
 	by_chat: [
@@ -85,6 +96,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 80_000,
 			total_cache_read_tokens: 4_321,
 			total_cache_creation_tokens: 1_234,
+			total_runtime_ms: 0,
 		},
 	],
 };
@@ -106,6 +118,7 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 			total_output_tokens: 45_000,
 			total_cache_read_tokens: 6_789,
 			total_cache_creation_tokens: 2_468,
+			total_runtime_ms: 0,
 		},
 	],
 };
@@ -120,9 +133,12 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	...overrides,
 });
@@ -131,16 +147,139 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 // across timezones.
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
+// Renders the real PageView components with mock data so the
+// visual snapshots match the actual UI.
+const BehaviorRouteElement = () => {
+	const { permissions } = useAuthenticated();
+	return (
+		<AgentSettingsBehaviorPageView
+			canSetSystemPrompt={permissions.editDeploymentConfig}
+			systemPromptData={{
+				system_prompt: "",
+				include_default_system_prompt: true,
+				default_system_prompt: "You are Coder, an AI coding assistant...",
+			}}
+			userPromptData={{ custom_prompt: "" }}
+			desktopEnabledData={{ enable_desktop: false }}
+			workspaceTTLData={{ workspace_ttl_ms: 0 }}
+			isWorkspaceTTLLoading={false}
+			isWorkspaceTTLLoadError={false}
+			modelConfigsData={[]}
+			modelConfigsError={undefined}
+			isLoadingModelConfigs={false}
+			thresholds={[]}
+			isThresholdsLoading={false}
+			thresholdsError={undefined}
+			onSaveSystemPrompt={fn()}
+			isSavingSystemPrompt={false}
+			isSaveSystemPromptError={false}
+			onSaveUserPrompt={fn()}
+			isSavingUserPrompt={false}
+			isSaveUserPromptError={false}
+			onSaveDesktopEnabled={fn()}
+			isSavingDesktopEnabled={false}
+			isSaveDesktopEnabledError={false}
+			onSaveWorkspaceTTL={fn()}
+			isSavingWorkspaceTTL={false}
+			isSaveWorkspaceTTLError={false}
+			retentionDaysData={{ retention_days: 30 }}
+			isRetentionDaysLoading={false}
+			isRetentionDaysLoadError={false}
+			onSaveRetentionDays={fn()}
+			isSavingRetentionDays={false}
+			isSaveRetentionDaysError={false}
+			onSaveThreshold={fn(async () => undefined)}
+			onResetThreshold={fn(async () => undefined)}
+		/>
+	);
+};
+
+const UsageRouteElement = () => (
+	<AgentSettingsUsagePageView
+		dateRange={{
+			startDate: new Date("2026-02-10"),
+			endDate: new Date("2026-03-12"),
+		}}
+		hasExplicitDateRange={false}
+		onDateRangeChange={fn()}
+		searchFilter=""
+		onSearchFilterChange={fn()}
+		page={1}
+		onPageChange={fn()}
+		pageSize={25}
+		offset={0}
+		usersData={mockUsageUsers}
+		isUsersLoading={false}
+		isUsersFetching={false}
+		usersError={null}
+		onUsersRetry={fn()}
+		selectedUserId={null}
+		selectedUser={null}
+		isSelectedUserLoading={false}
+		isSelectedUserError={false}
+		selectedUserError={null}
+		onSelectedUserRetry={fn()}
+		onClearSelectedUser={fn()}
+		onSelectUser={fn()}
+		summaryData={undefined}
+		isSummaryLoading={false}
+		summaryError={null}
+		onSummaryRetry={fn()}
+	/>
+);
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
 	children: [
-		{ path: "settings", element: <AgentSettingsPage /> },
-		{ path: "settings/:section", element: <AgentSettingsPage /> },
+		{
+			path: "settings",
+			element: <AgentSettingsPage />,
+			children: [
+				{ index: true, element: <Navigate to="behavior" replace /> },
+				{ path: "behavior", element: <BehaviorRouteElement /> },
+				{ path: "usage", element: <UsageRouteElement /> },
+			],
+		},
 		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const defaultArgs: ComponentProps<typeof AgentsPageView> = {
+	agentId: undefined,
+	chatList: [],
+	catalogModelOptions: defaultModelOptions,
+	modelConfigs: defaultModelConfigs,
+	logoUrl: "",
+	handleNewAgent: fn(),
+	isCreating: false,
+	isArchiving: false,
+	archivingChatId: undefined,
+	isChatsLoading: false,
+	chatsLoadError: null,
+	onRetryChatsLoad: fn(),
+	onCollapseSidebar: fn(),
+	isSidebarCollapsed: false,
+	onExpandSidebar: fn(),
+	chatErrorReasons: {},
+	setChatErrorReason: fn(),
+	clearChatErrorReason: fn(),
+	requestArchiveAgent: fn(),
+	requestUnarchiveAgent: fn(),
+	requestArchiveAndDeleteWorkspace: fn(),
+	requestPinAgent: fn(),
+	requestUnpinAgent: fn(),
+	onRegenerateTitle: fn(),
+	regeneratingTitleChatIds: [],
+	onToggleSidebarCollapsed: fn(),
+	isAgentsAdmin: false,
+	archivedFilter: "active",
+	onArchivedFilterChange: fn(),
+	hasNextPage: false,
+	onLoadMore: fn(),
+	isFetchingNextPage: false,
 };
 
 const meta: Meta<typeof AgentsPageView> = {
@@ -156,36 +295,7 @@ const meta: Meta<typeof AgentsPageView> = {
 			routing: agentsRouting,
 		}),
 	},
-	args: {
-		agentId: undefined,
-		chatList: [],
-		catalogModelOptions: defaultModelOptions,
-		modelConfigs: defaultModelConfigs,
-		logoUrl: "",
-		handleNewAgent: fn(),
-		isCreating: false,
-		isArchiving: false,
-		archivingChatId: undefined,
-		isChatsLoading: false,
-		chatsLoadError: null,
-		onRetryChatsLoad: fn(),
-		onCollapseSidebar: fn(),
-		isSidebarCollapsed: false,
-		onExpandSidebar: fn(),
-		chatErrorReasons: {},
-		setChatErrorReason: fn(),
-		clearChatErrorReason: fn(),
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
-		onToggleSidebarCollapsed: fn(),
-		isAgentsAdmin: false,
-		archivedFilter: "active" as const,
-		onArchivedFilterChange: fn(),
-		hasNextPage: false,
-		onLoadMore: fn(),
-		isFetchingNextPage: false,
-	},
+	args: defaultArgs,
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
@@ -199,6 +309,8 @@ const meta: Meta<typeof AgentsPageView> = {
 		);
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
+			include_default_system_prompt: true,
+			default_system_prompt: "You are Coder, an AI coding assistant...",
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
@@ -226,7 +338,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
-				id: "config-openai-gpt-4o",
+				id: defaultModelConfigID,
 				provider: "openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
@@ -238,6 +350,7 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});
@@ -486,11 +599,6 @@ export const WithErrorReasons: Story = {
 	},
 };
 
-const openAnalyticsView = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
-};
-
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	const link = await waitFor(() =>
@@ -503,13 +611,17 @@ export const OpensAnalyticsForAdmins: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
-	play: async ({ canvasElement }) => {
-		await openAnalyticsView(canvasElement);
-
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review your personal chat usage and cost breakdowns.",
+					"Review your personal Coder Agents usage and cost breakdowns.",
 				),
 			).toBeInTheDocument();
 		});
@@ -522,14 +634,16 @@ export const OpensAnalyticsForNonAdmins: Story = {
 	},
 	parameters: {
 		permissions: MockNoPermissions,
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
 	},
-	play: async ({ canvasElement }) => {
-		await openAnalyticsView(canvasElement);
-
+	play: async () => {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review your personal chat usage and cost breakdowns.",
+					"Review your personal Coder Agents usage and cost breakdowns.",
 				),
 			).toBeInTheDocument();
 		});
@@ -546,7 +660,7 @@ export const OpensSettingsForAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -566,7 +680,7 @@ export const OpensSettingsForNonAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -584,7 +698,7 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -594,13 +708,13 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review deployment chat usage and drill into individual users.",
+					"Review deployment Coder Agents usage and drill into individual users.",
 				),
 			).toBeInTheDocument();
 		});
 
-		// Go back to chats
-		const backButton = screen.getByLabelText("Back to chats");
+		// Go back to conversations
+		const backButton = screen.getByLabelText("Back to Agents");
 		await userEvent.click(backButton);
 
 		// Re-open settings, should reset to Behavior
@@ -608,7 +722,7 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
+					"Custom instructions that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});

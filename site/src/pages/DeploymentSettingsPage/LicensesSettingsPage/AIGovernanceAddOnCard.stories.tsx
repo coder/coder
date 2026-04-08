@@ -6,7 +6,7 @@ const meta: Meta<typeof AIGovernanceAddOnCard> = {
 		"pages/DeploymentSettingsPage/LicensesSettingsPage/AIGovernanceAddOnCard",
 	component: AIGovernanceAddOnCard,
 	args: {
-		title: "AI governance",
+		title: "AI Governance",
 		unit: "Seats",
 		actual: 750,
 		limit: 1000,

@@ -192,6 +192,7 @@ to use the Coder's filter query:
   `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
 - To find users who login using Github:
   `login_type:github`
+- To find service accounts: `service_account:true`.
 
 The following filters are supported:
 
@@ -206,6 +207,9 @@ The following filters are supported:
 - `created_before` and `created_after` - The time a user was created. Uses the
   RFC3339Nano format.
 - `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
+- `service_account` - Can be either `true` to only include service accounts or
+  `false` to filter them out. If omitted, both service and regular accounts and
+  are returned.
 
 ## Edit a user's profile
 

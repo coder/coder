@@ -1,33 +1,6 @@
-import {
-	createMCPServerConfig as createMCPServerConfigMutation,
-	deleteMCPServerConfig as deleteMCPServerConfigMutation,
-	mcpServerConfigs,
-	updateMCPServerConfig as updateMCPServerConfigMutation,
-} from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { IconField } from "components/IconField/IconField";
-import { Input } from "components/Input/Input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import {
 	CheckCircleIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
 	CircleIcon,
 	PlusIcon,
@@ -35,10 +8,33 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useId, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { cn } from "utils/cn";
+
+import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { IconField } from "#/components/IconField/IconField";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import { BackButton } from "./BackButton";
 import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { SectionHeader } from "./SectionHeader";
 
 // ── Constants ──────────────────────────────────────────────────
@@ -61,7 +57,7 @@ const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
 		label: "Force On",
-		description: "Always injected into every chat session.",
+		description: "Always injected into every conversation.",
 	},
 	{
 		value: "default_on",
@@ -155,7 +151,7 @@ const ServerList: FC<ServerListProps> = ({
 			label={sectionLabel ?? "MCP Servers"}
 			description={
 				sectionDescription ??
-				"Configure external MCP servers that provide additional tools for AI chat sessions."
+				"Configure external MCP servers that provide additional tools for Coder Agents."
 			}
 			badge={sectionBadge}
 			action={
@@ -231,6 +227,7 @@ interface MCPServerFormValues {
 	apiKeyTouched: boolean;
 	availability: string;
 	enabled: boolean;
+	modelIntent: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
@@ -259,6 +256,7 @@ const buildInitialValues = (
 	apiKeyTouched: false,
 	availability: server?.availability ?? "default_off",
 	enabled: server?.enabled ?? true,
+	modelIntent: server?.model_intent ?? false,
 	toolAllowList: joinList(server?.tool_allow_list),
 	toolDenyList: joinList(server?.tool_deny_list),
 	customHeaders: [],
@@ -312,6 +310,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				auth_type: values.authType,
 				availability: values.availability,
 				enabled: values.enabled,
+				model_intent: values.modelIntent,
 				...(values.authType === "oauth2" && {
 					oauth2_client_id: values.oauth2ClientID.trim(),
 					oauth2_client_secret: effectiveOAuth2Secret,
@@ -349,15 +348,7 @@ const ServerForm: FC<ServerFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
-
+			<BackButton onClick={onBack} />
 			{/* Header with icon + editable name + enabled toggle */}
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
@@ -398,7 +389,6 @@ const ServerForm: FC<ServerFormProps> = ({
 				</Tooltip>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
-
 			<form
 				id={formId}
 				onSubmit={form.handleSubmit}
@@ -740,7 +730,7 @@ const ServerForm: FC<ServerFormProps> = ({
 					<Field
 						label="Availability"
 						htmlFor={`${formId}-availability`}
-						description="Controls how this server appears in new chats."
+						description="Controls how this server appears in new conversations."
 					>
 						<Select
 							value={form.values.availability}
@@ -771,7 +761,25 @@ const ServerForm: FC<ServerFormProps> = ({
 					</Field>{" "}
 					{/* ── Tool governance row ── */}
 					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<div className="flex items-center justify-between">
+						<div>
+							<Label htmlFor={`${formId}-model-intent`}>Model intent</Label>
+							<p className="text-sm text-content-secondary">
+								Require the model to describe each tool call's purpose in
+								natural language, shown as a status label in the UI.
+							</p>
+						</div>
+						<Switch
+							id={`${formId}-model-intent`}
+							checked={form.values.modelIntent}
+							onCheckedChange={(v) => {
+								form.setFieldValue("modelIntent", v);
+							}}
+							disabled={isDisabled}
+						/>
+					</div>
 					<div className="grid items-start gap-5 sm:grid-cols-2">
+						{" "}
 						<Field
 							label="Tool Allow List"
 							htmlFor={`${formId}-allow-list`}
@@ -785,7 +793,6 @@ const ServerForm: FC<ServerFormProps> = ({
 								disabled={isDisabled}
 							/>
 						</Field>
-
 						<Field
 							label="Tool Deny List"
 							htmlFor={`${formId}-deny-list`}
@@ -805,57 +812,37 @@ const ServerForm: FC<ServerFormProps> = ({
 				{/* Footer — pushed to bottom, matches ProviderForm */}
 				<div className="mt-auto pt-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
-					{confirmingDelete && server ? (
-						<div className="flex items-center gap-3">
-							<p className="m-0 flex-1 text-sm text-content-secondary">
-								Are you sure? This action is irreversible.
-							</p>
-							<div className="flex shrink-0 items-center gap-2">
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									onClick={() => setConfirmingDelete(false)}
-									disabled={isDisabled}
-								>
-									Cancel
-								</Button>
-								<Button
-									variant="destructive"
-									size="lg"
-									type="button"
-									disabled={isDisabled}
-									onClick={() => void onDelete(server.id)}
-								>
-									{isDeleting && <Spinner className="h-4 w-4" loading />}
-									Delete server
-								</Button>
-							</div>
-						</div>
-					) : (
-						<div className="flex items-center justify-between">
-							{isEditing ? (
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-									disabled={isDisabled}
-									onClick={() => setConfirmingDelete(true)}
-								>
-									Delete
-								</Button>
-							) : (
-								<div />
-							)}
-							<Button size="lg" type="submit" disabled={!canSubmit}>
-								{isSaving && <Spinner className="h-4 w-4" loading />}
-								{isEditing ? "Save changes" : "Create server"}
+					<div className="flex items-center justify-between">
+						{isEditing ? (
+							<Button
+								variant="outline"
+								size="lg"
+								type="button"
+								className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+								disabled={isDisabled}
+								onClick={() => setConfirmingDelete(true)}
+							>
+								Delete
 							</Button>
-						</div>
-					)}
+						) : (
+							<div />
+						)}
+						<Button size="lg" type="submit" disabled={!canSubmit}>
+							{isSaving && <Spinner className="h-4 w-4" loading />}
+							{isEditing ? "Save changes" : "Create server"}
+						</Button>
+					</div>
 				</div>
 			</form>
+			{server && (
+				<ConfirmDeleteDialog
+					entity="MCP server"
+					onConfirm={() => void onDelete(server.id)}
+					isPending={isDeleting}
+					open={confirmingDelete}
+					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+				/>
+			)}{" "}
 		</div>
 	);
 };
@@ -866,24 +853,48 @@ interface MCPServerAdminPanelProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	sectionBadge?: ReactNode;
+	// Data from query.
+	serversData: TypesGen.MCPServerConfig[] | undefined;
+	isLoadingServers: boolean;
+	serversError: Error | null;
+	// Mutation handlers.
+	onCreateServer: (
+		req: TypesGen.CreateMCPServerConfigRequest,
+	) => Promise<unknown>;
+	onUpdateServer: (args: {
+		id: string;
+		req: TypesGen.UpdateMCPServerConfigRequest;
+	}) => Promise<unknown>;
+	onDeleteServer: (id: string) => Promise<unknown>;
+	isCreatingServer: boolean;
+	isUpdatingServer: boolean;
+	isDeletingServer: boolean;
+	createError: Error | null;
+	updateError: Error | null;
+	deleteError: Error | null;
 }
 
 export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
+	serversData,
+	isLoadingServers,
+	serversError,
+	onCreateServer,
+	onUpdateServer,
+	onDeleteServer,
+	isCreatingServer,
+	isUpdatingServer,
+	isDeletingServer,
+	createError,
+	updateError,
+	deleteError,
 }) => {
-	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const serverId = searchParams.get("server");
 
-	const serversQuery = useQuery(mcpServerConfigs());
-
-	const createMut = useMutation(createMCPServerConfigMutation(queryClient));
-	const updateMut = useMutation(updateMCPServerConfigMutation(queryClient));
-	const deleteMut = useMutation(deleteMCPServerConfigMutation(queryClient));
-
-	const servers = (serversQuery.data ?? [])
+	const servers = (serversData ?? [])
 		.slice()
 		.sort((a, b) => a.display_name.localeCompare(b.display_name));
 
@@ -909,14 +920,14 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 					: undefined,
 			};
 			try {
-				await updateMut.mutateAsync({ id, req: updateReq });
+				await onUpdateServer({ id, req: updateReq });
 			} catch {
 				// Error surfaced via mutation error state.
 				return;
 			}
 		} else {
 			try {
-				await createMut.mutateAsync(req);
+				await onCreateServer(req);
 			} catch {
 				// Error surfaced via mutation error state.
 				return;
@@ -927,7 +938,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 
 	const handleDelete = async (id: string) => {
 		try {
-			await deleteMut.mutateAsync(id);
+			await onDeleteServer(id);
 		} catch {
 			// Error surfaced via mutation error state.
 			return;
@@ -935,7 +946,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 		setSearchParams({});
 	};
 
-	if (serversQuery.isLoading) {
+	if (isLoadingServers) {
 		return <Spinner loading className="h-4 w-4" />;
 	}
 
@@ -954,18 +965,18 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				<ServerForm
 					key={serverId}
 					server={isCreating ? null : editingServer}
-					isSaving={createMut.isPending || updateMut.isPending}
-					isDeleting={deleteMut.isPending}
+					isSaving={isCreatingServer || isUpdatingServer}
+					isDeleting={isDeletingServer}
 					onSave={handleSave}
 					onDelete={handleDelete}
 					onBack={() => setSearchParams({})}
 				/>
 			)}
 
-			{serversQuery.isError && <ErrorAlert error={serversQuery.error} />}
-			{createMut.error && <ErrorAlert error={createMut.error} />}
-			{updateMut.error && <ErrorAlert error={updateMut.error} />}
-			{deleteMut.error && <ErrorAlert error={deleteMut.error} />}
+			{serversError && <ErrorAlert error={serversError} />}
+			{createError && <ErrorAlert error={createError} />}
+			{updateError && <ErrorAlert error={updateError} />}
+			{deleteError && <ErrorAlert error={deleteError} />}
 		</div>
 	);
 };

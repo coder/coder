@@ -1,46 +1,46 @@
-import { API } from "api/api";
+import { ChevronDownIcon, TrashIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { API } from "#/api/api";
 import {
 	systemNotificationTemplates,
 	userNotificationPreferences,
-} from "api/queries/notifications";
-import { templates } from "api/queries/templates";
+} from "#/api/queries/notifications";
+import { templates } from "#/api/queries/templates";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
-} from "api/queries/users";
-import type { TasksFilter } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Badge } from "components/Badge/Badge";
-import { Button, type ButtonProps } from "components/Button/Button";
+} from "#/api/queries/users";
+import type { TasksFilter } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Badge } from "#/components/Badge/Badge";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Link } from "components/Link/Link";
-import { Margins } from "components/Margins/Margins";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Link } from "#/components/Link/Link";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import { useAuthenticated } from "hooks";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { ChevronDownIcon, TrashIcon } from "lucide-react";
+} from "#/components/PageHeader/PageHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import {
 	isTaskNotification,
 	notificationIsDisabled,
 	selectDisabledPreferences,
-} from "modules/notifications/utils";
-import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
-import { type FC, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
+} from "#/modules/notifications/utils";
+import { TaskPrompt } from "#/modules/tasks/TaskPrompt/TaskPrompt";
+import { cn } from "#/utils/cn";
+import { pageTitle } from "#/utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { useBatchTaskActions } from "./batchActions";
 import { TasksTable } from "./TasksTable";

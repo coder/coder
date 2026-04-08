@@ -1,5 +1,5 @@
-import { useProxy } from "contexts/ProxyContext";
 import type { FC } from "react";
+import { useProxy } from "#/contexts/ProxyContext";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const WorkspaceProxyPage: FC = () => {

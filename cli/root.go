@@ -1414,7 +1414,6 @@ func tailLineStyle() pretty.Style {
 	return pretty.Style{pretty.Nop}
 }
 
-//nolint:unused
 func SlimUnsupported(w io.Writer, cmd string) {
 	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
 	_, _ = fmt.Fprintln(w, "")

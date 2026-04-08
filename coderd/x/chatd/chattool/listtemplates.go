@@ -3,6 +3,8 @@ package chattool
 import (
 	"context"
 	"database/sql"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -20,8 +22,9 @@ const listTemplatesPageSize = 10
 
 // ListTemplatesOptions configures the list_templates tool.
 type ListTemplatesOptions struct {
-	DB      database.Store
-	OwnerID uuid.UUID
+	DB                 database.Store
+	OwnerID            uuid.UUID
+	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
 type listTemplatesArgs struct {
@@ -63,6 +66,13 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 				filterParams.FuzzyName = query
 			}
 
+			var allowlist map[uuid.UUID]bool
+			if options.AllowedTemplateIDs != nil {
+				allowlist = options.AllowedTemplateIDs()
+			}
+			if len(allowlist) > 0 {
+				filterParams.IDs = slices.Collect(maps.Keys(allowlist))
+			}
 			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil

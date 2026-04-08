@@ -91,6 +91,12 @@ module.exports = {
 					red: "hsl(var(--highlight-red))",
 					magenta: "hsl(var(--highlight-magenta))",
 				},
+				syntax: {
+					key: "hsl(var(--syntax-key))",
+					string: "hsl(var(--syntax-string))",
+					number: "hsl(var(--syntax-number))",
+					boolean: "hsl(var(--syntax-boolean))",
+				},
 				git: {
 					added: "hsl(var(--git-added))",
 					deleted: "hsl(var(--git-deleted))",

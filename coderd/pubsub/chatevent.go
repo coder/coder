@@ -32,8 +32,9 @@ func HandleChatEvent(cb func(ctx context.Context, payload ChatEvent, err error))
 }
 
 type ChatEvent struct {
-	Kind ChatEventKind `json:"kind"`
-	Chat codersdk.Chat `json:"chat"`
+	Kind      ChatEventKind                 `json:"kind"`
+	Chat      codersdk.Chat                 `json:"chat"`
+	ToolCalls []codersdk.ChatStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 type ChatEventKind string
@@ -44,4 +45,5 @@ const (
 	ChatEventKindCreated          ChatEventKind = "created"
 	ChatEventKindDeleted          ChatEventKind = "deleted"
 	ChatEventKindDiffStatusChange ChatEventKind = "diff_status_change"
+	ChatEventKindActionRequired   ChatEventKind = "action_required"
 )

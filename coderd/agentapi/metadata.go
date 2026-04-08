@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,6 +61,8 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		}
 	)
 	for _, md := range req.Metadata {
+		md.Result.Value = strings.TrimSpace(md.Result.Value)
+		md.Result.Error = strings.TrimSpace(md.Result.Error)
 		metadataError := md.Result.Error
 
 		allKeysLen += len(md.Key)

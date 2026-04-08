@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
 import { fn } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -31,6 +31,7 @@ const createServerConfig = (
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
+	model_intent: overrides.model_intent ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,

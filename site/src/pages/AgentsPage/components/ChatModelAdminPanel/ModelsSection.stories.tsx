@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import { expect, fn, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 
@@ -14,6 +14,9 @@ const providerState: ProviderState = {
 		display_name: "OpenAI",
 		enabled: true,
 		has_api_key: true,
+		central_api_key_enabled: true,
+		allow_user_api_key: false,
+		allow_central_api_key_fallback: false,
 		base_url: undefined,
 		source: "database",
 		created_at: "2025-01-01T00:00:00Z",

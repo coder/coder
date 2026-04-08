@@ -1,4 +1,5 @@
-import { API } from "api/api";
+import type { QueryClient, UseQueryOptions } from "react-query";
+import { API } from "#/api/api";
 import type {
 	CreateGroupRequest,
 	Group,
@@ -6,10 +7,9 @@ import type {
 	GroupRequest,
 	PatchGroupRequest,
 	UsersRequest,
-} from "api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
-import type { QueryClient, UseQueryOptions } from "react-query";
-import { prepareQuery } from "utils/filters";
+} from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 
 type GroupSortOrder = "asc" | "desc";
 
@@ -200,10 +200,15 @@ export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const addMember = (queryClient: QueryClient, organization: string) => {
+export const addMembers = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-			API.addMember(groupId, userId),
+		mutationFn: ({
+			groupId,
+			userIds,
+		}: {
+			groupId: string;
+			userIds: string[];
+		}) => API.addMembers(groupId, userIds),
 		onSuccess: async (updatedGroup: Group) =>
 			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};

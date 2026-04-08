@@ -1,16 +1,16 @@
+import { type FC, Suspense } from "react";
+import { Navigate, Outlet, useLocation } from "react-router";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
 	BreadcrumbList,
 	BreadcrumbPage,
 	BreadcrumbSeparator,
-} from "components/Breadcrumb/Breadcrumb";
-import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "hooks";
-import { canViewDeploymentSettings } from "modules/permissions";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, Suspense } from "react";
-import { Navigate, Outlet, useLocation } from "react-router";
+} from "#/components/Breadcrumb/Breadcrumb";
+import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { canViewDeploymentSettings } from "#/modules/permissions";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
 const DeploymentSettingsLayout: FC = () => {
@@ -54,7 +54,7 @@ const DeploymentSettingsLayout: FC = () => {
 				<section className="px-10 max-w-screen-2xl mx-auto">
 					<div className="flex flex-row gap-28 py-10">
 						<DeploymentSidebar />
-						<div css={{ flexGrow: 1 }}>
+						<div className="grow">
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>

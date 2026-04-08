@@ -988,6 +988,7 @@ coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.g
 
 codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
 	go generate ./codersdk/workspacesdk/agentconnmock/
+	./scripts/format_go_file.sh "$@"
 	touch "$@"
 
 $(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
@@ -1260,10 +1261,20 @@ provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/tes
 	touch "$@"
 
 provisioner/terraform/testdata/version:
-	if [[ "$(shell cat provisioner/terraform/testdata/version.txt)" != "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
-		./provisioner/terraform/testdata/generate.sh
+	@tf_match=true; \
+	if [[ "$$(cat provisioner/terraform/testdata/version.txt)" != \
+	       "$$(terraform version -json | jq -r '.terraform_version')" ]]; then \
+		tf_match=false; \
+	fi; \
+	if ! $$tf_match || \
+	   ! ./provisioner/terraform/testdata/generate.sh --check; then \
+		./provisioner/terraform/testdata/generate.sh; \
 	fi
 .PHONY: provisioner/terraform/testdata/version
+
+update-terraform-testdata:
+	./provisioner/terraform/testdata/generate.sh --upgrade
+.PHONY: update-terraform-testdata
 
 # Set the retry flags if TEST_RETRIES is set
 ifdef TEST_RETRIES

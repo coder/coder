@@ -97,11 +97,12 @@ WHERE
 			user_created_at >= @created_after
 		ELSE true
 	END
-	 -- Filter by system type
+	-- Filter by system type
 	AND CASE
 		WHEN @include_system::bool THEN TRUE
 		ELSE user_is_system = false
 	END
+	-- Filter by github.com user ID
 	AND CASE
 		WHEN @github_com_user_id :: bigint != 0 THEN
 			user_github_com_user_id = @github_com_user_id
@@ -111,6 +112,12 @@ WHERE
 	AND CASE
 		WHEN cardinality(@login_type :: login_type[]) > 0 THEN
 			user_login_type = ANY(@login_type :: login_type[])
+		ELSE true
+	END
+	-- Filter by service account.
+	AND CASE
+		WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
+			user_is_service_account = sqlc.narg('is_service_account') :: boolean
 		ELSE true
 	END
 	-- End of filters

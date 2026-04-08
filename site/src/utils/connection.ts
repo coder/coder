@@ -1,4 +1,4 @@
-import type { ConnectionType } from "api/typesGenerated";
+import type { ConnectionType } from "#/api/typesGenerated";
 
 export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 	switch (type) {

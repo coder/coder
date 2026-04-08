@@ -1,3 +1,4 @@
+import type { FC, ReactNode } from "react";
 import {
 	Combobox,
 	ComboboxButton,
@@ -6,10 +7,9 @@ import {
 	ComboboxItem,
 	ComboboxList,
 	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { Spinner } from "components/Spinner/Spinner";
-import type { FC, ReactNode } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Combobox/Combobox";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 
 const BASE_WIDTH = 200;
 

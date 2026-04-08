@@ -1,9 +1,9 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import {
 	DeploymentHealthUnhealthy,
 	MockDeploymentStats,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const meta: Meta<typeof DeploymentBannerView> = {

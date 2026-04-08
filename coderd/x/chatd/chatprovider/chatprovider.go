@@ -14,8 +14,10 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -79,11 +81,28 @@ type ProviderAPIKeys struct {
 	BaseURLByProvider map[string]string
 }
 
+// UserProviderKey is a user-supplied API key for a specific provider.
+type UserProviderKey struct {
+	ChatProviderID uuid.UUID
+	APIKey         string
+}
+
+// ProviderAvailability describes whether a provider has a usable
+// API key and, if not, why.
+type ProviderAvailability struct {
+	Available         bool
+	UnavailableReason codersdk.ChatModelProviderUnavailableReason
+}
+
 // ConfiguredProvider is an enabled provider loaded from database config.
 type ConfiguredProvider struct {
-	Provider string
-	APIKey   string
-	BaseURL  string
+	ProviderID                 uuid.UUID
+	Provider                   string
+	APIKey                     string
+	BaseURL                    string
+	CentralAPIKeyEnabled       bool
+	AllowUserAPIKey            bool
+	AllowCentralAPIKeyFallback bool
 }
 
 // ConfiguredModel is an enabled model loaded from database config.
@@ -114,11 +133,6 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	default:
 		return ""
 	}
-}
-
-//nolint:revive // Intentional: apiKey is the unexported helper for APIKey.
-func (k ProviderAPIKeys) apiKey(provider string) string {
-	return k.APIKey(provider)
 }
 
 // BaseURL returns the configured base URL for a provider.
@@ -192,21 +206,146 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 	return merged
 }
 
-type ModelCatalog struct {
-	keys ProviderAPIKeys
+// ResolveUserProviderKeys computes effective API keys and per-provider
+// availability for a given user. It considers the provider's credential
+// policy flags alongside central (DB/deployment) keys and the user's
+// personal keys.
+func ResolveUserProviderKeys(
+	fallback ProviderAPIKeys,
+	providers []ConfiguredProvider,
+	userKeys []UserProviderKey,
+) (ProviderAPIKeys, map[string]ProviderAvailability) {
+	merged := ProviderAPIKeys{
+		OpenAI:            strings.TrimSpace(fallback.OpenAI),
+		Anthropic:         strings.TrimSpace(fallback.Anthropic),
+		ByProvider:        map[string]string{},
+		BaseURLByProvider: map[string]string{},
+	}
+	for provider, apiKey := range fallback.ByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if key := strings.TrimSpace(apiKey); key != "" {
+			merged.ByProvider[normalizedProvider] = key
+		}
+	}
+	for provider, baseURL := range fallback.BaseURLByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if url := strings.TrimSpace(baseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+	}
+	if merged.OpenAI != "" {
+		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
+	}
+	if merged.Anthropic != "" {
+		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
+	}
+
+	userKeyByProviderID := make(map[uuid.UUID]string, len(userKeys))
+	for _, userKey := range userKeys {
+		if userKey.ChatProviderID == uuid.Nil {
+			continue
+		}
+		if key := strings.TrimSpace(userKey.APIKey); key != "" {
+			userKeyByProviderID[userKey.ChatProviderID] = key
+		}
+	}
+
+	availabilityByProvider := make(map[string]ProviderAvailability, len(providers))
+	for _, provider := range providers {
+		normalizedProvider := NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+
+		if url := strings.TrimSpace(provider.BaseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+
+		var userKey string
+		if provider.ProviderID != uuid.Nil {
+			userKey = userKeyByProviderID[provider.ProviderID]
+		}
+
+		var centralKey string
+		if provider.CentralAPIKeyEnabled {
+			if key := strings.TrimSpace(provider.APIKey); key != "" {
+				centralKey = key
+			} else {
+				centralKey = fallback.APIKey(normalizedProvider)
+			}
+		}
+
+		resolved := ProviderAvailability{}
+		chosenKey := ""
+		switch {
+		case provider.AllowUserAPIKey && userKey != "":
+			chosenKey = userKey
+			resolved.Available = true
+		case centralKey != "":
+			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
+				chosenKey = centralKey
+				resolved.Available = true
+			} else {
+				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+			}
+		case provider.AllowUserAPIKey && provider.AllowCentralAPIKeyFallback && provider.CentralAPIKeyEnabled:
+			// When users can add their own key, a missing central fallback key is
+			// still something the user can remedy.
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+		case provider.AllowUserAPIKey:
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+		default:
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
+		}
+
+		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey)
+		availabilityByProvider[normalizedProvider] = resolved
+	}
+
+	return merged, availabilityByProvider
 }
 
-func NewModelCatalog(keys ProviderAPIKeys) *ModelCatalog {
-	return &ModelCatalog{
-		keys: keys,
+func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string) {
+	normalizedProvider := NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return
 	}
+	if keys.ByProvider == nil {
+		keys.ByProvider = map[string]string{}
+	}
+
+	delete(keys.ByProvider, normalizedProvider)
+	trimmedKey := strings.TrimSpace(apiKey)
+	switch normalizedProvider {
+	case fantasyopenai.Name:
+		keys.OpenAI = trimmedKey
+	case fantasyanthropic.Name:
+		keys.Anthropic = trimmedKey
+	}
+	if trimmedKey != "" {
+		keys.ByProvider[normalizedProvider] = trimmedKey
+	}
+}
+
+type ModelCatalog struct{}
+
+func NewModelCatalog() *ModelCatalog {
+	return &ModelCatalog{}
 }
 
 // ListConfiguredModels returns a model catalog from enabled DB-backed model
 // configs. The second return value reports whether DB-backed models were used.
-func (c *ModelCatalog) ListConfiguredModels(
+func (*ModelCatalog) ListConfiguredModels(
 	configuredProviders []ConfiguredProvider,
 	configuredModels []ConfiguredModel,
+	availabilityByProvider map[string]ProviderAvailability,
+	enabledProviders map[string]struct{},
 ) (codersdk.ChatModelsResponse, bool) {
 	if len(configuredModels) == 0 {
 		return codersdk.ChatModelsResponse{}, false
@@ -217,7 +356,7 @@ func (c *ModelCatalog) ListConfiguredModels(
 	providerSet := make(map[string]struct{})
 
 	for _, provider := range configuredProviders {
-		normalized := normalizeProvider(provider.Provider)
+		normalized := NormalizeProvider(provider.Provider)
 		if normalized == "" {
 			continue
 		}
@@ -250,11 +389,14 @@ func (c *ModelCatalog) ListConfiguredModels(
 		return codersdk.ChatModelsResponse{}, false
 	}
 
-	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
 	}
 	for _, provider := range providers {
+		if _, ok := enabledProviders[provider]; !ok {
+			continue
+		}
+
 		models := modelsByProvider[provider]
 		sortChatModels(models)
 
@@ -262,11 +404,14 @@ func (c *ModelCatalog) ListConfiguredModels(
 			Provider: provider,
 			Models:   models,
 		}
-		if keys.apiKey(provider) == "" {
+		if avail, ok := availabilityByProvider[provider]; ok {
+			result.Available = avail.Available
+			if !avail.Available {
+				result.UnavailableReason = avail.UnavailableReason
+			}
+		} else {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		} else {
-			result.Available = true
 		}
 
 		response.Providers = append(response.Providers, result)
@@ -276,31 +421,59 @@ func (c *ModelCatalog) ListConfiguredModels(
 }
 
 // ListConfiguredProviderAvailability returns provider availability derived from
-// deployment/env keys merged with enabled DB provider keys.
-func (c *ModelCatalog) ListConfiguredProviderAvailability(
-	configuredProviders []ConfiguredProvider,
+// the policy-aware availability map for enabled providers.
+func (*ModelCatalog) ListConfiguredProviderAvailability(
+	availabilityByProvider map[string]ProviderAvailability,
+	enabledProviders map[string]struct{},
 ) codersdk.ChatModelsResponse {
-	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
 
 	for _, provider := range supportedProviderNames {
+		if _, ok := enabledProviders[provider]; !ok {
+			continue
+		}
+
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
 		}
-		if keys.apiKey(provider) == "" {
+		if avail, ok := availabilityByProvider[provider]; ok {
+			result.Available = avail.Available
+			if !avail.Available {
+				result.UnavailableReason = avail.UnavailableReason
+			}
+		} else {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		} else {
-			result.Available = true
 		}
 
 		response.Providers = append(response.Providers, result)
 	}
 
 	return response
+}
+
+// PruneDisabledProviderKeys removes entries from keys that do not
+// belong to an enabled provider. It clears ByProvider and
+// BaseURLByProvider entries for disabled providers and zeroes the
+// legacy OpenAI and Anthropic fields when those providers are not
+// enabled.
+func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
+	for provider := range keys.ByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.ByProvider, provider)
+		delete(keys.BaseURLByProvider, provider)
+	}
+	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
+		keys.OpenAI = ""
+	}
+	if _, ok := enabledProviders[NormalizeProvider("anthropic")]; !ok {
+		keys.Anthropic = ""
+	}
 }
 
 func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
@@ -369,11 +542,6 @@ func NormalizeProvider(provider string) string {
 	}
 }
 
-//nolint:revive // Intentional: normalizeProvider is the unexported helper for NormalizeProvider.
-func normalizeProvider(provider string) string {
-	return NormalizeProvider(provider)
-}
-
 func ResolveModelWithProviderHint(modelName, providerHint string) (provider string, model string, err error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
@@ -384,7 +552,7 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 		return provider, modelID, nil
 	}
 
-	if provider := normalizeProvider(providerHint); provider != "" {
+	if provider := NormalizeProvider(providerHint); provider != "" {
 		return provider, modelName, nil
 	}
 
@@ -420,7 +588,7 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 			continue
 		}
 
-		provider := normalizeProvider(parts[0])
+		provider := NormalizeProvider(parts[0])
 		modelID := strings.TrimSpace(parts[1])
 		if provider != "" && modelID != "" {
 			return provider, modelID, true
@@ -431,7 +599,7 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 }
 
 func isChatModelForProvider(provider, modelID string) bool {
-	normalizedProvider := normalizeProvider(provider)
+	normalizedProvider := NormalizeProvider(provider)
 	normalizedModel := strings.ToLower(strings.TrimSpace(modelID))
 	switch normalizedProvider {
 	case fantasyopenai.Name:
@@ -487,6 +655,7 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 			string(fantasyopenai.ReasoningEffortLow),
 			string(fantasyopenai.ReasoningEffortMedium),
 			string(fantasyopenai.ReasoningEffortHigh),
+			string(fantasyopenai.ReasoningEffortXHigh),
 		)
 	case fantasyanthropic.Name:
 		return normalizedEnumValue(
@@ -887,15 +1056,71 @@ func MergeMissingProviderOptions(
 	}
 }
 
+// Header constants sent on upstream LLM API requests so that
+// intermediaries (e.g. aibridged) can correlate traffic back to
+// Coder entities.
+const (
+	// HeaderCoderOwnerID identifies the Coder user who owns the chat.
+	HeaderCoderOwnerID = "X-Coder-Owner-Id"
+	// HeaderCoderChatID identifies the top-level (parent) chat.
+	// For root chats this is the chat's own ID; for subchats it
+	// is the parent chat's ID.
+	HeaderCoderChatID = "X-Coder-Chat-Id"
+	// HeaderCoderSubchatID identifies the current subchat. Only
+	// present when the request originates from a child chat.
+	HeaderCoderSubchatID = "X-Coder-Subchat-Id"
+	// HeaderCoderWorkspaceID identifies the workspace associated
+	// with the chat, if any.
+	HeaderCoderWorkspaceID = "X-Coder-Workspace-Id"
+)
+
+// CoderHeaders builds the set of Coder identity headers to attach
+// to outgoing LLM API requests for the given chat.
+func CoderHeaders(chat database.Chat) map[string]string {
+	chatID := chat.ID
+	if chat.ParentChatID.Valid {
+		chatID = chat.ParentChatID.UUID
+	}
+	h := map[string]string{
+		HeaderCoderOwnerID: chat.OwnerID.String(),
+		HeaderCoderChatID:  chatID.String(),
+	}
+	if chat.ParentChatID.Valid {
+		h[HeaderCoderSubchatID] = chat.ID.String()
+	}
+	if chat.WorkspaceID.Valid {
+		h[HeaderCoderWorkspaceID] = chat.WorkspaceID.UUID.String()
+	}
+	return h
+}
+
+// CoderHeadersFromIDs is a convenience form of CoderHeaders for call
+// sites that do not have a full database.Chat in scope.
+func CoderHeadersFromIDs(
+	ownerID uuid.UUID,
+	chatID uuid.UUID,
+	parentChatID uuid.NullUUID,
+	workspaceID uuid.NullUUID,
+) map[string]string {
+	return CoderHeaders(database.Chat{
+		ID:           chatID,
+		OwnerID:      ownerID,
+		ParentChatID: parentChatID,
+		WorkspaceID:  workspaceID,
+	})
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
-// API request.
+// API request. extraHeaders, when non-nil, are sent as additional
+// HTTP headers on every request.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
 	providerKeys ProviderAPIKeys,
 	userAgent string,
+	extraHeaders map[string]string,
 ) (fantasy.LanguageModel, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
@@ -915,6 +1140,9 @@ func ModelFromConfig(
 			fantasyanthropic.WithAPIKey(apiKey),
 			fantasyanthropic.WithUserAgent(userAgent),
 		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyanthropic.WithHeaders(extraHeaders))
+		}
 		if baseURL != "" {
 			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
 		}
@@ -923,21 +1151,32 @@ func ModelFromConfig(
 		if baseURL == "" {
 			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
 		}
-		providerClient, err = fantasyazure.New(
+		azureOpts := []fantasyazure.Option{
 			fantasyazure.WithAPIKey(apiKey),
 			fantasyazure.WithBaseURL(baseURL),
 			fantasyazure.WithUseResponsesAPI(),
 			fantasyazure.WithUserAgent(userAgent),
-		)
+		}
+		if len(extraHeaders) > 0 {
+			azureOpts = append(azureOpts, fantasyazure.WithHeaders(extraHeaders))
+		}
+		providerClient, err = fantasyazure.New(azureOpts...)
 	case fantasybedrock.Name:
-		providerClient, err = fantasybedrock.New(
+		bedrockOpts := []fantasybedrock.Option{
 			fantasybedrock.WithAPIKey(apiKey),
 			fantasybedrock.WithUserAgent(userAgent),
-		)
+		}
+		if len(extraHeaders) > 0 {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
+		}
+		providerClient, err = fantasybedrock.New(bedrockOpts...)
 	case fantasygoogle.Name:
 		options := []fantasygoogle.Option{
 			fantasygoogle.WithGeminiAPIKey(apiKey),
 			fantasygoogle.WithUserAgent(userAgent),
+		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasygoogle.WithHeaders(extraHeaders))
 		}
 		if baseURL != "" {
 			options = append(options, fantasygoogle.WithBaseURL(baseURL))
@@ -949,6 +1188,9 @@ func ModelFromConfig(
 			fantasyopenai.WithUseResponsesAPI(),
 			fantasyopenai.WithUserAgent(userAgent),
 		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyopenai.WithHeaders(extraHeaders))
+		}
 		if baseURL != "" {
 			options = append(options, fantasyopenai.WithBaseURL(baseURL))
 		}
@@ -958,19 +1200,29 @@ func ModelFromConfig(
 			fantasyopenaicompat.WithAPIKey(apiKey),
 			fantasyopenaicompat.WithUserAgent(userAgent),
 		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyopenaicompat.WithHeaders(extraHeaders))
+		}
 		if baseURL != "" {
 			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
 		}
 		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
-		providerClient, err = fantasyopenrouter.New(
+		routerOpts := []fantasyopenrouter.Option{
 			fantasyopenrouter.WithAPIKey(apiKey),
 			fantasyopenrouter.WithUserAgent(userAgent),
-		)
+		}
+		if len(extraHeaders) > 0 {
+			routerOpts = append(routerOpts, fantasyopenrouter.WithHeaders(extraHeaders))
+		}
+		providerClient, err = fantasyopenrouter.New(routerOpts...)
 	case fantasyvercel.Name:
 		options := []fantasyvercel.Option{
 			fantasyvercel.WithAPIKey(apiKey),
 			fantasyvercel.WithUserAgent(userAgent),
+		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyvercel.WithHeaders(extraHeaders))
 		}
 		if baseURL != "" {
 			options = append(options, fantasyvercel.WithBaseURL(baseURL))

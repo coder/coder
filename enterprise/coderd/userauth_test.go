@@ -291,6 +291,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 				DeploymentValues: func(dv *codersdk.DeploymentValues) {
 					dv.OIDC.UserRoleField = "roles"
+					dv.Experiments = []string{string(codersdk.ExperimentAgents)}
 				},
 			})
 

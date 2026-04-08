@@ -64,9 +64,10 @@ type MCPServerConfig struct {
 	// Availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	Enabled     bool      `json:"enabled"`
+	ModelIntent bool      `json:"model_intent"`
+	CreatedAt   time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
@@ -97,6 +98,7 @@ type CreateMCPServerConfigRequest struct {
 
 	Availability string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
 	Enabled      bool   `json:"enabled"`
+	ModelIntent  bool   `json:"model_intent"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -124,6 +126,7 @@ type UpdateMCPServerConfigRequest struct {
 
 	Availability *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
 	Enabled      *bool   `json:"enabled,omitempty"`
+	ModelIntent  *bool   `json:"model_intent,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {

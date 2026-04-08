@@ -60,13 +60,17 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 // ComputerUseProviderTool creates the provider-defined Anthropic computer-use
 // tool definition using the declared model-facing desktop geometry.
 func ComputerUseProviderTool(declaredWidth, declaredHeight int) fantasy.Tool {
+	// The run callback is nil because execution is handled separately
+	// by the AgentTool runner in the chatloop. We extract just the
+	// provider-defined tool definition.
 	return fantasyanthropic.NewComputerUseTool(
 		fantasyanthropic.ComputerUseToolOptions{
 			DisplayWidthPx:  int64(declaredWidth),
 			DisplayHeightPx: int64(declaredHeight),
 			ToolVersion:     fantasyanthropic.ComputerUse20251124,
 		},
-	)
+		nil,
+	).Definition()
 }
 
 func (t *computerUseTool) ProviderOptions() fantasy.ProviderOptions {
