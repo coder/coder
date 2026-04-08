@@ -2720,14 +2720,16 @@ func TestStreamFetchContextsUseWorkloadSpecificDeadlinePolicies(t *testing.T) {
 		require.Equal(t, wantDeadline, gotDeadline)
 	})
 
-	t.Run("HistoryKeepsNoDeadline", func(t *testing.T) {
+	t.Run("HistoryAppliesFallbackTimeout", func(t *testing.T) {
 		t.Parallel()
 
+		started := time.Now()
 		fetchCtx, fetchCancel := streamHistoryFetchContext(context.Background())
 		defer fetchCancel()
 
-		_, ok := fetchCtx.Deadline()
-		require.False(t, ok)
+		deadline, ok := fetchCtx.Deadline()
+		require.True(t, ok)
+		require.WithinDuration(t, started.Add(chatStreamHistoryFetchTimeout), deadline, 250*time.Millisecond)
 	})
 
 	t.Run("ControlPreservesDeadline", func(t *testing.T) {
