@@ -1,4 +1,3 @@
-import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 
 import { getErrorMessage } from "#/api/errors";
@@ -11,6 +10,7 @@ import {
 } from "#/components/DateRangePicker/DateRangePicker";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { AdminBadge } from "./AdminBadge";
+import { BackButton } from "./BackButton";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
 
@@ -45,21 +45,12 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	summaryError,
 	onSummaryRetry,
 }) => {
-	const backButton = (
-		<button
-			type="button"
-			onClick={onBack}
-			className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-		>
-			<ChevronLeftIcon className="h-4 w-4" />
-			Back
-		</button>
-	);
+	const backButton = <BackButton onClick={onBack} />;
 
 	const header = (
 		<SectionHeader
 			label="Spend management"
-			description="Review deployment Coder Agents usage for a specific user."
+			description="Review spend details for a specific user."
 			badge={<AdminBadge />}
 			action={
 				<DateRangePicker
@@ -77,7 +68,11 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 					{backButton}
 					{header}
 				</div>
-				<div className="flex min-h-[240px] items-center justify-center">
+				<div
+					role="status"
+					aria-label="Loading user details"
+					className="flex min-h-[240px] items-center justify-center"
+				>
 					<Spinner size="lg" loading className="text-content-secondary" />
 				</div>
 			</div>

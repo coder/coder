@@ -2,28 +2,28 @@ import { describe, expect, it } from "vitest";
 import { formatUsageDateRange, toInclusiveDateRange } from "./dateRange";
 
 describe("toInclusiveDateRange", () => {
-	it("subtracts 1ms when hasExplicitDateRange is true and end date is midnight", () => {
+	it("subtracts 1ms when endDateIsExclusive is true and end date is midnight", () => {
 		const startDate = new Date("2025-06-01T00:00:00.000");
 		const endDate = new Date("2025-06-08T00:00:00.000");
 		const result = toInclusiveDateRange({ startDate, endDate }, true);
 		expect(result.endDate.getTime()).toBe(endDate.getTime() - 1);
 	});
 
-	it("returns unchanged when hasExplicitDateRange is true and end date is not midnight", () => {
+	it("returns unchanged when endDateIsExclusive is true and end date is not midnight", () => {
 		const startDate = new Date("2025-06-01T00:00:00.000");
 		const endDate = new Date("2025-06-08T14:30:00.000");
 		const result = toInclusiveDateRange({ startDate, endDate }, true);
 		expect(result.endDate).toBe(endDate);
 	});
 
-	it("returns unchanged when hasExplicitDateRange is false and end date is midnight", () => {
+	it("returns unchanged when endDateIsExclusive is false and end date is midnight", () => {
 		const startDate = new Date("2025-06-01T00:00:00.000");
 		const endDate = new Date("2025-06-08T00:00:00.000");
 		const result = toInclusiveDateRange({ startDate, endDate }, false);
 		expect(result.endDate).toBe(endDate);
 	});
 
-	it("returns unchanged when hasExplicitDateRange is false and end date is not midnight", () => {
+	it("returns unchanged when endDateIsExclusive is false and end date is not midnight", () => {
 		const startDate = new Date("2025-06-01T00:00:00.000");
 		const endDate = new Date("2025-06-08T14:30:00.000");
 		const result = toInclusiveDateRange({ startDate, endDate }, false);
@@ -117,5 +117,16 @@ describe("formatUsageDateRange", () => {
 			endDate: new Date("2025-06-15T00:00:00.000"),
 		});
 		expect(result).toBe("Jun 1 – Jun 15, 2025");
+	});
+
+	it("formats a cross-year range without ambiguity", () => {
+		const result = formatUsageDateRange({
+			startDate: new Date("2025-12-28T00:00:00.000"),
+			endDate: new Date("2026-01-04T00:00:00.000"),
+		});
+		// Start date omits year, end date includes it. The label reads
+		// as "Dec 28 – Jan 4, 2026" which is unambiguous enough for a
+		// 30-day range label (the start year is implied).
+		expect(result).toBe("Dec 28 – Jan 4, 2026");
 	});
 });

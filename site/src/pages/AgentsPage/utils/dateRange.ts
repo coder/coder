@@ -2,11 +2,10 @@ import dayjs from "dayjs";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 
 /**
- * Returns true when the given date falls exactly on midnight
- * (00:00:00.000). Date-range pickers use midnight of the *following*
- * day as the exclusive upper bound for a full-day selection. Detecting
- * this lets call sites subtract 1 ms (or 1 day) so the UI shows the
- * inclusive end date instead.
+ * Returns true when the given date falls exactly on local midnight
+ * (00:00:00.000). DateRangePicker's `toBoundary` produces local
+ * midnight via `dayjs(to).startOf("day").add(1, "day").toDate()`,
+ * so we use local-time methods to match that convention.
  */
 function isMidnight(date: Date): boolean {
 	return (
@@ -24,9 +23,9 @@ function isMidnight(date: Date): boolean {
  */
 export function toInclusiveDateRange(
 	dateRange: DateRangeValue,
-	hasExplicitDateRange: boolean,
+	endDateIsExclusive: boolean,
 ): DateRangeValue {
-	if (hasExplicitDateRange && isMidnight(dateRange.endDate)) {
+	if (endDateIsExclusive && isMidnight(dateRange.endDate)) {
 		return {
 			startDate: dateRange.startDate,
 			endDate: new Date(dateRange.endDate.getTime() - 1),
@@ -44,12 +43,12 @@ export function formatUsageDateRange(
 	value: DateRangeValue,
 	options?: { endDateIsExclusive?: boolean },
 ): string {
-	const displayEndDate =
-		options?.endDateIsExclusive && isMidnight(value.endDate)
-			? dayjs(value.endDate).subtract(1, "day")
-			: dayjs(value.endDate);
+	const adjusted = toInclusiveDateRange(
+		value,
+		options?.endDateIsExclusive ?? false,
+	);
 
-	return `${dayjs(value.startDate).format("MMM D")} – ${displayEndDate.format(
-		"MMM D, YYYY",
-	)}`;
+	return `${dayjs(adjusted.startDate).format("MMM D")} – ${dayjs(
+		adjusted.endDate,
+	).format("MMM D, YYYY")}`;
 }

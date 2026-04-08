@@ -22,13 +22,15 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { AgentSettingsSpendPageView } from "./AgentSettingsSpendPageView";
 
-const usageStartDateSearchParam = "startDate";
-const usageEndDateSearchParam = "endDate";
+const startDateSearchParam = "startDate";
+const endDateSearchParam = "endDate";
+const DEFAULT_DATE_RANGE_DAYS = 30;
+const SEARCH_DEBOUNCE_MS = 300;
 
-const getDefaultUsageDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
+const getDefaultDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
 	const end = now ?? dayjs();
 	return {
-		startDate: end.subtract(30, "day").toDate(),
+		startDate: end.subtract(DEFAULT_DATE_RANGE_DAYS, "day").toDate(),
 		endDate: end.toDate(),
 	};
 };
@@ -69,28 +71,32 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const searchFilter = searchParams.get("search") ?? "";
-	const debouncedSearch = useDebouncedValue(searchFilter, 300);
+	const debouncedSearch = useDebouncedValue(searchFilter, SEARCH_DEBOUNCE_MS);
 
 	const setSearchFilter = (value: string) => {
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			if (value) {
-				next.set("search", value);
-			} else {
-				next.delete("search");
-			}
-			return next;
-		});
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				if (value) {
+					next.set("search", value);
+				} else {
+					next.delete("search");
+				}
+				// Reset to page 1 when the search changes.
+				next.delete("page");
+				return next;
+			},
+			{ replace: true },
+		);
 	};
 
-	const startDateParam =
-		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
-	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
+	const startDateParam = searchParams.get(startDateSearchParam)?.trim() ?? "";
+	const endDateParam = searchParams.get(endDateSearchParam)?.trim() ?? "";
 
 	// Stable default so dayjs() isn't called on every render.
-	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
+	const [defaultDateRange] = useState(() => getDefaultDateRange(now));
 	let dateRange = defaultDateRange;
-	let hasExplicitDateRange = false;
+	let endDateIsExclusive = false;
 
 	if (startDateParam && endDateParam) {
 		const parsedStartDate = new Date(startDateParam);
@@ -105,7 +111,7 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 				startDate: parsedStartDate,
 				endDate: parsedEndDate,
 			};
-			hasExplicitDateRange = true;
+			endDateIsExclusive = true;
 		}
 	}
 
@@ -117,8 +123,8 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 	const onDateRangeChange = (value: DateRangeValue) => {
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
-			next.set(usageStartDateSearchParam, value.startDate.toISOString());
-			next.set(usageEndDateSearchParam, value.endDate.toISOString());
+			next.set(startDateSearchParam, value.startDate.toISOString());
+			next.set(endDateSearchParam, value.endDate.toISOString());
 			// Reset pagination when date range changes.
 			next.delete("page");
 			return next;
@@ -132,7 +138,7 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 		}),
 	);
 
-	const selectedUserId = searchParams.get("user");
+	const selectedUserId = searchParams.get("user") || null;
 	const selectedUserQuery = useQuery({
 		...user(selectedUserId ?? ""),
 		enabled: selectedUserId !== null,
@@ -191,20 +197,17 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 				}
 				// Usage data
 				dateRange={dateRange}
-				hasExplicitDateRange={hasExplicitDateRange}
+				endDateIsExclusive={endDateIsExclusive}
 				onDateRangeChange={onDateRangeChange}
 				searchFilter={searchFilter}
-				onSearchFilterChange={(value: string) => {
-					setSearchFilter(value);
-					usersQuery.goToFirstPage();
-				}}
+				onSearchFilterChange={setSearchFilter}
 				usersQuery={usersQuery}
-				selectedUserId={selectedUserId}
-				selectedUser={selectedUserQuery.data ?? null}
-				isSelectedUserLoading={selectedUserQuery.isLoading}
-				isSelectedUserError={selectedUserQuery.isError}
-				selectedUserError={selectedUserQuery.error}
-				onSelectedUserRetry={() => void selectedUserQuery.refetch()}
+				drillInUserId={selectedUserId}
+				drillInUser={selectedUserQuery.data ?? null}
+				isDrillInUserLoading={selectedUserQuery.isLoading}
+				isDrillInUserError={selectedUserQuery.isError}
+				drillInUserError={selectedUserQuery.error}
+				onDrillInUserRetry={() => void selectedUserQuery.refetch()}
 				onClearSelectedUser={() => {
 					setSearchParams((prev) => {
 						const next = new URLSearchParams(prev);

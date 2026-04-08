@@ -244,14 +244,14 @@ const baseProps = {
 	deleteGroupOverrideError: null as Error | null,
 	// Usage data.
 	dateRange: defaultDateRange,
-	hasExplicitDateRange: false,
+	endDateIsExclusive: false,
 	searchFilter: "",
 	usersQuery: mockUsersQuery(),
-	selectedUserId: null as string | null,
-	selectedUser: null as TypesGen.User | null,
-	isSelectedUserLoading: false,
-	isSelectedUserError: false,
-	selectedUserError: undefined as unknown,
+	drillInUserId: null as string | null,
+	drillInUser: null as TypesGen.User | null,
+	isDrillInUserLoading: false,
+	isDrillInUserError: false,
+	drillInUserError: undefined as unknown,
 	summaryData: undefined as TypesGen.ChatCostSummary | undefined,
 	isSummaryLoading: false,
 	summaryError: undefined as unknown,
@@ -271,7 +271,7 @@ const meta = {
 		onDeleteGroupOverride: fn(),
 		onDateRangeChange: fn(),
 		onSearchFilterChange: fn(),
-		onSelectedUserRetry: fn(),
+		onDrillInUserRetry: fn(),
 		onClearSelectedUser: fn(),
 		onSelectUser: fn(),
 		onSummaryRetry: fn(),
@@ -336,8 +336,8 @@ export const SpendUserDrillIn: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		selectedUserId: "user-1",
-		selectedUser: mockUserProfile,
+		drillInUserId: "user-1",
+		drillInUser: mockUserProfile,
 		summaryData: mockCostSummary,
 	},
 	play: async ({ canvasElement }) => {
@@ -357,8 +357,8 @@ export const SpendUserDrillInAndBack: Story = {
 	args: {
 		configData: mockConfigData,
 		groupsData: mockGroups,
-		selectedUserId: "user-1",
-		selectedUser: mockUserProfile,
+		drillInUserId: "user-1",
+		drillInUser: mockUserProfile,
 		summaryData: mockCostSummary,
 	},
 	play: async ({ canvasElement, args }) => {
@@ -371,6 +371,38 @@ export const SpendUserDrillInAndBack: Story = {
 
 		// The onClearSelectedUser callback should have been called.
 		expect(args.onClearSelectedUser).toHaveBeenCalled();
+	},
+};
+
+export const SpendDrillInLoading: Story = {
+	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
+		drillInUserId: "user-1",
+		drillInUser: null,
+		isDrillInUserLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("status", { name: "Loading user details" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpendDrillInError: Story = {
+	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
+		drillInUserId: "user-1",
+		drillInUser: null,
+		isDrillInUserError: true,
+		drillInUserError: new Error("User not found"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("User not found");
+		await expect(canvas.getByText("Retry")).toBeInTheDocument();
 	},
 };
 
@@ -457,5 +489,27 @@ export const SpendUsersError: Story = {
 		await expect(
 			canvas.getByText("Failed to load usage data"),
 		).toBeInTheDocument();
+		await expect(canvas.getByText("Retry")).toBeInTheDocument();
+	},
+};
+
+export const SpendUserClickToDrillIn: Story = {
+	args: {
+		configData: mockConfigData,
+		groupsData: mockGroups,
+		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Click the first user row.
+		const row = await canvas.findByRole("button", {
+			name: /Alice Liddell/,
+		});
+		await userEvent.click(row);
+
+		expect(args.onSelectUser).toHaveBeenCalledWith(
+			expect.objectContaining({ user_id: "user-1" }),
+		);
 	},
 };

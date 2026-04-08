@@ -1,7 +1,6 @@
 import dayjs from "dayjs";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -59,6 +58,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	loadingLabel,
 	emptyMessage,
 }) => {
+	// Page state is intentionally not reset when summary data changes.
+	// The clamped derivation below guarantees the displayed page is
+	// always valid, and preserving the raw state lets the user return
+	// to their previous page if they widen the date range back.
 	const [modelPage, setModelPage] = useState(1);
 	const [chatPage, setChatPage] = useState(1);
 
@@ -92,14 +95,24 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	}
 
 	const modelPageSize = 10;
+	const modelMaxPage = Math.max(
+		1,
+		Math.ceil(summary.by_model.length / modelPageSize),
+	);
+	const clampedModelPage = Math.min(modelPage, modelMaxPage);
 	const pagedModels = summary.by_model.slice(
-		(modelPage - 1) * modelPageSize,
-		modelPage * modelPageSize,
+		(clampedModelPage - 1) * modelPageSize,
+		clampedModelPage * modelPageSize,
 	);
 	const chatPageSize = 10;
+	const chatMaxPage = Math.max(
+		1,
+		Math.ceil(summary.by_chat.length / chatPageSize),
+	);
+	const clampedChatPage = Math.min(chatPage, chatMaxPage);
 	const pagedChats = summary.by_chat.slice(
-		(chatPage - 1) * chatPageSize,
-		chatPage * chatPageSize,
+		(clampedChatPage - 1) * chatPageSize,
+		clampedChatPage * chatPageSize,
 	);
 
 	const usageLimit = summary.usage_limit;
@@ -317,12 +330,12 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 							<div className="pt-4">
 								<PaginationWidgetBase
 									totalRecords={summary.by_model.length}
-									currentPage={modelPage}
+									currentPage={clampedModelPage}
 									pageSize={modelPageSize}
 									onPageChange={setModelPage}
-									hasPreviousPage={modelPage > 1}
+									hasPreviousPage={clampedModelPage > 1}
 									hasNextPage={
-										modelPage * modelPageSize < summary.by_model.length
+										clampedModelPage * modelPageSize < summary.by_model.length
 									}
 								/>
 							</div>
@@ -349,22 +362,16 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 											{chat.chat_title ? (
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<Link
-															to={`/agents/${chat.root_chat_id}`}
-															className="block truncate text-inherit no-underline hover:underline"
-														>
+														<span className="block truncate">
 															{chat.chat_title}
-														</Link>
+														</span>
 													</TooltipTrigger>
 													<TooltipContent>{chat.chat_title}</TooltipContent>
 												</Tooltip>
 											) : (
-												<Link
-													to={`/agents/${chat.root_chat_id}`}
-													className="text-inherit no-underline hover:underline"
-												>
+												<span className="text-content-secondary">
 													Untitled agent
-												</Link>
+												</span>
 											)}
 										</TableCell>
 										<TableCell className="text-right tabular-nums">
@@ -393,11 +400,13 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 							<div className="pt-4">
 								<PaginationWidgetBase
 									totalRecords={summary.by_chat.length}
-									currentPage={chatPage}
+									currentPage={clampedChatPage}
 									pageSize={chatPageSize}
 									onPageChange={setChatPage}
-									hasPreviousPage={chatPage > 1}
-									hasNextPage={chatPage * chatPageSize < summary.by_chat.length}
+									hasPreviousPage={clampedChatPage > 1}
+									hasNextPage={
+										clampedChatPage * chatPageSize < summary.by_chat.length
+									}
 								/>
 							</div>
 						)}

@@ -993,27 +993,12 @@ type ChatCostDateParams = {
 	end_date?: string;
 };
 
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
 	[...chatsKey, "costSummary", user, params] as const;
 
 export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	queryKey: chatCostSummaryKey(user, params),
 	queryFn: () => API.experimental.getChatCostSummary(user, params),
-	staleTime: 60_000,
-});
-
-export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
-	[...chatsKey, "costUsers", params] as const;
-
-export const chatCostUsers = (params?: ChatCostUsersParams) => ({
-	queryKey: chatCostUsersKey(params),
-	queryFn: () => API.experimental.getChatCostUsers(params),
 	staleTime: 60_000,
 });
 

@@ -6,6 +6,7 @@ import {
 	Outlet,
 	Route,
 	ScrollRestoration,
+	useLocation,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
@@ -468,6 +469,12 @@ const groupsRouter = () => {
 	);
 };
 
+/** Redirect that preserves the current query string. */
+const NavigateWithSearch = ({ to }: { to: string }) => {
+	const location = useLocation();
+	return <Navigate to={{ pathname: to, search: location.search }} replace />;
+};
+
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
 		<Route element={<GlobalLayout />} errorElement={<GlobalErrorBoundary />}>
@@ -711,7 +718,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="limits" element={<Navigate to="spend" replace />} />
-						<Route path="usage" element={<Navigate to="spend" replace />} />
+						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
 						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>

@@ -204,7 +204,7 @@ const agentsRouting = {
 			children: [
 				{ index: true, element: <Navigate to="behavior" replace /> },
 				{ path: "behavior", element: <BehaviorRouteElement /> },
-				{ path: "spend", element: <AgentSettingsSpendPage /> },
+				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
 				{
 					path: "usage",
 					element: <Navigate to="/agents/settings/spend" replace />,
@@ -337,6 +337,12 @@ const meta: Meta<typeof AgentsPageView> = {
 			group_overrides: [],
 		});
 		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue({
+			start_date: "2026-02-10T00:00:00Z",
+			end_date: "2026-03-12T00:00:00Z",
+			count: 0,
+			users: [],
+		});
 	},
 };
 
