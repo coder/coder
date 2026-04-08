@@ -1237,6 +1237,7 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
+	readonly debug_logging_enabled: boolean;
 }
 
 // From codersdk/chats.go
@@ -1363,6 +1364,127 @@ export interface ChatCostUsersResponse {
 	readonly count: number;
 	readonly users: readonly ChatCostUserRollup[];
 }
+
+// From codersdk/chats.go
+/**
+ * ChatDebugLoggingAdminSettings describes the runtime admin setting
+ * that allows users to opt into chat debug logging.
+ */
+export interface ChatDebugLoggingAdminSettings {
+	readonly allow_users: boolean;
+	readonly forced_by_deployment: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRun is the detailed run response including steps.
+ * This type is consumed by the run-detail handler added in a later
+ * PR in this stack; it is forward-declared here so that all SDK
+ * types live in the same schema-layer commit.
+ */
+export interface ChatDebugRun {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly root_chat_id?: string;
+	readonly parent_chat_id?: string;
+	readonly model_config_id?: string;
+	readonly trigger_message_id?: number;
+	readonly history_tip_message_id?: number;
+	readonly kind: ChatDebugRunKind;
+	readonly status: ChatDebugStatus;
+	readonly provider?: string;
+	readonly model?: string;
+	// empty interface{} type, falling back to unknown
+	readonly summary: Record<string, unknown>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+	readonly steps: readonly ChatDebugStep[];
+}
+
+// From codersdk/chats.go
+export type ChatDebugRunKind =
+	| "chat_turn"
+	| "compaction"
+	| "quickgen"
+	| "title_generation";
+
+export const ChatDebugRunKinds: ChatDebugRunKind[] = [
+	"chat_turn",
+	"compaction",
+	"quickgen",
+	"title_generation",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRunSummary is a lightweight run entry for list endpoints.
+ */
+export interface ChatDebugRunSummary {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly kind: ChatDebugRunKind;
+	readonly status: ChatDebugStatus;
+	readonly provider?: string;
+	readonly model?: string;
+	// empty interface{} type, falling back to unknown
+	readonly summary: Record<string, unknown>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+}
+
+// From codersdk/chats.go
+export type ChatDebugStatus =
+	| "completed"
+	| "error"
+	| "in_progress"
+	| "interrupted";
+
+export const ChatDebugStatuses: ChatDebugStatus[] = [
+	"completed",
+	"error",
+	"in_progress",
+	"interrupted",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatDebugStep is a single step within a debug run.
+ */
+export interface ChatDebugStep {
+	readonly id: string;
+	readonly run_id: string;
+	readonly chat_id: string;
+	readonly step_number: number;
+	readonly operation: ChatDebugStepOperation;
+	readonly status: ChatDebugStatus;
+	readonly history_tip_message_id?: number;
+	readonly assistant_message_id?: number;
+	// empty interface{} type, falling back to unknown
+	readonly normalized_request: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly normalized_response?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly usage?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly attempts: readonly Record<string, unknown>[];
+	// empty interface{} type, falling back to unknown
+	readonly error?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+}
+
+// From codersdk/chats.go
+export type ChatDebugStepOperation = "generate" | "stream";
+
+export const ChatDebugStepOperations: ChatDebugStepOperation[] = [
+	"generate",
+	"stream",
+];
 
 // From codersdk/chats.go
 /**
@@ -7364,6 +7486,15 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
+ * toggle whether users may opt into chat debug logging.
+ */
+export interface UpdateChatDebugLoggingAllowUsersRequest {
+	readonly allow_users: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
  */
 export interface UpdateChatDesktopEnabledRequest {
@@ -7665,6 +7796,15 @@ export interface UpdateUserChatCompactionThresholdRequest {
 	readonly threshold_percent: number;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateUserChatDebugLoggingRequest is the per-user request to
+ * opt into or out of chat debug logging.
+ */
+export interface UpdateUserChatDebugLoggingRequest {
+	readonly debug_logging_enabled: boolean;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -7962,6 +8102,17 @@ export interface UserChatCompactionThresholds {
  */
 export interface UserChatCustomPrompt {
 	readonly custom_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatDebugLoggingSettings describes whether debug logging is
+ * active for the current user and whether the user may control it.
+ */
+export interface UserChatDebugLoggingSettings {
+	readonly debug_logging_enabled: boolean;
+	readonly user_toggle_allowed: boolean;
+	readonly forced_by_deployment: boolean;
 }
 
 // From codersdk/chats.go

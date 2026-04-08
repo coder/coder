@@ -3624,6 +3624,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "acquireBatchSize",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		{
+			Name:        "Chat: Debug Logging Enabled",
+			Description: "Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.",
+			Flag:        "chat-debug-logging-enabled",
+			Env:         "CODER_CHAT_DEBUG_LOGGING_ENABLED",
+			Value:       &c.AI.Chat.DebugLoggingEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "debugLoggingEnabled",
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4090,7 +4100,8 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
 }
 
 type AIConfig struct {

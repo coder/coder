@@ -2900,6 +2900,583 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
+WITH affected_runs AS (
+    SELECT DISTINCT run.id
+    FROM chat_debug_runs run
+    WHERE run.chat_id = $1::uuid
+        AND (
+            run.history_tip_message_id > $2::bigint
+            OR run.trigger_message_id > $2::bigint
+        )
+
+    UNION
+
+    SELECT DISTINCT step.run_id AS id
+    FROM chat_debug_steps step
+    WHERE step.chat_id = $1::uuid
+        AND (
+            step.assistant_message_id > $2::bigint
+            OR step.history_tip_message_id > $2::bigint
+        )
+)
+DELETE FROM chat_debug_runs
+WHERE chat_id = $1::uuid
+    AND id IN (SELECT id FROM affected_runs)
+`
+
+type DeleteChatDebugDataAfterMessageIDParams struct {
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	MessageID int64     `db:"message_id" json:"message_id"`
+}
+
+func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.MessageID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteChatDebugDataByChatID = `-- name: DeleteChatDebugDataByChatID :execrows
+DELETE FROM chat_debug_runs
+WHERE chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const finalizeStaleChatDebugRows = `-- name: FinalizeStaleChatDebugRows :one
+WITH finalized_runs AS (
+    UPDATE chat_debug_runs
+    SET
+        status = 'interrupted',
+        updated_at = NOW(),
+        finished_at = NOW()
+    WHERE updated_at < $1::timestamptz
+        AND finished_at IS NULL
+        AND status NOT IN ('completed', 'error', 'interrupted')
+    RETURNING id
+), finalized_steps AS (
+    UPDATE chat_debug_steps
+    SET
+        status = 'interrupted',
+        updated_at = NOW(),
+        finished_at = NOW()
+    WHERE (
+            updated_at < $1::timestamptz
+            OR run_id IN (SELECT id FROM finalized_runs)
+        )
+        AND finished_at IS NULL
+        AND status NOT IN ('completed', 'error', 'interrupted')
+    RETURNING 1
+)
+SELECT
+    (SELECT COUNT(*) FROM finalized_runs)::bigint AS runs_finalized,
+    (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized
+`
+
+type FinalizeStaleChatDebugRowsRow struct {
+	RunsFinalized  int64 `db:"runs_finalized" json:"runs_finalized"`
+	StepsFinalized int64 `db:"steps_finalized" json:"steps_finalized"`
+}
+
+// Marks orphaned in-progress rows as interrupted so they do not stay
+// in a non-terminal state forever.  The NOT IN list must match the
+// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
+//
+// The steps CTE also catches steps whose parent run was just finalized
+// (via run_id IN), because PostgreSQL data-modifying CTEs share the
+// same snapshot and cannot see each other's row updates.  Without this,
+// a step with a recent updated_at would survive its run's finalization
+// and remain in 'in_progress' state permanently.
+func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore time.Time) (FinalizeStaleChatDebugRowsRow, error) {
+	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, updatedBefore)
+	var i FinalizeStaleChatDebugRowsRow
+	err := row.Scan(&i.RunsFinalized, &i.StepsFinalized)
+	return i, err
+}
+
+const getChatDebugRunByID = `-- name: GetChatDebugRunByID :one
+SELECT id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
+FROM chat_debug_runs
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatDebugRunByID(ctx context.Context, id uuid.UUID) (ChatDebugRun, error) {
+	row := q.db.QueryRowContext(ctx, getChatDebugRunByID, id)
+	var i ChatDebugRun
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RootChatID,
+		&i.ParentChatID,
+		&i.ModelConfigID,
+		&i.TriggerMessageID,
+		&i.HistoryTipMessageID,
+		&i.Kind,
+		&i.Status,
+		&i.Provider,
+		&i.Model,
+		&i.Summary,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const getChatDebugRunsByChatID = `-- name: GetChatDebugRunsByChatID :many
+SELECT id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
+FROM chat_debug_runs
+WHERE chat_id = $1::uuid
+ORDER BY started_at DESC, id DESC
+LIMIT $2::int
+`
+
+type GetChatDebugRunsByChatIDParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
+
+// Returns the most recent debug runs for a chat, ordered newest-first.
+// Callers must supply an explicit limit to avoid unbounded result sets.
+func (q *sqlQuerier) GetChatDebugRunsByChatID(ctx context.Context, arg GetChatDebugRunsByChatIDParams) ([]ChatDebugRun, error) {
+	rows, err := q.db.QueryContext(ctx, getChatDebugRunsByChatID, arg.ChatID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatDebugRun
+	for rows.Next() {
+		var i ChatDebugRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.RootChatID,
+			&i.ParentChatID,
+			&i.ModelConfigID,
+			&i.TriggerMessageID,
+			&i.HistoryTipMessageID,
+			&i.Kind,
+			&i.Status,
+			&i.Provider,
+			&i.Model,
+			&i.Summary,
+			&i.StartedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatDebugStepsByRunID = `-- name: GetChatDebugStepsByRunID :many
+SELECT id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
+FROM chat_debug_steps
+WHERE run_id = $1::uuid
+ORDER BY step_number ASC, started_at ASC
+`
+
+func (q *sqlQuerier) GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID) ([]ChatDebugStep, error) {
+	rows, err := q.db.QueryContext(ctx, getChatDebugStepsByRunID, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatDebugStep
+	for rows.Next() {
+		var i ChatDebugStep
+		if err := rows.Scan(
+			&i.ID,
+			&i.RunID,
+			&i.ChatID,
+			&i.StepNumber,
+			&i.Operation,
+			&i.Status,
+			&i.HistoryTipMessageID,
+			&i.AssistantMessageID,
+			&i.NormalizedRequest,
+			&i.NormalizedResponse,
+			&i.Usage,
+			&i.Attempts,
+			&i.Error,
+			&i.Metadata,
+			&i.StartedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatDebugRun = `-- name: InsertChatDebugRun :one
+INSERT INTO chat_debug_runs (
+    chat_id,
+    root_chat_id,
+    parent_chat_id,
+    model_config_id,
+    trigger_message_id,
+    history_tip_message_id,
+    kind,
+    status,
+    provider,
+    model,
+    summary,
+    started_at,
+    updated_at,
+    finished_at
+)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::uuid,
+    $5::bigint,
+    $6::bigint,
+    $7::text,
+    $8::text,
+    $9::text,
+    $10::text,
+    COALESCE($11::jsonb, '{}'::jsonb),
+    COALESCE($12::timestamptz, NOW()),
+    COALESCE($13::timestamptz, NOW()),
+    $14::timestamptz
+)
+RETURNING id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
+`
+
+type InsertChatDebugRunParams struct {
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	TriggerMessageID    sql.NullInt64         `db:"trigger_message_id" json:"trigger_message_id"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	Kind                string                `db:"kind" json:"kind"`
+	Status              string                `db:"status" json:"status"`
+	Provider            sql.NullString        `db:"provider" json:"provider"`
+	Model               sql.NullString        `db:"model" json:"model"`
+	Summary             pqtype.NullRawMessage `db:"summary" json:"summary"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	UpdatedAt           sql.NullTime          `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+}
+
+func (q *sqlQuerier) InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error) {
+	row := q.db.QueryRowContext(ctx, insertChatDebugRun,
+		arg.ChatID,
+		arg.RootChatID,
+		arg.ParentChatID,
+		arg.ModelConfigID,
+		arg.TriggerMessageID,
+		arg.HistoryTipMessageID,
+		arg.Kind,
+		arg.Status,
+		arg.Provider,
+		arg.Model,
+		arg.Summary,
+		arg.StartedAt,
+		arg.UpdatedAt,
+		arg.FinishedAt,
+	)
+	var i ChatDebugRun
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RootChatID,
+		&i.ParentChatID,
+		&i.ModelConfigID,
+		&i.TriggerMessageID,
+		&i.HistoryTipMessageID,
+		&i.Kind,
+		&i.Status,
+		&i.Provider,
+		&i.Model,
+		&i.Summary,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const insertChatDebugStep = `-- name: InsertChatDebugStep :one
+INSERT INTO chat_debug_steps (
+    run_id,
+    chat_id,
+    step_number,
+    operation,
+    status,
+    history_tip_message_id,
+    assistant_message_id,
+    normalized_request,
+    normalized_response,
+    usage,
+    attempts,
+    error,
+    metadata,
+    started_at,
+    updated_at,
+    finished_at
+)
+SELECT
+    $1::uuid,
+    run.chat_id,
+    $2::int,
+    $3::text,
+    $4::text,
+    $5::bigint,
+    $6::bigint,
+    COALESCE($7::jsonb, '{}'::jsonb),
+    $8::jsonb,
+    $9::jsonb,
+    COALESCE($10::jsonb, '[]'::jsonb),
+    $11::jsonb,
+    COALESCE($12::jsonb, '{}'::jsonb),
+    COALESCE($13::timestamptz, NOW()),
+    COALESCE($14::timestamptz, NOW()),
+    $15::timestamptz
+FROM chat_debug_runs run
+WHERE run.id = $1::uuid
+    AND run.chat_id = $16::uuid
+RETURNING id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
+`
+
+type InsertChatDebugStepParams struct {
+	RunID               uuid.UUID             `db:"run_id" json:"run_id"`
+	StepNumber          int32                 `db:"step_number" json:"step_number"`
+	Operation           string                `db:"operation" json:"operation"`
+	Status              string                `db:"status" json:"status"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	AssistantMessageID  sql.NullInt64         `db:"assistant_message_id" json:"assistant_message_id"`
+	NormalizedRequest   pqtype.NullRawMessage `db:"normalized_request" json:"normalized_request"`
+	NormalizedResponse  pqtype.NullRawMessage `db:"normalized_response" json:"normalized_response"`
+	Usage               pqtype.NullRawMessage `db:"usage" json:"usage"`
+	Attempts            pqtype.NullRawMessage `db:"attempts" json:"attempts"`
+	Error               pqtype.NullRawMessage `db:"error" json:"error"`
+	Metadata            pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	UpdatedAt           sql.NullTime          `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
+	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
+		arg.RunID,
+		arg.StepNumber,
+		arg.Operation,
+		arg.Status,
+		arg.HistoryTipMessageID,
+		arg.AssistantMessageID,
+		arg.NormalizedRequest,
+		arg.NormalizedResponse,
+		arg.Usage,
+		arg.Attempts,
+		arg.Error,
+		arg.Metadata,
+		arg.StartedAt,
+		arg.UpdatedAt,
+		arg.FinishedAt,
+		arg.ChatID,
+	)
+	var i ChatDebugStep
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ChatID,
+		&i.StepNumber,
+		&i.Operation,
+		&i.Status,
+		&i.HistoryTipMessageID,
+		&i.AssistantMessageID,
+		&i.NormalizedRequest,
+		&i.NormalizedResponse,
+		&i.Usage,
+		&i.Attempts,
+		&i.Error,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const updateChatDebugRun = `-- name: UpdateChatDebugRun :one
+UPDATE chat_debug_runs
+SET
+    root_chat_id = COALESCE($1::uuid, root_chat_id),
+    parent_chat_id = COALESCE($2::uuid, parent_chat_id),
+    model_config_id = COALESCE($3::uuid, model_config_id),
+    trigger_message_id = COALESCE($4::bigint, trigger_message_id),
+    history_tip_message_id = COALESCE($5::bigint, history_tip_message_id),
+    status = COALESCE($6::text, status),
+    provider = COALESCE($7::text, provider),
+    model = COALESCE($8::text, model),
+    summary = COALESCE($9::jsonb, summary),
+    finished_at = COALESCE($10::timestamptz, finished_at),
+    updated_at = NOW()
+WHERE id = $11::uuid
+    AND chat_id = $12::uuid
+RETURNING id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
+`
+
+type UpdateChatDebugRunParams struct {
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	TriggerMessageID    sql.NullInt64         `db:"trigger_message_id" json:"trigger_message_id"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	Status              sql.NullString        `db:"status" json:"status"`
+	Provider            sql.NullString        `db:"provider" json:"provider"`
+	Model               sql.NullString        `db:"model" json:"model"`
+	Summary             pqtype.NullRawMessage `db:"summary" json:"summary"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+}
+
+// Uses COALESCE so that passing NULL from Go means "keep the
+// existing value."  This is intentional: debug rows follow a
+// write-once-finalize pattern where fields are set at creation
+// or finalization and never cleared back to NULL.
+func (q *sqlQuerier) UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebugRunParams) (ChatDebugRun, error) {
+	row := q.db.QueryRowContext(ctx, updateChatDebugRun,
+		arg.RootChatID,
+		arg.ParentChatID,
+		arg.ModelConfigID,
+		arg.TriggerMessageID,
+		arg.HistoryTipMessageID,
+		arg.Status,
+		arg.Provider,
+		arg.Model,
+		arg.Summary,
+		arg.FinishedAt,
+		arg.ID,
+		arg.ChatID,
+	)
+	var i ChatDebugRun
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RootChatID,
+		&i.ParentChatID,
+		&i.ModelConfigID,
+		&i.TriggerMessageID,
+		&i.HistoryTipMessageID,
+		&i.Kind,
+		&i.Status,
+		&i.Provider,
+		&i.Model,
+		&i.Summary,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const updateChatDebugStep = `-- name: UpdateChatDebugStep :one
+UPDATE chat_debug_steps
+SET
+    status = COALESCE($1::text, status),
+    history_tip_message_id = COALESCE($2::bigint, history_tip_message_id),
+    assistant_message_id = COALESCE($3::bigint, assistant_message_id),
+    normalized_request = COALESCE($4::jsonb, normalized_request),
+    normalized_response = COALESCE($5::jsonb, normalized_response),
+    usage = COALESCE($6::jsonb, usage),
+    attempts = COALESCE($7::jsonb, attempts),
+    error = COALESCE($8::jsonb, error),
+    metadata = COALESCE($9::jsonb, metadata),
+    finished_at = COALESCE($10::timestamptz, finished_at),
+    updated_at = NOW()
+WHERE id = $11::uuid
+    AND chat_id = $12::uuid
+RETURNING id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
+`
+
+type UpdateChatDebugStepParams struct {
+	Status              sql.NullString        `db:"status" json:"status"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	AssistantMessageID  sql.NullInt64         `db:"assistant_message_id" json:"assistant_message_id"`
+	NormalizedRequest   pqtype.NullRawMessage `db:"normalized_request" json:"normalized_request"`
+	NormalizedResponse  pqtype.NullRawMessage `db:"normalized_response" json:"normalized_response"`
+	Usage               pqtype.NullRawMessage `db:"usage" json:"usage"`
+	Attempts            pqtype.NullRawMessage `db:"attempts" json:"attempts"`
+	Error               pqtype.NullRawMessage `db:"error" json:"error"`
+	Metadata            pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+}
+
+// Uses COALESCE so that passing NULL from Go means "keep the
+// existing value."  This is intentional: debug rows follow a
+// write-once-finalize pattern where fields are set at creation
+// or finalization and never cleared back to NULL.
+func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error) {
+	row := q.db.QueryRowContext(ctx, updateChatDebugStep,
+		arg.Status,
+		arg.HistoryTipMessageID,
+		arg.AssistantMessageID,
+		arg.NormalizedRequest,
+		arg.NormalizedResponse,
+		arg.Usage,
+		arg.Attempts,
+		arg.Error,
+		arg.Metadata,
+		arg.FinishedAt,
+		arg.ID,
+		arg.ChatID,
+	)
+	var i ChatDebugStep
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ChatID,
+		&i.StepNumber,
+		&i.Operation,
+		&i.Status,
+		&i.HistoryTipMessageID,
+		&i.AssistantMessageID,
+		&i.NormalizedRequest,
+		&i.NormalizedResponse,
+		&i.Usage,
+		&i.Attempts,
+		&i.Error,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const deleteOldChatFiles = `-- name: DeleteOldChatFiles :execrows
 WITH kept_file_ids AS (
     -- NOTE: This uses updated_at as a proxy for archive time
@@ -19168,6 +19745,21 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users
+`
+
+// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
+// allows users to opt into chat debug logging when the deployment does
+// not already force debug logging on globally.
+func (q *sqlQuerier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getChatDebugLoggingAllowUsers)
+	var allow_users bool
+	err := row.Scan(&allow_users)
+	return allow_users, err
+}
+
 const getChatDesktopEnabled = `-- name: GetChatDesktopEnabled :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_desktop_enabled'), false) :: boolean AS enable_desktop
@@ -19476,6 +20068,30 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertChatDebugLoggingAllowUsers = `-- name: UpsertChatDebugLoggingAllowUsers :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_debug_logging_allow_users',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_debug_logging_allow_users'
+`
+
+// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
+// allows users to opt into chat debug logging.
+func (q *sqlQuerier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
+	_, err := q.db.ExecContext(ctx, upsertChatDebugLoggingAllowUsers, allowUsers)
 	return err
 }
 
@@ -23733,6 +24349,23 @@ func (q *sqlQuerier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UU
 	return chat_custom_prompt, err
 }
 
+const getUserChatDebugLoggingEnabled = `-- name: GetUserChatDebugLoggingEnabled :one
+SELECT
+	COALESCE((
+		SELECT value = 'true'
+		FROM user_configs
+		WHERE user_id = $1
+			AND key = 'chat_debug_logging_enabled'
+	), false) :: boolean AS debug_logging_enabled
+`
+
+func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatDebugLoggingEnabled, userID)
+	var debug_logging_enabled bool
+	err := row.Scan(&debug_logging_enabled)
+	return debug_logging_enabled, err
+}
+
 const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -24725,6 +25358,35 @@ func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUs
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
+}
+
+const upsertUserChatDebugLoggingEnabled = `-- name: UpsertUserChatDebugLoggingEnabled :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	$1,
+	'chat_debug_logging_enabled',
+	CASE
+		WHEN $2::bool THEN 'true'
+		ELSE 'false'
+	END
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = CASE
+	WHEN $2::bool THEN 'true'
+	ELSE 'false'
+END
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'chat_debug_logging_enabled'
+`
+
+type UpsertUserChatDebugLoggingEnabledParams struct {
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	DebugLoggingEnabled bool      `db:"debug_logging_enabled" json:"debug_logging_enabled"`
+}
+
+func (q *sqlQuerier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error {
+	_, err := q.db.ExecContext(ctx, upsertUserChatDebugLoggingEnabled, arg.UserID, arg.DebugLoggingEnabled)
+	return err
 }
 
 const validateUserIDs = `-- name: ValidateUserIDs :one

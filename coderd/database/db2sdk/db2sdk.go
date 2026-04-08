@@ -1533,6 +1533,22 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	return &value
 }
 
+func nullStringPtr(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	value := v.String
+	return &value
+}
+
+func nullTimePtr(v sql.NullTime) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Time
+	return &value
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1618,6 +1634,102 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		}
 	}
 	return chat
+}
+
+func chatDebugAttempts(raw json.RawMessage) []map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var attempts []map[string]any
+	if err := json.Unmarshal(raw, &attempts); err != nil {
+		return []map[string]any{{
+			"error":       "malformed attempts payload",
+			"parse_error": err.Error(),
+			"raw":         string(raw),
+		}}
+	}
+	// Guard against JSON literal "null" which unmarshals successfully
+	// but leaves the slice nil. The DB column is JSONB NOT NULL but
+	// that only rejects SQL NULL, not JSONB null.
+	if attempts == nil {
+		return []map[string]any{}
+	}
+	return attempts
+}
+
+// rawJSONObject deserializes a JSON object payload for debug display.
+// If the payload is malformed, it returns a map with "error" and "raw"
+// keys preserving the original content for diagnostics.  Callers that
+// consume the result programmatically should check for the "error" key.
+func rawJSONObject(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return map[string]any{
+			"error":       "malformed debug payload",
+			"parse_error": err.Error(),
+			"raw":         string(raw),
+		}
+	}
+	// Guard against JSON literal "null" which unmarshals successfully
+	// but leaves the map nil. The DB column is JSONB NOT NULL but
+	// that only rejects SQL NULL, not JSONB null.
+	if object == nil {
+		return map[string]any{}
+	}
+	return object
+}
+
+func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
+	if !raw.Valid {
+		return nil
+	}
+	return rawJSONObject(raw.RawMessage)
+}
+
+// ChatDebugRunSummary converts a database.ChatDebugRun to a
+// codersdk.ChatDebugRunSummary.
+func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
+	return codersdk.ChatDebugRunSummary{
+		ID:         r.ID,
+		ChatID:     r.ChatID,
+		Kind:       codersdk.ChatDebugRunKind(r.Kind),
+		Status:     codersdk.ChatDebugStatus(r.Status),
+		Provider:   nullStringPtr(r.Provider),
+		Model:      nullStringPtr(r.Model),
+		Summary:    rawJSONObject(r.Summary),
+		StartedAt:  r.StartedAt,
+		UpdatedAt:  r.UpdatedAt,
+		FinishedAt: nullTimePtr(r.FinishedAt),
+	}
+}
+
+// ChatDebugStep converts a database.ChatDebugStep to a
+// codersdk.ChatDebugStep.
+func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
+	return codersdk.ChatDebugStep{
+		ID:                  s.ID,
+		RunID:               s.RunID,
+		ChatID:              s.ChatID,
+		StepNumber:          s.StepNumber,
+		Operation:           codersdk.ChatDebugStepOperation(s.Operation),
+		Status:              codersdk.ChatDebugStatus(s.Status),
+		HistoryTipMessageID: nullInt64Ptr(s.HistoryTipMessageID),
+		AssistantMessageID:  nullInt64Ptr(s.AssistantMessageID),
+		NormalizedRequest:   rawJSONObject(s.NormalizedRequest),
+		NormalizedResponse:  nullRawJSONObject(s.NormalizedResponse),
+		Usage:               nullRawJSONObject(s.Usage),
+		Attempts:            chatDebugAttempts(s.Attempts),
+		Error:               nullRawJSONObject(s.Error),
+		Metadata:            rawJSONObject(s.Metadata),
+		StartedAt:           s.StartedAt,
+		UpdatedAt:           s.UpdatedAt,
+		FinishedAt:          nullTimePtr(s.FinishedAt),
+	}
 }
 
 // ChatRows converts a slice of database.GetChatsRow (which embeds
