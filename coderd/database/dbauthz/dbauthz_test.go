@@ -424,9 +424,12 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("SoftDeleteBoundChatModelConfigsByProviderConfigID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		providerConfigID := uuid.New()
-		dbm.EXPECT().SoftDeleteBoundChatModelConfigsByProviderConfigID(gomock.Any(), providerConfigID).Return(int64(2), nil).AnyTimes()
-		check.Args(providerConfigID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(int64(2))
+		arg := database.SoftDeleteBoundChatModelConfigsByProviderConfigIDParams{
+			UpdatedBy:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ProviderConfigID: uuid.New(),
+		}
+		dbm.EXPECT().SoftDeleteBoundChatModelConfigsByProviderConfigID(gomock.Any(), arg).Return(int64(2), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(int64(2))
 	}))
 	s.Run("SoftDeleteChatMessagesAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -450,9 +453,12 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(msg.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("SoftDeleteUnboundChatModelConfigsByProvider", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		provider := "openai"
-		dbm.EXPECT().SoftDeleteUnboundChatModelConfigsByProvider(gomock.Any(), provider).Return(int64(1), nil).AnyTimes()
-		check.Args(provider).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(int64(1))
+		arg := database.SoftDeleteUnboundChatModelConfigsByProviderParams{
+			UpdatedBy: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Provider:  "openai",
+		}
+		dbm.EXPECT().SoftDeleteUnboundChatModelConfigsByProvider(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
