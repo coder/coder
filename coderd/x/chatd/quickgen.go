@@ -107,7 +107,6 @@ func (p *Server) maybeGenerateChatTitle(
 	chat database.Chat,
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
-	fallbackModelConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
@@ -133,66 +132,34 @@ func (p *Server) maybeGenerateChatTitle(
 		}
 	}
 	candidates = append(candidates, fallbackModel)
-
-	titleModelConfig := fallbackModelConfig
-	configs, err := p.db.GetEnabledChatModelConfigs(ctx)
-	if err != nil {
-		logger.Debug(ctx, "failed to list generated title model configs",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-	} else if config, ok := selectPreferredConfiguredShortTextModelConfig(configs); ok {
-		titleModelConfig = config
-	}
-
 	var lastErr error
 	for _, model := range candidates {
-		title, usage, err := generateTitle(titleCtx, model, input)
+		title, err := generateTitle(titleCtx, model, input)
 		if err != nil {
 			lastErr = err
-			if _, recordErr := p.recordGeneratedTitleUsage(
-				ctx,
-				chat,
-				titleModelConfig,
-				usage,
-				"",
-			); recordErr != nil {
-				logger.Warn(ctx, "failed to record generated chat title usage",
-					slog.F("chat_id", chat.ID),
-					slog.Error(recordErr),
-				)
-			}
 			logger.Debug(ctx, "title model candidate failed",
 				slog.F("chat_id", chat.ID),
 				slog.Error(err),
 			)
 			continue
 		}
-
-		newTitle := ""
-		if title != "" && title != chat.Title {
-			newTitle = title
+		if title == "" || title == chat.Title {
+			return
 		}
-		updatedChat, err := p.recordGeneratedTitleUsage(
-			ctx,
-			chat,
-			titleModelConfig,
-			usage,
-			newTitle,
-		)
+
+		_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+			ID:    chat.ID,
+			Title: title,
+		})
 		if err != nil {
-			logger.Warn(ctx, "failed to store generated chat title usage",
+			logger.Warn(ctx, "failed to update generated chat title",
 				slog.F("chat_id", chat.ID),
 				slog.Error(err),
 			)
 			return
 		}
-		if newTitle == "" {
-			return
-		}
-
-		chat = updatedChat
-		generatedTitle.Store(chat.Title)
+		chat.Title = title
+		generatedTitle.Store(title)
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange, nil)
 		return
 	}
@@ -205,45 +172,40 @@ func (p *Server) maybeGenerateChatTitle(
 	}
 }
 
-func (p *Server) recordGeneratedTitleUsage(
-	ctx context.Context,
-	chat database.Chat,
-	modelConfig database.ChatModelConfig,
-	usage fantasy.Usage,
-	newTitle string,
-) (database.Chat, error) {
-	recordCtx, recordCancel := context.WithTimeout(
-		context.WithoutCancel(ctx),
-		5*time.Second,
-	)
-	defer recordCancel()
-
-	return recordManualTitleUsage(
-		recordCtx,
-		p.db,
-		chat,
-		modelConfig,
-		usage,
-		newTitle,
-	)
-}
-
 // generateTitle calls the model with a title-generation system prompt
-// and returns the normalized result plus usage. It retries transient
-// LLM errors (rate limits, overloaded, etc.) with exponential backoff.
+// and returns the normalized result. It retries transient LLM errors
+// (rate limits, overloaded, etc.) with exponential backoff.
 func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	input string,
-) (string, fantasy.Usage, error) {
-	title, usage, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
+) (string, error) {
+	title, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
 	if err != nil {
-		return "", usage, err
+		return "", err
 	}
-	return title, usage, nil
+	return title, nil
 }
 
 func generateStructuredTitle(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	systemPrompt string,
+	userInput string,
+) (string, error) {
+	title, _, err := generateStructuredTitleWithUsage(
+		ctx,
+		model,
+		systemPrompt,
+		userInput,
+	)
+	if err != nil {
+		return "", err
+	}
+	return title, nil
+}
+
+func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	systemPrompt string,
@@ -282,8 +244,6 @@ func generateStructuredTitle(
 		return genErr
 	}, nil)
 	if err != nil {
-		// Extract usage from the error when available so that
-		// failed attempts are still accounted for in usage tracking.
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
 		if errors.As(err, &noObjErr) {
@@ -585,7 +545,7 @@ func generateManualTitle(
 		userInput = strings.TrimSpace(firstUserText)
 	}
 
-	title, usage, err := generateStructuredTitle(
+	title, usage, err := generateStructuredTitleWithUsage(
 		titleCtx,
 		fallbackModel,
 		systemPrompt,
@@ -635,7 +595,7 @@ func generatePushSummary(
 	candidates = append(candidates, fallbackModel)
 
 	for _, model := range candidates {
-		summary, _, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
+		summary, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
 		if err != nil {
 			logger.Debug(ctx, "push summary model candidate failed",
 				slog.Error(err),
@@ -657,7 +617,7 @@ func generateShortText(
 	model fantasy.LanguageModel,
 	systemPrompt string,
 	userInput string,
-) (string, fantasy.Usage, error) {
+) (string, error) {
 	prompt := []fantasy.Message{
 		{
 			Role: fantasy.MessageRoleSystem,
@@ -685,7 +645,7 @@ func generateShortText(
 		return genErr
 	}, nil)
 	if err != nil {
-		return "", fantasy.Usage{}, xerrors.Errorf("generate short text: %w", err)
+		return "", xerrors.Errorf("generate short text: %w", err)
 	}
 
 	responseParts := make([]codersdk.ChatMessagePart, 0, len(response.Content))
@@ -695,5 +655,5 @@ func generateShortText(
 		}
 	}
 	text := normalizeShortTextOutput(contentBlocksToText(responseParts))
-	return text, response.Usage, nil
+	return text, nil
 }

@@ -4045,7 +4045,6 @@ func (p *Server) runChat(
 			chat,
 			messages,
 			titleModel,
-			modelConfig,
 			providerKeys,
 			generatedTitle,
 			logger,
