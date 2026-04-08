@@ -1143,6 +1143,39 @@ func TestListChatModels(t *testing.T) {
 		require.Len(t, openAIProvider.Models, 2)
 	})
 
+	t.Run("EnvPresetProviderWithDeploymentKeyOnlyStaysEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := chatDeploymentValues(t)
+		values.AI.BridgeConfig.OpenAI.Key = serpent.String("deployment-openai-key")
+		client := newChatClientWithDeploymentValues(t, values)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-deployment-only",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var openAIProvider *codersdk.ChatModelProvider
+		for i := range models.Providers {
+			if models.Providers[i].Provider == "openai" {
+				openAIProvider = &models.Providers[i]
+				break
+			}
+		}
+		require.NotNil(t, openAIProvider)
+		require.True(t, openAIProvider.Available)
+		require.Len(t, openAIProvider.Models, 1)
+		require.Equal(t, "gpt-4o-deployment-only", openAIProvider.Models[0].Model)
+	})
+
 	t.Run("DisabledProvidersAndModelsAreFilteredOut", func(t *testing.T) {
 		t.Parallel()
 

@@ -76,6 +76,8 @@ const getInitialSelectedConfigId = (
 	return "";
 };
 
+const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
+
 const validationSchema = Yup.object({
 	model: Yup.string().trim().required("Model ID is required."),
 	displayName: Yup.string(),
@@ -178,9 +180,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 			const trimmedDisplayName = values.displayName.trim();
 			const builtModelConfig = buildResult.modelConfig;
+			const selectedProviderConfigID =
+				selectedConfigId && selectedConfigId !== nilProviderConfigID
+					? selectedConfigId
+					: null;
 
 			if (isEditing && editingModel) {
-				const req: TypesGen.UpdateChatModelConfigRequest = {
+				const baseReq: TypesGen.UpdateChatModelConfigRequest = {
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
 					}),
@@ -202,12 +208,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 					...(values.isDefault !== editingModel.is_default && {
 						is_default: values.isDefault,
 					}),
-					...(selectedConfigId !== (editingModel.provider_config_id ?? "") && {
-						provider_config_id: selectedConfigId || null,
-					}),
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
 				};
+				const providerConfigChanged =
+					(selectedProviderConfigID ?? "") !==
+					(editingModel.provider_config_id ?? "");
+				let req: TypesGen.UpdateChatModelConfigRequest;
+				if (providerConfigChanged) {
+					req = { ...baseReq, provider_config_id: selectedProviderConfigID };
+				} else {
+					req = baseReq;
+				}
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
@@ -218,13 +230,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 					return;
 				}
 
-				const req: TypesGen.CreateChatModelConfigRequest = {
+				const baseReq: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
 					model: trimmedModel,
 					enabled: true,
-					...(selectedConfigId && {
-						provider_config_id: selectedConfigId,
-					}),
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -241,6 +250,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 						model_config: builtModelConfig,
 					}),
 				};
+				let req: TypesGen.CreateChatModelConfigRequest;
+				if (selectedProviderConfigID) {
+					req = { ...baseReq, provider_config_id: selectedProviderConfigID };
+				} else {
+					req = baseReq;
+				}
 
 				await onCreateModel(req);
 			}

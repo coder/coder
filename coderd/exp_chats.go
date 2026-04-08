@@ -615,6 +615,13 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		}
 		enabledProviderNames[normalizedProvider] = struct{}{}
 	}
+	// Include env-preset providers when deployment values provide a usable key.
+	for _, provider := range chatprovider.SupportedProviders() {
+		if !chatprovider.IsEnvPresetProvider(provider) || deploymentKeys.APIKey(provider) == "" {
+			continue
+		}
+		enabledProviderNames[provider] = struct{}{}
+	}
 	for _, provider := range visibleProviders {
 		configuredProviders = append(
 			configuredProviders, chatprovider.ConfiguredProvider{
