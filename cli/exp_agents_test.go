@@ -1663,6 +1663,80 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "delivered", updated.blocks[0].text)
 		})
 
+		t.Run("DisconnectedSendRestartsStream", func(t *testing.T) {
+			t.Parallel()
+
+			chat := testChat(codersdk.ChatStatusCompleted)
+			message := testMessage(22, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "sent"})
+			streamQueryCh := make(chan string, 1)
+			streamErrCh := make(chan error, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				wantPath := fmt.Sprintf("/api/experimental/chats/%s/stream", chat.ID)
+				if req.URL.Path != wantPath {
+					select {
+					case streamErrCh <- xerrors.Errorf("stream path %q, want %q", req.URL.Path, wantPath):
+					default:
+					}
+					rw.WriteHeader(http.StatusNotFound)
+					return
+				}
+
+				conn, err := websocket.Accept(rw, req, nil)
+				if err != nil {
+					select {
+					case streamErrCh <- err:
+					default:
+					}
+					return
+				}
+				defer conn.Close(websocket.StatusNormalClosure, "")
+
+				select {
+				case streamQueryCh <- req.URL.RawQuery:
+				default:
+				}
+			}))
+			defer server.Close()
+
+			serverURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+
+			model := newTestChatViewModel(codersdk.NewExperimentalClient(codersdk.New(serverURL)))
+			model.setChat(chat)
+
+			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{Message: &message}})
+			defer updated.stopStream()
+			require.NotNil(t, cmd)
+			require.True(t, updated.streaming)
+			require.NotNil(t, updated.streamCloser)
+			require.NotNil(t, updated.streamEventCh)
+			require.Len(t, updated.messages, 1)
+
+			select {
+			case err := <-streamErrCh:
+				require.NoError(t, err)
+			case query := <-streamQueryCh:
+				require.Equal(t, fmt.Sprintf("after_id=%d", message.ID), query)
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for restarted chat stream connection")
+			}
+		})
+
+		t.Run("ActiveStreamDoesNotReconnectOnSend", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusCompleted)
+			message := testMessage(24, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "delivered"})
+			model.setChat(chat)
+			model.streaming = true
+
+			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{Message: &message}})
+			require.Nil(t, cmd)
+			require.True(t, updated.streaming)
+			require.Len(t, updated.messages, 1)
+		})
+
 		t.Run("SuccessfulSendClearsPreviousError", func(t *testing.T) {
 			t.Parallel()
 

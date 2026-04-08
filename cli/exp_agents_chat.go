@@ -760,6 +760,10 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.queuedMessages = []codersdk.ChatQueuedMessage{*msg.resp.QueuedMessage}
 		}
 		m.rebuildBlocks()
+		if m.readyToStartStream() {
+			updated, cmd := m.startStream()
+			return updated, startSpinner(updated, cmd)
+		}
 		return m, startSpinner(m, nil)
 
 	case chatInterruptedMsg:
