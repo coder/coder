@@ -13,13 +13,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type openSelectedChatMsg struct {
-	chatID uuid.UUID
-}
-
-type openDraftChatMsg struct{}
-
-type refreshChatsMsg struct{}
+type (
+	openSelectedChatMsg struct {
+		chatID uuid.UUID
+	}
+	openDraftChatMsg struct{}
+	refreshChatsMsg  struct{}
+)
 
 type chatDisplayRow struct {
 	chat       codersdk.Chat
@@ -159,22 +159,21 @@ func (m *chatListModel) moveCursorToChat(chatID uuid.UUID) {
 	}
 }
 
-func (m *chatListModel) expandSelectedRow() bool {
-	row, ok := m.selectedRow()
-	if !ok || row.isSubagent || row.childCount == 0 || row.isExpanded {
-		return false
-	}
-	m.expanded[row.chat.ID] = true
-	return true
-}
+type chatExpansionIntent int
 
-func (m *chatListModel) collapseSelectedRow() bool {
+const (
+	chatExpansionToggle chatExpansionIntent = iota
+	chatExpansionExpand
+	chatExpansionCollapse
+)
+
+func (m *chatListModel) updateSelectedRowExpansion(intent chatExpansionIntent) bool {
 	row, ok := m.selectedRow()
 	if !ok {
 		return false
 	}
 	if row.isSubagent {
-		if row.chat.ParentChatID == nil {
+		if intent == chatExpansionExpand || row.chat.ParentChatID == nil {
 			return false
 		}
 		parentID := *row.chat.ParentChatID
@@ -182,28 +181,35 @@ func (m *chatListModel) collapseSelectedRow() bool {
 		m.moveCursorToChat(parentID)
 		return true
 	}
-	if row.childCount == 0 || !m.expanded[row.chat.ID] {
-		return false
-	}
-	m.expanded[row.chat.ID] = false
-	return true
-}
-
-func (m *chatListModel) toggleSelectedRowExpansion() bool {
-	row, ok := m.selectedRow()
-	if !ok {
-		return false
-	}
-	if row.isSubagent {
-		return m.collapseSelectedRow()
-	}
 	if row.childCount == 0 {
 		return false
 	}
-	if row.isExpanded {
-		return m.collapseSelectedRow()
+
+	switch intent {
+	case chatExpansionExpand:
+		if row.isExpanded {
+			return false
+		}
+		m.expanded[row.chat.ID] = true
+	case chatExpansionCollapse:
+		if !m.expanded[row.chat.ID] {
+			return false
+		}
+		m.expanded[row.chat.ID] = false
+	case chatExpansionToggle:
+		if row.isExpanded {
+			if !m.expanded[row.chat.ID] {
+				return false
+			}
+			m.expanded[row.chat.ID] = false
+			return true
+		}
+		m.expanded[row.chat.ID] = true
+	default:
+		return false
 	}
-	return m.expandSelectedRow()
+
+	return true
 }
 
 func (m chatListModel) selectedChat() *codersdk.Chat {
@@ -247,23 +253,9 @@ func (m chatListModel) visibleWindow(total int) (start int, end int) {
 	}
 
 	visibleCount := m.visibleChatCount()
-	start = max(m.offset, 0)
 	maxOffset := max(total-visibleCount, 0)
-	if start > maxOffset {
-		start = maxOffset
-	}
-	if m.cursor < start {
-		start = m.cursor
-	}
-	if m.cursor >= start+visibleCount {
-		start = m.cursor - visibleCount + 1
-	}
-	if start < 0 {
-		start = 0
-	}
-	if start > maxOffset {
-		start = maxOffset
-	}
+	cursor := min(max(m.cursor, 0), total-1)
+	start = min(max(min(max(m.offset, 0), maxOffset), cursor-visibleCount+1), cursor)
 	end = min(start+visibleCount, total)
 	return start, end
 }
@@ -346,19 +338,19 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 			m.ensureCursorVisible()
 			return m, nil
 		case "right", "l":
-			if m.expandSelectedRow() {
+			if m.updateSelectedRowExpansion(chatExpansionExpand) {
 				m.clampCursor()
 				m.ensureCursorVisible()
 			}
 			return m, nil
 		case "left", "h":
-			if m.collapseSelectedRow() {
+			if m.updateSelectedRowExpansion(chatExpansionCollapse) {
 				m.clampCursor()
 				m.ensureCursorVisible()
 			}
 			return m, nil
 		case "x":
-			if m.toggleSelectedRowExpansion() {
+			if m.updateSelectedRowExpansion(chatExpansionToggle) {
 				m.clampCursor()
 				m.ensureCursorVisible()
 			}
