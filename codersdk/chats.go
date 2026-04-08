@@ -2343,6 +2343,92 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 	}), nil
 }
 
+// GetChatDebugLogging returns the runtime admin setting that allows
+// users to opt into chat debug logging.
+func (c *ExperimentalClient) GetChatDebugLogging(ctx context.Context) (ChatDebugLoggingAdminSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-logging", nil)
+	if err != nil {
+		return ChatDebugLoggingAdminSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugLoggingAdminSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugLoggingAdminSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugLogging updates the runtime admin setting that allows
+// users to opt into chat debug logging.
+func (c *ExperimentalClient) UpdateChatDebugLogging(ctx context.Context, req UpdateChatDebugLoggingAllowUsersRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatDebugLogging returns whether chat debug logging is active
+// for the current user and whether the user may change it.
+func (c *ExperimentalClient) GetUserChatDebugLogging(ctx context.Context) (UserChatDebugLoggingSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-debug-logging", nil)
+	if err != nil {
+		return UserChatDebugLoggingSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatDebugLoggingSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserChatDebugLoggingSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatDebugLogging updates the current user's chat debug
+// logging preference.
+func (c *ExperimentalClient) UpdateUserChatDebugLogging(ctx context.Context, req UpdateUserChatDebugLoggingRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatDebugRuns returns the debug runs for a chat.
+func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.UUID) ([]ChatDebugRunSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatDebugRunSummary
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatDebugRun returns a debug run for a chat.
+func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), nil)
+	if err != nil {
+		return ChatDebugRun{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRun{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRun
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // GetChat returns a chat by ID.
 func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)

@@ -9008,6 +9008,148 @@ func TestChatDesktopEnabled(t *testing.T) {
 	})
 }
 
+func TestChatDebugLoggingSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DefaultDisabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		adminResp, err := adminClient.GetChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.False(t, adminResp.AllowUsers)
+		require.False(t, adminResp.ForcedByDeployment)
+
+		userResp, err := memberClient.GetUserChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.False(t, userResp.DebugLoggingEnabled)
+		require.False(t, userResp.UserToggleAllowed)
+		require.False(t, userResp.ForcedByDeployment)
+	})
+
+	t.Run("AdminAllowsUsersToOptIn", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		err := adminClient.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{
+			AllowUsers: true,
+		})
+		require.NoError(t, err)
+
+		userResp, err := memberClient.GetUserChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.False(t, userResp.DebugLoggingEnabled)
+		require.True(t, userResp.UserToggleAllowed)
+		require.False(t, userResp.ForcedByDeployment)
+
+		err = memberClient.UpdateUserChatDebugLogging(ctx, codersdk.UpdateUserChatDebugLoggingRequest{
+			DebugLoggingEnabled: true,
+		})
+		require.NoError(t, err)
+
+		userResp, err = memberClient.GetUserChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.True(t, userResp.DebugLoggingEnabled)
+		require.True(t, userResp.UserToggleAllowed)
+		require.False(t, userResp.ForcedByDeployment)
+
+		err = adminClient.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{
+			AllowUsers: false,
+		})
+		require.NoError(t, err)
+
+		userResp, err = memberClient.GetUserChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.False(t, userResp.DebugLoggingEnabled)
+		require.False(t, userResp.UserToggleAllowed)
+	})
+
+	t.Run("UserWriteFailsWhenAdminDisabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		err := memberClient.UpdateUserChatDebugLogging(ctx, codersdk.UpdateUserChatDebugLoggingRequest{
+			DebugLoggingEnabled: true,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("NonAdminCannotManageAdminSetting", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.GetChatDebugLogging(ctx)
+		requireSDKError(t, err, http.StatusNotFound)
+
+		err = memberClient.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{
+			AllowUsers: true,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("DeploymentForceEnablesDebugLogging", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		values := chatDeploymentValues(t)
+		values.AI.Chat.DebugLoggingEnabled = serpent.Bool(true)
+		adminClient := newChatClientWithDeploymentValues(t, values)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		adminResp, err := adminClient.GetChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.False(t, adminResp.AllowUsers)
+		require.True(t, adminResp.ForcedByDeployment)
+
+		userResp, err := memberClient.GetUserChatDebugLogging(ctx)
+		require.NoError(t, err)
+		require.True(t, userResp.DebugLoggingEnabled)
+		require.False(t, userResp.UserToggleAllowed)
+		require.True(t, userResp.ForcedByDeployment)
+
+		err = memberClient.UpdateUserChatDebugLogging(ctx, codersdk.UpdateUserChatDebugLoggingRequest{
+			DebugLoggingEnabled: false,
+		})
+		requireSDKError(t, err, http.StatusConflict)
+	})
+
+	t.Run("UnauthenticatedUserReadFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
+		_, err := anonClient.GetUserChatDebugLogging(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
 func TestChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -9153,7 +9295,7 @@ func TestChatRetentionDays(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
-//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+//nolint:tparallel // subtests share state via client, firstUser, modelConfig
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
 
@@ -9161,7 +9303,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
-	t.Run("EmptyByDefault", func(t *testing.T) {
+	t.Run("EmptyByDefault", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		thresholds, err := client.GetUserChatCompactionThresholds(ctx)
@@ -9169,7 +9311,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.Empty(t, thresholds.Thresholds)
 	})
 
-	t.Run("PutAndGet", func(t *testing.T) {
+	t.Run("PutAndGet", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -9186,7 +9328,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("UpsertChangesValue", func(t *testing.T) {
+	t.Run("UpsertChangesValue", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -9206,7 +9348,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("BoundaryValues", func(t *testing.T) {
+	t.Run("BoundaryValues", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -9232,7 +9374,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.EqualValues(t, 100, thresholds.Thresholds[0].ThresholdPercent)
 	})
 
-	t.Run("ValidationRejectsInvalid", func(t *testing.T) {
+	t.Run("ValidationRejectsInvalid", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
@@ -9246,7 +9388,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("Delete", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
@@ -9257,14 +9399,14 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.Empty(t, thresholds.Thresholds)
 	})
 
-	t.Run("DeleteIdempotent", func(t *testing.T) {
+	t.Run("DeleteIdempotent", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteUserChatCompactionThreshold(ctx, modelConfig.ID)
 		require.NoError(t, err)
 	})
 
-	t.Run("NonExistentModelConfig", func(t *testing.T) {
+	t.Run("NonExistentModelConfig", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		fakeID := uuid.New()
@@ -9274,7 +9416,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("IsolatedPerUser", func(t *testing.T) {
+	t.Run("IsolatedPerUser", func(t *testing.T) { //nolint:paralleltest // subtests share parent state
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)

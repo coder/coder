@@ -1545,6 +1545,14 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return parts, nil
 }
 
+func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
+	if !v.Valid {
+		return nil
+	}
+	value := v.UUID
+	return &value
+}
+
 func nullInt64Ptr(v sql.NullInt64) *int64 {
 	if !v.Valid {
 		return nil
@@ -1758,6 +1766,33 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 		StartedAt:           s.StartedAt,
 		UpdatedAt:           s.UpdatedAt,
 		FinishedAt:          nullTimePtr(s.FinishedAt),
+	}
+}
+
+// ChatDebugRunDetail converts a database.ChatDebugRun and its steps
+// to a codersdk.ChatDebugRun.
+func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep) codersdk.ChatDebugRun {
+	sdkSteps := make([]codersdk.ChatDebugStep, 0, len(steps))
+	for _, s := range steps {
+		sdkSteps = append(sdkSteps, ChatDebugStep(s))
+	}
+	return codersdk.ChatDebugRun{
+		ID:                  r.ID,
+		ChatID:              r.ChatID,
+		RootChatID:          nullUUIDPtr(r.RootChatID),
+		ParentChatID:        nullUUIDPtr(r.ParentChatID),
+		ModelConfigID:       nullUUIDPtr(r.ModelConfigID),
+		TriggerMessageID:    nullInt64Ptr(r.TriggerMessageID),
+		HistoryTipMessageID: nullInt64Ptr(r.HistoryTipMessageID),
+		Kind:                codersdk.ChatDebugRunKind(r.Kind),
+		Status:              codersdk.ChatDebugStatus(r.Status),
+		Provider:            nullStringPtr(r.Provider),
+		Model:               nullStringPtr(r.Model),
+		Summary:             rawJSONObject(r.Summary),
+		StartedAt:           r.StartedAt,
+		UpdatedAt:           r.UpdatedAt,
+		FinishedAt:          nullTimePtr(r.FinishedAt),
+		Steps:               sdkSteps,
 	}
 }
 
