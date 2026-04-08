@@ -1,9 +1,12 @@
 # Models
 
 Administrators configure LLM providers and models from the Coder dashboard.
-These are deployment-wide settings — developers do not manage API keys or
-provider configuration. They select from the set of models that an administrator
+Providers, models, and API keys are deployment-wide settings managed by
+platform teams. Developers select from the set of models that an administrator
 has enabled.
+
+Optionally, administrators can allow developers to supply their own API keys
+for specific providers. See [User API keys](#user-api-keys-byok) below.
 
 ## Providers
 
@@ -56,6 +59,38 @@ Because the agent loop runs in the control plane, workspaces never need direct
 access to LLM providers. See
 [Architecture](./architecture.md#no-api-keys-in-workspaces) for details
 on this security model.
+
+### Key policy
+
+Each provider has three policy flags that control how API keys are sourced:
+
+| Setting                 | Default | Description                                                                                         |
+|-------------------------|---------|-----------------------------------------------------------------------------------------------------|
+| Central API key         | On      | The provider uses a deployment-managed API key entered by an administrator.                         |
+| Allow user API keys     | Off     | Developers may supply their own API key for this provider.                                          |
+| Central key as fallback | Off     | When user keys are allowed, fall back to the central key if a developer has not set a personal key. |
+
+At least one credential source must be enabled. These settings appear in the
+provider configuration form under **Key policy**.
+
+The interaction between these flags determines whether a provider is available
+to a given developer:
+
+| Central key | User keys allowed | Fallback | Developer has key | Result               |
+|-------------|-------------------|----------|-------------------|----------------------|
+| On          | Off               | —        | —                 | Uses central key     |
+| Off         | On                | —        | Yes               | Uses developer's key |
+| Off         | On                | —        | No                | Unavailable          |
+| On          | On                | Off      | Yes               | Uses developer's key |
+| On          | On                | Off      | No                | Unavailable          |
+| On          | On                | On       | Yes               | Uses developer's key |
+| On          | On                | On       | No                | Uses central key     |
+
+When a developer's personal key is present, it always takes precedence over
+the central key. When user keys are required and fallback is disabled,
+the provider is unavailable to developers who have not saved a personal key —
+even if a central key exists. This is intentional: it enforces that each
+developer authenticates with their own credentials.
 
 ## Models
 
@@ -132,11 +167,11 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### OpenAI
 
-| Option                | Description                                                                                       |
-|-----------------------|---------------------------------------------------------------------------------------------------|
-| Reasoning Effort      | How much effort the model spends reasoning (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`). |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.                                                    |
-| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                                |
+| Option                | Description                                                                               |
+|-----------------------|-------------------------------------------------------------------------------------------|
+| Reasoning Effort      | How much effort the model spends reasoning (`minimal`, `low`, `medium`, `high`, `xhigh`). |
+| Max Completion Tokens | Cap on completion tokens for reasoning models.                                            |
+| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                        |
 
 #### Google
 
@@ -147,10 +182,10 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### OpenRouter
 
-| Option            | Description                                                                   |
-|-------------------|-------------------------------------------------------------------------------|
-| Reasoning Enabled | Enable extended reasoning mode.                                               |
-| Reasoning Effort  | Reasoning effort level (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`). |
+| Option            | Description                                       |
+|-------------------|---------------------------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode.                   |
+| Reasoning Effort  | Reasoning effort level (`low`, `medium`, `high`). |
 
 #### Vercel AI Gateway
 
@@ -176,9 +211,48 @@ The model selector uses the following precedence to pre-select a model:
 1. **Admin-designated default** — the model marked with the star icon.
 1. **First available model** — if no default is set and no history exists.
 
-Developers cannot add their own providers, models, or API keys. If no models
-are configured, the chat interface displays a message directing developers to
+Developers cannot add their own providers or models. If no models are
+configured, the chat interface displays a message directing developers to
 contact an administrator.
+
+## User API keys (BYOK)
+
+When an administrator enables **Allow user API keys** on a provider,
+developers can supply their own API key from the Agents settings page.
+
+### Managing personal API keys
+
+1. Navigate to the **Agents** page in the Coder dashboard.
+1. Open **Settings** and select the **API Keys** tab.
+1. Each provider that allows user keys is listed with a status indicator:
+   - **Key saved** — your personal key is active and will be used for requests.
+   - **Using shared key** — no personal key set, but the central deployment
+     key is available as a fallback.
+   - **No key** — you must add a personal key before you can use this provider.
+1. Enter your API key and click **Save**.
+
+Personal API keys are encrypted at rest using the same database encryption
+as deployment-managed keys. The dashboard never displays a saved key — only
+whether one is set.
+
+### How key selection works
+
+When you start a chat, the control plane resolves which API key to use for
+each provider:
+
+1. If you have a personal key for the provider, it is used.
+1. If you do not have a personal key and central key fallback is enabled,
+   the deployment-managed key is used.
+1. If you do not have a personal key and fallback is disabled, the provider
+   is unavailable to you. Models from that provider will not appear in the
+   model selector.
+
+### Removing a personal key
+
+Click **Remove** on the provider card in the API Keys settings tab. If
+central key fallback is enabled, subsequent requests will use the shared
+deployment key. If fallback is disabled, the provider becomes unavailable
+until you add a new personal key.
 
 ## Using an LLM proxy
 

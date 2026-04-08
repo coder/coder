@@ -180,6 +180,15 @@ configuration set by an administrator.
 |--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | `web_search` | Searches the internet for up-to-date information. Available when web search is enabled for the configured Anthropic, OpenAI, or Google provider. |
 
+### Workspace extension tools
+
+These tools are conditionally available based on the workspace contents.
+
+| Tool              | What it does                                                                                                                   |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `read_skill`      | Reads the instructions for a workspace skill by name. Available when the workspace has skills discovered in `.agents/skills/`. |
+| `read_skill_file` | Reads a supporting file from a skill's directory.                                                                              |
+
 ## What runs where
 
 Understanding the split between the control plane and the workspace is central
