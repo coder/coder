@@ -24,9 +24,8 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for enabling the experiment and
   configuring providers.
-- **Coder Agents User role** is automatically assigned to new users when the
-  `agents` experiment is enabled. For existing users, owners can assign it from
-  **Admin** > **Users**. See
+- **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
+  Owners can assign this from **Admin** > **Users**. See
   [Grant Coder Agents User](#step-3-grant-coder-agents-user) below.
 
 ## Step 1: Enable the experiment
@@ -75,20 +74,14 @@ Detailed instructions for each provider and model option are in the
 
 ## Step 3: Grant Coder Agents User
 
-The **Coder Agents User** role controls which users can interact with
-Coder Agents.
+The **Coder Agents User** role controls which users can interact with Coder Agents.
+Members do not have Coder Agents User by default.
 
-### New users
+Owners always have full access and do not need the role. Repeat the following steps for each user who needs access.
 
-When the `agents` experiment is enabled, new users are automatically
-assigned the **Coder Agents User** role at account creation. No admin
-action is required.
-
-### Existing users
-
-Users who were created before the experiment was enabled do not receive
-the role automatically. Owners can assign it from the dashboard or in
-bulk via the CLI.
+> [!NOTE]
+> Users who created conversations before this role was introduced are
+> automatically granted the role during upgrade.
 
 **Dashboard (individual):**
 
@@ -98,7 +91,8 @@ bulk via the CLI.
 
 **CLI (bulk):**
 
-To grant the role to all active users at once:
+You can also grant the role via CLI. For example, to grant the role to
+all active users at once:
 
 ```sh
 coder users list -o json \
@@ -110,12 +104,6 @@ coder users list -o json \
         --yes
     done
 ```
-
-Owners always have full access and do not need the role.
-
-> [!NOTE]
-> Users who created conversations before this role was introduced are
-> automatically granted the role during upgrade.
 
 ## Step 4: Start your first Coder Agent
 
