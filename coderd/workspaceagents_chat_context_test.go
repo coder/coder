@@ -129,9 +129,12 @@ func TestAgentChatContext(t *testing.T) {
 			cachedOrdered: false,
 		},
 		{
-			name:          "AddSuccessWithSkillOnlyPartsGetsSentinel",
-			steps:         []addSuccessStep{{req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{repoHelperSkillPart}}, wantCount: 1}},
-			wantStored:    [][]codersdk.ChatMessagePart{{{Type: codersdk.ChatMessagePartTypeContextFile}, repoHelperSkillPart}},
+			name:  "AddSuccessWithSkillOnlyPartsGetsSentinel",
+			steps: []addSuccessStep{{req: agentsdk.AddChatContextRequest{Parts: []codersdk.ChatMessagePart{repoHelperSkillPart}}, wantCount: 1}},
+			wantStored: [][]codersdk.ChatMessagePart{{{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: chatd.AgentChatContextSentinelPath,
+			}, repoHelperSkillPart}},
 			storedOrdered: true,
 			wantCached:    []codersdk.ChatMessagePart{cachedRepoHelperSkillPart},
 			cachedOrdered: true,

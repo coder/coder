@@ -93,6 +93,68 @@ func instructionFromContextFiles(
 	return formatSystemInstructions(os, dir, contextParts)
 }
 
+// hasPersistedInstructionFiles reports whether messages include a
+// persisted context-file part that should suppress another baseline
+// instruction-file lookup. The workspace-agent skill-only sentinel is
+// ignored so default instructions still load on fresh chats.
+func hasPersistedInstructionFiles(
+	messages []database.ChatMessage,
+) bool {
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile ||
+				!part.ContextFileAgentID.Valid ||
+				part.ContextFilePath == AgentChatContextSentinelPath {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func mergeSkillMetas(
+	persisted []chattool.SkillMeta,
+	discovered []chattool.SkillMeta,
+) []chattool.SkillMeta {
+	if len(persisted) == 0 {
+		return discovered
+	}
+	if len(discovered) == 0 {
+		return persisted
+	}
+
+	seen := make(map[string]struct{}, len(persisted)+len(discovered))
+	merged := make([]chattool.SkillMeta, 0, len(persisted)+len(discovered))
+	appendUnique := func(skill chattool.SkillMeta) {
+		metaFile := skill.MetaFile
+		if metaFile == "" {
+			metaFile = chattool.DefaultSkillMetaFile
+		}
+		key := skill.Name + "\x00" + skill.Dir + "\x00" + metaFile
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, skill)
+	}
+	for _, skill := range persisted {
+		appendUnique(skill)
+	}
+	for _, skill := range discovered {
+		appendUnique(skill)
+	}
+	return merged
+}
+
 // skillsFromParts reconstructs skill metadata from persisted
 // skill parts. This is analogous to instructionFromContextFiles
 // so the skill index can be re-injected after compaction without

@@ -4452,10 +4452,11 @@ func (p *Server) runChat(
 	// the workspace agent has changed (e.g. workspace rebuilt).
 	needsInstructionPersist := false
 	hasContextFiles := false
+	persistedSkills := skillsFromParts(messages)
 	if chat.WorkspaceID.Valid {
 		persistedAgentID, found := contextFileAgentID(messages)
 		hasContextFiles = found
-		if !hasContextFiles {
+		if !hasPersistedInstructionFiles(messages) {
 			needsInstructionPersist = true
 		} else if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID != persistedAgentID {
 			// Agent changed — persist fresh instruction files.
@@ -4481,7 +4482,8 @@ func (p *Server) runChat(
 	if needsInstructionPersist {
 		g2.Go(func() error {
 			var persistErr error
-			instruction, skills, persistErr = p.persistInstructionFiles(
+			var discoveredSkills []chattool.SkillMeta
+			instruction, discoveredSkills, persistErr = p.persistInstructionFiles(
 				ctx,
 				chat,
 				modelConfig.ID,
@@ -4493,6 +4495,7 @@ func (p *Server) runChat(
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
 			)
+			skills = mergeSkillMetas(persistedSkills, discoveredSkills)
 			if persistErr != nil {
 				p.logger.Warn(ctx, "failed to persist instruction files",
 					slog.F("chat_id", chat.ID),
@@ -4507,7 +4510,7 @@ func (p *Server) runChat(
 		// re-injected via InsertSystem after compaction drops
 		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
-		skills = skillsFromParts(messages)
+		skills = persistedSkills
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)

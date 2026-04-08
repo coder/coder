@@ -2036,6 +2036,69 @@ func TestContextFileAgentID(t *testing.T) {
 	})
 }
 
+func TestHasPersistedInstructionFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IgnoresAgentChatContextSentinel", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			}}),
+		}
+		require.False(t, hasPersistedInstructionFiles(msgs))
+	})
+
+	t.Run("AcceptsPersistedInstructionFile", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileContent: "repo instructions",
+				ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+			}}),
+		}
+		require.True(t, hasPersistedInstructionFiles(msgs))
+	})
+}
+
+func TestMergeSkillMetas(t *testing.T) {
+	t.Parallel()
+
+	persisted := []chattool.SkillMeta{{
+		Name:        "repo-helper",
+		Description: "Persisted skill",
+		Dir:         "/skills/repo-helper",
+	}}
+	discovered := []chattool.SkillMeta{
+		{
+			Name:        "repo-helper",
+			Description: "Discovered duplicate",
+			Dir:         "/skills/repo-helper",
+			MetaFile:    "SKILL.md",
+		},
+		{
+			Name:        "deep-review",
+			Description: "Discovered skill",
+			Dir:         "/skills/deep-review",
+		},
+	}
+
+	got := mergeSkillMetas(persisted, discovered)
+	require.Equal(t, []chattool.SkillMeta{
+		persisted[0],
+		discovered[1],
+	}, got)
+}
+
 func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
 	raw, _ := json.Marshal(parts)
 	return database.ChatMessage{

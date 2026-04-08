@@ -2767,7 +2767,8 @@ func prependAgentChatContextSentinelIfNeeded(
 		return parts
 	}
 	return append([]codersdk.ChatMessagePart{{
-		Type: codersdk.ChatMessagePartTypeContextFile,
+		Type:            codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath: chatd.AgentChatContextSentinelPath,
 		ContextFileAgentID: uuid.NullUUID{
 			UUID:  agentID,
 			Valid: true,

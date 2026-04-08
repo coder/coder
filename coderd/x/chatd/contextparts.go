@@ -12,6 +12,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// AgentChatContextSentinelPath marks the synthetic empty context-file
+// part used to preserve skill-only workspace-agent additions across
+// turns without treating them as persisted instruction files.
+const AgentChatContextSentinelPath = ".coder/agent-chat-context-sentinel"
+
 // FilterContextParts keeps only context-file and skill parts from parts.
 // When keepEmptyContextFiles is false, context-file parts with empty
 // content are dropped. When keepEmptyContextFiles is true, empty
