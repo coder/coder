@@ -184,6 +184,23 @@ func mergeSkillMetas(
 	return merged
 }
 
+// selectSkillMetasForInstructionRefresh chooses which skill metadata
+// should be injected on a turn that refreshes instruction files.
+func selectSkillMetasForInstructionRefresh(
+	persisted []chattool.SkillMeta,
+	discovered []chattool.SkillMeta,
+	currentAgentID uuid.NullUUID,
+	latestInjectedAgentID uuid.NullUUID,
+) []chattool.SkillMeta {
+	if currentAgentID.Valid && latestInjectedAgentID.Valid && latestInjectedAgentID.UUID == currentAgentID.UUID {
+		return mergeSkillMetas(persisted, discovered)
+	}
+	if !currentAgentID.Valid && len(discovered) == 0 {
+		return persisted
+	}
+	return discovered
+}
+
 // skillsFromParts reconstructs skill metadata from persisted
 // skill parts. This is analogous to instructionFromContextFiles
 // so the skill index can be re-injected after compaction without

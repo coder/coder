@@ -4531,11 +4531,12 @@ func (p *Server) runChat(
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
 			)
-			if hasCurrentWorkspaceAgent && hasLatestInjectedAgent && latestInjectedAgentID == currentWorkspaceAgentID {
-				skills = mergeSkillMetas(persistedSkills, discoveredSkills)
-			} else {
-				skills = discoveredSkills
-			}
+			skills = selectSkillMetasForInstructionRefresh(
+				persistedSkills,
+				discoveredSkills,
+				uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
+				uuid.NullUUID{UUID: latestInjectedAgentID, Valid: hasLatestInjectedAgent},
+			)
 			if persistErr != nil {
 				p.logger.Warn(ctx, "failed to persist instruction files",
 					slog.F("chat_id", chat.ID),

@@ -2225,6 +2225,48 @@ func TestMergeSkillMetas(t *testing.T) {
 	}, got)
 }
 
+func TestSelectSkillMetasForInstructionRefresh(t *testing.T) {
+	t.Parallel()
+
+	persisted := []chattool.SkillMeta{{Name: "persisted", Dir: "/skills/persisted"}}
+	discovered := []chattool.SkillMeta{{Name: "discovered", Dir: "/skills/discovered"}}
+	currentAgentID := uuid.New()
+	otherAgentID := uuid.New()
+
+	t.Run("MergesCurrentAgentSkills", func(t *testing.T) {
+		t.Parallel()
+		got := selectSkillMetasForInstructionRefresh(
+			persisted,
+			discovered,
+			uuid.NullUUID{UUID: currentAgentID, Valid: true},
+			uuid.NullUUID{UUID: currentAgentID, Valid: true},
+		)
+		require.Equal(t, []chattool.SkillMeta{discovered[0], persisted[0]}, got)
+	})
+
+	t.Run("DropsStalePersistedSkillsWhenAgentChanged", func(t *testing.T) {
+		t.Parallel()
+		got := selectSkillMetasForInstructionRefresh(
+			persisted,
+			discovered,
+			uuid.NullUUID{UUID: currentAgentID, Valid: true},
+			uuid.NullUUID{UUID: otherAgentID, Valid: true},
+		)
+		require.Equal(t, discovered, got)
+	})
+
+	t.Run("PreservesPersistedSkillsWhenAgentLookupFails", func(t *testing.T) {
+		t.Parallel()
+		got := selectSkillMetasForInstructionRefresh(
+			persisted,
+			nil,
+			uuid.NullUUID{},
+			uuid.NullUUID{UUID: otherAgentID, Valid: true},
+		)
+		require.Equal(t, persisted, got)
+	})
+}
+
 func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	t.Parallel()
 
