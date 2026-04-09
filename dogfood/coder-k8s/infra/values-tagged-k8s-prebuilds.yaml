@@ -1,0 +1,107 @@
+#
+# Helm values for the K8s-tagged prebuilds provisioner. This provisioner
+# handles prebuild workspace builds from the coder-k8s template
+# (tags: cluster=dogfood-v2 env=eks is_prebuild=true).
+#
+# !!! DO NOT PUT SECRETS IN THIS FILE
+#
+
+coder:
+  replicaCount: 3
+
+  image:
+    repo: "ghcr.io/coder/coder-preview"
+    tag: dogfood
+    pullPolicy: Always
+
+  annotations: {}
+  labels: {}
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/"
+    prometheus.io/port: "2112"
+  podLabels: []
+
+  env:
+    - name: CODER_URL
+      value: "https://dev.coder.com"
+    - name: CODER_CACHE_DIRECTORY
+      value: "/tmp/coder"
+    - name: CODER_EXPERIMENTS
+      value: ""
+
+    # Observability
+    - name: CODER_TRACE_ENABLE
+      value: "true"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://tempo.monitoring.svc.cluster.local:4317"
+    - name: OTEL_TRACES_SAMPLER
+      value: always_on
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+    - name: CODER_PROMETHEUS_COLLECT_AGENT_STATS
+      value: "true"
+    - name: CODER_PROMETHEUS_COLLECT_DB_METRICS
+      value: "true"
+    - name: CODER_PROVISIONER_DAEMON_LOGGING_HUMAN
+      value: "/dev/null"
+    - name: CODER_PROVISIONER_DAEMON_LOGGING_JSON
+      value: "/dev/stderr"
+    - name: CODER_PPROF_ENABLE
+      value: "true"
+    - name: CODER_PROVISIONER_DAEMON_VERBOSE
+      value: "true"
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                    - "coder-provisioner-tagged-k8s-prebuilds"
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 2000m
+      memory: 512Mi
+
+  securityContext:
+    readOnlyRootFilesystem: true
+
+  serviceAccount:
+    name: coder-provisioner
+    disableCreate: true
+    workspacePerms: false
+    enableDeployments: false
+
+  volumeMounts:
+    - mountPath: /tmp
+      name: cache
+      readOnly: false
+    - mountPath: /home/coder
+      name: home
+      readOnly: false
+
+  volumes:
+    - name: cache
+      emptyDir:
+        sizeLimit: 1024Mi
+    - name: home
+      emptyDir:
+        sizeLimit: 1024Mi
+
+provisionerDaemon:
+  keySecretName: coder-provisioner-keys
+  # Create this key in the Coder UI with tags: cluster=dogfood-v2 env=eks is_prebuild=true
+  keySecretKey: eks-dogfood-v2-coder-tagged-k8s-prebuilds
+
+nameOverride: coder-provisioner-tagged-k8s-prebuilds

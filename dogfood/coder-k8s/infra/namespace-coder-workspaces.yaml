@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coder-workspaces
+  labels:
+    elbv2.k8s.aws/pod-readiness-gate-inject: enabled
+---
+# Allow workspace pods up to the aggregate limits below. Individual
+# workspace sizes are controlled by the Coder template parameters +
+# quota system; this is a safety net.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: resourcequota-coder-workspaces
+  namespace: coder-workspaces
+spec:
+  hard:
+    # Allow a reasonable number of concurrent workspaces.
+    limits.cpu: "256"
+    limits.memory: 1Ti
+    requests.cpu: "64"
+    requests.memory: 256Gi
+    requests.storage: 10Ti
+    persistentvolumeclaims: "200"
+---
+# The provisioner service account needs to manage pods and PVCs in
+# this namespace for workspace lifecycle.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-provisioner-workspaces
+  namespace: coder-workspaces
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coder-provisioner-workspaces
+  namespace: coder-workspaces
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-provisioner-workspaces
+subjects:
+  - kind: ServiceAccount
+    name: coder-provisioner
+    namespace: coder

@@ -1,0 +1,20 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: coder-provisioner-tagged-k8s
+  namespace: coder
+spec:
+  releaseName: coder-provisioner-tagged-k8s
+  interval: 1h
+  timeout: 5m
+  chart:
+    spec:
+      chart: ./helm/provisioner
+      sourceRef:
+        kind: GitRepository
+        name: coder-main
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: coder-provisioner-values-tagged-k8s
+      valuesKey: values.yaml
