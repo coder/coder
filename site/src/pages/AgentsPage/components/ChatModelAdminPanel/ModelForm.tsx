@@ -77,6 +77,9 @@ const validationSchema = Yup.object({
 		(value) => !value?.trim() || parseThresholdInteger(value) !== null,
 	),
 	isDefault: Yup.boolean(),
+	providerConfigIds: Yup.array()
+		.of(Yup.string().required())
+		.min(1, "At least one provider configuration is required."),
 });
 
 // ── Component ──────────────────────────────────────────────────
@@ -288,7 +291,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const updateProviderConfigIds = (next: string[]) => {
 		void form.setFieldValue("providerConfigIds", next);
-		form.setFieldError("providerConfigIds", undefined);
 	};
 
 	const moveAttachment = (index: number, direction: "up" | "down") => {

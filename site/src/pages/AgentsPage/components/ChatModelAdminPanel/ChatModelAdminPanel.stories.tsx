@@ -621,7 +621,7 @@ export const MultiProviderAttachments: Story = {
 	},
 };
 
-export const EditModelAllowsClearingProviderConfigurations: Story = {
+export const EditModelBlocksEmptyProviderConfigurations: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: multiAttachmentProviderConfigs,
@@ -649,21 +649,15 @@ export const EditModelAllowsClearingProviderConfigurations: Story = {
 		await expect(
 			await body.findByText("No provider configurations attached."),
 		).toBeVisible();
-		expect(
-			body.queryByText("At least one provider configuration is required."),
-		).not.toBeInTheDocument();
+		await expect(
+			await body.findByText("At least one provider configuration is required."),
+		).toBeVisible();
 
+		const saveButton = body.getByRole("button", { name: "Save" });
 		await waitFor(() => {
-			expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
+			expect(saveButton).toBeDisabled();
 		});
-		await userEvent.click(body.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(args.onUpdateModel).toHaveBeenCalledWith(
-				multiAttachmentModelConfig.id,
-				expect.objectContaining({ provider_config_ids: [] }),
-			);
-		});
+		expect(args.onUpdateModel).not.toHaveBeenCalled();
 	},
 };
 
@@ -1210,12 +1204,59 @@ const openAddModelForm = async (
 	});
 };
 
+const attachProviderConfiguration = async (
+	body: ReturnType<typeof within>,
+	providerConfigLabel: string,
+) => {
+	const triggerLabel = await body.findByText("Add configuration...");
+	const trigger = triggerLabel.closest("button");
+	if (!trigger) {
+		throw new Error("Add configuration trigger button not found.");
+	}
+	await userEvent.click(trigger);
+	const listbox = await body.findByRole("listbox");
+	await userEvent.click(
+		within(listbox).getByText(new RegExp(providerConfigLabel, "i")),
+	);
+};
+
 /** Expand a collapsible section by clicking its header button. */
 const expandSection = async (body: ReturnType<typeof within>, name: string) => {
 	const btn = await body.findByRole("button", {
 		name: new RegExp(name, "i"),
 	});
 	await userEvent.click(btn);
+};
+
+export const CreateModelRequiresProviderConfiguration: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await openAddModelForm(body, "OpenAI");
+		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
+		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+
+		const addModelButton = body.getByRole("button", { name: "Add model" });
+		await waitFor(() => {
+			expect(addModelButton).toBeDisabled();
+		});
+		await expect(
+			await body.findByText("At least one provider configuration is required."),
+		).toBeVisible();
+		expect(args.onCreateModel).not.toHaveBeenCalled();
+	},
 };
 
 export const NoModelConfigByDefault: Story = {
@@ -1239,6 +1280,7 @@ export const NoModelConfigByDefault: Story = {
 
 		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		await attachProviderConfiguration(body, "OpenAI");
 
 		// Max output tokens is under the "Advanced" toggle.
 		await userEvent.click(body.getByText("Advanced"));
@@ -1255,6 +1297,7 @@ export const NoModelConfigByDefault: Story = {
 			expect.objectContaining({
 				provider: "openai",
 				model: "gpt-5-pro",
+				provider_config_ids: ["provider-openai"],
 			}),
 		);
 		// Blank pricing fields should remain unset in the payload.
@@ -1291,6 +1334,7 @@ export const SubmitModelConfigExplicitly: Story = {
 			"gpt-5-pro-custom",
 		);
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		await attachProviderConfiguration(body, "OpenAI");
 		// Max output tokens is under "Advanced".
 		await expandSection(body, "Advanced");
 		await userEvent.type(
@@ -1312,6 +1356,7 @@ export const SubmitModelConfigExplicitly: Story = {
 			expect.objectContaining({
 				provider: "openai",
 				model: "gpt-5-pro-custom",
+				provider_config_ids: ["provider-openai"],
 				model_config: expect.objectContaining({
 					max_output_tokens: 32000,
 					provider_options: {
@@ -1341,6 +1386,13 @@ export const UpdateModelEnabledToggle: Story = {
 			createModelConfig({
 				id: "model-enabled",
 				provider: "openai",
+				provider_configs: [
+					createModelProviderAttachment("provider-openai", {
+						provider: "openai",
+						display_name: "OpenAI",
+						has_api_key: true,
+					}),
+				],
 				model: "gpt-test-enabled",
 				display_name: "GPT Test Enabled",
 				enabled: true,
@@ -1789,6 +1841,7 @@ export const ValidatesModelConfigFields: Story = {
 
 		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		await attachProviderConfiguration(body, "OpenAI");
 		// Max output tokens is under the "Advanced" toggle.
 		await userEvent.click(body.getByText("Advanced"));
 		const maxOutputTokensInput =
