@@ -44,7 +44,14 @@ else
 	# Try to find the last tag that contains the current commit
 	last_tag=$(git tag --contains "$current_commit" --sort=version:refname | head -n 1)
 	# If there is no tag that contains the current commit,
-	# get the latest tag sorted by semver.
+	# get the latest tag sorted by semver. We exclude RC tags
+	# (v*-rc.*) so that dev builds are based on the latest stable
+	# version rather than an unrelated RC from a newer release.
+	if [[ -z "${last_tag}" ]]; then
+		last_tag=$(git tag --sort=version:refname | grep -v -- '-rc\.' | tail -n 1)
+	fi
+	# If there is still no tag (e.g. only RC tags exist),
+	# fall back to the latest tag including RCs.
 	if [[ -z "${last_tag}" ]]; then
 		last_tag=$(git tag --sort=version:refname | tail -n 1)
 	fi
