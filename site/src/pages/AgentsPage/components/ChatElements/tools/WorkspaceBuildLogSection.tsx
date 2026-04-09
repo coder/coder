@@ -59,7 +59,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 
 	const logs: ProvisionerJobLog[] | undefined = isRunning
 		? streamingLogs
-		: completedLogsQuery.data;
+		: (completedLogsQuery.data ?? streamingLogs);
 
 	// --- Timeout: detect if logs never arrive ---
 	// Derive a stable boolean so the effect only re-runs when logs

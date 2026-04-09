@@ -252,7 +252,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
 			ID:          chatID,
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-			BuildID:     uuid.NullUUID{},
+			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
 			AgentID:     uuid.NullUUID{},
 		}).
 		Return(database.Chat{
@@ -275,6 +275,9 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 				ID:        workspaceID,
 				Name:      req.Name,
 				OwnerName: "testuser",
+				LatestBuild: codersdk.WorkspaceBuild{
+					ID: buildID,
+				},
 			}, nil
 		},
 		AgentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {

@@ -57,12 +57,14 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	const hasBuildLogs = isRunning || Boolean(buildId);
 
 	return (
-		<ToolCollapsible
-			header={header}
-			hasContent={hasBuildLogs}
-			defaultExpanded={isRunning}
-		>
-			<WorkspaceBuildLogSection status={status} buildId={buildId} />
-		</ToolCollapsible>
+		<div className="w-full">
+			<ToolCollapsible
+				header={header}
+				hasContent={hasBuildLogs}
+				defaultExpanded={isRunning}
+			>
+				<WorkspaceBuildLogSection status={status} buildId={buildId} />
+			</ToolCollapsible>
+		</div>
 	);
 };
