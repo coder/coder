@@ -83,6 +83,115 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
+const TIMELINE_SCROLL_CONTAINER_TEST_ID = "timeline-scroll-container";
+
+const renderInScrollableTimeline = (
+	args: React.ComponentProps<typeof ConversationTimeline>,
+) => (
+	<div
+		data-testid={TIMELINE_SCROLL_CONTAINER_TEST_ID}
+		className="h-[600px] overflow-y-auto rounded-md border border-border-default bg-surface-primary p-4"
+	>
+		<ConversationTimeline {...args} />
+	</div>
+);
+
+const findTimelineScroller = (canvasElement: HTMLElement): HTMLElement => {
+	const scroller = canvasElement.querySelector(
+		`[data-testid='${TIMELINE_SCROLL_CONTAINER_TEST_ID}']`,
+	);
+	if (!(scroller instanceof HTMLElement)) {
+		throw new Error("Timeline scroll container not found");
+	}
+	return scroller;
+};
+
+const waitForAnimationFrame = () =>
+	new Promise<void>((resolve) => {
+		requestAnimationFrame(() => resolve());
+	});
+
+const makeChatMessage = (
+	id: number,
+	role: TypesGen.ChatMessage["role"],
+	content: readonly TypesGen.ChatMessagePart[],
+): TypesGen.ChatMessage => ({
+	...baseMessage,
+	id,
+	role,
+	created_at: new Date(
+		Date.parse(baseMessage.created_at) + id * 60_000,
+	).toISOString(),
+	content,
+});
+
+const buildLargeHistoryMessages = (count: number): TypesGen.ChatMessage[] =>
+	Array.from({ length: count }, (_, index) => {
+		const id = index + 1;
+		const role = id % 2 === 0 ? "assistant" : "user";
+		if (role === "user") {
+			return makeChatMessage(id, role, [
+				{
+					type: "text",
+					text: `User prompt #${id}: Please summarize the latest build output.`,
+				},
+			]);
+		}
+
+		const isLongResponse = id % 6 === 0;
+		return makeChatMessage(id, role, [
+			{
+				type: "text",
+				text: isLongResponse
+					? `### Assistant response #${id}\n\nI reviewed the workspace logs and captured the most relevant signals for this step.\n\n- build status: completed\n- tests: 147 passing\n- warnings: 2 deprecations to follow up\n\nNext, I can open a focused diff to verify the warning sources.`
+					: `Assistant response #${id}: quick confirmation that this step completed.`,
+			},
+		]);
+	});
+
+const buildStickyFollowupMessages = (
+	assistantFollowups: number,
+): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [
+		makeChatMessage(1, "user", [
+			{
+				type: "text",
+				text: "Investigate why the canary deployment rolled back in staging.",
+			},
+		]),
+	];
+
+	for (let step = 1; step <= assistantFollowups; step++) {
+		const toolCallID = `sticky-tool-${step}`;
+		messages.push(
+			makeChatMessage(step + 1, "assistant", [
+				{
+					type: "reasoning",
+					text: `Checking telemetry segment ${step} for rollback indicators.`,
+				},
+				{
+					type: "tool-call",
+					tool_call_id: toolCallID,
+					tool_name: "read_file",
+					args: { path: `logs/segment-${step}.txt` },
+				},
+				{
+					type: "tool-result",
+					tool_call_id: toolCallID,
+					tool_name: "read_file",
+					result: { output: `segment-${step}: inspected successfully` },
+				},
+				{
+					type: "text",
+					text: `Follow-up ${step}: parsed logs and queued the next diagnostic check.`,
+				},
+			]),
+		);
+	}
+
+	return messages;
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -568,6 +677,185 @@ export const StickyUserMessageStructure: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("First prompt")).toBeVisible();
 		expect(canvas.getByText("Second prompt")).toBeVisible();
+	},
+};
+
+const LARGE_HISTORY_MESSAGE_COUNT = 60;
+
+export const LargeMessageHistory: Story = {
+	render: renderInScrollableTimeline,
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages(
+			buildLargeHistoryMessages(LARGE_HISTORY_MESSAGE_COUNT),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const userSentinels = canvasElement.querySelectorAll(
+			"[data-user-sentinel]",
+		);
+		expect(userSentinels).toHaveLength(LARGE_HISTORY_MESSAGE_COUNT / 2);
+
+		const assistantMessages = canvasElement.querySelectorAll(
+			"[data-role='assistant']",
+		);
+		expect(assistantMessages).toHaveLength(LARGE_HISTORY_MESSAGE_COUNT / 2);
+	},
+};
+
+export const MixedContentHeights: Story = {
+	render: renderInScrollableTimeline,
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			makeChatMessage(1, "user", [
+				{
+					type: "text",
+					text: "The timeline jumps during long responses. Can you investigate?",
+				},
+			]),
+			makeChatMessage(2, "assistant", [
+				{
+					type: "reasoning",
+					text: "I'll inspect the render path and compare block heights while scrolling.",
+				},
+				{
+					type: "tool-call",
+					tool_call_id: "mixed-tool-1",
+					tool_name: "read_file",
+					args: {
+						path: "site/src/pages/AgentsPage/components/ChatConversation/ConversationTimeline.tsx",
+					},
+				},
+			]),
+			makeChatMessage(3, "tool", [
+				{
+					type: "tool-result",
+					tool_call_id: "mixed-tool-1",
+					tool_name: "read_file",
+					result: {
+						output:
+							"Sticky overlay math uses --clip-h and updates on scroll + ResizeObserver events.",
+					},
+				},
+			]),
+			makeChatMessage(4, "assistant", [
+				{
+					type: "text",
+					text: "### Height variance findings\n\nThe tallest regions come from markdown sections that include multiple paragraphs, list items, and inline code references.\n\nWhen these long blocks sit next to terse user prompts, the transcript alternates between very small and very large rows.\n\n- Tool cards add compact but non-trivial height\n- Reasoning blocks are denser than plain text\n- Attachment previews add fixed-height chunks",
+				},
+			]),
+			makeChatMessage(5, "user", [
+				{
+					type: "text",
+					text: "Can you check one migration reference too?",
+				},
+			]),
+			makeChatMessage(6, "assistant", [
+				{ type: "text", text: "I traced the reference in " },
+				{
+					type: "file-reference",
+					file_name: "coderd/database/migrations/000320_add_chat_tables.up.sql",
+					start_line: 1,
+					end_line: 24,
+					content: "CREATE TABLE chat_messages (...);",
+				},
+				{
+					type: "text",
+					text: " and it stays stable when replaying the same conversation data.",
+				},
+			]),
+			makeChatMessage(7, "assistant", [
+				{
+					type: "text",
+					text: "I also attached the runbook snippet with mitigation notes.",
+				},
+				{
+					type: "file",
+					file_id: "storybook-text-2",
+					media_type: "text/plain",
+				},
+			]),
+			makeChatMessage(8, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "mixed-tool-2",
+					tool_name: "grep",
+					args: { path: "logs/deploy.log", pattern: "timeout" },
+				},
+				{
+					type: "tool-result",
+					tool_call_id: "mixed-tool-2",
+					tool_name: "grep",
+					result: { output: "timeout_count=3" },
+				},
+				{
+					type: "text",
+					text: "Tool scan found three timeout spikes immediately before each retry window.",
+				},
+			]),
+			makeChatMessage(9, "assistant", [
+				{
+					type: "text",
+					text: "Final assistant summary: mixed-height timeline reached the end cleanly.",
+				},
+			]),
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const scroller = findTimelineScroller(canvasElement);
+		scroller.scrollTop = scroller.scrollHeight;
+		scroller.dispatchEvent(new Event("scroll"));
+		await waitForAnimationFrame();
+
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				"Final assistant summary: mixed-height timeline reached the end cleanly.",
+			),
+		).toBeVisible();
+	},
+};
+
+const STICKY_FOLLOWUP_COUNT = 12;
+
+export const StickyUserMessageWithManyFollowups: Story = {
+	render: renderInScrollableTimeline,
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages(
+			buildStickyFollowupMessages(STICKY_FOLLOWUP_COUNT),
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const scroller = findTimelineScroller(canvasElement);
+		scroller.scrollTop = scroller.scrollHeight;
+		scroller.dispatchEvent(new Event("scroll"));
+		await waitForAnimationFrame();
+
+		const firstSentinel = canvasElement.querySelector("[data-user-sentinel]");
+		expect(firstSentinel).toBeInstanceOf(HTMLElement);
+		const sentinel = firstSentinel as HTMLElement;
+
+		const stickyContainer = sentinel.nextElementSibling;
+		expect(stickyContainer).toBeInstanceOf(HTMLElement);
+		const stickyMessage = stickyContainer as HTMLElement;
+		expect(window.getComputedStyle(stickyMessage).position).toBe("sticky");
+
+		const scrollerRect = scroller.getBoundingClientRect();
+		const sentinelRect = sentinel.getBoundingClientRect();
+		expect(sentinelRect.top).toBeLessThan(scrollerRect.top);
+
+		const stickyRect = stickyMessage.getBoundingClientRect();
+		expect(stickyRect.top).toBeGreaterThanOrEqual(scrollerRect.top - 1);
+		expect(stickyRect.top).toBeLessThan(scrollerRect.top + 24);
+
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				"Investigate why the canary deployment rolled back in staging.",
+			),
+		).toBeInTheDocument();
 	},
 };
 
