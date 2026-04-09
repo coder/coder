@@ -1441,6 +1441,7 @@ export const StartWorkspaceCompleted: Story = {
 			started: true,
 			workspace_name: "my-project",
 			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1456,6 +1457,48 @@ export const StartWorkspaceError: Story = {
 		isError: true,
 		result: {
 			error: "workspace was deleted; use create_workspace to make a new one",
+		},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// create_workspace stories
+// ---------------------------------------------------------------------------
+
+export const CreateWorkspaceRunning: Story = {
+	args: {
+		name: "create_workspace",
+		status: "running",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceCompleted: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "my-project",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceError: Story = {
+	args: {
+		name: "create_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "template not found",
 		},
 	},
 };

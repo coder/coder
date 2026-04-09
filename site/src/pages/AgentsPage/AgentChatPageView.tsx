@@ -44,6 +44,7 @@ import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
+import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -309,14 +310,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const shouldShowSidebar = showSidebarPanel;
 
 	return (
-		<DesktopPanelContext value={desktopPanelCtx}>
-			<div
-				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1",
-					shouldShowSidebar && !visualExpanded && "flex-row",
-				)}
-			>
-				{titleElement}
+			<ChatWorkspaceContext value={workspace?.id}>
+			<DesktopPanelContext value={desktopPanelCtx}>
+				<div
+					className={cn(
+						"relative flex min-h-0 min-w-0 flex-1",
+						shouldShowSidebar && !visualExpanded && "flex-row",
+					)}
+				>				{titleElement}
 				<div
 					className={cn(
 						"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
@@ -496,9 +497,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					/>
 				</RightPanel>
 			</div>
-		</DesktopPanelContext>
-	);
-};
+			</DesktopPanelContext>
+			</ChatWorkspaceContext>
+		);};
 
 interface AgentChatPageLoadingViewProps {
 	titleElement: React.ReactNode;

@@ -129,6 +129,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	jobID := uuid.New()
+	buildID := uuid.New()
 	fallbackAgentID := uuid.New()
 	chatAgentID := uuid.New()
 
@@ -148,6 +149,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	db.EXPECT().
 		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return(database.WorkspaceBuild{
+			ID:          buildID,
 			WorkspaceID: workspaceID,
 			JobID:       jobID,
 		}, nil)
@@ -200,6 +202,10 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Content)
 	require.Equal(t, chatAgentID, connectedAgentID)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, buildID.String(), result["build_id"])
 }
 
 func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
@@ -213,6 +219,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	jobID := uuid.New()
+	buildID := uuid.New()
 
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
@@ -231,6 +238,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 	db.EXPECT().
 		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return(database.WorkspaceBuild{
+			ID:          buildID,
 			WorkspaceID: workspaceID,
 			JobID:       jobID,
 		}, nil)
@@ -291,6 +299,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 	require.Equal(t, "testuser/test-selection-error", result["workspace_name"])
 	require.Equal(t, "selection_error", result["agent_status"])
 	require.Contains(t, result["agent_error"], "multiple agents match the chat suffix")
+	require.Equal(t, buildID.String(), result["build_id"])
 }
 
 func TestCreateWorkspace_GlobalTTL(t *testing.T) {
@@ -335,6 +344,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			templateID := uuid.New()
 			workspaceID := uuid.New()
 			jobID := uuid.New()
+			buildID := uuid.New()
 
 			db.EXPECT().
 				GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -352,6 +362,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			db.EXPECT().
 				GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 				Return(database.WorkspaceBuild{
+					ID:          buildID,
 					WorkspaceID: workspaceID,
 					JobID:       jobID,
 				}, nil)
@@ -393,6 +404,10 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Content)
+
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			require.Equal(t, buildID.String(), result["build_id"])
 
 			if tc.wantTTLMs != nil {
 				require.NotNil(t, capturedReq.TTLMillis)

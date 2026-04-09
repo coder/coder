@@ -381,6 +381,7 @@ func TestStartWorkspace(t *testing.T) {
 		started, ok := result["started"].(bool)
 		require.True(t, ok)
 		require.True(t, started)
+		require.NotEmpty(t, result["build_id"], "expected build_id in response after starting a stopped workspace")
 	})
 
 	t.Run("DeletedWorkspace", func(t *testing.T) {

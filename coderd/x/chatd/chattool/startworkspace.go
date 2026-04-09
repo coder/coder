@@ -99,18 +99,19 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
-				if err := waitForBuild(ctx, options.DB, ws.ID); err != nil {
+				buildID, err := waitForBuild(ctx, options.DB, ws.ID)
+				if err != nil {
 					return fantasy.NewTextErrorResponse(
 						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
 					), nil
 				}
-				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, buildID)
 
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+					return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, uuid.Nil)
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -125,7 +126,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			_, err = options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
@@ -134,13 +135,19 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			if err := waitForBuild(ctx, options.DB, ws.ID); err != nil {
+			buildID, err := waitForBuild(ctx, options.DB, ws.ID)
+			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
 				), nil
 			}
 
-			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+			// Prefer the build ID from waitForBuild since it's the
+			// latest confirmed build. Fall back to the start build ID.
+			if buildID == uuid.Nil {
+				buildID = startBuild.ID
+			}
+			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, buildID)
 		},
 	)
 }
@@ -153,31 +160,43 @@ func waitForAgentAndRespond(
 	db database.Store,
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
+	buildID uuid.UUID,
 ) (fantasy.ToolResponse, error) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
 		// Workspace started but no agent found - still report
 		// success so the model knows the workspace is up.
-		return toolResponse(map[string]any{
+		result := map[string]any{
 			"started":        true,
 			"workspace_name": ws.Name,
 			"agent_status":   "no_agent",
-		}), nil
+		}
+		if buildID != uuid.Nil {
+			result["build_id"] = buildID.String()
+		}
+		return toolResponse(result), nil
 	}
 
 	selected, err := agentselect.FindChatAgent(agents)
 	if err != nil {
-		return toolResponse(map[string]any{
+		result := map[string]any{
 			"started":        true,
 			"workspace_name": ws.Name,
 			"agent_status":   "selection_error",
 			"agent_error":    err.Error(),
-		}), nil
+		}
+		if buildID != uuid.Nil {
+			result["build_id"] = buildID.String()
+		}
+		return toolResponse(result), nil
 	}
 
 	result := map[string]any{
 		"started":        true,
 		"workspace_name": ws.Name,
+	}
+	if buildID != uuid.Nil {
+		result["build_id"] = buildID.String()
 	}
 	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 		result[k] = v
