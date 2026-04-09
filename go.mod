@@ -83,8 +83,14 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // See: https://github.com/coder/fantasy/commits/7aaf56df81f9
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
 
-// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
-// additional performance improvements.
+// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
+// with performance improvements, including the appendCompact fix from
+// https://github.com/anthropics/anthropic-sdk-go/pull/262 (previously
+// carried by the dannykopping/anthropic-sdk-go fork, now folded in).
+// All runtime Anthropic SDK usage goes through this fork via the
+// charmbracelet module path. The upstream anthropics/anthropic-sdk-go
+// remains as an indirect dep (via aisdk-go and aibridge) but is never
+// called at runtime.
 // See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
 
