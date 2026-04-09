@@ -1638,18 +1638,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		rbacRoles = req.RBACRoles
 	}
 
-	// When the agents experiment is enabled, auto-assign the
-	// agents-access role so new users can use Coder Agents
-	// without manual admin intervention. Skip this for OIDC
-	// users when site role sync is enabled, because the sync
-	// will overwrite roles on every login anyway — those
-	// admins should use --oidc-user-role-default instead.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) &&
-		!(req.LoginType == database.LoginTypeOIDC && api.IDPSync.SiteRoleSyncEnabled()) &&
-		!slices.Contains(rbacRoles, codersdk.RoleAgentsAccess) {
-		rbacRoles = append(rbacRoles, codersdk.RoleAgentsAccess)
-	}
-
 	var user database.User
 	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
