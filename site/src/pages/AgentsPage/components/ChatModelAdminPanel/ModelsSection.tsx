@@ -182,9 +182,12 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// ── List view ──────────────────────────────────────────────
 
-	// Only show providers that have an API key configured.
+	// Only show providers that have a deployment key configured or allow
+	// end users to bring their own key.
 	const addableProviders = providerStates.filter(
-		(ps) => ps.providerConfig && ps.hasEffectiveAPIKey,
+		(ps) =>
+			ps.providerConfig &&
+			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
 	);
 
 	const addButton = addableProviders.length > 0 && (
@@ -341,8 +344,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										{!modelConfig.enabled
 											? "Cannot set a disabled model as default"
 											: modelConfig.is_default
-												? "Pinned as default for new chats"
-												: "Pin as default for new chats"}
+												? "Pinned as default for new conversations"
+												: "Pin as default for new conversations"}
 									</TooltipContent>
 								</Tooltip>
 								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />

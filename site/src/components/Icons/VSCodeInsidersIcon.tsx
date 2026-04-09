@@ -1,8 +1,14 @@
-import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
+import type { ComponentProps, JSX } from "react";
 
-import type { JSX } from "react";
-export const VSCodeInsidersIcon = (props: SvgIconProps): JSX.Element => (
-	<SvgIcon {...props} viewBox="0 0 256 256">
+export const VSCodeInsidersIcon = (
+	props: ComponentProps<"svg">,
+): JSX.Element => (
+	<svg
+		fill="currentColor"
+		{...props}
+		viewBox="0 0 256 256"
+		xmlns="http://www.w3.org/2000/svg"
+	>
 		<svg
 			width="256"
 			height="256"
@@ -123,5 +129,5 @@ export const VSCodeInsidersIcon = (props: SvgIconProps): JSX.Element => (
 				</filter>
 			</defs>
 		</svg>
-	</SvgIcon>
+	</svg>
 );

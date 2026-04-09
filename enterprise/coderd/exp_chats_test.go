@@ -101,7 +101,6 @@ func TestChatStreamRelay(t *testing.T) {
 			ModelConfigID: &model.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
 		require.Eventually(t, func() bool {
@@ -291,7 +290,6 @@ func TestChatStreamRelay(t *testing.T) {
 			ModelConfigID: &model.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
 		require.Eventually(t, func() bool {
@@ -462,7 +460,6 @@ func TestChatStreamRelay(t *testing.T) {
 			ModelConfigID: &model.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
 		require.Eventually(t, func() bool {
@@ -635,7 +632,6 @@ func TestChatStreamRelay(t *testing.T) {
 			ModelConfigID: &model.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
 		require.Eventually(t, func() bool {
@@ -784,7 +780,6 @@ func TestChatStreamRelay(t *testing.T) {
 			ModelConfigID: &model.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
 		require.Eventually(t, func() bool {

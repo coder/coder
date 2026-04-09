@@ -29,7 +29,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { pageTitle } from "#/utils/page";
 
@@ -67,7 +67,7 @@ const GroupPage: FC = () => {
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery({
 		...groupPermissions(groupData?.id ?? ""),
-		enabled: !!groupData,
+		enabled: Boolean(groupData),
 	});
 	const deleteGroupMutation = useMutation(
 		deleteGroup(queryClient, organization),
@@ -135,16 +135,16 @@ const GroupPage: FC = () => {
 			</div>
 			<div className="flex flex-col gap-10 w-full">
 				{canUpdateGroup && (
-					<Tabs active={activeTab}>
-						<TabsList className="w-full justify-start">
+					<LinkTabs active={activeTab}>
+						<LinkTabsList className="w-full justify-start">
 							<TabLink to="." value="members">
 								Group members
 							</TabLink>
 							<TabLink to="settings" value="settings">
 								Group settings
 							</TabLink>
-						</TabsList>
-					</Tabs>
+						</LinkTabsList>
+					</LinkTabs>
 				)}
 
 				<Outlet

@@ -96,6 +96,7 @@ type ConnectionLogsRequest struct {
 type ConnectionLogResponse struct {
 	ConnectionLogs []ConnectionLog `json:"connection_logs"`
 	Count          int64           `json:"count"`
+	CountCap       int64           `json:"count_cap"`
 }
 
 func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) (ConnectionLogResponse, error) {

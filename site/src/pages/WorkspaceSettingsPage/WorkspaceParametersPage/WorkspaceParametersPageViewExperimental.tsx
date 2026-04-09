@@ -28,6 +28,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
 	isSubmitting: boolean;
+	submitLabel: string;
 	onCancel: () => void;
 	onSubmit: (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];
@@ -45,6 +46,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	diagnostics,
 	canChangeVersions,
 	isSubmitting,
+	submitLabel,
 	onSubmit,
 	sendMessage,
 	onCancel,
@@ -257,7 +259,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				)}
 
 				<div className="flex justify-end gap-2">
-					<Button onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline" disabled={isSubmitting}>
 						Cancel
 					</Button>
 					<Button
@@ -277,7 +279,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						}
 					>
 						<Spinner loading={isSubmitting} />
-						Update and restart
+						{submitLabel}
 					</Button>
 				</div>
 			</form>

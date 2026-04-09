@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -52,6 +53,8 @@ func workspaceAgent() *serpent.Command {
 		slogJSONPath                   string
 		slogStackdriverPath            string
 		blockFileTransfer              bool
+		blockReversePortForwarding     bool
+		blockLocalPortForwarding       bool
 		agentHeaderCommand             string
 		agentHeader                    []string
 		devcontainers                  bool
@@ -272,11 +275,14 @@ func workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
 			}
 
-			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
+			reinitCtx, reinitCancel := context.WithCancel(ctx)
+			defer reinitCancel()
+			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
 
 			var (
-				lastErr  error
-				mustExit bool
+				lastOwnerID uuid.UUID
+				lastErr     error
+				mustExit    bool
 			)
 			for {
 				prometheusRegistry := prometheus.NewRegistry()
@@ -315,10 +321,12 @@ func workspaceAgent() *serpent.Command {
 					SSHMaxTimeout:        sshMaxTimeout,
 					Subsystems:           subsystems,
 
-					PrometheusRegistry: prometheusRegistry,
-					BlockFileTransfer:  blockFileTransfer,
-					Execer:             execer,
-					Devcontainers:      devcontainers,
+					PrometheusRegistry:         prometheusRegistry,
+					BlockFileTransfer:          blockFileTransfer,
+					BlockReversePortForwarding: blockReversePortForwarding,
+					BlockLocalPortForwarding:   blockLocalPortForwarding,
+					Execer:                     execer,
+					Devcontainers:              devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
 						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
@@ -343,9 +351,32 @@ func workspaceAgent() *serpent.Command {
 				case <-ctx.Done():
 					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
 					mustExit = true
-				case event := <-reinitEvents:
-					logger.Info(ctx, "agent received instruction to reinitialize",
-						slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
+				case event, ok := <-reinitEvents:
+					switch {
+					case !ok:
+						// Channel closed — the reinit loop exited
+						// (terminal 409 or context expired). Keep
+						// running the current agent until the parent
+						// context is canceled.
+						logger.Info(ctx, "reinit channel closed, running without reinit capability")
+						reinitEvents = nil
+						<-ctx.Done()
+						mustExit = true
+					case event.OwnerID != uuid.Nil && event.OwnerID == lastOwnerID:
+						// Duplicate reinit for same owner — already
+						// reinitialized. Cancel the reinit loop
+						// goroutine and keep the current agent.
+						logger.Info(ctx, "skipping redundant reinit, owner unchanged",
+							slog.F("owner_id", event.OwnerID))
+						reinitCancel()
+						reinitEvents = nil
+						<-ctx.Done()
+						mustExit = true
+					default:
+						lastOwnerID = event.OwnerID
+						logger.Info(ctx, "agent received instruction to reinitialize",
+							slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
+					}
 				}
 
 				lastErr = agnt.Close()
@@ -465,6 +496,20 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
 			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
+		},
+		{
+			Flag:        "block-reverse-port-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_REVERSE_PORT_FORWARDING",
+			Description: "Block reverse port forwarding through the SSH server (ssh -R).",
+			Value:       serpent.BoolOf(&blockReversePortForwarding),
+		},
+		{
+			Flag:        "block-local-port-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
+			Description: "Block local port forwarding through the SSH server (ssh -L).",
+			Value:       serpent.BoolOf(&blockLocalPortForwarding),
 		},
 		{
 			Flag:        "devcontainers-enable",

@@ -1,7 +1,7 @@
 # Data Retention
 
 Coder supports configurable retention policies that automatically purge old
-Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Bridge
+Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Gateway
 records. These policies help manage database growth by removing records older
 than a specified duration.
 
@@ -33,11 +33,11 @@ a YAML configuration file.
 | Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs      |
 | API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys     |
 | Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs |
-| AI Bridge            | `--aibridge-retention`             | `CODER_AIBRIDGE_RETENTION`             | `60d`          | How long to retain AI Bridge records    |
+| AI Gateway           | `--aibridge-retention`             | `CODER_AIBRIDGE_RETENTION`             | `60d`          | How long to retain AI Gateway records   |
 
 > [!NOTE]
-> AI Bridge retention is configured separately from other retention settings.
-> See [AI Bridge Setup](../../ai-coder/ai-bridge/setup.md#data-retention) for
+> AI Gateway retention is configured separately from other retention settings.
+> See [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention) for
 > detailed configuration options.
 
 ### Duration Format
@@ -128,15 +128,15 @@ For non-latest builds, logs are deleted if the agent hasn't connected within the
 retention period. Setting `--workspace-agent-logs-retention=7d` deletes logs for
 agents that haven't connected in 7 days (excluding those from the latest build).
 
-### AI Bridge Data Behavior
+### AI Gateway Data Behavior
 
-AI Bridge retention applies to interception records and all related data,
+AI Gateway retention applies to interception records and all related data,
 including token usage, prompts, and tool invocations. The default of 60 days
 provides a reasonable balance between storage costs and the ability to analyze
 usage patterns.
 
 For details on what data is retained, see the
-[AI Bridge Data Retention](../../ai-coder/ai-bridge/setup.md#data-retention)
+[AI Gateway Data Retention](../../ai-coder/ai-gateway/setup.md#data-retention)
 documentation.
 
 ## Best Practices
@@ -199,7 +199,7 @@ retention:
   workspace_agent_logs: 0s # Keep workspace agent logs forever
 
 aibridge:
-  retention: 0s            # Keep AI Bridge records forever
+  retention: 0s            # Keep AI Gateway records forever
 ```
 
 ## Monitoring
@@ -214,9 +214,9 @@ containing the table name (e.g., `audit_logs`, `connection_logs`, `api_keys`).
   purge procedures.
 - [Connection Logs](../monitoring/connection-logs.md): Learn about Connection
   Logs and monitoring.
-- [AI Bridge](../../ai-coder/ai-bridge/index.md): Learn about AI Bridge for
+- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for
   centralized LLM and MCP proxy management.
-- [AI Bridge Setup](../../ai-coder/ai-bridge/setup.md#data-retention): Configure
-  AI Bridge data retention.
-- [AI Bridge Monitoring](../../ai-coder/ai-bridge/monitoring.md): Monitor AI
-  Bridge usage and metrics.
+- [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention): Configure
+  AI Gateway data retention.
+- [AI Gateway Monitoring](../../ai-coder/ai-gateway/monitoring.md): Monitor AI
+  Gateway usage and metrics.

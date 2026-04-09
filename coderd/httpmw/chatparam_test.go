@@ -39,13 +39,14 @@ func TestChatParam(t *testing.T) {
 		t.Helper()
 
 		_, err := db.InsertChatProvider(context.Background(), database.InsertChatProviderParams{
-			Provider:    "openai",
-			DisplayName: "OpenAI",
-			APIKey:      "test-api-key",
-			BaseUrl:     "https://api.openai.com/v1",
-			ApiKeyKeyID: sql.NullString{},
-			CreatedBy:   uuid.NullUUID{UUID: ownerID, Valid: true},
-			Enabled:     true,
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			APIKey:               "test-api-key",
+			BaseUrl:              "https://api.openai.com/v1",
+			ApiKeyKeyID:          sql.NullString{},
+			CreatedBy:            uuid.NullUUID{UUID: ownerID, Valid: true},
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -63,6 +64,7 @@ func TestChatParam(t *testing.T) {
 
 		chat, err := db.InsertChat(context.Background(), database.InsertChatParams{
 			OrganizationID:    organizationID,
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			WorkspaceID:       uuid.NullUUID{},
 			ParentChatID:      uuid.NullUUID{},

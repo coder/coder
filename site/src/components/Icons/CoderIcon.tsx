@@ -1,12 +1,14 @@
-import type { SvgIconProps } from "@mui/material/SvgIcon";
-import type { FC } from "react";
+import type { ComponentProps, FC } from "react";
 import { cn } from "#/utils/cn";
 
 /**
  * CoderIcon represents the cloud with brackets Coder brand icon. It does not
  * contain additional aspects, like the word 'Coder'.
  */
-export const CoderIcon: FC<SvgIconProps> = ({ className, ...props }) => (
+export const CoderIcon: FC<ComponentProps<"svg">> = ({
+	className,
+	...props
+}) => (
 	<svg
 		// This is a case where prop order does matter. We want fill to be easy
 		// to override, but all other local props should stay locked down

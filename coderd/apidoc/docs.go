@@ -1266,6 +1266,68 @@ const docTemplate = `{
                 ]
             }
         },
+        "/experimental/chats/config/retention-days": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat retention days",
+                "operationId": "get-chat-retention-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatRetentionDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat retention days",
+                "operationId": "update-chat-retention-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatRetentionDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/experimental/watch-all-workspacebuilds": {
             "get": {
                 "produces": [
@@ -10205,11 +10267,25 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace agent reinitialization",
                 "operationId": "get-workspace-agent-reinitialization",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Opt in to durable reinit checks",
+                        "name": "wait",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/agentsdk.ReinitializationEvent"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -12647,11 +12723,16 @@ const docTemplate = `{
         "agentsdk.ReinitializationEvent": {
             "type": "object",
             "properties": {
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "reason": {
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 },
-                "workspaceID": {
-                    "type": "string"
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -12894,6 +12975,9 @@ const docTemplate = `{
                 "provider": {
                     "type": "string"
                 },
+                "provider_name": {
+                    "type": "string"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
@@ -13111,6 +13195,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionThreadsTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13126,6 +13216,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionTokenUsageSummary": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13172,6 +13268,12 @@ const docTemplate = `{
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -14135,6 +14237,9 @@ const docTemplate = `{
                 },
                 "count": {
                     "type": "integer"
+                },
+                "count_cap": {
+                    "type": "integer"
                 }
             }
         },
@@ -14377,6 +14482,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatRetentionDaysResponse": {
+            "type": "object",
+            "properties": {
+                "retention_days": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -14455,6 +14568,9 @@ const docTemplate = `{
                     }
                 },
                 "count": {
+                    "type": "integer"
+                },
+                "count_cap": {
                     "type": "integer"
                 }
             }
@@ -14543,6 +14659,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateFirstUserOnboardingInfo": {
+            "type": "object",
+            "properties": {
+                "newsletter_marketing": {
+                    "type": "boolean"
+                },
+                "newsletter_releases": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -14556,6 +14683,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "onboarding_info": {
+                    "$ref": "#/definitions/codersdk.CreateFirstUserOnboardingInfo"
                 },
                 "password": {
                     "type": "string"
@@ -20889,6 +21019,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.BannerConfig"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.UpdateChatRetentionDaysRequest": {
+            "type": "object",
+            "properties": {
+                "retention_days": {
+                    "type": "integer"
                 }
             }
         },

@@ -70,7 +70,7 @@ const IdpSyncPage: FC = () => {
 
 	const fieldValuesQuery = useQuery({
 		...organizationIdpSyncClaimFieldValues(organizationName, field),
-		enabled: !!field,
+		enabled: Boolean(field),
 	});
 
 	const patchGroupSyncSettingsMutation = useMutation(

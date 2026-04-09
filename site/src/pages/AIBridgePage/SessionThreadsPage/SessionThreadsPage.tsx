@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
-import { useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { infiniteSessionThreads } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -12,6 +12,8 @@ import { SessionThreadsPageView } from "./SessionThreadsPageView";
 const SessionThreadsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
+	const navigate = useNavigate();
+	const location = useLocation();
 
 	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
 		entitlements,
@@ -44,6 +46,17 @@ const SessionThreadsPage: FC = () => {
 				onFetchNextPage={sessionQuery.fetchNextPage}
 				isAISessionsEnabled={isEnabled}
 				isAISessionsEntitled={isEntitled}
+				onBackClicked={() => {
+					// location.key is "default" when the user navigated directly to
+					// this page (e.g. by refreshing or opening in a new tab). if there
+					// is a previous page in the history stack, navigate back. otherwise,
+					// navigate to the sessions list page without params
+					if (location.key === "default") {
+						navigate("/aibridge/sessions");
+					} else {
+						navigate(-1);
+					}
+				}}
 			/>
 		</RequirePermission>
 	);

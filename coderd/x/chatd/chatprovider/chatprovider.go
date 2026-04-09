@@ -81,11 +81,28 @@ type ProviderAPIKeys struct {
 	BaseURLByProvider map[string]string
 }
 
+// UserProviderKey is a user-supplied API key for a specific provider.
+type UserProviderKey struct {
+	ChatProviderID uuid.UUID
+	APIKey         string
+}
+
+// ProviderAvailability describes whether a provider has a usable
+// API key and, if not, why.
+type ProviderAvailability struct {
+	Available         bool
+	UnavailableReason codersdk.ChatModelProviderUnavailableReason
+}
+
 // ConfiguredProvider is an enabled provider loaded from database config.
 type ConfiguredProvider struct {
-	Provider string
-	APIKey   string
-	BaseURL  string
+	ProviderID                 uuid.UUID
+	Provider                   string
+	APIKey                     string
+	BaseURL                    string
+	CentralAPIKeyEnabled       bool
+	AllowUserAPIKey            bool
+	AllowCentralAPIKeyFallback bool
 }
 
 // ConfiguredModel is an enabled model loaded from database config.
@@ -189,21 +206,146 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 	return merged
 }
 
-type ModelCatalog struct {
-	keys ProviderAPIKeys
+// ResolveUserProviderKeys computes effective API keys and per-provider
+// availability for a given user. It considers the provider's credential
+// policy flags alongside central (DB/deployment) keys and the user's
+// personal keys.
+func ResolveUserProviderKeys(
+	fallback ProviderAPIKeys,
+	providers []ConfiguredProvider,
+	userKeys []UserProviderKey,
+) (ProviderAPIKeys, map[string]ProviderAvailability) {
+	merged := ProviderAPIKeys{
+		OpenAI:            strings.TrimSpace(fallback.OpenAI),
+		Anthropic:         strings.TrimSpace(fallback.Anthropic),
+		ByProvider:        map[string]string{},
+		BaseURLByProvider: map[string]string{},
+	}
+	for provider, apiKey := range fallback.ByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if key := strings.TrimSpace(apiKey); key != "" {
+			merged.ByProvider[normalizedProvider] = key
+		}
+	}
+	for provider, baseURL := range fallback.BaseURLByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if url := strings.TrimSpace(baseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+	}
+	if merged.OpenAI != "" {
+		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
+	}
+	if merged.Anthropic != "" {
+		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
+	}
+
+	userKeyByProviderID := make(map[uuid.UUID]string, len(userKeys))
+	for _, userKey := range userKeys {
+		if userKey.ChatProviderID == uuid.Nil {
+			continue
+		}
+		if key := strings.TrimSpace(userKey.APIKey); key != "" {
+			userKeyByProviderID[userKey.ChatProviderID] = key
+		}
+	}
+
+	availabilityByProvider := make(map[string]ProviderAvailability, len(providers))
+	for _, provider := range providers {
+		normalizedProvider := NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+
+		if url := strings.TrimSpace(provider.BaseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+
+		var userKey string
+		if provider.ProviderID != uuid.Nil {
+			userKey = userKeyByProviderID[provider.ProviderID]
+		}
+
+		var centralKey string
+		if provider.CentralAPIKeyEnabled {
+			if key := strings.TrimSpace(provider.APIKey); key != "" {
+				centralKey = key
+			} else {
+				centralKey = fallback.APIKey(normalizedProvider)
+			}
+		}
+
+		resolved := ProviderAvailability{}
+		chosenKey := ""
+		switch {
+		case provider.AllowUserAPIKey && userKey != "":
+			chosenKey = userKey
+			resolved.Available = true
+		case centralKey != "":
+			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
+				chosenKey = centralKey
+				resolved.Available = true
+			} else {
+				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+			}
+		case provider.AllowUserAPIKey && provider.AllowCentralAPIKeyFallback && provider.CentralAPIKeyEnabled:
+			// When users can add their own key, a missing central fallback key is
+			// still something the user can remedy.
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+		case provider.AllowUserAPIKey:
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+		default:
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
+		}
+
+		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey)
+		availabilityByProvider[normalizedProvider] = resolved
+	}
+
+	return merged, availabilityByProvider
 }
 
-func NewModelCatalog(keys ProviderAPIKeys) *ModelCatalog {
-	return &ModelCatalog{
-		keys: keys,
+func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string) {
+	normalizedProvider := NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return
 	}
+	if keys.ByProvider == nil {
+		keys.ByProvider = map[string]string{}
+	}
+
+	delete(keys.ByProvider, normalizedProvider)
+	trimmedKey := strings.TrimSpace(apiKey)
+	switch normalizedProvider {
+	case fantasyopenai.Name:
+		keys.OpenAI = trimmedKey
+	case fantasyanthropic.Name:
+		keys.Anthropic = trimmedKey
+	}
+	if trimmedKey != "" {
+		keys.ByProvider[normalizedProvider] = trimmedKey
+	}
+}
+
+type ModelCatalog struct{}
+
+func NewModelCatalog() *ModelCatalog {
+	return &ModelCatalog{}
 }
 
 // ListConfiguredModels returns a model catalog from enabled DB-backed model
 // configs. The second return value reports whether DB-backed models were used.
-func (c *ModelCatalog) ListConfiguredModels(
+func (*ModelCatalog) ListConfiguredModels(
 	configuredProviders []ConfiguredProvider,
 	configuredModels []ConfiguredModel,
+	availabilityByProvider map[string]ProviderAvailability,
+	enabledProviders map[string]struct{},
 ) (codersdk.ChatModelsResponse, bool) {
 	if len(configuredModels) == 0 {
 		return codersdk.ChatModelsResponse{}, false
@@ -247,11 +389,14 @@ func (c *ModelCatalog) ListConfiguredModels(
 		return codersdk.ChatModelsResponse{}, false
 	}
 
-	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
 	}
 	for _, provider := range providers {
+		if _, ok := enabledProviders[provider]; !ok {
+			continue
+		}
+
 		models := modelsByProvider[provider]
 		sortChatModels(models)
 
@@ -259,11 +404,14 @@ func (c *ModelCatalog) ListConfiguredModels(
 			Provider: provider,
 			Models:   models,
 		}
-		if keys.APIKey(provider) == "" {
+		if avail, ok := availabilityByProvider[provider]; ok {
+			result.Available = avail.Available
+			if !avail.Available {
+				result.UnavailableReason = avail.UnavailableReason
+			}
+		} else {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		} else {
-			result.Available = true
 		}
 
 		response.Providers = append(response.Providers, result)
@@ -273,31 +421,59 @@ func (c *ModelCatalog) ListConfiguredModels(
 }
 
 // ListConfiguredProviderAvailability returns provider availability derived from
-// deployment/env keys merged with enabled DB provider keys.
-func (c *ModelCatalog) ListConfiguredProviderAvailability(
-	configuredProviders []ConfiguredProvider,
+// the policy-aware availability map for enabled providers.
+func (*ModelCatalog) ListConfiguredProviderAvailability(
+	availabilityByProvider map[string]ProviderAvailability,
+	enabledProviders map[string]struct{},
 ) codersdk.ChatModelsResponse {
-	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
 
 	for _, provider := range supportedProviderNames {
+		if _, ok := enabledProviders[provider]; !ok {
+			continue
+		}
+
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
 		}
-		if keys.APIKey(provider) == "" {
+		if avail, ok := availabilityByProvider[provider]; ok {
+			result.Available = avail.Available
+			if !avail.Available {
+				result.UnavailableReason = avail.UnavailableReason
+			}
+		} else {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		} else {
-			result.Available = true
 		}
 
 		response.Providers = append(response.Providers, result)
 	}
 
 	return response
+}
+
+// PruneDisabledProviderKeys removes entries from keys that do not
+// belong to an enabled provider. It clears ByProvider and
+// BaseURLByProvider entries for disabled providers and zeroes the
+// legacy OpenAI and Anthropic fields when those providers are not
+// enabled.
+func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
+	for provider := range keys.ByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.ByProvider, provider)
+		delete(keys.BaseURLByProvider, provider)
+	}
+	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
+		keys.OpenAI = ""
+	}
+	if _, ok := enabledProviders[NormalizeProvider("anthropic")]; !ok {
+		keys.Anthropic = ""
+	}
 }
 
 func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {

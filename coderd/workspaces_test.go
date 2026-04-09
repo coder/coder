@@ -216,6 +216,39 @@ func TestWorkspace(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
+			authToken := uuid.NewString()
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			_ = agenttest.New(t, client.URL, authToken)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.True(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{}, workspace.Health.FailingAgents)
+			assert.True(t, agent.Health.Healthy)
+			assert.Empty(t, agent.Health.Reason)
+		})
+
+		t.Run("Connecting", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
 				ProvisionGraph: []*proto.Response{{
@@ -247,10 +280,10 @@ func TestWorkspace(t *testing.T) {
 
 			agent := workspace.LatestBuild.Resources[0].Agents[0]
 
-			assert.True(t, workspace.Health.Healthy)
-			assert.Equal(t, []uuid.UUID{}, workspace.Health.FailingAgents)
-			assert.True(t, agent.Health.Healthy)
-			assert.Empty(t, agent.Health.Reason)
+			assert.False(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{agent.ID}, workspace.Health.FailingAgents)
+			assert.False(t, agent.Health.Healthy)
+			assert.Equal(t, "agent has not yet connected", agent.Health.Reason)
 		})
 
 		t.Run("Unhealthy", func(t *testing.T) {
@@ -302,6 +335,7 @@ func TestWorkspace(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
+			a1AuthToken := uuid.NewString()
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
 				ProvisionGraph: []*proto.Response{{
@@ -313,7 +347,9 @@ func TestWorkspace(t *testing.T) {
 								Agents: []*proto.Agent{{
 									Id:   uuid.NewString(),
 									Name: "a1",
-									Auth: &proto.Agent_Token{},
+									Auth: &proto.Agent_Token{
+										Token: a1AuthToken,
+									},
 								}, {
 									Id:                       uuid.NewString(),
 									Name:                     "a2",
@@ -330,13 +366,21 @@ func TestWorkspace(t *testing.T) {
 			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+			_ = agenttest.New(t, client.URL, a1AuthToken)
+
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			var err error
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				workspace, err = client.Workspace(ctx, workspace.ID)
-				return assert.NoError(t, err) && !workspace.Health.Healthy
+				if err != nil {
+					return false
+				}
+				// Wait for the mixed state: a1 connected (healthy)
+				// and workspace unhealthy (because a2 timed out).
+				agent1 := workspace.LatestBuild.Resources[0].Agents[0]
+				return agent1.Health.Healthy && !workspace.Health.Healthy
 			}, testutil.IntervalMedium)
 
 			assert.False(t, workspace.Health.Healthy)
@@ -360,6 +404,7 @@ func TestWorkspace(t *testing.T) {
 			// disconnected, but this should not make the workspace unhealthy.
 			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
+			authToken := uuid.NewString()
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
 				ProvisionGraph: []*proto.Response{{
@@ -371,7 +416,9 @@ func TestWorkspace(t *testing.T) {
 								Agents: []*proto.Agent{{
 									Id:   uuid.NewString(),
 									Name: "parent",
-									Auth: &proto.Agent_Token{},
+									Auth: &proto.Agent_Token{
+										Token: authToken,
+									},
 								}},
 							}},
 						},
@@ -383,14 +430,23 @@ func TestWorkspace(t *testing.T) {
 			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+			_ = agenttest.New(t, client.URL, authToken)
+
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			// Get the workspace and parent agent.
-			workspace, err := client.Workspace(ctx, workspace.ID)
-			require.NoError(t, err)
-			parentAgent := workspace.LatestBuild.Resources[0].Agents[0]
-			require.True(t, parentAgent.Health.Healthy, "parent agent should be healthy initially")
+			// Wait for the parent agent to connect and be healthy.
+			var parentAgent codersdk.WorkspaceAgent
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var err error
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				if err != nil {
+					return false
+				}
+				parentAgent = workspace.LatestBuild.Resources[0].Agents[0]
+				return parentAgent.Health.Healthy
+			}, testutil.IntervalMedium)
+			require.True(t, parentAgent.Health.Healthy, "parent agent should be healthy")
 
 			// Create a sub-agent with a short connection timeout so it becomes
 			// unhealthy quickly (simulating a devcontainer rebuild scenario).
@@ -404,6 +460,7 @@ func TestWorkspace(t *testing.T) {
 			// Wait for the sub-agent to become unhealthy due to timeout.
 			var subAgentUnhealthy bool
 			require.Eventually(t, func() bool {
+				var err error
 				workspace, err = client.Workspace(ctx, workspace.ID)
 				if err != nil {
 					return false

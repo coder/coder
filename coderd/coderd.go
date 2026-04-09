@@ -168,6 +168,7 @@ type Options struct {
 	ConnectionLogger               connectionlog.ConnectionLogger
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
+	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
@@ -782,9 +783,10 @@ func New(options *Options) *API {
 			ReplicaID:                      api.ID,
 			SubscribeFn:                    options.ChatSubscribeFn,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
 			Pubsub:                         options.Pubsub,
@@ -1187,6 +1189,8 @@ func New(options *Options) *API {
 				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
 				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
+				r.Get("/retention-days", api.getChatRetentionDays)
+				r.Put("/retention-days", api.putChatRetentionDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
 				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
@@ -1221,6 +1225,13 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
 				})
 			})
+			r.Route("/user-provider-configs", func(r chi.Router) {
+				r.Get("/", api.listUserChatProviderConfigs)
+				r.Route("/{providerConfig}", func(r chi.Router) {
+					r.Put("/", api.upsertUserChatProviderKey)
+					r.Delete("/", api.deleteUserChatProviderKey)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
@@ -1234,6 +1245,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {

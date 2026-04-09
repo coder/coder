@@ -25,7 +25,7 @@ const AgentSettingsMCPServersPage: FC = () => {
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<MCPServerAdminPanel
 				sectionLabel="MCP Servers"
-				sectionDescription="Configure external MCP servers that provide additional tools for AI chat sessions."
+				sectionDescription="Configure external MCP servers that provide additional tools for Coder Agents."
 				sectionBadge={<AdminBadge />}
 				serversData={serversQuery.data}
 				isLoadingServers={serversQuery.isLoading}

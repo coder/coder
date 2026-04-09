@@ -1298,6 +1298,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+	require.Contains(t, log, "AWS_SDK_UA_APP_ID=APN_1.1/pc_cdfmjwn8i6u8l9fwz8h82e4w3$")
 
 	apply := applyComplete.Type.(*proto.Response_Apply)
 	require.NotEmpty(t, apply.Apply.State, "state exists")

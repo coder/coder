@@ -111,6 +111,6 @@ export const useAppLink = (
 		href,
 		onClick,
 		label,
-		hasToken: !!apiKeyResponse?.key,
+		hasToken: Boolean(apiKeyResponse?.key),
 	};
 };

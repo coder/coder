@@ -1,5 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import WS from "jest-websocket-mock";
+import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import {
 	MockWorkspace,
@@ -8,6 +10,11 @@ import {
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	createMockWebSocket,
+	type MockWebSocketServer,
+} from "#/testHelpers/websockets";
+import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import WorkspaceBuildPage from "./WorkspaceBuildPage";
 import { LOGS_TAB_KEY } from "./WorkspaceBuildPageView";
 
@@ -64,18 +71,46 @@ describe("WorkspaceBuildPage", () => {
 	});
 
 	test("shows selected agent logs", async () => {
-		const server = new WS(
-			`ws://localhost/api/v2/workspaceagents/${
-				MockWorkspaceAgent.id
-			}/logs?follow&after=0`,
-		);
+		let mockServer: MockWebSocketServer | undefined;
+
+		jest
+			.spyOn(apiModule, "watchWorkspaceAgentLogs")
+			.mockImplementation((agentId, params) => {
+				return new OneWayWebSocket({
+					apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
+					searchParams: new URLSearchParams({
+						follow: "true",
+						after: params?.after?.toString() || "0",
+					}),
+					websocketInit: (url, protocol) => {
+						const [socket, server] = createMockWebSocket(url, protocol);
+						mockServer = server;
+						return socket;
+					},
+				});
+			});
+		const user = userEvent.setup();
+
 		renderWithAuth(<WorkspaceBuildPage />, {
 			route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}?${LOGS_TAB_KEY}=${MockWorkspaceAgent.id}`,
 			path: "/:username/:workspace/builds/:buildNumber",
 		});
+
 		await screen.findByText(`Build #${MockWorkspaceBuild.build_number}`);
-		await server.connected;
-		server.send(JSON.stringify(MockWorkspaceAgentLogs));
+
+		await user.click(
+			screen.getByRole("tab", {
+				name: `coder_agent.${MockWorkspaceAgent.name}`,
+			}),
+		);
+
+		expect(mockServer).toBeDefined();
+		mockServer?.publishMessage(
+			new MessageEvent("message", {
+				data: JSON.stringify(MockWorkspaceAgentLogs),
+			}),
+		);
+
 		await screen.findByText(MockWorkspaceAgentLogs[0].output);
 	});
 });
