@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.25.6
+go 1.25.7
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20250829055706-6eafe0f9199e
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260409064601-e956a950740b
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -194,16 +194,16 @@ require (
 	go.uber.org/goleak v1.3.1-0.20240429205332-517bace7cc29
 	go.uber.org/mock v0.6.0
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
-	golang.org/x/crypto v0.46.0
+	golang.org/x/crypto v0.48.0
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
-	golang.org/x/mod v0.31.0
-	golang.org/x/net v0.48.0
+	golang.org/x/mod v0.33.0
+	golang.org/x/net v0.50.0
 	golang.org/x/oauth2 v0.34.0
-	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.40.0
-	golang.org/x/term v0.38.0
-	golang.org/x/text v0.32.0
-	golang.org/x/tools v0.40.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.41.0
+	golang.org/x/term v0.40.0
+	golang.org/x/text v0.35.0
+	golang.org/x/tools v0.42.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.260.0
 	google.golang.org/grpc v1.78.0
@@ -223,7 +223,7 @@ require (
 	cloud.google.com/go/logging v1.13.1 // indirect
 	cloud.google.com/go/longrunning v0.7.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/DataDog/appsec-internal-go v1.11.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.2 // indirect
@@ -283,7 +283,7 @@ require (
 	github.com/containerd/continuity v0.4.5 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
-	github.com/docker/cli v29.1.1+incompatible // indirect
+	github.com/docker/cli v29.2.0+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dop251/goja v0.0.0-20241024094426-79f3a7efcdbd // indirect
@@ -478,7 +478,7 @@ require (
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.16.5
+	github.com/go-git/go-git/v5 v5.17.1
 	github.com/icholy/replace v0.6.0
 	github.com/mark3labs/mcp-go v0.38.0
 	gonum.org/v1/gonum v0.16.0
@@ -524,7 +524,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.6.2 // indirect
+	github.com/go-git/go-billy/v5 v5.8.0 // indirect
 	github.com/go-openapi/swag/conv v0.25.4 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/go-openapi/swag/jsonutils v0.25.4 // indirect
