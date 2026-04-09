@@ -2020,6 +2020,30 @@ func TestContextFileAgentID(t *testing.T) {
 		require.True(t, ok)
 	})
 
+	t.Run("IgnoresSkillOnlySentinel", func(t *testing.T) {
+		t.Parallel()
+		instructionAgentID := uuid.New()
+		sentinelAgentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileAgentID: uuid.NullUUID{UUID: instructionAgentID, Valid: true},
+			}}),
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  sentinelAgentID,
+					Valid: true,
+				},
+			}}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, instructionAgentID, id)
+		require.True(t, ok)
+	})
+
 	t.Run("SentinelWithoutAgentID", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{

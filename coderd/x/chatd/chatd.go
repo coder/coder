@@ -5587,8 +5587,9 @@ func refreshChatWorkspaceSnapshot(
 }
 
 // contextFileAgentID extracts the workspace agent ID from the most
-// recent persisted context-file parts. Returns uuid.Nil, false if no
-// context-file parts exist.
+// recent persisted instruction-file parts. The skill-only sentinel is
+// ignored because it does not represent persisted instruction content.
+// Returns uuid.Nil, false if no instruction-file parts exist.
 func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 	var lastID uuid.UUID
 	found := false
@@ -5601,11 +5602,14 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 			continue
 		}
 		for _, p := range parts {
-			if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFileAgentID.Valid {
-				lastID = p.ContextFileAgentID.UUID
-				found = true
-				break
+			if p.Type != codersdk.ChatMessagePartTypeContextFile ||
+				!p.ContextFileAgentID.Valid ||
+				p.ContextFilePath == AgentChatContextSentinelPath {
+				continue
 			}
+			lastID = p.ContextFileAgentID.UUID
+			found = true
+			break
 		}
 	}
 	return lastID, found
