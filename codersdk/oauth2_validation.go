@@ -82,18 +82,25 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 //
 // Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
 // are allowed.
+// ValidateRedirectURIScheme reports whether the callback URL's scheme is
+// safe to use as a redirect target. It returns an error when the scheme
+// is empty, an unsupported URN, or one of the schemes that are dangerous
+// in browser/HTML contexts (javascript, data, file, ftp).
+//
+// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
+// are allowed.
 func ValidateRedirectURIScheme(u *url.URL) error {
-	return validateRedirectURIScheme(u, u.String())
+	return validateScheme(u)
 }
 
-func validateRedirectURIScheme(uri *url.URL, rawURI string) error {
-	if uri.Scheme == "" {
+func validateScheme(u *url.URL) error {
+	if u.Scheme == "" {
 		return xerrors.New("redirect URI must have a scheme")
 	}
 
 	// Handle special URNs (RFC 6749 section 3.1.2.1).
-	if uri.Scheme == "urn" {
-		if rawURI == "urn:ietf:wg:oauth:2.0:oob" {
+	if u.Scheme == "urn" {
+		if u.String() == "urn:ietf:wg:oauth:2.0:oob" {
 			return nil
 		}
 		return xerrors.New("redirect URI uses unsupported URN scheme")
@@ -103,7 +110,7 @@ func validateRedirectURIScheme(uri *url.URL, rawURI string) error {
 	// for OAuth2).
 	dangerousSchemes := []string{"javascript", "data", "file", "ftp"}
 	for _, dangerous := range dangerousSchemes {
-		if strings.EqualFold(uri.Scheme, dangerous) {
+		if strings.EqualFold(u.Scheme, dangerous) {
 			return xerrors.Errorf("redirect URI uses dangerous scheme %s which is not allowed", dangerous)
 		}
 	}
@@ -127,7 +134,7 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 			return xerrors.Errorf("redirect URI at index %d is not a valid URL: %w", i, err)
 		}
 
-		if err := validateRedirectURIScheme(uri, uriStr); err != nil {
+		if err := validateScheme(uri); err != nil {
 			return xerrors.Errorf("redirect URI at index %d: %w", i, err)
 		}
 
