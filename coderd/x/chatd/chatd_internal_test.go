@@ -2764,21 +2764,6 @@ func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEv
 		return codersdk.ChatStreamEvent{}
 	}
 }
-
-func requireStreamQueueUpdateEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
-	t.Helper()
-
-	select {
-	case event, ok := <-events:
-		require.True(t, ok, "chat stream closed before delivering an event")
-		require.Equal(t, codersdk.ChatStreamEventTypeQueueUpdate, event.Type)
-		return event
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for chat stream queue update event")
-		return codersdk.ChatStreamEvent{}
-	}
-}
-
 func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
 	t.Helper()
 
