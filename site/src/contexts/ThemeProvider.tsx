@@ -22,23 +22,41 @@ import {
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { DEFAULT_THEME, type Theme } from "#/theme";
+import themes, { isValidThemeName, type Theme, type ThemeName } from "#/theme";
 
 /**
- *
+ * Returns the user's selected theme in their settings. If the user has "auto"
+ * selected, or we cannot determine the theme for whatever reason, returns
+ * undefined
  */
-export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
+const useUserAppearanceTheme = (): ThemeName | undefined => {
 	const { metadata } = useEmbeddedMetadata();
-	const appearanceSettingsQuery = useQuery(
-		appearanceSettings(metadata.userAppearance),
-	);
+	const { data } = useQuery(appearanceSettings(metadata.userAppearance));
+
+	const themePreference = data?.theme_preference;
+
+	// if the user's theme preference is "auto", bail so we can fall back
+	// to system pref
+	if (themePreference === "auto") {
+		return;
+	}
+
+	if (isValidThemeName(themePreference)) {
+		return themePreference;
+	}
+};
+
+/**
+ * Returns the theme name that corresponds to the user's system preference.
+ */
+const useSystemPreferenceTheme = (): ThemeName => {
 	const themeQuery = useMemo(
 		() => window.matchMedia?.("(prefers-color-scheme: light)"),
 		[],
 	);
-	const [preferredColorScheme, setPreferredColorScheme] = useState<
-		"dark" | "light"
-	>(themeQuery?.matches ? "light" : "dark");
+	const [preferredColorScheme, setPreferredColorScheme] = useState<ThemeName>(
+		themeQuery?.matches ? "light" : "dark",
+	);
 
 	useEffect(() => {
 		if (!themeQuery) {
@@ -57,15 +75,19 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		};
 	}, [themeQuery]);
 
-	// We might not be logged in yet, or the `theme_preference` could be an empty string.
-	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
-	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference ||
-		metadata.userAppearance?.value?.theme_preference ||
-		DEFAULT_THEME;
-	// The janky casting here is fine because of the much more type safe fallback
-	// We need to support `themePreference` being wrong anyway because the database
-	// value could be anything, like an empty string.
+	return preferredColorScheme;
+};
+
+/**
+ * Determines the application theme. Tries to get the theme name from the meta
+ * tags, the user's appearance settings (as returned by the API) and their
+ * system appearance pref as a fallback
+ */
+export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
+	const userAppearanceTheme = useUserAppearanceTheme();
+	const systemTheme = useSystemPreferenceTheme();
+
+	const themePreference = userAppearanceTheme || systemTheme;
 
 	useEffect(() => {
 		const root = document.documentElement;
@@ -73,22 +95,21 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (root.dataset.embedTheme) {
 			return;
 		}
-		if (themePreference === "auto") {
-			root.classList.add(preferredColorScheme);
-		} else {
-			root.classList.add(themePreference);
-		}
+
+		const themeNames = Object.keys(themes);
+
+		root.classList.remove(...themeNames);
+		root.classList.add(themePreference);
 
 		return () => {
-			if (!root.dataset.embedTheme) {
-				root.classList.remove("light", "dark");
+			if (root.dataset.embedTheme) {
+				return;
 			}
+			root.classList.remove(...themeNames);
 		};
-	}, [themePreference, preferredColorScheme]);
+	}, [themePreference]);
 
-	const theme =
-		themes[themePreference as keyof typeof themes] ??
-		themes[preferredColorScheme];
+	const theme = themes[themePreference];
 
 	return (
 		<StyledEngineProvider injectFirst>
