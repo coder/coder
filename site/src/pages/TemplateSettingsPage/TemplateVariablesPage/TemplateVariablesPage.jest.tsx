@@ -64,22 +64,28 @@ describe("TemplateVariablesPage", () => {
 	});
 
 	it("user submits the form successfully", async () => {
-		jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
+		// Use persistent mocks (mockResolvedValue, not Once) so that any
+		// react-query refetches triggered by `invalidateQueries` in the
+		// mutation's onSuccess handler don't fall through to real HTTP
+		// requests, which add unpredictable latency under CI load.
+		jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		jest
 			.spyOn(API, "getTemplateVersion")
 			.mockResolvedValue(MockTemplateVersion);
 		jest
 			.spyOn(API, "getTemplateVersionVariables")
-			.mockResolvedValueOnce([
+			.mockResolvedValue([
 				MockTemplateVersionVariable1,
 				MockTemplateVersionVariable2,
 			]);
 		jest
 			.spyOn(API, "createTemplateVersion")
-			.mockResolvedValueOnce(MockTemplateVersion2);
-		jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
-			message: "done",
-		});
+			.mockResolvedValue(MockTemplateVersion2);
+		const updateVersionSpy = jest
+			.spyOn(API, "updateActiveTemplateVersion")
+			.mockResolvedValue({
+				message: "done",
+			});
 
 		await renderTemplateVariablesPage();
 
@@ -111,11 +117,30 @@ describe("TemplateVariablesPage", () => {
 		const submitButton = await screen.findByText(/save/i);
 		await userEvent.click(submitButton);
 
-		await waitFor(() => {
-			expect(toastSuccessSpy).toHaveBeenCalledWith(
-				`Template "test-template" variables updated successfully.`,
-			);
-		});
+		// The submit handler chains two mutations sequentially:
+		// createAndBuildTemplateVersion (which polls getTemplateVersion
+		// via waitBuildToBeFinished) -> updateActiveTemplateVersion.
+		// After both resolve, the component calls toast.success.
+		//
+		// Under CI load the ~30 microtask hops plus react-query's
+		// notifyManager setTimeout(0) scheduling can push resolution
+		// past the default waitFor timeout (1 s). Use a generous
+		// timeout and assert the final mutation was called first so
+		// failures are easier to diagnose.
+		await waitFor(
+			() => {
+				expect(updateVersionSpy).toHaveBeenCalled();
+			},
+			{ timeout: 5_000 },
+		);
+		await waitFor(
+			() => {
+				expect(toastSuccessSpy).toHaveBeenCalledWith(
+					`Template "test-template" variables updated successfully.`,
+				);
+			},
+			{ timeout: 5_000 },
+		);
 		toastSuccessSpy.mockRestore();
 	});
 });
