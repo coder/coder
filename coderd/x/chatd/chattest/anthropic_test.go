@@ -63,6 +63,59 @@ func TestAnthropic_Streaming(t *testing.T) {
 	require.Equal(t, len(expectedDeltas), deltaIndex, "Expected %d deltas, got %d. Total parts received: %d", len(expectedDeltas), deltaIndex, len(allParts))
 }
 
+func TestAnthropic_StreamingUsageIncludesCacheTokens(t *testing.T) {
+	t.Parallel()
+
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		return chattest.AnthropicStreamingResponse(
+			chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:              200,
+				OutputTokens:             75,
+				CacheCreationInputTokens: 30,
+				CacheReadInputTokens:     150,
+			}, "cached", " response")...,
+		)
+	})
+
+	client, err := fantasyanthropic.New(
+		fantasyanthropic.WithAPIKey("test-key"),
+		fantasyanthropic.WithBaseURL(serverURL),
+	)
+	require.NoError(t, err)
+
+	model, err := client.LanguageModel(context.Background(), "claude-3-opus-20240229")
+	require.NoError(t, err)
+
+	stream, err := model.Stream(context.Background(), fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var (
+		finishPart fantasy.StreamPart
+		found      bool
+	)
+	for part := range stream {
+		if part.Type != fantasy.StreamPartTypeFinish {
+			continue
+		}
+		finishPart = part
+		found = true
+	}
+
+	require.True(t, found)
+	require.Equal(t, int64(200), finishPart.Usage.InputTokens)
+	require.Equal(t, int64(75), finishPart.Usage.OutputTokens)
+	require.Equal(t, int64(275), finishPart.Usage.TotalTokens)
+	require.Equal(t, int64(30), finishPart.Usage.CacheCreationTokens)
+	require.Equal(t, int64(150), finishPart.Usage.CacheReadTokens)
+}
+
 func TestAnthropic_ToolCalls(t *testing.T) {
 	t.Parallel()
 

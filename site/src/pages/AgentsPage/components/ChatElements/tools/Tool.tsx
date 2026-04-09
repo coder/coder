@@ -23,6 +23,7 @@ import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
+import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
 import { ToolCollapsible } from "./ToolCollapsible";
@@ -210,6 +211,55 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ReadSkillRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
+	const rec = asRecord(result);
+	const body = rec ? asString(rec.body) : "";
+
+	return (
+		<ReadSkillTool
+			label={skillName ? `skill ${skillName}` : "skill"}
+			body={body}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
+	const filePath = parsedArgs ? asString(parsedArgs.path) : "";
+	const label =
+		skillName && filePath
+			? `${skillName}/${filePath}`
+			: skillName || filePath || "skill file";
+	const rec = asRecord(result);
+	const content = rec ? asString(rec.content) : "";
+
+	return (
+		<ReadSkillTool
+			label={label}
+			body={content}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
 const WriteFileRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
@@ -306,6 +356,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		: undefined;
 	const report = rec ? asString(rec.report) : "";
 	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
+	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
 	const title =
@@ -368,6 +419,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			}
 			variant={variant}
 			recordingFileId={recordingFileId || undefined}
+			thumbnailFileId={thumbnailFileId || undefined}
 		/>
 	);
 };
@@ -667,6 +719,8 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	create_workspace: CreateWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
 	read_template: ReadTemplateRenderer,
+	read_skill: ReadSkillRenderer,
+	read_skill_file: ReadSkillFileRenderer,
 	spawn_agent: SubagentRenderer,
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,

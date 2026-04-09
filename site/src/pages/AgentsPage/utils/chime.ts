@@ -1,5 +1,4 @@
 const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
-const KYLEOSOPHY_PREFERENCE_KEY = "agents.kyleosophy";
 
 export function getChimeEnabled(): boolean {
 	try {
@@ -21,79 +20,24 @@ export function setChimeEnabled(enabled: boolean): void {
 }
 
 /**
- * Whether Kyleosophy mode is active. Force-enabled on
- * dev.coder.com because the people deserve Kyle.
- */
-export function getKylesophyEnabled(): boolean {
-	if (isKylesophyForced()) {
-		return true;
-	}
-	try {
-		const stored = localStorage.getItem(KYLEOSOPHY_PREFERENCE_KEY);
-		return stored === null ? false : stored === "true";
-	} catch {
-		return false;
-	}
-}
-
-/**
- * Whether the current deployment force-enables Kyleosophy,
- * bypassing the user preference.
- */
-export function isKylesophyForced(): boolean {
-	try {
-		return globalThis.location?.hostname === "dev.coder.com";
-	} catch {
-		return false;
-	}
-}
-
-export function setKylesophyEnabled(enabled: boolean): void {
-	try {
-		localStorage.setItem(KYLEOSOPHY_PREFERENCE_KEY, String(enabled));
-	} catch {
-		// Silently ignore storage errors (e.g. private browsing
-		// quota exceeded).
-	}
-}
-
-/**
- * Alternative completion sounds for Kyleosophy mode. All are
- * shipped as static assets alongside chime.mp3.
- */
-export const KYLEOSOPHY_SOUNDS: readonly string[] = [
-	"/chime_1.mp3", // absolutely massive
-	"/chime_2.mp3", // dope
-	"/chime_3.mp3", // great
-	"/chime_4.mp3", // oh god
-	"/chime_5.mp3", // okay
-	"/chime_6.mp3", // open up a pr
-	"/chime_7.mp3", // sweet
-	"/chime_8.mp3", // yep
-];
-
-/**
- * Play a completion sound. When Kyleosophy is enabled a random
- * voice clip is selected; otherwise the default bell chime is
- * used. The Audio element is cached and reused when the sound
- * URL hasn't changed between calls.
+ * Play the completion chime audio file. The file is a short,
+ * warm two-tone bell sound shipped as a static asset.
+ *
+ * A single Audio element is reused across calls so the browser
+ * only fetches the file once.
  */
 let chimeAudio: HTMLAudioElement | null = null;
-let lastSoundUrl: string | null = null;
 
 /** @internal Reset cached Audio state between tests. */
 export function _resetForTesting(): void {
 	chimeAudio = null;
-	lastSoundUrl = null;
 }
 
-function playChimeAudio(soundUrl = "/chime.mp3"): void {
+function playChimeAudio(): void {
 	try {
-		if (!chimeAudio || soundUrl !== lastSoundUrl) {
-			chimeAudio?.pause();
-			chimeAudio = new Audio(soundUrl);
+		if (!chimeAudio) {
+			chimeAudio = new Audio("/chime.mp3");
 			chimeAudio.volume = 0.5;
-			lastSoundUrl = soundUrl;
 		}
 		// Reset to the start in case a previous play hasn't
 		// finished yet.
@@ -136,9 +80,9 @@ export const LOCK_HOLD_MS = 2000;
  * Falls back to playing immediately when the Web Locks API is
  * not available (preserving the original single-tab behavior).
  */
-function playChime(chatID: string, soundUrl?: string): void {
+function playChime(chatID: string): void {
 	if (typeof navigator === "undefined" || !navigator.locks) {
-		playChimeAudio(soundUrl);
+		playChimeAudio();
 		return;
 	}
 
@@ -154,7 +98,7 @@ function playChime(chatID: string, soundUrl?: string): void {
 				return;
 			}
 
-			playChimeAudio(soundUrl);
+			playChimeAudio();
 
 			// Hold the lock briefly so that tabs receiving the
 			// WebSocket event a bit later will see the lock as
@@ -212,9 +156,5 @@ export function maybePlayChime(
 		return;
 	}
 
-	const soundUrl = getKylesophyEnabled()
-		? KYLEOSOPHY_SOUNDS[Math.floor(Math.random() * KYLEOSOPHY_SOUNDS.length)]
-		: undefined;
-
-	playChime(chatID, soundUrl);
+	playChime(chatID);
 }

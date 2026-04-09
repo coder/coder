@@ -17,6 +17,7 @@ const meta: Meta<typeof CreateUserForm> = {
 		onCancel: action("cancel"),
 		onSubmit: action("submit"),
 		isLoading: false,
+		serviceAccountsEnabled: true,
 	},
 };
 

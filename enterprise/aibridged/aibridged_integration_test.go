@@ -183,7 +183,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
-	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, Key: "test-centralized-key"})}
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, tracer)
 	require.NoError(t, err)
 
@@ -255,6 +255,8 @@ func TestIntegration(t *testing.T) {
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
 	require.True(t, intc0.Client.Valid)
 	require.Equal(t, string(aibridge.ClientCodex), intc0.Client.String)
+	require.Equal(t, database.CredentialKindCentralized, intc0.CredentialKind)
+	require.Equal(t, "test...-key", intc0.CredentialHint)
 
 	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, aibridgedserver.MetadataUserAgentKey)
 	require.Equal(t, userAgent, intc0Metadata.String(), "interception metadata user agent should match request user agent")

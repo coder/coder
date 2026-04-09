@@ -713,4 +713,76 @@ func TestRun_Compaction(t *testing.T) {
 		}
 		require.True(t, hasUser, "re-entry prompt must contain a user message (the compaction summary)")
 	})
+
+	t.Run("TriggersOnDynamicToolExit", func(t *testing.T) {
+		t.Parallel()
+
+		var persistCompactionCalls int
+		const summaryText = "compaction summary for dynamic tool exit"
+
+		// The LLM calls a dynamic tool. Usage is above the
+		// compaction threshold so compaction should fire even
+		// though the chatloop exits via ErrDynamicToolCall.
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "my_dynamic_tool"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"query": "test"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "my_dynamic_tool",
+						ToolCallInput: `{"query": "test"}`,
+					},
+					{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonToolCalls,
+						Usage: fantasy.Usage{
+							InputTokens: 80,
+							TotalTokens: 85,
+						},
+					},
+				}), nil
+			},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: summaryText},
+					},
+				}, nil
+			},
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			MaxSteps:         5,
+			DynamicToolNames: map[string]bool{"my_dynamic_tool": true},
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				Persist: func(_ context.Context, result CompactionResult) error {
+					persistCompactionCalls++
+					require.Contains(t, result.SystemSummary, summaryText)
+					return nil
+				},
+			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
+			},
+		})
+		require.ErrorIs(t, err, ErrDynamicToolCall)
+		require.Equal(t, 1, persistCompactionCalls,
+			"compaction must fire before dynamic tool exit")
+	})
 }

@@ -573,22 +573,6 @@ const AgentChatPage: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
-	// Extract the primitive fields used by the transform so the
-	// compiler can see the real dependencies and avoid invalidating
-	// the closure when the workspace object reference changes but
-	// the relevant fields haven't.
-	const proxyHost = proxy.preferredWildcardHostname;
-	const agentName = workspaceAgent?.name;
-	const wsName = workspace?.name;
-	const wsOwner = workspace?.owner_name;
-
-	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
-			return url;
-		}
-		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
-	};
-
 	const chatRecord = chatQuery.data;
 
 	// Initialize MCP selection from chat record or defaults.
@@ -616,11 +600,17 @@ const AgentChatPage: FC = () => {
 	const chatMessagesList = (() => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages, then sort chronologically by ID.
+		// Collect all messages and deduplicate by ID.
+		// Cross-page duplication can occur when upsertCacheMessages
+		// writes a message into page 0 while the same ID still
+		// exists in a later page. Last occurrence wins so the
+		// most up-to-date content is preserved.
 		const all = pages.flatMap((p) => p.messages);
+		const byID = new Map(all.map((m) => [m.id, m]));
+		const deduped = Array.from(byID.values());
 		// Sort ascending by ID for chronological order.
-		all.sort((a, b) => a.id - b.id);
-		return all;
+		deduped.sort((a, b) => a.id - b.id);
+		return deduped;
 	})();
 
 	// Queued messages are only in the first page (most recent).
@@ -640,21 +630,28 @@ const AgentChatPage: FC = () => {
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
-	const sendMutation = useMutation(
+	// Destructure mutation results directly so the React Compiler
+	// tracks stable primitives/functions instead of the whole result
+	// object (TanStack Query v5 recreates it every render via object
+	// spread). Keeping no intermediate variable prevents future code
+	// from accidentally closing over the unstable object.
+	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
 	);
-	const editMutation = useMutation(editChatMessage(queryClient, agentId ?? ""));
-	const interruptMutation = useMutation(
+	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
+		editChatMessage(queryClient, agentId ?? ""),
+	);
+	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
-	const deleteQueuedMutation = useMutation(
+	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-	const promoteQueuedMutation = useMutation(
+	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
-	const { store, clearStreamError } = useChatStore({
+	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
@@ -748,9 +745,7 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		sendMutation.isPending ||
-		editMutation.isPending ||
-		interruptMutation.isPending;
+		isSendPending || isEditPending || isInterruptPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
 	const handleUsageLimitError = (error: unknown): void => {
@@ -836,7 +831,7 @@ const AgentChatPage: FC = () => {
 			setPendingEditMessageId(editedMessageID);
 			scrollToBottomRef.current?.();
 			try {
-				await editMutation.mutateAsync({
+				await editMessage({
 					messageId: editedMessageID,
 					req: request,
 				});
@@ -867,9 +862,9 @@ const AgentChatPage: FC = () => {
 		// For queued sends the WebSocket status events handle
 		// clearing; for non-queued sends we clear explicitly
 		// below. Clearing eagerly causes a visible cutoff.
-		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
+		let response: Awaited<ReturnType<typeof sendMessage>>;
 		try {
-			response = await sendMutation.mutateAsync(request);
+			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
 			throw error;
@@ -891,6 +886,7 @@ const AgentChatPage: FC = () => {
 			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
+				upsertCacheMessages([response.message]);
 			}
 		}
 		if (selectedModelConfigID) {
@@ -901,10 +897,10 @@ const AgentChatPage: FC = () => {
 	};
 
 	const handleInterrupt = () => {
-		if (!agentId || interruptMutation.isPending) {
+		if (!agentId || isInterruptPending) {
 			return;
 		}
-		void interruptMutation.mutateAsync();
+		void interrupt();
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -913,7 +909,7 @@ const AgentChatPage: FC = () => {
 			previousQueuedMessages.filter((message) => message.id !== id),
 		);
 		try {
-			await deleteQueuedMutation.mutateAsync(id);
+			await deleteQueuedMessage(id);
 		} catch (error) {
 			store.setQueuedMessages(previousQueuedMessages);
 			throw error;
@@ -934,11 +930,12 @@ const AgentChatPage: FC = () => {
 		store.clearStreamError();
 		store.setChatStatus("pending");
 		try {
-			const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
-			// Insert the promoted message into the store immediately
-			// so it appears in the timeline without waiting for the
-			// WebSocket to deliver it.
+			const promotedMessage = await promoteQueuedMessage(id);
+			// Insert the promoted message into the store and cache
+			// immediately so it appears in the timeline without
+			// waiting for the WebSocket to deliver it.
 			store.upsertDurableMessage(promotedMessage);
+			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
 			store.setQueuedMessages(previousQueuedMessages);
 			store.setChatStatus(previousChatStatus);
@@ -982,7 +979,8 @@ const AgentChatPage: FC = () => {
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
 
-	const generateKeyMutation = useMutation({
+	// See mutation destructuring comment above (React Compiler).
+	const { mutate: generateKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
 
@@ -997,7 +995,7 @@ const AgentChatPage: FC = () => {
 		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
 		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
 
-		generateKeyMutation.mutate(undefined, {
+		generateKey(undefined, {
 			onSuccess: ({ key }) => {
 				location.href = getVSCodeHref(editor, {
 					owner: workspace.owner_name,
@@ -1076,6 +1074,19 @@ const AgentChatPage: FC = () => {
 		agentId,
 	]);
 
+	// Primitives extracted from proxy/workspace so the compiler
+	// tracks stable strings, not object identity.
+	const proxyHost = proxy.preferredWildcardHostname;
+	const agentName = workspaceAgent?.name;
+	const wsName = workspace?.name;
+	const wsOwner = workspace?.owner_name;
+	const urlTransform: UrlTransform = (url) => {
+		if (!proxyHost || !agentName || !wsName || !wsOwner) {
+			return url;
+		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
+	};
+
 	const handleRegenerateTitle = () => {
 		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
 			return;
@@ -1133,7 +1144,7 @@ const AgentChatPage: FC = () => {
 			compressionThreshold={compressionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
-			isInterruptPending={interruptMutation.isPending}
+			isInterruptPending={isInterruptPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			showSidebarPanel={showSidebarPanel}

@@ -145,5 +145,13 @@ func extractWhereClause(query string) string {
 	// Remove SQL comments
 	whereClause = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(whereClause, "")
 
+	// Normalize indentation so subquery wrapping doesn't cause
+	// mismatches.
+	lines := strings.Split(whereClause, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimLeft(line, " \t")
+	}
+	whereClause = strings.Join(lines, "\n")
+
 	return strings.TrimSpace(whereClause)
 }

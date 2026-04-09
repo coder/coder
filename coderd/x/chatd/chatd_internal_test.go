@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -702,7 +704,33 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 		gomock.Any(),
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
-	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().InsertChatMessages(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.InsertChatMessagesParams)
+			if !ok || arg.ChatID != chat.ID || len(arg.Content) != 1 {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal([]byte(arg.Content[0]), &parts); err != nil {
+				return false
+			}
+			foundMarker := false
+			foundSkill := false
+			for _, p := range parts {
+				switch p.Type {
+				case codersdk.ChatMessagePartTypeContextFile:
+					if p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) && p.ContextFileContent == "" {
+						foundMarker = true
+					}
+				case codersdk.ChatMessagePartTypeSkill:
+					if p.SkillName == "my-skill" && p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) {
+						foundSkill = true
+					}
+				}
+			}
+			return foundMarker && foundSkill
+		}),
+	).Return(nil, nil).Times(1)
 	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
 		gomock.Cond(func(x any) bool {
 			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
@@ -2019,6 +2047,30 @@ func TestContextFileAgentID(t *testing.T) {
 		require.True(t, ok)
 	})
 
+	t.Run("IgnoresSkillOnlySentinel", func(t *testing.T) {
+		t.Parallel()
+		instructionAgentID := uuid.New()
+		sentinelAgentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileAgentID: uuid.NullUUID{UUID: instructionAgentID, Valid: true},
+			}}),
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  sentinelAgentID,
+					Valid: true,
+				},
+			}}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, instructionAgentID, id)
+		require.True(t, ok)
+	})
+
 	t.Run("SentinelWithoutAgentID", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
@@ -2033,6 +2085,492 @@ func TestContextFileAgentID(t *testing.T) {
 		require.Equal(t, uuid.Nil, id)
 		require.False(t, ok)
 	})
+}
+
+func TestHasPersistedInstructionFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IgnoresAgentChatContextSentinel", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			}}),
+		}
+		require.False(t, hasPersistedInstructionFiles(msgs))
+	})
+
+	t.Run("AcceptsPersistedInstructionFile", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileContent: "repo instructions",
+				ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+			}}),
+		}
+		require.True(t, hasPersistedInstructionFiles(msgs))
+	})
+}
+
+func TestInstructionFromContextFilesUsesLatestContextAgent(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/old/AGENTS.md",
+			ContextFileContent:   "old instructions",
+			ContextFileOS:        "darwin",
+			ContextFileDirectory: "/old",
+			ContextFileAgentID:   uuid.NullUUID{UUID: oldAgentID, Valid: true},
+		}}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/new/AGENTS.md",
+			ContextFileContent:   "new instructions",
+			ContextFileOS:        "linux",
+			ContextFileDirectory: "/new",
+			ContextFileAgentID:   uuid.NullUUID{UUID: newAgentID, Valid: true},
+		}}),
+	}
+
+	got := instructionFromContextFiles(msgs)
+	require.Contains(t, got, "new instructions")
+	require.Contains(t, got, "Operating System: linux")
+	require.Contains(t, got, "Working Directory: /new")
+	require.NotContains(t, got, "old instructions")
+	require.NotContains(t, got, "Operating System: darwin")
+}
+
+func TestInstructionFromContextFilesKeepsLegacyUnstampedParts(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/legacy/AGENTS.md",
+			ContextFileContent: "legacy instructions",
+		}}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/old/AGENTS.md",
+			ContextFileContent:   "old instructions",
+			ContextFileOS:        "darwin",
+			ContextFileDirectory: "/old",
+			ContextFileAgentID:   uuid.NullUUID{UUID: oldAgentID, Valid: true},
+		}}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/new/AGENTS.md",
+			ContextFileContent:   "new instructions",
+			ContextFileOS:        "linux",
+			ContextFileDirectory: "/new",
+			ContextFileAgentID:   uuid.NullUUID{UUID: newAgentID, Valid: true},
+		}}),
+	}
+
+	got := instructionFromContextFiles(msgs)
+	require.Contains(t, got, "legacy instructions")
+	require.Contains(t, got, "new instructions")
+	require.Contains(t, got, "Operating System: linux")
+	require.Contains(t, got, "Working Directory: /new")
+	require.NotContains(t, got, "old instructions")
+	require.NotContains(t, got, "Operating System: darwin")
+}
+
+func TestSkillsFromPartsKeepsLegacyUnstampedParts(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper-legacy",
+			SkillDir:  "/skills/repo-helper-legacy",
+		}}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/old/AGENTS.md",
+				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "repo-helper-old",
+				SkillDir:           "/skills/repo-helper-old",
+				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			},
+		}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  newAgentID,
+					Valid: true,
+				},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "repo-helper-new",
+				SkillDir:           "/skills/repo-helper-new",
+				ContextFileAgentID: uuid.NullUUID{UUID: newAgentID, Valid: true},
+			},
+		}),
+	}
+
+	got := skillsFromParts(msgs)
+	require.Equal(t, []chattool.SkillMeta{
+		{Name: "repo-helper-legacy", Dir: "/skills/repo-helper-legacy"},
+		{Name: "repo-helper-new", Dir: "/skills/repo-helper-new"},
+	}, got)
+}
+
+func TestSkillsFromPartsUsesLatestContextAgent(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/old/AGENTS.md",
+				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "repo-helper-old",
+				SkillDir:           "/skills/repo-helper-old",
+				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			},
+		}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  newAgentID,
+					Valid: true,
+				},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "repo-helper-new",
+				SkillDir:           "/skills/repo-helper-new",
+				ContextFileAgentID: uuid.NullUUID{UUID: newAgentID, Valid: true},
+			},
+		}),
+	}
+
+	got := skillsFromParts(msgs)
+	require.Equal(t, []chattool.SkillMeta{{
+		Name: "repo-helper-new",
+		Dir:  "/skills/repo-helper-new",
+	}}, got)
+}
+
+func TestMergeSkillMetas(t *testing.T) {
+	t.Parallel()
+
+	persisted := []chattool.SkillMeta{{
+		Name:        "repo-helper",
+		Description: "Persisted skill",
+		Dir:         "/skills/repo-helper-old",
+	}}
+	discovered := []chattool.SkillMeta{
+		{
+			Name:        "repo-helper",
+			Description: "Discovered replacement",
+			Dir:         "/skills/repo-helper-new",
+			MetaFile:    "SKILL.md",
+		},
+		{
+			Name:        "deep-review",
+			Description: "Discovered skill",
+			Dir:         "/skills/deep-review",
+		},
+	}
+
+	got := mergeSkillMetas(persisted, discovered)
+	require.Equal(t, []chattool.SkillMeta{
+		discovered[0],
+		discovered[1],
+	}, got)
+}
+
+func TestSelectSkillMetasForInstructionRefresh(t *testing.T) {
+	t.Parallel()
+
+	persisted := []chattool.SkillMeta{{Name: "persisted", Dir: "/skills/persisted"}}
+	discovered := []chattool.SkillMeta{{Name: "discovered", Dir: "/skills/discovered"}}
+	currentAgentID := uuid.New()
+	otherAgentID := uuid.New()
+
+	t.Run("MergesCurrentAgentSkills", func(t *testing.T) {
+		t.Parallel()
+		got := selectSkillMetasForInstructionRefresh(
+			persisted,
+			discovered,
+			uuid.NullUUID{UUID: currentAgentID, Valid: true},
+			uuid.NullUUID{UUID: currentAgentID, Valid: true},
+		)
+		require.Equal(t, []chattool.SkillMeta{discovered[0], persisted[0]}, got)
+	})
+
+	t.Run("DropsStalePersistedSkillsWhenAgentChanged", func(t *testing.T) {
+		t.Parallel()
+		got := selectSkillMetasForInstructionRefresh(
+			persisted,
+			discovered,
+			uuid.NullUUID{UUID: currentAgentID, Valid: true},
+			uuid.NullUUID{UUID: otherAgentID, Valid: true},
+		)
+		require.Equal(t, discovered, got)
+	})
+
+	t.Run("PreservesPersistedSkillsWhenAgentLookupFails", func(t *testing.T) {
+		t.Parallel()
+		got := selectSkillMetasForInstructionRefresh(
+			persisted,
+			nil,
+			uuid.NullUUID{},
+			uuid.NullUUID{UUID: otherAgentID, Valid: true},
+		)
+		require.Equal(t, persisted, got)
+	})
+}
+
+func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	assistant := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+	skillOnly := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper",
+			SkillDir:  "/skills/repo-helper",
+		},
+	})
+	skillOnly.Role = database.ChatMessageRoleUser
+	user := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "latest user message",
+	}})
+	user.Role = database.ChatMessageRoleUser
+
+	got := resolveChainMode([]database.ChatMessage{assistant, skillOnly, user})
+	require.Equal(t, "resp-123", got.previousResponseID)
+	require.Equal(t, modelConfigID, got.modelConfigID)
+	require.Equal(t, 2, got.trailingUserCount)
+	require.Equal(t, 1, got.contributingTrailingUserCount)
+}
+
+func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	priorUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "prior user message",
+	}})
+	priorUser.Role = database.ChatMessageRoleUser
+	assistant := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+	firstTrailingUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "first trailing user",
+	}})
+	firstTrailingUser.Role = database.ChatMessageRoleUser
+	skillOnly := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper",
+			SkillDir:  "/skills/repo-helper",
+		},
+	})
+	skillOnly.Role = database.ChatMessageRoleUser
+	lastTrailingUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "last trailing user",
+	}})
+	lastTrailingUser.Role = database.ChatMessageRoleUser
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		priorUser,
+		assistant,
+		firstTrailingUser,
+		skillOnly,
+		lastTrailingUser,
+	})
+	require.Equal(t, 3, chainInfo.trailingUserCount)
+	require.Equal(t, 2, chainInfo.contributingTrailingUserCount)
+
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "system instruction"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "prior user message"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "assistant reply"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "first trailing user"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "last trailing user"},
+			},
+		},
+	}
+
+	got := filterPromptForChainMode(prompt, chainInfo)
+	require.Len(t, got, 3)
+	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, got[1].Role)
+	require.Equal(t, fantasy.MessageRoleUser, got[2].Role)
+
+	firstPart, ok := fantasy.AsMessagePart[fantasy.TextPart](got[1].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "first trailing user", firstPart.Text)
+	lastPart, ok := fantasy.AsMessagePart[fantasy.TextPart](got[2].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "last trailing user", lastPart.Text)
+}
+
+func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	priorUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "prior user message",
+	}})
+	priorUser.Role = database.ChatMessageRoleUser
+	assistant := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+	skillOnly := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper",
+			SkillDir:  "/skills/repo-helper",
+		},
+	})
+	skillOnly.Role = database.ChatMessageRoleUser
+	latestUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "latest user message",
+	}})
+	latestUser.Role = database.ChatMessageRoleUser
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		priorUser,
+		assistant,
+		skillOnly,
+		latestUser,
+	})
+	require.Equal(t, 2, chainInfo.trailingUserCount)
+	require.Equal(t, 1, chainInfo.contributingTrailingUserCount)
+
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "system instruction"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "prior user message"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "assistant reply"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "latest user message"},
+			},
+		},
+	}
+
+	got := filterPromptForChainMode(prompt, chainInfo)
+	require.Len(t, got, 2)
+	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, got[1].Role)
+
+	part, ok := fantasy.AsMessagePart[fantasy.TextPart](got[1].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "latest user message", part.Text)
 }
 
 func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
@@ -2071,6 +2609,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		workerID:              workerID,
 		chatHeartbeatInterval: time.Minute,
 		configCache:           newChatConfigCache(ctx, db, clock),
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
 	// Publish a stale "pending" notification on the control channel
@@ -2132,4 +2671,131 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	// resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
+
+// TestHeartbeatTick_StolenChatIsInterrupted verifies that when the
+// batch heartbeat UPDATE does not return a registered chat's ID
+// (because another replica stole it or it was completed), the
+// heartbeat tick cancels that chat's context with ErrInterrupted
+// while leaving surviving chats untouched.
+func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+
+	workerID := uuid.New()
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		clock:                 clock,
+		workerID:              workerID,
+		chatHeartbeatInterval: time.Minute,
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	// Create three chats with independent cancel functions.
+	chat1 := uuid.New()
+	chat2 := uuid.New()
+	chat3 := uuid.New()
+
+	_, cancel1 := context.WithCancelCause(ctx)
+	_, cancel2 := context.WithCancelCause(ctx)
+	ctx3, cancel3 := context.WithCancelCause(ctx)
+
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel1,
+		chatID:          chat1,
+		logger:          logger,
+	})
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel2,
+		chatID:          chat2,
+		logger:          logger,
+	})
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel3,
+		chatID:          chat3,
+		logger:          logger,
+	})
+
+	// The batch UPDATE returns only chat1 and chat2 —
+	// chat3 was "stolen" by another replica.
+	db.EXPECT().UpdateChatHeartbeats(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
+			require.Equal(t, workerID, params.WorkerID)
+			require.Len(t, params.IDs, 3)
+			// Return only chat1 and chat2 as surviving.
+			return []uuid.UUID{chat1, chat2}, nil
+		},
+	)
+
+	server.heartbeatTick(ctx)
+
+	// chat3's context should be canceled with ErrInterrupted.
+	require.ErrorIs(t, context.Cause(ctx3), chatloop.ErrInterrupted,
+		"stolen chat should be interrupted")
+
+	// chat3 should have been removed from the registry by
+	// unregister (in production this happens via defer in
+	// processChat). The heartbeat tick itself does not
+	// unregister — it only cancels. Verify the entry is
+	// still present (processChat's defer would clean it up).
+	server.heartbeatMu.Lock()
+	_, chat1Exists := server.heartbeatRegistry[chat1]
+	_, chat2Exists := server.heartbeatRegistry[chat2]
+	_, chat3Exists := server.heartbeatRegistry[chat3]
+	server.heartbeatMu.Unlock()
+
+	require.True(t, chat1Exists, "surviving chat1 should remain registered")
+	require.True(t, chat2Exists, "surviving chat2 should remain registered")
+	require.True(t, chat3Exists,
+		"stolen chat3 should still be in registry (processChat defer removes it)")
+}
+
+// TestHeartbeatTick_DBErrorDoesNotInterruptChats verifies that a
+// transient database failure causes the tick to log and return
+// without canceling any registered chats.
+func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		clock:                 clock,
+		workerID:              uuid.New(),
+		chatHeartbeatInterval: time.Minute,
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	chatID := uuid.New()
+	chatCtx, cancel := context.WithCancelCause(ctx)
+
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chatID,
+		logger:          logger,
+	})
+
+	// Simulate a transient DB error.
+	db.EXPECT().UpdateChatHeartbeats(gomock.Any(), gomock.Any()).Return(
+		nil, xerrors.New("connection reset"),
+	)
+
+	server.heartbeatTick(ctx)
+
+	// Chat should NOT be interrupted — the tick logged and
+	// returned early.
+	require.NoError(t, chatCtx.Err(),
+		"chat context should not be canceled on transient DB error")
 }

@@ -538,6 +538,12 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	switch {
 	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
 		workspaceAgent.Health.Reason = "agent is not running"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentConnecting:
+		// Note: the case above catches connecting+off as "not running".
+		// This case handles connecting agents with a non-off lifecycle
+		// (e.g. "created" or "starting"), where the agent binary has
+		// not yet established a connection to coderd.
+		workspaceAgent.Health.Reason = "agent has not yet connected"
 	case workspaceAgent.Status == codersdk.WorkspaceAgentTimeout:
 		workspaceAgent.Health.Reason = "agent is taking too long to connect"
 	case workspaceAgent.Status == codersdk.WorkspaceAgentDisconnected:
@@ -1234,6 +1240,8 @@ func buildAIBridgeThread(
 	if rootIntc != nil {
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
+		thread.CredentialKind = string(rootIntc.CredentialKind)
+		thread.CredentialHint = rootIntc.CredentialHint
 		// Get first user prompt from root interception.
 		// A thread can only have one prompt, by definition, since we currently
 		// only store the last prompt observed in an interception.
@@ -1528,7 +1536,10 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
-func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+// When diffStatus is non-nil the response includes diff metadata.
+// When files is non-empty the response includes file metadata;
+// pass nil to omit the files field (e.g. list endpoints).
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1581,6 +1592,19 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if len(files) > 0 {
+		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
+		for _, row := range files {
+			chat.Files = append(chat.Files, codersdk.ChatFileMetadata{
+				ID:             row.ID,
+				OwnerID:        row.OwnerID,
+				OrganizationID: row.OrganizationID,
+				Name:           row.Name,
+				MimeType:       row.Mimetype,
+				CreatedAt:      row.CreatedAt,
+			})
+		}
+	}
 	if c.LastInjectedContext.Valid {
 		var parts []codersdk.ChatMessagePart
 		// Internal fields are stripped at write time in
@@ -1604,9 +1628,9 @@ func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]da
 	for i, row := range rows {
 		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus)
+			result[i] = Chat(row.Chat, &diffStatus, nil)
 		} else {
-			result[i] = Chat(row.Chat, nil)
+			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatusesByChatID != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus
@@ -1697,5 +1721,43 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	staleAt := status.StaleAt
 	result.StaleAt = &staleAt
 
+	return result
+}
+
+// UserSecret converts a database ListUserSecretsRow (metadata only,
+// no value) to an SDK UserSecret.
+func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
+
+// UserSecretFromFull converts a full database UserSecret row to an
+// SDK UserSecret, omitting the value and encryption key ID.
+func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
+
+// UserSecrets converts a slice of database ListUserSecretsRow to
+// SDK UserSecret values.
+func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
+	result := make([]codersdk.UserSecret, 0, len(secrets))
+	for _, s := range secrets {
+		result = append(result, UserSecret(s))
+	}
 	return result
 }

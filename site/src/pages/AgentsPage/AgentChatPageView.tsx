@@ -319,7 +319,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					className={cn(
 						"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 						visualExpanded && "hidden",
-						shouldShowSidebar && "max-md:hidden",
+						shouldShowSidebar && "max-lg:hidden",
 					)}
 				>
 					<div className="relative z-10 shrink-0 overflow-visible">
@@ -489,7 +489,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 						chatTitle={chatTitle}
-						desktopChatId={desktopChatId}
+						desktopChatId={
+							workspace && workspaceAgent ? desktopChatId : undefined
+						}
 					/>
 				</RightPanel>
 			</div>

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -57,6 +59,34 @@ func formatSystemInstructions(
 	return b.String()
 }
 
+// latestContextAgentID returns the most recent workspace-agent ID seen
+// on any persisted context-file part, including the skill-only sentinel.
+// Returns uuid.Nil, false when no stamped context-file parts exist.
+func latestContextAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
+	var lastID uuid.UUID
+	found := false
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile ||
+				!part.ContextFileAgentID.Valid {
+				continue
+			}
+			lastID = part.ContextFileAgentID.UUID
+			found = true
+			break
+		}
+	}
+	return lastID, found
+}
+
 // instructionFromContextFiles reconstructs the formatted instruction
 // string from persisted context-file parts. This is used on non-first
 // turns so the instruction can be re-injected after compaction
@@ -64,6 +94,7 @@ func formatSystemInstructions(
 func instructionFromContextFiles(
 	messages []database.ChatMessage,
 ) string {
+	filterAgentID, filterByAgent := latestContextAgentID(messages)
 	var contextParts []codersdk.ChatMessagePart
 	var os, dir string
 	for _, msg := range messages {
@@ -77,6 +108,10 @@ func instructionFromContextFiles(
 		}
 		for _, part := range parts {
 			if part.Type != codersdk.ChatMessagePartTypeContextFile {
+				continue
+			}
+			if filterByAgent && part.ContextFileAgentID.Valid &&
+				part.ContextFileAgentID.UUID != filterAgentID {
 				continue
 			}
 			if part.ContextFileOS != "" {
@@ -93,6 +128,80 @@ func instructionFromContextFiles(
 	return formatSystemInstructions(os, dir, contextParts)
 }
 
+// hasPersistedInstructionFiles reports whether messages include a
+// persisted context-file part that should suppress another baseline
+// instruction-file lookup. The workspace-agent skill-only sentinel is
+// ignored so default instructions still load on fresh chats.
+func hasPersistedInstructionFiles(
+	messages []database.ChatMessage,
+) bool {
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile ||
+				!part.ContextFileAgentID.Valid ||
+				part.ContextFilePath == AgentChatContextSentinelPath {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func mergeSkillMetas(
+	persisted []chattool.SkillMeta,
+	discovered []chattool.SkillMeta,
+) []chattool.SkillMeta {
+	if len(persisted) == 0 {
+		return discovered
+	}
+	if len(discovered) == 0 {
+		return persisted
+	}
+
+	seen := make(map[string]struct{}, len(persisted)+len(discovered))
+	merged := make([]chattool.SkillMeta, 0, len(persisted)+len(discovered))
+	appendUnique := func(skill chattool.SkillMeta) {
+		if _, ok := seen[skill.Name]; ok {
+			return
+		}
+		seen[skill.Name] = struct{}{}
+		merged = append(merged, skill)
+	}
+	for _, skill := range discovered {
+		appendUnique(skill)
+	}
+	for _, skill := range persisted {
+		appendUnique(skill)
+	}
+	return merged
+}
+
+// selectSkillMetasForInstructionRefresh chooses which skill metadata
+// should be injected on a turn that refreshes instruction files.
+func selectSkillMetasForInstructionRefresh(
+	persisted []chattool.SkillMeta,
+	discovered []chattool.SkillMeta,
+	currentAgentID uuid.NullUUID,
+	latestInjectedAgentID uuid.NullUUID,
+) []chattool.SkillMeta {
+	if currentAgentID.Valid && latestInjectedAgentID.Valid && latestInjectedAgentID.UUID == currentAgentID.UUID {
+		return mergeSkillMetas(persisted, discovered)
+	}
+	if !currentAgentID.Valid && len(discovered) == 0 {
+		return persisted
+	}
+	return discovered
+}
+
 // skillsFromParts reconstructs skill metadata from persisted
 // skill parts. This is analogous to instructionFromContextFiles
 // so the skill index can be re-injected after compaction without
@@ -100,6 +209,7 @@ func instructionFromContextFiles(
 func skillsFromParts(
 	messages []database.ChatMessage,
 ) []chattool.SkillMeta {
+	filterAgentID, filterByAgent := latestContextAgentID(messages)
 	var skills []chattool.SkillMeta
 	for _, msg := range messages {
 		if !msg.Content.Valid ||
@@ -112,6 +222,10 @@ func skillsFromParts(
 		}
 		for _, part := range parts {
 			if part.Type != codersdk.ChatMessagePartTypeSkill {
+				continue
+			}
+			if filterByAgent && part.ContextFileAgentID.Valid &&
+				part.ContextFileAgentID.UUID != filterAgentID {
 				continue
 			}
 			skills = append(skills, chattool.SkillMeta{

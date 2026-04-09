@@ -884,6 +884,8 @@
           ]
         }
       ],
+      "credential_hint": "string",
+      "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
@@ -1019,6 +1021,8 @@
       ]
     }
   ],
+  "credential_hint": "string",
+  "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
@@ -1043,6 +1047,8 @@
 | Name              | Type                                                                                   | Required | Restrictions | Description |
 |-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
+| `credential_hint` | string                                                                                 | false    |              |             |
+| `credential_kind` | string                                                                                 | false    |              |             |
 | `ended_at`        | string                                                                                 | false    |              |             |
 | `id`              | string                                                                                 | false    |              |             |
 | `model`           | string                                                                                 | false    |              |             |
@@ -1740,7 +1746,8 @@
       "user_agent": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -1750,6 +1757,7 @@
 |--------------|-------------------------------------------------|----------|--------------|-------------|
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
+| `count_cap`  | integer                                         | false    |              |             |
 
 ## codersdk.AuthMethod
 
@@ -2023,6 +2031,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size` | integer | false    |              |             |
 
+## codersdk.ChatRetentionDaysResponse
+
+```json
+{
+  "retention_days": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `retention_days` | integer | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -2173,7 +2195,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "workspace_owner_username": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -2183,6 +2206,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|-----------------------------------------------------------|----------|--------------|-------------|
 | `connection_logs` | array of [codersdk.ConnectionLog](#codersdkconnectionlog) | false    |              |             |
 | `count`           | integer                                                   | false    |              |             |
+| `count_cap`       | integer                                                   | false    |              |             |
 
 ## codersdk.ConnectionLogSSHInfo
 
@@ -2681,6 +2705,28 @@ This is required on creation to enable a user-flow of validating a template work
 | `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
+
+## codersdk.CreateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `value`       | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceBuildReason
 
@@ -10295,6 +10341,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
+## codersdk.UpdateChatRetentionDaysRequest
+
+```json
+{
+  "retention_days": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `retention_days` | integer | false    |              |             |
+
 ## codersdk.UpdateCheckResponse
 
 ```json
@@ -10549,6 +10609,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`schedule`|string|true||Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template schedule.
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
+
+## codersdk.UpdateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `value`       | string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceACL
 
@@ -11107,6 +11187,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
 | `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
+
+## codersdk.UserSecret
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
 
 ## codersdk.UserStatus
 

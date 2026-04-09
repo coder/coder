@@ -584,6 +584,7 @@ func (q *sqlQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg CountAudi
 		arg.DateTo,
 		arg.BuildReason,
 		arg.RequestID,
+		arg.CountCap,
 	)
 	if err != nil {
 		return 0, err
@@ -720,6 +721,7 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 		arg.WorkspaceID,
 		arg.ConnectionID,
 		arg.Status,
+		arg.CountCap,
 	)
 	if err != nil {
 		return 0, err
@@ -796,6 +798,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.PinOrder,
 			&i.Chat.LastReadMessageID,
 			&i.Chat.LastInjectedContext,
+			&i.Chat.DynamicTools,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -866,6 +869,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 			&i.AIBridgeInterception.ClientSessionID,
 			&i.AIBridgeInterception.SessionID,
 			&i.AIBridgeInterception.ProviderName,
+			&i.AIBridgeInterception.CredentialKind,
+			&i.AIBridgeInterception.CredentialHint,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -1129,6 +1134,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.ClientSessionID,
 			&i.AIBridgeInterception.SessionID,
 			&i.AIBridgeInterception.ProviderName,
+			&i.AIBridgeInterception.CredentialKind,
+			&i.AIBridgeInterception.CredentialHint,
 		); err != nil {
 			return nil, err
 		}

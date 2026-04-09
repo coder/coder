@@ -1055,12 +1055,17 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		require.NoError(t, err)
 		defer cancelProbe()
 
-		// Transition the child first, then publish once the
-		// durable completion state is observable. Pubsub only
-		// wakes the waiter; it does not guarantee the report is
-		// visible in the same instant as the notification.
-		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+		// Insert the message BEFORE transitioning to Waiting.
+		// Stale PG LISTEN/NOTIFY notifications from the
+		// processor's earlier run can still be buffered in the
+		// pgListener after drainInflight returns. If such a
+		// notification is dispatched between setChatStatus and
+		// insertAssistantMessage, checkSubagentCompletion would
+		// see done=true (Waiting) with an empty report. By
+		// inserting the message first, the report is guaranteed
+		// to be committed before the status makes it visible.
 		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "pubsub result")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			chat, report, done, err := server.checkSubagentCompletion(ctx, child.ID)
 			require.NoError(c, err)
