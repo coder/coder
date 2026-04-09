@@ -4330,7 +4330,7 @@ describe("parse errors", () => {
 			]);
 		});
 
-		// Now fire a parse error — stream blocks should survive.
+		// Fire a parse error and verify the existing stream blocks survive.
 		act(() => {
 			mockSocket.emitParseError();
 		});
@@ -4346,7 +4346,7 @@ describe("parse errors", () => {
 		]);
 	});
 
-	it("recovers after parse error", async () => {
+	it("continues processing after parse error", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-parse-recover";
@@ -4417,6 +4417,12 @@ describe("parse errors", () => {
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "recovered" },
 			]);
+		});
+
+		// streamError is sticky and is not cleared by valid messages.
+		expect(result.current.streamError).toEqual({
+			kind: "generic",
+			message: "Failed to parse chat stream update.",
 		});
 	});
 });

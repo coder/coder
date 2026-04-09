@@ -172,6 +172,8 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 				}
 				if err := encoder.Encode(payload); err != nil {
 					api.Logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
+					cancel()
+					return
 				}
 			},
 		))
@@ -2165,7 +2167,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
-	logger := api.Logger.Named("chat_streamer")
+	logger := api.Logger.Named("chat_streamer").With(slog.F("chat_id", chatID))
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
