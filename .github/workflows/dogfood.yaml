@@ -157,6 +157,10 @@ jobs:
           terraform init
           terraform validate
           popd
+          pushd dogfood/coder-ec2
+          terraform init
+          terraform validate
+          popd
 
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
