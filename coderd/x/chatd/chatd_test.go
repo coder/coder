@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -310,97 +309,6 @@ func TestResolveChatModel(t *testing.T) {
 		require.ErrorContains(t, err, "no usable provider config")
 	})
 
-	t.Run("NoAttachmentsUsesFamilyFallback", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newDeps(t)
-		providerConfig := insertProvider(t, deps, "openai", "family-key", "", true)
-		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
-
-		model, gotConfig, keys, err := chatd.ResolveChatModelForTest(
-			deps.ctx,
-			deps.server,
-			newChat(deps.user.ID, modelConfig.ID),
-		)
-		require.NoError(t, err)
-		require.NotNil(t, model)
-		require.Equal(t, modelConfig.ID, gotConfig.ID)
-		require.Equal(t, providerConfig.APIKey, keys.APIKey("openai"))
-	})
-
-	t.Run("NoAttachmentsUsesEnvFallback", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		server := chatd.New(chatd.Config{
-			Logger:                     logger,
-			Database:                   db,
-			ReplicaID:                  uuid.New(),
-			Pubsub:                     ps,
-			PendingChatAcquireInterval: testutil.WaitLong,
-			ProviderAPIKeys: chatprovider.ProviderAPIKeys{
-				OpenAI: "env-openai-key",
-			},
-		})
-		t.Cleanup(func() {
-			require.NoError(t, server.Close())
-		})
-		deps := testDeps{
-			ctx:    ctx,
-			db:     db,
-			server: server,
-			user:   dbgen.User(t, db, database.User{}),
-		}
-		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
-
-		model, gotConfig, keys, err := chatd.ResolveChatModelForTest(
-			deps.ctx,
-			deps.server,
-			newChat(deps.user.ID, modelConfig.ID),
-		)
-		require.NoError(t, err)
-		require.NotNil(t, model)
-		require.Equal(t, modelConfig.ID, gotConfig.ID)
-		require.Equal(t, "env-openai-key", keys.APIKey("openai"))
-	})
-
-	t.Run("NoAttachmentsUsesLegacyBoundProvider", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newDeps(t)
-		_ = insertProvider(t, deps, "openai", "family-key", "https://family.example.com", true)
-		boundProvider := insertProvider(t, deps, "openai", "bound-key", "https://bound.example.com", true)
-		modelConfig, err := deps.db.InsertChatModelConfig(
-			deps.ctx,
-			database.InsertChatModelConfigParams{
-				Provider:             "openai",
-				Model:                "gpt-4o-mini",
-				DisplayName:          "Test Model",
-				CreatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
-				UpdatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
-				Enabled:              true,
-				IsDefault:            true,
-				ContextLimit:         128000,
-				CompressionThreshold: 70,
-				Options:              json.RawMessage(`{}`),
-				ProviderConfigID:     uuid.NullUUID{UUID: boundProvider.ID, Valid: true},
-			},
-		)
-		require.NoError(t, err)
-
-		_, gotConfig, keys, err := chatd.ResolveChatModelForTest(
-			deps.ctx,
-			deps.server,
-			newChat(deps.user.ID, modelConfig.ID),
-		)
-		require.NoError(t, err)
-		require.Equal(t, modelConfig.ID, gotConfig.ID)
-		require.Equal(t, "bound-key", keys.APIKey("openai"))
-		require.Equal(t, "https://bound.example.com", keys.BaseURL("openai"))
-	})
-
 	t.Run("NoAttachments", func(t *testing.T) {
 		t.Parallel()
 
@@ -412,7 +320,23 @@ func TestResolveChatModel(t *testing.T) {
 			deps.server,
 			newChat(deps.user.ID, modelConfig.ID),
 		)
-		require.ErrorContains(t, err, "no usable provider config")
+		require.Error(t, err)
+	})
+
+	t.Run("NoAttachmentsReturnsError", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+
+		_, _, _, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.ErrorContains(t, err, "no explicit provider attachments configured")
+		require.ErrorContains(t, err, modelConfig.ID.String())
+		require.ErrorContains(t, err, modelConfig.Provider)
 	})
 }
 

@@ -5614,94 +5614,10 @@ func (p *Server) resolveLanguageModelForConfig(
 		)
 	}
 
-	// Fallback: try a legacy bound provider first, then fall back to the
-	// provider family only for models without explicit attachments.
-	normalizedModelProvider := chatprovider.NormalizeProvider(modelConfig.Provider)
-	if len(attachments) == 0 && modelConfig.ProviderConfigID.Valid {
-		provider, ok, providerErr := p.configCache.EnabledProviderByID(
-			ctx,
-			modelConfig.ProviderConfigID.UUID,
-		)
-		if providerErr != nil {
-			return nil, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-				"get legacy bound provider by ID: %w",
-				providerErr,
-			)
-		}
-		if ok {
-			resolvedKeys := resolveUserProviderAPIKeysForProviders(
-				baseKeys,
-				[]database.ChatProvider{provider},
-				userKeys,
-			)
-			normalizedBoundProvider := chatprovider.NormalizeProvider(provider.Provider)
-			if normalizedBoundProvider != "" {
-				resolvedKeys = chatprovider.ProviderKeysFromConfig(
-					resolvedKeys,
-					provider.Provider,
-					resolvedKeys.APIKey(normalizedBoundProvider),
-					provider.BaseUrl,
-				)
-				if resolvedKeys.APIKey(normalizedBoundProvider) != "" {
-					model, modelErr := chatprovider.ModelFromConfig(
-						provider.Provider,
-						modelConfig.Model,
-						resolvedKeys,
-						userAgent,
-						headers,
-					)
-					if modelErr == nil {
-						return model, resolvedKeys, nil
-					}
-					p.logger.Warn(ctx, "legacy bound provider model creation failed",
-						slog.F("provider", provider.Provider),
-						slog.F("model", modelConfig.Model),
-						slog.Error(modelErr),
-					)
-				}
-			}
-		}
-	}
-	if normalizedModelProvider != "" {
-		var familyProviders []database.ChatProvider
-		for _, ep := range enabledProviders {
-			if chatprovider.NormalizeProvider(ep.Provider) == normalizedModelProvider {
-				familyProviders = append(familyProviders, ep)
-			}
-		}
-
-		resolvedKeys := baseKeys
-		if len(familyProviders) > 0 {
-			resolvedKeys = resolveUserProviderAPIKeysForProviders(
-				baseKeys,
-				familyProviders,
-				userKeys,
-			)
-		}
-		if resolvedKeys.APIKey(normalizedModelProvider) != "" {
-			model, modelErr := chatprovider.ModelFromConfig(
-				modelConfig.Provider,
-				modelConfig.Model,
-				resolvedKeys,
-				userAgent,
-				headers,
-			)
-			if modelErr == nil {
-				return model, resolvedKeys, nil
-			}
-			p.logger.Warn(ctx, "family fallback model creation failed",
-				slog.F("provider", modelConfig.Provider),
-				slog.F("model", modelConfig.Model),
-				slog.Error(modelErr),
-			)
-		}
-	}
-
 	return nil, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-		"no usable provider config for model %s (%s): attachments=%d",
+		"no explicit provider attachments configured for model %s (%s)",
 		modelConfig.ID,
 		modelConfig.Provider,
-		len(attachments),
 	)
 }
 
