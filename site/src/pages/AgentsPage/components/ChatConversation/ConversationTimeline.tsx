@@ -1071,6 +1071,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			return null;
 		}
 
+		// Render an initial slice eagerly so timelines remain visible before
+		// Virtuoso receives stable scroll measurements.
 		const initialItemCount = Math.min(parsedMessages.length, 20);
 
 		return (
