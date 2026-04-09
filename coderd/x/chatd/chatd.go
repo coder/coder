@@ -5022,7 +5022,7 @@ func (p *Server) runChat(
 					// Notify the frontend immediately so it can
 					// start streaming build logs before the tool
 					// completes.
-					p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
+					p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindStatusChange, nil)
 				},
 				Logger:             p.logger,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,

@@ -16,7 +16,9 @@ interface WorkspaceBuildLogSectionProps {
 	buildId?: string;
 }
 
-// How long to wait for the first log entry before showing an error.
+// How long to wait for the first log entry before showing a
+// warning. Builds can stay queued or run slow Terraform init for
+// longer than this — the message is intentionally soft.
 const LOG_LOAD_TIMEOUT_MS = 30_000;
 
 /**
@@ -59,7 +61,10 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 
 	const logs: ProvisionerJobLog[] | undefined = isRunning
 		? streamingLogs
-		: (completedLogsQuery.data ?? streamingLogs);
+		: // Fall back to accumulated streaming logs while the REST
+			// fetch is in-flight, avoiding a flash of "Loading…" on
+			// the running→completed transition.
+			(completedLogsQuery.data ?? streamingLogs);
 
 	// --- Timeout: detect if logs never arrive ---
 	// Derive a stable boolean so the effect only re-runs when logs
@@ -87,7 +92,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
 				<TriangleAlertIcon className="h-3 w-3" />
-				<span>Failed to load build logs.</span>
+				<span>Build logs are taking longer than expected.</span>
 			</div>
 		);
 	}
