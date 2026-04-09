@@ -474,6 +474,16 @@ const buildStoreWithMessages = (
 	return store;
 };
 
+const gapTestStore = createChatStore();
+gapTestStore.replaceMessages([
+	buildMessage(1, "user", "Explain the layout."),
+	buildMessage(2, "assistant", "Here is the explanation."),
+	buildMessage(3, "user", "Can you elaborate?"),
+]);
+gapTestStore.applyMessageParts([
+	{ type: "text", text: "Certainly, here are more details..." },
+]);
+
 // ---------------------------------------------------------------------------
 // Editing flow stories
 // ---------------------------------------------------------------------------
@@ -519,6 +529,26 @@ export const EditingSaving: Story = {
 			isSubmissionPending
 		/>
 	),
+};
+
+export const ConsistentGapBetweenTimelineAndStream: Story = {
+	render: () => <StoryAgentChatPageView store={gapTestStore} />,
+	play: async ({ canvasElement }) => {
+		const wrapper = canvasElement.querySelector(
+			'[data-testid="chat-timeline-wrapper"]',
+		);
+		expect(wrapper).not.toBeNull();
+
+		const outerGap = window.getComputedStyle(wrapper!).rowGap;
+		expect(outerGap).toBe("8px");
+
+		const timeline = wrapper!.querySelector(
+			'[data-testid="conversation-timeline"]',
+		);
+		expect(timeline).not.toBeNull();
+		const innerGap = window.getComputedStyle(timeline!).rowGap;
+		expect(innerGap).toBe("8px");
+	},
 };
 
 // ---------------------------------------------------------------------------
