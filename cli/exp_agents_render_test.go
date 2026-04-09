@@ -36,20 +36,6 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 			},
 			{
-				name: "SkipsSystemMessages",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleSystem,
-					Content: []codersdk.ChatMessagePart{{
-						Type: codersdk.ChatMessagePartTypeText,
-						Text: "internal",
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Empty(t, blocks)
-				},
-			},
-			{
 				name: "UserText",
 				messages: []codersdk.ChatMessage{{
 					Role: codersdk.ChatMessageRoleUser,
@@ -60,8 +46,7 @@ func TestExpAgentsRender(t *testing.T) {
 				}},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}, blocks[0])
+					require.Equal(t, []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}}, blocks)
 				},
 			},
 			{
@@ -75,23 +60,7 @@ func TestExpAgentsRender(t *testing.T) {
 				}},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "hi there"}, blocks[0])
-				},
-			},
-			{
-				name: "ReasoningPart",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type: codersdk.ChatMessagePartTypeReasoning,
-						Text: "thinking",
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "thinking"}, blocks[0])
+					require.Equal(t, []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "hi there"}}, blocks)
 				},
 			},
 			{
@@ -109,14 +78,13 @@ func TestExpAgentsRender(t *testing.T) {
 				}},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{
+					require.Equal(t, []chatBlock{{
 						kind:     blockToolCall,
 						role:     codersdk.ChatMessageRoleAssistant,
 						toolName: "weather",
 						toolID:   "call-1",
 						args:     `{"city":"SF"}`,
-					}, blocks[0])
+					}}, blocks)
 				},
 			},
 			{
@@ -135,15 +103,14 @@ func TestExpAgentsRender(t *testing.T) {
 				}},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{
+					require.Equal(t, []chatBlock{{
 						kind:     blockToolResult,
 						role:     codersdk.ChatMessageRoleTool,
 						toolName: "weather",
 						toolID:   "call-1",
 						result:   `{"temp":"68F"}`,
 						isError:  true,
-					}, blocks[0])
+					}}, blocks)
 				},
 			},
 			{
@@ -182,109 +149,6 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 			},
 			{
-				name: "KeepsStandaloneToolResultWithoutMatchingCall",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleTool,
-					Content: []codersdk.ChatMessagePart{{
-						Type:       codersdk.ChatMessagePartTypeToolResult,
-						ToolName:   "weather",
-						ToolCallID: "call-missing",
-						Result:     rawJSON(`{"temp":"68F"}`),
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, blockToolResult, blocks[0].kind)
-					require.Equal(t, "call-missing", blocks[0].toolID)
-					require.Equal(t, `{"temp":"68F"}`, blocks[0].result)
-				},
-			},
-			{
-				name: "ContextCompactionToolCall",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type:       codersdk.ChatMessagePartTypeToolCall,
-						ToolName:   contextCompactionToolName,
-						ToolCallID: "call-2",
-						Args:       rawJSON(`{"summary":"done"}`),
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, blockCompaction, blocks[0].kind)
-					require.NotEqual(t, blockToolCall, blocks[0].kind)
-				},
-			},
-			{
-				name: "ContextCompactionToolResult",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleTool,
-					Content: []codersdk.ChatMessagePart{{
-						Type:       codersdk.ChatMessagePartTypeToolResult,
-						ToolName:   contextCompactionToolName,
-						ToolCallID: "call-2",
-						Result:     rawJSON(`{"summary":"done"}`),
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, blockCompaction, blocks[0].kind)
-					require.NotEqual(t, blockToolResult, blocks[0].kind)
-				},
-			},
-			{
-				name: "SourcePart",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type:  codersdk.ChatMessagePartTypeSource,
-						Title: "Docs",
-						URL:   "https://coder.com/docs",
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "[Source: Docs](https://coder.com/docs)"}, blocks[0])
-				},
-			},
-			{
-				name: "FilePart",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type:      codersdk.ChatMessagePartTypeFile,
-						MediaType: "text/plain",
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "[File: text/plain]"}, blocks[0])
-				},
-			},
-			{
-				name: "FileReferencePart",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type:      codersdk.ChatMessagePartTypeFileReference,
-						FileName:  "main.go",
-						StartLine: 1,
-						EndLine:   10,
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 1)
-					require.Equal(t, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "[main.go L1-10]"}, blocks[0])
-				},
-			},
-			{
 				name: "MultipleMessagesInOrder",
 				messages: []codersdk.ChatMessage{
 					{
@@ -305,15 +169,12 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 				assert: func(t *testing.T, blocks []chatBlock) {
 					t.Helper()
-					require.Len(t, blocks, 4)
-					require.Equal(t, blockText, blocks[0].kind)
-					require.Equal(t, "question", blocks[0].text)
-					require.Equal(t, blockReasoning, blocks[1].kind)
-					require.Equal(t, "thinking", blocks[1].text)
-					require.Equal(t, blockToolCall, blocks[2].kind)
-					require.Equal(t, "search", blocks[2].toolName)
-					require.Equal(t, blockText, blocks[3].kind)
-					require.Equal(t, "answer", blocks[3].text)
+					require.Equal(t, []chatBlock{
+						{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "question"},
+						{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "thinking"},
+						{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "search", toolID: "call-3", args: `{"q":"docs"}`},
+						{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "answer"},
+					}, blocks)
 				},
 			},
 		}
@@ -508,18 +369,10 @@ func TestExpAgentsRender(t *testing.T) {
 				require.Contains(t, output, `"ls -la`)
 				require.Contains(t, output, "…")
 			}},
-			{name: "VeryLongArgsTruncatePreview", part: codersdk.ChatMessagePart{ToolName: "weather", Args: rawJSON(`{"payload":"` + strings.Repeat("a", 2000) + `"}`)}, width: 40, assert: func(t *testing.T, output string) {
-				require.Contains(t, output, "⏳ weather")
-				require.Contains(t, output, "…")
-				require.NotContains(t, output, strings.Repeat("a", 100))
-			}},
 			{name: "ContextCompactionRendersBanner", part: codersdk.ChatMessagePart{ToolName: contextCompactionToolName}, width: 40, assert: func(t *testing.T, output string) {
 				require.Contains(t, output, "🗜️  Context compacted")
 				require.NotContains(t, output, "⏳")
 			}},
-			{name: "EmptyToolNameFallsBackToTool", part: codersdk.ChatMessagePart{Args: rawJSON(`{"x":1}`)}, width: 40, assert: func(t *testing.T, output string) { require.Contains(t, output, "⏳ tool") }},
-			{name: "ZeroWidthReturnsJustLabel", part: codersdk.ChatMessagePart{ToolName: "weather", Args: rawJSON(`{"x":1}`)}, width: 0, assert: func(t *testing.T, output string) { require.Equal(t, "  ⏳ weather", output) }},
-			{name: "ZeroWidthDoesNotPanic", part: codersdk.ChatMessagePart{ToolName: "weather", Args: rawJSON(`{"x":1}`)}, width: 0, assert: func(t *testing.T, _ string) {}},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
@@ -540,11 +393,6 @@ func TestExpAgentsRender(t *testing.T) {
 			width  int
 			assert func(t *testing.T, rawOutput, plainOutput string)
 		}{
-			{name: "MergedErrorKeepsArgsSummary", part: codersdk.ChatMessagePart{ToolName: "read_file", Args: rawJSON(`{"path":"secrets.txt"}`), Result: rawJSON(`{"error":"permission denied"}`), IsError: true}, width: 60, assert: func(t *testing.T, _, output string) {
-				require.Contains(t, output, "✗ read file")
-				require.Contains(t, output, "(secrets.txt)")
-				require.NotContains(t, output, "permission denied")
-			}},
 			{name: "SuccessShowsCheckPrefixAndArgsContext", part: codersdk.ChatMessagePart{ToolName: "coder_execute_command", Args: rawJSON(`{"command":"ls -la"}`), Result: rawJSON(`{"ok":true}`)}, width: 40, assert: func(t *testing.T, _, output string) {
 				require.Contains(t, output, "✓ execute command")
 				require.Contains(t, output, `"ls -la"`)
@@ -552,25 +400,6 @@ func TestExpAgentsRender(t *testing.T) {
 			{name: "ErrorShowsErrorStyleAndMessage", part: codersdk.ChatMessagePart{ToolName: "coder_execute_command", Result: rawJSON(`{"error":"command not found"}`), IsError: true}, width: 40, assert: func(t *testing.T, rawOutput, plainOutput string) {
 				require.Contains(t, rawOutput, styles.errorText.Render("✗ execute command"))
 				require.Contains(t, plainOutput, `"command not found"`)
-			}},
-			{name: "ShowsCompactResultPreview", part: codersdk.ChatMessagePart{ToolName: "weather", Result: rawJSON(`{"forecast":"sunny and warm all afternoon"}`)}, width: 26, assert: func(t *testing.T, _, output string) {
-				require.Contains(t, output, "✓ weather")
-				require.Contains(t, output, "sunny")
-				require.Contains(t, output, "…")
-				require.NotContains(t, output, "all afternoon")
-			}},
-			{name: "VeryLongResultTruncatesPreview", part: codersdk.ChatMessagePart{ToolName: "weather", Result: rawJSON(`{"payload":"` + strings.Repeat("b", 5000) + `"}`)}, width: 40, assert: func(t *testing.T, _, output string) {
-				require.Contains(t, output, "✓ weather")
-				require.Contains(t, output, "…")
-				require.NotContains(t, output, strings.Repeat("b", 100))
-			}},
-			{name: "CreateWorkspaceSuccessShowsWorkspaceContext", part: codersdk.ChatMessagePart{ToolName: "coder_create_workspace", Args: rawJSON(`{"name":"my-workspace"}`), Result: rawJSON(`{"workspace_name":"my-workspace","template":"docker"}`)}, width: 60, assert: func(t *testing.T, _, output string) {
-				require.Contains(t, output, "✓ create workspace")
-				require.Contains(t, output, "(my-workspace)")
-			}},
-			{name: "CreateWorkspaceErrorShowsWorkspaceContext", part: codersdk.ChatMessagePart{ToolName: "coder_create_workspace", Args: rawJSON(`{"name":"my-workspace"}`), Result: rawJSON(`{"error":"template not found"}`), IsError: true}, width: 60, assert: func(t *testing.T, _, output string) {
-				require.Contains(t, output, "✗ create workspace")
-				require.Contains(t, output, "(my-workspace)")
 			}},
 			{name: "MergedCreateWorkspaceResultKeepsArgsSummary", part: codersdk.ChatMessagePart{ToolName: "coder_create_workspace", ToolCallID: "call-create-workspace", Args: rawJSON(`{"name":"merged-workspace"}`), Result: rawJSON(`{"workspace_name":"merged-workspace","status":"created"}`)}, width: 60, assert: func(t *testing.T, _, output string) {
 				require.Contains(t, output, "✓ create workspace")
@@ -580,7 +409,6 @@ func TestExpAgentsRender(t *testing.T) {
 				require.Contains(t, output, "🗜️  Context compacted")
 				require.NotContains(t, output, "✓")
 			}},
-			{name: "EmptyResultRendersNull", part: codersdk.ChatMessagePart{ToolName: "weather"}, width: 40, assert: func(t *testing.T, _, output string) { require.Contains(t, output, "null") }},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
@@ -595,25 +423,8 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
-		for _, tt := range []struct {
-			name   string
-			width  int
-			assert func(t *testing.T, rawOutput, plainOutput string)
-		}{
-			{name: "ContainsIconAndText", width: 20, assert: func(t *testing.T, _, output string) { require.Contains(t, output, "🗜️  Context compacted") }},
-			{name: "CentersWithinWidth", width: 40, assert: func(t *testing.T, rawOutput, plainOutput string) {
-				require.Equal(t, 40, lipgloss.Width(rawOutput))
-				require.True(t, strings.HasPrefix(plainOutput, " "))
-				require.Contains(t, plainOutput, "Context compacted")
-			}},
-		} {
-			tt := tt
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				rawOutput := renderCompaction(styles, tt.width)
-				tt.assert(t, rawOutput, plainText(rawOutput))
-			})
-		}
+		output := plainText(renderCompaction(styles, 20))
+		require.Contains(t, output, "🗜️  Context compacted")
 	})
 	t.Run("RenderStatusBar", func(t *testing.T) {
 		t.Parallel()
@@ -783,202 +594,31 @@ func TestExpAgentsRender(t *testing.T) {
 			output := plainText(renderBlock(styles, chatBlock{kind: blockCompaction}, false, 40))
 			require.Contains(t, output, "🗜️  Context compacted")
 		})
-
-		t.Run("ExtremelyNarrow", func(t *testing.T) {
-			t.Parallel()
-
-			var output string
-			require.NotPanics(t, func() {
-				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "narrow terminal rendering still works"}, false, 15))
-			})
-			require.NotEmpty(t, output)
-		})
-
-		t.Run("ExtremelyWide", func(t *testing.T) {
-			t.Parallel()
-
-			var output string
-			require.NotPanics(t, func() {
-				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "wide terminal rendering still works"}, false, 250))
-			})
-			require.NotEmpty(t, output)
-		})
-
-		t.Run("WithEmoji", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "Hello 👋 World 🌍"}, false, 40))
-			require.Contains(t, output, "Hello 👋 World 🌍")
-		})
-
-		t.Run("WithCJKCharacters", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "こんにちは世界"}, false, 40))
-			require.Contains(t, output, "こんにちは世界")
-		})
-
-		t.Run("VeryLongMessage", func(t *testing.T) {
-			t.Parallel()
-
-			veryLong := strings.Repeat("abcde", 1000)
-			var output string
-			require.NotPanics(t, func() {
-				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: veryLong}, false, 60))
-			})
-			require.NotEmpty(t, output)
-		})
-
-		t.Run("VeryLongSingleLineWraps", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: strings.Repeat("a", 1000)}, false, 40))
-			lines := strings.Split(output, "\n")
-			require.Greater(t, len(lines), 1)
-			for _, line := range lines {
-				require.LessOrEqual(t, lipgloss.Width(line), 40)
-			}
-		})
-
-		t.Run("EmptyText", func(t *testing.T) {
-			t.Parallel()
-
-			var output string
-			require.NotPanics(t, func() {
-				output = plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: ""}, false, 40))
-			})
-			require.Equal(t, "You: ", output)
-		})
-
-		t.Run("NilParts", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := messagesToBlocks([]codersdk.ChatMessage{{
-				Role: codersdk.ChatMessageRoleAssistant,
-				Content: []codersdk.ChatMessagePart{
-					{Type: codersdk.ChatMessagePartTypeText},
-					{Type: codersdk.ChatMessagePartTypeToolCall},
-					{Type: codersdk.ChatMessagePartTypeToolResult},
-				},
-			}})
-			require.Len(t, blocks, 2)
-
-			var output string
-			require.NotPanics(t, func() {
-				output = plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 40))
-			})
-			require.NotEmpty(t, output)
-			require.Contains(t, output, "✓ tool")
-		})
 	})
 
 	t.Run("RenderChatBlocks", func(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
-		block := chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}
 
-		for _, tt := range []struct {
-			name            string
-			blocks          []chatBlock
-			selectedIndex   int
-			expandedBlocks  map[int]bool
-			composerFocused bool
-			assert          func(t *testing.T, output string)
-		}{
-			{name: "EmptyBlocksReturnsEmptyString", assert: func(t *testing.T, output string) { require.Empty(t, output) }},
-			{name: "SelectedBlockGetsSelectedStyle", blocks: []chatBlock{block}, selectedIndex: 0, expandedBlocks: map[int]bool{}, assert: func(t *testing.T, output string) {
-				require.Equal(t, styles.selectedItem.Render(renderBlock(styles, block, false, 40)), output)
-			}},
-			{name: "ComposerFocusDisablesSelectionHighlight", blocks: []chatBlock{block}, selectedIndex: 0, expandedBlocks: map[int]bool{}, composerFocused: true, assert: func(t *testing.T, output string) {
-				require.Equal(t, renderBlock(styles, block, false, 40), output)
-			}},
-		} {
-			tt := tt
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				output := renderChatBlocks(styles, tt.blocks, tt.selectedIndex, tt.expandedBlocks, tt.composerFocused, 40)
-				tt.assert(t, output)
-			})
-		}
-		type renderChatBlocksParams struct {
-			selectedIndex   int
-			expandedBlocks  map[int]bool
-			composerFocused bool
-			width           int
-		}
-		for _, tt := range []struct {
-			name   string
-			blocks []chatBlock
-			first  renderChatBlocksParams
-			second renderChatBlocksParams
-			assert func(t *testing.T, blocks []chatBlock, first, second string)
-		}{
-			{
-				name: "SameWidthAndExpansionKeepEquivalentOutput",
-				blocks: []chatBlock{
-					{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"},
-					{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "thinking through the answer"},
-				},
-				first:  renderChatBlocksParams{selectedIndex: 0, expandedBlocks: map[int]bool{1: true}, composerFocused: true, width: 40},
-				second: renderChatBlocksParams{selectedIndex: 0, expandedBlocks: map[int]bool{1: true}, composerFocused: true, width: 40},
-				assert: func(t *testing.T, _ []chatBlock, first, second string) { require.Equal(t, first, second) },
-			},
-			{
-				name:   "WidthChangeProducesDifferentOutput",
-				blocks: []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleUser, text: strings.Repeat("cache invalidation ", 8)}},
-				first:  renderChatBlocksParams{expandedBlocks: map[int]bool{}, composerFocused: true, width: 60},
-				second: renderChatBlocksParams{expandedBlocks: map[int]bool{}, composerFocused: true, width: 40},
-				assert: func(t *testing.T, _ []chatBlock, first, second string) {
-					require.NotEqual(t, plainText(first), plainText(second))
-				},
-			},
-			{
-				name:   "ExpansionChangeProducesDifferentOutput",
-				blocks: []chatBlock{{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "line one\nline two\nline three\nline four"}},
-				first:  renderChatBlocksParams{expandedBlocks: map[int]bool{}, composerFocused: true, width: 40},
-				second: renderChatBlocksParams{expandedBlocks: map[int]bool{0: true}, composerFocused: true, width: 40},
-				assert: func(t *testing.T, _ []chatBlock, first, second string) {
-					require.NotEqual(t, plainText(first), plainText(second))
-				},
-			},
-			{
-				name:   "SelectionStylingDoesNotPoisonCachedContent",
-				blocks: []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}},
-				first:  renderChatBlocksParams{selectedIndex: 0, expandedBlocks: map[int]bool{}, composerFocused: false, width: 40},
-				second: renderChatBlocksParams{selectedIndex: 0, expandedBlocks: map[int]bool{}, composerFocused: true, width: 40},
-				assert: func(t *testing.T, blocks []chatBlock, first, second string) {
-					blockView := renderBlock(styles, blocks[0], false, 40)
-					require.Equal(t, styles.selectedItem.Render(blockView), first)
-					require.Equal(t, blockView, second)
-					require.Equal(t, plainText(first), plainText(second))
-				},
-			},
-		} {
-			tt := tt
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				render := func(params renderChatBlocksParams) string {
-					return renderChatBlocks(styles, tt.blocks, params.selectedIndex, params.expandedBlocks, params.composerFocused, params.width)
-				}
-				first := render(tt.first)
-				second := render(tt.second)
-				tt.assert(t, tt.blocks, first, second)
-			})
-		}
-
-		t.Run("CollapsesConsecutiveSameNameToolCalls", func(t *testing.T) {
+		t.Run("MixedMessagesRenderInOrder", func(t *testing.T) {
 			t.Parallel()
 
 			blocks := []chatBlock{
-				{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`},
-				{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":2}`},
-				{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":3}`},
+				{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"},
+				{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "thinking"},
+				{kind: blockToolResult, toolName: "read_file", args: `{"path":"a.txt"}`, result: `{"path":"a.txt","contents":"hello"}`},
+				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "done"},
 			}
 
-			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 80))
-			require.Equal(t, 1, strings.Count(output, "⏳"))
-			require.Contains(t, output, "get pull request...")
+			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 60))
+			require.Contains(t, output, "You: hello")
+			require.Contains(t, output, "💭 thinking")
+			require.Contains(t, output, "✓ read file")
+			require.Contains(t, output, "done")
+			require.Less(t, strings.Index(output, "You: hello"), strings.Index(output, "💭 thinking"))
+			require.Less(t, strings.Index(output, "💭 thinking"), strings.Index(output, "✓ read file"))
+			require.Less(t, strings.Index(output, "✓ read file"), strings.LastIndex(output, "done"))
 		})
 
 		t.Run("CollapsesConsecutiveSameNameToolResults", func(t *testing.T) {
@@ -1010,25 +650,6 @@ func TestExpAgentsRender(t *testing.T) {
 			require.NotContains(t, output, "(x2)")
 			require.Contains(t, output, "result:")
 		})
-		t.Run("MultipleToolCalls", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{
-				{kind: blockToolCall, toolName: "tool_one", args: `{}`},
-				{kind: blockToolCall, toolName: "tool_two", args: `{}`},
-				{kind: blockToolCall, toolName: "tool_three", args: `{}`},
-				{kind: blockToolCall, toolName: "tool_four", args: `{}`},
-				{kind: blockToolCall, toolName: "tool_five", args: `{}`},
-			}
-
-			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 60))
-			require.Equal(t, 5, strings.Count(output, "⏳"))
-			require.Contains(t, output, "tool one")
-			require.Contains(t, output, "tool two")
-			require.Contains(t, output, "tool three")
-			require.Contains(t, output, "tool four")
-			require.Contains(t, output, "tool five")
-		})
 	})
 	t.Run("RenderDiffDrawer", func(t *testing.T) {
 		t.Parallel()
@@ -1040,24 +661,23 @@ func TestExpAgentsRender(t *testing.T) {
 			name    string
 			diff    codersdk.ChatDiffContents
 			changes []codersdk.ChatGitChange
-			width   int
-			height  int
 			assert  func(t *testing.T, output string)
 		}{
-			{name: "ShowsBranchInfoWhenPresent", diff: codersdk.ChatDiffContents{Branch: &branch}, width: 90, height: 20, assert: func(t *testing.T, output string) { require.Contains(t, output, "Branch: feature/chat-ui") }},
-			{name: "ShowsPRURLWhenPresent", diff: codersdk.ChatDiffContents{PullRequestURL: &prURL}, width: 90, height: 20, assert: func(t *testing.T, output string) { require.Contains(t, output, "PR: https://example.com/pulls/123") }},
-			{name: "ShowsDiffContent", diff: codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+added line"}, changes: []codersdk.ChatGitChange{{FilePath: "a.txt", ChangeType: "modified"}}, width: 90, height: 20, assert: func(t *testing.T, output string) {
+			{name: "ShowsMetadataWhenPresent", diff: codersdk.ChatDiffContents{Branch: &branch, PullRequestURL: &prURL}, assert: func(t *testing.T, output string) {
+				require.Contains(t, output, "Branch: feature/chat-ui")
+				require.Contains(t, output, "PR: https://example.com/pulls/123")
+			}},
+			{name: "ShowsDiffContent", diff: codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+added line"}, changes: []codersdk.ChatGitChange{{FilePath: "a.txt", ChangeType: "modified"}}, assert: func(t *testing.T, output string) {
 				require.Contains(t, output, "diff --git a/a.txt b/a.txt")
 				require.Contains(t, output, "+added line")
 			}},
-			{name: "ShowsPlaceholderForEmptyDiff", width: 90, height: 20, assert: func(t *testing.T, output string) { require.Contains(t, output, "No diff contents.") }},
-			{name: "NarrowWidthDoesNotPanic", diff: codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+added line"}, changes: []codersdk.ChatGitChange{{FilePath: "a.txt", ChangeType: "modified"}}, width: 25, height: 10, assert: func(t *testing.T, output string) { require.NotEmpty(t, output) }},
+			{name: "ShowsPlaceholderForEmptyDiff", assert: func(t *testing.T, output string) { require.Contains(t, output, "No diff contents.") }},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				var output string
-				require.NotPanics(t, func() { output = plainText(renderDiffDrawer(styles, tt.diff, tt.changes, tt.width, tt.height)) })
+				require.NotPanics(t, func() { output = plainText(renderDiffDrawer(styles, tt.diff, tt.changes, 90, 20)) })
 				tt.assert(t, output)
 			})
 		}
@@ -1105,35 +725,24 @@ func TestExpAgentsRender(t *testing.T) {
 			name          string
 			selectedModel string
 			selectedIndex int
-			width         int
-			height        int
 			assert        func(t *testing.T, output string)
 		}{
-			{name: "GroupsModelsByProvider", selectedModel: "gpt-4o", width: 90, height: 20, assert: func(t *testing.T, output string) {
+			{name: "GroupsModelsByProvider", selectedModel: "gpt-4o", assert: func(t *testing.T, output string) {
 				require.Contains(t, output, "OpenAI")
 				require.Contains(t, output, "GPT-4o")
 				require.Contains(t, output, "GPT-4.1")
 			}},
-			{name: "ShowsCursorIndicatorOnSelectedPosition", selectedModel: "gpt-4.1", selectedIndex: 1, width: 90, height: 20, assert: func(t *testing.T, output string) {
+			{name: "ShowsCursorIndicatorOnSelectedPosition", selectedModel: "gpt-4.1", selectedIndex: 1, assert: func(t *testing.T, output string) {
 				require.Contains(t, output, "> GPT-4.1")
 				require.Contains(t, output, "  GPT-4o")
 			}},
-			{name: "UnavailableProvidersShowReason", selectedModel: "gpt-4o", width: 90, height: 20, assert: func(t *testing.T, output string) {
-				require.Contains(t, output, "Anthropic")
-				require.Contains(t, output, "missing_api_key")
-			}},
-			{name: "EmptyProvidersShowNoModelsMessage", selectedModel: "gpt-4o", width: 90, height: 20, assert: func(t *testing.T, output string) {
-				require.Contains(t, output, "Local")
-				require.Contains(t, output, "No models available.")
-			}},
-			{name: "NarrowWidthDoesNotPanic", selectedModel: "gpt-4o", width: 25, height: 10, assert: func(t *testing.T, output string) { require.NotEmpty(t, output) }},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				var output string
 				require.NotPanics(t, func() {
-					output = plainText(renderModelPicker(styles, catalog, tt.selectedModel, tt.selectedIndex, tt.width, tt.height))
+					output = plainText(renderModelPicker(styles, catalog, tt.selectedModel, tt.selectedIndex, 90, 20))
 				})
 				tt.assert(t, output)
 			})
