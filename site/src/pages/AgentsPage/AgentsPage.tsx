@@ -51,7 +51,6 @@ import {
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-// Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
 // fields, ignoring refreshed_at/stale_at which change on every poll.
 function diffStatusEqual(
