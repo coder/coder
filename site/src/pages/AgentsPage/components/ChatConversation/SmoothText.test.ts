@@ -1,11 +1,73 @@
-import { describe, expect, it } from "vitest";
-import { SmoothTextEngine, STREAM_SMOOTHING } from "./SmoothText";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	getUpdateBatchChars,
+	SmoothTextEngine,
+	STREAM_SMOOTHING,
+} from "./SmoothText";
 
 function makeText(length: number): string {
 	return "x".repeat(length);
 }
 
+interface RafHarness {
+	nowMs: () => number;
+	runFrames: (frameCount: number, frameMs?: number) => number;
+}
+
+function installRafHarness(): RafHarness {
+	let nowMs = 0;
+	let nextId = 1;
+	const callbacks = new Map<number, FrameRequestCallback>();
+
+	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+		const id = nextId;
+		nextId += 1;
+		callbacks.set(id, callback);
+		return id;
+	});
+	vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+		callbacks.delete(id);
+	});
+
+	const stepFrame = (frameMs: number): number => {
+		if (callbacks.size === 0) {
+			return 0;
+		}
+		nowMs += frameMs;
+		const currentCallbacks = [...callbacks.values()];
+		callbacks.clear();
+		for (const callback of currentCallbacks) {
+			callback(nowMs);
+		}
+		return currentCallbacks.length;
+	};
+
+	return {
+		nowMs: () => nowMs,
+		runFrames: (frameCount: number, frameMs = 16) => {
+			let executed = 0;
+			for (let frame = 0; frame < frameCount; frame += 1) {
+				const executedThisFrame = stepFrame(frameMs);
+				if (executedThisFrame === 0) {
+					break;
+				}
+				executed += executedThisFrame;
+			}
+			return executed;
+		},
+	};
+}
+
 describe("SmoothTextEngine", () => {
+	let rafHarness: RafHarness;
+
+	beforeEach(() => {
+		rafHarness = installRafHarness();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
 	it("reveals text steadily and reaches full length", () => {
 		const engine = new SmoothTextEngine();
 		const fullText = makeText(200);
@@ -148,5 +210,83 @@ describe("SmoothTextEngine", () => {
 		// Over 1 second of wall time, both refresh rates should reveal
 		// approximately the same number of characters.
 		expect(Math.abs(at60Hz - at240Hz)).toBeLessThanOrEqual(2);
+	});
+
+	it("throttles subscriber updates below RAF cadence during bursts", () => {
+		const engine = new SmoothTextEngine();
+		let notifyCount = 0;
+		engine.subscribe(() => {
+			notifyCount += 1;
+		});
+
+		engine.update(makeText(1200), true, false);
+		const executedFrames = rafHarness.runFrames(240, 16);
+
+		expect(executedFrames).toBeGreaterThan(0);
+		expect(notifyCount).toBeGreaterThan(0);
+		expect(notifyCount).toBeLessThan(Math.floor(executedFrames / 2));
+
+		engine.dispose();
+	});
+
+	it("limits high-backlog update frequency to markdown-friendly cadence", () => {
+		const engine = new SmoothTextEngine();
+		const commitTimes: number[] = [];
+		const commitLengths: number[] = [];
+		engine.subscribe(() => {
+			commitTimes.push(rafHarness.nowMs());
+			commitLengths.push(engine.visibleLength);
+		});
+
+		engine.update(makeText(2000), true, false);
+		rafHarness.runFrames(300, 16);
+
+		for (let index = 1; index < commitTimes.length; index += 1) {
+			if (commitLengths[index] === 2000) {
+				// Final catch-up flush can happen immediately once the
+				// stream is complete.
+				continue;
+			}
+			expect(
+				commitTimes[index] - commitTimes[index - 1],
+			).toBeGreaterThanOrEqual(STREAM_SMOOTHING.MIN_UPDATE_INTERVAL_MS);
+		}
+
+		engine.dispose();
+	});
+
+	it("flushes final state immediately when streaming stops", () => {
+		const engine = new SmoothTextEngine();
+		const fullText = makeText(500);
+		let notifyCount = 0;
+		engine.subscribe(() => {
+			notifyCount += 1;
+		});
+
+		engine.update(fullText, true, false);
+		rafHarness.runFrames(8, 16);
+		const notifyCountBeforeStop = notifyCount;
+
+		engine.update(fullText, false, false);
+
+		expect(engine.visibleLength).toBe(fullText.length);
+		expect(notifyCount).toBeGreaterThan(notifyCountBeforeStop);
+
+		engine.dispose();
+	});
+
+	it("increases markdown commit batch size as backlog pressure rises", () => {
+		expect(getUpdateBatchChars(0)).toBe(
+			STREAM_SMOOTHING.MIN_UPDATE_BATCH_CHARS,
+		);
+		expect(
+			getUpdateBatchChars(STREAM_SMOOTHING.CATCHUP_BACKLOG_CHARS / 2),
+		).toBeGreaterThan(STREAM_SMOOTHING.MIN_UPDATE_BATCH_CHARS);
+		expect(getUpdateBatchChars(STREAM_SMOOTHING.CATCHUP_BACKLOG_CHARS)).toBe(
+			STREAM_SMOOTHING.MAX_UPDATE_BATCH_CHARS,
+		);
+		expect(
+			getUpdateBatchChars(STREAM_SMOOTHING.CATCHUP_BACKLOG_CHARS * 3),
+		).toBe(STREAM_SMOOTHING.MAX_UPDATE_BATCH_CHARS);
 	});
 });

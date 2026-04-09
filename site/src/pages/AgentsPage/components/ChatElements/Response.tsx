@@ -89,6 +89,7 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
 	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
+	streaming: boolean,
 ): Components => {
 	return {
 		a: ({ href, children }: MarkdownComponentProps) => (
@@ -192,7 +193,8 @@ const createComponents = (
 			</code>
 		),
 		// Fenced code blocks: extract language and content from the HAST
-		// node directly (plain data), then render with FileViewer.
+		// node directly (plain data). Streaming mode renders a
+		// lightweight plain <pre>; settled mode uses FileViewer.
 		pre: ({ node }: MarkdownComponentProps) => {
 			const codeChild = node?.children?.[0];
 			if (codeChild?.tagName === "code") {
@@ -203,6 +205,13 @@ const createComponents = (
 				const lang = langClass ? langClass.replace("language-", "") : "text";
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
+					if (streaming) {
+						return (
+							<pre className="my-4 overflow-x-auto rounded-xl border border-solid border-border-default bg-surface-quaternary/25 p-3 font-mono text-2xs leading-relaxed text-content-primary">
+								<code>{content}</code>
+							</pre>
+						);
+					}
 					return (
 						<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
 							<FileViewer
@@ -234,9 +243,18 @@ const createComponents = (
 // every Response instance shares the same stable references.
 // This prevents Streamdown from discarding its cached render
 // tree on each parent re-render.
-const componentsByTheme: Record<FileViewerThemeType, Components> = {
-	light: createComponents("light", fileViewerTheme.light),
-	dark: createComponents("dark", fileViewerTheme.dark),
+const componentsByTheme: Record<
+	FileViewerThemeType,
+	{ static: Components; streaming: Components }
+> = {
+	light: {
+		static: createComponents("light", fileViewerTheme.light, false),
+		streaming: createComponents("light", fileViewerTheme.light, true),
+	},
+	dark: {
+		static: createComponents("dark", fileViewerTheme.dark, false),
+		streaming: createComponents("dark", fileViewerTheme.dark, true),
+	},
 };
 
 export const Response = ({
@@ -250,7 +268,9 @@ export const Response = ({
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
-	const components = componentsByTheme[fileViewerThemeType];
+	const components = streaming
+		? componentsByTheme[fileViewerThemeType].streaming
+		: componentsByTheme[fileViewerThemeType].static;
 
 	return (
 		<div

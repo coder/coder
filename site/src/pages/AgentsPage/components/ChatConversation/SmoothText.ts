@@ -24,6 +24,20 @@ export const STREAM_SMOOTHING = {
 	 * sub-character stalls.
 	 */
 	MIN_FRAME_CHARS: 1,
+	/**
+	 * Minimum wall-clock delay between React-facing updates while
+	 * streaming. This caps markdown re-parse frequency.
+	 */
+	MIN_UPDATE_INTERVAL_MS: 50,
+	/**
+	 * Smallest reveal delta before we publish another update to
+	 * subscribers.
+	 */
+	MIN_UPDATE_BATCH_CHARS: 8,
+	/**
+	 * Largest reveal delta target under heavy catch-up pressure.
+	 */
+	MAX_UPDATE_BATCH_CHARS: 24,
 } as const;
 
 function clamp(value: number, min: number, max: number): number {
@@ -50,6 +64,26 @@ function getAdaptiveRate(backlog: number): number {
 	);
 }
 
+export function getUpdateBatchChars(backlog: number): number {
+	const backlogPressure = clamp(
+		backlog / STREAM_SMOOTHING.CATCHUP_BACKLOG_CHARS,
+		0,
+		1,
+	);
+	const updateBatchChars =
+		STREAM_SMOOTHING.MIN_UPDATE_BATCH_CHARS +
+		backlogPressure *
+			(STREAM_SMOOTHING.MAX_UPDATE_BATCH_CHARS -
+				STREAM_SMOOTHING.MIN_UPDATE_BATCH_CHARS);
+	return Math.round(
+		clamp(
+			updateBatchChars,
+			STREAM_SMOOTHING.MIN_UPDATE_BATCH_CHARS,
+			STREAM_SMOOTHING.MAX_UPDATE_BATCH_CHARS,
+		),
+	);
+}
+
 /**
  * Deterministic text reveal engine for smoothing streamed output.
  *
@@ -70,6 +104,50 @@ export class SmoothTextEngine {
 	private rafId: number | null = null;
 	private previousTimestamp: number | null = null;
 	private listeners = new Set<() => void>();
+
+	private lastCommittedAtMs: number | null = null;
+	private lastNotifiedVisibleLength = 0;
+
+	private nowMs(): number {
+		return typeof performance === "undefined" ? Date.now() : performance.now();
+	}
+
+	private shouldCommitUpdate(timestampMs: number): boolean {
+		if (this.visibleLengthValue === this.lastNotifiedVisibleLength) {
+			return false;
+		}
+
+		if (
+			!this.isStreaming ||
+			this.bypassSmoothing ||
+			this.visibleLengthValue === this.fullLength
+		) {
+			return true;
+		}
+
+		const elapsedMs =
+			this.lastCommittedAtMs === null
+				? 0
+				: Math.max(0, timestampMs - this.lastCommittedAtMs);
+		if (elapsedMs >= STREAM_SMOOTHING.MIN_UPDATE_INTERVAL_MS) {
+			return true;
+		}
+
+		const backlog = this.fullLength - this.visibleLengthValue;
+		const charsSinceLastCommit =
+			this.visibleLengthValue - this.lastNotifiedVisibleLength;
+		const minBatchChars = getUpdateBatchChars(backlog);
+		return charsSinceLastCommit >= minBatchChars;
+	}
+
+	private commitUpdate(timestampMs: number): void {
+		if (this.visibleLengthValue === this.lastNotifiedVisibleLength) {
+			return;
+		}
+		this.lastNotifiedVisibleLength = this.visibleLengthValue;
+		this.lastCommittedAtMs = timestampMs;
+		this.notify();
+	}
 
 	private enforceMaxVisualLag(): void {
 		if (!this.isStreaming || this.bypassSmoothing) {
@@ -114,8 +192,11 @@ export class SmoothTextEngine {
 			const dtMs = timestampMs - this.previousTimestamp;
 			const prevLength = this.visibleLengthValue;
 			this.tick(dtMs);
-			if (this.visibleLengthValue !== prevLength) {
-				this.notify();
+			if (
+				this.visibleLengthValue !== prevLength &&
+				this.shouldCommitUpdate(timestampMs)
+			) {
+				this.commitUpdate(timestampMs);
 			}
 		}
 		this.previousTimestamp = timestampMs;
@@ -130,9 +211,8 @@ export class SmoothTextEngine {
 
 	/**
 	 * Update the ingested text and stream state. Starts or stops the
-	 * internal RAF loop as needed, and notifies subscribers when the
-	 * visible length changes synchronously (e.g. bypass, stream end,
-	 * content shrink).
+	 * internal RAF loop as needed, and only commits React-facing
+	 * updates when batching thresholds are met.
 	 */
 	update(
 		fullText: string,
@@ -140,6 +220,7 @@ export class SmoothTextEngine {
 		bypassSmoothing: boolean,
 	): void {
 		const prevVisible = this.visibleLengthValue;
+		const nowMs = this.nowMs();
 
 		this.fullLength = fullText.length;
 		this.isStreaming = isStreaming;
@@ -154,15 +235,27 @@ export class SmoothTextEngine {
 			this.visibleLengthValue = this.fullLength;
 			this.charBudget = 0;
 			this.stopLoop();
-		} else {
-			this.enforceMaxVisualLag();
-			if (!this.isCaughtUp) {
-				this.startLoop();
-			}
+			this.commitUpdate(nowMs);
+			this.lastCommittedAtMs = null;
+			return;
 		}
 
-		if (this.visibleLengthValue !== prevVisible) {
-			this.notify();
+		this.enforceMaxVisualLag();
+		if (!this.isCaughtUp) {
+			this.startLoop();
+		}
+
+		if (this.lastCommittedAtMs === null) {
+			this.lastCommittedAtMs = nowMs;
+		}
+
+		if (
+			this.visibleLengthValue !== prevVisible &&
+			this.visibleLengthValue < this.lastNotifiedVisibleLength
+		) {
+			// Shrinks should be reflected immediately to avoid rendering
+			// content that no longer exists in the source text.
+			this.commitUpdate(nowMs);
 		}
 	}
 
@@ -242,6 +335,8 @@ export class SmoothTextEngine {
 		this.stopLoop();
 		this.fullLength = 0;
 		this.visibleLengthValue = 0;
+		this.lastNotifiedVisibleLength = 0;
+		this.lastCommittedAtMs = null;
 		this.charBudget = 0;
 		this.isStreaming = false;
 		this.bypassSmoothing = false;
