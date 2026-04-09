@@ -516,6 +516,8 @@ const ChatMessageItem = memo<{
 			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
 		const hasFileBlocks = userFileBlocks.length > 0;
 		const hasCopyableContent = Boolean(parsed.markdown.trim());
+		const needsAssistantBottomSpacer =
+			!hideActions && !isUser && !hasCopyableContent && hasRenderableContent;
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -670,12 +672,10 @@ const ChatMessageItem = memo<{
 						</div>
 					)}
 				{/* Spacer for assistant messages without an action bar
-				   (e.g. thinking-only) so they have consistent bottom
-				   padding before the next user bubble. */}
-				{!hideActions &&
-					!isUser &&
-					!hasCopyableContent &&
-					Boolean(parsed.reasoning) && <div className="min-h-6" />}
+				   (e.g. reasoning-only, sources-only, or tools-only) so
+				   they have consistent bottom padding before the next
+				   user bubble. */}
+				{needsAssistantBottomSpacer && <div className="min-h-6" />}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}

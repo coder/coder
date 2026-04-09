@@ -939,3 +939,59 @@ export const ThinkingOnlyAssistantSpacing: Story = {
 		expect(canvas.getByText("Any progress?")).toBeInTheDocument();
 	},
 };
+
+/**
+ * Regression: sources-only assistant messages must have consistent
+ * bottom spacing before the next user bubble. A spacer div fills the
+ * gap that would normally come from the hidden action bar.
+ */
+export const SourcesOnlyAssistantSpacing: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Can you share your sources?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "source",
+						url: "https://example.com/docs",
+						title: "Documentation",
+					},
+					{
+						type: "source",
+						url: "https://example.com/api",
+						title: "API Reference",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Thanks!" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Can you share your sources?")).toBeInTheDocument();
+		expect(canvas.getByText("Thanks!")).toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched 2 results/i }),
+		);
+		expect(
+			canvas.getByRole("link", { name: "Documentation" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("link", { name: "API Reference" }),
+		).toBeInTheDocument();
+	},
+};
