@@ -2877,6 +2877,15 @@ func prependAgentChatContextSentinelIfNeeded(
 	}}, parts...)
 }
 
+func sortChatMessagesByCreatedAtAndID(messages []database.ChatMessage) {
+	sort.SliceStable(messages, func(i, j int) bool {
+		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
+			return messages[i].ID < messages[j].ID
+		}
+		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
+	})
+}
+
 // updateAgentChatLastInjectedContextFromMessages rebuilds the
 // injected-context cache from all persisted context-file and skill parts.
 func updateAgentChatLastInjectedContextFromMessages(
@@ -2892,6 +2901,8 @@ func updateAgentChatLastInjectedContextFromMessages(
 	if err != nil {
 		return xerrors.Errorf("load context messages for injected context: %w", err)
 	}
+
+	sortChatMessagesByCreatedAtAndID(messages)
 
 	parts, err := chatd.CollectContextPartsFromMessages(ctx, logger, messages, true)
 	if err != nil {
