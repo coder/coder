@@ -2477,8 +2477,16 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	// We verify agent-to-chat ownership explicitly below.
 	//nolint:gocritic // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, workspace.OwnerID, req.ChatID)
 	if err != nil {
 		writeAgentChatError(ctx, rw, err)
 		return
@@ -2540,6 +2548,9 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if !locked.AgentID.Valid || locked.AgentID.UUID != workspaceAgent.ID {
 			return errChatDoesNotBelongToAgent
 		}
+		if locked.OwnerID != workspace.OwnerID {
+			return errChatDoesNotBelongToWorkspaceOwner
+		}
 		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleChatMessageInsertParams(
 			chat.ID,
 			database.ChatMessageRoleUser,
@@ -2557,7 +2568,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return nil
 	}, nil)
 	if err != nil {
-		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) {
+		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
 			writeAgentChatError(ctx, rw, err)
 			return
 		}
@@ -2589,8 +2600,16 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 	// workspace agent scope does not include chat resources.
 	//nolint:gocritic // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, req.ChatID)
+	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, workspace.OwnerID, req.ChatID)
 	if err != nil {
 		// Zero active chats is not an error for clear.
 		if errors.Is(err, errNoActiveChats) {
@@ -2601,9 +2620,9 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = clearAgentChatContext(sysCtx, api.Database, chat.ID, workspaceAgent.ID)
+	err = clearAgentChatContext(sysCtx, api.Database, chat.ID, workspaceAgent.ID, workspace.OwnerID)
 	if err != nil {
-		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) {
+		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
 			writeAgentChatError(ctx, rw, err)
 			return
 		}
@@ -2620,10 +2639,11 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 }
 
 var (
-	errNoActiveChats            = xerrors.New("no active chats found")
-	errChatNotFound             = xerrors.New("chat not found")
-	errChatNotActive            = xerrors.New("chat is not active")
-	errChatDoesNotBelongToAgent = xerrors.New("chat does not belong to this agent")
+	errNoActiveChats                     = xerrors.New("no active chats found")
+	errChatNotFound                      = xerrors.New("chat not found")
+	errChatNotActive                     = xerrors.New("chat is not active")
+	errChatDoesNotBelongToAgent          = xerrors.New("chat does not belong to this agent")
+	errChatDoesNotBelongToWorkspaceOwner = xerrors.New("chat does not belong to this workspace owner")
 )
 
 type multipleActiveChatsError struct {
@@ -2668,6 +2688,7 @@ func resolveAgentChat(
 	ctx context.Context,
 	db database.Store,
 	agentID uuid.UUID,
+	workspaceOwnerID uuid.UUID,
 	explicitChatID uuid.UUID,
 ) (database.Chat, error) {
 	if explicitChatID == uuid.Nil {
@@ -2675,7 +2696,14 @@ func resolveAgentChat(
 		if err != nil {
 			return database.Chat{}, xerrors.Errorf("list active chats: %w", err)
 		}
-		return resolveDefaultAgentChat(chats)
+		ownerChats := make([]database.Chat, 0, len(chats))
+		for _, chat := range chats {
+			if chat.OwnerID != workspaceOwnerID {
+				continue
+			}
+			ownerChats = append(ownerChats, chat)
+		}
+		return resolveDefaultAgentChat(ownerChats)
 	}
 
 	chat, err := db.GetChatByID(ctx, explicitChatID)
@@ -2687,6 +2715,9 @@ func resolveAgentChat(
 	}
 	if !chat.AgentID.Valid || chat.AgentID.UUID != agentID {
 		return database.Chat{}, errChatDoesNotBelongToAgent
+	}
+	if chat.OwnerID != workspaceOwnerID {
+		return database.Chat{}, errChatDoesNotBelongToWorkspaceOwner
 	}
 	if !isActiveAgentChat(chat) {
 		return database.Chat{}, errChatNotActive
@@ -2716,6 +2747,7 @@ func clearAgentChatContext(
 	db database.Store,
 	chatID uuid.UUID,
 	agentID uuid.UUID,
+	workspaceOwnerID uuid.UUID,
 ) error {
 	return db.InTx(func(tx database.Store) error {
 		locked, err := tx.GetChatByIDForUpdate(ctx, chatID)
@@ -2727,6 +2759,9 @@ func clearAgentChatContext(
 		}
 		if !locked.AgentID.Valid || locked.AgentID.UUID != agentID {
 			return errChatDoesNotBelongToAgent
+		}
+		if locked.OwnerID != workspaceOwnerID {
+			return errChatDoesNotBelongToWorkspaceOwner
 		}
 		messages, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
@@ -2891,6 +2926,12 @@ func writeAgentChatError(
 	if errors.Is(err, errChatDoesNotBelongToAgent) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Chat does not belong to this agent.",
+		})
+		return
+	}
+	if errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Chat does not belong to this workspace owner.",
 		})
 		return
 	}

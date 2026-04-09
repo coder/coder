@@ -620,6 +620,27 @@ func TestAgentChatContext(t *testing.T) {
 		require.Equal(t, "Chat does not belong to this agent.", sdkErr.Message)
 	})
 
+	t.Run("AddRejectsChatOwnedByAnotherUserOnSameAgent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			ChatID: chat.ID,
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/foreign.md",
+				ContextFileContent: "not your chat",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Chat does not belong to this workspace owner.", sdkErr.Message)
+	})
+
 	t.Run("AddRejectsTooManyParts", func(t *testing.T) {
 		t.Parallel()
 
@@ -684,6 +705,31 @@ func TestAgentChatContext(t *testing.T) {
 		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
 		require.NoError(t, err)
 		require.Equal(t, uuid.Nil, resp.ChatID)
+	})
+
+	t.Run("AddUsesWorkspaceOwnerChatWhenAnotherUsersChatIsActive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		ownerChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-owner")
+		foreignChat := createAgentChatContextChat(ctx, t, setup.db, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-foreign")
+
+		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/file.go",
+				ContextFileContent: "content",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, ownerChat.ID, resp.ChatID)
+
+		ownerMessages := requireAgentChatContextMessages(ctx, t, setup.db, ownerChat.ID)
+		require.Len(t, ownerMessages, 1)
+		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, foreignChat.ID))
 	})
 
 	t.Run("AddUsesRootChatWhenOnlySubagentMakesActiveChatAmbiguous", func(t *testing.T) {
@@ -755,6 +801,46 @@ func TestAgentChatContext(t *testing.T) {
 
 		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, rootChat.ID))
 		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, childChat.ID))
+	})
+
+	t.Run("ClearUsesWorkspaceOwnerChatWhenAnotherUsersChatIsActive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		ownerChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-owner")
+		_ = createAgentChatContextChat(ctx, t, setup.db, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-foreign")
+
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			ChatID: ownerChat.ID,
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/file.go",
+				ContextFileContent: "content",
+			}},
+		})
+		require.NoError(t, err)
+
+		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
+		require.NoError(t, err)
+		require.Equal(t, ownerChat.ID, resp.ChatID)
+		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, ownerChat.ID))
+	})
+
+	t.Run("ClearRejectsChatOwnedByAnotherUserOnSameAgent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+		_, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{ChatID: chat.ID})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Chat does not belong to this workspace owner.", sdkErr.Message)
 	})
 
 	t.Run("AddFailsWhenChatIsNotActive", func(t *testing.T) {
