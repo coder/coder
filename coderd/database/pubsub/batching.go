@@ -32,22 +32,15 @@ const (
 	batchingWarnInterval           = 10 * time.Second
 
 	batchFlushScheduled = "scheduled"
-	batchFlushPressure  = "pressure"
 	batchFlushShutdown  = "shutdown"
 
-	batchFlushStageNone    = "none"
-	batchFlushStageBegin   = "begin"
-	batchFlushStageExec    = "exec"
-	batchFlushStageCommit  = "commit"
-	batchFlushStageUnknown = "unknown"
+	batchFlushStageNone   = "none"
+	batchFlushStageBegin  = "begin"
+	batchFlushStageExec   = "exec"
+	batchFlushStageCommit = "commit"
 
 	batchDelegateFallbackReasonQueueFull  = "queue_full"
 	batchDelegateFallbackReasonFlushError = "flush_error"
-
-	batchResultAccepted = "accepted"
-	batchResultRejected = "rejected"
-	batchResultSuccess  = "success"
-	batchResultError    = "error"
 
 	batchChannelClassStreamNotify = "stream_notify"
 	batchChannelClassOwnerEvent   = "owner_event"
@@ -55,15 +48,9 @@ const (
 	batchChannelClassOther        = "other"
 )
 
-var (
-	// ErrBatchingPubsubClosed is returned when a batched pubsub publish is
-	// attempted after shutdown has started.
-	ErrBatchingPubsubClosed = xerrors.New("batched pubsub is closed")
-	// ErrBatchingPubsubQueueFull is retained for compatibility with older
-	// callers. The current batching path falls back to the shared delegate when
-	// pressure persists instead of returning this error.
-	ErrBatchingPubsubQueueFull = xerrors.New("batched pubsub queue is full")
-)
+// ErrBatchingPubsubClosed is returned when a batched pubsub publish is
+// attempted after shutdown has started.
+var ErrBatchingPubsubClosed = xerrors.New("batched pubsub is closed")
 
 // BatchingConfig controls the chatd-specific PostgreSQL pubsub batching path.
 // Flush timing is automatic: the run loop wakes every FlushInterval (or on
@@ -82,7 +69,6 @@ type queuedPublish struct {
 	event        string
 	channelClass string
 	message      []byte
-	enqueuedAt   time.Time
 }
 
 type batchSender interface {
@@ -108,8 +94,11 @@ func (e *batchFlushError) Unwrap() error {
 // pubsub instance.
 type BatchingPubsub struct {
 	logger    slog.Logger
-	delegate  *PGPubsub
-	sender    batchSender
+	delegate *PGPubsub
+	// sender is only accessed from the run() goroutine (including
+	// flushBatch and resetSender which it calls). Do not read or
+	// write this field from Publish or any other goroutine.
+	sender batchSender
 	newSender func(context.Context) (batchSender, error)
 	clock     quartz.Clock
 
@@ -127,12 +116,11 @@ type BatchingPubsub struct {
 	pressureWait      time.Duration
 	finalFlushTimeout time.Duration
 
-	queuedCount             atomic.Int64
-	queueDepthHighWatermark atomic.Int64
-	closed                  atomic.Bool
-	closeOnce               sync.Once
-	closeErr                error
-	runErr                  error
+	queuedCount atomic.Int64
+	closed      atomic.Bool
+	closeOnce   sync.Once
+	closeErr    error
+	runErr      error
 
 	runCtx  context.Context
 	cancel  context.CancelFunc
@@ -141,23 +129,11 @@ type BatchingPubsub struct {
 
 type batchingMetrics struct {
 	QueueDepth               prometheus.Gauge
-	QueueDepthHighWatermark  prometheus.Gauge
-	QueueCapacity            prometheus.Gauge
 	BatchSize                prometheus.Histogram
-	LogicalPublishesTotal    *prometheus.CounterVec
-	LogicalPublishBytesTotal *prometheus.CounterVec
-	FlushedNotifications     *prometheus.CounterVec
-	FlushedBytes             *prometheus.CounterVec
-	QueueWait                *prometheus.HistogramVec
-	FlushesTotal             *prometheus.CounterVec
 	FlushDuration            *prometheus.HistogramVec
-	FlushAttemptsTotal       *prometheus.CounterVec
-	FlushFailuresTotal       *prometheus.CounterVec
-	PublishRejectionsTotal   *prometheus.CounterVec
 	DelegateFallbacksTotal   *prometheus.CounterVec
 	SenderResetsTotal        prometheus.Counter
 	SenderResetFailuresTotal prometheus.Counter
-	FlushInflight            prometheus.Gauge
 }
 
 func newBatchingMetrics() batchingMetrics {
@@ -168,18 +144,6 @@ func newBatchingMetrics() batchingMetrics {
 			Name:      "batch_queue_depth",
 			Help:      "The number of chatd notifications waiting in the batching queue.",
 		}),
-		QueueDepthHighWatermark: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_queue_depth_high_watermark",
-			Help:      "The highest chatd batching queue depth observed since process start.",
-		}),
-		QueueCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_queue_capacity",
-			Help:      "The configured capacity of the chatd batching queue.",
-		}),
 		BatchSize: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
 			Subsystem: "pubsub",
@@ -187,67 +151,12 @@ func newBatchingMetrics() batchingMetrics {
 			Help:      "The number of logical notifications sent in each chatd batch flush.",
 			Buckets:   []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192},
 		}),
-		LogicalPublishesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_logical_publishes_total",
-			Help:      "The number of logical chatd publishes seen by the batching wrapper by channel class and result.",
-		}, []string{"channel_class", "result"}),
-		LogicalPublishBytesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_logical_publish_bytes_total",
-			Help:      "The number of accepted chatd payload bytes enqueued into the batching wrapper by channel class.",
-		}, []string{"channel_class"}),
-		FlushedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_flushed_notifications_total",
-			Help:      "The number of logical chatd notifications removed from the batching queue for flush attempts by reason.",
-		}, []string{"reason"}),
-		FlushedBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_flushed_bytes_total",
-			Help:      "The number of chatd payload bytes removed from the batching queue for flush attempts by reason.",
-		}, []string{"reason"}),
-		QueueWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_queue_wait_seconds",
-			Help:      "The time accepted chatd publishes spent waiting in the batching queue before a flush attempt started.",
-			Buckets:   []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
-		}, []string{"channel_class"}),
-		FlushesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_flushes_total",
-			Help:      "The number of chatd batch flush attempts by reason.",
-		}, []string{"reason"}),
 		FlushDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coder",
 			Subsystem: "pubsub",
 			Name:      "batch_flush_duration_seconds",
 			Help:      "The time spent flushing one chatd batch to PostgreSQL.",
 			Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30},
-		}, []string{"reason"}),
-		FlushAttemptsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_flush_attempts_total",
-			Help:      "The number of chatd sender flush stages by stage and result.",
-		}, []string{"stage", "result"}),
-		FlushFailuresTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_flush_failures_total",
-			Help:      "The number of failed chatd batch flushes by reason.",
-		}, []string{"reason"}),
-		PublishRejectionsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_publish_rejections_total",
-			Help:      "The number of chatd publishes rejected by the batching queue.",
 		}, []string{"reason"}),
 		DelegateFallbacksTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",
@@ -267,55 +176,25 @@ func newBatchingMetrics() batchingMetrics {
 			Name:      "batch_sender_reset_failures_total",
 			Help:      "The number of batched pubsub sender reset attempts that failed.",
 		}),
-		FlushInflight: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "batch_flush_inflight",
-			Help:      "Whether a chatd batch flush is currently executing against the dedicated sender connection.",
-		}),
 	}
 }
 
 func (m batchingMetrics) Describe(descs chan<- *prometheus.Desc) {
 	m.QueueDepth.Describe(descs)
-	m.QueueDepthHighWatermark.Describe(descs)
-	m.QueueCapacity.Describe(descs)
 	m.BatchSize.Describe(descs)
-	m.LogicalPublishesTotal.Describe(descs)
-	m.LogicalPublishBytesTotal.Describe(descs)
-	m.FlushedNotifications.Describe(descs)
-	m.FlushedBytes.Describe(descs)
-	m.QueueWait.Describe(descs)
-	m.FlushesTotal.Describe(descs)
 	m.FlushDuration.Describe(descs)
-	m.FlushAttemptsTotal.Describe(descs)
-	m.FlushFailuresTotal.Describe(descs)
-	m.PublishRejectionsTotal.Describe(descs)
 	m.DelegateFallbacksTotal.Describe(descs)
 	m.SenderResetsTotal.Describe(descs)
 	m.SenderResetFailuresTotal.Describe(descs)
-	m.FlushInflight.Describe(descs)
 }
 
 func (m batchingMetrics) Collect(metrics chan<- prometheus.Metric) {
 	m.QueueDepth.Collect(metrics)
-	m.QueueDepthHighWatermark.Collect(metrics)
-	m.QueueCapacity.Collect(metrics)
 	m.BatchSize.Collect(metrics)
-	m.LogicalPublishesTotal.Collect(metrics)
-	m.LogicalPublishBytesTotal.Collect(metrics)
-	m.FlushedNotifications.Collect(metrics)
-	m.FlushedBytes.Collect(metrics)
-	m.QueueWait.Collect(metrics)
-	m.FlushesTotal.Collect(metrics)
 	m.FlushDuration.Collect(metrics)
-	m.FlushAttemptsTotal.Collect(metrics)
-	m.FlushFailuresTotal.Collect(metrics)
-	m.PublishRejectionsTotal.Collect(metrics)
 	m.DelegateFallbacksTotal.Collect(metrics)
 	m.SenderResetsTotal.Collect(metrics)
 	m.SenderResetFailuresTotal.Collect(metrics)
-	m.FlushInflight.Collect(metrics)
 }
 
 // NewBatching creates a chatd-specific batched pubsub wrapper around the
@@ -426,9 +305,6 @@ func newBatchingPubsub(
 		metrics:           newBatchingMetrics(),
 	}
 	ps.metrics.QueueDepth.Set(0)
-	ps.metrics.QueueDepthHighWatermark.Set(0)
-	ps.metrics.QueueCapacity.Set(float64(queueSize))
-	ps.metrics.FlushInflight.Set(0)
 
 	go ps.run()
 	return ps, nil
@@ -458,7 +334,6 @@ func (p *BatchingPubsub) SubscribeWithErr(event string, listener ListenerWithErr
 func (p *BatchingPubsub) Publish(event string, message []byte) error {
 	channelClass := batchChannelClass(event)
 	if p.closed.Load() {
-		p.observeRejectedPublish(channelClass, "closed")
 		return ErrBatchingPubsubClosed
 	}
 
@@ -467,9 +342,7 @@ func (p *BatchingPubsub) Publish(event string, message []byte) error {
 		channelClass: channelClass,
 		message:      bytes.Clone(message),
 	}
-	req.enqueuedAt = p.clock.Now()
 	if p.tryEnqueue(req) {
-		p.observeAcceptedPublish(req)
 		return nil
 	}
 
@@ -478,14 +351,11 @@ func (p *BatchingPubsub) Publish(event string, message []byte) error {
 
 	for {
 		if p.closed.Load() {
-			p.observeRejectedPublish(channelClass, "closed")
 			return ErrBatchingPubsubClosed
 		}
 		p.signalPressureFlush()
 		spaceSignal := p.currentSpaceSignal()
-		req.enqueuedAt = p.clock.Now()
 		if p.tryEnqueue(req) {
-			p.observeAcceptedPublish(req)
 			return nil
 		}
 
@@ -493,9 +363,7 @@ func (p *BatchingPubsub) Publish(event string, message []byte) error {
 		case <-spaceSignal:
 			continue
 		case <-timer.C:
-			req.enqueuedAt = p.clock.Now()
 			if p.tryEnqueue(req) {
-				p.observeAcceptedPublish(req)
 				return nil
 			}
 			// The batching queue is still full after a pressure
@@ -506,7 +374,6 @@ func (p *BatchingPubsub) Publish(event string, message []byte) error {
 			p.logPublishRejection(event)
 			return p.delegate.Publish(event, message)
 		case <-p.doneCh:
-			p.observeRejectedPublish(channelClass, "closed")
 			return ErrBatchingPubsubClosed
 		}
 	}
@@ -542,16 +409,6 @@ func (p *BatchingPubsub) tryEnqueue(req queuedPublish) bool {
 
 func (p *BatchingPubsub) observeQueueDepth(depth int64) {
 	p.metrics.QueueDepth.Set(float64(depth))
-	for {
-		currentMax := p.queueDepthHighWatermark.Load()
-		if depth <= currentMax {
-			return
-		}
-		if p.queueDepthHighWatermark.CompareAndSwap(currentMax, depth) {
-			p.metrics.QueueDepthHighWatermark.Set(float64(depth))
-			return
-		}
-	}
 }
 
 func (p *BatchingPubsub) signalPressureFlush() {
@@ -587,16 +444,6 @@ func batchChannelClass(event string) string {
 	}
 }
 
-func (p *BatchingPubsub) observeAcceptedPublish(req queuedPublish) {
-	p.metrics.LogicalPublishesTotal.WithLabelValues(req.channelClass, batchResultAccepted).Inc()
-	p.metrics.LogicalPublishBytesTotal.WithLabelValues(req.channelClass).Add(float64(len(req.message)))
-}
-
-func (p *BatchingPubsub) observeRejectedPublish(channelClass string, reason string) {
-	p.metrics.LogicalPublishesTotal.WithLabelValues(channelClass, batchResultRejected).Inc()
-	p.metrics.PublishRejectionsTotal.WithLabelValues(reason).Inc()
-}
-
 func (p *BatchingPubsub) observeDelegateFallback(channelClass string, reason string, stage string) {
 	p.metrics.DelegateFallbacksTotal.WithLabelValues(channelClass, reason, stage).Inc()
 }
@@ -615,40 +462,11 @@ func (p *BatchingPubsub) observeDelegateFallbackBatch(batch []queuedPublish, rea
 }
 
 func batchFlushStage(err error) string {
-	if err == nil {
-		return batchFlushStageCommit
-	}
 	var flushErr *batchFlushError
 	if errors.As(err, &flushErr) {
 		return flushErr.stage
 	}
-	return batchFlushStageUnknown
-}
-
-func (p *BatchingPubsub) observeFlushStageResults(err error) {
-	stage := batchFlushStage(err)
-
-	switch stage {
-	case batchFlushStageBegin:
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageBegin, batchResultError).Inc()
-		return
-	case batchFlushStageExec:
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageBegin, batchResultSuccess).Inc()
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageExec, batchResultError).Inc()
-		return
-	case batchFlushStageCommit:
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageBegin, batchResultSuccess).Inc()
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageExec, batchResultSuccess).Inc()
-		result := batchResultSuccess
-		if err != nil {
-			result = batchResultError
-		}
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageCommit, result).Inc()
-		return
-	default:
-		p.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageUnknown, batchResultError).Inc()
-		return
-	}
+	return "unknown"
 }
 
 func (p *BatchingPubsub) run() {
@@ -676,7 +494,7 @@ func (p *BatchingPubsub) run() {
 		case <-timer.C:
 			flush(batchFlushScheduled)
 		case <-p.flushCh:
-			flush(batchFlushPressure)
+			flush("pressure")
 		case <-p.closeCh:
 			p.runErr = errors.Join(p.drain(batch), p.sender.Close())
 			return
@@ -711,30 +529,18 @@ func (p *BatchingPubsub) flushBatch(
 
 	count := len(batch)
 	totalBytes := 0
-	start := p.clock.Now()
 	for _, item := range batch {
 		totalBytes += len(item.message)
-		queueWait := start.Sub(item.enqueuedAt)
-		if queueWait < 0 {
-			queueWait = 0
-		}
-		p.metrics.QueueWait.WithLabelValues(item.channelClass).Observe(queueWait.Seconds())
 	}
 
-	p.metrics.FlushesTotal.WithLabelValues(reason).Inc()
 	p.metrics.BatchSize.Observe(float64(count))
-	p.metrics.FlushedNotifications.WithLabelValues(reason).Add(float64(count))
-	p.metrics.FlushedBytes.WithLabelValues(reason).Add(float64(totalBytes))
-	p.metrics.FlushInflight.Set(1)
+	start := p.clock.Now()
 	senderErr := p.sender.Flush(ctx, batch)
-	p.metrics.FlushInflight.Set(0)
-	p.observeFlushStageResults(senderErr)
 	elapsed := p.clock.Since(start)
 	p.metrics.FlushDuration.WithLabelValues(reason).Observe(elapsed.Seconds())
 
 	var err error
 	if senderErr != nil {
-		p.metrics.FlushFailuresTotal.WithLabelValues(reason).Inc()
 		stage := batchFlushStage(senderErr)
 		delivered, failed, fallbackErr := p.replayBatchViaDelegate(batch, batchDelegateFallbackReasonFlushError, stage)
 		var resetErr error
@@ -742,11 +548,8 @@ func (p *BatchingPubsub) flushBatch(
 			resetErr = p.resetSender()
 		}
 		p.logFlushFailure(reason, stage, count, totalBytes, delivered, failed, senderErr, fallbackErr, resetErr)
-		if fallbackErr != nil {
-			err = errors.Join(senderErr, fallbackErr)
-			if resetErr != nil {
-				err = errors.Join(err, resetErr)
-			}
+		if fallbackErr != nil || resetErr != nil {
+			err = errors.Join(senderErr, fallbackErr, resetErr)
 		}
 	} else if p.delegate != nil {
 		p.delegate.publishesTotal.WithLabelValues("true").Add(float64(count))
@@ -759,7 +562,7 @@ func (p *BatchingPubsub) flushBatch(
 	return batch[:0], err
 }
 
-func (p *BatchingPubsub) replayBatchViaDelegate(batch []queuedPublish, reason string, stage string) (int, int, error) {
+func (p *BatchingPubsub) replayBatchViaDelegate(batch []queuedPublish, reason string, stage string) (delivered int, failed int, err error) {
 	if len(batch) == 0 {
 		return 0, 0, nil
 	}
@@ -768,11 +571,7 @@ func (p *BatchingPubsub) replayBatchViaDelegate(batch []queuedPublish, reason st
 		return 0, len(batch), xerrors.New("delegate pubsub is nil")
 	}
 
-	var (
-		delivered int
-		failed    int
-		errs      []error
-	)
+	var errs []error
 	for _, item := range batch {
 		if err := p.delegate.Publish(item.event, item.message); err != nil {
 			failed++

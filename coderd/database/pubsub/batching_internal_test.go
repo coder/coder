@@ -53,20 +53,11 @@ func TestBatchingPubsubScheduledFlush(t *testing.T) {
 	require.Len(t, batch, 2)
 	require.Equal(t, []byte("one"), batch[0].message)
 	require.Equal(t, []byte("two"), batch[1].message)
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(ps.metrics.LogicalPublishesTotal.WithLabelValues(batchChannelClassStreamNotify, batchResultAccepted)))
-	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.LogicalPublishesTotal.WithLabelValues(batchChannelClassStreamNotify, batchResultRejected)))
-	require.Equal(t, float64(6), prom_testutil.ToFloat64(ps.metrics.LogicalPublishBytesTotal.WithLabelValues(batchChannelClassStreamNotify)))
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(ps.metrics.QueueDepthHighWatermark))
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(ps.metrics.FlushedNotifications.WithLabelValues(batchFlushScheduled)))
-	require.Equal(t, float64(6), prom_testutil.ToFloat64(ps.metrics.FlushedBytes.WithLabelValues(batchFlushScheduled)))
-	queueWaitCount, queueWaitSum := histogramCountAndSum(t, ps.metrics.QueueWait.WithLabelValues(batchChannelClassStreamNotify))
-	require.Equal(t, uint64(2), queueWaitCount)
-	require.InDelta(t, 0.02, queueWaitSum, 0.000001)
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageBegin, batchResultSuccess)))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageExec, batchResultSuccess)))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageCommit, batchResultSuccess)))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushesTotal.WithLabelValues(batchFlushScheduled)))
-	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.FlushInflight))
+	batchSizeCount, batchSizeSum := histogramCountAndSum(t, ps.metrics.BatchSize)
+	require.Equal(t, uint64(1), batchSizeCount)
+	require.InDelta(t, 2, batchSizeSum, 0.000001)
+	flushDurationCount, _ := histogramCountAndSum(t, ps.metrics.FlushDuration.WithLabelValues(batchFlushScheduled))
+	require.Equal(t, uint64(1), flushDurationCount)
 	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.QueueDepth))
 }
 
@@ -81,8 +72,6 @@ func TestBatchingPubsubDefaultConfigUsesDedicatedSenderFirstDefaults(t *testing.
 	require.Equal(t, DefaultBatchingQueueSize, cap(ps.publishCh))
 	require.Equal(t, defaultBatchingPressureWait, ps.pressureWait)
 	require.Equal(t, defaultBatchingFinalFlushLimit, ps.finalFlushTimeout)
-	require.Equal(t, float64(DefaultBatchingQueueSize), prom_testutil.ToFloat64(ps.metrics.QueueCapacity))
-	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.QueueDepthHighWatermark))
 }
 
 func TestBatchChannelClass(t *testing.T) {
@@ -144,7 +133,6 @@ func TestBatchingPubsubTimerFlushDrainsAll(t *testing.T) {
 	require.Len(t, batch, 5)
 	require.Equal(t, []byte("one"), batch[0].message)
 	require.Equal(t, []byte("five"), batch[4].message)
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushesTotal.WithLabelValues(batchFlushScheduled)))
 	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.QueueDepth))
 }
 
@@ -185,9 +173,8 @@ func TestBatchingPubsubQueueFullFallsBackToDelegate(t *testing.T) {
 	require.NoError(t, ps.Publish("chat:stream:a", []byte("two")))
 
 	// A third publish should fall back to the delegate (which has a
-	// nil db, so the delegate Publish itself will error — but we
-	// verify the fallback metric was incremented, not
-	// ErrBatchingPubsubQueueFull).
+	// closed db, so the delegate Publish itself will error — but we
+	// verify the fallback metric was incremented).
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- ps.Publish("chat:stream:a", []byte("three"))
@@ -199,10 +186,9 @@ func TestBatchingPubsubQueueFullFallsBackToDelegate(t *testing.T) {
 	clock.Advance(10 * time.Millisecond).MustWait(ctx)
 
 	err = testutil.TryReceive(ctx, t, errCh)
-	// The delegate has a nil db so it returns an error, but it must
-	// NOT be ErrBatchingPubsubQueueFull — that sentinel is gone.
+	// The delegate has a closed db so it returns an error from the
+	// shared pool, not a batching-specific sentinel.
 	require.Error(t, err)
-	require.NotErrorIs(t, err, ErrBatchingPubsubQueueFull)
 	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.DelegateFallbacksTotal.WithLabelValues(batchChannelClassStreamNotify, batchDelegateFallbackReasonQueueFull, batchFlushStageNone)))
 
 	close(sender.blockCh)
@@ -243,8 +229,6 @@ func TestBatchingPubsubCloseDrainsQueue(t *testing.T) {
 	require.Equal(t, []byte("one"), batches[0][0].message)
 	require.Equal(t, []byte("two"), batches[0][1].message)
 	require.Equal(t, []byte("three"), batches[0][2].message)
-	require.Equal(t, float64(3), prom_testutil.ToFloat64(ps.metrics.QueueDepthHighWatermark))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushesTotal.WithLabelValues(batchFlushShutdown)))
 	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.QueueDepth))
 	require.Equal(t, 1, sender.CloseCalls())
 }
@@ -315,10 +299,11 @@ func TestBatchingPubsubFlushFailureMetrics(t *testing.T) {
 	require.NoError(t, err)
 	resetCall.MustRelease(ctx)
 
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushFailuresTotal.WithLabelValues(batchFlushScheduled)))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageBegin, batchResultSuccess)))
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageExec, batchResultError)))
-	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.FlushAttemptsTotal.WithLabelValues(batchFlushStageCommit, batchResultSuccess)))
+	batchSizeCount, batchSizeSum := histogramCountAndSum(t, ps.metrics.BatchSize)
+	require.Equal(t, uint64(1), batchSizeCount)
+	require.InDelta(t, 1, batchSizeSum, 0.000001)
+	flushDurationCount, _ := histogramCountAndSum(t, ps.metrics.FlushDuration.WithLabelValues(batchFlushScheduled))
+	require.Equal(t, uint64(1), flushDurationCount)
 	require.Equal(t, float64(1), prom_testutil.ToFloat64(delegate.publishesTotal.WithLabelValues("false")))
 	require.Zero(t, prom_testutil.ToFloat64(delegate.publishesTotal.WithLabelValues("true")))
 	require.Zero(t, prom_testutil.ToFloat64(ps.metrics.QueueDepth))
@@ -343,7 +328,6 @@ func TestBatchingPubsubFlushFailureStageAccounting(t *testing.T) {
 				event:        "chat:stream:test",
 				channelClass: batchChannelClass("chat:stream:test"),
 				message:      []byte("fallback-" + stage),
-				enqueuedAt:   time.Now(),
 			}}
 			ps.queuedCount.Store(int64(len(batch)))
 			_, err := ps.flushBatch(context.Background(), batch, batchFlushScheduled)
@@ -371,7 +355,6 @@ func TestBatchingPubsubFlushFailureResetSender(t *testing.T) {
 		event:        "chat:stream:first",
 		channelClass: batchChannelClass("chat:stream:first"),
 		message:      []byte("first"),
-		enqueuedAt:   time.Now(),
 	}}
 	ps.queuedCount.Store(int64(len(firstBatch)))
 	_, err := ps.flushBatch(context.Background(), firstBatch, batchFlushScheduled)
@@ -383,7 +366,6 @@ func TestBatchingPubsubFlushFailureResetSender(t *testing.T) {
 		event:        "chat:stream:second",
 		channelClass: batchChannelClass("chat:stream:second"),
 		message:      []byte("second"),
-		enqueuedAt:   time.Now(),
 	}}
 	ps.queuedCount.Store(int64(len(secondBatch)))
 	_, err = ps.flushBatch(context.Background(), secondBatch, batchFlushScheduled)
@@ -406,7 +388,6 @@ func TestBatchingPubsubFlushFailureReturnsJoinedErrorWhenReplayFails(t *testing.
 		event:        "chat:stream:error",
 		channelClass: batchChannelClass("chat:stream:error"),
 		message:      []byte("error"),
-		enqueuedAt:   time.Now(),
 	}}
 	ps.queuedCount.Store(int64(len(batch)))
 	_, err := ps.flushBatch(context.Background(), batch, batchFlushScheduled)
