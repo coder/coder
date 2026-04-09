@@ -435,8 +435,8 @@ func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrga
 	if pj.WorkspaceID.Valid {
 		job.Metadata.WorkspaceID = &pj.WorkspaceID.UUID
 	}
-	if pj.WorkspaceBuildID.Valid {
-		job.Metadata.WorkspaceBuildTransition = codersdk.WorkspaceTransition(pj.WorkspaceBuildTransition)
+	if pj.WorkspaceBuildTransition.Valid {
+		job.Metadata.WorkspaceBuildTransition = codersdk.WorkspaceTransition(pj.WorkspaceBuildTransition.WorkspaceTransition)
 	}
 	return job
 }
