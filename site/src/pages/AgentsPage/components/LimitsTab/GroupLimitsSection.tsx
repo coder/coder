@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import type { Group } from "#/api/typesGenerated";
+import type { ChatUsageLimitGroupOverride, Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -27,14 +27,7 @@ import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {
 	hideHeader?: boolean;
-	groupOverrides: ReadonlyArray<{
-		group_id: string;
-		group_display_name: string;
-		group_name: string;
-		group_avatar_url: string;
-		member_count: number;
-		spend_limit_micros: number | null;
-	}>;
+	groupOverrides: readonly ChatUsageLimitGroupOverride[];
 	/** Maps group_id → organization_name for building links to the group page. */
 	groupOrganizationNames?: Record<string, string>;
 	showGroupForm: boolean;
