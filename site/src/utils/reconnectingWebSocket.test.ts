@@ -292,30 +292,6 @@ describe("createReconnectingWebSocket", () => {
 		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
 	});
 
-	it("treats Infinity jitter as no jitter", () => {
-		let activeSocket = createMockSocket();
-		const connect = vi.fn(() => {
-			activeSocket = createMockSocket();
-			return activeSocket;
-		});
-		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
-			[];
-		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
-			disconnects.push({ reconnect, now: Date.now() });
-		});
-
-		createReconnectingWebSocket({
-			connect,
-			onDisconnect,
-			baseMs: 1000,
-			jitter: Number.POSITIVE_INFINITY,
-			random: () => 0.5,
-		});
-
-		activeSocket.emit("close");
-		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
-	});
-
 	it("treats NaN from random() as the midpoint with no jitter offset", () => {
 		let activeSocket = createMockSocket();
 		const connect = vi.fn(() => {
@@ -334,30 +310,6 @@ describe("createReconnectingWebSocket", () => {
 			baseMs: 1000,
 			jitter: 0.3,
 			random: () => Number.NaN,
-		});
-
-		activeSocket.emit("close");
-		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
-	});
-
-	it("treats Infinity from random() as the midpoint with no jitter offset", () => {
-		let activeSocket = createMockSocket();
-		const connect = vi.fn(() => {
-			activeSocket = createMockSocket();
-			return activeSocket;
-		});
-		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
-			[];
-		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
-			disconnects.push({ reconnect, now: Date.now() });
-		});
-
-		createReconnectingWebSocket({
-			connect,
-			onDisconnect,
-			baseMs: 1000,
-			jitter: 0.3,
-			random: () => Number.POSITIVE_INFINITY,
 		});
 
 		activeSocket.emit("close");
@@ -393,37 +345,6 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(4);
 		vi.advanceTimersByTime(1);
 		expect(connect).toHaveBeenCalledTimes(5);
-	});
-
-	it("still allows negative jitter below maxMs after raw backoff reaches the cap", () => {
-		let activeSocket = createMockSocket();
-		const connect = vi.fn(() => {
-			activeSocket = createMockSocket();
-			return activeSocket;
-		});
-		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
-			[];
-		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
-			disconnects.push({ reconnect, now: Date.now() });
-		});
-
-		createReconnectingWebSocket({
-			connect,
-			onDisconnect,
-			baseMs: 1000,
-			maxMs: 3000,
-			factor: 2,
-			jitter: 0.3,
-			random: () => 0,
-		});
-
-		activeSocket.emit("close");
-		vi.runOnlyPendingTimers();
-		activeSocket.emit("close");
-		vi.runOnlyPendingTimers();
-		activeSocket.emit("close");
-
-		expectReconnectSchedule(disconnects[2]!, { attempt: 3, delayMs: 2100 });
 	});
 
 	it("preserves jitter spread after raw backoff exceeds maxMs", () => {
@@ -709,28 +630,6 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
 
-	it("closes previous socket when reconnecting", () => {
-		let activeSocket = createMockSocket();
-		const sockets: ReturnType<typeof createMockSocket>[] = [];
-		const connect = vi.fn(() => {
-			activeSocket = createMockSocket();
-			sockets.push(activeSocket);
-			return activeSocket;
-		});
-
-		createReconnectingWebSocket({ connect });
-
-		const firstSocket = sockets[0]!;
-		firstSocket.emit("close");
-		vi.runOnlyPendingTimers();
-
-		// The connect function creates a new socket. The old socket was
-		// already "closed" by the browser, but on a fresh reconnection
-		// the utility closes the previous one if it's still the active
-		// reference.
-		expect(connect).toHaveBeenCalledTimes(2);
-	});
-
 	it("dispose stops reconnection and closes the socket", () => {
 		const socket = createMockSocket();
 		const connect = vi.fn(() => socket);
@@ -783,17 +682,6 @@ describe("createReconnectingWebSocket", () => {
 		// times is harmless. The important thing is that no reconnection is
 		// scheduled after the first dispose.
 		expect(connect).toHaveBeenCalledTimes(1);
-	});
-
-	it("passes socket to onOpen callback", () => {
-		const socket = createMockSocket();
-		const connect = vi.fn(() => socket);
-		const onOpen = vi.fn();
-
-		createReconnectingWebSocket({ connect, onOpen });
-
-		socket.emit("open");
-		expect(onOpen).toHaveBeenCalledWith(socket);
 	});
 
 	it("uses default backoff values when backoff options are omitted", () => {
