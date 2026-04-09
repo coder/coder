@@ -1,0 +1,89 @@
+#!/bin/bash
+set -euo pipefail
+
+# --- EBS volume helpers ---
+# On Nitro instances, EBS devices appear as /dev/nvmeXn1 with the
+# volume ID (dash removed) as the serial number. These helpers
+# locate a device by volume ID and wait for attachment to complete.
+
+find_ebs_device() {
+  local vol_id="$1"
+  local vol_id_nodash="$${vol_id//-/}"
+  for dev in /dev/nvme*n1; do
+    local serial
+    serial=$(lsblk -no SERIAL "$dev" 2>/dev/null | tr -d ' ')
+    if [ "$serial" = "$vol_id" ] || [ "$serial" = "$vol_id_nodash" ]; then
+      echo "$dev"
+      return 0
+    fi
+  done
+  return 1
+}
+
+wait_for_ebs_device() {
+  local vol_id="$1"
+  local timeout=120
+  local elapsed=0
+  while [ "$elapsed" -lt "$timeout" ]; do
+    local dev
+    if dev=$(find_ebs_device "$vol_id"); then
+      echo "$dev"
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  echo "ERROR: timed out waiting for EBS volume $vol_id" >&2
+  return 1
+}
+
+# --- Mount EBS: /home/coder ---
+# Single data volume for persistent user data. Docker lives on
+# the root volume so the workspace remains accessible (via the
+# host agent) even if this volume fills up.
+
+EBS_DATA=$(wait_for_ebs_device "${data_volume_id}")
+
+# Format only on first use (no existing filesystem).
+if ! blkid "$EBS_DATA" &>/dev/null; then
+  mkfs.ext4 -L coder-data "$EBS_DATA"
+fi
+
+mkdir -p /home/${linux_user}
+mount "$EBS_DATA" /home/${linux_user}
+chown ${linux_user}:${linux_user} /home/${linux_user}
+
+# Copy skeleton dotfiles if the home directory is empty (first mount).
+if [ ! -f /home/${linux_user}/.bashrc ]; then
+  cp -a /etc/skel/. /home/${linux_user}/
+  chown -R ${linux_user}:${linux_user} /home/${linux_user}
+fi
+
+# Persist mount across reboots.
+if ! grep -q coder-data /etc/fstab; then
+  echo "LABEL=coder-data /home/${linux_user} ext4 defaults,nofail 0 2" >> /etc/fstab
+fi
+
+# --- Start Docker (uses root volume for /var/lib/docker) ---
+
+systemctl restart docker
+
+# --- Install and start Coder agent ---
+# The agent runs as a systemd service (installed via write_files in
+# cloud-config). We write the init script and environment file here,
+# then enable and start the service. On subsequent boots, systemd
+# starts the agent automatically with the same token.
+
+mkdir -p /opt/coder
+cat > /opt/coder/init.env <<'CODER_ENV'
+CODER_AGENT_TOKEN=${agent_token}
+CODER_ENV
+
+# The init script is base64-encoded to avoid shell quoting issues.
+echo '${agent_init_script}' | base64 -d > /opt/coder/init
+chmod +x /opt/coder/init
+chown -R ${linux_user}:${linux_user} /opt/coder
+
+systemctl daemon-reload
+systemctl enable coder-agent.service
+systemctl start coder-agent.service

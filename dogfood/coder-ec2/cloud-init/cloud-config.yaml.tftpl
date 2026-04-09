@@ -1,0 +1,69 @@
+#cloud-config
+hostname: ${hostname}
+
+users:
+  - name: ${linux_user}
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: [docker]
+
+packages:
+  - docker.io
+  - git
+  - curl
+  - jq
+  - nvme-cli
+
+growpart:
+  mode: auto
+  devices: ["/"]
+
+write_files:
+  # Coder agent systemd service. Runs the init script on every boot
+  # and restarts the agent if it crashes.
+  - path: /etc/systemd/system/coder-agent.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Coder Agent
+      After=network-online.target docker.service
+      Wants=network-online.target
+
+      [Service]
+      User=${linux_user}
+      EnvironmentFile=/opt/coder/init.env
+      ExecStart=/opt/coder/init
+      Restart=always
+      RestartSec=10
+      TimeoutStopSec=90
+      KillMode=process
+      OOMScoreAdjust=-900
+      SyslogIdentifier=coder-agent
+
+      [Install]
+      WantedBy=multi-user.target
+
+# bootcmd runs on EVERY boot (before runcmd). We use it to set up
+# NVMe swap because the instance store is wiped on stop/start,
+# and to grow filesystems if EBS volumes were resized.
+bootcmd:
+  - |
+    # Find the NVMe instance store device and use it for swap.
+    # EBS-backed NVMe devices report "Amazon Elastic Block Store"
+    # in their model string; instance store reports
+    # "Amazon EC2 NVMe Instance Storage".
+    #
+    # We use lsblk to check the device model rather than nvme-cli,
+    # because bootcmd runs before packages are installed.
+    for dev in /dev/nvme*n1; do
+      model=$(lsblk -no MODEL "$dev" 2>/dev/null | tr -d ' ')
+      if echo "$model" | grep -qi "Instance Storage"; then
+        mkswap "$dev" && swapon "$dev" && break
+      fi
+    done
+  # Only swap under real memory pressure.
+  - sysctl -w vm.swappiness=10
+  # Grow ext4 filesystems on separately-attached EBS volumes if
+  # they were resized via Terraform. resize2fs is a no-op when
+  # the filesystem already fills the device.
+  - resize2fs /dev/disk/by-label/coder-data 2>/dev/null || true
