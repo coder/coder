@@ -430,8 +430,7 @@ export const AgentSettingsSpendPageView: FC<
 											groupsLoading={isLoadingGroups}
 											editingGroupOverride={groupCtrl.editingGroupOverride}
 											onEditGroupOverride={(override) => {
-												userCtrl.setShowUserForm(false);
-												userCtrl.setEditingUserOverride(null);
+												userCtrl.handleShowUserFormChange(false);
 												groupCtrl.handleEditGroupOverride(override);
 											}}
 											onAddGroupOverride={groupCtrl.handleAddGroupOverride}
@@ -479,8 +478,7 @@ export const AgentSettingsSpendPageView: FC<
 										}
 										editingUserOverride={userCtrl.editingUserOverride}
 										onEditUserOverride={(override) => {
-											groupCtrl.setShowGroupForm(false);
-											groupCtrl.setEditingGroupOverride(null);
+											groupCtrl.handleShowGroupFormChange(false);
 											userCtrl.handleEditUserOverride(override);
 										}}
 										onAddOverride={userCtrl.handleAddOverride}

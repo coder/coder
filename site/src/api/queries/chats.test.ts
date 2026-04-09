@@ -650,7 +650,7 @@ describe("chat cost query factories", () => {
 			payload,
 		});
 		expect(API.experimental.getChatCostUsers).toHaveBeenCalledWith(
-			expect.objectContaining({ username: undefined }),
+			expect.objectContaining({ username: undefined, limit: 25, offset: 25 }),
 		);
 	});
 });
