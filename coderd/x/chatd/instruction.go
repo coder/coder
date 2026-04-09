@@ -135,21 +135,16 @@ func mergeSkillMetas(
 	seen := make(map[string]struct{}, len(persisted)+len(discovered))
 	merged := make([]chattool.SkillMeta, 0, len(persisted)+len(discovered))
 	appendUnique := func(skill chattool.SkillMeta) {
-		metaFile := skill.MetaFile
-		if metaFile == "" {
-			metaFile = chattool.DefaultSkillMetaFile
-		}
-		key := skill.Name + "\x00" + skill.Dir + "\x00" + metaFile
-		if _, ok := seen[key]; ok {
+		if _, ok := seen[skill.Name]; ok {
 			return
 		}
-		seen[key] = struct{}{}
+		seen[skill.Name] = struct{}{}
 		merged = append(merged, skill)
 	}
-	for _, skill := range persisted {
+	for _, skill := range discovered {
 		appendUnique(skill)
 	}
-	for _, skill := range discovered {
+	for _, skill := range persisted {
 		appendUnique(skill)
 	}
 	return merged

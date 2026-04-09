@@ -2076,13 +2076,13 @@ func TestMergeSkillMetas(t *testing.T) {
 	persisted := []chattool.SkillMeta{{
 		Name:        "repo-helper",
 		Description: "Persisted skill",
-		Dir:         "/skills/repo-helper",
+		Dir:         "/skills/repo-helper-old",
 	}}
 	discovered := []chattool.SkillMeta{
 		{
 			Name:        "repo-helper",
-			Description: "Discovered duplicate",
-			Dir:         "/skills/repo-helper",
+			Description: "Discovered replacement",
+			Dir:         "/skills/repo-helper-new",
 			MetaFile:    "SKILL.md",
 		},
 		{
@@ -2094,7 +2094,7 @@ func TestMergeSkillMetas(t *testing.T) {
 
 	got := mergeSkillMetas(persisted, discovered)
 	require.Equal(t, []chattool.SkillMeta{
-		persisted[0],
+		discovered[0],
 		discovered[1],
 	}, got)
 }
