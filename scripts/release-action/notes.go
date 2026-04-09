@@ -83,8 +83,7 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 
 	_, _ = fmt.Fprintln(&notes, "## Changelog")
 
-	switch channel {
-	case "rc":
+	if channel == "rc" {
 		_, _ = fmt.Fprintln(&notes)
 		_, _ = fmt.Fprintln(&notes, "> [!NOTE]")
 		_, _ = fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
