@@ -258,8 +258,6 @@ func calculateCreateBranch(commitSHA string) (*CalculateResult, error) {
 		}
 	}
 
-
-
 	// Determine the next minor version for the branch.
 	var major, minor int
 	if latestMainline != nil {
