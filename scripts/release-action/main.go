@@ -47,14 +47,14 @@ func main() {
 					{
 						Name:        "type",
 						Flag:        "type",
-						Description: "Release type: rc or release.",
+						Description: "Release type: rc, release, or create-release-branch.",
 						Required:    true,
 						Value:       serpent.StringOf(&releaseType),
 					},
 					{
 						Name:        "commit",
 						Flag:        "commit",
-						Description: "Commit SHA to tag (RC only).",
+						Description: "Commit SHA to tag (RC and create-release-branch).",
 						Value:       serpent.StringOf(&commitSHA),
 					},
 					{

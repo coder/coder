@@ -5,11 +5,12 @@ on:
     inputs:
       release_type:
         type: choice
-        description: "Type of release: rc (from main) or release (from release branch)"
+        description: "Type of release: rc (from main), release (from release branch), or create-release-branch (cut branch + tag RC)"
         required: true
         options:
           - rc
           - release
+          - create-release-branch
       commit_sha:
         description: "Commit SHA to tag (required for RC, must be on main)"
         type: string
@@ -67,6 +68,7 @@ jobs:
       previous_version: ${{ steps.prepare.outputs.previous_version }}
       channel: ${{ steps.prepare.outputs.channel }}
       target_ref: ${{ steps.prepare.outputs.target_ref }}
+      create_branch: ${{ steps.prepare.outputs.create_branch }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -94,7 +96,7 @@ jobs:
 
           # Calculate the next version
           args=(--type "$RELEASE_TYPE")
-          if [[ "$RELEASE_TYPE" == "rc" ]]; then
+          if [[ "$RELEASE_TYPE" == "rc" || "$RELEASE_TYPE" == "create-release-branch" ]]; then
             args+=(--commit "$COMMIT_SHA")
           else
             args+=(--branch "$RELEASE_BRANCH")
@@ -105,16 +107,19 @@ jobs:
           previous_version=$(echo "$result" | jq -r .previous_version)
           channel=$(echo "$result" | jq -r .channel)
           target_ref=$(echo "$result" | jq -r .target_ref)
+          create_branch=$(echo "$result" | jq -r '.create_branch // ""')
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "previous_version=$previous_version" >> "$GITHUB_OUTPUT"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "target_ref=$target_ref" >> "$GITHUB_OUTPUT"
+          echo "create_branch=$create_branch" >> "$GITHUB_OUTPUT"
 
           echo "Calculated version: $version"
           echo "Previous version: $previous_version"
           echo "Channel: $channel"
           echo "Target ref: $target_ref"
+          echo "Create branch: $create_branch"
         env:
           RELEASE_TYPE: ${{ inputs.release_type }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
@@ -143,6 +148,21 @@ jobs:
           git tag -a "$VERSION" -m "Dry-run release $VERSION" "$TARGET_REF" 2>/dev/null || true
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
+          TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
+
+      - name: Create release branch
+        if: ${{ steps.prepare.outputs.create_branch != '' && !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code origin "refs/heads/$CREATE_BRANCH" >/dev/null 2>&1; then
+            echo "Branch $CREATE_BRANCH already exists, skipping."
+          else
+            git branch "$CREATE_BRANCH" "$TARGET_REF"
+            git push origin "$CREATE_BRANCH"
+            echo "Created branch $CREATE_BRANCH at $TARGET_REF"
+          fi
+        env:
+          CREATE_BRANCH: ${{ steps.prepare.outputs.create_branch }}
           TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
 
       - name: Generate release notes
