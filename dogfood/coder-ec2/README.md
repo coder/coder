@@ -7,8 +7,9 @@ production deployment models.
 
 ## Architecture
 
-```
+```text
 EC2 instance (m5d.xlarge)
+
 ├── /            (root EBS, 50 GB, ephemeral — OS, Docker, agent)
 ├── /home/coder  (data EBS, 128 GB, persistent — code, user data)
 ├── swap         (NVMe instance store, ~150 GB)
@@ -19,7 +20,6 @@ EC2 instance (m5d.xlarge)
 ```
 
 ### Storage design
-
 
 Docker and the Coder host agent live on the **root volume**, not
 the data volume. This is a deliberate design decision:
@@ -39,7 +39,6 @@ the data volume. This is a deliberate design decision:
 The devcontainer uses the repo's own `.devcontainer/devcontainer.json`
 (cloned automatically by the `git-clone` module) — no
 template-specific devcontainer config to maintain.
-
 
 ## Required IAM Permissions
 
