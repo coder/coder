@@ -2710,10 +2710,6 @@ func clearAgentChatContext(
 		if !locked.AgentID.Valid || locked.AgentID.UUID != agentID {
 			return errChatDoesNotBelongToAgent
 		}
-		if err := tx.SoftDeleteContextFileMessages(ctx, chatID); err != nil {
-			return xerrors.Errorf("soft delete context-file messages: %w", err)
-		}
-
 		messages, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
@@ -2721,12 +2717,30 @@ func clearAgentChatContext(
 		if err != nil {
 			return xerrors.Errorf("get chat messages: %w", err)
 		}
+		hadInjectedContext := locked.LastInjectedContext.Valid
+		var skillOnlyMessageIDs []int64
 		for _, msg := range messages {
-			if !msg.Content.Valid || !messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeSkill) {
+			if !msg.Content.Valid {
 				continue
 			}
-			if err := tx.SoftDeleteChatMessageByID(ctx, msg.ID); err != nil {
-				return xerrors.Errorf("soft delete context message %d: %w", msg.ID, err)
+			hasContextFile := messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeContextFile)
+			hasSkill := messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeSkill)
+			if hasContextFile || hasSkill {
+				hadInjectedContext = true
+			}
+			if hasSkill && !hasContextFile {
+				skillOnlyMessageIDs = append(skillOnlyMessageIDs, msg.ID)
+			}
+		}
+		if !hadInjectedContext {
+			return nil
+		}
+		if err := tx.SoftDeleteContextFileMessages(ctx, chatID); err != nil {
+			return xerrors.Errorf("soft delete context-file messages: %w", err)
+		}
+		for _, messageID := range skillOnlyMessageIDs {
+			if err := tx.SoftDeleteChatMessageByID(ctx, messageID); err != nil {
+				return xerrors.Errorf("soft delete context message %d: %w", messageID, err)
 			}
 		}
 		// Reset provider-side Responses chaining so the next turn replays

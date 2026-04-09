@@ -533,6 +533,44 @@ func TestAgentChatContext(t *testing.T) {
 		require.False(t, persistedChat.LastInjectedContext.Valid)
 	})
 
+	t.Run("ClearWithoutContextPreservesProviderResponseChain", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("assistant reply"),
+		})
+		require.NoError(t, err)
+		assistantParams := chatd.BuildSingleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleAssistant,
+			assistantContent,
+			database.ChatMessageVisibilityBoth,
+			chat.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+			uuid.Nil,
+		)
+		assistantParams.ProviderResponseID[0] = "resp-123"
+		_, err = setup.db.InsertChatMessages(
+			dbauthz.AsSystemRestricted(ctx),
+			assistantParams,
+		)
+		require.NoError(t, err)
+
+		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.ChatID)
+
+		messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+		require.Len(t, messages, 1)
+		require.True(t, messages[0].ProviderResponseID.Valid)
+		require.Equal(t, "resp-123", messages[0].ProviderResponseID.String)
+	})
+
 	t.Run("AddFailsWhenAgentHasNoActiveChat", func(t *testing.T) {
 		t.Parallel()
 
