@@ -265,7 +265,7 @@ func TestExpAgents(t *testing.T) {
 						require.Equal(t, viewChat, updated.currentView)
 						require.True(t, updated.chat.loading)
 						require.Equal(t, 39, updated.chat.height)
-						require.Equal(t, 31, updated.chat.viewport.Height)
+						require.Equal(t, 32, updated.chat.viewport.Height)
 						require.Len(t, mustBatchMsg(t, cmd), 3)
 					},
 				},
@@ -280,7 +280,7 @@ func TestExpAgents(t *testing.T) {
 						require.True(t, updated.chat.metadataResolved)
 						require.True(t, updated.chat.historyResolved)
 						require.Equal(t, 39, updated.chat.height)
-						require.Equal(t, 31, updated.chat.viewport.Height)
+						require.Equal(t, 32, updated.chat.viewport.Height)
 						require.Nil(t, cmd)
 					},
 				},
@@ -2338,7 +2338,7 @@ func TestExpAgents(t *testing.T) {
 			}{
 				{"Standard", 40, nil, func(t *testing.T, model expChatsTUIModel) {
 					require.Equal(t, 39, model.chat.height)
-					require.Equal(t, 31, model.chat.viewport.Height)
+					require.Equal(t, 32, model.chat.viewport.Height)
 				}},
 				{"MinimumZero", 5, nil, func(t *testing.T, model expChatsTUIModel) {
 					require.Equal(t, 0, model.chat.viewport.Height)
@@ -2367,6 +2367,57 @@ func TestExpAgents(t *testing.T) {
 					tt.assert(t, model)
 				})
 			}
+		})
+
+		t.Run("WrappedComposerFitsTerminal", func(t *testing.T) {
+			t.Parallel()
+
+			model := applyWindowSize(t, newTestTUIModel(), 40, 18)
+			model.currentView = viewChat
+			model.chat.loading = false
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat.chat = &chat
+			model.chat.chatStatus = chat.Status
+			model.chat.messages = overflowingMessages(18)
+			model.chat.rebuildBlocks()
+
+			initialViewportHeight := model.chat.viewport.Height
+			model.chat.composer.SetValue(strings.Repeat("wrapped input ", 14))
+			model.chat.recalcViewportHeight()
+			model.chat.syncViewportContent()
+
+			require.Less(t, model.chat.viewport.Height, initialViewportHeight)
+			require.LessOrEqual(t, strings.Count(model.View(), "\n")+1, 18)
+		})
+
+		t.Run("ViewShowsSingleStatusBarAndComposerDivider", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.loading = false
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 14})
+			chat := testChat(codersdk.ChatStatusWaiting)
+			model.chat = &chat
+			model.chatStatus = chat.Status
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing response"}),
+			}
+			model.rebuildBlocks()
+
+			view := plainText(model.View())
+			require.NotContains(t, view, "Status: waiting")
+			require.Equal(t, 1, strings.Count(view, "waiting"))
+
+			lines := strings.Split(view, "\n")
+			composerLine := -1
+			for i, line := range lines {
+				if strings.Contains(line, "> ") {
+					composerLine = i
+					break
+				}
+			}
+			require.Greater(t, composerLine, 1)
+			require.Contains(t, lines[composerLine-2], "────")
 		})
 
 		t.Run("ScrollNavigation", func(t *testing.T) {

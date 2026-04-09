@@ -251,6 +251,25 @@ func (m *chatViewModel) setComposerWidth() {
 	m.composer.Width = max(10, m.width-4)
 }
 
+func (m *chatViewModel) recalcViewportHeight() {
+	if m.height <= 0 || m.width <= 0 {
+		return
+	}
+
+	viewWidth := m.width
+	if viewWidth <= 0 {
+		viewWidth = 80
+	}
+
+	composerWidth := max(10, viewWidth-2)
+	composerTextWidth := lipgloss.Width(m.composer.View())
+	composerLines := max(1, (composerTextWidth+composerWidth-1)/composerWidth)
+
+	const chromeLines = 6
+	m.viewport.Width = m.width
+	m.viewport.Height = max(0, m.height-chromeLines-composerLines)
+}
+
 // combinedError returns the first non-nil error from the
 // open/history resolution pair.
 func (m chatViewModel) combinedError() error {
@@ -270,6 +289,7 @@ func (m chatViewModel) readyToStartStream() bool {
 func (m *chatViewModel) restorePendingComposerIfEmpty() {
 	if m.pendingComposerText != "" && m.composer.Value() == "" {
 		m.composer.SetValue(m.pendingComposerText)
+		m.recalcViewportHeight()
 	}
 }
 
@@ -357,6 +377,7 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 	m.autoFollow = true
 	m.pendingComposerText = text
 	m.composer.SetValue("")
+	(&m).recalcViewportHeight()
 	content := []codersdk.ChatInputPart{{
 		Type: codersdk.ChatInputPartTypeText,
 		Text: text,
@@ -597,13 +618,8 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		viewportHeight := m.height - 8
-		if viewportHeight < 0 {
-			viewportHeight = 0
-		}
-		m.viewport.Width = m.width
-		m.viewport.Height = viewportHeight
 		(&m).setComposerWidth()
+		(&m).recalcViewportHeight()
 		(&m).syncViewportContent()
 		return m, nil
 
@@ -649,6 +665,8 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			}
 			var cmd tea.Cmd
 			m.composer, cmd = m.composer.Update(msg)
+			(&m).recalcViewportHeight()
+			(&m).syncViewportContent()
 			return m, cmd
 		}
 
@@ -929,26 +947,6 @@ func (m chatViewModel) View() string {
 		errorBanner = m.styles.errorText.Render(m.styles.truncate(strings.ReplaceAll(m.err.Error(), "\n", " "), viewWidth))
 	}
 
-	viewportHeight := max(m.viewport.Height, 0)
-	if errorBanner != "" {
-		viewportHeight = max(viewportHeight-1, 0)
-	}
-
-	viewportView := m.viewport.View()
-	if m.loading && len(m.blocks) == 0 {
-		viewportWidth := max(max(m.viewport.Width, viewWidth), 1)
-		viewportHeight = max(viewportHeight, 1)
-		viewportView = lipgloss.Place(
-			viewportWidth,
-			viewportHeight,
-			lipgloss.Center,
-			lipgloss.Center,
-			m.styles.dimmedText.Render("Loading chat..."),
-		)
-	} else if errorBanner != "" {
-		viewportView = clampLines(viewportView, viewportHeight)
-	}
-
 	composerView := m.styles.composerStyle.Width(max(10, viewWidth-2)).Render(m.composer.View())
 
 	longHelpParts := []string{"tab: switch focus", "esc: back"}
@@ -979,19 +977,40 @@ func (m chatViewModel) View() string {
 		strings.Join(compactHelpParts, " "),
 	))
 	separator := m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1)))
-	sections := []string{header}
-	if m.chat != nil {
-		sections = append(sections, "Status: "+m.styles.statusColor(m.chatStatus).Render(string(m.chatStatus)))
+	composerHeight := lipgloss.Height(composerView)
+	statusBarHeight := 0
+	if statusBar != "" {
+		statusBarHeight = lipgloss.Height(statusBar)
 	}
+	errorBannerHeight := 0
+	if errorBanner != "" {
+		errorBannerHeight = lipgloss.Height(errorBanner)
+	}
+	nonViewportHeight := 1 + 1 + statusBarHeight + errorBannerHeight + 1 + composerHeight + 1
+	availableViewportHeight := max(0, m.height-nonViewportHeight)
 
-	sections = append(sections, separator, viewportView, separator)
+	viewportView := m.viewport.View()
+	if m.loading && len(m.blocks) == 0 {
+		viewportWidth := max(max(m.viewport.Width, viewWidth), 1)
+		viewportView = lipgloss.Place(
+			viewportWidth,
+			max(availableViewportHeight, 1),
+			lipgloss.Center,
+			lipgloss.Center,
+			m.styles.dimmedText.Render("Loading chat..."),
+		)
+	}
+	viewportView = clampLines(viewportView, availableViewportHeight)
+
+	sections := []string{header}
+	sections = append(sections, separator, viewportView)
 	if statusBar != "" {
 		sections = append(sections, statusBar)
 	}
 	if errorBanner != "" {
 		sections = append(sections, errorBanner)
 	}
-	sections = append(sections, composerView, helpRow)
+	sections = append(sections, separator, composerView, helpRow)
 
 	return strings.Join(sections, "\n")
 }
