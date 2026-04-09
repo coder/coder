@@ -31,6 +31,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: isRunning && Boolean(workspaceId),
+		refetchInterval: isRunning ? 2000 : false,
 	});
 	const liveBuildId = workspaceQuery.data?.latest_build?.id;
 
@@ -59,7 +60,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	}
 
 	return (
-		<ScrollArea className="max-h-96 overflow-auto mt-2">
+		<ScrollArea className="mt-2" viewportClassName="max-h-96">
 			<WorkspaceBuildLogs
 				logs={logs}
 				sticky

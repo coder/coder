@@ -147,9 +147,20 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 	)
 }
 
+// setBuildID adds the build_id field to a tool response map when
+// the build ID is known (non-nil).
+func setBuildID(result map[string]any, buildID uuid.UUID) {
+	if buildID != uuid.Nil {
+		result["build_id"] = buildID.String()
+	}
+}
+
 // waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
-// success response.
+// success response. When buildID is non-nil, it is included in the
+// response so the frontend can fetch historical build logs. Pass
+// uuid.Nil when no build was triggered (e.g. workspace already
+// running).
 func waitForAgentAndRespond(
 	ctx context.Context,
 	db database.Store,
@@ -166,9 +177,7 @@ func waitForAgentAndRespond(
 			"workspace_name": ws.Name,
 			"agent_status":   "no_agent",
 		}
-		if buildID != uuid.Nil {
-			result["build_id"] = buildID.String()
-		}
+		setBuildID(result, buildID)
 		return toolResponse(result), nil
 	}
 
@@ -180,9 +189,7 @@ func waitForAgentAndRespond(
 			"agent_status":   "selection_error",
 			"agent_error":    err.Error(),
 		}
-		if buildID != uuid.Nil {
-			result["build_id"] = buildID.String()
-		}
+		setBuildID(result, buildID)
 		return toolResponse(result), nil
 	}
 
@@ -190,9 +197,7 @@ func waitForAgentAndRespond(
 		"started":        true,
 		"workspace_name": ws.Name,
 	}
-	if buildID != uuid.Nil {
-		result["build_id"] = buildID.String()
-	}
+	setBuildID(result, buildID)
 	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 		result[k] = v
 	}

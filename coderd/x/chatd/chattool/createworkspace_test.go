@@ -468,6 +468,78 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 	require.Equal(t, "workspace is already running and recently connected", result["message"])
 }
 
+func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	buildID := uuid.New()
+
+	// GetChatByID returns a chat linked to a workspace.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+
+	// GetWorkspaceByID returns a non-deleted workspace.
+	db.EXPECT().
+		GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:   workspaceID,
+			Name: "building-workspace",
+		}, nil)
+
+	// GetLatestWorkspaceBuildByWorkspaceID is called once in
+	// checkExistingWorkspace and once in waitForBuild's first poll.
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  database.WorkspaceTransitionStart,
+		}, nil).
+		Times(2)
+
+	// First GetProvisionerJobByID (in checkExistingWorkspace) returns
+	// Running, triggering waitForBuild. The second call (waitForBuild's
+	// first poll) returns Succeeded so the loop exits immediately.
+	firstJob := db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusRunning,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusSucceeded,
+		}, nil).
+		After(firstJob)
+
+	// After waitForBuild completes, checkExistingWorkspace fetches
+	// agents. Return empty to keep the test focused on build_id.
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{}, nil)
+
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	result, done, err := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, false, result["created"])
+	require.Equal(t, "already_exists", result["status"])
+	require.Equal(t, buildID.String(), result["build_id"])
+	require.Equal(t, "building-workspace", result["workspace_name"])
+	require.Equal(t, "workspace build completed", result["message"])
+}
+
 func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)

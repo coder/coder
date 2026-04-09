@@ -240,10 +240,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				"created":        true,
 				"workspace_name": workspace.FullName(),
 			}
-			if buildID != uuid.Nil {
-				result["build_id"] = buildID.String()
-			}
-
+			setBuildID(result, buildID)
 			// Select the chat agent so follow-up tools wait on the
 			// intended workspace agent.
 			workspaceAgentID := uuid.Nil
@@ -339,9 +336,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			"status":         "already_exists",
 			"message":        "workspace build completed",
 		}
-		if buildID != uuid.Nil {
-			result["build_id"] = buildID.String()
-		}
+		setBuildID(result, buildID)
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {
 			selected, selectErr := agentselect.FindChatAgent(agents)
