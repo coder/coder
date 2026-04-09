@@ -304,7 +304,6 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.clear();
 			inputValueRef.current = "";
 			setEditingMessageId(null);
-			setEditingFileBlocks([]);
 		}
 
 		try {

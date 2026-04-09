@@ -383,14 +383,17 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("exits history edit mode immediately while a submission is pending", () => {
+	it("keeps editing file blocks while a history-edit submission is pending", () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("edited message");
+		const fileBlocks = [
+			{ type: "file", file_id: "file-1", media_type: "image/png" },
+		] as const;
 		result.current.chatInputRef.current = mockInput.handle;
 		onSend.mockImplementation(() => new Promise(() => {}));
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
 		});
 
 		act(() => {
@@ -401,13 +404,16 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("");
 		expect(result.current.editingMessageId).toBeNull();
-		expect(result.current.editingFileBlocks).toEqual([]);
+		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
 		unmount();
 	});
 
-	it("restores the edit draft when an optimistically cleared submission fails", async () => {
+	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("edited message");
+		const fileBlocks = [
+			{ type: "file", file_id: "file-1", media_type: "image/png" },
+		] as const;
 		result.current.chatInputRef.current = mockInput.handle;
 		onSend.mockRejectedValueOnce(new Error("boom"));
 		const editorState = JSON.stringify({
@@ -423,7 +429,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
 			result.current.handleContentChange("edited message", editorState, false);
 		});
 
@@ -436,7 +442,7 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("edited message");
 		expect(result.current.editingMessageId).toBe(7);
-		expect(result.current.editingFileBlocks).toEqual([]);
+		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
 		expect(result.current.editorInitialValue).toBe("edited message");
 		expect(result.current.initialEditorState).toBe(editorState);
 		unmount();
