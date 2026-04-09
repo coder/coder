@@ -94,7 +94,7 @@ func main() {
 					{
 						Name:        "channel",
 						Flag:        "channel",
-						Description: "Release channel: rc, mainline, or stable.",
+						Description: "Release channel: rc or stable.",
 						Required:    true,
 						Value:       serpent.StringOf(&gnChannel),
 					},
@@ -130,7 +130,7 @@ func main() {
 					{
 						Name:        "channel",
 						Flag:        "channel",
-						Description: "Release channel: mainline or stable.",
+						Description: "Release channel: stable.",
 						Required:    true,
 						Value:       serpent.StringOf(&udChannel),
 					},
