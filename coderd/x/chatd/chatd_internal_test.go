@@ -2764,6 +2764,7 @@ func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEv
 		return codersdk.ChatStreamEvent{}
 	}
 }
+
 func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
 	t.Helper()
 
