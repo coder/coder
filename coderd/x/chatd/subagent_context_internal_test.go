@@ -100,6 +100,15 @@ func TestFilterContextPartsToLatestAgent(t *testing.T) {
 	parts := []codersdk.ChatMessagePart{
 		{
 			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/legacy/AGENTS.md",
+			ContextFileContent: "legacy instructions",
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper-legacy",
+		},
+		{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:    "/old/AGENTS.md",
 			ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
 		},
@@ -124,9 +133,11 @@ func TestFilterContextPartsToLatestAgent(t *testing.T) {
 	}
 
 	got := FilterContextPartsToLatestAgent(parts)
-	require.Len(t, got, 2)
-	require.Equal(t, AgentChatContextSentinelPath, got[0].ContextFilePath)
-	require.Equal(t, "repo-helper-new", got[1].SkillName)
+	require.Len(t, got, 4)
+	require.Equal(t, "/legacy/AGENTS.md", got[0].ContextFilePath)
+	require.Equal(t, "repo-helper-legacy", got[1].SkillName)
+	require.Equal(t, AgentChatContextSentinelPath, got[2].ContextFilePath)
+	require.Equal(t, "repo-helper-new", got[3].SkillName)
 }
 
 func createParentChatWithInheritedContext(

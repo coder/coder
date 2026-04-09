@@ -110,7 +110,8 @@ func instructionFromContextFiles(
 			if part.Type != codersdk.ChatMessagePartTypeContextFile {
 				continue
 			}
-			if filterByAgent && (!part.ContextFileAgentID.Valid || part.ContextFileAgentID.UUID != filterAgentID) {
+			if filterByAgent && part.ContextFileAgentID.Valid &&
+				part.ContextFileAgentID.UUID != filterAgentID {
 				continue
 			}
 			if part.ContextFileOS != "" {
@@ -223,7 +224,8 @@ func skillsFromParts(
 			if part.Type != codersdk.ChatMessagePartTypeSkill {
 				continue
 			}
-			if filterByAgent && (!part.ContextFileAgentID.Valid || part.ContextFileAgentID.UUID != filterAgentID) {
+			if filterByAgent && part.ContextFileAgentID.Valid &&
+				part.ContextFileAgentID.UUID != filterAgentID {
 				continue
 			}
 			skills = append(skills, chattool.SkillMeta{
