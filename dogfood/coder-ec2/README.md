@@ -130,11 +130,11 @@ an IAM policy with these permissions:
 
 These are set at the template level (by an admin), not per workspace:
 
-| Variable               | Required | Description                          |
-|------------------------|----------|--------------------------------------|
-| `vpc_subnet_id`        | Yes      | Subnet to launch instances in        |
-| `security_group_id`    | Yes      | SG for instances (outbound-only OK)  |
-| `iam_instance_profile` | No       | Optional instance profile name       |
+| Variable               | Required | Description                         |
+|------------------------|----------|-------------------------------------|
+| `vpc_subnet_id`        | Yes      | Subnet to launch instances in       |
+| `security_group_id`    | Yes      | SG for instances (outbound-only OK) |
+| `iam_instance_profile` | No       | Optional instance profile name      |
 
 ## Security Group
 
