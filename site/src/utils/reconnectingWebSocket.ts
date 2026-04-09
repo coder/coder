@@ -39,11 +39,6 @@ const RECONNECT_MAX_MS = 10_000;
 const RECONNECT_FACTOR = 2;
 
 /**
- * Largest delay safe to pass to `setTimeout` (about 24.8 days).
- */
-const MAX_TIMER_MS = 2 ** 31 - 1;
-
-/**
  * Default symmetric jitter applied to the computed reconnect delay.
  * `0.3` means the final delay is randomized within ±30% of the base
  * exponential-backoff value.
@@ -107,8 +102,7 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	/**
 	 * Hard upper bound on the reconnect delay in milliseconds. Set to
 	 * `Infinity` to disable the reconnect-policy cap. Jitter is applied to
-	 * the capped backoff base, and the scheduled timer delay is still
-	 * clamped to the largest safe `setTimeout` value.
+	 * the capped backoff base.
 	 */
 	maxMs?: number;
 
@@ -188,11 +182,10 @@ const getReconnectSchedule = ({
 		jitter,
 		random,
 	});
-	const policyDelayMs = normalizeDelayMs(
+	const delayMs = normalizeDelayMs(
 		Math.min(jitteredDelayMs, safeMaxMs),
 		safeMaxMs,
 	);
-	const delayMs = Math.min(policyDelayMs, MAX_TIMER_MS);
 	return {
 		attempt,
 		delayMs,
@@ -214,8 +207,7 @@ const getReconnectSchedule = ({
  * rawDelay = baseMs * factor ^ (attempt - 1)
  * cappedDelay = min(rawDelay, maxMs)
  * jitteredDelay = round(cappedDelay * (1 + offset))
- * policyDelay = min(jitteredDelay, maxMs)
- * delay = min(policyDelay, MAX_TIMER_MS)
+ * delay = min(jitteredDelay, maxMs)
  * offset ∈ [-jitter, +jitter]
  * ```
  *
