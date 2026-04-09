@@ -596,7 +596,12 @@ func copyParentContextMessages(
 		return nil, xerrors.Errorf("get parent messages: %w", err)
 	}
 
-	var copiedParts []codersdk.ChatMessagePart
+	var (
+		copiedParts      []codersdk.ChatMessagePart
+		copiedRole       database.ChatMessageRole
+		copiedVisibility database.ChatMessageVisibility
+		copiedVersion    int16
+	)
 	for _, msg := range parentMessages {
 		if !msg.Content.Valid {
 			continue
@@ -615,26 +620,35 @@ func copyParentContextMessages(
 		if len(messageContextParts) == 0 {
 			continue
 		}
-
-		filteredContent, err := chatprompt.MarshalParts(messageContextParts)
-		if err != nil {
-			return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
-		}
-
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-			ChatID: child.ID,
-		}
-		appendChatMessage(&msgParams, newChatMessage(
-			msg.Role,
-			filteredContent,
-			msg.Visibility,
-			child.LastModelConfigID,
-			msg.ContentVersion,
-		))
-		if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
-			return nil, xerrors.Errorf("insert context message: %w", err)
+		if copiedParts == nil {
+			copiedRole = msg.Role
+			copiedVisibility = msg.Visibility
+			copiedVersion = msg.ContentVersion
 		}
 		copiedParts = append(copiedParts, messageContextParts...)
+	}
+	if len(copiedParts) == 0 {
+		return nil, nil
+	}
+
+	copiedParts = FilterContextPartsToLatestAgent(copiedParts)
+	filteredContent, err := chatprompt.MarshalParts(copiedParts)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
+	}
+
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: child.ID,
+	}
+	appendChatMessage(&msgParams, newChatMessage(
+		copiedRole,
+		filteredContent,
+		copiedVisibility,
+		child.LastModelConfigID,
+		copiedVersion,
+	))
+	if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
+		return nil, xerrors.Errorf("insert context message: %w", err)
 	}
 
 	return copiedParts, nil
