@@ -489,7 +489,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 						chatTitle={chatTitle}
-						desktopChatId={desktopChatId}
+						desktopChatId={
+							workspace && workspaceAgent ? desktopChatId : undefined
+						}
 					/>
 				</RightPanel>
 			</div>
