@@ -52,6 +52,8 @@ import {
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
 import {
+	type ChatStore,
+	type ChatStoreState,
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
@@ -101,6 +103,29 @@ export function getPersistedDraftInputValue(
 		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
 	).text;
 }
+
+/** @internal Exported for testing. */
+export const restoreOptimisticRequestSnapshot = (
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "setChatStatus"
+		| "setQueuedMessages"
+		| "setStreamError"
+		| "setStreamState"
+	>,
+	snapshot: Pick<
+		ChatStoreState,
+		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
+	>,
+): void => {
+	store.batch(() => {
+		store.setQueuedMessages(snapshot.queuedMessages);
+		store.setChatStatus(snapshot.chatStatus);
+		store.setStreamState(snapshot.streamState);
+		store.setStreamError(snapshot.streamError);
+	});
+};
 
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
@@ -883,13 +908,7 @@ const AgentChatPage: FC = () => {
 					req: request,
 				});
 			} catch (error) {
-				store.batch(() => {
-					store.setQueuedMessages(previousSnapshot.queuedMessages);
-					store.setChatStatus(previousSnapshot.chatStatus);
-					if (previousSnapshot.streamState === null) {
-						store.clearStreamState();
-					}
-				});
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
 				handleUsageLimitError(error);
 				throw error;
 			}
@@ -968,10 +987,8 @@ const AgentChatPage: FC = () => {
 
 	const handlePromoteQueuedMessage = async (id: number) => {
 		const previousSnapshot = store.getSnapshot();
-		const previousQueuedMessages = previousSnapshot.queuedMessages;
-		const previousChatStatus = previousSnapshot.chatStatus;
 		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
+			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
 		);
 		store.clearStreamState();
 		if (agentId) {
@@ -987,8 +1004,7 @@ const AgentChatPage: FC = () => {
 			store.upsertDurableMessage(promotedMessage);
 			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			store.setChatStatus(previousChatStatus);
+			restoreOptimisticRequestSnapshot(store, previousSnapshot);
 			handleUsageLimitError(error);
 			throw error;
 		}

@@ -174,6 +174,7 @@ export type ChatStore = {
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
+	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
 	setRetryState: (state: RetryState | null) => void;
@@ -411,6 +412,20 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				chatStatus: status,
 			}));
+		},
+		setStreamState: (streamState) => {
+			if (state.streamState === streamState) {
+				return;
+			}
+			setState((current) => {
+				if (current.streamState === streamState) {
+					return current;
+				}
+				return {
+					...current,
+					streamState,
+				};
+			});
 		},
 		setStreamError: (reason) => {
 			setState((current) => {

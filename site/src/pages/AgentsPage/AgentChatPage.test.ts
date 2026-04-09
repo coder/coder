@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
+	restoreOptimisticRequestSnapshot,
 	useConversationEditingState,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { createChatStore } from "./components/ChatConversation/chatStore";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -81,6 +83,41 @@ describe("getPersistedDraftInputValue", () => {
 
 	it("returns empty string when localStorage has no draft", () => {
 		expect(getPersistedDraftInputValue(chatID)).toBe("");
+	});
+});
+
+describe("restoreOptimisticRequestSnapshot", () => {
+	it("restores queued messages, stream output, status, and stream error", () => {
+		const store = createChatStore();
+		store.setQueuedMessages([
+			{
+				id: 9,
+				chat_id: "chat-abc-123",
+				created_at: "2025-01-01T00:00:00.000Z",
+				content: [{ type: "text" as const, text: "queued" }],
+			},
+		]);
+		store.setChatStatus("running");
+		store.applyMessagePart({ type: "text", text: "partial response" });
+		store.setStreamError({ kind: "generic", message: "old error" });
+		const previousSnapshot = store.getSnapshot();
+
+		store.batch(() => {
+			store.setQueuedMessages([]);
+			store.setChatStatus("pending");
+			store.clearStreamState();
+			store.clearStreamError();
+		});
+
+		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+
+		const restoredSnapshot = store.getSnapshot();
+		expect(restoredSnapshot.queuedMessages).toEqual(
+			previousSnapshot.queuedMessages,
+		);
+		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
+		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
+		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
 	});
 });
 
