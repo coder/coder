@@ -258,25 +258,13 @@ func calculateCreateBranch(commitSHA string) (*CalculateResult, error) {
 		}
 	}
 
-	// Find the latest RC tag.
-	var latestRC *version
-	for _, t := range allTags {
-		if t.IsRC() {
-			v := t
-			latestRC = &v
-			break
-		}
-	}
+
 
 	// Determine the next minor version for the branch.
 	var major, minor int
 	if latestMainline != nil {
 		major = latestMainline.Major
 		minor = latestMainline.Minor + 1
-		// If the latest RC already targets this minor, use it.
-		if latestRC != nil && latestRC.Major == major && latestRC.Minor == minor {
-			// Already aligned, keep major.minor.
-		}
 	} else {
 		// No mainline release found — start from a safe default.
 		major = 2
