@@ -10,7 +10,7 @@ import type {
 	Workspace,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
-import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
 import { getAgentHealthIssue } from "#/modules/workspaces/health";
