@@ -703,7 +703,33 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 		gomock.Any(),
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
-	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().InsertChatMessages(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.InsertChatMessagesParams)
+			if !ok || arg.ChatID != chat.ID || len(arg.Content) != 1 {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal([]byte(arg.Content[0]), &parts); err != nil {
+				return false
+			}
+			foundMarker := false
+			foundSkill := false
+			for _, p := range parts {
+				switch p.Type {
+				case codersdk.ChatMessagePartTypeContextFile:
+					if p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) && p.ContextFileContent == "" {
+						foundMarker = true
+					}
+				case codersdk.ChatMessagePartTypeSkill:
+					if p.SkillName == "my-skill" && p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) {
+						foundSkill = true
+					}
+				}
+			}
+			return foundMarker && foundSkill
+		}),
+	).Return(nil, nil).Times(1)
 	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
 		gomock.Cond(func(x any) bool {
 			arg, ok := x.(database.UpdateChatLastInjectedContextParams)

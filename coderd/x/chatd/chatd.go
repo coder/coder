@@ -5694,13 +5694,14 @@ func (p *Server) persistInstructionFiles(
 	// agent cannot know its own UUID, OS metadata, or
 	// directory — those are added here at the trust boundary.
 	var discoveredSkills []chattool.SkillMeta
-	var hasContent bool
+	var hasContent, hasContextFilePart bool
 	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
 
 	for i := range agentParts {
 		agentParts[i].ContextFileAgentID = agentID
 		switch agentParts[i].Type {
 		case codersdk.ChatMessagePartTypeContextFile:
+			hasContextFilePart = true
 			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
 			agentParts[i].ContextFileOS = agent.OperatingSystem
 			agentParts[i].ContextFileDirectory = directory
@@ -5721,13 +5722,13 @@ func (p *Server) persistInstructionFiles(
 		if !workspaceConnOK {
 			return "", nil, nil
 		}
-		// Persist a sentinel (plus any skill-only parts) so
-		// subsequent turns skip the workspace agent dial.
-		if len(agentParts) == 0 {
-			agentParts = []codersdk.ChatMessagePart{{
+		// Persist a blank context-file marker (plus any skill-only
+		// parts) so subsequent turns skip the workspace agent dial.
+		if !hasContextFilePart {
+			agentParts = append([]codersdk.ChatMessagePart{{
 				Type:               codersdk.ChatMessagePartTypeContextFile,
 				ContextFileAgentID: agentID,
-			}}
+			}}, agentParts...)
 		}
 		content, err := chatprompt.MarshalParts(agentParts)
 		if err != nil {
