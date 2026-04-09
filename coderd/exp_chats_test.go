@@ -4692,6 +4692,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// Create a text-only chat (no files initially).
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "no files yet"},
 			},
@@ -5165,6 +5166,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		// Create a text-only chat.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "before file edit"},
 			},
