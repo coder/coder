@@ -709,6 +709,7 @@ const StickyUserMessage = memo<{
 	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	nextUserMessageId: number | null;
+	scrollParent?: HTMLElement;
 	userSentinelElementsRef: UserSentinelElementsRef;
 }>(
 	({
@@ -719,6 +720,7 @@ const StickyUserMessage = memo<{
 		savingMessageId,
 		isAfterEditingMessage = false,
 		nextUserMessageId,
+		scrollParent,
 		userSentinelElementsRef,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
@@ -743,11 +745,10 @@ const StickyUserMessage = memo<{
 			if (!sentinel) return;
 			// Immediate check so the first paint is correct when the
 			// sentinel is already scrolled out of view.
-			const scroller = sentinel.closest(".overflow-y-auto");
-			if (scroller) {
+			if (scrollParent) {
 				const stuck =
 					sentinel.getBoundingClientRect().top <
-					scroller.getBoundingClientRect().top;
+					scrollParent.getBoundingClientRect().top;
 				if (stuck) {
 					setIsStuck(true);
 				}
@@ -759,7 +760,7 @@ const StickyUserMessage = memo<{
 			);
 			observer.observe(sentinel);
 			return () => observer.disconnect();
-		}, []);
+		}, [scrollParent]);
 
 		// Sets a single CSS custom property (--clip-h) on the sticky
 		// container. All visual behaviour (max-height, mask fade) is
@@ -768,9 +769,7 @@ const StickyUserMessage = memo<{
 			const sentinel = sentinelRef.current;
 			const container = containerRef.current;
 			if (!sentinel || !container) return;
-			const scroller = sentinel.closest(
-				".overflow-y-auto",
-			) as HTMLElement | null;
+			const scroller = scrollParent;
 			if (!scroller) return;
 
 			const MIN_HEIGHT = 72;
@@ -851,23 +850,18 @@ const StickyUserMessage = memo<{
 				});
 			};
 
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
-			const contentEl = scroller.firstElementChild as HTMLElement | null;
+			// Re-run the visual update when the scroll container changes
+			// size (e.g. viewport/layout updates) without relying on
+			// Virtuoso's internal child structure.
 			let contentRafId: number | null = null;
-			const contentObserver = contentEl
-				? new ResizeObserver(() => {
-						if (contentRafId !== null) return;
-						contentRafId = requestAnimationFrame(() => {
-							contentRafId = null;
-							update();
-						});
-					})
-				: null;
-			contentObserver?.observe(contentEl!);
+			const contentObserver = new ResizeObserver(() => {
+				if (contentRafId !== null) return;
+				contentRafId = requestAnimationFrame(() => {
+					contentRafId = null;
+					update();
+				});
+			});
+			contentObserver.observe(scroller);
 
 			scroller.addEventListener("scroll", onScroll, { passive: true });
 			window.addEventListener("resize", onResize);
@@ -879,12 +873,12 @@ const StickyUserMessage = memo<{
 			return () => {
 				scroller.removeEventListener("scroll", onScroll);
 				window.removeEventListener("resize", onResize);
-				contentObserver?.disconnect();
+				contentObserver.disconnect();
 				container.style.removeProperty("--overlay-ready");
 				if (rafId !== null) cancelAnimationFrame(rafId);
 				if (contentRafId !== null) cancelAnimationFrame(contentRafId);
 			};
-		}, [nextUserMessageId, userSentinelElementsRef]);
+		}, [nextUserMessageId, scrollParent, userSentinelElementsRef]);
 
 		// Re-run the height calculation synchronously whenever
 		// isStuck changes so --clip-h is correct on the same frame
@@ -906,9 +900,7 @@ const StickyUserMessage = memo<{
 					requestAnimationFrame(() => {
 						const sentinel = sentinelRef.current;
 						if (!sentinel) return;
-						const scroller = sentinel.closest(
-							".overflow-y-auto",
-						) as HTMLElement | null;
+						const scroller = scrollParent;
 						if (!scroller) return;
 						const offset =
 							sentinel.getBoundingClientRect().top -
@@ -1104,6 +1096,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										nextUserMessageId={
 											nextUserMessageIdsByIndex[msgIdx] ?? null
 										}
+										scrollParent={customScrollParent}
 										userSentinelElementsRef={userSentinelElementsRef}
 									/>
 								</div>
