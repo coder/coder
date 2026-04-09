@@ -67,7 +67,7 @@ func calculateRC(commitSHA string) (*CalculateResult, error) {
 		return nil, xerrors.Errorf("listing tags: %w", err)
 	}
 
-	// Find latest mainline (non-RC, non-prerelease) release.
+	// Find latest stable (non-RC, non-prerelease) release.
 	var latestMainline *version
 	for _, t := range allTags {
 		if t.Pre == "" {
@@ -215,7 +215,7 @@ func calculateRelease(branch string) (*CalculateResult, error) {
 	}
 
 	// Determine channel: compare this minor against the
-	// latest mainline release globally.
+	// latest stable release globally.
 	channel := determineChannel(branchMajor, branchMinor, allTags)
 
 	return &CalculateResult{
@@ -248,7 +248,7 @@ func calculateCreateBranch(commitSHA string) (*CalculateResult, error) {
 		return nil, xerrors.Errorf("listing tags: %w", err)
 	}
 
-	// Find latest mainline (non-RC, non-prerelease) release.
+	// Find latest stable (non-RC, non-prerelease) release.
 	var latestMainline *version
 	for _, t := range allTags {
 		if t.Pre == "" {
@@ -264,7 +264,7 @@ func calculateCreateBranch(commitSHA string) (*CalculateResult, error) {
 		major = latestMainline.Major
 		minor = latestMainline.Minor + 1
 	} else {
-		// No mainline release found — start from a safe default.
+		// No stable release found — start from a safe default.
 		major = 2
 		minor = 0
 	}
@@ -320,29 +320,8 @@ func calculateCreateBranch(commitSHA string) (*CalculateResult, error) {
 	}, nil
 }
 
-// determineChannel finds the latest mainline (non-RC,
-// non-prerelease) release globally and compares it against the
-// given major.minor to decide the channel.
-func determineChannel(major, minor int, allTags []version) string {
-	var latestMainline *version
-	for _, t := range allTags {
-		if t.Pre == "" {
-			v := t
-			latestMainline = &v
-			break
-		}
-	}
-
-	if latestMainline == nil {
-		return "mainline"
-	}
-
-	if major == latestMainline.Major && minor == latestMainline.Minor {
-		return "mainline"
-	}
-	if major == latestMainline.Major && minor == latestMainline.Minor-1 {
-		return "stable"
-	}
-
-	return "mainline"
+// determineChannel returns the release channel. All non-RC
+// releases are stable from day one.
+func determineChannel(_ int, _ int, _ []version) string {
+	return "stable"
 }
