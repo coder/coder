@@ -75,11 +75,18 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 	return nil
 }
 
-// ValidateRedirectURIScheme checks that a parsed redirect URI has a
-// non-empty scheme that is not dangerous (javascript, data, file, ftp)
-// and is not an unsupported URN. It returns an error describing why the
-// scheme is invalid, or nil when it is acceptable.
-func ValidateRedirectURIScheme(uri *url.URL, rawURI string) error {
+// ValidateRedirectURIScheme reports whether the callback URL's scheme is
+// safe to use as a redirect target. It returns an error when the scheme
+// is empty, an unsupported URN, or one of the schemes that are dangerous
+// in browser/HTML contexts (javascript, data, file, ftp).
+//
+// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
+// are allowed.
+func ValidateRedirectURIScheme(u *url.URL) error {
+	return validateRedirectURIScheme(u, u.String())
+}
+
+func validateRedirectURIScheme(uri *url.URL, rawURI string) error {
 	if uri.Scheme == "" {
 		return xerrors.New("redirect URI must have a scheme")
 	}
@@ -120,7 +127,7 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 			return xerrors.Errorf("redirect URI at index %d is not a valid URL: %w", i, err)
 		}
 
-		if err := ValidateRedirectURIScheme(uri, uriStr); err != nil {
+		if err := validateRedirectURIScheme(uri, uriStr); err != nil {
 			return xerrors.Errorf("redirect URI at index %d: %w", i, err)
 		}
 

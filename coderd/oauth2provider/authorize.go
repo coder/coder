@@ -154,7 +154,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		cancel.RawQuery = cancelQuery.Encode()
 
 		cancelURI := cancel.String()
-		if err := codersdk.ValidateRedirectURIScheme(cancel, cancelURI); err != nil {
+		if err := codersdk.ValidateRedirectURIScheme(cancel); err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
 				HideStatus:  false,
