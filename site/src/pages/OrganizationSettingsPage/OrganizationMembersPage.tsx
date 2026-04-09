@@ -34,7 +34,6 @@ const OrganizationMembersPage: FC = () => {
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const { entitlements } = useDashboard();
-	const searchParamsResult = useSearchParams();
 	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 	const [searchParams, setSearchParams] = useSearchParams();
 
@@ -44,7 +43,7 @@ const OrganizationMembersPage: FC = () => {
 	);
 
 	const membersQuery = usePaginatedQuery(
-		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
+		paginatedOrganizationMembers(organizationName, searchParams),
 	);
 
 	const useFilterResult = useFilter({

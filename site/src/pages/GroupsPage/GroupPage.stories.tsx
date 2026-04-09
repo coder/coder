@@ -10,7 +10,7 @@ import {
 	getGroupQueryKey,
 	groupPermissionsKey,
 } from "#/api/queries/groups";
-import { usersKey } from "#/api/queries/users";
+import { organizationMembersKey } from "#/api/queries/organizations";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -69,9 +69,9 @@ const permissionsQuery = (data: unknown, id?: string) => ({
 	data,
 });
 
-const usersQuery = (data: unknown) => ({
-	key: usersKey({
-		limit: 50,
+const orgMembersQuery = (data: unknown) => ({
+	key: organizationMembersKey(MockDefaultOrganization.name, {
+		limit: 25,
 		q: "",
 	}),
 	data,
@@ -166,7 +166,9 @@ export const MembersError: Story = {
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canUpdateGroup: true,
 		});
-		spyOn(API, "getUsers").mockRejectedValue(new Error("test members error"));
+		spyOn(API, "getOrganizationPaginatedMembers").mockRejectedValue(
+			new Error("test members error"),
+		);
 	},
 	parameters: {
 		queries: [
@@ -190,7 +192,7 @@ export const NoMembers: Story = {
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [], count: 0 }),
 			permissionsQuery({ canUpdateGroup: true }),
-			usersQuery({ users: [], count: 0 }),
+			orgMembersQuery({ members: [], count: 0 }),
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -210,8 +212,8 @@ export const FiltersByMembers: Story = {
 				count: MockGroup.members.length,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
-			usersQuery({
-				users: [MockOrganizationMember, MockOrganizationMember2],
+			orgMembersQuery({
+				members: [MockOrganizationMember, MockOrganizationMember2],
 				count: 2,
 			}),
 		],

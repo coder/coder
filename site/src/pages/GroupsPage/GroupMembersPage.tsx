@@ -65,7 +65,7 @@ const GroupMembersPage: FC = () => {
 	const addableMembersQuery = useQuery({
 		...organizationMembers(organization, {
 			q: prepareQuery(debouncedSearch),
-			limit: 50,
+			limit: 25,
 		}),
 		select: (data) =>
 			data.members.map((member) => ({

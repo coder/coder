@@ -96,7 +96,7 @@ export const OrganizationMembersPageView: FC<
 	const addableUsersQuery = useQuery({
 		...users({
 			q: prepareQuery(debouncedSearch),
-			limit: 50,
+			limit: 25,
 		}),
 		select: (data) => data.users,
 		enabled: canEditMembers,
