@@ -896,8 +896,9 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 // AddChatContextRequest is the request body for adding chat context.
 type AddChatContextRequest struct {
 	// ChatID optionally identifies the chat to add context to.
-	// If empty, auto-detection is used (CODER_CHAT_ID env, or
-	// the only active chat for this agent).
+	// If empty, auto-detection is used (CODER_CHAT_ID env, the
+	// only active chat, or the only top-level active chat for this
+	// agent).
 	ChatID uuid.UUID `json:"chat_id,omitempty"`
 	// Parts are the context-file and skill parts to add.
 	Parts []codersdk.ChatMessagePart `json:"parts"`
@@ -912,6 +913,9 @@ type AddChatContextResponse struct {
 // ClearChatContextRequest is the request body for clearing chat context.
 type ClearChatContextRequest struct {
 	// ChatID optionally identifies the chat to clear context from.
+	// If empty, auto-detection is used (CODER_CHAT_ID env, the
+	// only active chat, or the only top-level active chat for this
+	// agent).
 	ChatID uuid.UUID `json:"chat_id,omitempty"`
 }
 

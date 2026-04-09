@@ -2637,6 +2637,31 @@ func (e *multipleActiveChatsError) Error() string {
 	)
 }
 
+func resolveDefaultAgentChat(chats []database.Chat) (database.Chat, error) {
+	switch len(chats) {
+	case 0:
+		return database.Chat{}, errNoActiveChats
+	case 1:
+		return chats[0], nil
+	}
+
+	var rootChat *database.Chat
+	for i := range chats {
+		chat := &chats[i]
+		if chat.ParentChatID.Valid {
+			continue
+		}
+		if rootChat != nil {
+			return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
+		}
+		rootChat = chat
+	}
+	if rootChat != nil {
+		return *rootChat, nil
+	}
+	return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
+}
+
 // resolveAgentChat finds the target chat from either an explicit ID
 // or auto-detection via the agent's active chats.
 func resolveAgentChat(
@@ -2650,14 +2675,7 @@ func resolveAgentChat(
 		if err != nil {
 			return database.Chat{}, xerrors.Errorf("list active chats: %w", err)
 		}
-		switch len(chats) {
-		case 0:
-			return database.Chat{}, errNoActiveChats
-		case 1:
-			return chats[0], nil
-		default:
-			return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
-		}
+		return resolveDefaultAgentChat(chats)
 	}
 
 	chat, err := db.GetChatByID(ctx, explicitChatID)

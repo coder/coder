@@ -121,7 +121,7 @@ func (*RootCmd) chatContextAddCommand() *serpent.Command {
 				Name:        "Chat ID",
 				Flag:        "chat",
 				Env:         "CODER_CHAT_ID",
-				Description: "Chat ID to add context to. Auto-detected from CODER_CHAT_ID or the only active chat.",
+				Description: "Chat ID to add context to. Auto-detected from CODER_CHAT_ID, the only active chat, or the only top-level active chat.",
 				Value:       serpent.StringOf(&chatID),
 			},
 		},
@@ -171,7 +171,7 @@ func (*RootCmd) chatContextClearCommand() *serpent.Command {
 			Name:        "Chat ID",
 			Flag:        "chat",
 			Env:         "CODER_CHAT_ID",
-			Description: "Chat ID to clear context from. Auto-detected from CODER_CHAT_ID or the only active chat.",
+			Description: "Chat ID to clear context from. Auto-detected from CODER_CHAT_ID, the only active chat, or the only top-level active chat.",
 			Value:       serpent.StringOf(&chatID),
 		}},
 	}

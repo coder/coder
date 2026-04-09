@@ -686,6 +686,30 @@ func TestAgentChatContext(t *testing.T) {
 		require.Equal(t, uuid.Nil, resp.ChatID)
 	})
 
+	t.Run("AddUsesRootChatWhenOnlySubagentMakesActiveChatAmbiguous", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		rootChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-root")
+		childChat := createAgentChatContextChildChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, rootChat.ID, t.Name()+"-child")
+
+		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/file.go",
+				ContextFileContent: "content",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, rootChat.ID, resp.ChatID)
+
+		rootMessages := requireAgentChatContextMessages(ctx, t, setup.db, rootChat.ID)
+		require.Len(t, rootMessages, 1)
+		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, childChat.ID))
+	})
+
 	t.Run("AddFailsWithMultipleActiveChats", func(t *testing.T) {
 		t.Parallel()
 
@@ -704,6 +728,33 @@ func TestAgentChatContext(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "multiple active chats")
+	})
+
+	t.Run("ClearUsesRootChatWhenOnlySubagentMakesActiveChatAmbiguous", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		rootChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-root")
+		childChat := createAgentChatContextChildChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, rootChat.ID, t.Name()+"-child")
+
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			ChatID: rootChat.ID,
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/file.go",
+				ContextFileContent: "content",
+			}},
+		})
+		require.NoError(t, err)
+
+		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
+		require.NoError(t, err)
+		require.Equal(t, rootChat.ID, resp.ChatID)
+
+		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, rootChat.ID))
+		require.Empty(t, requireAgentChatContextMessages(ctx, t, setup.db, childChat.ID))
 	})
 
 	t.Run("AddFailsWhenChatIsNotActive", func(t *testing.T) {
@@ -831,6 +882,32 @@ func createAgentChatContextChat(
 		LastModelConfigID: modelConfigID,
 		Title:             title,
 		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	return chat
+}
+
+func createAgentChatContextChildChat(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	ownerID uuid.UUID,
+	modelConfigID uuid.UUID,
+	agentID uuid.UUID,
+	parentChatID uuid.UUID,
+	title string,
+) database.Chat {
+	t.Helper()
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Title:             title,
+		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: parentChatID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
 	})
 	require.NoError(t, err)
 
