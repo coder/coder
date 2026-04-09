@@ -6,13 +6,13 @@ and RBAC that the `coder-k8s` template depends on.
 
 ## Files
 
-| File | Target path in `coder/dogfood` | Purpose |
-|---|---|---|
-| `namespace-coder-workspaces.yaml` | `clusters/dogfood-v2/coder/namespace/namespace-coder-workspaces.yaml` | Namespace, ResourceQuota, Role, RoleBinding |
-| `values-tagged-k8s.yaml` | `clusters/dogfood-v2/coder/provisioner/configs/values-tagged-k8s.yaml` | Helm values for the K8s-tagged provisioner |
-| `values-tagged-k8s-prebuilds.yaml` | `clusters/dogfood-v2/coder/provisioner/configs/values-tagged-k8s-prebuilds.yaml` | Helm values for the K8s-tagged prebuilds provisioner |
-| `helmrelease-coder-provisioner-tagged-k8s.yaml` | `clusters/dogfood-v2/coder/provisioner/helmrelease-coder-provisioner-tagged-k8s.yaml` | Flux HelmRelease |
-| `helmrelease-coder-provisioner-tagged-k8s-prebuilds.yaml` | `clusters/dogfood-v2/coder/provisioner/helmrelease-coder-provisioner-tagged-k8s-prebuilds.yaml` | Flux HelmRelease for prebuilds |
+| File                                                      | Target path in `coder/dogfood`                                                                  | Purpose                                              |
+|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------|------------------------------------------------------|
+| `namespace-coder-workspaces.yaml`                         | `clusters/dogfood-v2/coder/namespace/namespace-coder-workspaces.yaml`                           | Namespace, ResourceQuota, Role, RoleBinding          |
+| `values-tagged-k8s.yaml`                                  | `clusters/dogfood-v2/coder/provisioner/configs/values-tagged-k8s.yaml`                          | Helm values for the K8s-tagged provisioner           |
+| `values-tagged-k8s-prebuilds.yaml`                        | `clusters/dogfood-v2/coder/provisioner/configs/values-tagged-k8s-prebuilds.yaml`                | Helm values for the K8s-tagged prebuilds provisioner |
+| `helmrelease-coder-provisioner-tagged-k8s.yaml`           | `clusters/dogfood-v2/coder/provisioner/helmrelease-coder-provisioner-tagged-k8s.yaml`           | Flux HelmRelease                                     |
+| `helmrelease-coder-provisioner-tagged-k8s-prebuilds.yaml` | `clusters/dogfood-v2/coder/provisioner/helmrelease-coder-provisioner-tagged-k8s-prebuilds.yaml` | Flux HelmRelease for prebuilds                       |
 
 ## Prerequisites
 
