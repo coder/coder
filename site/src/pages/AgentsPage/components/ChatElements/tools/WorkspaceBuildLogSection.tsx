@@ -1,7 +1,9 @@
-import { LoaderIcon } from "lucide-react";
-import type { FC } from "react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
+import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
+import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -14,11 +16,15 @@ interface WorkspaceBuildLogSectionProps {
 	buildId?: string;
 }
 
+// How long to wait for the first log entry before showing an error.
+const LOG_LOAD_TIMEOUT_MS = 30_000;
+
 /**
  * Streams or fetches workspace build logs for display inside a tool
- * collapsible. While the tool is running, logs stream from the
- * workspace's current latest build. Once completed, uses the build ID
- * from the tool result to load historical logs on demand.
+ * collapsible. While the tool is running, logs stream via WebSocket
+ * from the workspace's current latest build. Once completed, logs
+ * are fetched via REST and cached by React Query so expand/collapse
+ * cycles don't re-fetch.
  */
 export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	status,
@@ -39,15 +45,47 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	// completed.
 	const effectiveBuildId = isRunning ? liveBuildId : buildId;
 
-	// For completed tools, only connect when the section is mounted
-	// (parent controls visibility via expand/collapse).
-	const logs = useWorkspaceBuildLogs(
-		effectiveBuildId,
-		Boolean(effectiveBuildId),
+	// --- Running builds: stream via WebSocket ---
+	const streamingLogs = useWorkspaceBuildLogs(
+		isRunning ? effectiveBuildId : undefined,
+		isRunning && Boolean(effectiveBuildId),
 	);
+
+	// --- Completed builds: fetch via REST (cached across mounts) ---
+	const completedLogsQuery = useQuery({
+		...workspaceBuildLogs(effectiveBuildId ?? ""),
+		enabled: !isRunning && Boolean(effectiveBuildId),
+	});
+
+	const logs: ProvisionerJobLog[] | undefined = isRunning
+		? streamingLogs
+		: completedLogsQuery.data;
+
+	// --- Timeout: detect if logs never arrive ---
+	const [timedOut, setTimedOut] = useState(false);
+	useEffect(() => {
+		if (!effectiveBuildId || (logs && logs.length > 0)) {
+			setTimedOut(false);
+			return;
+		}
+		const timer = setTimeout(() => setTimedOut(true), LOG_LOAD_TIMEOUT_MS);
+		return () => clearTimeout(timer);
+	}, [effectiveBuildId, logs]);
+
+	// --- Error state ---
+	const hasError = timedOut || (!isRunning && completedLogsQuery.isError);
 
 	if (!effectiveBuildId) {
 		return null;
+	}
+
+	if (hasError) {
+		return (
+			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
+				<TriangleAlertIcon className="h-3 w-3" />
+				<span>Failed to load build logs.</span>
+			</div>
+		);
 	}
 
 	if (!logs || logs.length === 0) {
