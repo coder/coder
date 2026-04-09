@@ -9,6 +9,7 @@ on:
         options:
           - mainline
           - stable
+          - rc
       release_notes:
         description: Release notes for the publishing the release. This is required to create a release.
       dry_run:
@@ -80,7 +81,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -119,13 +120,23 @@ jobs:
             exit 1
           fi
 
-          # 2.10.2 -> release/2.10
+          # Derive the release branch from the version tag.
+          # Non-RC releases must be on a release/X.Y branch.
+          # RC tags are allowed on any branch (typically main).
           version="$(./scripts/version.sh)"
-          release_branch=release/${version%.*}
-          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
-          if [[ -z "${branch_contains_tag}" ]]; then
-            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
-            exit 1
+          # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
+          base_version="${version%%-*}"
+          # Then strip patch to get major.minor (e.g. 2.32.0 -> 2.32)
+          release_branch="release/${base_version%.*}"
+
+          if [[ "$version" == *-rc.* ]]; then
+            echo "RC release detected — skipping release branch check (RC tags are cut from main)."
+          else
+            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+            if [[ -z "${branch_contains_tag}" ]]; then
+              echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
+              exit 1
+            fi
           fi
 
           if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
@@ -531,6 +542,9 @@ jobs:
           if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
             publish_args+=(--stable)
           fi
+          if [[ $CODER_RELEASE_CHANNEL == "rc" ]]; then
+            publish_args+=(--rc)
+          fi
           if [[ $CODER_DRY_RUN == *t* ]]; then
             publish_args+=(--dry-run)
           fi
@@ -643,7 +657,7 @@ jobs:
           retention-days: 7
 
       - name: Send repository-dispatch event
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
@@ -659,7 +673,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -731,11 +745,11 @@ jobs:
     name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 

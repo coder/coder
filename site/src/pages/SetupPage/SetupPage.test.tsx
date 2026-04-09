@@ -24,7 +24,7 @@ const fillForm = async ({
 	await userEvent.type(emailField, email);
 	await userEvent.type(passwordField, password);
 	const submitButton = screen.getByRole("button", {
-		name: "Continue with email",
+		name: "Continue",
 	});
 	await userEvent.click(submitButton);
 };

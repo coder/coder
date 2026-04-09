@@ -1,6 +1,6 @@
-import * as SelectPrimitive from "@radix-ui/react-select";
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
 import type { FC } from "react";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
@@ -87,6 +87,7 @@ interface CreateUserFormProps {
 	onCancel: () => void;
 	authMethods?: TypesGen.AuthMethods;
 	showOrganizations: boolean;
+	serviceAccountsEnabled: boolean;
 }
 
 export const CreateUserForm: FC<CreateUserFormProps> = ({
@@ -96,12 +97,13 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	onCancel,
 	showOrganizations,
 	authMethods,
+	serviceAccountsEnabled,
 }) => {
 	const availableLoginTypes = [
 		authMethods?.password.enabled && "password",
 		authMethods?.oidc.enabled && "oidc",
 		authMethods?.github.enabled && "github",
-		"none",
+		serviceAccountsEnabled && "none",
 	].filter(Boolean) as Array<keyof typeof loginTypeOptions>;
 
 	const defaultLoginType = availableLoginTypes[0];

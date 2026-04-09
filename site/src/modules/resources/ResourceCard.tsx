@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
 import { Children, type FC, type JSX, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 import { Stack } from "#/components/Stack/Stack";
@@ -165,14 +165,15 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 				{mLength > 4 && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<IconButton
+							<Button
 								onClick={() => {
 									setShouldDisplayAllMetadata((value) => !value);
 								}}
-								size="large"
+								size="icon-lg"
+								variant="subtle"
 							>
 								<ChevronDownIcon open={shouldDisplayAllMetadata} />
-							</IconButton>
+							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
 							{shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"}

@@ -986,6 +986,161 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	requireEcho(t, conn)
 }
 
+func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rl, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer rl.Close()
+	tcpAddr, valid := rl.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	remotePort := tcpAddr.Port
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+	require.ErrorContains(t, err, "administratively prohibited")
+}
+
+func TestAgent_TCPRemoteForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	localhost := netip.MustParseAddr("127.0.0.1")
+	randomPort := testutil.RandomPortNoListen(t)
+	addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
+	_, err = sshClient.ListenTCP(addr)
+	require.ErrorContains(t, err, "tcpip-forward request denied by peer")
+}
+
+func TestAgent_UnixLocalForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	tmpdir := testutil.TempDirUnixSocket(t)
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+
+	l, err := net.Listen("unix", remoteSocketPath)
+	require.NoError(t, err)
+	defer l.Close()
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.Dial("unix", remoteSocketPath)
+	require.ErrorContains(t, err, "administratively prohibited")
+}
+
+func TestAgent_UnixRemoteForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	tmpdir := testutil.TempDirUnixSocket(t)
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.ListenUnix(remoteSocketPath)
+	require.ErrorContains(t, err, "streamlocal-forward@openssh.com request denied by peer")
+}
+
+// TestAgent_LocalBlockedDoesNotAffectReverse verifies that blocking
+// local port forwarding does not prevent reverse port forwarding from
+// working. A field-name transposition at any plumbing hop would cause
+// both directions to be blocked when only one flag is set.
+func TestAgent_LocalBlockedDoesNotAffectReverse(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	// Reverse forwarding must still work.
+	localhost := netip.MustParseAddr("127.0.0.1")
+	var ll net.Listener
+	for {
+		randomPort := testutil.RandomPortNoListen(t)
+		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
+		ll, err = sshClient.ListenTCP(addr)
+		if err != nil {
+			t.Logf("error remote forwarding: %s", err.Error())
+			select {
+			case <-ctx.Done():
+				t.Fatal("timed out getting random listener")
+			default:
+				continue
+			}
+		}
+		break
+	}
+	_ = ll.Close()
+}
+
+// TestAgent_ReverseBlockedDoesNotAffectLocal verifies that blocking
+// reverse port forwarding does not prevent local port forwarding from
+// working.
+func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rl, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer rl.Close()
+	tcpAddr, valid := rl.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	remotePort := tcpAddr.Port
+	go echoOnce(t, rl)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	// Local forwarding must still work.
+	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+	require.NoError(t, err)
+	defer conn.Close()
+	requireEcho(t, conn)
+}
+
 func TestAgent_UnixLocalForwarding(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -3007,7 +3162,7 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
@@ -3020,7 +3175,8 @@ func TestAgent_Reconnect(t *testing.T) {
 		logger,
 		agentID,
 		agentsdk.Manifest{
-			DERPMap: derpMap,
+			DERPMap:   derpMap,
+			Directory: "/test/workspace",
 		},
 		statsCh,
 		fCoordinator,
@@ -3033,13 +3189,19 @@ func TestAgent_Reconnect(t *testing.T) {
 	})
 	defer closer.Close()
 
-	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
-	require.Equal(t, client.GetNumRefreshTokenCalls(), 1)
-	close(call1.Resps) // hang up
-	// expect reconnect
+	// Each iteration forces the agent to reconnect by closing
+	// the current coordinate call while the tracked HTTP server
+	// goroutine (from connection 1's createTailnet) is still
+	// alive, widening the race window.
+	const reconnections = 5
+	for i := range reconnections {
+		call := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+		require.Equal(t, i+1, client.GetNumRefreshTokenCalls())
+		close(call.Resps) // hang up — triggers reconnect
+	}
+	// Verify final reconnect succeeds.
 	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
-	// Check that the agent refreshes the token when it reconnects.
-	require.Equal(t, client.GetNumRefreshTokenCalls(), 2)
+	require.Equal(t, reconnections+1, client.GetNumRefreshTokenCalls())
 	closer.Close()
 }
 

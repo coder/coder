@@ -1,7 +1,9 @@
+import { HandIcon, MousePointer2Icon } from "lucide-react";
 import type { FC } from "react";
 import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
 
 type DesktopConnectionStatus =
@@ -21,6 +23,9 @@ export interface DesktopPanelViewProps {
 	status: DesktopConnectionStatus;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
+	isControlling: boolean;
+	onTakeControl: () => void;
+	onReleaseControl: () => void;
 }
 
 export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
@@ -32,12 +37,24 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		setActivated(true);
 	}
 
+	const [isControlling, setIsControlling] = useState(false);
+	if (!isVisible && isControlling) {
+		setIsControlling(false);
+	}
+
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId,
 		activated,
 	});
 	return (
-		<DesktopPanelView status={status} reconnect={reconnect} attach={attach} />
+		<DesktopPanelView
+			status={status}
+			reconnect={reconnect}
+			attach={attach}
+			isControlling={isControlling}
+			onTakeControl={() => setIsControlling(true)}
+			onReleaseControl={() => setIsControlling(false)}
+		/>
 	);
 };
 
@@ -45,6 +62,9 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,
 	reconnect,
 	attach,
+	isControlling,
+	onTakeControl,
+	onReleaseControl,
 }) => {
 	if (status === "connecting") {
 		return (
@@ -89,11 +109,43 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 
 	// status === "connected"
 	return (
-		<div
-			ref={(el) => {
-				if (el) attach(el);
-			}}
-			className="h-full w-full"
-		/>
+		<div className="relative h-full w-full">
+			{/* "Release Control" button — top-right, only when controlling */}
+			{isControlling && (
+				<Button
+					variant="default"
+					size="sm"
+					onClick={onReleaseControl}
+					className="absolute top-2 right-2 z-20 shadow-xl drop-shadow-lg"
+				>
+					<HandIcon className="h-4 w-4" />
+					Release control
+				</Button>
+			)}
+			{/* VNC container — pointer-events toggled */}
+			<div
+				ref={(el) => {
+					if (el) attach(el);
+				}}
+				className={cn("h-full w-full", !isControlling && "pointer-events-none")}
+			/>
+			{/* "Take Control" hover overlay — only when NOT controlling */}
+			{!isControlling && (
+				<div className="group/desktop absolute inset-0 z-10 flex items-center justify-center bg-black/0 transition-all duration-200 ease-in-out group-hover/desktop:bg-black/40">
+					<span className="opacity-0 transition-opacity duration-200 ease-in-out group-hover/desktop:opacity-100">
+						<Button
+							variant="default"
+							size="sm"
+							onClick={onTakeControl}
+							aria-label="Take control of desktop"
+							className="shadow-xl drop-shadow-lg"
+						>
+							<MousePointer2Icon className="h-4 w-4" />
+							Take control
+						</Button>
+					</span>
+				</div>
+			)}
+		</div>
 	);
 };

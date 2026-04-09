@@ -61,6 +61,7 @@ type AgentConn interface {
 	AwaitReachable(ctx context.Context) bool
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
+	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -93,6 +94,8 @@ type AgentConn interface {
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
+	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
+	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -595,6 +598,37 @@ type DesktopActionResponse struct {
 	ScreenshotHeight int    `json:"screenshot_height,omitempty"`
 }
 
+// StartDesktopRecordingRequest is the request body for starting a
+// desktop recording session.
+type StartDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// StopDesktopRecordingRequest is the request body for stopping a
+// desktop recording session.
+type StopDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// StopDesktopRecordingResponse wraps the response from stopping a
+// desktop recording. Body contains the recording data as a
+// multipart/mixed stream. ContentType holds the Content-Type
+// header (including boundary) so callers can parse the body.
+type StopDesktopRecordingResponse struct {
+	Body        io.ReadCloser
+	ContentType string
+}
+
+// MaxRecordingSize is the largest desktop recording (in bytes)
+// that will be accepted. Used by both the agent-side stop handler
+// and the server-side storage pipeline.
+const MaxRecordingSize = 100 << 20 // 100 MB
+
+// MaxThumbnailSize is the largest thumbnail (in bytes) that will
+// be accepted. Applied both agent-side (before streaming) and
+// server-side (when parsing multipart parts).
+const MaxThumbnailSize = 10 << 20 // 10 MB
+
 // ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
 // agent's desktop.
 func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error) {
@@ -640,6 +674,48 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
 	}
 	return result, nil
+}
+
+// StartDesktopRecording starts a desktop recording session on the
+// agent with the given recording ID. The recording ID is
+// caller-provided and must be unique. Idempotent — if the ID is
+// already recording, returns success.
+func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/start", req)
+	if err != nil {
+		return xerrors.Errorf("start recording request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// StopDesktopRecording stops a desktop recording session on the
+// agent and returns the recording as a StopDesktopRecordingResponse.
+// The response body is a multipart/mixed stream containing the
+// video (and optionally a JPEG thumbnail). The caller is
+// responsible for closing the returned Body. Idempotent — safe
+// to call on an already-stopped recording.
+func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
+	if err != nil {
+		return StopDesktopRecordingResponse{}, xerrors.Errorf("stop recording request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return StopDesktopRecordingResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	// Caller is responsible for closing res.Body.
+	return StopDesktopRecordingResponse{
+		Body:        res.Body,
+		ContentType: res.Header.Get("Content-Type"),
+	}, nil
 }
 
 // DeleteDevcontainer deletes the provided devcontainer.
@@ -946,6 +1022,13 @@ type MCPToolInfo struct {
 	Required []string `json:"required"`
 }
 
+// ContextConfigResponse is the response from the agent's context
+// configuration endpoint. Contains pre-read instruction file
+// contents and discovered skill metadata as chat message parts.
+type ContextConfigResponse struct {
+	Parts []codersdk.ChatMessagePart `json:"parts"`
+}
+
 // CallMCPToolRequest is the request body for proxying an MCP
 // tool call through the workspace agent.
 type CallMCPToolRequest struct {
@@ -1015,6 +1098,23 @@ func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, err
 		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListMCPToolsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ContextConfig returns the resolved context configuration from
+// the workspace agent.
+func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/context-config", nil)
+	if err != nil {
+		return ContextConfigResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ContextConfigResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

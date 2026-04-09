@@ -281,8 +281,19 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	telemetryUser := telemetry.ConvertUser(user)
 	// Send the initial users email address!
 	telemetryUser.Email = &user.Email
+	// Only populate onboarding data when the client actually sent it. A nil
+	// OnboardingInfo means the request came from an older client, the CLI, or
+	// the OIDC flow — not from a user who answered "no" to every question.
+	var onboarding *telemetry.FirstUserOnboarding
+	if createUser.OnboardingInfo != nil {
+		onboarding = &telemetry.FirstUserOnboarding{
+			NewsletterMarketing: createUser.OnboardingInfo.NewsletterMarketing,
+			NewsletterReleases:  createUser.OnboardingInfo.NewsletterReleases,
+		}
+	}
 	api.Telemetry.Report(&telemetry.Snapshot{
-		Users: []telemetry.User{telemetryUser},
+		Users:               []telemetry.User{telemetryUser},
+		FirstUserOnboarding: onboarding,
 	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
@@ -464,6 +475,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
+
+		// Service accounts are a Premium feature.
+		if !api.Entitlements.Enabled(codersdk.FeatureServiceAccounts) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", codersdk.FeatureServiceAccounts.Humanize()),
+			})
+			return
+		}
 	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword

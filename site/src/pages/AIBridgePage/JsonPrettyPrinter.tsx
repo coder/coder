@@ -34,7 +34,6 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 	if (entries.length === 0) return "{}";
 	return (
 		<>
-			{/* biome-ignore lint/style/useConsistentCurlyBraces: \n requires a JS string literal */}
 			{"{\n"}
 			{entries.map(([k, v], i) => (
 				<Fragment key={k}>

@@ -1,9 +1,4 @@
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	LoaderIcon,
-} from "lucide-react";
+import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
 	AIBridgeAgenticAction,
@@ -25,19 +20,21 @@ import {
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
-import { TokenBadges } from "../../TokenBadges";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
 
-const EXPANDABLE_COLLAPSE_HEIGHT = 50;
-
 interface ExpandableTextProps {
+	maxHeight: number;
 	text: string;
 	className?: string;
 }
 
-const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
+const ExpandableText: FC<ExpandableTextProps> = ({
+	maxHeight,
+	text,
+	className,
+}) => {
 	const contentRef = useRef<HTMLParagraphElement>(null);
 	const [isExpandable, setIsExpandable] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -45,8 +42,19 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
-		setIsExpandable(el.scrollHeight > EXPANDABLE_COLLAPSE_HEIGHT);
-	}, []);
+
+		const checkIsExpandable = () => {
+			setIsExpandable(el.scrollHeight > maxHeight);
+		};
+
+		checkIsExpandable();
+
+		const observer = new ResizeObserver(checkIsExpandable);
+
+		observer.observe(el);
+
+		return () => observer.disconnect();
+	}, [maxHeight]);
 
 	return (
 		<div className="relative">
@@ -55,7 +63,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 				style={
 					isExpandable && !isExpanded
 						? {
-								maxHeight: EXPANDABLE_COLLAPSE_HEIGHT,
+								maxHeight,
 							}
 						: undefined
 				}
@@ -104,11 +112,13 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 		className="border-none bg-transparent text-content-secondary flex items-center"
 		size="sm"
 	>
-		{isOpen ? (
-			<ChevronDownIcon className="size-3.5 flex-shrink-0" />
-		) : (
-			<ChevronRightIcon className="size-3.5 flex-shrink-0" />
-		)}
+		<ChevronRightIcon
+			className={cn(
+				"mr-4 transition-transform size-3.5",
+				isOpen && "rotate-90",
+			)}
+		/>
+		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
 	</Button>
 );
@@ -161,6 +171,7 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 			<span className="font-mono ml-2 text-xs">Thinking...</span>
 		</div>
 		<ExpandableText
+			maxHeight={50}
 			text={text}
 			className="text-sm text-pretty font-normal m-0"
 		/>
@@ -210,48 +221,13 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						outputTokens={outputTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
-					<pre className="bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
-						{tool} <JsonPrettyPrinter input={input} />
+					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
+						<span>{tool}</span>
+						<span>
+							<JsonPrettyPrinter input={input} />
+						</span>
 					</pre>
 				</>
-			)}
-		</BracketConnector>
-	);
-};
-
-interface AgenticLoopCompletedBlockProps {
-	inputTokens: number;
-	outputTokens: number;
-	expandedByDefault?: boolean;
-}
-
-const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
-	inputTokens,
-	outputTokens,
-	expandedByDefault = false,
-}) => {
-	const [isOpen, setIsOpen] = useState(expandedByDefault);
-
-	return (
-		<BracketConnector
-			contentClassName="mt-3 border border-solid rounded-md mb-4 mr-4"
-			hideBottomLine
-		>
-			<div className="flex items-center">
-				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
-					<span className="text-sm font-normal">Agentic loop completed</span>
-				</CollapseButton>
-			</div>
-			{isOpen && (
-				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-sm text-content-secondary">
-					<div className="flex items-center justify-between">
-						<span className="font-normal">In / out tokens</span>
-						<TokenBadges
-							inputTokens={inputTokens}
-							outputTokens={outputTokens}
-						/>
-					</div>
-				</div>
 			)}
 		</BracketConnector>
 	);
@@ -298,7 +274,9 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 		new Date(thread.ended_at ?? Date.now()).getTime() -
 		new Date(thread.started_at).getTime();
 
-	const toolCalls = thread.agentic_actions?.reduce(
+	const hasAgenticLoop = thread.agentic_actions.length > 0;
+
+	const toolCalls = thread.agentic_actions.reduce(
 		(count, action) => count + action.tool_calls.length,
 		0,
 	);
@@ -320,19 +298,46 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				</div>
 
 				{/* center column: prompt */}
-				<div className="flex-grow flex flex-col gap-1">
+				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
-							<div className="text-sm text-content-secondary font-normal my-1">
+							<div className="text-sm text-content-secondary font-normal my-1 flex items-center gap-1">
 								Prompt
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent
+											className="max-w-96 text-sm font-normal"
+											align="start"
+											side="top"
+										>
+											<p className="text-content-secondary m-0 mb-1">
+												Prompt origin cannot be reliably determined. This may
+												have been authored by a human or generated by an agent.{" "}
+											</p>
+											<Link
+												href={docs(
+													"/ai-coder/ai-bridge/audit#human-vs-agent-attribution",
+												)}
+												target="_blank"
+												className="text-sm"
+											>
+												Learn about human vs. agent attribution
+											</Link>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
 							</div>
-							<p className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
-								{thread.prompt}
-							</p>
+							<ExpandableText
+								maxHeight={200}
+								text={thread.prompt}
+								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 m-0 text-pretty"
+							/>
 						</>
 					)}
 				</div>
-
 				{/* right column: details */}
 				<PromptTable
 					className="lg:max-w-64 flex-shrink-0 w-full lg:w-auto"
@@ -344,50 +349,58 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				/>
 			</div>
 
-			<BracketConnector
-				firstRowHeight="60px"
-				contentClassName="border border-dashed rounded-md my-4"
-			>
-				{/* Agentic loop */}
-				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
-					<div>
-						<CollapseButton
-							isOpen={agenticLoopOpen}
-							onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
-						>
-							<span className="text-sm font-normal">Agentic loop</span>
-						</CollapseButton>
-					</div>
-
-					<AgenticLoopTable
-						className="lg:max-w-64 flex-1 my-3 mx-2"
-						duration={durationInMs}
-						toolCalls={toolCalls}
-						inputTokens={thread.token_usage.input_tokens}
-						outputTokens={thread.token_usage.output_tokens}
-					/>
-				</div>
-
-				{agenticLoopOpen && (
-					<>
-						{/* the little top rounded line above the thinking block */}
-						<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
-							{/* we need the 1px extra to line up with the left border on the other lines */}
+			{hasAgenticLoop ? (
+				<BracketConnector
+					firstRowHeight="60px"
+					contentClassName="border border-dashed rounded-md my-4"
+				>
+					{/* Agentic loop */}
+					<div className="flex flex-col lg:flex-row lg:items-center justify-between">
+						<div>
+							<CollapseButton
+								isOpen={agenticLoopOpen}
+								onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
+							>
+								<span className="text-sm font-normal">Agentic loop</span>
+							</CollapseButton>
 						</div>
 
-						{/* Agentic actions */}
-						{thread.agentic_actions?.map((action, i) => (
-							<AgenticActionItem key={`${thread.id}-${i}`} action={action} />
-						))}
-
-						{/* Agentic loop completed block */}
-						<AgenticLoopCompletedBlock
-							inputTokens={thread.token_usage.input_tokens}
-							outputTokens={thread.token_usage.output_tokens}
+						<AgenticLoopTable
+							className="lg:max-w-64 flex-1 my-3 mx-2"
+							duration={durationInMs}
+							toolCalls={toolCalls}
 						/>
-					</>
-				)}
-			</BracketConnector>
+					</div>
+
+					{agenticLoopOpen && (
+						<>
+							{/* the little top rounded line above the thinking block */}
+							<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+								{/* we need the 1px extra to line up with the left border on the other lines */}
+							</div>
+
+							{/* Agentic actions */}
+							{thread.agentic_actions?.map((action, i) => (
+								<AgenticActionItem key={`${thread.id}-${i}`} action={action} />
+							))}
+
+							{/* Agentic loop completed */}
+							<BracketConnector contentClassName="py-4 -my-px" hideBottomLine>
+								<div className="flex flex-row items-center ml-2">
+									<StatusIndicatorDot variant="success" />
+									<span className="text-content-success font-normal ml-2 text-sm py-1">
+										Agentic loop completed
+									</span>
+								</div>
+							</BracketConnector>
+						</>
+					)}
+				</BracketConnector>
+			) : (
+				// if no agentic loop, we need a little spacing element to create
+				// the visual gap between threads
+				<div className="h-4" />
+			)}
 		</>
 	);
 };
@@ -499,7 +512,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
-				<div className="row-start-4 col-start-4 border-0 border-t border-dashed">
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
 				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
@@ -549,7 +562,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* vertical line */}
 				</div>
 
-				{/* row 8: session start */}
+				{/* row 8: session completed */}
 				<div className="row-start-8 col-start-2 relative">
 					<StatusIndicatorDot
 						variant="success"

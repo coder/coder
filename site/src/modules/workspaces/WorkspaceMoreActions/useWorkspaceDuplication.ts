@@ -36,7 +36,7 @@ export function useWorkspaceDuplication(workspace?: Workspace) {
 	const getLink = useLinks();
 	const buildParametersQuery = useQuery({
 		...workspaceBuildParameters(workspace?.latest_build.id ?? ""),
-		enabled: !!workspace,
+		enabled: Boolean(workspace),
 	});
 
 	// Not using useEffectEvent for this, because useEffect isn't really an

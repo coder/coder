@@ -1,11 +1,11 @@
 import { useTheme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import uFuzzy from "ufuzzy";
+import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
@@ -134,12 +134,13 @@ const IconsPage: FC = () => {
 							<InputAdornment position="end">
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<IconButton
-											size="small"
+										<Button
+											size="icon"
+											variant="subtle"
 											onClick={() => setSearchInputText("")}
 										>
 											<XIcon className="size-icon-xs" />
-										</IconButton>
+										</Button>
 									</TooltipTrigger>
 									<TooltipContent side="bottom">Clear filter</TooltipContent>
 								</Tooltip>

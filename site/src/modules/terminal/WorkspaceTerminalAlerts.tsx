@@ -75,6 +75,7 @@ const ErrorScriptAlert: FC = () => {
 				)}
 				target="_blank"
 				rel="noreferrer"
+				className="mx-0"
 			>
 				startup script has exited with an error
 			</Link>
@@ -164,7 +165,7 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 		<Alert
 			{...props}
 			className={cn(
-				"rounded-none border-0 border-b border-l-[3px] border-b-border-default bg-surface-primary mb-px [&>div]:items-center",
+				"rounded-none border-0 border-b border-l-[3px] border-b-border-default bg-surface-primary mb-px",
 				severityBorderColors[severity],
 			)}
 		/>
@@ -192,7 +193,6 @@ const RefreshSessionButton: FC = () => {
 		<Button
 			disabled={isRefreshing}
 			size="sm"
-			variant="subtle"
 			onClick={() => {
 				setIsRefreshing(true);
 				window.location.reload();

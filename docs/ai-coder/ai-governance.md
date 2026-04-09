@@ -10,9 +10,9 @@ AI rollouts.
 The AI Governance Add-On is a per-user license that can be added to Premium seats. Each user with the add-on gets access to a set of features
 that help organizations safely roll out AI tooling at scale:
 
-- [AI Bridge](./ai-bridge/index.md): LLM gateway to audit AI sessions, central
+- [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central
   MCP server management, and policy enforcement
-- [Agent Boundaries](./agent-boundaries/index.md): Process-level firewalls for
+- [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for
   agents, restricting which domains can be accessed by AI agents
 - [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured):
   Additional allowance of Agent Workspace Builds for continued use of Coder
@@ -45,7 +45,7 @@ security challenges that traditional developer tooling doesn't address.
 ### Auditing AI activity across teams
 
 Without centralized monitoring, teams have no way to understand how AI tools are
-being used across the organization. AI Bridge provides audit trails of prompts,
+being used across the organization. AI Gateway provides audit trails of prompts,
 token usage, and tool invocations, giving administrators insight into AI
 adoption patterns and potential issues.
 
@@ -53,35 +53,35 @@ adoption patterns and potential issues.
 
 AI agents can make arbitrary network requests, potentially accessing
 unauthorized services or exfiltrating data. They can also execute destructive
-commands within a workspace. Agent Boundaries enforce process-level policies
+commands within a workspace. Agent Firewall enforces process-level policies
 that restrict which domains agents can reach and what actions they can perform,
 preventing unintended data exposure and destructive operations like `rm -rf`.
 
 ### Centralizing API key management
 
 Managing individual API keys for AI providers across hundreds of developers
-creates security risks and administrative overhead. AI Bridge centralizes
+creates security risks and administrative overhead. AI Gateway centralizes
 authentication so users authenticate through Coder, eliminating the need to
 distribute and rotate provider API keys.
 
 ### Standardizing MCP tools and servers
 
 Different teams may use different MCP servers and tools with varying security
-postures. AI Bridge enables centralized MCP administration, allowing
+postures. AI Gateway enables centralized MCP administration, allowing
 organizations to define approved tools and servers that all users can access.
 
 ### Measuring AI adoption and spend
 
 Without usage data, it's hard to justify AI tooling investments or identify
-high-leverage use cases. AI Bridge captures metrics on token spend, adoption
+high-leverage use cases. AI Gateway captures metrics on token spend, adoption
 rates, and usage patterns to inform decisions about AI strategy.
 
 ## GA status and availability
 
-Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are
+Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are
 generally available as part of the AI Governance Add-On.
 
-The AI Governance add-on is required to use AI Bridge and Agent Boundaries.
+The AI Governance add-on is required to use AI Gateway and Agent Firewall.
 If your deployment does not have the add-on, you'll see a notification banner
 reminding you to enable it.
 
@@ -119,7 +119,7 @@ and coding assistants.
 | Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
 | Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
 | Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
-| Developer creates a workspace for use with Coder AI Bridge and Agent Boundaries                   | No                             |
+| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall                    | No                             |
 
 In the future, additional capabilities for managing agents (beyond Coder Tasks)
 may also consume agent workspace builds.
@@ -130,7 +130,7 @@ Without proper controls and sandboxing, it is not recommended to open up Coder
 Tasks to a large audience in the enterprise. Both Community and Premium
 deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
 use and basic workflows. Community deployments do not have access to
-[AI Bridge](./ai-bridge/index.md) or [Agent Boundaries](./agent-boundaries/index.md).
+[AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
 Agent Workspace Builds for automated workflows, along with limits that scale
@@ -160,7 +160,7 @@ whether each user is consuming an AI seat:
 - A green check icon indicates the user is actively consuming an AI seat.
 - A gray X icon indicates the user is not consuming an AI seat.
 
-A user consumes an AI seat when they use AI features such as AI Bridge or
+A user consumes an AI seat when they use AI features such as AI Gateway or
 Tasks. The column helps administrators identify which users contribute to
 the organization's AI seat count, making it easier to manage seat
 allocations and stay within license limits.

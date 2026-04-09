@@ -88,12 +88,10 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 					<Fragment key={stage}>
 						<div
 							className={cn(
-								"logs-header text-sm font-semibold font-sans leading-none",
-								"border-solid border-0 border-b bg-surface-primary",
-								"flex items-center",
-								"[&:last-child]:border-b-0 [&:last-child]:rounded-b-lg",
-								"[&:first-of-type]:rounded-t-lg",
-								sticky && "sticky top-0",
+								"logs-header",
+								"flex items-center border-solid border-0 border-b border-border font-sans",
+								"bg-surface-primary text-xs font-semibold leading-none",
+								"first-of-type:pt-4",
 							)}
 							style={{
 								padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
@@ -101,12 +99,18 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 						>
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
-								<div className="ml-auto text-content-secondary text-xs">
+								<div className="ml-auto text-xs text-content-secondary">
 									{duration} seconds
 								</div>
 							)}
 						</div>
-						{!isEmpty && <Logs hideTimestamps={hideTimestamps} lines={lines} />}
+						{!isEmpty && (
+							<Logs
+								className="border-b-border"
+								hideTimestamps={hideTimestamps}
+								lines={lines}
+							/>
+						)}
 					</Fragment>
 				);
 			})}

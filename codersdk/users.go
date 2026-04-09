@@ -125,12 +125,13 @@ type LicensorTrialRequest struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email     string                   `json:"email" validate:"required,email"`
-	Username  string                   `json:"username" validate:"required,username"`
-	Name      string                   `json:"name" validate:"user_real_name"`
-	Password  string                   `json:"password" validate:"required"`
-	Trial     bool                     `json:"trial"`
-	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+	Email          string                         `json:"email" validate:"required,email"`
+	Username       string                         `json:"username" validate:"required,username"`
+	Name           string                         `json:"name" validate:"user_real_name"`
+	Password       string                         `json:"password" validate:"required"`
+	Trial          bool                           `json:"trial"`
+	TrialInfo      CreateFirstUserTrialInfo       `json:"trial_info"`
+	OnboardingInfo *CreateFirstUserOnboardingInfo `json:"onboarding_info,omitempty"`
 }
 
 type CreateFirstUserTrialInfo struct {
@@ -141,6 +142,13 @@ type CreateFirstUserTrialInfo struct {
 	CompanyName string `json:"company_name"`
 	Country     string `json:"country"`
 	Developers  string `json:"developers"`
+}
+
+// CreateFirstUserOnboardingInfo contains optional newsletter preference
+// data collected during first user setup.
+type CreateFirstUserOnboardingInfo struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -226,6 +228,41 @@ func TestCloserStack_Timeout(t *testing.T) {
 	testutil.TryReceive(ctx, t, closed)
 }
 
+func TestCloserStack_PushAfterClose_ConnClosed(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
+
+	uut.close(xerrors.New("canceled"))
+
+	closes := new([]*fakeCloser)
+	fc := &fakeCloser{closes: closes}
+	err := uut.push("conn", fc)
+	require.Error(t, err)
+	require.Equal(t, []*fakeCloser{fc}, *closes, "should close conn on failed push")
+}
+
+func TestCoderConnectDialer_DefaultTimeout(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	dialer := testOrDefaultDialer(ctx)
+	d, ok := dialer.(*net.Dialer)
+	require.True(t, ok, "expected *net.Dialer")
+	assert.Equal(t, 5*time.Second, d.Timeout)
+	assert.Equal(t, 30*time.Second, d.KeepAlive)
+}
+
+func TestCoderConnectDialer_Overridden(t *testing.T) {
+	t.Parallel()
+	custom := &net.Dialer{Timeout: 99 * time.Second}
+	ctx := WithTestOnlyCoderConnectDialer(context.Background(), custom)
+
+	dialer := testOrDefaultDialer(ctx)
+	assert.Equal(t, custom, dialer)
+}
+
 func TestCoderConnectStdio(t *testing.T) {
 	t.Parallel()
 
@@ -254,7 +291,7 @@ func TestCoderConnectStdio(t *testing.T) {
 
 	stdioDone := make(chan struct{})
 	go func() {
-		err = runCoderConnectStdio(ctx, ln.Addr().String(), clientOutput, serverInput, stack)
+		err = runCoderConnectStdio(ctx, ln.Addr().String(), clientOutput, serverInput, stack, logger)
 		assert.NoError(t, err)
 		close(stdioDone)
 	}()
@@ -446,5 +483,116 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		require.Error(t, err)
 		// Available agents should be sorted alphabetically.
 		assert.Contains(t, err.Error(), "available agents: [clark krypton zod]")
+	})
+}
+
+func TestIsRetryableError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		err       error
+		retryable bool
+	}{
+		{"Nil", nil, false},
+		{"ContextCanceled", context.Canceled, false},
+		{"ContextDeadlineExceeded", context.DeadlineExceeded, false},
+		{"WrappedContextCanceled", xerrors.Errorf("wrapped: %w", context.Canceled), false},
+		{"DNSError", &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true}, true},
+		{"OpError", &net.OpError{Op: "dial", Net: "tcp", Err: &os.SyscallError{}}, true},
+		{"WrappedDNSError", xerrors.Errorf("connect: %w", &net.DNSError{Err: "no such host", Name: "example.com"}), true},
+		{"SDKError_500", codersdk.NewTestError(http.StatusInternalServerError, "GET", "/api"), true},
+		{"SDKError_502", codersdk.NewTestError(http.StatusBadGateway, "GET", "/api"), true},
+		{"SDKError_503", codersdk.NewTestError(http.StatusServiceUnavailable, "GET", "/api"), true},
+		{"SDKError_401", codersdk.NewTestError(http.StatusUnauthorized, "GET", "/api"), false},
+		{"SDKError_403", codersdk.NewTestError(http.StatusForbidden, "GET", "/api"), false},
+		{"SDKError_404", codersdk.NewTestError(http.StatusNotFound, "GET", "/api"), false},
+		{"GenericError", xerrors.New("something went wrong"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.retryable, isRetryableError(tt.err))
+		})
+	}
+}
+
+func TestRetryWithInterval(t *testing.T) {
+	t.Parallel()
+
+	const interval = time.Millisecond
+	const maxAttempts = 3
+
+	dnsErr := &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true}
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	t.Run("Succeeds_FirstTry", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		attempts := 0
+		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
+			attempts++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, attempts)
+	})
+
+	t.Run("Succeeds_AfterTransientFailures", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		attempts := 0
+		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
+			attempts++
+			if attempts < 3 {
+				return dnsErr
+			}
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 3, attempts)
+	})
+
+	t.Run("Stops_NonRetryableError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		attempts := 0
+		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
+			attempts++
+			return xerrors.New("permanent failure")
+		})
+		require.ErrorContains(t, err, "permanent failure")
+		assert.Equal(t, 1, attempts)
+	})
+
+	t.Run("Stops_MaxAttemptsExhausted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		attempts := 0
+		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
+			attempts++
+			return dnsErr
+		})
+		require.Error(t, err)
+		assert.Equal(t, maxAttempts, attempts)
+	})
+
+	t.Run("Stops_ContextCanceled", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+
+		attempts := 0
+		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
+			attempts++
+			cancel()
+			return dnsErr
+		})
+		require.Error(t, err)
+		assert.Equal(t, 1, attempts)
 	})
 }

@@ -1,11 +1,30 @@
-import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useRef, useState } from "react";
+import {
+	ArchiveIcon,
+	MonitorDotIcon,
+	MonitorIcon,
+	MonitorPauseIcon,
+	MonitorXIcon,
+} from "lucide-react";
+
+import {
+	type FC,
+	type ReactNode,
+	type RefObject,
+	useRef,
+	useState,
+} from "react";
+import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
+
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -32,6 +51,9 @@ type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
+	editorInitialValue: string;
+	initialEditorState: string | undefined;
+	remountKey: number;
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
@@ -48,7 +70,11 @@ interface EditingState {
 	) => void;
 	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (message: string, fileIds?: string[]) => void;
-	handleContentChange: (content: string) => void;
+	handleContentChange: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 }
 
 interface AgentChatPageViewProps {
@@ -58,7 +84,6 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
-	hasWorkspace: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 
@@ -69,14 +94,12 @@ interface AgentChatPageViewProps {
 	editing: EditingState;
 	pendingEditMessageId: number | null;
 
-	// Input configuration.
-	initialInputValue: string;
-
 	// Model/input configuration.
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	compressionThreshold: number | undefined;
@@ -152,17 +175,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
-	hasWorkspace,
 	workspaceAgent,
 	workspace,
 	store,
 	editing,
 	pendingEditMessageId,
-	initialInputValue,
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
 	modelSelectorPlaceholder,
+	modelSelectorHelp,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	compressionThreshold,
@@ -205,6 +227,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 	lastInjectedContext,
 }) => {
+	const queryClient = useQueryClient();
+
+	// Wrap the git watcher refresh to also invalidate the cached
+	// remote/PR diff contents so the panel re-fetches from GitHub.
+	const handleRefresh = () => {
+		const sent = gitWatcher.refresh();
+		if (sent && agentId) {
+			void queryClient.invalidateQueries({
+				queryKey: chatDiffContentsKey(agentId),
+				exact: true,
+			});
+		}
+		return sent;
+	};
+
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
@@ -230,6 +267,37 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Compute local diff stats from git watcher unified diffs.
 
+	const workspaceRoute = workspace
+		? `/@${workspace.owner_name}/${workspace.name}`
+		: undefined;
+
+	const attachedWorkspace = (() => {
+		if (!workspace || !workspaceRoute) return undefined;
+		const { type, text } = getDisplayWorkspaceStatus(
+			workspace.latest_build.status,
+			workspace.latest_build.job,
+		);
+		const effectiveType = workspace.health.healthy ? type : "warning";
+		const statusLabel = workspace.health.healthy
+			? `Workspace ${text.toLowerCase()}`
+			: `Workspace ${text.toLowerCase()} (unhealthy)`;
+		const iconCls = "size-3";
+		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
+			success: <MonitorIcon className={iconCls} />,
+			active: <MonitorDotIcon className={iconCls} />,
+			inactive: <MonitorPauseIcon className={iconCls} />,
+			error: <MonitorXIcon className={iconCls} />,
+			danger: <MonitorXIcon className={iconCls} />,
+			warning: <MonitorXIcon className={iconCls} />,
+		};
+		return {
+			name: workspace.name,
+			route: workspaceRoute,
+			statusIcon: statusIconMap[effectiveType],
+			statusLabel,
+		};
+	})();
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -251,7 +319,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					className={cn(
 						"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 						visualExpanded && "hidden",
-						shouldShowSidebar && "max-md:hidden",
+						shouldShowSidebar && "max-lg:hidden",
 					)}
 				>
 					<div className="relative z-10 shrink-0 overflow-visible">
@@ -281,7 +349,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								: {})}
 							isRegeneratingTitle={isRegeneratingTitle}
 							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
-							hasWorkspace={hasWorkspace}
+							hasWorkspace={Boolean(workspace)}
 							isArchived={isArchived}
 							diffStatusData={diffStatusData}
 							isSidebarCollapsed={isSidebarCollapsed}
@@ -341,9 +409,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onModelChange={setSelectedModel}
 							modelOptions={modelOptions}
 							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							modelSelectorHelp={modelSelectorHelp}
 							isModelCatalogLoading={isModelCatalogLoading}
 							inputRef={editing.chatInputRef}
-							initialInputValue={initialInputValue}
+							initialValue={editing.editorInitialValue}
+							initialEditorState={editing.initialEditorState}
+							remountKey={editing.remountKey}
 							onContentChange={editing.handleContentChange}
 							editingQueuedMessageID={editing.editingQueuedMessageID}
 							onStartQueueEdit={editing.handleStartQueueEdit}
@@ -357,6 +428,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onMCPSelectionChange={onMCPSelectionChange}
 							onMCPAuthComplete={onMCPAuthComplete}
 							lastInjectedContext={lastInjectedContext}
+							attachedWorkspace={attachedWorkspace}
 						/>
 					</div>
 				</div>
@@ -384,7 +456,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 												: undefined
 										}
 										repositories={gitWatcher.repositories}
-										onRefresh={gitWatcher.refresh}
+										onRefresh={handleRefresh}
 										onCommit={handleCommit}
 										isExpanded={visualExpanded}
 										remoteDiffStats={diffStatusData}
@@ -392,13 +464,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									/>
 								),
 							},
-							...(hasWorkspace && workspaceAgent
+							...(workspace && workspaceAgent
 								? [
 										{
 											id: "terminal",
 											label: "Terminal",
 											content: (
 												<TerminalPanel
+													chatId={agentId}
 													isVisible={
 														shouldShowSidebar && sidebarTabId === "terminal"
 													}
@@ -416,7 +489,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 						chatTitle={chatTitle}
-						desktopChatId={desktopChatId}
+						desktopChatId={
+							workspace && workspaceAgent ? desktopChatId : undefined
+						}
 					/>
 				</RightPanel>
 			</div>

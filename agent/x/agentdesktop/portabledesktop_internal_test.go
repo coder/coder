@@ -2,6 +2,7 @@ package agentdesktop
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,13 +10,17 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // recordedExecer implements agentexec.Execer by recording every
@@ -86,6 +91,7 @@ func TestPortableDesktop_Start_ParsesOutput(t *testing.T) {
 		execer:       rec,
 		scriptBinDir: t.TempDir(),
 		binPath:      "portabledesktop", // pre-set so ensureBinary is a no-op
+		clock:        quartz.NewReal(),
 	}
 
 	ctx := t.Context()
@@ -117,6 +123,7 @@ func TestPortableDesktop_Start_Idempotent(t *testing.T) {
 		execer:       rec,
 		scriptBinDir: t.TempDir(),
 		binPath:      "portabledesktop",
+		clock:        quartz.NewReal(),
 	}
 
 	ctx := t.Context()
@@ -159,6 +166,7 @@ func TestPortableDesktop_Screenshot(t *testing.T) {
 		execer:       rec,
 		scriptBinDir: t.TempDir(),
 		binPath:      "portabledesktop",
+		clock:        quartz.NewReal(),
 	}
 
 	ctx := t.Context()
@@ -184,6 +192,7 @@ func TestPortableDesktop_Screenshot_WithTargetDimensions(t *testing.T) {
 		execer:       rec,
 		scriptBinDir: t.TempDir(),
 		binPath:      "portabledesktop",
+		clock:        quartz.NewReal(),
 	}
 
 	ctx := t.Context()
@@ -282,6 +291,7 @@ func TestPortableDesktop_MouseMethods(t *testing.T) {
 				execer:       rec,
 				scriptBinDir: t.TempDir(),
 				binPath:      "portabledesktop",
+				clock:        quartz.NewReal(),
 			}
 
 			err := tt.invoke(t.Context(), pd)
@@ -289,7 +299,6 @@ func TestPortableDesktop_MouseMethods(t *testing.T) {
 
 			cmds := rec.allCommands()
 			require.NotEmpty(t, cmds, "expected at least one command")
-
 			// Find at least one recorded command that contains
 			// all expected argument substrings.
 			found := false
@@ -367,6 +376,7 @@ func TestPortableDesktop_KeyboardMethods(t *testing.T) {
 				execer:       rec,
 				scriptBinDir: t.TempDir(),
 				binPath:      "portabledesktop",
+				clock:        quartz.NewReal(),
 			}
 
 			err := tt.invoke(t.Context(), pd)
@@ -423,6 +433,7 @@ func TestPortableDesktop_Close(t *testing.T) {
 		execer:       rec,
 		scriptBinDir: t.TempDir(),
 		binPath:      "portabledesktop",
+		clock:        quartz.NewReal(),
 	}
 
 	ctx := t.Context()
@@ -445,7 +456,7 @@ func TestPortableDesktop_Close(t *testing.T) {
 	// Subsequent Start must fail.
 	_, err = pd.Start(ctx)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "desktop is closed")
+	assert.Contains(t, err.Error(), "desktop closed")
 }
 
 // --- ensureBinary tests ---
@@ -539,7 +550,471 @@ func TestEnsureBinary_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+func TestPortableDesktop_StartRecording(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	cmds := rec.allCommands()
+	require.NotEmpty(t, cmds)
+	// Find the record command (not the up command).
+	found := false
+	for _, cmd := range cmds {
+		joined := strings.Join(cmd, " ")
+		if strings.Contains(joined, "record") && strings.Contains(joined, "coder-recording-"+recID) {
+			found = true
+			assert.Contains(t, joined, "--thumbnail", "record command should include --thumbnail flag")
+			break
+		}
+	}
+	assert.True(t, found, "expected a record command with the recording ID")
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StartRecording_ConcurrentLimit(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+
+	for i := range maxConcurrentRecordings {
+		err := pd.StartRecording(ctx, uuid.New().String())
+		require.NoError(t, err, "recording %d should succeed", i)
+	}
+
+	err := pd.StartRecording(ctx, uuid.New().String())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too many concurrent recordings")
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	// Write a dummy MP4 file at the expected path so StopRecording
+	// can open it as an artifact.
+	filePath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".mp4")
+	require.NoError(t, os.WriteFile(filePath, []byte("fake-mp4-data"), 0o600))
+	t.Cleanup(func() { _ = os.Remove(filePath) })
+
+	artifact, err := pd.StopRecording(ctx, recID)
+	require.NoError(t, err)
+	defer artifact.Reader.Close()
+	assert.Equal(t, int64(len("fake-mp4-data")), artifact.Size)
+
+	// No thumbnail file exists, so ThumbnailReader should be nil.
+	assert.Nil(t, artifact.ThumbnailReader, "ThumbnailReader should be nil when no thumbnail file exists")
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StopRecording_WithThumbnail(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	// Write a dummy MP4 file at the expected path.
+	filePath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".mp4")
+	require.NoError(t, os.WriteFile(filePath, []byte("fake-mp4-data"), 0o600))
+	t.Cleanup(func() { _ = os.Remove(filePath) })
+
+	// Write a thumbnail file at the expected path.
+	thumbPath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".thumb.jpg")
+	thumbContent := []byte("fake-jpeg-thumbnail")
+	require.NoError(t, os.WriteFile(thumbPath, thumbContent, 0o600))
+	t.Cleanup(func() { _ = os.Remove(thumbPath) })
+
+	artifact, err := pd.StopRecording(ctx, recID)
+	require.NoError(t, err)
+	defer artifact.Reader.Close()
+
+	assert.Equal(t, int64(len("fake-mp4-data")), artifact.Size)
+
+	// Thumbnail should be attached.
+	require.NotNil(t, artifact.ThumbnailReader, "ThumbnailReader should be non-nil when thumbnail file exists")
+	defer artifact.ThumbnailReader.Close()
+	assert.Equal(t, int64(len(thumbContent)), artifact.ThumbnailSize)
+
+	// Read and verify thumbnail content.
+	thumbData, err := io.ReadAll(artifact.ThumbnailReader)
+	require.NoError(t, err)
+	assert.Equal(t, thumbContent, thumbData)
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StopRecording_UnknownID(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	_, err := pd.StopRecording(ctx, uuid.New().String())
+	require.ErrorIs(t, err, ErrUnknownRecording)
+
+	require.NoError(t, pd.Close())
+}
+
 // Ensure that portableDesktop satisfies the Desktop interface at
 // compile time. This uses the unexported type so it lives in the
 // internal test package.
 var _ Desktop = (*portableDesktop)(nil)
+
+func TestPortableDesktop_IdleTimeout_StopsRecordings(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewMock(t)
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+
+	// Install the trap before StartRecording so it is guaranteed
+	// to catch the idle monitor's NewTimer call regardless of
+	// goroutine scheduling.
+	trap := clk.Trap().NewTimer("agentdesktop", "recording_idle")
+
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	// Verify recording is active.
+	pd.mu.Lock()
+	require.False(t, pd.recordings[recID].stopped)
+	pd.mu.Unlock()
+
+	// Wait for the idle monitor timer to be created and release
+	// it so the monitor enters its select loop.
+	trap.MustWait(ctx).MustRelease(ctx)
+	trap.Close()
+
+	// The stop-all path calls lockedStopRecordingProcess which
+	// creates a per-recording 15s stop_timeout timer.
+	stopTrap := clk.Trap().NewTimer("agentdesktop", "stop_timeout")
+
+	// Advance past idle timeout to trigger the stop-all.
+	clk.Advance(idleTimeout)
+
+	// Wait for the stop timer to be created, then release it.
+	stopTrap.MustWait(ctx).MustRelease(ctx)
+	stopTrap.Close()
+
+	// The recording process should now be stopped.
+	require.Eventually(t, func() bool {
+		pd.mu.Lock()
+		defer pd.mu.Unlock()
+		rec, ok := pd.recordings[recID]
+		return ok && rec.stopped
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_IdleTimeout_ActivityResetsTimer(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewMock(t)
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+
+	// Install the trap before StartRecording so it is guaranteed
+	// to catch the idle monitor's NewTimer call regardless of
+	// goroutine scheduling.
+	trap := clk.Trap().NewTimer("agentdesktop", "recording_idle")
+
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	// Wait for the idle monitor timer to be created.
+	trap.MustWait(ctx).MustRelease(ctx)
+	trap.Close()
+
+	// Advance most of the way but not past the timeout.
+	clk.Advance(idleTimeout - time.Minute)
+
+	// Record activity to reset the timer.
+	pd.RecordActivity()
+
+	// Trap the Reset call that the idle monitor makes when it
+	// sees recent activity.
+	resetTrap := clk.Trap().TimerReset("agentdesktop", "recording_idle")
+
+	// Advance past the original idle timeout deadline. The
+	// monitor should see the recent activity and reset instead
+	// of stopping.
+	clk.Advance(time.Minute)
+
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	resetTrap.Close()
+
+	// Recording should still be active because activity was
+	// recorded.
+	pd.mu.Lock()
+	require.False(t, pd.recordings[recID].stopped)
+	pd.mu.Unlock()
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_IdleTimeout_MultipleRecordings(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewMock(t)
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID1 := uuid.New().String()
+	recID2 := uuid.New().String()
+
+	// Trap idle timer creation for both recordings.
+	trap := clk.Trap().NewTimer("agentdesktop", "recording_idle")
+
+	err := pd.StartRecording(ctx, recID1)
+	require.NoError(t, err)
+
+	// Wait for first recording's idle timer.
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	err = pd.StartRecording(ctx, recID2)
+	require.NoError(t, err)
+
+	// Wait for second recording's idle timer.
+	trap.MustWait(ctx).MustRelease(ctx)
+	trap.Close()
+
+	// Trap the stop timers that will be created when idle fires.
+	stopTrap := clk.Trap().NewTimer("agentdesktop", "stop_timeout")
+
+	// Advance past idle timeout.
+	clk.Advance(idleTimeout)
+
+	// Wait for both stop timers.
+	stopTrap.MustWait(ctx).MustRelease(ctx)
+	stopTrap.MustWait(ctx).MustRelease(ctx)
+	stopTrap.Close()
+
+	// Both recordings should be stopped.
+	require.Eventually(t, func() bool {
+		pd.mu.Lock()
+		defer pd.mu.Unlock()
+		r1, ok1 := pd.recordings[recID1]
+		r2, ok2 := pd.recordings[recID2]
+		return ok1 && r1.stopped && ok2 && r2.stopped
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StartRecording_ReturnsErrDesktopClosed(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"up": `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	// Start and close the desktop so it's in the closed state.
+	ctx := t.Context()
+	_, err := pd.Start(ctx)
+	require.NoError(t, err)
+	require.NoError(t, pd.Close())
+
+	// StartRecording should now return ErrDesktopClosed.
+	err = pd.StartRecording(ctx, uuid.New().String())
+	require.ErrorIs(t, err, ErrDesktopClosed)
+}
+
+func TestPortableDesktop_Start_ReturnsErrDesktopClosed(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			"up": `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        quartz.NewReal(),
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(pd.clock.Now().UnixNano())
+
+	ctx := t.Context()
+	_, err := pd.Start(ctx)
+	require.NoError(t, err)
+	require.NoError(t, pd.Close())
+
+	_, err = pd.Start(ctx)
+	require.ErrorIs(t, err, ErrDesktopClosed)
+}

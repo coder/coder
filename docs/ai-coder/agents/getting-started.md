@@ -77,16 +77,33 @@ Detailed instructions for each provider and model option are in the
 The **Coder Agents User** role controls which users can interact with Coder Agents.
 Members do not have Coder Agents User by default.
 
-1. Go to **Admin** > **Users** in the Coder dashboard.
-1. Click the roles icon next to the user you want to grant access to.
-1. Enable the **Coder Agents User** role and save.
-
-Repeat for each user who needs access. Owners always have full access
-and do not need the role.
+Owners always have full access and do not need the role. Repeat the following steps for each user who needs access.
 
 > [!NOTE]
 > Users who created conversations before this role was introduced are
 > automatically granted the role during upgrade.
+
+**Dashboard (individual):**
+
+1. Go to **Admin** > **Users** in the Coder dashboard.
+1. Click the roles icon next to the user you want to grant access to.
+1. Enable the **Coder Agents User** role and save.
+
+**CLI (bulk):**
+
+You can also grant the role via CLI. For example, to grant the role to
+all active users at once:
+
+```sh
+coder users list -o json \
+  | jq -r '.[].username' \
+  | while read u; do
+      coder users edit-roles "$u" \
+        --roles "$(coder users show "$u" -o json \
+          | jq -r '[.roles[].name, "agents-access"] | unique | join(",")')" \
+        --yes
+    done
+```
 
 ## Step 4: Start your first Coder Agent
 

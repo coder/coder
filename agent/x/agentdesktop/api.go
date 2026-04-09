@@ -1,12 +1,19 @@
 package agentdesktop
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -47,6 +54,9 @@ type API struct {
 	logger  slog.Logger
 	desktop Desktop
 	clock   quartz.Clock
+
+	closeMu sync.Mutex
+	closed  bool
 }
 
 // NewAPI creates a new desktop streaming API.
@@ -66,6 +76,10 @@ func (a *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/vnc", a.handleDesktopVNC)
 	r.Post("/action", a.handleAction)
+	r.Route("/recording", func(r chi.Router) {
+		r.Post("/start", a.handleRecordingStart)
+		r.Post("/stop", a.handleRecordingStop)
+	})
 	return r
 }
 
@@ -115,6 +129,9 @@ func (a *API) handleDesktopVNC(rw http.ResponseWriter, r *http.Request) {
 func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	handlerStart := a.clock.Now()
+
+	// Update last desktop action timestamp for idle recording monitor.
+	a.desktop.RecordActivity()
 
 	// Ensure the desktop is running and grab native dimensions.
 	cfg, err := a.desktop.Start(ctx)
@@ -480,7 +497,203 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 
 // Close shuts down the desktop session if one is running.
 func (a *API) Close() error {
+	a.closeMu.Lock()
+	if a.closed {
+		a.closeMu.Unlock()
+		return nil
+	}
+	a.closed = true
+	a.closeMu.Unlock()
+
 	return a.desktop.Close()
+}
+
+// decodeRecordingRequest decodes and validates a recording request
+// from the HTTP body, returning the recording ID. Returns false if
+// the request was invalid and an error response was already written.
+func (*API) decodeRecordingRequest(rw http.ResponseWriter, r *http.Request) (string, bool) {
+	ctx := r.Context()
+	var req struct {
+		RecordingID string `json:"recording_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to decode request body.",
+			Detail:  err.Error(),
+		})
+		return "", false
+	}
+	if req.RecordingID == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing recording_id.",
+		})
+		return "", false
+	}
+	if _, err := uuid.Parse(req.RecordingID); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid recording_id format.",
+			Detail:  "recording_id must be a valid UUID.",
+		})
+		return "", false
+	}
+	return req.RecordingID, true
+}
+
+func (a *API) handleRecordingStart(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	recordingID, ok := a.decodeRecordingRequest(rw, r)
+	if !ok {
+		return
+	}
+
+	a.closeMu.Lock()
+	if a.closed {
+		a.closeMu.Unlock()
+		httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
+			Message: "Desktop API is shutting down.",
+		})
+		return
+	}
+	a.closeMu.Unlock()
+
+	if err := a.desktop.StartRecording(ctx, recordingID); err != nil {
+		if errors.Is(err, ErrDesktopClosed) {
+			httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
+				Message: "Desktop API is shutting down.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to start recording.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Recording started.",
+	})
+}
+
+func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	recordingID, ok := a.decodeRecordingRequest(rw, r)
+	if !ok {
+		return
+	}
+
+	a.closeMu.Lock()
+	if a.closed {
+		a.closeMu.Unlock()
+		httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
+			Message: "Desktop API is shutting down.",
+		})
+		return
+	}
+	a.closeMu.Unlock()
+
+	// Stop recording (idempotent).
+	// Use a context detached from the HTTP request so that if the
+	// connection drops, the recording process can still shut down
+	// gracefully. WithoutCancel preserves request-scoped values.
+	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(r.Context()), 30*time.Second)
+	defer stopCancel()
+	artifact, err := a.desktop.StopRecording(stopCtx, recordingID)
+	if err != nil {
+		if errors.Is(err, ErrUnknownRecording) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Recording not found.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if errors.Is(err, ErrRecordingCorrupted) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Recording is corrupted.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to stop recording.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer artifact.Reader.Close()
+	defer func() {
+		if artifact.ThumbnailReader != nil {
+			_ = artifact.ThumbnailReader.Close()
+		}
+	}()
+
+	if artifact.Size > workspacesdk.MaxRecordingSize {
+		a.logger.Warn(ctx, "recording file exceeds maximum size",
+			slog.F("recording_id", recordingID),
+			slog.F("size", artifact.Size),
+			slog.F("max_size", workspacesdk.MaxRecordingSize),
+		)
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+			Message: "Recording file exceeds maximum allowed size.",
+		})
+		return
+	}
+
+	// Discard the thumbnail if it exceeds the maximum size.
+	// The server-side consumer also enforces this per-part, but
+	// rejecting it here avoids streaming a large thumbnail over
+	// the wire for nothing.
+	if artifact.ThumbnailReader != nil && artifact.ThumbnailSize > workspacesdk.MaxThumbnailSize {
+		a.logger.Warn(ctx, "thumbnail file exceeds maximum size, omitting",
+			slog.F("recording_id", recordingID),
+			slog.F("size", artifact.ThumbnailSize),
+			slog.F("max_size", workspacesdk.MaxThumbnailSize),
+		)
+		_ = artifact.ThumbnailReader.Close()
+		artifact.ThumbnailReader = nil
+		artifact.ThumbnailSize = 0
+	}
+
+	// The multipart response is best-effort: once WriteHeader(200) is
+	// called, CreatePart failures produce a truncated response without
+	// the closing boundary. The server-side consumer handles this
+	// gracefully, preserving any parts read before the error.
+	mw := multipart.NewWriter(rw)
+	defer mw.Close()
+	rw.Header().Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
+	rw.WriteHeader(http.StatusOK)
+
+	// Part 1: video/mp4 (always present).
+	videoPart, err := mw.CreatePart(textproto.MIMEHeader{
+		"Content-Type": {"video/mp4"},
+	})
+	if err != nil {
+		a.logger.Warn(ctx, "failed to create video multipart part",
+			slog.F("recording_id", recordingID),
+			slog.Error(err))
+		return
+	}
+	if _, err := io.Copy(videoPart, artifact.Reader); err != nil {
+		a.logger.Warn(ctx, "failed to write video multipart part",
+			slog.F("recording_id", recordingID),
+			slog.Error(err))
+		return
+	}
+
+	// Part 2: image/jpeg (present only when thumbnail was extracted).
+	if artifact.ThumbnailReader != nil {
+		thumbPart, err := mw.CreatePart(textproto.MIMEHeader{
+			"Content-Type": {"image/jpeg"},
+		})
+		if err != nil {
+			a.logger.Warn(ctx, "failed to create thumbnail multipart part",
+				slog.F("recording_id", recordingID),
+				slog.Error(err))
+			return
+		}
+		_, _ = io.Copy(thumbPart, artifact.ThumbnailReader)
+	}
 }
 
 // coordFromAction extracts the coordinate pair from a DesktopAction,

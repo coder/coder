@@ -92,7 +92,6 @@ export const TerminalOverloadedError: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
-		expect(canvas.getByText("Overloaded")).toBeVisible();
 		expect(
 			canvas.getByText(/anthropic is currently overloaded./i),
 		).toBeVisible();
@@ -122,7 +121,6 @@ export const TerminalStartupTimeoutError: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /startup timed out/i }),
 		).toBeVisible();
-		expect(canvas.getByText("Startup timeout")).toBeVisible();
 		expect(
 			canvas.getByText(/anthropic did not start responding in time./i),
 		).toBeVisible();
