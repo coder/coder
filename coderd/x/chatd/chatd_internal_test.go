@@ -2094,6 +2094,82 @@ func TestHasPersistedInstructionFiles(t *testing.T) {
 	})
 }
 
+func TestInstructionFromContextFilesUsesLatestContextAgent(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/old/AGENTS.md",
+			ContextFileContent:   "old instructions",
+			ContextFileOS:        "darwin",
+			ContextFileDirectory: "/old",
+			ContextFileAgentID:   uuid.NullUUID{UUID: oldAgentID, Valid: true},
+		}}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/new/AGENTS.md",
+			ContextFileContent:   "new instructions",
+			ContextFileOS:        "linux",
+			ContextFileDirectory: "/new",
+			ContextFileAgentID:   uuid.NullUUID{UUID: newAgentID, Valid: true},
+		}}),
+	}
+
+	got := instructionFromContextFiles(msgs)
+	require.Contains(t, got, "new instructions")
+	require.Contains(t, got, "Operating System: linux")
+	require.Contains(t, got, "Working Directory: /new")
+	require.NotContains(t, got, "old instructions")
+	require.NotContains(t, got, "Operating System: darwin")
+}
+
+func TestSkillsFromPartsUsesLatestContextAgent(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/old/AGENTS.md",
+				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "repo-helper-old",
+				SkillDir:           "/skills/repo-helper-old",
+				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			},
+		}),
+		chatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: AgentChatContextSentinelPath,
+				ContextFileAgentID: uuid.NullUUID{
+					UUID:  newAgentID,
+					Valid: true,
+				},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "repo-helper-new",
+				SkillDir:           "/skills/repo-helper-new",
+				ContextFileAgentID: uuid.NullUUID{UUID: newAgentID, Valid: true},
+			},
+		}),
+	}
+
+	got := skillsFromParts(msgs)
+	require.Equal(t, []chattool.SkillMeta{{
+		Name: "repo-helper-new",
+		Dir:  "/skills/repo-helper-new",
+	}}, got)
+}
+
 func TestMergeSkillMetas(t *testing.T) {
 	t.Parallel()
 
