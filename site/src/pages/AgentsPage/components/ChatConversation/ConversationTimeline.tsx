@@ -2,12 +2,14 @@ import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
+	type MutableRefObject,
 	memo,
 	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
+import { Virtuoso } from "react-virtuoso";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -693,6 +695,8 @@ const ChatMessageItem = memo<{
 	},
 );
 
+type UserSentinelElementsRef = MutableRefObject<Map<number, HTMLDivElement>>;
+
 const StickyUserMessage = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
@@ -704,6 +708,8 @@ const StickyUserMessage = memo<{
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	nextUserMessageId: number | null;
+	userSentinelElementsRef: UserSentinelElementsRef;
 }>(
 	({
 		message,
@@ -712,6 +718,8 @@ const StickyUserMessage = memo<{
 		editingMessageId,
 		savingMessageId,
 		isAfterEditingMessage = false,
+		nextUserMessageId,
+		userSentinelElementsRef,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -719,6 +727,14 @@ const StickyUserMessage = memo<{
 		const sentinelRef = useRef<HTMLDivElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
+		const setSentinelRef = (element: HTMLDivElement | null) => {
+			sentinelRef.current = element;
+			if (element) {
+				userSentinelElementsRef.current.set(message.id, element);
+				return;
+			}
+			userSentinelElementsRef.current.delete(message.id);
+		};
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -805,13 +821,10 @@ const StickyUserMessage = memo<{
 				// approaches the bottom of this sticky container, shift
 				// this container upward so it slides out of view — the
 				// same visual as the old section-boundary behavior.
-				let nextSentinel: Element | null = sentinel.nextElementSibling;
-				while (nextSentinel) {
-					if (nextSentinel.hasAttribute("data-user-sentinel")) {
-						break;
-					}
-					nextSentinel = nextSentinel.nextElementSibling;
-				}
+				const nextSentinel =
+					nextUserMessageId === null
+						? null
+						: (userSentinelElementsRef.current.get(nextUserMessageId) ?? null);
 				if (nextSentinel) {
 					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
 					container.style.top = `${Math.min(STICKY_TOP, nextY - visible + STICKY_TOP)}px`;
@@ -871,7 +884,7 @@ const StickyUserMessage = memo<{
 				if (rafId !== null) cancelAnimationFrame(rafId);
 				if (contentRafId !== null) cancelAnimationFrame(contentRafId);
 			};
-		}, []);
+		}, [nextUserMessageId, userSentinelElementsRef]);
 
 		// Re-run the height calculation synchronously whenever
 		// isStuck changes so --clip-h is correct on the same frame
@@ -907,7 +920,7 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={sentinelRef} className="h-0" data-user-sentinel />
+				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
 				<div
 					ref={containerRef}
 					className={cn(
@@ -1020,10 +1033,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		computerUseSubagentIds,
 		showDesktopPreviews,
 	}) => {
-		if (parsedMessages.length === 0) {
-			return null;
-		}
-
 		// Build a set of message IDs that appear after the message
 		// currently being edited so they can be visually faded.
 		const afterEditingMessageIds = new Set<number>();
@@ -1040,42 +1049,89 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
+		// Track the next user message for each row so sticky user
+		// bubbles can resolve their push-up target without relying on
+		// adjacent DOM siblings that might be virtualized out.
+		const nextUserMessageIdsByIndex = new Array<number | null>(
+			parsedMessages.length,
+		);
+		let nextUserMessageId: number | null = null;
+		for (let idx = parsedMessages.length - 1; idx >= 0; idx--) {
+			nextUserMessageIdsByIndex[idx] = nextUserMessageId;
+			if (parsedMessages[idx]?.message.role === "user") {
+				nextUserMessageId = parsedMessages[idx].message.id;
+			}
+		}
+
+		const userSentinelElementsRef = useRef<Map<number, HTMLDivElement>>(
+			new Map(),
+		);
+		const [timelineRoot, setTimelineRoot] = useState<HTMLDivElement | null>(
+			null,
+		);
+		const maybeCustomScrollParent = timelineRoot?.closest(".overflow-y-auto");
+		const customScrollParent =
+			maybeCustomScrollParent instanceof HTMLElement
+				? maybeCustomScrollParent
+				: undefined;
+
+		if (parsedMessages.length === 0) {
+			return null;
+		}
+
 		return (
-			<div className="flex flex-col gap-2">
-				{parsedMessages.map(({ message, parsed }, msgIdx) => {
-					if (message.role === "user") {
+			<div ref={setTimelineRoot} className="flex flex-col">
+				<Virtuoso
+					data={parsedMessages}
+					customScrollParent={customScrollParent}
+					computeItemKey={(_, entry) => entry.message.id}
+					increaseViewportBy={{ top: 600, bottom: 600 }}
+					itemContent={(msgIdx, { message, parsed }) => {
+						if (message.role === "user") {
+							return (
+								<div
+									className={cn(msgIdx < parsedMessages.length - 1 && "pb-2")}
+								>
+									<StickyUserMessage
+										message={message}
+										parsed={parsed}
+										onEditUserMessage={onEditUserMessage}
+										editingMessageId={editingMessageId}
+										savingMessageId={savingMessageId}
+										isAfterEditingMessage={afterEditingMessageIds.has(
+											message.id,
+										)}
+										nextUserMessageId={
+											nextUserMessageIdsByIndex[msgIdx] ?? null
+										}
+										userSentinelElementsRef={userSentinelElementsRef}
+									/>
+								</div>
+							);
+						}
+
+						// Hide actions on assistant messages that are not
+						// the last in a consecutive assistant chain.
+						const next = parsedMessages[msgIdx + 1];
+						const isLastInChain = !next || next.message.role === "user";
 						return (
-							<StickyUserMessage
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
+							<div className={cn(msgIdx < parsedMessages.length - 1 && "pb-2")}>
+								<ChatMessageItem
+									message={message}
+									parsed={parsed}
+									savingMessageId={savingMessageId}
+									urlTransform={urlTransform}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									hideActions={!isLastInChain}
+									mcpServers={mcpServers}
+									subagentTitles={subagentTitles}
+									computerUseSubagentIds={computerUseSubagentIds}
+									showDesktopPreviews={showDesktopPreviews}
+								/>
+							</div>
 						);
-					}
-					// Hide actions on assistant messages that are not
-					// the last in a consecutive assistant chain.
-					const next = parsedMessages[msgIdx + 1];
-					const isLastInChain = !next || next.message.role === "user";
-					return (
-						<ChatMessageItem
-							key={message.id}
-							message={message}
-							parsed={parsed}
-							savingMessageId={savingMessageId}
-							urlTransform={urlTransform}
-							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							hideActions={!isLastInChain}
-							mcpServers={mcpServers}
-							subagentTitles={subagentTitles}
-							computerUseSubagentIds={computerUseSubagentIds}
-							showDesktopPreviews={showDesktopPreviews}
-						/>
-					);
-				})}
+					}}
+				/>
 			</div>
 		);
 	},

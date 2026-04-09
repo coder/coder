@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -110,6 +110,37 @@ const waitForAnimationFrame = () =>
 	new Promise<void>((resolve) => {
 		requestAnimationFrame(() => resolve());
 	});
+
+const scrollTimeline = async (scrollContainer: HTMLElement, top: number) => {
+	scrollContainer.scrollTop = top;
+	scrollContainer.dispatchEvent(new Event("scroll"));
+	await waitForAnimationFrame();
+};
+
+const scrollTimelineToBottom = async (scrollContainer: HTMLElement) => {
+	await scrollTimeline(scrollContainer, scrollContainer.scrollHeight);
+};
+
+const findStickyContainerForSentinel = (
+	sentinel: Element,
+): HTMLElement | null => {
+	const itemContainer = sentinel.parentElement;
+	if (!(itemContainer instanceof HTMLElement)) {
+		return null;
+	}
+
+	if (window.getComputedStyle(itemContainer).position === "sticky") {
+		return itemContainer;
+	}
+
+	for (const candidate of itemContainer.querySelectorAll<HTMLElement>("*")) {
+		if (window.getComputedStyle(candidate).position === "sticky") {
+			return candidate;
+		}
+	}
+
+	return null;
+};
 
 const makeChatMessage = (
 	id: number,
@@ -609,12 +640,10 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 /**
  * Verifies the structural requirements for sticky user messages
  * in the flat (section-less) message list:
- * - Each user message renders a data-user-sentinel marker so
- *   the push-up logic can find the next user message via DOM
- *   traversal.
- * - The user message container gets position:sticky.
- * - Sentinels appear in the correct order (matching user
- *   message order).
+ * - Each user message renders a data-user-sentinel marker.
+ * - Sticky containers remain sticky even when row wrappers are
+ *   introduced by list virtualization.
+ * - Sentinels appear in message order.
  */
 export const StickyUserMessageStructure: Story = {
 	args: {
@@ -647,31 +676,23 @@ export const StickyUserMessageStructure: Story = {
 		]),
 	},
 	play: async ({ canvasElement }) => {
-		// Each user message should produce a data-user-sentinel
-		// marker that the push-up scroll logic relies on.
+		// Each user message should produce a data-user-sentinel marker.
 		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
 		expect(sentinels.length).toBe(2);
 
-		// Each sentinel should be immediately followed by a sticky
-		// container (the user message itself).
+		// Each sentinel should belong to a row that contains a sticky
+		// container for the user bubble.
 		for (const sentinel of sentinels) {
-			const container = sentinel.nextElementSibling;
-			expect(container).not.toBeNull();
-			const style = window.getComputedStyle(container!);
-			expect(style.position).toBe("sticky");
+			const stickyContainer = findStickyContainerForSentinel(sentinel);
+			expect(stickyContainer).toBeInstanceOf(HTMLElement);
+			expect(window.getComputedStyle(stickyContainer!).position).toBe("sticky");
 		}
 
-		// Sentinels must appear in DOM order matching the message
-		// order so nextElementSibling traversal finds the correct
-		// next user message.
-		const allElements = Array.from(
-			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
-		);
-		const sentinelIndices = Array.from(sentinels).map((s) =>
-			allElements.indexOf(s),
-		);
-		// Sentinels should be in ascending DOM order.
-		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
+		// Sentinels should still be emitted in message order.
+		const sentinelElements = Array.from(sentinels);
+		const firstTop = sentinelElements[0]?.getBoundingClientRect().top ?? 0;
+		const secondTop = sentinelElements[1]?.getBoundingClientRect().top ?? 0;
+		expect(firstTop).toBeLessThan(secondTop);
 
 		// Both user messages should be visible.
 		const canvas = within(canvasElement);
@@ -691,15 +712,28 @@ export const LargeMessageHistory: Story = {
 		),
 	},
 	play: async ({ canvasElement }) => {
+		const scroller = findTimelineScroller(canvasElement);
+		await waitFor(() => {
+			expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+		});
+
+		// Virtualization should avoid mounting every message row at once.
 		const userSentinels = canvasElement.querySelectorAll(
 			"[data-user-sentinel]",
 		);
-		expect(userSentinels).toHaveLength(LARGE_HISTORY_MESSAGE_COUNT / 2);
+		expect(userSentinels.length).toBeLessThan(LARGE_HISTORY_MESSAGE_COUNT / 2);
 
-		const assistantMessages = canvasElement.querySelectorAll(
-			"[data-role='assistant']",
-		);
-		expect(assistantMessages).toHaveLength(LARGE_HISTORY_MESSAGE_COUNT / 2);
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/User prompt #1/)).toBeVisible();
+
+		await scrollTimelineToBottom(scroller);
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					new RegExp(`Assistant response #${LARGE_HISTORY_MESSAGE_COUNT}`),
+				),
+			).toBeVisible();
+		});
 	},
 };
 
@@ -829,15 +863,18 @@ export const StickyUserMessageWithManyFollowups: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const scroller = findTimelineScroller(canvasElement);
-		scroller.scrollTop = scroller.scrollHeight;
-		scroller.dispatchEvent(new Event("scroll"));
-		await waitForAnimationFrame();
+		await scrollTimelineToBottom(scroller);
 
-		const firstSentinel = canvasElement.querySelector("[data-user-sentinel]");
-		expect(firstSentinel).toBeInstanceOf(HTMLElement);
-		const sentinel = firstSentinel as HTMLElement;
+		await waitFor(() => {
+			expect(
+				canvasElement.querySelector("[data-user-sentinel]"),
+			).toBeInstanceOf(HTMLElement);
+		});
+		const sentinel = canvasElement.querySelector(
+			"[data-user-sentinel]",
+		) as HTMLElement;
 
-		const stickyContainer = sentinel.nextElementSibling;
+		const stickyContainer = findStickyContainerForSentinel(sentinel);
 		expect(stickyContainer).toBeInstanceOf(HTMLElement);
 		const stickyMessage = stickyContainer as HTMLElement;
 		expect(window.getComputedStyle(stickyMessage).position).toBe("sticky");
