@@ -359,48 +359,19 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				prompt := strings.TrimSpace(args.Prompt)
-				if prompt == "" {
-					return fantasy.NewTextErrorResponse("prompt is required"), nil
-				}
-
-				title := strings.TrimSpace(args.Title)
-				if title == "" {
-					title = subagentFallbackChatTitle(prompt)
-				}
-
-				rootChatID := parent.ID
-				if parent.RootChatID.Valid {
-					rootChatID = parent.RootChatID.UUID
-				}
-				if parent.LastModelConfigID == uuid.Nil {
-					return fantasy.NewTextErrorResponse("parent chat model config id is required"), nil
-				}
-
-				// Create the child chat with Mode set to
-				// computer_use. This signals runChat to use the
-				// predefined computer use model and include the
-				// computer tool.
-				childChat, err := p.CreateChat(ctx, CreateOptions{
-					OwnerID:     parent.OwnerID,
-					WorkspaceID: parent.WorkspaceID,
-					BuildID:     parent.BuildID,
-					AgentID:     parent.AgentID,
-					ParentChatID: uuid.NullUUID{
-						UUID:  parent.ID,
-						Valid: true,
+				childChat, err := p.createChildSubagentChatWithOptions(
+					ctx,
+					parent,
+					args.Prompt,
+					args.Title,
+					childSubagentChatOptions{
+						chatMode: database.NullChatMode{
+							ChatMode: database.ChatModeComputerUse,
+							Valid:    true,
+						},
+						systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(args.Prompt),
 					},
-					RootChatID: uuid.NullUUID{
-						UUID:  rootChatID,
-						Valid: true,
-					},
-					ModelConfigID:      parent.LastModelConfigID,
-					Title:              title,
-					ChatMode:           database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
-					SystemPrompt:       computerUseSubagentSystemPrompt + "\n\n" + prompt,
-					InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
-					MCPServerIDs:       parent.MCPServerIDs,
-				})
+				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
@@ -425,11 +396,26 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 	return chatID, nil
 }
 
+type childSubagentChatOptions struct {
+	chatMode     database.NullChatMode
+	systemPrompt string
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
 	prompt string,
 	title string,
+) (database.Chat, error) {
+	return p.createChildSubagentChatWithOptions(ctx, parent, prompt, title, childSubagentChatOptions{})
+}
+
+func (p *Server) createChildSubagentChatWithOptions(
+	ctx context.Context,
+	parent database.Chat,
+	prompt string,
+	title string,
+	opts childSubagentChatOptions,
 ) (database.Chat, error) {
 	if parent.ParentChatID.Valid {
 		return database.Chat{}, xerrors.New("delegated chats cannot create child subagents")
@@ -462,6 +448,7 @@ func (p *Server) createChildSubagentChat(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
+	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
 
 	var child database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -478,7 +465,7 @@ func (p *Server) createChildSubagentChat(
 			RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
 			LastModelConfigID: parent.LastModelConfigID,
 			Title:             title,
-			Mode:              database.NullChatMode{},
+			Mode:              opts.chatMode,
 			Status:            database.ChatStatusPending,
 			MCPServerIDs:      mcpServerIDs,
 			Labels: pqtype.NullRawMessage{
@@ -520,6 +507,21 @@ func (p *Server) createChildSubagentChat(
 			appendChatMessage(&systemParams, newChatMessage(
 				database.ChatMessageRoleSystem,
 				deploymentContent,
+				database.ChatMessageVisibilityModel,
+				parent.LastModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+		if childSystemPrompt != "" {
+			childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(childSystemPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal child system prompt: %w", err)
+			}
+			appendChatMessage(&systemParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				childSystemPromptContent,
 				database.ChatMessageVisibilityModel,
 				parent.LastModelConfigID,
 				chatprompt.CurrentContentVersion,

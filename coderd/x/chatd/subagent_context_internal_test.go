@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -128,13 +129,14 @@ func TestFilterContextPartsToLatestAgent(t *testing.T) {
 	require.Equal(t, "repo-helper-new", got[1].SkillName)
 }
 
-func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T) {
-	t.Parallel()
+func createParentChatWithInheritedContext(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	server *Server,
+) database.Chat {
+	t.Helper()
 
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	ctx := chatdTestContext(t)
 	user, model := seedInternalChatDeps(ctx, t, db)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
@@ -191,11 +193,19 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
+	return parentChat
+}
 
-	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
-	require.NoError(t, err)
+func assertChildInheritedContext(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	childID uuid.UUID,
+	prompt string,
+) {
+	t.Helper()
 
-	childChat, err := db.GetChatByID(ctx, child.ID)
+	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
 	require.True(t, childChat.LastInjectedContext.Valid)
 
@@ -226,9 +236,8 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 	require.True(t, sawContextFile)
 	require.True(t, sawSkill)
 
-	// Verify messages were actually inserted in the child chat DB.
 	childMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  child.ID,
+		ChatID:  childID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
@@ -248,7 +257,7 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 		var parts []codersdk.ChatMessagePart
 		require.NoError(t, json.Unmarshal(msg.Content.RawMessage, &parts))
 
-		if len(parts) == 1 && parts[0].Type == codersdk.ChatMessagePartTypeText && parts[0].Text == "inspect bindings" {
+		if len(parts) == 1 && parts[0].Type == codersdk.ChatMessagePartTypeText && parts[0].Text == prompt {
 			require.Equal(t, database.ChatMessageRoleUser, msg.Role)
 			userPromptIndex = i
 			continue
@@ -298,4 +307,59 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 	require.True(t, sawDBAgentsContextFile)
 	require.True(t, sawDBSkillCompanionContext)
 	require.True(t, sawDBSkill)
+}
+
+func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
+
+	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
+	require.NoError(t, err)
+
+	assertChildInheritedContext(ctx, t, db, child.ID, "inspect bindings")
+}
+
+func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := chatdTestContext(t)
+	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_computer_use_agent")
+	require.NotNil(t, tool)
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-context",
+		Name:  "spawn_computer_use_agent",
+		Input: `{"prompt":"inspect bindings"}`,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	childIDStr, ok := result["chat_id"].(string)
+	require.True(t, ok)
+
+	childID, err := uuid.Parse(childIDStr)
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.True(t, childChat.Mode.Valid)
+	require.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
+
+	assertChildInheritedContext(ctx, t, db, childID, "inspect bindings")
 }
