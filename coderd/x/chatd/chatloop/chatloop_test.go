@@ -12,7 +12,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	"github.com/coder/quartz"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -20,11 +19,13 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 const activeToolName = "read_file"
 
-func awaitRunResult(t *testing.T, ctx context.Context, done <-chan error) error {
+func awaitRunResult(ctx context.Context, t *testing.T, done <-chan error) error {
 	t.Helper()
 
 	select {
@@ -274,7 +275,7 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		2*chatretry.InitialDelay,
+		testutil.WaitShort,
 	)
 	defer cancel()
 
@@ -326,7 +327,7 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	mClock.Advance(startupTimeout).MustWait(ctx)
 	trap.MustWait(ctx).MustRelease(ctx)
 
-	require.NoError(t, awaitRunResult(t, ctx, done))
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
 	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
@@ -352,7 +353,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		2*chatretry.InitialDelay,
+		testutil.WaitShort,
 	)
 	defer cancel()
 
@@ -409,7 +410,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	mClock.Advance(startupTimeout).MustWait(ctx)
 	trap.MustWait(ctx).MustRelease(ctx)
 
-	require.NoError(t, awaitRunResult(t, ctx, done))
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
 	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
@@ -435,7 +436,7 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		2*chatretry.InitialDelay,
+		testutil.WaitShort,
 	)
 	defer cancel()
 
@@ -516,7 +517,7 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 	mClock.Advance(startupTimeout).MustWait(ctx)
 	close(continueStream)
 
-	require.NoError(t, awaitRunResult(t, ctx, done))
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 1, attempts)
 	require.False(t, retried)
 }
@@ -571,7 +572,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		2*chatretry.InitialDelay,
+		testutil.WaitShort,
 	)
 	defer cancel()
 
@@ -624,7 +625,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	mClock.Advance(startupTimeout).MustWait(ctx)
 	trap.MustWait(ctx).MustRelease(ctx)
 
-	require.NoError(t, awaitRunResult(t, ctx, done))
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
 	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
