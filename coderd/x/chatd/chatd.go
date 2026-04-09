@@ -2116,10 +2116,11 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, chat.OwnerID, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		resolvedKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -2148,10 +2149,11 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, chat.OwnerID, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		resolvedKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -5471,8 +5473,9 @@ func (p *Server) resolveChatModel(
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
 
+	resolvedKeys := p.resolveProviderAPIKeysForModel(ctx, chat.OwnerID, dbConfig, keys)
 	model, err := chatprovider.ModelFromConfig(
-		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
+		dbConfig.Provider, dbConfig.Model, resolvedKeys, chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
 	if err != nil {
@@ -5480,19 +5483,173 @@ func (p *Server) resolveChatModel(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, keys, nil
+	return model, dbConfig, resolvedKeys, nil
 }
 
-func (p *Server) resolveUserProviderAPIKeys(
+func (p *Server) resolveProviderAPIKeysForModel(
 	ctx context.Context,
 	ownerID uuid.UUID,
-) (chatprovider.ProviderAPIKeys, error) {
+	modelConfig database.ChatModelConfig,
+	baseKeys chatprovider.ProviderAPIKeys,
+) chatprovider.ProviderAPIKeys {
+	if p.configCache == nil {
+		return baseKeys
+	}
+
 	providers, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-			"get enabled chat providers: %w",
-			err,
+		logFields := []slog.Field{
+			slog.F("model_config_id", modelConfig.ID),
+			slog.Error(err),
+		}
+		if modelConfig.ProviderConfigID.Valid {
+			logFields = append(logFields, slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID))
+			p.logger.Warn(ctx, "failed to load enabled providers for model binding", logFields...)
+		} else {
+			logFields = append(logFields, slog.F("provider", modelConfig.Provider))
+			p.logger.Warn(ctx, "failed to load enabled providers for unbound model", logFields...)
+		}
+		return baseKeys
+	}
+
+	userKeys, err := p.loadUserProviderKeys(ctx, ownerID, providers)
+	if err != nil {
+		logFields := []slog.Field{
+			slog.F("model_config_id", modelConfig.ID),
+			slog.Error(err),
+		}
+		if modelConfig.ProviderConfigID.Valid {
+			logFields = append(logFields, slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID))
+			p.logger.Warn(ctx, "failed to load user provider keys for bound model", logFields...)
+		} else {
+			logFields = append(logFields, slog.F("provider", modelConfig.Provider))
+			p.logger.Warn(ctx, "failed to load user provider keys for unbound model", logFields...)
+		}
+		return baseKeys
+	}
+
+	if !modelConfig.ProviderConfigID.Valid {
+		return resolveUserProviderAPIKeysForProviders(
+			p.providerAPIKeys,
+			database.ChatProvidersByFamilyPrecedence(providers),
+			userKeys,
 		)
+	}
+
+	boundProvider, ok, err := p.configCache.EnabledProviderByID(
+		ctx,
+		modelConfig.ProviderConfigID.UUID,
+	)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load bound provider config, falling back to family defaults",
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
+			slog.F("provider", modelConfig.Provider),
+			slog.Error(err),
+		)
+		return baseKeys
+	}
+	if !ok {
+		p.logger.Warn(ctx, "bound provider config not found or disabled, falling back to family defaults",
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider_config_id", modelConfig.ProviderConfigID.UUID),
+			slog.F("provider", modelConfig.Provider),
+		)
+		return baseKeys
+	}
+
+	resolvedProvider := resolveUserProviderAPIKeysForProviders(
+		baseKeys,
+		[]database.ChatProvider{boundProvider},
+		userKeys,
+	)
+	normalizedProvider := chatprovider.NormalizeProvider(boundProvider.Provider)
+	if normalizedProvider == "" {
+		return baseKeys
+	}
+	providerAPIKey := resolvedProvider.APIKey(normalizedProvider)
+	resolved := setResolvedModelProviderAPIKey(
+		cloneProviderAPIKeys(baseKeys),
+		normalizedProvider,
+		providerAPIKey,
+	)
+	// Always honor the bound config's base URL. An empty bound
+	// base URL clears any inherited family base URL so requests
+	// use the provider's default endpoint.
+	resolved = setResolvedModelProviderBaseURL(
+		resolved,
+		normalizedProvider,
+		boundProvider.BaseUrl,
+	)
+	return resolved
+}
+
+func cloneProviderAPIKeys(keys chatprovider.ProviderAPIKeys) chatprovider.ProviderAPIKeys {
+	cloned := chatprovider.ProviderAPIKeys{
+		OpenAI:    keys.OpenAI,
+		Anthropic: keys.Anthropic,
+	}
+	if keys.ByProvider != nil {
+		cloned.ByProvider = maps.Clone(keys.ByProvider)
+	}
+	if keys.BaseURLByProvider != nil {
+		cloned.BaseURLByProvider = maps.Clone(keys.BaseURLByProvider)
+	}
+	return cloned
+}
+
+func setResolvedModelProviderAPIKey(
+	keys chatprovider.ProviderAPIKeys,
+	provider string,
+	apiKey string,
+) chatprovider.ProviderAPIKeys {
+	normalizedProvider := chatprovider.NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return keys
+	}
+	if keys.ByProvider == nil {
+		keys.ByProvider = map[string]string{}
+	}
+	delete(keys.ByProvider, normalizedProvider)
+	trimmedKey := strings.TrimSpace(apiKey)
+	switch normalizedProvider {
+	case "openai":
+		keys.OpenAI = trimmedKey
+	case "anthropic":
+		keys.Anthropic = trimmedKey
+	}
+	if trimmedKey != "" {
+		keys.ByProvider[normalizedProvider] = trimmedKey
+	}
+	return keys
+}
+
+func setResolvedModelProviderBaseURL(
+	keys chatprovider.ProviderAPIKeys,
+	provider string,
+	baseURL string,
+) chatprovider.ProviderAPIKeys {
+	normalizedProvider := chatprovider.NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return keys
+	}
+	if keys.BaseURLByProvider == nil {
+		keys.BaseURLByProvider = map[string]string{}
+	}
+	delete(keys.BaseURLByProvider, normalizedProvider)
+	if trimmedBaseURL := strings.TrimSpace(baseURL); trimmedBaseURL != "" {
+		keys.BaseURLByProvider[normalizedProvider] = trimmedBaseURL
+	}
+	return keys
+}
+
+func resolveUserProviderAPIKeysForProviders(
+	fallback chatprovider.ProviderAPIKeys,
+	providers []database.ChatProvider,
+	userKeys []chatprovider.UserProviderKey,
+) chatprovider.ProviderAPIKeys {
+	if len(providers) == 0 {
+		return cloneProviderAPIKeys(fallback)
 	}
 	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),
@@ -5510,33 +5667,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 			},
 		)
 	}
-	allowAnyUserAPIKey := false
-	for _, provider := range configuredProviders {
-		if provider.AllowUserAPIKey {
-			allowAnyUserAPIKey = true
-			break
-		}
-	}
-
-	userKeys := []chatprovider.UserProviderKey{}
-	if allowAnyUserAPIKey {
-		userKeyRows, err := p.db.GetUserChatProviderKeys(ctx, ownerID)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-				"get user chat provider keys: %w",
-				err,
-			)
-		}
-		userKeys = make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
-		for _, userKey := range userKeyRows {
-			userKeys = append(userKeys, chatprovider.UserProviderKey{
-				ChatProviderID: userKey.ChatProviderID,
-				APIKey:         userKey.APIKey,
-			})
-		}
-	}
 	keys, _ := chatprovider.ResolveUserProviderKeys(
-		p.providerAPIKeys,
+		fallback,
 		configuredProviders,
 		userKeys,
 	)
@@ -5549,7 +5681,64 @@ func (p *Server) resolveUserProviderAPIKeys(
 		enabledProviders[normalizedProvider] = struct{}{}
 	}
 	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
-	return keys, nil
+	return keys
+}
+
+func (p *Server) loadUserProviderKeys(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	providers []database.ChatProvider,
+) ([]chatprovider.UserProviderKey, error) {
+	if ownerID == uuid.Nil {
+		return nil, nil
+	}
+	allowAnyUserAPIKey := false
+	for _, provider := range providers {
+		if provider.AllowUserApiKey {
+			allowAnyUserAPIKey = true
+			break
+		}
+	}
+	if !allowAnyUserAPIKey {
+		return nil, nil
+	}
+	if p.db == nil {
+		return nil, xerrors.New("user provider keys require a database store")
+	}
+	userKeyRows, err := p.db.GetUserChatProviderKeys(ctx, ownerID)
+	if err != nil {
+		return nil, xerrors.Errorf("get user chat provider keys: %w", err)
+	}
+	userKeys := make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
+	for _, userKey := range userKeyRows {
+		userKeys = append(userKeys, chatprovider.UserProviderKey{
+			ChatProviderID: userKey.ChatProviderID,
+			APIKey:         userKey.APIKey,
+		})
+	}
+	return userKeys, nil
+}
+
+func (p *Server) resolveUserProviderAPIKeys(
+	ctx context.Context,
+	ownerID uuid.UUID,
+) (chatprovider.ProviderAPIKeys, error) {
+	providers, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			"get enabled chat providers: %w",
+			err,
+		)
+	}
+	userKeys, err := p.loadUserProviderKeys(ctx, ownerID, providers)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, err
+	}
+	return resolveUserProviderAPIKeysForProviders(
+		p.providerAPIKeys,
+		database.ChatProvidersByFamilyPrecedence(providers),
+		userKeys,
+	), nil
 }
 
 // resolveModelConfig looks up the chat's model config by its

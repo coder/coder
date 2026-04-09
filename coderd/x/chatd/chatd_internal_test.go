@@ -428,6 +428,44 @@ func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 	require.Equal(t, map[string]string{"anthropic": "https://anthropic.example.com"}, keys.BaseURLByProvider)
 }
 
+func TestResolveUserProviderAPIKeys_UsesFamilyPrecedence(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{
+		{
+			ID:                   uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			Provider:             "openai",
+			APIKey:               "oldest-key",
+			CentralApiKeyEnabled: true,
+			CreatedAt:            time.Unix(1, 0).UTC(),
+		},
+		{
+			ID:                   uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+			Provider:             "openai",
+			CentralApiKeyEnabled: false,
+			CreatedAt:            time.Unix(2, 0).UTC(),
+		},
+	}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, uuid.Nil)
+	require.NoError(t, err)
+	require.Equal(t, "oldest-key", keys.OpenAI)
+	require.Equal(t, "oldest-key", keys.APIKey("openai"))
+}
+
 func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKeys(t *testing.T) {
 	t.Parallel()
 

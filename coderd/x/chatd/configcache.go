@@ -27,8 +27,9 @@ const (
 )
 
 type cachedProviders struct {
-	providers []database.ChatProvider
-	expiresAt time.Time
+	providers     []database.ChatProvider
+	providersByID map[uuid.UUID]database.ChatProvider
+	expiresAt     time.Time
 }
 
 type cachedModelConfig struct {
@@ -148,7 +149,40 @@ func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.Chat
 	return slices.Clone(providers), nil
 }
 
+// EnabledProviderByID returns an enabled provider from the cached
+// provider snapshot, refreshing the snapshot first when needed.
+func (c *chatConfigCache) EnabledProviderByID(ctx context.Context, id uuid.UUID) (database.ChatProvider, bool, error) {
+	if provider, ok := c.cachedProviderByID(id); ok {
+		return provider, true, nil
+	}
+
+	if _, err := c.EnabledProviders(ctx); err != nil {
+		return database.ChatProvider{}, false, err
+	}
+
+	provider, ok := c.cachedProviderByID(id)
+	return provider, ok, nil
+}
+
 func (c *chatConfigCache) cachedProviders() ([]database.ChatProvider, bool) {
+	entry, ok := c.cachedProvidersEntry()
+	if !ok {
+		return nil, false
+	}
+	return slices.Clone(entry.providers), true
+}
+
+func (c *chatConfigCache) cachedProviderByID(id uuid.UUID) (database.ChatProvider, bool) {
+	entry, ok := c.cachedProvidersEntry()
+	if !ok {
+		return database.ChatProvider{}, false
+	}
+
+	provider, ok := entry.providersByID[id]
+	return provider, ok
+}
+
+func (c *chatConfigCache) cachedProvidersEntry() (*cachedProviders, bool) {
 	c.mu.RLock()
 	entry := c.providers
 	c.mu.RUnlock()
@@ -156,7 +190,7 @@ func (c *chatConfigCache) cachedProviders() ([]database.ChatProvider, bool) {
 		return nil, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
-		return slices.Clone(entry.providers), true
+		return entry, true
 	}
 
 	c.mu.Lock()
@@ -183,9 +217,16 @@ func (c *chatConfigCache) storeProviders(generation uint64, providers []database
 		return
 	}
 
+	providersCopy := slices.Clone(providers)
+	providersByID := make(map[uuid.UUID]database.ChatProvider, len(providersCopy))
+	for _, provider := range providersCopy {
+		providersByID[provider.ID] = provider
+	}
+
 	c.providers = &cachedProviders{
-		providers: slices.Clone(providers),
-		expiresAt: c.clock.Now().Add(chatConfigProvidersTTL),
+		providers:     providersCopy,
+		providersByID: providersByID,
+		expiresAt:     c.clock.Now().Add(chatConfigProvidersTTL),
 	}
 }
 
