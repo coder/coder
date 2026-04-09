@@ -765,12 +765,13 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
-
 	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
 
-	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
+	dialCtx, dialCancel := context.WithTimeout(ctx, time.Minute)
+	defer dialCancel()
+
+	agentConn, release, err := s.AgentProvider.AgentConn(dialCtx, appToken.AgentID)
 	if err != nil {
 		log.Debug(ctx, "dial workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
@@ -779,7 +780,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	defer release()
 	log.Debug(ctx, "dialed workspace agent")
 	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
+	ptNetConn, err := agentConn.ReconnectingPTY(dialCtx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = container
 		arp.ContainerUser = containerUser
 		arp.BackendType = backendType
@@ -799,6 +800,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		s.collectStats(report)
 	}()
 
+	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
 }
