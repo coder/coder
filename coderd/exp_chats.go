@@ -2269,7 +2269,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			end = len(snapshot)
 		}
 		if err := sendChatStreamBatch(snapshot[start:end]); err != nil {
-			api.Logger.Debug(ctx, "failed to send chat stream snapshot", slog.Error(err))
+			logger.Debug(ctx, "failed to send chat stream snapshot", slog.Error(err))
 			return
 		}
 	}
@@ -2287,7 +2287,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				chatStreamBatchSize,
 			)
 			if err := sendChatStreamBatch(batch); err != nil {
-				api.Logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
+				logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
 				return
 			}
 			if streamClosed {
@@ -2302,6 +2302,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
 
 	if api.chatDaemon != nil {
 		chat = api.chatDaemon.InterruptChat(ctx, chat)
@@ -2315,8 +2316,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 			LastError:   sql.NullString{},
 		})
 		if updateErr != nil {
-			api.Logger.Error(ctx, "failed to mark chat as waiting",
-				slog.F("chat_id", chatID), slog.Error(updateErr))
+			logger.Error(ctx, "failed to mark chat as waiting", slog.Error(updateErr))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to interrupt chat.",
 				Detail:  updateErr.Error(),
