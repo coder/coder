@@ -263,5 +263,4 @@ SELECT * FROM (
     FROM deduped d
     JOIN pr_costs pc ON pc.pr_key = d.pr_key
 ) sub
-ORDER BY sub.created_at DESC
-LIMIT @limit_val::int;
+ORDER BY sub.created_at DESC;

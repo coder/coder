@@ -5678,17 +5678,15 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		return err
 	})
 
-	eg.Go(func() error {
-		var err error
-		recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
-			StartDate: startDate,
-			EndDate:   endDate,
-			OwnerID:   ownerID,
-			LimitVal:  20,
+		eg.Go(func() error {
+			var err error
+			recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
+				StartDate: startDate,
+				EndDate:   endDate,
+				OwnerID:   ownerID,
+			})
+			return err
 		})
-		return err
-	})
-
 	if err := eg.Wait(); err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

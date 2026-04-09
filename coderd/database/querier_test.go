@@ -10412,7 +10412,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10446,7 +10445,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10495,7 +10493,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10537,7 +10534,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10579,7 +10575,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10625,7 +10620,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10662,7 +10656,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10699,7 +10692,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10728,7 +10720,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10771,7 +10762,6 @@ func TestGetPRInsights(t *testing.T) {
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)

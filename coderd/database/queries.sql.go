@@ -3238,9 +3238,9 @@ WITH pr_costs AS (
                     AND cds2.pull_request_state IS NOT NULL
               ))
         WHERE cds.pull_request_state IS NOT NULL
-          AND c.created_at >= $2::timestamptz
-          AND c.created_at < $3::timestamptz
-          AND ($4::uuid IS NULL OR c.owner_id = $4::uuid)
+          AND c.created_at >= $1::timestamptz
+          AND c.created_at < $2::timestamptz
+          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ) prc
     LEFT JOIN LATERAL (
         SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
@@ -3275,9 +3275,9 @@ deduped AS (
     JOIN chats c ON c.id = cds.chat_id
     LEFT JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
     WHERE cds.pull_request_state IS NOT NULL
-      AND c.created_at >= $2::timestamptz
-      AND c.created_at < $3::timestamptz
-      AND ($4::uuid IS NULL OR c.owner_id = $4::uuid)
+      AND c.created_at >= $1::timestamptz
+      AND c.created_at < $2::timestamptz
+      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
 )
 SELECT chat_id, pr_title, pr_url, pr_number, state, draft, additions, deletions, changed_files, commits, approved, changes_requested, reviewer_count, author_login, author_avatar_url, base_branch, model_display_name, cost_micros, created_at FROM (
@@ -3305,11 +3305,9 @@ SELECT chat_id, pr_title, pr_url, pr_number, state, draft, additions, deletions,
     JOIN pr_costs pc ON pc.pr_key = d.pr_key
 ) sub
 ORDER BY sub.created_at DESC
-LIMIT $1::int
 `
 
 type GetPRInsightsRecentPRsParams struct {
-	LimitVal  int32         `db:"limit_val" json:"limit_val"`
 	StartDate time.Time     `db:"start_date" json:"start_date"`
 	EndDate   time.Time     `db:"end_date" json:"end_date"`
 	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
@@ -3342,12 +3340,7 @@ type GetPRInsightsRecentPRsRow struct {
 // direct children (that lack their own PR), and deduped picks one row
 // per PR for metadata.
 func (q *sqlQuerier) GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPRInsightsRecentPRs,
-		arg.LimitVal,
-		arg.StartDate,
-		arg.EndDate,
-		arg.OwnerID,
-	)
+	rows, err := q.db.QueryContext(ctx, getPRInsightsRecentPRs, arg.StartDate, arg.EndDate, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}
