@@ -83,3 +83,8 @@ Select a user to see:
   bar shows current spend relative to the limit.
 - **Per-model breakdown** — table of costs and token usage by model.
 - **Per-chat breakdown** — table of costs and token usage by chat session.
+
+> [!NOTE]
+> Automatic title generation uses lightweight models, such as Claude Haiku or GPT-4o
+> Mini. Its token usage is not counted towards usage limits or shown in usage
+> summaries.

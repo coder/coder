@@ -1176,6 +1176,14 @@ func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessageSummariesPerChat(ctx, createdAfter)
+	m.queryLatencies.WithLabelValues("GetChatMessageSummariesPerChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessageSummariesPerChat").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessagesByChatID(ctx context.Context, chatID database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessagesByChatID(ctx, chatID)
@@ -1221,6 +1229,14 @@ func (m queryMetricsStore) GetChatModelConfigs(ctx context.Context) ([]database.
 	r0, r1 := m.s.GetChatModelConfigs(ctx)
 	m.queryLatencies.WithLabelValues("GetChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatModelConfigsForTelemetry(ctx context.Context) ([]database.GetChatModelConfigsForTelemetryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatModelConfigsForTelemetry(ctx)
+	m.queryLatencies.WithLabelValues("GetChatModelConfigsForTelemetry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigsForTelemetry").Inc()
 	return r0, r1
 }
 
@@ -1333,6 +1349,14 @@ func (m queryMetricsStore) GetChatsByWorkspaceIDs(ctx context.Context, ids []uui
 	r0, r1 := m.s.GetChatsByWorkspaceIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetChatsByWorkspaceIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByWorkspaceIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]database.GetChatsUpdatedAfterRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsUpdatedAfter(ctx, updatedAfter)
+	m.queryLatencies.WithLabelValues("GetChatsUpdatedAfter").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsUpdatedAfter").Inc()
 	return r0, r1
 }
 

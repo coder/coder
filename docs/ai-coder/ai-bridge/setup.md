@@ -150,4 +150,14 @@ ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
 emitted as JSON.
 
 Filter for AI Bridge records in your logging pipeline by matching on the
-`"interception log"` message.
+`"interception log"` message. Each log line includes a `record_type` field that
+indicates the kind of event captured:
+
+| `record_type`        | Description                             | Key fields                                                                     |
+|----------------------|-----------------------------------------|--------------------------------------------------------------------------------|
+| `interception_start` | A new intercepted request begins.       | `interception_id`, `initiator_id`, `provider`, `model`, `client`, `started_at` |
+| `interception_end`   | An intercepted request completes.       | `interception_id`, `ended_at`                                                  |
+| `token_usage`        | Token consumption for a response.       | `interception_id`, `input_tokens`, `output_tokens`, `created_at`               |
+| `prompt_usage`       | The last user prompt in a request.      | `interception_id`, `prompt`, `created_at`                                      |
+| `tool_usage`         | A tool/function call made by the model. | `interception_id`, `tool`, `input`, `server_url`, `injected`, `created_at`     |
+| `model_thought`      | Model reasoning or thinking content.    | `interception_id`, `content`, `created_at`                                     |

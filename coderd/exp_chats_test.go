@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shopspring/decimal"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -268,17 +270,10 @@ func TestPostChats(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		// Member without agents-access should be denied.
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		// Strip the auto-assigned agents-access role to test
-		// the denied case.
-		_, err := client.Client.UpdateUserRoles(ctx, member.Username, codersdk.UpdateRoles{
-			Roles: []string{},
-		})
-		require.NoError(t, err)
-
-		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -288,6 +283,7 @@ func TestPostChats(t *testing.T) {
 		})
 		requireSDKError(t, err, http.StatusForbidden)
 	})
+
 	t.Run("HidesSystemPromptMessages", func(t *testing.T) {
 		t.Parallel()
 
@@ -756,15 +752,7 @@ func TestListChats(t *testing.T) {
 		// returning empty because no chats exist.
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		// Strip the auto-assigned agents-access role to test
-		// the denied case.
-		_, err := client.Client.UpdateUserRoles(ctx, member.Username, codersdk.UpdateRoles{
-			Roles: []string{},
-		})
-		require.NoError(t, err)
-
-		_, err = db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
@@ -8206,6 +8194,375 @@ func TestGetChatsByWorkspace(t *testing.T) {
 		_, err := client.GetChatsByWorkspace(ctx, ids)
 		require.Error(t, err)
 		requireSDKError(t, err, http.StatusBadRequest)
+	})
+}
+
+func TestSubmitToolResults(t *testing.T) {
+	t.Parallel()
+
+	// setupRequiresAction creates a chat via the DB with dynamic tools,
+	// inserts an assistant message containing tool-call parts for each
+	// given toolCallID, and sets the chat status to requires_action.
+	// It returns the chat row so callers can exercise the endpoint.
+	setupRequiresAction := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		modelConfigID uuid.UUID,
+		dynamicToolName string,
+		toolCallIDs []string,
+	) database.Chat {
+		t.Helper()
+
+		// Marshal dynamic tools into the chat row.
+		dynamicTools := []mcp.Tool{{
+			Name:        dynamicToolName,
+			Description: "a test dynamic tool",
+			InputSchema: mcp.ToolInputSchema{Type: "object"},
+		}}
+		dtJSON, err := json.Marshal(dynamicTools)
+		require.NoError(t, err)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "tool-results-test",
+			DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Build assistant message with tool-call parts.
+		parts := make([]codersdk.ChatMessagePart, 0, len(toolCallIDs))
+		for _, id := range toolCallIDs {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: id,
+				ToolName:   dynamicToolName,
+				Args:       json.RawMessage(`{"key":"value"}`),
+			})
+		}
+		content, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+
+		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfigID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Content:             []string{string(content.RawMessage)},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+
+		// Transition to requires_action.
+		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusRequiresAction,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRequiresAction, chat.Status)
+
+		return chat
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_abc", "call_def"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_abc", Output: json.RawMessage(`"result_a"`)},
+				{ToolCallID: "call_def", Output: json.RawMessage(`"result_b"`)},
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify status is no longer requires_action. The chatd
+		// loop may have already picked the chat up and
+		// transitioned it further (pending → running → …), so we
+		// accept any non-requires_action status.
+		gotChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, codersdk.ChatStatusRequiresAction, gotChat.Status,
+			"chat should no longer be in requires_action after submitting tool results")
+
+		// Verify tool-result messages were persisted.
+		msgsResp, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		var toolResultCount int
+		for _, msg := range msgsResp.Messages {
+			if msg.Role == codersdk.ChatMessageRoleTool {
+				toolResultCount++
+			}
+		}
+		require.Equal(t, len(toolCallIDs), toolResultCount,
+			"expected one tool-result message per submitted result")
+	})
+
+	t.Run("WrongStatus", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a chat that is NOT in requires_action status.
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "wrong-status-test",
+		})
+		require.NoError(t, err)
+
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_xyz", Output: json.RawMessage(`"nope"`)},
+			},
+		})
+		requireSDKError(t, err, http.StatusConflict)
+	})
+
+	t.Run("MissingResult", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_one", "call_two"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Submit only one of the two required results.
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_one", Output: json.RawMessage(`"partial"`)},
+			},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("UnexpectedResult", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_real"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Submit a result with a wrong tool_call_id.
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_bogus", Output: json.RawMessage(`"wrong"`)},
+			},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("InvalidJSONOutput", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_json"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// We must bypass the SDK client because json.RawMessage
+		// rejects invalid JSON during json.Marshal. A raw HTTP
+		// request lets the invalid payload reach the server so we
+		// can verify server-side validation.
+		rawBody := `{"results":[{"tool_call_id":"call_json","output":not-json,"is_error":false}]}`
+		url := client.URL.JoinPath(fmt.Sprintf("/api/experimental/chats/%s/tool-results", chat.ID)).String()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(rawBody))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("DuplicateToolCallID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_dup1", "call_dup2"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_a"`)},
+				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_b"`)},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Duplicate tool_call_id")
+	})
+
+	t.Run("EmptyResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_empty"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_other"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Create a second user and try to submit tool results
+		// to user A's chat.
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(
+			t, client.Client, user.OrganizationID,
+			rbac.RoleAgentsAccess(),
+		)
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
+
+		err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_other", Output: json.RawMessage(`"nope"`)},
+			},
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
+func TestPostChats_DynamicToolValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TooManyTools", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		tools := make([]codersdk.DynamicTool, 251)
+		for i := range tools {
+			tools[i] = codersdk.DynamicTool{
+				Name: fmt.Sprintf("tool-%d", i),
+			}
+		}
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: tools,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Too many dynamic tools.", sdkErr.Message)
+	})
+
+	t.Run("EmptyToolName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{
+				{Name: ""},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Dynamic tool name must not be empty.", sdkErr.Message)
+	})
+
+	t.Run("DuplicateToolName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{
+				{Name: "dup-tool"},
+				{Name: "dup-tool"},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Duplicate dynamic tool name.", sdkErr.Message)
 	})
 }
 

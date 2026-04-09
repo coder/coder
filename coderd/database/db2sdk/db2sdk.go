@@ -1715,3 +1715,41 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 
 	return result
 }
+
+// UserSecret converts a database ListUserSecretsRow (metadata only,
+// no value) to an SDK UserSecret.
+func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
+
+// UserSecretFromFull converts a full database UserSecret row to an
+// SDK UserSecret, omitting the value and encryption key ID.
+func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
+
+// UserSecrets converts a slice of database ListUserSecretsRow to
+// SDK UserSecret values.
+func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
+	result := make([]codersdk.UserSecret, 0, len(secrets))
+	for _, s := range secrets {
+		result = append(result, UserSecret(s))
+	}
+	return result
+}

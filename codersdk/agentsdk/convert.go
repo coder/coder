@@ -376,7 +376,7 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 	}
 	return &proto.Log{
 		CreatedAt: timestamppb.New(log.CreatedAt),
-		Output:    strings.ToValidUTF8(log.Output, "❌"),
+		Output:    SanitizeLogOutput(log.Output),
 		Level:     proto.Log_Level(lvl),
 	}, nil
 }

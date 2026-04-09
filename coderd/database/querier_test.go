@@ -9085,10 +9085,11 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 
 		for _, uid := range []uuid.UUID{{1}, {2}, {3}} {
 			insertParams := database.InsertAIBridgeInterceptionParams{
-				ID:          uid,
-				InitiatorID: user.ID,
-				Metadata:    json.RawMessage("{}"),
-				Client:      sql.NullString{String: "client", Valid: true},
+				ID:             uid,
+				InitiatorID:    user.ID,
+				Metadata:       json.RawMessage("{}"),
+				Client:         sql.NullString{String: "client", Valid: true},
+				CredentialKind: database.CredentialKindCentralized,
 			}
 
 			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)

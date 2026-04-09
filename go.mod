@@ -82,7 +82,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260325145725-112927d9b6d8
 
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
+// Forked from coder/anthropic-sdk-go (fantasy branch) which adds:
+// 1) All kylecarbs changes (fantasy branch merge).
+// 2) Explicit usage-field merging in Accumulate using JSON presence checks
+//    (preserves input and cache tokens from message_start when message_delta
+//    omits them).
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260408163834-8345653c189a
 
 require (
 	cdr.dev/slog/v3 v3.0.0
@@ -483,7 +488,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.1.1-0.20260331154949-a011104f377d
+	github.com/coder/aibridge v1.1.1-0.20260408143328-f72a795f1e77
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8
@@ -492,6 +497,7 @@ require (
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.17.1
+	github.com/invopop/jsonschema v0.13.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/shopspring/decimal v1.4.0
 	gonum.org/v1/gonum v0.17.0
@@ -566,7 +572,6 @@ require (
 	github.com/hashicorp/go-getter v1.8.4 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kaptinlin/go-i18n v0.2.4 // indirect

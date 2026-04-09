@@ -49,6 +49,8 @@ message RecordInterceptionRequest {
   optional string correlating_tool_call_id = 10;
   optional string client_session_id = 11;
   string provider_name = 12;
+  string credential_kind = 13;
+  string credential_hint = 14;
 }
 
 message RecordInterceptionResponse {}

@@ -399,7 +399,8 @@ INSERT INTO chats (
     mode,
     status,
     mcp_server_ids,
-    labels
+    labels,
+    dynamic_tools
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -412,7 +413,8 @@ INSERT INTO chats (
     sqlc.narg('mode')::chat_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
-    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
+    sqlc.narg('dynamic_tools')::jsonb
 )
 RETURNING
     *;
@@ -669,15 +671,19 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck (running but heartbeat has expired).
--- Used for recovery after coderd crashes or long hangs.
+-- Find chats that appear stuck and need recovery. This covers:
+--   1. Running chats whose heartbeat has expired (worker crash).
+--   2. Chats awaiting client action (requires_action) past the
+--      timeout threshold (client disappeared).
 SELECT
     *
 FROM
     chats
 WHERE
-    status = 'running'::chat_status
-    AND heartbeat_at < @stale_threshold::timestamptz;
+    (status = 'running'::chat_status
+        AND heartbeat_at < @stale_threshold::timestamptz)
+    OR (status = 'requires_action'::chat_status
+        AND updated_at < @stale_threshold::timestamptz);
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -1244,3 +1250,46 @@ DELETE FROM chats
 USING deletable
 WHERE chats.id = deletable.id
   AND chats.archived = true;
+
+-- name: GetChatsUpdatedAfter :many
+-- Retrieves chats updated after the given timestamp for telemetry
+-- snapshot collection. Uses updated_at so that long-running chats
+-- still appear in each snapshot window while they are active.
+SELECT
+    id, owner_id, created_at, updated_at, status,
+    (parent_chat_id IS NOT NULL)::bool AS has_parent,
+    root_chat_id, workspace_id,
+    mode, archived, last_model_config_id
+FROM chats
+WHERE updated_at > @updated_after;
+
+-- name: GetChatMessageSummariesPerChat :many
+-- Aggregates message-level metrics per chat for messages created
+-- after the given timestamp. Uses message created_at so that
+-- ongoing activity in long-running chats is captured each window.
+SELECT
+    cm.chat_id,
+    COUNT(*)::bigint AS message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS user_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS assistant_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'tool')::bigint AS tool_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'system')::bigint AS system_message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
+    COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
+FROM chat_messages cm
+WHERE cm.created_at > @created_after
+  AND cm.deleted = false
+GROUP BY cm.chat_id;
+
+-- name: GetChatModelConfigsForTelemetry :many
+-- Returns all model configurations for telemetry snapshot collection.
+SELECT id, provider, model, context_limit, enabled, is_default
+FROM chat_model_configs
+WHERE deleted = false;

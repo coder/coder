@@ -486,16 +486,16 @@ export const WorkspaceTerminal = ({
 				}
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar {
-					width: 10px;
+					width: 8px;
 				}
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-track {
-					background-color: inherit;
+					background-color: transparent;
 				}
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: rgba(255, 255, 255, 0.18);
+					background-color: hsl(var(--surface-quaternary));
 				}
 			`}</style>
 			<div
