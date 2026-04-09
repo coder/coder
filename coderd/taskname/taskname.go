@@ -387,6 +387,10 @@ func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []
 		}
 	}
 
+	if len(anthropicMessages) == 0 {
+		return nil, nil, xerrors.New("no non-system messages to send")
+	}
+
 	return anthropicMessages, systemBlocks, nil
 }
 
