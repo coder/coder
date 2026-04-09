@@ -23,10 +23,10 @@ func filterParts(parts []codersdk.ChatMessagePart, t codersdk.ChatMessagePartTyp
 	return out
 }
 
-func writeSkillMetaFile(t *testing.T, dir, name, description string) string {
+func writeSkillMetaFileInRoot(t *testing.T, skillsRoot, name, description string) string {
 	t.Helper()
 
-	skillDir := filepath.Join(dir, ".agents", "skills", name)
+	skillDir := filepath.Join(skillsRoot, name)
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(skillDir, "SKILL.md"),
@@ -35,6 +35,11 @@ func writeSkillMetaFile(t *testing.T, dir, name, description string) string {
 	))
 
 	return skillDir
+}
+
+func writeSkillMetaFile(t *testing.T, dir, name, description string) string {
+	t.Helper()
+	return writeSkillMetaFileInRoot(t, filepath.Join(dir, ".agents", "skills"), name, description)
 }
 
 func TestContextPartsFromDir(t *testing.T) {
@@ -64,6 +69,30 @@ func TestContextPartsFromDir(t *testing.T) {
 
 		dir := t.TempDir()
 		skillDir := writeSkillMetaFile(t, dir, "my-skill", "A test skill")
+
+		parts := agentcontextconfig.ContextPartsFromDir(dir)
+		contextParts := filterParts(parts, codersdk.ChatMessagePartTypeContextFile)
+		skillParts := filterParts(parts, codersdk.ChatMessagePartTypeSkill)
+
+		require.Len(t, parts, 1)
+		require.Empty(t, contextParts)
+		require.Len(t, skillParts, 1)
+		require.Equal(t, "my-skill", skillParts[0].SkillName)
+		require.Equal(t, "A test skill", skillParts[0].SkillDescription)
+		require.Equal(t, skillDir, skillParts[0].SkillDir)
+		require.Equal(t, "SKILL.md", skillParts[0].ContextFileSkillMetaFile)
+	})
+
+	t.Run("ReturnsSkillPartsFromSkillsDir", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		skillDir := writeSkillMetaFileInRoot(
+			t,
+			filepath.Join(dir, "skills"),
+			"my-skill",
+			"A test skill",
+		)
 
 		parts := agentcontextconfig.ContextPartsFromDir(dir)
 		contextParts := filterParts(parts, codersdk.ChatMessagePartTypeContextFile)

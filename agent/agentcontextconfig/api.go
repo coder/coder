@@ -145,9 +145,12 @@ func ContextPartsFromDir(dir string) []codersdk.ChatMessagePart {
 		parts = append(parts, entry)
 	}
 
-	// Check for skills in a .agents/skills subdirectory.
-	skillsDir := filepath.Join(dir, DefaultSkillsDir)
-	skillParts := discoverSkills([]string{skillsDir}, DefaultSkillMetaFile)
+	// Reuse ResolvePaths so CLI skill discovery follows the same
+	// project-relative path handling as agent config resolution.
+	skillParts := discoverSkills(
+		ResolvePaths(strings.Join([]string{DefaultSkillsDir, "skills"}, ","), dir),
+		DefaultSkillMetaFile,
+	)
 	parts = append(parts, skillParts...)
 
 	// Guarantee non-nil slice.
