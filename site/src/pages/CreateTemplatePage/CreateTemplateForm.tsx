@@ -3,12 +3,14 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import * as Yup from "yup";
-import { provisionerDaemons } from "#/api/queries/organizations";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { organizations, provisionerDaemons } from "#/api/queries/organizations";
 import type {
+	AuthorizationCheck,
 	CreateTemplateVersionRequest,
 	Organization,
 	ProvisionerJobLog,
@@ -222,6 +224,54 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
+	const organizationsQuery = useQuery(organizations());
+
+	const authCheck: AuthorizationCheck = {
+		object: { resource_type: "template" },
+		action: "create",
+	};
+
+	const orgChecks =
+		organizationsQuery.data &&
+		Object.fromEntries(
+			organizationsQuery.data.map((org) => [
+				org.id,
+				{
+					...authCheck,
+					object: { ...authCheck.object, organization_id: org.id },
+				},
+			]),
+		);
+
+	const permissionsQuery = useQuery({
+		...checkAuthorization({ checks: orgChecks ?? {} }),
+		enabled: Boolean(organizationsQuery.data),
+	});
+
+	const orgOptions = useMemo(() => {
+		if (!organizationsQuery.data) return [];
+		if (!permissionsQuery.data) return [];
+		return organizationsQuery.data.filter(
+			(org) => permissionsQuery.data[org.id],
+		);
+	}, [organizationsQuery.data, permissionsQuery.data]);
+
+	// Auto-select when only one org is available, and clear invalid
+	// selections after permission filtering.
+	useEffect(() => {
+		if (orgOptions.length === 0) return;
+		if (orgOptions.length === 1 && selectedOrg === null) {
+			const org = orgOptions[0];
+			setSelectedOrg(org);
+			void form.setFieldValue("organization", org.name || "");
+			return;
+		}
+		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(null);
+			void form.setFieldValue("organization", "");
+		}
+	}, [orgOptions, selectedOrg, form]);
+
 	const { data: provisioners } = useQuery({
 		...provisionerDaemons(selectedOrg?.id ?? ""),
 		enabled: showOrganizationPicker && Boolean(selectedOrg),
@@ -263,19 +313,16 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 							<div className="flex flex-col gap-2">
 								<Label htmlFor="organization">Organization</Label>
 								<OrganizationAutocomplete
-									{...getFieldHelpers("organization")}
 									id="organization"
 									required
+									value={selectedOrg}
+									options={orgOptions}
 									onChange={(newValue) => {
 										setSelectedOrg(newValue);
 										void form.setFieldValue(
 											"organization",
 											newValue?.name || "",
 										);
-									}}
-									check={{
-										object: { resource_type: "template" },
-										action: "create",
 									}}
 								/>
 							</div>

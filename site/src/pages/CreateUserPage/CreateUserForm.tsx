@@ -1,9 +1,12 @@
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import type { FC } from "react";
+import { type FC, useEffect, useMemo, useState } from "react";
+import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { organizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -125,6 +128,58 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		enableReinitialize: true,
 	});
 
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		null,
+	);
+
+	const organizationsQuery = useQuery(organizations());
+
+	const orgAuthCheck: TypesGen.AuthorizationCheck = {
+		object: { resource_type: "organization_member" },
+		action: "create",
+	};
+
+	const orgChecks =
+		organizationsQuery.data &&
+		Object.fromEntries(
+			organizationsQuery.data.map((org) => [
+				org.id,
+				{
+					...orgAuthCheck,
+					object: { ...orgAuthCheck.object, organization_id: org.id },
+				},
+			]),
+		);
+
+	const permissionsQuery = useQuery({
+		...checkAuthorization({ checks: orgChecks ?? {} }),
+		enabled: Boolean(organizationsQuery.data),
+	});
+
+	const orgOptions = useMemo(() => {
+		if (!organizationsQuery.data) return [];
+		if (!permissionsQuery.data) return [];
+		return organizationsQuery.data.filter(
+			(org) => permissionsQuery.data[org.id],
+		);
+	}, [organizationsQuery.data, permissionsQuery.data]);
+
+	// Auto-select when only one org is available, and clear invalid
+	// selections after permission filtering.
+	useEffect(() => {
+		if (orgOptions.length === 0) return;
+		if (orgOptions.length === 1 && selectedOrg === null) {
+			const org = orgOptions[0];
+			setSelectedOrg(org);
+			void form.setFieldValue("organization", org.id ?? "");
+			return;
+		}
+		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(null);
+			void form.setFieldValue("organization", "");
+		}
+	}, [orgOptions, selectedOrg, form]);
+
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	const isServiceAccount = form.values.login_type === "none";
@@ -174,15 +229,13 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="organization">Organization</Label>
 							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
 								id="organization"
 								required
+								value={selectedOrg}
+								options={orgOptions}
 								onChange={(newValue) => {
+									setSelectedOrg(newValue);
 									void form.setFieldValue("organization", newValue?.id ?? "");
-								}}
-								check={{
-									object: { resource_type: "organization_member" },
-									action: "create",
 								}}
 							/>
 						</div>
