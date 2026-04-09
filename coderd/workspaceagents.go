@@ -2470,7 +2470,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return
 	}
 	req.Parts = filtered
-	responsePartCount := len(req.Parts)
+	responsePartCount := 0
 
 	// Use system context for chat operations since the
 	// workspace agent scope does not include chat resources.
@@ -2502,6 +2502,15 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		req.Parts[i].ContextFileOS = workspaceAgent.OperatingSystem
 		req.Parts[i].ContextFileDirectory = directory
 	}
+	req.Parts = chatd.FilterContextParts(req.Parts, false)
+	if len(req.Parts) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No context-file or skill parts provided.",
+		})
+		return
+	}
+	responsePartCount = len(req.Parts)
+
 	// Skill-only messages need a sentinel context-file part so the turn
 	// pipeline trusts the associated skill metadata.
 	req.Parts = prependAgentChatContextSentinelIfNeeded(

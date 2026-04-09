@@ -617,6 +617,23 @@ func TestAgentChatContext(t *testing.T) {
 		require.Equal(t, "No context-file or skill parts provided.", sdkErr.Message)
 	})
 
+	t.Run("AddRejectsWhitespaceOnlyContextFileParts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/whitespace.md",
+				ContextFileContent: "   \n\t",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No context-file or skill parts provided.", sdkErr.Message)
+	})
+
 	t.Run("ClearIsIdempotentWhenNoActiveChatExists", func(t *testing.T) {
 		t.Parallel()
 
