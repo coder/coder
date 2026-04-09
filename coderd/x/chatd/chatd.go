@@ -2463,6 +2463,30 @@ type chainModeInfo struct {
 	trailingUserCount int
 }
 
+func userMessageContributesToChainMode(msg database.ChatMessage) bool {
+	parts, err := chatprompt.ParseContent(msg)
+	if err != nil {
+		return false
+	}
+	for _, part := range parts {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeText,
+			codersdk.ChatMessagePartTypeReasoning:
+			if strings.TrimSpace(part.Text) != "" {
+				return true
+			}
+		case codersdk.ChatMessagePartTypeFile,
+			codersdk.ChatMessagePartTypeFileReference:
+			return true
+		case codersdk.ChatMessagePartTypeContextFile:
+			if part.ContextFileContent != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // resolveChainMode scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately
 // preceding assistant/tool block can chain from a provider response ID.
@@ -2470,11 +2494,12 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 	var info chainModeInfo
 	i := len(messages) - 1
 	for ; i >= 0; i-- {
-		if messages[i].Role == database.ChatMessageRoleUser {
-			info.trailingUserCount++
-			continue
+		if messages[i].Role != database.ChatMessageRoleUser {
+			break
 		}
-		break
+		if userMessageContributesToChainMode(messages[i]) {
+			info.trailingUserCount++
+		}
 	}
 	for ; i >= 0; i-- {
 		switch messages[i].Role {

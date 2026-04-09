@@ -2099,6 +2099,43 @@ func TestMergeSkillMetas(t *testing.T) {
 	}, got)
 }
 
+func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	assistant := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+	skillOnly := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper",
+			SkillDir:  "/skills/repo-helper",
+		},
+	})
+	skillOnly.Role = database.ChatMessageRoleUser
+	user := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "latest user message",
+	}})
+	user.Role = database.ChatMessageRoleUser
+
+	got := resolveChainMode([]database.ChatMessage{assistant, skillOnly, user})
+	require.Equal(t, "resp-123", got.previousResponseID)
+	require.Equal(t, modelConfigID, got.modelConfigID)
+	require.Equal(t, 1, got.trailingUserCount)
+}
+
 func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
 	raw, _ := json.Marshal(parts)
 	return database.ChatMessage{
