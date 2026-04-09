@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -2303,6 +2304,88 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	require.Equal(t, modelConfigID, got.modelConfigID)
 	require.Equal(t, 2, got.trailingUserCount)
 	require.Equal(t, 1, got.contributingTrailingUserCount)
+}
+
+func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	priorUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "prior user message",
+	}})
+	priorUser.Role = database.ChatMessageRoleUser
+	assistant := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+	skillOnly := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper",
+			SkillDir:  "/skills/repo-helper",
+		},
+	})
+	skillOnly.Role = database.ChatMessageRoleUser
+	latestUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "latest user message",
+	}})
+	latestUser.Role = database.ChatMessageRoleUser
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		priorUser,
+		assistant,
+		skillOnly,
+		latestUser,
+	})
+	require.Equal(t, 2, chainInfo.trailingUserCount)
+	require.Equal(t, 1, chainInfo.contributingTrailingUserCount)
+
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "system instruction"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "prior user message"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "assistant reply"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "latest user message"},
+			},
+		},
+	}
+
+	got := filterPromptForChainMode(prompt, chainInfo)
+	require.Len(t, got, 2)
+	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, got[1].Role)
+
+	part, ok := fantasy.AsMessagePart[fantasy.TextPart](got[1].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "latest user message", part.Text)
 }
 
 func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {

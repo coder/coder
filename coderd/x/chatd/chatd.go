@@ -2526,15 +2526,15 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 	return info
 }
 
-// filterPromptForChainMode keeps only system messages and the last
-// trailingUserCount user messages from the prompt. Assistant and tool
-// messages are dropped because the provider already has them via the
-// previous_response_id chain.
+// filterPromptForChainMode keeps only system messages and the trailing
+// user messages that still contribute model-visible content to the
+// current turn. Assistant and tool messages are dropped because the
+// provider already has them via the previous_response_id chain.
 func filterPromptForChainMode(
 	prompt []fantasy.Message,
-	trailingUserCount int,
+	info chainModeInfo,
 ) []fantasy.Message {
-	if trailingUserCount <= 0 {
+	if info.contributingTrailingUserCount <= 0 {
 		return prompt
 	}
 
@@ -2545,7 +2545,7 @@ func filterPromptForChainMode(
 		}
 	}
 
-	usersToSkip := totalUsers - trailingUserCount
+	usersToSkip := totalUsers - info.contributingTrailingUserCount
 	if usersToSkip < 0 {
 		usersToSkip = 0
 	}
@@ -5176,7 +5176,7 @@ func (p *Server) runChat(
 			providerOptions,
 			chainInfo.previousResponseID,
 		)
-		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
+		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
@@ -5230,7 +5230,7 @@ func (p *Server) runChat(
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
-					chainInfo.trailingUserCount,
+					chainInfo,
 				)
 			}
 			return reloadedPrompt, nil
