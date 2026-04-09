@@ -59,9 +59,11 @@ type AgentConnFunc func(
 ) (workspacesdk.AgentConn, func(), error)
 
 // CreateWorkspaceOptions configures the create_workspace tool.
+// CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
 	DB                             database.Store
 	OwnerID                        uuid.UUID
+	OrganizationID                 uuid.UUID
 	ChatID                         uuid.UUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
@@ -137,6 +139,24 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 					return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 				}
 				ctx = ownerCtx
+			}
+
+			// Verify the template belongs to the same org as the
+			// chat. Without this check the tool could silently
+			// bind a cross-org workspace to the chat.
+			if options.DB != nil && options.OrganizationID != uuid.Nil {
+				tmpl, tmplErr := options.DB.GetTemplateByID(ctx, templateID)
+				if tmplErr != nil {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("look up template: %w", tmplErr).Error(),
+					), nil
+				}
+				if tmpl.OrganizationID != options.OrganizationID {
+					return fantasy.NewTextErrorResponse(
+						"template belongs to a different organization than this chat; " +
+							"use list_templates to find templates in the correct organization",
+					), nil
+				}
 			}
 
 			var ttlMs *int64

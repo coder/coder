@@ -4946,6 +4946,7 @@ func (p *Server) runChat(
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                             p.db,
 				OwnerID:                        chat.OwnerID,
+				OrganizationID:                 chat.OrganizationID,
 				ChatID:                         chat.ID,
 				CreateFn:                       p.createWorkspaceFn,
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
