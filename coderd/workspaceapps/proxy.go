@@ -771,7 +771,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
 
-	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
+	go httpapi.HeartbeatClose(ctx, log, cancel, conn)
 
 	dialStart := time.Now()
 

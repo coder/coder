@@ -634,7 +634,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		eb := backoff.NewExponentialBackOff()
 		eb.MaxElapsedTime = 0
 		eb.InitialInterval = 50 * time.Millisecond
-		eb.MaxInterval = 30 * time.Second
+		eb.MaxInterval = 5 * time.Second
 		// Consume the first interval since
 		// we'll fire off a ping immediately.
 		_ = eb.NextBackOff()
