@@ -100,9 +100,9 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	baseMs?: number;
 
 	/**
-	 * Hard upper bound on the reconnect delay in milliseconds. Set to
-	 * `Infinity` to disable the reconnect-policy cap. Jitter is applied to
-	 * the capped backoff base.
+	 * Hard upper bound on the reconnect delay in milliseconds. Jitter is
+	 * applied to the capped backoff base, so the final delay never exceeds
+	 * this value.
 	 */
 	maxMs?: number;
 
@@ -130,13 +130,6 @@ const normalizeUnitInterval = (value: number, fallback: number): number =>
 
 const normalizeDelayMs = (value: number, fallback: number): number =>
 	Number.isFinite(value) ? Math.max(0, value) : fallback;
-
-const normalizeMaxDelayMs = (value: number, fallback: number): number => {
-	if (value === Number.POSITIVE_INFINITY) {
-		return value;
-	}
-	return normalizeDelayMs(value, fallback);
-};
 
 const applyReconnectJitter = ({
 	delayMs,
@@ -171,7 +164,7 @@ const getReconnectSchedule = ({
 	jitter: number;
 	random: () => number;
 }): ReconnectSchedule => {
-	const safeMaxMs = normalizeMaxDelayMs(maxMs, 0);
+	const safeMaxMs = normalizeDelayMs(maxMs, 0);
 	const rawDelayMs = normalizeDelayMs(
 		baseMs * factor ** (attempt - 1),
 		safeMaxMs,
@@ -182,10 +175,7 @@ const getReconnectSchedule = ({
 		jitter,
 		random,
 	});
-	const delayMs = normalizeDelayMs(
-		Math.min(jitteredDelayMs, safeMaxMs),
-		safeMaxMs,
-	);
+	const delayMs = Math.min(jitteredDelayMs, safeMaxMs);
 	return {
 		attempt,
 		delayMs,
