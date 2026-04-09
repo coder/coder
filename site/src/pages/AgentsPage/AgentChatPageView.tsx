@@ -92,7 +92,6 @@ interface AgentChatPageViewProps {
 
 	// Editing state.
 	editing: EditingState;
-	pendingEditMessageId: number | null;
 
 	// Model/input configuration.
 	effectiveSelectedModel: string;
@@ -179,7 +178,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspace,
 	store,
 	editing,
-	pendingEditMessageId,
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
@@ -387,7 +385,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								persistedError={persistedError}
 								onEditUserMessage={editing.handleEditUserMessage}
 								editingMessageId={editing.editingMessageId}
-								savingMessageId={pendingEditMessageId}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 							/>

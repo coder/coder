@@ -113,7 +113,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
 		store: createChatStore(),
-		pendingEditMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -474,16 +473,6 @@ const buildStoreWithMessages = (
 	return store;
 };
 
-const gapTestStore = createChatStore();
-gapTestStore.replaceMessages([
-	buildMessage(1, "user", "Explain the layout."),
-	buildMessage(2, "assistant", "Here is the explanation."),
-	buildMessage(3, "user", "Can you elaborate?"),
-]);
-gapTestStore.applyMessageParts([
-	{ type: "text", text: "Certainly, here are more details..." },
-]);
-
 // ---------------------------------------------------------------------------
 // Editing flow stories
 // ---------------------------------------------------------------------------
@@ -513,42 +502,6 @@ export const EditingMessage: Story = {
 			}}
 		/>
 	),
-};
-
-/** The saving state while an edit is in progress — shows the pending
- *  indicator on the message being saved. */
-export const EditingSaving: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a better joke",
-			}}
-			pendingEditMessageId={3}
-			isSubmissionPending
-		/>
-	),
-};
-
-export const ConsistentGapBetweenTimelineAndStream: Story = {
-	render: () => <StoryAgentChatPageView store={gapTestStore} />,
-	play: async ({ canvasElement }) => {
-		const wrapper = canvasElement.querySelector(
-			'[data-testid="chat-timeline-wrapper"]',
-		);
-		expect(wrapper).not.toBeNull();
-
-		const outerGap = window.getComputedStyle(wrapper!).rowGap;
-		expect(outerGap).toBe("8px");
-
-		const timeline = wrapper!.querySelector(
-			'[data-testid="conversation-timeline"]',
-		);
-		expect(timeline).not.toBeNull();
-		const innerGap = window.getComputedStyle(timeline!).rowGap;
-		expect(innerGap).toBe("8px");
-	},
 };
 
 // ---------------------------------------------------------------------------

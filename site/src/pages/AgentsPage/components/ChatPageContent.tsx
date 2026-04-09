@@ -48,7 +48,6 @@ interface ChatPageTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
-	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -59,7 +58,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
-	savingMessageId,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -100,7 +98,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentTitles={subagentTitles}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
-					savingMessageId={savingMessageId}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}

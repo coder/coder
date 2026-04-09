@@ -25,6 +25,7 @@ import {
 	promoteChatQueuedMessage,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
+import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -446,43 +447,6 @@ type _UncoveredAgentFields = Omit<
 // to the excluded section of the Omit.
 const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
 
-const buildOptimisticEditedContent = ({
-	requestContent,
-	originalMessage,
-}: {
-	requestContent: readonly TypesGen.ChatInputPart[];
-	originalMessage: TypesGen.ChatMessage;
-}): readonly TypesGen.ChatMessagePart[] => {
-	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
-	for (const part of originalMessage.content ?? []) {
-		if (part.type === "file" && part.file_id) {
-			existingFilePartsByID.set(part.file_id, part);
-		}
-	}
-
-	return requestContent.map((part): TypesGen.ChatMessagePart => {
-		if (part.type === "text") {
-			return { type: "text", text: part.text ?? "" };
-		}
-		if (part.type === "file-reference") {
-			return {
-				type: "file-reference",
-				file_name: part.file_name ?? "",
-				start_line: part.start_line ?? 1,
-				end_line: part.end_line ?? 1,
-				content: part.content ?? "",
-			};
-		}
-		return (
-			existingFilePartsByID.get(part.file_id ?? "") ?? {
-				type: "file",
-				file_id: part.file_id,
-				media_type: "application/octet-stream",
-			}
-		);
-	});
-};
-
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -501,7 +465,6 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const skipMessageSyncRef = useRef(false);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -726,7 +689,6 @@ const AgentChatPage: FC = () => {
 		chatRecord,
 		chatMessagesData,
 		chatQueuedMessages,
-		skipMessageSyncRef,
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
@@ -896,76 +858,38 @@ const AgentChatPage: FC = () => {
 		}
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
-			clearChatErrorReason(agentId);
-			clearStreamError();
-
-			const previousSnapshot = store.getSnapshot();
-			const previousMessages = previousSnapshot.orderedMessageIDs
-				.map((id) => previousSnapshot.messagesByID.get(id))
-				.filter((existingMessage): existingMessage is TypesGen.ChatMessage =>
-					Boolean(existingMessage),
-				);
-			const originalEditedMessage = previousMessages.find(
+			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
-			const messagesBeforeEditedMessage = previousMessages.filter(
-				(existingMessage) => existingMessage.id < editedMessageID,
-			);
-
-			if (originalEditedMessage) {
-				skipMessageSyncRef.current = true;
-				store.batch(() => {
-					store.replaceMessages([
-						...messagesBeforeEditedMessage,
-						{
-							...originalEditedMessage,
-							content: buildOptimisticEditedContent({
-								requestContent: request.content,
-								originalMessage: originalEditedMessage,
-							}),
-						},
-					]);
-					store.setQueuedMessages([]);
-					store.setChatStatus("running");
-					store.clearStreamState();
-				});
-			}
-
+			const optimisticMessage = originalEditedMessage
+				? buildOptimisticEditedMessage({
+						requestContent: request.content,
+						originalMessage: originalEditedMessage,
+					})
+				: undefined;
+			const previousSnapshot = store.getSnapshot();
+			clearChatErrorReason(agentId);
+			clearStreamError();
+			store.batch(() => {
+				store.setQueuedMessages([]);
+				store.setChatStatus("running");
+				store.clearStreamState();
+			});
 			scrollToBottomRef.current?.();
 			try {
-				const editResponse = await editMessage({
+				await editMessage({
 					messageId: editedMessageID,
+					optimisticMessage,
 					req: request,
 				});
-				const responseMessage = editResponse.message;
-				if (originalEditedMessage) {
-					store.batch(() => {
-						store.replaceMessages([
-							...messagesBeforeEditedMessage,
-							responseMessage,
-						]);
-						store.setQueuedMessages([]);
-						store.setChatStatus("running");
-						store.clearStreamState();
-					});
-					skipMessageSyncRef.current = false;
-				} else {
-					store.clearStreamState();
-					store.setChatStatus("running");
-				}
-				upsertCacheMessages([responseMessage]);
 			} catch (error) {
-				if (originalEditedMessage) {
-					store.batch(() => {
-						store.replaceMessages(previousMessages);
-						store.setQueuedMessages(previousSnapshot.queuedMessages);
-						store.setChatStatus(previousSnapshot.chatStatus);
-						if (previousSnapshot.streamState === null) {
-							store.clearStreamState();
-						}
-					});
-					skipMessageSyncRef.current = false;
-				}
+				store.batch(() => {
+					store.setQueuedMessages(previousSnapshot.queuedMessages);
+					store.setChatStatus(previousSnapshot.chatStatus);
+					if (previousSnapshot.streamState === null) {
+						store.clearStreamState();
+					}
+				});
 				handleUsageLimitError(error);
 				throw error;
 			}
@@ -1259,7 +1183,6 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			store={store}
 			editing={editing}
-			pendingEditMessageId={null}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}

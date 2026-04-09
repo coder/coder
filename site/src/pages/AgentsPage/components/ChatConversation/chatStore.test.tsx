@@ -4214,13 +4214,17 @@ describe("store/cache desync protection", () => {
 		});
 	});
 
-	it("skips REST message sync while a local history edit is driving the store", async () => {
+	it("reflects optimistic and authoritative history-edit cache updates through the normal sync effect", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-local-edit-sync";
 		const msg1 = makeMessage(chatID, 1, "user", "first");
 		const msg2 = makeMessage(chatID, 2, "assistant", "second");
 		const msg3 = makeMessage(chatID, 3, "user", "third");
+		const optimisticReplacement = {
+			...msg3,
+			content: [{ type: "text" as const, text: "edited draft" }],
+		};
 		const authoritativeReplacement = makeMessage(chatID, 9, "user", "edited");
 
 		const mockSocket = createMockSocket();
@@ -4230,7 +4234,6 @@ describe("store/cache desync protection", () => {
 		const wrapper: FC<PropsWithChildren> = ({ children }) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 		);
-		const skipMessageSyncRef = { current: false };
 		const initialOptions = {
 			chatID,
 			chatMessages: [msg1, msg2, msg3],
@@ -4241,7 +4244,6 @@ describe("store/cache desync protection", () => {
 				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
-			skipMessageSyncRef,
 			setChatErrorReason: vi.fn(),
 			clearChatErrorReason: vi.fn(),
 		};
@@ -4251,6 +4253,7 @@ describe("store/cache desync protection", () => {
 				const { store } = useChatStore(options);
 				return {
 					store,
+					messagesByID: useChatSelector(store, selectMessagesByID),
 					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
 				};
 			},
@@ -4261,22 +4264,15 @@ describe("store/cache desync protection", () => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
 		});
 
-		skipMessageSyncRef.current = true;
 		act(() => {
-			result.current.store.replaceMessages([
-				msg1,
-				msg2,
-				{ ...msg3, content: [{ type: "text", text: "edited" }] },
-			]);
+			mockSocket.emitOpen();
 		});
 
-		const truncatedMsg1 = makeMessage(chatID, 1, "user", "first");
-		const truncatedMsg2 = makeMessage(chatID, 2, "assistant", "second");
 		rerender({
 			...initialOptions,
-			chatMessages: [truncatedMsg1, truncatedMsg2],
+			chatMessages: [msg1, msg2, optimisticReplacement],
 			chatMessagesData: {
-				messages: [truncatedMsg1, truncatedMsg2],
+				messages: [msg1, msg2, optimisticReplacement],
 				queued_messages: [],
 				has_more: false,
 			},
@@ -4284,23 +4280,16 @@ describe("store/cache desync protection", () => {
 
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messagesByID.get(3)?.content).toEqual(
+				optimisticReplacement.content,
+			);
 		});
 
-		act(() => {
-			result.current.store.replaceMessages([
-				msg1,
-				msg2,
-				authoritativeReplacement,
-			]);
-		});
-		skipMessageSyncRef.current = false;
-		const refreshedMsg1 = makeMessage(chatID, 1, "user", "first");
-		const refreshedMsg2 = makeMessage(chatID, 2, "assistant", "second");
 		rerender({
 			...initialOptions,
-			chatMessages: [refreshedMsg1, refreshedMsg2, authoritativeReplacement],
+			chatMessages: [msg1, msg2, authoritativeReplacement],
 			chatMessagesData: {
-				messages: [refreshedMsg1, refreshedMsg2, authoritativeReplacement],
+				messages: [msg1, msg2, authoritativeReplacement],
 				queued_messages: [],
 				has_more: false,
 			},
@@ -4308,6 +4297,10 @@ describe("store/cache desync protection", () => {
 
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
+			expect(result.current.messagesByID.has(3)).toBe(false);
+			expect(result.current.messagesByID.get(9)?.content).toEqual(
+				authoritativeReplacement.content,
+			);
 		});
 	});
 });

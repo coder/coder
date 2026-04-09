@@ -47,7 +47,6 @@ interface UseChatStoreOptions {
 	chatRecord: TypesGen.Chat | undefined;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
-	skipMessageSyncRef?: { current: boolean };
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
@@ -65,7 +64,6 @@ export const useChatStore = (
 		chatRecord,
 		chatMessagesData,
 		chatQueuedMessages,
-		skipMessageSyncRef,
 		setChatErrorReason,
 		clearChatErrorReason,
 	} = options;
@@ -198,9 +196,6 @@ export const useChatStore = (
 			// queued_messages caused the query data reference to
 			// update.
 			if (chatMessages) {
-				if (skipMessageSyncRef?.current) {
-					return;
-				}
 				const prev = lastSyncedMessagesRef.current;
 				const contentChanged =
 					chatMessages.length !== prev.length ||
@@ -211,10 +206,9 @@ export const useChatStore = (
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
 				// Only classify a store-held ID as stale if it was
 				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (by the WS
-				// handler or the local edit flow) are new, not stale,
-				// and must not trigger the destructive
-				// replaceMessages path.
+				// added to the store after the last sync (for example
+				// by the WS handler) are new, not stale, and must not
+				// trigger the destructive replaceMessages path.
 				const prevIDs = new Set(prev.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&
@@ -228,7 +222,7 @@ export const useChatStore = (
 				}
 			}
 		});
-	}, [chatID, chatMessages, skipMessageSyncRef, store]);
+	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
 		// Only hydrate from REST when the WebSocket hasn't delivered
