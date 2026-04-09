@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -694,6 +695,73 @@ func TestAgentChatContext(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "No context-file or skill parts provided.", sdkErr.Message)
+	})
+
+	t.Run("AddTruncatesOversizedContextFileParts", func(t *testing.T) {
+		t.Parallel()
+
+		const maxContextFileBytes = 64 * 1024
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		largeContent := strings.Repeat("a", maxContextFileBytes+100)
+
+		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			ChatID: chat.ID,
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileContent: largeContent,
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.ChatID)
+		require.Equal(t, 1, resp.Count)
+
+		messages := requireAgentChatContextStoredMessages(t, requireAgentChatContextMessages(ctx, t, setup.db, chat.ID))
+		require.Len(t, messages, 1)
+		require.Len(t, messages[0], 1)
+		require.True(t, messages[0][0].ContextFileTruncated)
+		require.Len(t, messages[0][0].ContextFileContent, maxContextFileBytes)
+		require.Equal(t, largeContent[:maxContextFileBytes], messages[0][0].ContextFileContent)
+
+		cached := requireAgentChatContextCachedParts(ctx, t, setup.db, chat.ID)
+		require.Len(t, cached, 1)
+		require.True(t, cached[0].ContextFileTruncated)
+	})
+
+	t.Run("AddSanitizesBeforeApplyingContextFileSizeCap", func(t *testing.T) {
+		t.Parallel()
+
+		const maxContextFileBytes = 64 * 1024
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+
+		visible := strings.Repeat("a", maxContextFileBytes-1)
+		content := visible + strings.Repeat("\u200b", 100) + "z"
+
+		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			ChatID: chat.ID,
+			Parts: []codersdk.ChatMessagePart{{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileContent: content,
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.ChatID)
+		require.Equal(t, 1, resp.Count)
+
+		messages := requireAgentChatContextStoredMessages(t, requireAgentChatContextMessages(ctx, t, setup.db, chat.ID))
+		require.Len(t, messages, 1)
+		require.Len(t, messages[0], 1)
+		require.False(t, messages[0][0].ContextFileTruncated)
+		require.Equal(t, visible+"z", messages[0][0].ContextFileContent)
 	})
 
 	t.Run("ClearIsIdempotentWhenNoActiveChatExists", func(t *testing.T) {

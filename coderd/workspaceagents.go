@@ -2399,10 +2399,30 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 // prevent unbounded message payloads.
 const maxChatContextParts = 100
 
+// maxChatContextFileBytes caps each context-file part to the same
+// 64KiB budget used when the agent reads instruction files from disk.
+const maxChatContextFileBytes = 64 * 1024
+
 // maxChatContextRequestBodyBytes caps the JSON request body size for
 // agent-added context to roughly the same per-part budget used when
 // reading instruction files from disk.
-const maxChatContextRequestBodyBytes int64 = maxChatContextParts * 64 * 1024
+const maxChatContextRequestBodyBytes int64 = maxChatContextParts * maxChatContextFileBytes
+
+// sanitizeWorkspaceAgentContextFileContent applies prompt
+// sanitization, then enforces the 64KiB per-file budget. The
+// truncated flag is preserved when the caller already capped the
+// file before sending it.
+func sanitizeWorkspaceAgentContextFileContent(
+	content string,
+	truncated bool,
+) (string, bool) {
+	content = chatd.SanitizePromptText(content)
+	if len(content) > maxChatContextFileBytes {
+		content = content[:maxChatContextFileBytes]
+		truncated = true
+	}
+	return content, truncated
+}
 
 // readChatContextBody reads and validates the request body for chat
 // context endpoints. It handles MaxBytesReader wrapping, error
@@ -2506,7 +2526,10 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if req.Parts[i].Type != codersdk.ChatMessagePartTypeContextFile {
 			continue
 		}
-		req.Parts[i].ContextFileContent = chatd.SanitizePromptText(req.Parts[i].ContextFileContent)
+		req.Parts[i].ContextFileContent, req.Parts[i].ContextFileTruncated = sanitizeWorkspaceAgentContextFileContent(
+			req.Parts[i].ContextFileContent,
+			req.Parts[i].ContextFileTruncated,
+		)
 		req.Parts[i].ContextFileOS = workspaceAgent.OperatingSystem
 		req.Parts[i].ContextFileDirectory = directory
 	}
