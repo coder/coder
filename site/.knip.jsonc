@@ -7,9 +7,9 @@
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
 		"@types/react-virtualized-auto-sizer",
-		"ts-proto",
+		"ts-proto"
 	],
 	"jest": {
-		"entry": "./src/**/*.jest.{ts,tsx}",
-	},
+		"entry": "./src/**/*.jest.{ts,tsx}"
+	}
 }
