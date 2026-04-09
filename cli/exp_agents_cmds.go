@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"io"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -78,17 +79,6 @@ func apiCmd[T any](fn func() (T, error), wrap func(T, error) tea.Msg) tea.Cmd {
 	}
 }
 
-func streamCmd[T any](ch <-chan T, wrap func(T, error) tea.Msg) tea.Cmd {
-	return func() tea.Msg {
-		value, ok := <-ch
-		if !ok {
-			var zero T
-			return wrap(zero, io.EOF)
-		}
-		return wrap(value, nil)
-	}
-}
-
 func listChatsCmd(ctx context.Context, client *codersdk.ExperimentalClient) tea.Cmd {
 	return apiCmd(func() ([]codersdk.Chat, error) { return client.ListChats(ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
 }
@@ -100,7 +90,45 @@ func openChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatI
 }
 
 func loadChatHistoryCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, generation uint64) tea.Cmd {
-	return apiCmd(func() ([]codersdk.ChatMessage, error) { return fetchAllChatMessages(ctx, client, chatID) }, func(messages []codersdk.ChatMessage, err error) tea.Msg {
+	return apiCmd(func() ([]codersdk.ChatMessage, error) {
+		var (
+			allMessages []codersdk.ChatMessage
+			opts        *codersdk.ChatMessagesPaginationOptions
+		)
+
+		for {
+			resp, err := client.GetChatMessages(ctx, chatID, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			allMessages = append(allMessages, resp.Messages...)
+			if !resp.HasMore || len(resp.Messages) == 0 {
+				break
+			}
+
+			opts = &codersdk.ChatMessagesPaginationOptions{
+				BeforeID: resp.Messages[len(resp.Messages)-1].ID,
+			}
+		}
+
+		slices.SortStableFunc(allMessages, func(a, b codersdk.ChatMessage) int {
+			switch {
+			case a.CreatedAt.Before(b.CreatedAt):
+				return -1
+			case a.CreatedAt.After(b.CreatedAt):
+				return 1
+			case a.ID < b.ID:
+				return -1
+			case a.ID > b.ID:
+				return 1
+			default:
+				return 0
+			}
+		})
+
+		return allMessages, nil
+	}, func(messages []codersdk.ChatMessage, err error) tea.Msg {
 		return chatHistoryMsg{generation: generation, chatID: chatID, messages: messages, err: err}
 	})
 }
@@ -135,32 +163,12 @@ func sendMessageCmd(ctx context.Context, client *codersdk.ExperimentalClient, ch
 	})
 }
 
-func interruptChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.Chat, error) { return client.InterruptChat(ctx, chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
-		return chatInterruptedMsg{generation: generation, chatID: chatID, chat: chat, err: err}
-	})
-}
-
-func listModelsCmd(ctx context.Context, client *codersdk.ExperimentalClient) tea.Cmd {
-	return apiCmd(func() (codersdk.ChatModelsResponse, error) { return client.ListChatModels(ctx) }, func(catalog codersdk.ChatModelsResponse, err error) tea.Msg {
-		return modelsListedMsg{catalog: catalog, err: err}
-	})
-}
-
-func loadGitChangesCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, generation uint64) tea.Cmd {
-	return apiCmd(func() ([]codersdk.ChatGitChange, error) { return client.GetChatGitChanges(ctx, chatID) }, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
-		return gitChangesMsg{generation: generation, chatID: chatID, changes: changes, err: err}
-	})
-}
-
-func loadDiffContentsCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.ChatDiffContents, error) { return client.GetChatDiffContents(ctx, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
-		return diffContentsMsg{generation: generation, chatID: chatID, diff: diff, err: err}
-	})
-}
-
 func listenToStream(chatID uuid.UUID, generation uint64, eventCh <-chan codersdk.ChatStreamEvent) tea.Cmd {
-	return streamCmd(eventCh, func(event codersdk.ChatStreamEvent, err error) tea.Msg {
-		return chatStreamEventMsg{generation: generation, chatID: chatID, event: event, err: err}
-	})
+	return func() tea.Msg {
+		event, ok := <-eventCh
+		if !ok {
+			return chatStreamEventMsg{generation: generation, chatID: chatID, err: io.EOF}
+		}
+		return chatStreamEventMsg{generation: generation, chatID: chatID, event: event}
+	}
 }

@@ -230,7 +230,13 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.overlay = overlayModelPicker
 			if m.catalog == nil {
-				return m, listModelsCmd(m.ctx, m.client)
+				ctx := m.ctx
+				client := m.client
+				return m, apiCmd(func() (codersdk.ChatModelsResponse, error) {
+					return client.ListChatModels(ctx)
+				}, func(catalog codersdk.ChatModelsResponse, err error) tea.Msg {
+					return modelsListedMsg{catalog: catalog, err: err}
+				})
 			}
 			if len(m.chat.modelPickerFlat) == 0 {
 				m.chat.modelPickerFlat = availableChatModels(*m.catalog)
@@ -249,9 +255,20 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil {
 				m.chat.diffErr = nil
 				chatID := m.chat.chat.ID
+				generation := m.chat.chatGeneration
+				ctx := m.ctx
+				client := m.client
 				return m, tea.Batch(
-					loadGitChangesCmd(m.ctx, m.client, chatID, m.chat.chatGeneration),
-					loadDiffContentsCmd(m.ctx, m.client, chatID, m.chat.chatGeneration),
+					apiCmd(func() ([]codersdk.ChatGitChange, error) {
+						return client.GetChatGitChanges(ctx, chatID)
+					}, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
+						return gitChangesMsg{generation: generation, chatID: chatID, changes: changes, err: err}
+					}),
+					apiCmd(func() (codersdk.ChatDiffContents, error) {
+						return client.GetChatDiffContents(ctx, chatID)
+					}, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
+						return diffContentsMsg{generation: generation, chatID: chatID, diff: diff, err: err}
+					}),
 				)
 			}
 		}

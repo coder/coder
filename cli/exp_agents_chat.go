@@ -447,8 +447,47 @@ func (m *chatViewModel) rebuildBlocks() {
 					continue
 				}
 			}
-			block := partToBlock(part, m.accumulator.role)
-			m.blocks = append(m.blocks, block)
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeReasoning:
+				m.blocks = append(m.blocks, chatBlock{kind: blockReasoning, role: m.accumulator.role, text: part.Text})
+			case codersdk.ChatMessagePartTypeToolCall:
+				kind := blockToolCall
+				if part.ToolName == contextCompactionToolName {
+					kind = blockCompaction
+				}
+				m.blocks = append(m.blocks, chatBlock{
+					kind:     kind,
+					role:     m.accumulator.role,
+					toolName: part.ToolName,
+					toolID:   part.ToolCallID,
+					args:     compactTranscriptJSON(part.Args),
+				})
+			case codersdk.ChatMessagePartTypeToolResult:
+				kind := blockToolResult
+				if part.ToolName == contextCompactionToolName {
+					kind = blockCompaction
+				}
+				m.blocks = append(m.blocks, chatBlock{
+					kind:     kind,
+					role:     m.accumulator.role,
+					toolName: part.ToolName,
+					toolID:   part.ToolCallID,
+					result:   compactTranscriptJSON(part.Result),
+					isError:  part.IsError,
+				})
+			case codersdk.ChatMessagePartTypeSource:
+				title := part.Title
+				if title == "" {
+					title = part.URL
+				}
+				m.blocks = append(m.blocks, chatBlock{kind: blockText, role: m.accumulator.role, text: fmt.Sprintf("[Source: %s](%s)", title, part.URL)})
+			case codersdk.ChatMessagePartTypeFile:
+				m.blocks = append(m.blocks, chatBlock{kind: blockText, role: m.accumulator.role, text: fmt.Sprintf("[File: %s]", part.MediaType)})
+			case codersdk.ChatMessagePartTypeFileReference:
+				m.blocks = append(m.blocks, chatBlock{kind: blockText, role: m.accumulator.role, text: fmt.Sprintf("[%s L%d-%d]", part.FileName, part.StartLine, part.EndLine)})
+			default:
+				m.blocks = append(m.blocks, chatBlock{kind: blockText, role: m.accumulator.role, text: part.Text})
+			}
 		}
 	}
 
@@ -548,50 +587,6 @@ func blockPayloadEqual(a, b chatBlock) bool {
 		a.isError == b.isError
 }
 
-func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) chatBlock {
-	switch part.Type {
-	case codersdk.ChatMessagePartTypeReasoning:
-		return chatBlock{kind: blockReasoning, role: role, text: part.Text}
-	case codersdk.ChatMessagePartTypeToolCall:
-		kind := blockToolCall
-		if part.ToolName == "context_compaction" {
-			kind = blockCompaction
-		}
-		return chatBlock{
-			kind:     kind,
-			role:     role,
-			toolName: part.ToolName,
-			toolID:   part.ToolCallID,
-			args:     compactTranscriptJSON(part.Args),
-		}
-	case codersdk.ChatMessagePartTypeToolResult:
-		kind := blockToolResult
-		if part.ToolName == "context_compaction" {
-			kind = blockCompaction
-		}
-		return chatBlock{
-			kind:     kind,
-			role:     role,
-			toolName: part.ToolName,
-			toolID:   part.ToolCallID,
-			result:   compactTranscriptJSON(part.Result),
-			isError:  part.IsError,
-		}
-	case codersdk.ChatMessagePartTypeSource:
-		title := part.Title
-		if title == "" {
-			title = part.URL
-		}
-		return chatBlock{kind: blockText, role: role, text: fmt.Sprintf("[Source: %s](%s)", title, part.URL)}
-	case codersdk.ChatMessagePartTypeFile:
-		return chatBlock{kind: blockText, role: role, text: fmt.Sprintf("[File: %s]", part.MediaType)}
-	case codersdk.ChatMessagePartTypeFileReference:
-		return chatBlock{kind: blockText, role: role, text: fmt.Sprintf("[%s L%d-%d]", part.FileName, part.StartLine, part.EndLine)}
-	default:
-		return chatBlock{kind: blockText, role: role, text: part.Text}
-	}
-}
-
 func (m *chatViewModel) addMessageIfNew(msg codersdk.ChatMessage) bool {
 	for _, existing := range m.messages {
 		if existing.ID == msg.ID {
@@ -656,7 +651,15 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 				return m, nil
 			}
 			m.interrupting = true
-			return m, interruptChatCmd(m.ctx, m.client, m.chat.ID, m.chatGeneration)
+			chatID := m.chat.ID
+			generation := m.chatGeneration
+			ctx := m.ctx
+			client := m.client
+			return m, apiCmd(func() (codersdk.Chat, error) {
+				return client.InterruptChat(ctx, chatID)
+			}, func(chat codersdk.Chat, err error) tea.Msg {
+				return chatInterruptedMsg{generation: generation, chatID: chatID, chat: chat, err: err}
+			})
 		}
 
 		if m.composerFocused {

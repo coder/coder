@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -20,6 +21,20 @@ const (
 	toolDetailIndent          = "    "
 	toolSummaryFallbackWidth  = 48
 )
+
+func compactTranscriptJSON(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var builder bytes.Buffer
+	if err := json.Compact(&builder, raw); err == nil {
+		return builder.String()
+	}
+
+	return string(raw)
+}
 
 func toolBaseName(name string) string {
 	name = strings.TrimSpace(name)
@@ -65,7 +80,11 @@ func summarizeToolContent(toolName, raw string, fields ...string) string {
 	if compact == "" {
 		return ""
 	}
-	return truncateToolSummary(compact, toolSummaryFallbackWidth)
+	compactRunes := []rune(compact)
+	if len(compactRunes) <= toolSummaryFallbackWidth {
+		return compact
+	}
+	return string(compactRunes[:toolSummaryFallbackWidth-1]) + "…"
 }
 
 func toolArgsSummary(toolName, argsJSON string) string {
@@ -154,16 +173,6 @@ func firstShortStringValue(value any) string {
 		}
 	}
 	return ""
-}
-
-func truncateToolSummary(text string, maxWidth int) string {
-	if maxWidth <= 0 {
-		return ""
-	}
-	if len([]rune(text)) <= maxWidth {
-		return text
-	}
-	return string([]rune(text)[:maxWidth-1]) + "…"
 }
 
 func toolDisplayLabel(toolName string, kind chatBlockKind, collapsedCount int) string {
@@ -277,10 +286,7 @@ func renderToolResultBlock(styles tuiStyles, block chatBlock, width int) string 
 		summary = summarizeToolContent("", block.result, "error", "message", "detail", "stderr")
 	}
 	if summary == "" {
-		summary = summarizeToolContent(block.toolName, block.result)
-		if summary == "" {
-			summary = "null"
-		}
+		summary = toolResultSummary(block.toolName, "", block.result)
 	}
 	return renderToolLine(
 		styles,
@@ -321,6 +327,35 @@ func renderDiffDrawerError(styles tuiStyles, err error, width, _ int) string {
 		message = styles.errorText.Render(wrapPreservingNewlines(err.Error(), contentWidth(width, 6)))
 	}
 	return renderOverlayFrame(styles, width, styles.title.Render("Diff"), message, styles.helpText.Render("Esc to close"))
+}
+
+func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
+	lines := make([]string, 0, len(changes)+4)
+	if diff.Branch != nil && *diff.Branch != "" {
+		lines = append(lines, fmt.Sprintf("Branch: %s", *diff.Branch))
+	}
+	if diff.PullRequestURL != nil && *diff.PullRequestURL != "" {
+		lines = append(lines, fmt.Sprintf("PR: %s", *diff.PullRequestURL))
+	}
+	if len(changes) == 0 {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, "No changes detected.")
+		return strings.Join(lines, "\n")
+	}
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, "Files changed:")
+	for _, change := range changes {
+		path := sanitizeTerminalRenderableText(change.FilePath)
+		if change.ChangeType == "renamed" && change.OldPath != nil && *change.OldPath != "" {
+			path = fmt.Sprintf("%s → %s", sanitizeTerminalRenderableText(*change.OldPath), path)
+		}
+		lines = append(lines, fmt.Sprintf("  %-8s %s", change.ChangeType, path))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
@@ -436,20 +471,16 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	return renderOverlayFrame(styles, width, strings.Join(content, "\n"))
 }
 
-func firstRenderer(renderers ...*glamour.TermRenderer) *glamour.TermRenderer {
-	if len(renderers) == 0 {
-		return nil
-	}
-	return renderers[0]
-}
-
 //nolint:revive // Signature is dictated by the chat TUI view code.
 func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, expandedBlocks map[int]bool, composerFocused bool, width int, renderers ...*glamour.TermRenderer) string {
 	if len(blocks) == 0 {
 		return ""
 	}
 
-	renderer := firstRenderer(renderers...)
+	var renderer *glamour.TermRenderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
 	activeSelection := -1
 	if !composerFocused {
 		activeSelection = selectedBlock
@@ -573,23 +604,6 @@ func hasExpandedToolBlock(expandedBlocks map[int]bool, start, end int) bool {
 	return false
 }
 
-func toolChatBlock(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) chatBlock {
-	block := chatBlock{role: role, toolName: part.ToolName, toolID: part.ToolCallID}
-	if part.ToolName == contextCompactionToolName {
-		block.kind = blockCompaction
-		return block
-	}
-	if part.Type == codersdk.ChatMessagePartTypeToolCall {
-		block.kind = blockToolCall
-		block.args = compactTranscriptJSON(part.Args)
-		return block
-	}
-	block.kind = blockToolResult
-	block.result = compactTranscriptJSON(part.Result)
-	block.isError = part.IsError
-	return block
-}
-
 func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
 	blocks := make([]chatBlock, 0)
 	for _, message := range messages {
@@ -603,7 +617,19 @@ func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
 			case codersdk.ChatMessagePartTypeReasoning:
 				blocks = append(blocks, chatBlock{kind: blockReasoning, role: message.Role, text: part.Text})
 			case codersdk.ChatMessagePartTypeToolCall, codersdk.ChatMessagePartTypeToolResult:
-				blocks = append(blocks, toolChatBlock(message.Role, part))
+				block := chatBlock{role: message.Role, toolName: part.ToolName, toolID: part.ToolCallID}
+				switch {
+				case part.ToolName == contextCompactionToolName:
+					block.kind = blockCompaction
+				case part.Type == codersdk.ChatMessagePartTypeToolCall:
+					block.kind = blockToolCall
+					block.args = compactTranscriptJSON(part.Args)
+				default:
+					block.kind = blockToolResult
+					block.result = compactTranscriptJSON(part.Result)
+					block.isError = part.IsError
+				}
+				blocks = append(blocks, block)
 			case codersdk.ChatMessagePartTypeSource:
 				title := part.Title
 				if strings.TrimSpace(title) == "" {
@@ -660,7 +686,10 @@ func mergeConsecutiveToolBlocks(blocks []chatBlock) []chatBlock {
 
 //nolint:revive // Signature keeps block expansion state explicit at the callsite.
 func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, renderers ...*glamour.TermRenderer) string {
-	renderer := firstRenderer(renderers...)
+	var renderer *glamour.TermRenderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
 	switch block.kind {
 	case blockText:
 		switch block.role {
@@ -736,7 +765,10 @@ func getFallbackMarkdownRenderer(width int) *glamour.TermRenderer {
 
 func renderAssistantMarkdown(styles tuiStyles, text string, width int, renderers ...*glamour.TermRenderer) string {
 	text = sanitizeTerminalRenderableText(text)
-	renderer := firstRenderer(renderers...)
+	var renderer *glamour.TermRenderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
 	if renderer == nil {
 		renderer = getFallbackMarkdownRenderer(width)
 	}
