@@ -318,6 +318,10 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		return nil, err
 	}
 
+	// observedFirstConnection tracks which agents have already had
+	// their first-connection duration recorded in the histogram.
+	// Each agent is observed exactly once; the map is pruned every
+	// tick to remove agents that no longer appear in the query.
 	observedFirstConnection := make(map[uuid.UUID]struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
