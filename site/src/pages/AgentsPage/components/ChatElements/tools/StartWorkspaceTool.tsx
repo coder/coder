@@ -1,4 +1,4 @@
-import { LoaderIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, MonitorPlayIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	Tooltip,
@@ -35,7 +35,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 
 	const header = (
 		<>
-			<PlayIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+			<MonitorPlayIcon className="h-4 w-4 shrink-0 text-content-secondary" />
 			<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
 			{isError && (
 				<Tooltip>
