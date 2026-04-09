@@ -23,6 +23,7 @@ import {
 } from "#/components/Table/Table";
 import colors from "#/theme/tailwindColors";
 import { cn } from "#/utils/cn";
+import { inlineCodeClassName } from "./inlineCodeClassName";
 
 interface MarkdownProps {
 	/**
@@ -84,16 +85,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 							{String(children)}
 						</SyntaxHighlighter>
 					) : (
-						<code
-							css={(theme) => ({
-								padding: "1px 4px",
-								background: theme.palette.divider,
-								borderRadius: 4,
-								color: theme.palette.text.primary,
-								fontSize: 14,
-							})}
-							{...props}
-						>
+						<code className={inlineCodeClassName} {...restProps}>
 							{children}
 						</code>
 					);

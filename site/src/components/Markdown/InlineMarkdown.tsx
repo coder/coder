@@ -2,6 +2,7 @@ import Link from "@mui/material/Link";
 import isEqual from "lodash/isEqual";
 import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
+import { inlineCodeClassName } from "./inlineCodeClassName";
 
 interface InlineMarkdownProps {
 	/**
@@ -55,16 +56,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 				),
 
 				code: ({ node, className, children, style, ...props }) => (
-					<code
-						css={(theme) => ({
-							padding: "1px 4px",
-							background: theme.palette.divider,
-							borderRadius: 4,
-							color: theme.palette.text.primary,
-							fontSize: 14,
-						})}
-						{...props}
-					>
+					<code className={inlineCodeClassName} {...props}>
 						{children}
 					</code>
 				),
