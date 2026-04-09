@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -518,3 +519,168 @@ func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
 	assert.Equal(t, peer, key)
 	q.done(key)
 }
+<<<<<<< HEAD
+=======
+
+// TestPeriodicRefresh_EnqueuesAllMapperKeys verifies that periodicRefresh
+// enqueues all mapper keys into mappingQ on each tick, without requiring
+// a database, pubsub, or real coordinator.
+func TestQuerier_periodicRefresh(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	logger := testutil.Logger(t)
+	mClock := quartz.NewMock(t)
+
+	// Trap the TickerFunc so we can control when it fires.
+	trap := mClock.Trap().TickerFunc("querier", "periodicRefresh")
+	defer trap.Close()
+
+	// Build a minimal querier with a few mapper entries.
+	q := &querier{
+		ctx:      ctx,
+		logger:   logger.Named("querier"),
+		clock:    mClock,
+		mappingQ: newWorkQ[mKey](ctx),
+		mappers:  make(map[mKey]*mapper),
+	}
+
+	key1 := mKey(uuid.New())
+	key2 := mKey(uuid.New())
+	key3 := mKey(uuid.New())
+	q.mappers[key1] = nil
+	q.mappers[key2] = nil
+	q.mappers[key3] = nil
+
+	q.wg.Add(1)
+	go q.periodicRefresh()
+
+	// Wait for the TickerFunc to be registered, then release it.
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	require.Equal(t, mapperRefreshInterval, call.Duration)
+
+	// Advance the clock to trigger the tick callback.
+	mClock.Advance(mapperRefreshInterval).MustWait(ctx)
+
+	// All three keys should now be enqueued in mappingQ.
+	batch, err := q.mappingQ.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 3)
+
+	got := make(map[mKey]struct{})
+	for _, k := range batch {
+		got[k] = struct{}{}
+	}
+	require.Contains(t, got, key1)
+	require.Contains(t, got, key2)
+	require.Contains(t, got, key3)
+
+	// Clean up: cancel context so periodicRefresh exits.
+	cancel()
+	q.wg.Wait()
+}
+
+func TestNodesEqual(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BothNil", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, nodesEqual(nil, nil))
+	})
+
+	t.Run("OneNil", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, nodesEqual(&proto.Node{PreferredDerp: 1}, nil))
+		assert.False(t, nodesEqual(nil, &proto.Node{PreferredDerp: 1}))
+	})
+
+	t.Run("SameIgnoringAsOf", func(t *testing.T) {
+		t.Parallel()
+		a := &proto.Node{
+			PreferredDerp: 1,
+			AsOf:          timestamppb.Now(),
+		}
+		b := &proto.Node{
+			PreferredDerp: 1,
+			AsOf:          timestamppb.New(time.Now().Add(-time.Hour)),
+		}
+		assert.True(t, nodesEqual(a, b))
+		// Verify AsOf fields are restored.
+		assert.NotNil(t, a.AsOf)
+		assert.NotNil(t, b.AsOf)
+	})
+
+	t.Run("DifferentPreferredDERP", func(t *testing.T) {
+		t.Parallel()
+		a := &proto.Node{PreferredDerp: 1}
+		b := &proto.Node{PreferredDerp: 2}
+		assert.False(t, nodesEqual(a, b))
+	})
+}
+
+func TestBinderSkipsNoopUpsert(t *testing.T) {
+	t.Parallel()
+
+	key := bKey(uuid.New())
+	node := &proto.Node{PreferredDerp: 1}
+
+	b := &binder{
+		latest: make(map[bKey]binding),
+	}
+
+	bnd := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+
+	// First store should succeed.
+	assert.True(t, b.storeBinding(bnd))
+
+	// Same node (even with different AsOf) should be skipped.
+	bnd2 := binding{
+		bKey: key,
+		node: &proto.Node{PreferredDerp: 1, AsOf: timestamppb.Now()},
+		kind: proto.CoordinateResponse_PeerUpdate_NODE,
+	}
+	assert.False(t, b.storeBinding(bnd2))
+}
+
+func TestBinderAllowsChangedNode(t *testing.T) {
+	t.Parallel()
+
+	key := bKey(uuid.New())
+
+	b := &binder{
+		latest: make(map[bKey]binding),
+	}
+
+	bnd1 := binding{bKey: key, node: &proto.Node{PreferredDerp: 1}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd1))
+
+	bnd2 := binding{bKey: key, node: &proto.Node{PreferredDerp: 2}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd2))
+}
+
+func TestBinderLostToNodeTransition(t *testing.T) {
+	t.Parallel()
+
+	key := bKey(uuid.New())
+
+	b := &binder{
+		latest: make(map[bKey]binding),
+	}
+
+	node := &proto.Node{PreferredDerp: 1}
+
+	// NODE should enqueue.
+	bnd1 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd1))
+
+	// LOST should enqueue (transitions state).
+	bnd2 := binding{bKey: key, kind: proto.CoordinateResponse_PeerUpdate_LOST}
+	assert.True(t, b.storeBinding(bnd2))
+
+	// NODE again should enqueue (transitioning back from LOST).
+	bnd3 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd3))
+}
+>>>>>>> 6acea79e3 (fix(enterprise/tailnet): skip no-op peer updates in pgcoord binder)
