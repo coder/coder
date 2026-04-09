@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
+	buildComputerUseSubagentIds,
+	buildSubagentTitles,
+	createCachedParseMessagesWithMergedTools,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -375,6 +378,171 @@ describe("mergeTools", () => {
 		const merged = mergeTools([{ id: "1", name: "bash" }], []);
 		expect(merged).toHaveLength(1);
 		expect(merged[0].status).toBe("completed");
+	});
+});
+
+describe("parseMessagesWithMergedTools caching", () => {
+	const msg = (
+		id: number,
+		role: "assistant" | "user",
+		parts: ChatMessagePart[],
+	): ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		created_at: new Date().toISOString(),
+		role,
+		content: parts,
+	});
+
+	it("returns stable references for identical message content", () => {
+		const parse = createCachedParseMessagesWithMergedTools();
+		const messages = [
+			msg(1, "user", [{ type: "text", text: "Hello" }]),
+			msg(2, "assistant", [{ type: "text", text: "Hi there" }]),
+		];
+
+		const first = parse(messages);
+		const second = parse([...messages]);
+		const clonedMessages = messages.map((message) => ({
+			...message,
+			content: message.content?.map((part) => ({ ...part })),
+		}));
+		const third = parse(clonedMessages);
+
+		expect(second).toBe(first);
+		expect(second[0]).toBe(first[0]);
+		expect(second[1]).toBe(first[1]);
+		expect(third).toBe(first);
+		expect(third[0]).toBe(first[0]);
+		expect(third[1]).toBe(first[1]);
+	});
+
+	it("keeps derived subagent metadata references stable", () => {
+		const parse = createCachedParseMessagesWithMergedTools();
+		const messages = [
+			msg(1, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "spawn-1",
+					tool_name: "spawn_agent",
+					args: { prompt: "do work" },
+				},
+			]),
+			msg(2, "assistant", [
+				{
+					type: "tool-result",
+					tool_call_id: "spawn-1",
+					tool_name: "spawn_agent",
+					result: { chat_id: "sub-1", title: "Worker" },
+				},
+				{
+					type: "tool-call",
+					tool_call_id: "spawn-2",
+					tool_name: "spawn_computer_use_agent",
+					args: { prompt: "open browser" },
+				},
+				{
+					type: "tool-result",
+					tool_call_id: "spawn-2",
+					tool_name: "spawn_computer_use_agent",
+					result: { chat_id: "sub-2", title: "Desktop" },
+				},
+			]),
+		];
+
+		const firstParsed = parse(messages);
+		const firstTitles = buildSubagentTitles(firstParsed);
+		const firstComputerUseIds = buildComputerUseSubagentIds(firstParsed);
+
+		const secondParsed = parse([...messages]);
+		const secondTitles = buildSubagentTitles(secondParsed);
+		const secondComputerUseIds = buildComputerUseSubagentIds(secondParsed);
+
+		expect(secondParsed).toBe(firstParsed);
+		expect(secondTitles).toBe(firstTitles);
+		expect(secondComputerUseIds).toBe(firstComputerUseIds);
+		expect(secondTitles.get("sub-1")).toBe("Worker");
+		expect(secondComputerUseIds.has("sub-2")).toBe(true);
+	});
+
+	it("preserves historical entry references when a new message is appended", () => {
+		const parse = createCachedParseMessagesWithMergedTools();
+		const initialMessages = [
+			msg(1, "user", [{ type: "text", text: "Question" }]),
+			msg(2, "assistant", [{ type: "text", text: "Answer" }]),
+		];
+
+		const first = parse(initialMessages);
+		const second = parse([
+			...initialMessages,
+			msg(3, "assistant", [{ type: "text", text: "Follow-up" }]),
+		]);
+
+		expect(second).not.toBe(first);
+		expect(second[0]).toBe(first[0]);
+		expect(second[1]).toBe(first[1]);
+		expect(second[2]).not.toBeUndefined();
+	});
+
+	it("only replaces the tail entry when the last message is updated", () => {
+		const parse = createCachedParseMessagesWithMergedTools();
+		const initialMessages = [
+			msg(1, "user", [{ type: "text", text: "Question" }]),
+			msg(2, "assistant", [{ type: "text", text: "Partial" }]),
+		];
+
+		const first = parse(initialMessages);
+		const updatedMessages = [
+			initialMessages[0],
+			msg(2, "assistant", [{ type: "text", text: "Partial + streamed" }]),
+		];
+		const second = parse(updatedMessages);
+		const third = parse(updatedMessages);
+
+		expect(second[0]).toBe(first[0]);
+		expect(second[1]).not.toBe(first[1]);
+		expect(second[1].parsed.markdown).toBe("Partial + streamed");
+		expect(third).toBe(second);
+		expect(third[0]).toBe(second[0]);
+		expect(third[1]).toBe(second[1]);
+	});
+
+	it("rebuilds earlier entries when a later message backfills tool results", () => {
+		const parse = createCachedParseMessagesWithMergedTools();
+		const initialMessages = [
+			msg(1, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "call-1",
+					tool_name: "bash",
+					args: { command: "ls" },
+				},
+			]),
+		];
+
+		const first = parse(initialMessages);
+		expect(first[0].parsed.tools[0]?.result).toBeUndefined();
+
+		const second = parse([
+			...initialMessages,
+			msg(2, "assistant", [
+				{
+					type: "tool-result",
+					tool_call_id: "call-1",
+					tool_name: "bash",
+					result: { output: "ok" },
+				},
+			]),
+		]);
+
+		expect(second[0]).not.toBe(first[0]);
+		expect(second[0].parsed.tools[0]).toEqual(
+			expect.objectContaining({
+				id: "call-1",
+				name: "bash",
+				result: { output: "ok" },
+			}),
+		);
 	});
 });
 

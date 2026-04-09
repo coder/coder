@@ -256,77 +256,236 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
-export const parseMessagesWithMergedTools = (
-	messages: readonly TypesGen.ChatMessage[],
-): ParsedMessageEntry[] => {
-	const rawParsed = messages.map((message) => ({
-		message,
-		parsed: parseMessageContent(message.content),
-	}));
+const buildMessageContentKey = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): string => JSON.stringify(content ?? []);
 
-	const globalToolResults = new Map<string, ParsedToolResult>();
-	for (const { parsed } of rawParsed) {
-		for (const result of parsed.toolResults) {
-			globalToolResults.set(result.id, result);
+const areMergedToolsEqual = (
+	left: readonly MergedTool[],
+	right: readonly MergedTool[],
+): boolean => {
+	if (left === right) {
+		return true;
+	}
+	if (left.length !== right.length) {
+		return false;
+	}
+	for (const [index, leftTool] of left.entries()) {
+		const rightTool = right[index];
+		if (
+			leftTool.id !== rightTool.id ||
+			leftTool.name !== rightTool.name ||
+			leftTool.isError !== rightTool.isError ||
+			leftTool.status !== rightTool.status ||
+			leftTool.mcpServerConfigId !== rightTool.mcpServerConfigId ||
+			leftTool.modelIntent !== rightTool.modelIntent ||
+			leftTool.killedBySignal !== rightTool.killedBySignal ||
+			!Object.is(leftTool.args, rightTool.args) ||
+			!Object.is(leftTool.result, rightTool.result)
+		) {
+			return false;
 		}
 	}
+	return true;
+};
 
-	for (const { parsed } of rawParsed) {
-		const resultById = new Map<string, ParsedToolResult>();
-		for (const result of parsed.toolResults) {
-			resultById.set(result.id, result);
+type CachedMessageEntry = {
+	readonly role: TypesGen.ChatMessageRole;
+	readonly contentRef: readonly TypesGen.ChatMessagePart[] | undefined;
+	readonly contentKey: string;
+	readonly baseParsed: ParsedMessageContent;
+	readonly parsed: ParsedMessageContent;
+	readonly entry: ParsedMessageEntry;
+};
+
+type PreparedMessage = {
+	readonly currentMessage: TypesGen.ChatMessage;
+	readonly stableMessage: TypesGen.ChatMessage;
+	readonly cached: CachedMessageEntry | undefined;
+	readonly baseParsed: ParsedMessageContent;
+	readonly contentKey: string;
+	readonly contentUnchanged: boolean;
+};
+
+export const createCachedParseMessagesWithMergedTools = (): ((
+	messages: readonly TypesGen.ChatMessage[],
+) => ParsedMessageEntry[]) => {
+	let cachedEntriesById = new Map<number, CachedMessageEntry>();
+	let cachedList: ParsedMessageEntry[] = [];
+
+	return (messages) => {
+		const prepared: PreparedMessage[] = messages.map((currentMessage) => {
+			const cached = cachedEntriesById.get(currentMessage.id);
+			if (
+				cached &&
+				cached.role === currentMessage.role &&
+				cached.contentRef === currentMessage.content
+			) {
+				return {
+					currentMessage,
+					stableMessage: cached.entry.message,
+					cached,
+					baseParsed: cached.baseParsed,
+					contentKey: cached.contentKey,
+					contentUnchanged: true,
+				};
+			}
+
+			const contentKey = buildMessageContentKey(currentMessage.content);
+			const contentUnchanged =
+				cached !== undefined &&
+				cached.role === currentMessage.role &&
+				cached.contentKey === contentKey;
+			const baseParsed =
+				contentUnchanged && cached
+					? cached.baseParsed
+					: parseMessageContent(currentMessage.content);
+
+			return {
+				currentMessage,
+				stableMessage:
+					contentUnchanged && cached ? cached.entry.message : currentMessage,
+				cached,
+				baseParsed,
+				contentKey,
+				contentUnchanged,
+			};
+		});
+
+		const globalToolResults = new Map<string, ParsedToolResult>();
+		for (const { baseParsed } of prepared) {
+			for (const result of baseParsed.toolResults) {
+				globalToolResults.set(result.id, result);
+			}
 		}
-		for (const call of parsed.toolCalls) {
-			if (!resultById.has(call.id)) {
-				const global = globalToolResults.get(call.id);
-				if (global) {
-					resultById.set(global.id, global);
+
+		const mergedToolsByMessage = prepared.map(({ baseParsed }) => {
+			const resultById = new Map<string, ParsedToolResult>();
+			for (const result of baseParsed.toolResults) {
+				resultById.set(result.id, result);
+			}
+			for (const call of baseParsed.toolCalls) {
+				if (!resultById.has(call.id)) {
+					const global = globalToolResults.get(call.id);
+					if (global) {
+						resultById.set(global.id, global);
+					}
+				}
+			}
+			return mergeTools(baseParsed.toolCalls, Array.from(resultById.values()));
+		});
+
+		// Annotate execute/process_output tools whose process was
+		// later killed or terminated via process_signal.
+		const signaledProcesses = new Map<string, "kill" | "terminate">();
+		for (const tools of mergedToolsByMessage) {
+			for (const tool of tools) {
+				if (tool.name !== "process_signal") {
+					continue;
+				}
+				const args = asRecord(tool.args);
+				const result = asRecord(tool.result);
+				if (!args || !result?.success) {
+					continue;
+				}
+				const pid = asString(args.process_id);
+				const sig = asString(args.signal);
+				if (pid && (sig === "kill" || sig === "terminate")) {
+					signaledProcesses.set(pid, sig);
 				}
 			}
 		}
-		parsed.tools = mergeTools(
-			parsed.toolCalls,
-			Array.from(resultById.values()),
-		);
-	}
-
-	// Annotate execute/process_output tools whose process was
-	// later killed or terminated via process_signal.
-	const signaledProcesses = new Map<string, "kill" | "terminate">();
-	for (const { parsed } of rawParsed) {
-		for (const tool of parsed.tools) {
-			if (tool.name !== "process_signal") continue;
-			const args = asRecord(tool.args);
-			const result = asRecord(tool.result);
-			if (!args || !result?.success) continue;
-			const pid = asString(args.process_id);
-			const sig = asString(args.signal);
-			if (pid && (sig === "kill" || sig === "terminate"))
-				signaledProcesses.set(pid, sig);
-		}
-	}
-	if (signaledProcesses.size > 0) {
-		for (const { parsed } of rawParsed) {
-			for (const tool of parsed.tools) {
-				if (tool.name !== "execute" && tool.name !== "process_output") continue;
-				const rec = asRecord(tool.result);
-				const args = asRecord(tool.args);
-				const pid =
-					(rec ? asString(rec.background_process_id) : "") ||
-					(rec ? asString(rec.process_id) : "") ||
-					(args ? asString(args.process_id) : "");
-				const sig = pid ? signaledProcesses.get(pid) : undefined;
-				if (sig) tool.killedBySignal = sig;
+		if (signaledProcesses.size > 0) {
+			for (const tools of mergedToolsByMessage) {
+				for (const tool of tools) {
+					if (tool.name !== "execute" && tool.name !== "process_output") {
+						continue;
+					}
+					const rec = asRecord(tool.result);
+					const args = asRecord(tool.args);
+					const pid =
+						(rec ? asString(rec.background_process_id) : "") ||
+						(rec ? asString(rec.process_id) : "") ||
+						(args ? asString(args.process_id) : "");
+					const sig = pid ? signaledProcesses.get(pid) : undefined;
+					if (sig) {
+						tool.killedBySignal = sig;
+					}
+				}
 			}
 		}
-	}
 
-	return rawParsed;
+		const nextEntriesById = new Map<number, CachedMessageEntry>();
+		const nextList = prepared.map((message, index) => {
+			const tools = mergedToolsByMessage[index];
+			const canReuseParsed =
+				message.cached !== undefined &&
+				message.contentUnchanged &&
+				areMergedToolsEqual(message.cached.parsed.tools, tools);
+			if (canReuseParsed && message.cached) {
+				nextEntriesById.set(message.currentMessage.id, {
+					role: message.currentMessage.role,
+					contentRef: message.currentMessage.content,
+					contentKey: message.contentKey,
+					baseParsed: message.cached.baseParsed,
+					parsed: message.cached.parsed,
+					entry: message.cached.entry,
+				});
+				return message.cached.entry;
+			}
+
+			const parsed: ParsedMessageContent = {
+				markdown: message.baseParsed.markdown,
+				reasoning: message.baseParsed.reasoning,
+				toolCalls: message.baseParsed.toolCalls,
+				toolResults: message.baseParsed.toolResults,
+				tools,
+				blocks: message.baseParsed.blocks,
+				sources: message.baseParsed.sources,
+			};
+			const entry: ParsedMessageEntry = {
+				message: message.stableMessage,
+				parsed,
+			};
+			nextEntriesById.set(message.currentMessage.id, {
+				role: message.currentMessage.role,
+				contentRef: message.currentMessage.content,
+				contentKey: message.contentKey,
+				baseParsed: message.baseParsed,
+				parsed,
+				entry,
+			});
+			return entry;
+		});
+
+		cachedEntriesById = nextEntriesById;
+		if (
+			cachedList.length === nextList.length &&
+			nextList.every((entry, index) => entry === cachedList[index])
+		) {
+			return cachedList;
+		}
+		cachedList = nextList;
+		return nextList;
+	};
 };
+
+export const parseMessagesWithMergedTools =
+	createCachedParseMessagesWithMergedTools();
+
+const subagentTitlesCache = new WeakMap<
+	readonly ParsedMessageEntry[],
+	Map<string, string>
+>();
 
 export const buildSubagentTitles = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): Map<string, string> => {
+	const cached = subagentTitlesCache.get(parsedMessages);
+	if (cached) {
+		return cached;
+	}
+
 	const map = new Map<string, string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
@@ -347,12 +506,23 @@ export const buildSubagentTitles = (
 			}
 		}
 	}
+	subagentTitlesCache.set(parsedMessages, map);
 	return map;
 };
+
+const computerUseSubagentIdsCache = new WeakMap<
+	readonly ParsedMessageEntry[],
+	Set<string>
+>();
 
 export const buildComputerUseSubagentIds = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): Set<string> => {
+	const cached = computerUseSubagentIdsCache.get(parsedMessages);
+	if (cached) {
+		return cached;
+	}
+
 	const ids = new Set<string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
@@ -369,5 +539,6 @@ export const buildComputerUseSubagentIds = (
 			}
 		}
 	}
+	computerUseSubagentIdsCache.set(parsedMessages, ids);
 	return ids;
 };
