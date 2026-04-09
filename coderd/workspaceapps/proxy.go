@@ -730,7 +730,10 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
+	log := s.Logger.With(
+		slog.F("agent_id", appToken.AgentID),
+		slog.F("workspace_id", appToken.WorkspaceID),
+	)
 	log.Debug(ctx, "resolved PTY request")
 
 	values := r.URL.Query()
@@ -768,17 +771,18 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
 
+	dialStart := time.Now()
 	dialCtx, dialCancel := context.WithTimeout(ctx, time.Minute)
 	defer dialCancel()
 
 	agentConn, release, err := s.AgentProvider.AgentConn(dialCtx, appToken.AgentID)
 	if err != nil {
-		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		log.Debug(ctx, "dial workspace agent", slog.Error(err), slog.F("elapsed_ms", time.Since(dialStart).Milliseconds()))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
 	defer release()
-	log.Debug(ctx, "dialed workspace agent")
+	log.Debug(ctx, "dialed workspace agent", slog.F("elapsed_ms", time.Since(dialStart).Milliseconds()))
 	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
 	ptNetConn, err := agentConn.ReconnectingPTY(dialCtx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = container
@@ -786,12 +790,12 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		arp.BackendType = backendType
 	})
 	if err != nil {
-		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
+		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err), slog.F("elapsed_ms", time.Since(dialStart).Milliseconds()))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
 	}
 	defer ptNetConn.Close()
-	log.Debug(ctx, "obtained PTY")
+	log.Debug(ctx, "obtained PTY", slog.F("elapsed_ms", time.Since(dialStart).Milliseconds()))
 
 	report := newStatsReportFromSignedToken(*appToken)
 	s.collectStats(report)
@@ -802,7 +806,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
-	log.Debug(ctx, "pty Bicopy finished")
+	log.Debug(ctx, "pty Bicopy finished", slog.F("elapsed_ms", time.Since(dialStart).Milliseconds()))
 }
 
 func (s *Server) collectStats(stats StatsReport) {
