@@ -6783,6 +6783,19 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg database.UpdateWorkspaceAgentDirectoryByIDParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentDirectoryByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
