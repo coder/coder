@@ -119,3 +119,54 @@ export const SecondPageWithData: Story = {
 		children: <div>New data for page 2</div>,
 	},
 };
+
+export const CappedCountFirstPage: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			isSuccess: true,
+			currentPage: 1,
+			currentOffsetStart: 1,
+			totalRecords: 2000,
+			totalPages: 80,
+			hasPreviousPage: false,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
+	},
+};
+
+export const CappedCountMiddlePage: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			isSuccess: true,
+			currentPage: 3,
+			currentOffsetStart: 51,
+			totalRecords: 2000,
+			totalPages: 80,
+			hasPreviousPage: true,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
+	},
+};
+
+export const CappedCountBeyondKnownPages: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			isSuccess: true,
+			currentPage: 85,
+			currentOffsetStart: 2101,
+			totalRecords: 2000,
+			totalPages: 85,
+			hasPreviousPage: true,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
+	},
+};

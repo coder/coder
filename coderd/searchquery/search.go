@@ -67,7 +67,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	}
 
 	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
-	// nolint:exhaustruct // UserID is not obtained from the query parameters.
+	// nolint:exhaustruct // UserID and CountCap are not obtained from the query parameters.
 	countFilter := database.CountAuditLogsParams{
 		RequestID:      filter.RequestID,
 		ResourceID:     filter.ResourceID,
@@ -124,6 +124,7 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	}
 
 	// This MUST be kept in sync with the above
+	// nolint:exhaustruct // CountCap is not obtained from the query parameters.
 	countFilter := database.CountConnectionLogsParams{
 		OrganizationID:      filter.OrganizationID,
 		WorkspaceOwner:      filter.WorkspaceOwner,
