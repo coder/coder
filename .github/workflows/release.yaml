@@ -121,22 +121,22 @@ jobs:
           fi
 
           # Derive the release branch from the version tag.
-          # Standard: 2.10.2 -> release/2.10
-          # RC:       2.32.0-rc.0 -> release/2.32-rc.0
+          # Non-RC releases must be on a release/X.Y branch.
+          # RC tags are allowed on any branch (typically main).
           version="$(./scripts/version.sh)"
+          # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
+          base_version="${version%%-*}"
+          # Then strip patch to get major.minor (e.g. 2.32.0 -> 2.32)
+          release_branch="release/${base_version%.*}"
+
           if [[ "$version" == *-rc.* ]]; then
-            # Extract major.minor and rc suffix from e.g. 2.32.0-rc.0
-            base_version="${version%%-rc.*}"   # 2.32.0
-            major_minor="${base_version%.*}"   # 2.32
-            rc_suffix="${version##*-rc.}"      # 0
-            release_branch="release/${major_minor}-rc.${rc_suffix}"
+            echo "RC release detected — skipping release branch check (RC tags are cut from main)."
           else
-            release_branch=release/${version%.*}
-          fi
-          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
-          if [[ -z "${branch_contains_tag}" ]]; then
-            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
-            exit 1
+            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+            if [[ -z "${branch_contains_tag}" ]]; then
+              echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
+              exit 1
+            fi
           fi
 
           if [[ -z "${CODER_RELEASE_NOTES}" ]]; then

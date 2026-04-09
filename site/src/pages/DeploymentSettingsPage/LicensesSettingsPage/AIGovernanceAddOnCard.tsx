@@ -52,7 +52,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 								</TooltipContent>
 							</Tooltip>
 						</div>
-						<Badge variant="magenta" size="sm" border="solid">
+						<Badge variant="magenta" size="sm">
 							AI add-on
 						</Badge>
 					</div>

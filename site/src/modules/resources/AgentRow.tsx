@@ -41,7 +41,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
-import { useTabOverflowKebabMenu } from "#/components/Tabs/utils";
+import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -256,11 +256,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 		visibleTabs: visibleLogTabs,
 		overflowTabs: overflowLogTabs,
 		getTabMeasureProps,
-	} = useTabOverflowKebabMenu({
+	} = useKebabMenu({
 		tabs: logTabs,
 		enabled: true,
 		isActive: showLogs,
-		alwaysVisibleTabsCount: 1,
 	});
 	const overflowLogTabValuesSet = new Set(
 		overflowLogTabs.map((tab) => tab.value),

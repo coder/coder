@@ -1290,12 +1290,13 @@ func AllChatModeValues() []ChatMode {
 type ChatStatus string
 
 const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
+	ChatStatusWaiting        ChatStatus = "waiting"
+	ChatStatusPending        ChatStatus = "pending"
+	ChatStatusRunning        ChatStatus = "running"
+	ChatStatusPaused         ChatStatus = "paused"
+	ChatStatusCompleted      ChatStatus = "completed"
+	ChatStatusError          ChatStatus = "error"
+	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1340,7 +1341,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusPaused,
 		ChatStatusCompleted,
-		ChatStatusError:
+		ChatStatusError,
+		ChatStatusRequiresAction:
 		return true
 	}
 	return false
@@ -1354,6 +1356,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusPaused,
 		ChatStatusCompleted,
 		ChatStatusError,
+		ChatStatusRequiresAction,
 	}
 }
 
@@ -1540,6 +1543,64 @@ func AllCorsBehaviorValues() []CorsBehavior {
 	return []CorsBehavior{
 		CorsBehaviorSimple,
 		CorsBehaviorPassthru,
+	}
+}
+
+type CredentialKind string
+
+const (
+	CredentialKindCentralized CredentialKind = "centralized"
+	CredentialKindByok        CredentialKind = "byok"
+)
+
+func (e *CredentialKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CredentialKind(s)
+	case string:
+		*e = CredentialKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CredentialKind: %T", src)
+	}
+	return nil
+}
+
+type NullCredentialKind struct {
+	CredentialKind CredentialKind `json:"credential_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if CredentialKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCredentialKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.CredentialKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CredentialKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCredentialKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CredentialKind), nil
+}
+
+func (e CredentialKind) Valid() bool {
+	switch e {
+	case CredentialKindCentralized,
+		CredentialKindByok:
+		return true
+	}
+	return false
+}
+
+func AllCredentialKindValues() []CredentialKind {
+	return []CredentialKind{
+		CredentialKindCentralized,
+		CredentialKindByok,
 	}
 }
 
@@ -4040,6 +4101,10 @@ type AIBridgeInterception struct {
 	SessionID string `db:"session_id" json:"session_id"`
 	// The provider instance name which may differ from provider when multiple instances of the same provider type exist.
 	ProviderName string `db:"provider_name" json:"provider_name"`
+	// How the request was authenticated: centralized or byok.
+	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
+	// Masked credential identifier for audit (e.g. sk-a***efgh).
+	CredentialHint string `db:"credential_hint" json:"credential_hint"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4180,6 +4245,7 @@ type Chat struct {
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 }
 
 type ChatDiffStatus struct {

@@ -28,9 +28,9 @@ Coder—particularly suited for long-running background operations like bug fixe
 documentation generation, PR reviews, and testing/QA.For more information, read
 our documentation [here](https://coder.com/docs/ai-coder/tasks).
 
-### AI Bridge
+### AI Gateway
 
-AI Bridge was introduced in 2.26, and is a smart gateway that acts as an
+AI Gateway was introduced in 2.26, and is a smart gateway that acts as an
 intermediary between users' coding agents/IDEs and AI providers like OpenAI and
 Anthropic. It solves three key problems:
 
@@ -42,19 +42,19 @@ Anthropic. It solves three key problems:
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts,
 token usage, and tool invocations. For more information, read our documentation
-[here](https://coder.com/docs/ai-coder/ai-bridge).
+[here](../../ai-coder/ai-gateway/index.md).
 
-### Agent Boundaries
+### Agent Firewall
 
-Agent Boundaries was introduced in 2.27 and is currently in Early Access. Agent
-Boundaries are process-level firewalls in Coder that restrict and audit what
+Agent Firewall was introduced in 2.27 and is currently in Early Access. Agent
+Firewall is a process-level firewall in Coder that restricts and audits what
 autonomous programs (like AI agents) can access and do within a workspace. They
 provide network policy enforcement—blocking specific domains and HTTP verbs to
 prevent data exfiltration—and write logs to the workspace for auditability.
-Boundaries support any terminal-based agent, including custom ones, and can be
+Agent Firewall supports any terminal-based agent, including custom ones, and can be
 easily configured through existing Coder modules like the Claude Code module.
 For more information, read our documentation
-[here](../../ai-coder/agent-boundaries/index.md).
+[here](../../ai-coder/agent-firewall/index.md).
 
 ### Performance Enhancements
 

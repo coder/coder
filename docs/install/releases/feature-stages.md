@@ -106,7 +106,7 @@ available in the documentation.
 |------------------------------------------------------------------------------|------------------------------------------------|------------------|
 | [MCP Server](../../ai-coder/mcp-server.md)                                   | Connect to agents Coder with a MCP server      | mainline, stable |
 | [JetBrains Toolbox](../../user-guides/workspace-access/jetbrains/toolbox.md) | Access Coder workspaces from JetBrains Toolbox | mainline, stable |
-| Agent Boundaries                                                             | Understanding Agent Boundaries in Coder Tasks  | stable           |
+| Agent Firewall                                                               | Understanding Agent Firewall in Coder Tasks    | stable           |
 | [Workspace Sharing](../../user-guides/shared-workspaces.md)                  | Sharing workspaces                             | mainline, stable |
 <!-- END: available-beta-features -->
 

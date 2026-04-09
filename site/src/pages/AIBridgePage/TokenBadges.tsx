@@ -57,7 +57,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center justify-between gap-4">
 								<div className="text-sm text-content-secondary">Input</div>
 								<div className="text-sm text-content-secondary">
-									{inputTokens}
+									{inputTokens.toLocaleString()}
 								</div>
 							</div>
 						</div>
@@ -72,7 +72,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center justify-between gap-4">
 								<div className="text-sm text-content-secondary">Output</div>
 								<div className="text-sm text-content-secondary">
-									{outputTokens}
+									{outputTokens.toLocaleString()}
 								</div>
 							</div>
 						</div>

@@ -1,7 +1,6 @@
 import { useFormik } from "formik";
 import {
 	CheckCircleIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
 	CircleIcon,
 	PlusIcon,
@@ -14,14 +13,6 @@ import { useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
@@ -41,7 +32,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { BackButton } from "./BackButton";
 import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { SectionHeader } from "./SectionHeader";
 
 // ── Constants ──────────────────────────────────────────────────
@@ -355,14 +348,7 @@ const ServerForm: FC<ServerFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
+			<BackButton onClick={onBack} />
 			{/* Header with icon + editable name + enabled toggle */}
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
@@ -849,37 +835,13 @@ const ServerForm: FC<ServerFormProps> = ({
 				</div>
 			</form>
 			{server && (
-				<Dialog
+				<ConfirmDeleteDialog
+					entity="MCP server"
+					onConfirm={() => void onDelete(server.id)}
+					isPending={isDeleting}
 					open={confirmingDelete}
 					onOpenChange={(open) => !open && setConfirmingDelete(false)}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete server</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete this MCP server? This action is
-								irreversible.
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setConfirmingDelete(false)}
-								disabled={isDisabled}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={() => void onDelete(server.id)}
-								disabled={isDisabled}
-							>
-								{isDeleting && <Spinner className="h-4 w-4" loading />}
-								Delete server
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				/>
 			)}{" "}
 		</div>
 	);

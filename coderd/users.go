@@ -475,6 +475,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
+
+		// Service accounts are a Premium feature.
+		if !api.Entitlements.Enabled(codersdk.FeatureServiceAccounts) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", codersdk.FeatureServiceAccounts.Humanize()),
+			})
+			return
+		}
 	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
@@ -1628,18 +1636,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	rbacRoles := []string{}
 	if req.RBACRoles != nil {
 		rbacRoles = req.RBACRoles
-	}
-
-	// When the agents experiment is enabled, auto-assign the
-	// agents-access role so new users can use Coder Agents
-	// without manual admin intervention. Skip this for OIDC
-	// users when site role sync is enabled, because the sync
-	// will overwrite roles on every login anyway — those
-	// admins should use --oidc-user-role-default instead.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) &&
-		!(req.LoginType == database.LoginTypeOIDC && api.IDPSync.SiteRoleSyncEnabled()) &&
-		!slices.Contains(rbacRoles, codersdk.RoleAgentsAccess) {
-		rbacRoles = append(rbacRoles, codersdk.RoleAgentsAccess)
 	}
 
 	var user database.User

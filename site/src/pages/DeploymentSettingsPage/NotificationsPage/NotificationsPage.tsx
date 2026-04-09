@@ -65,11 +65,10 @@ const NotificationsPage: FC = () => {
 		? tabState.value
 		: NOTIFICATION_TABS[0];
 
-	const ready = !!(
-		systemTemplatesByGroup.data &&
-		customTemplatesByGroup.data &&
-		dispatchMethods.data
-	);
+	const ready =
+		systemTemplatesByGroup.data != null &&
+		customTemplatesByGroup.data != null &&
+		dispatchMethods.data != null;
 	// Combine system and custom notification templates
 	const allTemplatesByGroup = {
 		...systemTemplatesByGroup.data,

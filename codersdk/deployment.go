@@ -196,6 +196,7 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
+	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
@@ -227,6 +228,7 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundary,
+		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
 	}
 
@@ -275,6 +277,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
 		FeatureBoundary:                   true,
+		FeatureServiceAccounts:            true,
 	}[n]
 }
 
@@ -282,7 +285,7 @@ func (n FeatureName) AlwaysEnable() bool {
 func (n FeatureName) Enterprise() bool {
 	switch n {
 	// Add all features that should be excluded in the Enterprise feature set.
-	case FeatureMultipleOrganizations, FeatureCustomRoles:
+	case FeatureMultipleOrganizations, FeatureCustomRoles, FeatureServiceAccounts:
 		return false
 	default:
 		return true

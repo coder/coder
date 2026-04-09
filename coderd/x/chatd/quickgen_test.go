@@ -515,12 +515,9 @@ func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
 		},
 	}
 
-	text, usage, err := generateShortText(context.Background(), model, "system", "user")
+	text, err := generateShortText(context.Background(), model, "system", "user")
 	require.NoError(t, err)
 	require.Equal(t, "Quoted summary", text)
-	require.Equal(t, int64(3), usage.InputTokens)
-	require.Equal(t, int64(2), usage.OutputTokens)
-	require.Equal(t, int64(5), usage.TotalTokens)
 }
 
 type stubModel struct {

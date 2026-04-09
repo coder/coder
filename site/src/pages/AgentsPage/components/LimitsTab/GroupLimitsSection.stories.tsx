@@ -146,9 +146,7 @@ export const DeleteGroupOverride: Story = {
 		const dialog = await body.findByRole("dialog");
 		await expect(dialog).toBeInTheDocument();
 		await expect(
-			body.getByText(
-				/Are you sure you want to delete this group limit override/i,
-			),
+			body.getByText(/Are you sure you want to delete this group override/i),
 		).toBeInTheDocument();
 	},
 };

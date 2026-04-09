@@ -4,12 +4,12 @@ import {
 	type RefCallback,
 	type RefObject,
 	useEffect,
+	useEffectEvent,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 import { Button } from "#/components/Button/Button";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { cn } from "#/utils/cn";
 
 // ===========================================================================
@@ -155,18 +155,18 @@ function useStickToBottom(): StickToBottomInstance {
 		}
 	});
 
-	const suppressNextResize = useEffectEvent(() => {
+	const suppressNextResize = () => {
 		stateRef.current.suppressNextResize = true;
-	});
+	};
 
-	const capturePrependSnapshot = useEffectEvent(() => {
+	const capturePrependSnapshot = () => {
 		const s = stateRef.current;
 		if (s.scrollElement) {
 			s.pendingPrepend = {
 				scrollHeight: s.scrollElement.scrollHeight,
 			};
 		}
-	});
+	};
 
 	// -----------------------------------------------------------------------
 	// Event handlers
@@ -430,63 +430,68 @@ function useStickToBottom(): StickToBottomInstance {
 		}
 	});
 
-	const scrollRef = useEffectEvent((el: HTMLDivElement | null) => {
+	// Ref callbacks must have stable identity — React cycles them
+	// on identity change, which leaks event listeners. Store the
+	// element in state and let a useEffect manage listeners.
+	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+		null,
+	);
+
+	useEffect(() => {
 		const s = stateRef.current;
-		const prev = s.scrollElement;
+		s.scrollElement = scrollElement;
+		if (!scrollElement) return;
 
-		if (prev) {
-			prev.removeEventListener("touchstart", handleTouchStart);
-			prev.removeEventListener("touchend", handleTouchEnd);
-			prev.removeEventListener("touchcancel", handleTouchEnd);
-			prev.removeEventListener("scroll", handleScroll);
-			prev.removeEventListener("wheel", handleWheel);
-			prev.removeEventListener("pointerdown", handlePointerDown);
-		}
+		s.lastClientHeight = scrollElement.clientHeight;
+		scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+		scrollElement.addEventListener("wheel", handleWheel, { passive: true });
+		scrollElement.addEventListener("touchstart", handleTouchStart, {
+			passive: true,
+		});
+		scrollElement.addEventListener("touchend", handleTouchEnd, {
+			passive: true,
+		});
+		scrollElement.addEventListener("touchcancel", handleTouchEnd, {
+			passive: true,
+		});
+		scrollElement.addEventListener("pointerdown", handlePointerDown);
 
-		if (s.viewportObserver) {
-			s.viewportObserver.disconnect();
-			s.viewportObserver = null;
-		}
+		const vo = new ResizeObserver(handleViewportResize);
+		vo.observe(scrollElement);
+		s.viewportObserver = vo;
 
-		s.scrollElement = el;
+		return () => {
+			scrollElement.removeEventListener("touchstart", handleTouchStart);
+			scrollElement.removeEventListener("touchend", handleTouchEnd);
+			scrollElement.removeEventListener("touchcancel", handleTouchEnd);
+			scrollElement.removeEventListener("scroll", handleScroll);
+			scrollElement.removeEventListener("wheel", handleWheel);
+			scrollElement.removeEventListener("pointerdown", handlePointerDown);
+			if (s.viewportObserver) {
+				s.viewportObserver.disconnect();
+				s.viewportObserver = null;
+			}
+		};
+	}, [scrollElement]);
 
-		if (el) {
-			s.lastClientHeight = el.clientHeight;
-			el.addEventListener("scroll", handleScroll, { passive: true });
-			el.addEventListener("wheel", handleWheel, { passive: true });
-			el.addEventListener("touchstart", handleTouchStart, {
-				passive: true,
-			});
-			el.addEventListener("touchend", handleTouchEnd, {
-				passive: true,
-			});
-			el.addEventListener("touchcancel", handleTouchEnd, {
-				passive: true,
-			});
-			el.addEventListener("pointerdown", handlePointerDown);
+	const [contentElement, setContentElement] = useState<HTMLDivElement | null>(
+		null,
+	);
 
-			const vo = new ResizeObserver(handleViewportResize);
-			vo.observe(el);
-			s.viewportObserver = vo;
-		}
-	});
-
-	const contentRef = useEffectEvent((el: HTMLDivElement | null) => {
+	useEffect(() => {
 		const s = stateRef.current;
+		s.contentElement = contentElement;
+		if (!contentElement) return;
 
-		if (s.resizeObserver) {
-			s.resizeObserver.disconnect();
+		const ro = new ResizeObserver(handleContentResize);
+		ro.observe(contentElement);
+		s.resizeObserver = ro;
+
+		return () => {
+			ro.disconnect();
 			s.resizeObserver = null;
-		}
-
-		s.contentElement = el;
-
-		if (el) {
-			const ro = new ResizeObserver(handleContentResize);
-			ro.observe(el);
-			s.resizeObserver = ro;
-		}
-	});
+		};
+	}, [contentElement]);
 
 	// -----------------------------------------------------------------------
 	// Mouse tracking (instance-scoped)
@@ -527,33 +532,6 @@ function useStickToBottom(): StickToBottomInstance {
 		};
 	}, []);
 
-	// Cleanup on unmount.
-	useEffect(() => {
-		return () => {
-			const s = stateRef.current;
-			if (s.scrollElement) {
-				s.scrollElement.removeEventListener("scroll", handleScroll);
-				s.scrollElement.removeEventListener("wheel", handleWheel);
-				s.scrollElement.removeEventListener("touchstart", handleTouchStart);
-				s.scrollElement.removeEventListener("touchend", handleTouchEnd);
-				s.scrollElement.removeEventListener("touchcancel", handleTouchEnd);
-				s.scrollElement.removeEventListener("pointerdown", handlePointerDown);
-			}
-			if (s.resizeObserver) {
-				s.resizeObserver.disconnect();
-			}
-			if (s.viewportObserver) {
-				s.viewportObserver.disconnect();
-			}
-		};
-	}, [
-		handleScroll,
-		handleWheel,
-		handleTouchStart,
-		handleTouchEnd,
-		handlePointerDown,
-	]);
-
 	// Post-render consistency check. If we believe we're pinned
 	// to the bottom but the physical scroll position disagrees,
 	// correct it before the browser paints. This catches any
@@ -572,8 +550,8 @@ function useStickToBottom(): StickToBottomInstance {
 	});
 
 	return {
-		scrollRef,
-		contentRef,
+		scrollRef: setScrollElement,
+		contentRef: setContentElement,
 		scrollToBottom,
 		isAtBottom: isAtBottom || nearBottom,
 		suppressNextResize,
@@ -619,11 +597,11 @@ const ChatScrollContainer: FC<{
 	// Merge our callback ref with the external RefObject so both
 	// point at the same DOM node, and expose scrollToBottom to the
 	// parent via its imperative ref.
-	const mergedScrollRef = useEffectEvent((el: HTMLDivElement | null) => {
+	const mergedScrollRef = (el: HTMLDivElement | null) => {
 		scrollRef(el);
 		scrollContainerRef.current = el;
 		scrollToBottomRef.current = el ? () => scrollToBottom("instant") : null;
-	});
+	};
 
 	// -------------------------------------------------------------------
 	// Pagination sentinel (IntersectionObserver)

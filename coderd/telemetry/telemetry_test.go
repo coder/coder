@@ -1549,3 +1549,303 @@ func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
 		require.Nil(t, snapshot2.BoundaryUsageSummary)
 	})
 }
+
+func TestChatsTelemetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	user := dbgen.User(t, db, database.User{})
+
+	// Create chat providers (required FK for model configs).
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "anthropic",
+		DisplayName:          "Anthropic",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	// Create a model config.
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "anthropic",
+		Model:                "claude-sonnet-4-20250514",
+		DisplayName:          "Claude Sonnet",
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         200000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+
+	// Create a second model config to test full dump.
+	modelCfg2, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "gpt-4o",
+		DisplayName:          "GPT-4o",
+		Enabled:              true,
+		IsDefault:            false,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+
+	// Create a soft-deleted model config — should NOT appear in telemetry.
+	deletedCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "anthropic",
+		Model:                "claude-deleted",
+		DisplayName:          "Deleted Model",
+		Enabled:              true,
+		IsDefault:            false,
+		ContextLimit:         100000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+	err = db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	require.NoError(t, err)
+
+	// Create a root chat with a workspace.
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		CreatedBy:      user.ID,
+		JobID:          job.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             job.ID,
+	})
+
+	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "Root Chat",
+		Status:            database.ChatStatusRunning,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Create a child chat (has parent + root).
+	childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg2.ID,
+		Title:             "Child Chat",
+		Status:            database.ChatStatusCompleted,
+		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Insert messages for root chat: 2 user, 2 assistant, 1 tool.
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              rootChat.ID,
+		CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, user.ID, uuid.Nil, uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelCfg.ID, modelCfg.ID, modelCfg.ID, modelCfg.ID, modelCfg.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
+		Content:             []string{`[{"type":"text","text":"hello"}]`, `[{"type":"text","text":"hi"}]`, `[{"type":"text","text":"help"}]`, `[{"type":"text","text":"sure"}]`, `[{"type":"text","text":"result"}]`},
+		ContentVersion:      []int16{1, 1, 1, 1, 1},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100, 200, 150, 300, 0},
+		OutputTokens:        []int64{0, 50, 0, 100, 0},
+		TotalTokens:         []int64{100, 250, 150, 400, 0},
+		ReasoningTokens:     []int64{0, 10, 0, 20, 0},
+		CacheCreationTokens: []int64{50, 0, 30, 0, 0},
+		CacheReadTokens:     []int64{0, 25, 0, 40, 0},
+		ContextLimit:        []int64{200000, 200000, 200000, 200000, 200000},
+		Compressed:          []bool{false, false, false, false, false},
+		TotalCostMicros:     []int64{1000, 2000, 1500, 3000, 0},
+		RuntimeMs:           []int64{0, 500, 0, 800, 100},
+		ProviderResponseID:  []string{"", "resp-1", "", "resp-2", ""},
+	})
+	require.NoError(t, err)
+
+	// Insert messages for child chat: 1 user, 1 assistant (compressed).
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              childChat.ID,
+		CreatedBy:           []uuid.UUID{user.ID, uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelCfg2.ID, modelCfg2.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant},
+		Content:             []string{`[{"type":"text","text":"q"}]`, `[{"type":"text","text":"a"}]`},
+		ContentVersion:      []int16{1, 1},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{500, 600},
+		OutputTokens:        []int64{0, 200},
+		TotalTokens:         []int64{500, 800},
+		ReasoningTokens:     []int64{0, 50},
+		CacheCreationTokens: []int64{100, 0},
+		CacheReadTokens:     []int64{0, 75},
+		ContextLimit:        []int64{128000, 128000},
+		Compressed:          []bool{false, true},
+		TotalCostMicros:     []int64{5000, 8000},
+		RuntimeMs:           []int64{0, 1200},
+		ProviderResponseID:  []string{"", "resp-3"},
+	})
+	require.NoError(t, err)
+
+	// Insert a soft-deleted message on root chat with large token values.
+	// This acts as "poison" — if the deleted filter is missing, totals
+	// will be inflated and assertions below will fail.
+	poisonMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              rootChat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelCfg.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		Content:             []string{`[{"type":"text","text":"poison"}]`},
+		ContentVersion:      []int16{1},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{999999},
+		OutputTokens:        []int64{999999},
+		TotalTokens:         []int64{999999},
+		ReasoningTokens:     []int64{999999},
+		CacheCreationTokens: []int64{999999},
+		CacheReadTokens:     []int64{999999},
+		ContextLimit:        []int64{200000},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{999999},
+		RuntimeMs:           []int64{999999},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+	err = db.SoftDeleteChatMessageByID(ctx, poisonMsgs[0].ID)
+	require.NoError(t, err)
+
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+	// --- Assert Chats ---
+	require.Len(t, snapshot.Chats, 2)
+
+	// Find root and child by HasParent flag.
+	var foundRoot, foundChild *telemetry.Chat
+	for i := range snapshot.Chats {
+		if !snapshot.Chats[i].HasParent {
+			foundRoot = &snapshot.Chats[i]
+		} else {
+			foundChild = &snapshot.Chats[i]
+		}
+	}
+	require.NotNil(t, foundRoot, "expected root chat")
+	require.NotNil(t, foundChild, "expected child chat")
+
+	// Root chat assertions.
+	assert.Equal(t, rootChat.ID, foundRoot.ID)
+	assert.Equal(t, user.ID, foundRoot.OwnerID)
+	assert.Equal(t, "running", foundRoot.Status)
+	assert.False(t, foundRoot.HasParent)
+	assert.Nil(t, foundRoot.RootChatID)
+	require.NotNil(t, foundRoot.WorkspaceID)
+	assert.Equal(t, ws.ID, *foundRoot.WorkspaceID)
+	assert.Equal(t, modelCfg.ID, foundRoot.LastModelConfigID)
+	require.NotNil(t, foundRoot.Mode)
+	assert.Equal(t, "computer_use", *foundRoot.Mode)
+	assert.False(t, foundRoot.Archived)
+
+	// Child chat assertions.
+	assert.Equal(t, childChat.ID, foundChild.ID)
+	assert.Equal(t, user.ID, foundChild.OwnerID)
+	assert.True(t, foundChild.HasParent)
+	require.NotNil(t, foundChild.RootChatID)
+	assert.Equal(t, rootChat.ID, *foundChild.RootChatID)
+	assert.Nil(t, foundChild.WorkspaceID)
+	assert.Equal(t, "completed", foundChild.Status)
+	assert.Equal(t, modelCfg2.ID, foundChild.LastModelConfigID)
+	assert.Nil(t, foundChild.Mode)
+	assert.False(t, foundChild.Archived)
+
+	// --- Assert ChatMessageSummaries ---
+	require.Len(t, snapshot.ChatMessageSummaries, 2)
+
+	summaryMap := make(map[uuid.UUID]telemetry.ChatMessageSummary)
+	for _, s := range snapshot.ChatMessageSummaries {
+		summaryMap[s.ChatID] = s
+	}
+
+	// Root chat summary: 2 user + 2 assistant + 1 tool = 5 messages.
+	rootSummary, ok := summaryMap[rootChat.ID]
+	require.True(t, ok, "expected summary for root chat")
+	assert.Equal(t, int64(5), rootSummary.MessageCount)
+	assert.Equal(t, int64(2), rootSummary.UserMessageCount)
+	assert.Equal(t, int64(2), rootSummary.AssistantMessageCount)
+	assert.Equal(t, int64(1), rootSummary.ToolMessageCount)
+	assert.Equal(t, int64(0), rootSummary.SystemMessageCount)
+	assert.Equal(t, int64(750), rootSummary.TotalInputTokens)        // 100+200+150+300+0
+	assert.Equal(t, int64(150), rootSummary.TotalOutputTokens)       // 0+50+0+100+0
+	assert.Equal(t, int64(30), rootSummary.TotalReasoningTokens)     // 0+10+0+20+0
+	assert.Equal(t, int64(80), rootSummary.TotalCacheCreationTokens) // 50+0+30+0+0
+	assert.Equal(t, int64(65), rootSummary.TotalCacheReadTokens)     // 0+25+0+40+0
+	assert.Equal(t, int64(7500), rootSummary.TotalCostMicros)        // 1000+2000+1500+3000+0
+	assert.Equal(t, int64(1400), rootSummary.TotalRuntimeMs)         // 0+500+0+800+100
+	assert.Equal(t, int64(1), rootSummary.DistinctModelCount)
+	assert.Equal(t, int64(0), rootSummary.CompressedMessageCount)
+
+	// Child chat summary: 1 user + 1 assistant = 2 messages, 1 compressed.
+	childSummary, ok := summaryMap[childChat.ID]
+	require.True(t, ok, "expected summary for child chat")
+	assert.Equal(t, int64(2), childSummary.MessageCount)
+	assert.Equal(t, int64(1), childSummary.UserMessageCount)
+	assert.Equal(t, int64(1), childSummary.AssistantMessageCount)
+	assert.Equal(t, int64(1100), childSummary.TotalInputTokens)   // 500+600
+	assert.Equal(t, int64(200), childSummary.TotalOutputTokens)   // 0+200
+	assert.Equal(t, int64(50), childSummary.TotalReasoningTokens) // 0+50
+	assert.Equal(t, int64(0), childSummary.ToolMessageCount)
+	assert.Equal(t, int64(0), childSummary.SystemMessageCount)
+	assert.Equal(t, int64(100), childSummary.TotalCacheCreationTokens) // 100+0
+	assert.Equal(t, int64(75), childSummary.TotalCacheReadTokens)      // 0+75
+	assert.Equal(t, int64(13000), childSummary.TotalCostMicros)        // 5000+8000
+	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMs)          // 0+1200
+	assert.Equal(t, int64(1), childSummary.DistinctModelCount)
+	assert.Equal(t, int64(1), childSummary.CompressedMessageCount)
+
+	// --- Assert ChatModelConfigs ---
+	require.Len(t, snapshot.ChatModelConfigs, 2)
+
+	configMap := make(map[uuid.UUID]telemetry.ChatModelConfig)
+	for _, c := range snapshot.ChatModelConfigs {
+		configMap[c.ID] = c
+	}
+
+	cfg1, ok := configMap[modelCfg.ID]
+	require.True(t, ok)
+	assert.Equal(t, "anthropic", cfg1.Provider)
+	assert.Equal(t, "claude-sonnet-4-20250514", cfg1.Model)
+	assert.Equal(t, int64(200000), cfg1.ContextLimit)
+	assert.True(t, cfg1.Enabled)
+	assert.True(t, cfg1.IsDefault)
+
+	cfg2, ok := configMap[modelCfg2.ID]
+	require.True(t, ok)
+	assert.Equal(t, "openai", cfg2.Provider)
+	assert.Equal(t, "gpt-4o", cfg2.Model)
+	assert.Equal(t, int64(128000), cfg2.ContextLimit)
+	assert.True(t, cfg2.Enabled)
+	assert.False(t, cfg2.IsDefault)
+}

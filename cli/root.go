@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -148,6 +149,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 	return []*serpent.Command{
 		r.scaletestCmd(),
 		r.errorExample(),
+		r.chatCommand(),
 		r.mcpCommand(),
 		r.promptExample(),
 		r.rptyCommand(),
@@ -710,7 +712,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
-		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
+		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
 			basicClient := codersdk.New(serverURL)
@@ -1434,6 +1436,21 @@ func defaultUpgradeMessage(version string) string {
 	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
 
+// serverVersionMessage returns a warning message if the server version
+// is a release candidate or development build. Returns empty string
+// for stable versions. RC is checked before devel because RC dev
+// builds (e.g. v2.33.0-rc.1-devel+hash) contain both tags.
+func serverVersionMessage(serverVersion string) string {
+	switch {
+	case buildinfo.IsRCVersion(serverVersion):
+		return fmt.Sprintf("the server is running a release candidate of Coder (%s)", serverVersion)
+	case buildinfo.IsDevVersion(serverVersion):
+		return fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion)
+	default:
+		return ""
+	}
+}
+
 // wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
 // that checks for entitlement warnings and prints them to the user.
 func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.RoundTripper {
@@ -1452,10 +1469,10 @@ func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.
 	})
 }
 
-// wrapTransportWithVersionMismatchCheck adds a middleware to the HTTP transport
-// that checks for version mismatches between the client and server. If a mismatch
-// is detected, a warning is printed to the user.
-func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
+// wrapTransportWithVersionCheck adds a middleware to the HTTP transport
+// that checks the server version and warns about development builds,
+// release candidates, and client/server version mismatches.
+func wrapTransportWithVersionCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
 	var once sync.Once
 	return roundTripper(func(req *http.Request) (*http.Response, error) {
 		res, err := rt.RoundTrip(req)
@@ -1467,9 +1484,16 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 			if serverVersion == "" {
 				return
 			}
+			// Warn about non-stable server versions. Skip
+			// during tests to avoid polluting golden files.
+			if msg := serverVersionMessage(serverVersion); msg != "" && flag.Lookup("test.v") == nil {
+				warning := pretty.Sprint(cliui.DefaultStyles.Warn, msg)
+				_, _ = fmt.Fprintln(inv.Stderr, warning)
+			}
 			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
 				return
 			}
+
 			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
 			if serverInfo, err := getBuildInfo(inv.Context()); err == nil {
 				switch {

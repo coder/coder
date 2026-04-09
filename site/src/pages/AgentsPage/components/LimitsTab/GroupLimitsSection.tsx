@@ -5,14 +5,6 @@ import type { Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -29,9 +21,11 @@ import {
 	formatCostMicros,
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {
+	hideHeader?: boolean;
 	groupOverrides: ReadonlyArray<{
 		group_id: string;
 		group_display_name: string;
@@ -69,6 +63,7 @@ interface GroupLimitsSectionProps {
 }
 
 export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
+	hideHeader,
 	groupOverrides,
 	showGroupForm,
 	onShowGroupFormChange,
@@ -98,10 +93,12 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 
 	return (
 		<section className="space-y-4">
-			<SectionHeader
-				label="Group Limits"
-				description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
-			/>
+			{!hideHeader && (
+				<SectionHeader
+					label="Group Limits"
+					description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
+				/>
+			)}
 			<div className="space-y-4">
 				{groupOverrides.length > 0 ? (
 					<Table>
@@ -298,40 +295,16 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 				)}
 			</div>
 			{pendingDeleteGroupId && (
-				<Dialog
-					open
+				<ConfirmDeleteDialog
+					entity="group override"
+					onConfirm={() => {
+						void onDeleteGroupOverride(pendingDeleteGroupId);
+						setPendingDeleteGroupId(null);
+					}}
+					isPending={deletePending}
+					open={true}
 					onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete group override</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete this group limit override? This
-								action is irreversible.
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setPendingDeleteGroupId(null)}
-								disabled={deletePending}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={() => {
-									void onDeleteGroupOverride(pendingDeleteGroupId);
-									setPendingDeleteGroupId(null);
-								}}
-								disabled={deletePending}
-							>
-								{deletePending && <Spinner className="h-4 w-4" loading />}
-								Delete override
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				/>
 			)}{" "}
 		</section>
 	);
