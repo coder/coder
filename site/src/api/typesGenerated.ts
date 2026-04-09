@@ -2473,6 +2473,10 @@ export interface CreateChatMessageResponse {
  */
 export interface CreateChatModelConfigRequest {
 	readonly provider: string;
+	/**
+	 * ProviderConfigIDs must contain at least one provider config ID. The
+	 * server rejects requests that omit this field or send an empty list.
+	 */
 	readonly provider_config_ids?: readonly string[];
 	readonly model: string;
 	readonly display_name?: string;
@@ -2826,6 +2830,20 @@ export interface CreateUserRequestWithOrgs {
 	 * Service accounts are admin-managed accounts that cannot login.
 	 */
 	readonly service_account?: boolean;
+}
+
+// From codersdk/usersecrets.go
+/**
+ * CreateUserSecretRequest is the payload for creating a new user
+ * secret. Name and Value are required. All other fields are optional
+ * and default to empty string.
+ */
+export interface CreateUserSecretRequest {
+	readonly name: string;
+	readonly value: string;
+	readonly description?: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
 }
 
 // From codersdk/workspaces.go
@@ -7374,6 +7392,12 @@ export interface UpdateChatDesktopEnabledRequest {
  */
 export interface UpdateChatModelConfigRequest {
 	readonly provider?: string;
+	/**
+	 * ProviderConfigIDs preserves existing attachments when omitted, as long
+	 * as Provider is unchanged. If Provider changes, explicit IDs are
+	 * required, and the server rejects updates that result in zero
+	 * attachments.
+	 */
 	readonly provider_config_ids?: string[];
 	readonly model?: string;
 	readonly display_name?: string;
@@ -7702,6 +7726,20 @@ export interface UpdateUserQuietHoursScheduleRequest {
 	 * schedule.
 	 */
 	readonly schedule: string;
+}
+
+// From codersdk/usersecrets.go
+/**
+ * UpdateUserSecretRequest is the payload for partially updating a
+ * user secret. At least one field must be non-nil. Pointer fields
+ * distinguish "not sent" (nil) from "set to empty string" (pointer
+ * to empty string).
+ */
+export interface UpdateUserSecretRequest {
+	readonly value?: string;
+	readonly description?: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
 }
 
 // From codersdk/workspaces.go
@@ -8054,6 +8092,35 @@ export interface UserQuietHoursScheduleResponse {
 export interface UserRoles {
 	readonly roles: readonly string[];
 	readonly organization_roles: Record<string, string[]>;
+}
+
+// From codersdk/usersecrets.go
+/**
+ * UserSecret represents a user secret's metadata. The secret value
+ * is never included in API responses.
+ */
+export interface UserSecret {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly env_name: string;
+	readonly file_path: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/usersecretvalidation.go
+/**
+ * UserSecretEnvValidationOptions controls deployment-aware behavior
+ * in environment variable name validation.
+ */
+export interface UserSecretEnvValidationOptions {
+	/**
+	 * AIGatewayEnabled indicates that the deployment has AI Gateway
+	 * configured. When true, AI Gateway environment variables
+	 * (OPENAI_API_KEY, etc.) are reserved to prevent conflicts.
+	 */
+	readonly AIGatewayEnabled: boolean;
 }
 
 // From codersdk/users.go

@@ -617,7 +617,7 @@ type ChatProviderConfig struct {
 	DisplayName                string                   `json:"display_name"`
 	Enabled                    bool                     `json:"enabled"`
 	HasAPIKey                  bool                     `json:"has_api_key"`
-	HasEffectiveAPIKey         bool                     `json:"has_effective_api_key" typescript:"-"`
+	HasEffectiveAPIKey         bool                     `json:"has_effective_api_key"`
 	CentralAPIKeyEnabled       bool                     `json:"central_api_key_enabled"`
 	AllowUserAPIKey            bool                     `json:"allow_user_api_key"`
 	AllowCentralAPIKeyFallback bool                     `json:"allow_central_api_key_fallback"`
