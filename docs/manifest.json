@@ -1181,6 +1181,11 @@
 									"title": "Reference",
 									"description": "Technical reference for AI Bridge",
 									"path": "./ai-coder/ai-bridge/reference.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Common issues and solutions for AI Bridge deployments",
+									"path": "./ai-coder/ai-bridge/troubleshooting.md"
 								}
 							]
 						},
