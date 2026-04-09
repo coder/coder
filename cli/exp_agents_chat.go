@@ -265,7 +265,7 @@ func (m *chatViewModel) recalcViewportHeight() {
 	composerTextWidth := lipgloss.Width(m.composer.View())
 	composerLines := max(1, (composerTextWidth+composerWidth-1)/composerWidth)
 
-	const chromeLines = 6
+	const chromeLines = 5
 	m.viewport.Width = m.width
 	m.viewport.Height = max(0, m.height-chromeLines-composerLines)
 }
@@ -986,7 +986,7 @@ func (m chatViewModel) View() string {
 	if errorBanner != "" {
 		errorBannerHeight = lipgloss.Height(errorBanner)
 	}
-	nonViewportHeight := 1 + 1 + statusBarHeight + errorBannerHeight + 1 + composerHeight + 1
+	nonViewportHeight := 1 + 1 + statusBarHeight + errorBannerHeight + composerHeight + 1
 	availableViewportHeight := max(0, m.height-nonViewportHeight)
 
 	viewportView := m.viewport.View()
@@ -1010,7 +1010,7 @@ func (m chatViewModel) View() string {
 	if errorBanner != "" {
 		sections = append(sections, errorBanner)
 	}
-	sections = append(sections, separator, composerView, helpRow)
+	sections = append(sections, composerView, helpRow)
 
 	return strings.Join(sections, "\n")
 }

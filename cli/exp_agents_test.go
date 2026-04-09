@@ -269,7 +269,7 @@ func TestExpAgents(t *testing.T) {
 						require.Equal(t, viewChat, updated.currentView)
 						require.True(t, updated.chat.loading)
 						require.Equal(t, 39, updated.chat.height)
-						require.Equal(t, 32, updated.chat.viewport.Height)
+						require.Equal(t, 33, updated.chat.viewport.Height)
 						require.Len(t, mustBatchMsg(t, cmd), 3)
 					},
 				},
@@ -284,7 +284,7 @@ func TestExpAgents(t *testing.T) {
 						require.True(t, updated.chat.metadataResolved)
 						require.True(t, updated.chat.historyResolved)
 						require.Equal(t, 39, updated.chat.height)
-						require.Equal(t, 32, updated.chat.viewport.Height)
+						require.Equal(t, 33, updated.chat.viewport.Height)
 						require.Nil(t, cmd)
 					},
 				},
@@ -2342,7 +2342,7 @@ func TestExpAgents(t *testing.T) {
 			}{
 				{"Standard", 40, nil, func(t *testing.T, model expChatsTUIModel) {
 					require.Equal(t, 39, model.chat.height)
-					require.Equal(t, 32, model.chat.viewport.Height)
+					require.Equal(t, 33, model.chat.viewport.Height)
 				}},
 				{"MinimumZero", 5, nil, func(t *testing.T, model expChatsTUIModel) {
 					require.Equal(t, 0, model.chat.viewport.Height)
@@ -2421,7 +2421,7 @@ func TestExpAgents(t *testing.T) {
 				}
 			}
 			require.Greater(t, composerLine, 1)
-			require.Contains(t, lines[composerLine-2], "────")
+			require.Contains(t, lines[composerLine-1], "────")
 		})
 
 		t.Run("ScrollNavigation", func(t *testing.T) {
@@ -3255,7 +3255,7 @@ func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
 
 	require.LessOrEqual(t, lineCount, model.height)
 	require.Less(t, model.viewport.Height, defaultViewportHeight)
-	require.Less(t, model.viewport.Height, 17)
+	require.LessOrEqual(t, model.viewport.Height, 17)
 }
 
 func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {
