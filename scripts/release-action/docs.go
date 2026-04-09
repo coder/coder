@@ -157,7 +157,7 @@ func updateCalendar(
 				fmt.Sprintf(releaseTagURLFmt, newVer.String()),
 			)
 			if r.Status == "Not Released" {
-				rows[i].Status = "Mainline"
+				rows[i].Status = "Stable"
 				rows[i].ReleaseDate = time.Now().Format("January 02, 2006")
 				rows[i].ReleaseName = fmt.Sprintf(
 					"[%d.%d](%s)",
@@ -173,15 +173,13 @@ func updateCalendar(
 		return rows
 	}
 
-	// For new mainline releases (patch == 0), apply status
+	// For new stable releases (patch == 0), apply status
 	// transitions.
-	if channel == "mainline" {
+	if channel == "stable" {
 		for i, r := range rows {
 			switch {
 			case r.Major == newVer.Major && r.Minor == newVer.Minor:
 				continue
-			case r.Status == "Mainline":
-				rows[i].Status = "Stable"
 			case strings.Contains(r.Status, "Stable"):
 				rows[i].Status = "Security Support"
 			case r.Status == "Security Support":
@@ -340,11 +338,6 @@ func updateRancherFile(path, channel, newVer string) error {
 	s := string(content)
 
 	switch channel {
-	case "mainline":
-		re := regexp.MustCompile(
-			`(\*\*Mainline\*\*: ` + "`)" + `\d+\.\d+\.\d+` + "(`)",
-		)
-		s = re.ReplaceAllString(s, "${1}"+newVer+"${2}")
 	case "stable":
 		re := regexp.MustCompile(
 			`(\*\*Stable\*\*: ` + "`)" + `\d+\.\d+\.\d+` + "(`)",

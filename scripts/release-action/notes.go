@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -82,9 +81,6 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 
 	var notes strings.Builder
 
-	if channel == "stable" {
-		_, _ = fmt.Fprintf(&notes, "> ## Stable (since %s)\n\n", time.Now().Format("January 02, 2006"))
-	}
 	_, _ = fmt.Fprintln(&notes, "## Changelog")
 
 	switch channel {
@@ -92,10 +88,6 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		_, _ = fmt.Fprintln(&notes)
 		_, _ = fmt.Fprintln(&notes, "> [!NOTE]")
 		_, _ = fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
-	case "mainline":
-		_, _ = fmt.Fprintln(&notes)
-		_, _ = fmt.Fprintln(&notes, "> [!NOTE]")
-		_, _ = fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
 	}
 
 	hasContent := false
