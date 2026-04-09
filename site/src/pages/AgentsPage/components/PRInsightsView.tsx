@@ -430,7 +430,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 						{recent_prs.length > 0 && (
 							<section>
 								<div className="mb-4">
-									<SectionTitle>Recent</SectionTitle>
+									<SectionTitle>Pull requests</SectionTitle>
 								</div>
 								<div className="overflow-hidden rounded-lg border border-border-default">
 									<Table className="table-fixed text-sm">
