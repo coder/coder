@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { CodeIcon, ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -11,6 +11,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "#/components/Chart/Chart";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import {
 	Table,
 	TableBody,
@@ -286,6 +287,8 @@ const TimeRangeFilter: FC<{
 // Main view
 // ---------------------------------------------------------------------------
 
+const RECENT_PRS_PAGE_SIZE = 10;
+
 export const PRInsightsView: FC<PRInsightsViewProps> = ({
 	data,
 	timeRange,
@@ -293,6 +296,20 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 }) => {
 	const { summary, time_series, by_model, recent_prs } = data;
 	const isEmpty = summary.total_prs_created === 0;
+
+	// Client-side pagination for recent PRs table.
+	// Page state is intentionally not reset when data changes — the clamped
+	// derivation below guarantees the displayed page is always valid.
+	const [recentPrsPage, setRecentPrsPage] = useState(1);
+	const recentPrsMaxPage = Math.max(
+		1,
+		Math.ceil(recent_prs.length / RECENT_PRS_PAGE_SIZE),
+	);
+	const clampedRecentPrsPage = Math.min(recentPrsPage, recentPrsMaxPage);
+	const pagedRecentPrs = recent_prs.slice(
+		(clampedRecentPrsPage - 1) * RECENT_PRS_PAGE_SIZE,
+		clampedRecentPrsPage * RECENT_PRS_PAGE_SIZE,
+	);
 
 	return (
 		<div className="space-y-8">
@@ -354,8 +371,8 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 						</div>
 					</section>
 
-					{/* ── Model breakdown + Recent PRs side by side ── */}
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+					{/* ── Model breakdown + Recent PRs ── */}
+					<div className="space-y-6">
 						{/* ── Model performance (simplified) ── */}
 						{by_model.length > 0 && (
 							<section>
@@ -436,7 +453,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 											</TableRow>
 										</TableHeader>{" "}
 										<TableBody>
-											{recent_prs.map((pr) => (
+											{pagedRecentPrs.map((pr) => (
 												<TableRow
 													key={pr.chat_id}
 													className="border-t border-border-default transition-colors hover:bg-surface-secondary/50"
@@ -480,6 +497,21 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 										</TableBody>
 									</Table>
 								</div>
+								{recent_prs.length > RECENT_PRS_PAGE_SIZE && (
+									<div className="pt-4">
+										<PaginationWidgetBase
+											totalRecords={recent_prs.length}
+											currentPage={clampedRecentPrsPage}
+											pageSize={RECENT_PRS_PAGE_SIZE}
+											onPageChange={setRecentPrsPage}
+											hasPreviousPage={clampedRecentPrsPage > 1}
+											hasNextPage={
+												clampedRecentPrsPage * RECENT_PRS_PAGE_SIZE <
+												recent_prs.length
+											}
+										/>
+									</div>
+								)}
 							</section>
 						)}
 					</div>
