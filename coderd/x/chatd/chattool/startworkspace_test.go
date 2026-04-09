@@ -110,6 +110,7 @@ func TestStartWorkspace(t *testing.T) {
 		started, ok := result["started"].(bool)
 		require.True(t, ok)
 		require.True(t, started)
+		require.Nil(t, result["build_id"], "build_id should not be present when workspace was already running")
 	})
 
 	t.Run("AlreadyRunningPrefersChatSuffixAgent", func(t *testing.T) {

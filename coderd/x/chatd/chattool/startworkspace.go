@@ -126,7 +126,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			_, err = options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
@@ -142,11 +142,6 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			// Prefer the build ID from waitForBuild since it's the
-			// latest confirmed build. Fall back to the start build ID.
-			if buildID == uuid.Nil {
-				buildID = startBuild.ID
-			}
 			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, buildID)
 		},
 	)

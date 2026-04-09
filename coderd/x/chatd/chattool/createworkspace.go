@@ -323,7 +323,8 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		database.ProvisionerJobStatusRunning:
 		// Build is in progress — wait for it instead of
 		// creating a new workspace.
-		if _, err := waitForBuild(ctx, db, ws.ID); err != nil {
+		buildID, err := waitForBuild(ctx, db, ws.ID)
+		if err != nil {
 			return nil, false, xerrors.Errorf(
 				"existing workspace build failed: %w", err,
 			)
@@ -333,6 +334,9 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			"workspace_name": ws.Name,
 			"status":         "already_exists",
 			"message":        "workspace build completed",
+		}
+		if buildID != uuid.Nil {
+			result["build_id"] = buildID.String()
 		}
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {

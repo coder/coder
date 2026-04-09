@@ -1,3 +1,4 @@
+import { LoaderIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -44,8 +45,17 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		Boolean(effectiveBuildId),
 	);
 
-	if (!logs || logs.length === 0) {
+	if (!effectiveBuildId) {
 		return null;
+	}
+
+	if (!logs || logs.length === 0) {
+		return (
+			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
+				<LoaderIcon className="h-3 w-3 animate-spin" />
+				<span>Loading build logs…</span>
+			</div>
+		);
 	}
 
 	return (
