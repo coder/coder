@@ -843,7 +843,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(os.Environ())
+			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(logger, os.Environ())
 			if err != nil {
 				return xerrors.Errorf("read aibridge providers from env: %w", err)
 			}
@@ -2924,12 +2924,22 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 // ReadAIBridgeProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
 // environment variables into a slice of AIBridgeProviderConfig.
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
-func ReadAIBridgeProvidersFromEnv(environ []string) ([]codersdk.AIBridgeProviderConfig, error) {
-	// The index numbers must be in-order.
-	slices.Sort(environ)
+func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIBridgeProviderConfig, error) {
+	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	// A plain lexicographic sort would mis-order multi-digit indices.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	var providers []codersdk.AIBridgeProviderConfig
-	for _, v := range serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_") {
+	for _, v := range parsed {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -2976,12 +2986,16 @@ func ReadAIBridgeProvidersFromEnv(environ []string) ([]codersdk.AIBridgeProvider
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
+		default:
+			logger.Warn(context.Background(), "ignoring unknown aibridge provider field (check for typos)",
+				slog.F("env", fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_%s", providerNum, key)),
+			)
 		}
 		providers[providerNum] = provider
 	}
 
 	// Post-parse validation.
-	names := make(map[string]struct{}, len(providers))
+	names := make(map[string]int, len(providers))
 	for i := range providers {
 		p := &providers[i]
 		if p.Type == "" {
@@ -3003,10 +3017,10 @@ func ReadAIBridgeProvidersFromEnv(environ []string) ([]codersdk.AIBridgeProvider
 		if p.Name == "" {
 			p.Name = p.Type
 		}
-		if _, exists := names[p.Name]; exists {
-			return nil, xerrors.Errorf("provider %d: duplicate NAME %q (multiple providers of the same type require unique NAME values)", i, p.Name)
+		if other, exists := names[p.Name]; exists {
+			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
 		}
-		names[p.Name] = struct{}{}
+		names[p.Name] = i
 	}
 
 	return providers, nil
