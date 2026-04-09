@@ -12,6 +12,7 @@ import {
 	chatCostUsersKey,
 	chatDiffContentsKey,
 	chatKey,
+	chatMessagesForInfiniteScroll,
 	chatMessagesKey,
 	chatsKey,
 	createChat,
@@ -111,6 +112,10 @@ const createTestQueryClient = (): QueryClient =>
 describe("chat query config", () => {
 	it("uses a non-zero staleTime to avoid immediate warm-cache refetches", () => {
 		const query = chat("chat-1");
+		expect(query.staleTime).toBeGreaterThan(0);
+	});
+	it("uses a non-zero staleTime for messages to avoid immediate warm-cache refetches", () => {
+		const query = chatMessagesForInfiniteScroll("chat-1");
 		expect(query.staleTime).toBeGreaterThan(0);
 	});
 });

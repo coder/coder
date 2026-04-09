@@ -409,7 +409,7 @@ export const resolveParsedConversation = ({
 	};
 };
 
-export const buildSubagentTitles = (
+const buildSubagentTitles = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): Map<string, string> => {
 	const map = new Map<string, string>();
@@ -435,7 +435,7 @@ export const buildSubagentTitles = (
 	return map;
 };
 
-export const buildComputerUseSubagentIds = (
+const buildComputerUseSubagentIds = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): Set<string> => {
 	const ids = new Set<string>();

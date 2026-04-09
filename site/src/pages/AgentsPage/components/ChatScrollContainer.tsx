@@ -572,6 +572,7 @@ function useStickToBottom(): StickToBottomInstance {
  * - A floating "Scroll to bottom" button when the user scrolls away.
  */
 const ChatScrollContainer: FC<{
+	resetKey?: string;
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	scrollToBottomRef: RefObject<(() => void) | null>;
 	isFetchingMoreMessages: boolean;
@@ -579,6 +580,7 @@ const ChatScrollContainer: FC<{
 	onFetchMoreMessages: () => void;
 	children: React.ReactNode;
 }> = ({
+	resetKey,
 	scrollContainerRef,
 	scrollToBottomRef,
 	isFetchingMoreMessages,
@@ -611,8 +613,17 @@ const ChatScrollContainer: FC<{
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	const hasFetchedRef = useRef(false);
-
 	const wasFetchingRef = useRef(false);
+
+	useEffect(() => {
+		if (resetKey === undefined) {
+			return;
+		}
+		hasFetchedRef.current = false;
+		isFetchingRef.current = false;
+		wasFetchingRef.current = false;
+		scrollToBottom("instant");
+	}, [resetKey, scrollToBottom]);
 
 	useLayoutEffect(() => {
 		const wasFetching = wasFetchingRef.current;

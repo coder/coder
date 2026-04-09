@@ -395,9 +395,6 @@ describe("useConversationEditingState", () => {
 		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
 		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
 
-		// Each chatID should initialize with its own draft — this is
-		// what the key={agentId} wrapper guarantees at the component
-		// level (a new chatID means a full remount).
 		const hookA = renderEditing(chatA);
 		expect(hookA.result.current.editorInitialValue).toBe("draft A");
 		hookA.unmount();
@@ -405,6 +402,40 @@ describe("useConversationEditingState", () => {
 		const hookB = renderEditing(chatB);
 		expect(hookB.result.current.editorInitialValue).toBe("draft B");
 		hookB.unmount();
+	});
+
+	it("rehydrates draft state when chatID changes without remount", () => {
+		const chatA = "chat-aaa";
+		const chatB = "chat-bbb";
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
+
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+		const { result, rerender, unmount } = renderHook(
+			({ activeChatID }: { activeChatID: string | undefined }) =>
+				useConversationEditingState({
+					chatID: activeChatID,
+					onSend,
+					onDeleteQueuedMessage,
+					chatInputRef,
+					inputValueRef,
+				}),
+			{ initialProps: { activeChatID: chatA } },
+		);
+
+		expect(result.current.editorInitialValue).toBe("draft A");
+		expect(inputValueRef.current).toBe("draft A");
+
+		act(() => {
+			rerender({ activeChatID: chatB });
+		});
+
+		expect(result.current.editorInitialValue).toBe("draft B");
+		expect(inputValueRef.current).toBe("draft B");
+		unmount();
 	});
 
 	it("clears the draft from localStorage on successful send", async () => {

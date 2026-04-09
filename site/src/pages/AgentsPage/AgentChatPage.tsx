@@ -202,6 +202,29 @@ export function useConversationEditingState(deps: {
 	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
 		useState<ParsedDraft | null>(null);
 
+	const previousChatIDRef = useRef(chatID);
+	useEffect(() => {
+		if (previousChatIDRef.current === chatID) {
+			return;
+		}
+		previousChatIDRef.current = chatID;
+
+		const nextDraft =
+			typeof window === "undefined" || !draftStorageKey
+				? { text: "", editorState: undefined }
+				: parseStoredDraft(localStorage.getItem(draftStorageKey));
+		setDraftState({
+			editorInitialValue: nextDraft.text,
+			initialEditorState: nextDraft.editorState,
+		});
+		setRemountKey((key) => key + 1);
+		inputValueRef.current = nextDraft.text;
+		setEditingMessageId(null);
+		setDraftBeforeHistoryEdit(null);
+		setEditingQueuedMessageID(null);
+		setDraftBeforeQueueEdit(null);
+		setEditingFileBlocks([]);
+	}, [chatID, draftStorageKey, inputValueRef]);
 	const handleStartQueueEdit = (
 		id: number,
 		text: string,
@@ -495,6 +518,16 @@ const AgentChatPage: FC = () => {
 		string[] | null
 	>(null);
 
+	useEffect(() => {
+		// Keep per-chat UI state aligned when navigating between chats
+		// without a component remount.
+		if (!agentId) {
+			return;
+		}
+		setSelectedModel("");
+		setPendingEditMessageId(null);
+		setSelectedMCPServerIds(null);
+	}, [agentId]);
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
 		saveMCPSelection(ids);
@@ -1186,12 +1219,4 @@ const AgentChatPage: FC = () => {
 	);
 };
 
-// Keyed wrapper so that navigating between agents (changing the
-// :agentId param) fully remounts the component, resetting all
-// internal state — drafts, editing, queries — cleanly.
-const KeyedAgentChatPage: FC = () => {
-	const { agentId } = useParams<{ agentId: string }>();
-	return <AgentChatPage key={agentId} />;
-};
-
-export default KeyedAgentChatPage;
+export default AgentChatPage;
