@@ -4265,21 +4265,10 @@ func cloneChatMessagesForStream(messages []database.ChatMessage) []database.Chat
 	return cloned
 }
 
-func cloneQueuedMessagesForStream(messages []database.ChatQueuedMessage) []database.ChatQueuedMessage {
-	cloned := slices.Clone(messages)
-	for i := range cloned {
-		cloned[i].Content = slices.Clone(cloned[i].Content)
-	}
-	return cloned
-}
-
 // streamSharedHistoryFetchContext detaches subscriber cancellation from a
 // shared history fetch and runs it under a server-owned timeout budget.
 // Shared work should not inherit the winner's request deadline.
 func streamSharedHistoryFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithTimeout(context.WithoutCancel(ctx), chatStreamHistoryFetchTimeout)
 }
 
@@ -4287,9 +4276,6 @@ func streamSharedHistoryFetchContext(ctx context.Context) (context.Context, cont
 // requesting subscriber while applying a fallback timeout when the caller has
 // no deadline.
 func streamSubscriberControlFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		return context.WithTimeout(context.Background(), chatStreamControlFetchTimeout)
-	}
 	if _, ok := ctx.Deadline(); ok {
 		return ctx, func() {}
 	}
@@ -4304,9 +4290,6 @@ func (p *Server) getStreamChatMessages(
 	ctx context.Context,
 	params database.GetChatMessagesByChatIDParams,
 ) ([]database.ChatMessage, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	messages, err := singleflightDoChan(
 		ctx,
 		&p.streamMessageFetches,
@@ -4324,26 +4307,6 @@ func (p *Server) getStreamChatMessages(
 		return nil, err
 	}
 	return cloneChatMessagesForStream(messages), nil
-}
-
-// loadStreamQueuedMessages loads queued messages for a single authorized
-// subscriber. Queue snapshots are intentionally not singleflighted because a
-// chat-scoped key cannot distinguish the pre- and post-notification queue
-// state.
-func (p *Server) loadStreamQueuedMessages(
-	ctx context.Context,
-	chatID uuid.UUID,
-) ([]database.ChatQueuedMessage, error) {
-	fetchCtx, cancel := streamSubscriberControlFetchContext(ctx)
-	defer cancel()
-	//nolint:gocritic // SubscribeAuthorized already validated the
-	// caller; queue reloads stay subscriber-scoped but still run as
-	// chatd so stream reads do not depend on request auth state.
-	queued, err := p.db.GetChatQueuedMessages(dbauthz.AsChatd(fetchCtx), chatID)
-	if err != nil {
-		return nil, err
-	}
-	return cloneQueuedMessagesForStream(queued), nil
 }
 
 func subscribeWithInitialError(chatID uuid.UUID, message string) (
@@ -4374,9 +4337,6 @@ func (p *Server) Subscribe(
 ) {
 	if p == nil {
 		return nil, nil, nil, false
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	chat, err := p.db.GetChatByID(ctx, chatID)
@@ -4410,9 +4370,6 @@ func (p *Server) SubscribeAuthorized(
 ) {
 	if p == nil {
 		return nil, nil, nil, false
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	chatID := chat.ID
 
@@ -4559,8 +4516,12 @@ func (p *Server) SubscribeAuthorized(
 		}
 	}
 
-	// Load initial queue.
-	queued, err := p.loadStreamQueuedMessages(ctx, chatID)
+	// Load initial queue. Queue snapshots are intentionally not
+	// singleflighted because a chat-scoped key cannot distinguish the
+	// pre- and post-notification queue state.
+	queueCtx, queueCancel := streamSubscriberControlFetchContext(ctx)
+	queued, err := p.db.GetChatQueuedMessages(queueCtx, chatID)
+	queueCancel()
 	if err != nil {
 		p.logger.Error(ctx, "failed to load initial queued messages",
 			slog.Error(err),
@@ -4761,7 +4722,9 @@ func (p *Server) SubscribeAuthorized(
 					}
 				}
 				if notify.QueueUpdate {
-					queuedMsgs, queueErr := p.loadStreamQueuedMessages(mergedCtx, chatID)
+					queueCtx, queueCancel := streamSubscriberControlFetchContext(mergedCtx)
+					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(queueCtx, chatID)
+					queueCancel()
 					if queueErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
 							slog.F("chat_id", chatID),
