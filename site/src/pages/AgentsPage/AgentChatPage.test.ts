@@ -9,6 +9,7 @@ import {
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
+import type { PendingAttachment } from "./types";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -361,6 +362,24 @@ describe("useConversationEditingState", () => {
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
 		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		unmount();
+	});
+
+	it("forwards pending attachments through history-edit send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const attachments: PendingAttachment[] = [
+			{ fileId: "file-1", mediaType: "image/png" },
+		];
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "hello");
+		});
+
+		await act(async () => {
+			await result.current.handleSendFromInput("hello", attachments);
+		});
+
+		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
 		unmount();
 	});
 

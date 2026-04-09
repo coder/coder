@@ -4,6 +4,7 @@ import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import type { PendingAttachment } from "../types";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -121,7 +122,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 interface ChatPageInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string, fileIds?: string[]) => void;
+	onSend: (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -312,9 +316,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
-					// Collect file IDs from already-uploaded attachments.
-					// Skip files in error state (e.g. too large).
-					const fileIds: string[] = [];
+					// Collect uploaded attachment metadata for the optimistic
+					// transcript builder while keeping the server payload
+					// shape unchanged downstream.
+					const pendingAttachments: PendingAttachment[] = [];
 					let skippedErrors = 0;
 					for (const file of attachments) {
 						const state = uploadStates.get(file);
@@ -323,7 +328,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							continue;
 						}
 						if (state?.status === "uploaded" && state.fileId) {
-							fileIds.push(state.fileId);
+							pendingAttachments.push({
+								fileId: state.fileId,
+								mediaType: file.type || "application/octet-stream",
+							});
 						}
 					}
 					if (skippedErrors > 0) {
@@ -331,9 +339,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
-					const fileArg = fileIds.length > 0 ? fileIds : undefined;
+					const attachmentArg =
+						pendingAttachments.length > 0 ? pendingAttachments : undefined;
 					try {
-						await onSend(message, fileArg);
+						await onSend(message, attachmentArg);
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;

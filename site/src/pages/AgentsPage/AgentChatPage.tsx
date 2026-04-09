@@ -66,6 +66,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import type { PendingAttachment } from "./types";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	getModelOptionsFromConfigs,
@@ -127,12 +128,24 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
+const buildAttachmentMediaTypes = (
+	attachments?: readonly PendingAttachment[],
+): ReadonlyMap<string, string> | undefined => {
+	if (!attachments?.length) {
+		return undefined;
+	}
+
+	return new Map(
+		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
+	);
+};
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (
 		message: string,
-		fileIds?: string[],
+		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -275,14 +288,17 @@ export function useConversationEditingState(deps: {
 
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
-	const handleSendFromInput = async (message: string, fileIds?: string[]) => {
+	const handleSendFromInput = async (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
 		const submittedEditorState = serializedEditorStateRef.current;
 		const submittedEditingFileBlocks = editingFileBlocks;
 		const shouldClearInputOptimistically = editedMessageID !== undefined;
-		const sendPromise = onSend(message, fileIds, editedMessageID);
+		const sendPromise = onSend(message, attachments, editedMessageID);
 
 		if (shouldClearInputOptimistically) {
 			chatInputRef.current?.clear();
@@ -832,7 +848,7 @@ const AgentChatPage: FC = () => {
 
 	const handleSend = async (
 		message: string,
-		fileIds?: string[],
+		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => {
 		const chatInputHandle = (
@@ -847,7 +863,9 @@ const AgentChatPage: FC = () => {
 			(p) => p.type === "file-reference",
 		);
 		const hasContent =
-			message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
+			message.trim() ||
+			(attachments && attachments.length > 0) ||
+			hasFileReferences;
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
@@ -875,9 +893,9 @@ const AgentChatPage: FC = () => {
 			}
 		}
 
-		// Add pre-uploaded file references.
-		if (fileIds && fileIds.length > 0) {
-			for (const fileId of fileIds) {
+		// Add pre-uploaded file attachments.
+		if (attachments && attachments.length > 0) {
+			for (const { fileId } of attachments) {
 				content.push({ type: "file", file_id: fileId });
 			}
 		}
@@ -890,6 +908,7 @@ const AgentChatPage: FC = () => {
 				? buildOptimisticEditedMessage({
 						requestContent: request.content,
 						originalMessage: originalEditedMessage,
+						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 					})
 				: undefined;
 			const previousSnapshot = store.getSnapshot();

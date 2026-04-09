@@ -43,6 +43,7 @@ import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
+import type { PendingAttachment } from "./types";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -69,7 +70,10 @@ interface EditingState {
 		fileBlocks: readonly ChatMessagePart[],
 	) => void;
 	handleCancelQueueEdit: () => void;
-	handleSendFromInput: (message: string, fileIds?: string[]) => void;
+	handleSendFromInput: (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => void;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,

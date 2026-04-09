@@ -4,9 +4,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 const buildOptimisticEditedContent = ({
 	requestContent,
 	originalMessage,
+	attachmentMediaTypes,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
 	originalMessage: TypesGen.ChatMessage;
+	attachmentMediaTypes?: ReadonlyMap<string, string>;
 }): readonly TypesGen.ChatMessagePart[] => {
 	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
 	for (const part of originalMessage.content ?? []) {
@@ -28,11 +30,13 @@ const buildOptimisticEditedContent = ({
 				content: part.content ?? "",
 			};
 		}
+		const fileId = part.file_id ?? "";
 		return (
-			existingFilePartsByID.get(part.file_id ?? "") ?? {
+			existingFilePartsByID.get(fileId) ?? {
 				type: "file",
 				file_id: part.file_id,
-				media_type: "application/octet-stream",
+				media_type:
+					attachmentMediaTypes?.get(fileId) ?? "application/octet-stream",
 			}
 		);
 	});
@@ -41,12 +45,18 @@ const buildOptimisticEditedContent = ({
 export const buildOptimisticEditedMessage = ({
 	requestContent,
 	originalMessage,
+	attachmentMediaTypes,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
 	originalMessage: TypesGen.ChatMessage;
+	attachmentMediaTypes?: ReadonlyMap<string, string>;
 }): TypesGen.ChatMessage => ({
 	...originalMessage,
-	content: buildOptimisticEditedContent({ requestContent, originalMessage }),
+	content: buildOptimisticEditedContent({
+		requestContent,
+		originalMessage,
+		attachmentMediaTypes,
+	}),
 });
 
 const sortMessagesDescending = (
