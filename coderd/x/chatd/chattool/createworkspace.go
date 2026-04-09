@@ -193,6 +193,34 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
+			// Persist the workspace binding on the chat
+			// immediately so the frontend can start streaming
+			// build logs while the build is still running.
+			if options.DB != nil && options.ChatID != uuid.Nil {
+				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID: options.ChatID,
+					WorkspaceID: uuid.NullUUID{
+						UUID:  workspace.ID,
+						Valid: true,
+					},
+					// BuildID and AgentID are intentionally left null
+					// here. The chatd runtime (loadWorkspaceAgentLocked)
+					// will bind them on the next turn. Authoritative
+					// tool-path binding is deferred to a follow-up PR.
+					BuildID: uuid.NullUUID{},
+					AgentID: uuid.NullUUID{},
+				})
+				if err != nil {
+					options.Logger.Error(ctx, "failed to persist chat workspace association",
+						slog.F("chat_id", options.ChatID),
+						slog.F("workspace_id", workspace.ID),
+						slog.Error(err),
+					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
+				}
+			}
+
 			// Wait for the build to complete and the agent to
 			// come online so subsequent tools can use the
 			// workspace immediately.
@@ -231,32 +259,6 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 							workspaceAgentID = selected.ID
 						}
 					}
-				}
-			}
-
-			// Persist the workspace binding on the chat.
-			if options.DB != nil && options.ChatID != uuid.Nil {
-				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-					ID: options.ChatID,
-					WorkspaceID: uuid.NullUUID{
-						UUID:  workspace.ID,
-						Valid: true,
-					},
-					// BuildID and AgentID are intentionally left null
-					// here. The chatd runtime (loadWorkspaceAgentLocked)
-					// will bind them on the next turn. Authoritative
-					// tool-path binding is deferred to a follow-up PR.
-					BuildID: uuid.NullUUID{},
-					AgentID: uuid.NullUUID{},
-				})
-				if err != nil {
-					options.Logger.Error(ctx, "failed to persist chat workspace association",
-						slog.F("chat_id", options.ChatID),
-						slog.F("workspace_id", workspace.ID),
-						slog.Error(err),
-					)
-				} else if options.OnChatUpdated != nil {
-					options.OnChatUpdated(updatedChat)
 				}
 			}
 

@@ -5017,9 +5017,15 @@ func (p *Server) runChat(
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  workspaceCtx.selectWorkspace,
-				Logger:                         p.logger,
-				AllowedTemplateIDs:             p.chatTemplateAllowlist,
+				OnChatUpdated: func(chat database.Chat) {
+					workspaceCtx.selectWorkspace(chat)
+					// Notify the frontend immediately so it can
+					// start streaming build logs before the tool
+					// completes.
+					p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
+				},
+				Logger:             p.logger,
+				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
