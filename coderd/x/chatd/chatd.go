@@ -2545,6 +2545,11 @@ func filterPromptForChainMode(
 		}
 	}
 
+	// Prompt construction already drops user turns with no model-visible
+	// content, such as skill-only sentinel messages. That means the user
+	// count here stays aligned with contributingTrailingUserCount even
+	// when non-contributing DB turns are interleaved in the trailing
+	// block.
 	usersToSkip := totalUsers - info.contributingTrailingUserCount
 	if usersToSkip < 0 {
 		usersToSkip = 0

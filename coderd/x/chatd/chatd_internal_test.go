@@ -2393,6 +2393,104 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	require.Equal(t, 1, got.contributingTrailingUserCount)
 }
 
+func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	priorUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "prior user message",
+	}})
+	priorUser.Role = database.ChatMessageRoleUser
+	assistant := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+	firstTrailingUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "first trailing user",
+	}})
+	firstTrailingUser.Role = database.ChatMessageRoleUser
+	skillOnly := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "repo-helper",
+			SkillDir:  "/skills/repo-helper",
+		},
+	})
+	skillOnly.Role = database.ChatMessageRoleUser
+	lastTrailingUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "last trailing user",
+	}})
+	lastTrailingUser.Role = database.ChatMessageRoleUser
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		priorUser,
+		assistant,
+		firstTrailingUser,
+		skillOnly,
+		lastTrailingUser,
+	})
+	require.Equal(t, 3, chainInfo.trailingUserCount)
+	require.Equal(t, 2, chainInfo.contributingTrailingUserCount)
+
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "system instruction"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "prior user message"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "assistant reply"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "first trailing user"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "last trailing user"},
+			},
+		},
+	}
+
+	got := filterPromptForChainMode(prompt, chainInfo)
+	require.Len(t, got, 3)
+	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, got[1].Role)
+	require.Equal(t, fantasy.MessageRoleUser, got[2].Role)
+
+	firstPart, ok := fantasy.AsMessagePart[fantasy.TextPart](got[1].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "first trailing user", firstPart.Text)
+	lastPart, ok := fantasy.AsMessagePart[fantasy.TextPart](got[2].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "last trailing user", lastPart.Text)
+}
+
 func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
 	t.Parallel()
 
