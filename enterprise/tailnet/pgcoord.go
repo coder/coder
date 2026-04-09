@@ -567,8 +567,9 @@ func (b *binder) handleBindings() {
 			b.logger.Debug(b.ctx, "binder exiting")
 			return
 		case bnd := <-b.bindings:
-			b.storeBinding(bnd)
-			b.workQ.enqueue(bnd.bKey)
+			if b.storeBinding(bnd) {
+				b.workQ.enqueue(bnd.bKey)
+			}
 		}
 	}
 }
@@ -642,26 +643,46 @@ func (b *binder) writeOne(bnd binding) error {
 
 // storeBinding stores the latest binding, where we interpret kind == DISCONNECTED as removing the binding. This keeps the map
 // from growing without bound.
-func (b *binder) storeBinding(bnd binding) {
+func (b *binder) storeBinding(bnd binding) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	switch bnd.kind {
 	case proto.CoordinateResponse_PeerUpdate_NODE:
+		old, ok := b.latest[bnd.bKey]
+		if ok && old.kind == proto.CoordinateResponse_PeerUpdate_NODE &&
+			nodesEqual(old.node, bnd.node) {
+			return false
+		}
 		b.latest[bnd.bKey] = bnd
 	case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
 		delete(b.latest, bnd.bKey)
 	case proto.CoordinateResponse_PeerUpdate_LOST:
-		// we need to coalesce with the previously stored node, since it must
-		// be non-nil in the database
+		// We need to coalesce with the previously stored node, since it
+		// must be non-nil in the database.
 		old, ok := b.latest[bnd.bKey]
 		if !ok {
-			// lost before we ever got a node update.  No action
-			return
+			// Lost before we ever got a node update. No action.
+			return false
 		}
 		bnd.node = old.node
 		b.latest[bnd.bKey] = bnd
 	}
+	return true
+}
+
+// nodesEqual compares two proto.Node messages, ignoring the AsOf
+// timestamp which changes on every node build even when nothing else
+// has changed.
+func nodesEqual(a, b *proto.Node) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	aAsOf, bAsOf := a.AsOf, b.AsOf
+	a.AsOf = nil
+	b.AsOf = nil
+	defer func() { a.AsOf = aAsOf; b.AsOf = bAsOf }()
+	return gProto.Equal(a, b)
 }
 
 // retrieveBinding gets the latest binding for a key.
