@@ -20,7 +20,6 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
-	BarChart3Icon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
@@ -40,11 +39,11 @@ import {
 	PinIcon,
 	PinOffIcon,
 	SettingsIcon,
-	ShieldAlertIcon,
 	ShieldIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
+	WalletIcon,
 	WandSparklesIcon,
 } from "lucide-react";
 import {
@@ -52,6 +51,7 @@ import {
 	type FC,
 	useContext,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
@@ -84,7 +84,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -150,6 +149,7 @@ const statusConfig = {
 	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	paused: { icon: PauseIcon, className: "text-content-warning" },
+	requires_action: { icon: PauseIcon, className: "text-content-warning" },
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
@@ -1302,24 +1302,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									adminOnly
 								/>
 								<SettingsNavItem
-									icon={ShieldAlertIcon}
-									label="Limits"
-									active={sidebarView.section === "limits"}
-									to="/agents/settings/limits"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={BarChart3Icon}
-									label="Usage"
-									active={sidebarView.section === "usage"}
-									to="/agents/settings/usage"
+									icon={WalletIcon}
+									label="Spend"
+									active={sidebarView.section === "spend"}
+									to="/agents/settings/spend"
 									state={location.state}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={WandSparklesIcon}
-									label="Analytics"
+									label="Insights"
 									active={sidebarView.section === "insights"}
 									to="/agents/settings/insights"
 									state={location.state}
@@ -1419,7 +1411,7 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreStable = useEffectEvent(() => {
+	const onLoadMoreEvent = useEffectEvent(() => {
 		onLoadMore?.();
 	});
 
@@ -1438,14 +1430,14 @@ const LoadMoreSentinel: FC<{
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (entries[0]?.isIntersecting) {
-					onLoadMoreStable();
+					onLoadMoreEvent();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [isFetchingNextPage, onLoadMoreStable]);
+	}, [isFetchingNextPage]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

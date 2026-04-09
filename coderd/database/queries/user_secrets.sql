@@ -56,6 +56,6 @@ SET
 WHERE user_id = @user_id AND name = @name
 RETURNING *;
 
--- name: DeleteUserSecretByUserIDAndName :exec
+-- name: DeleteUserSecretByUserIDAndName :execrows
 DELETE FROM user_secrets
 WHERE user_id = @user_id AND name = @name;

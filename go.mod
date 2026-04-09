@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260313130012-33e050fd4bd9
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260409064601-e956a950740b
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -76,13 +76,26 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202603091
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
-// Forked from coder/fantasy (cj/go1.25 branch) which adds:
+// Forked from coder/fantasy (coder_2_33) which adds:
 // 1) Anthropic computer use + thinking effort
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260325145725-112927d9b6d8
+// 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
+// See: https://github.com/coder/fantasy/commits/7aaf56df81f9
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
 
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
+// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
+// additional performance improvements.
+// See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
+
+// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
+// https://github.com/anthropics/anthropic-sdk-go/pull/262
+replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
+
+// SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
+// https://github.com/kylecarbs/openai-go/pull/2
+replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae
 
 require (
 	cdr.dev/slog/v3 v3.0.0
@@ -264,16 +277,16 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.41.4
+	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.12 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.20 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.14
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.20 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.20 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.20 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.17 // indirect
@@ -470,7 +483,7 @@ require github.com/coder/clistat v1.2.1
 require github.com/SherClockHolmes/webpush-go v1.4.0
 
 require (
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.17 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e // indirect
@@ -483,7 +496,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.1.1-0.20260331154949-a011104f377d
+	github.com/coder/aibridge v1.1.1-0.20260408143328-f72a795f1e77
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8
@@ -492,6 +505,7 @@ require (
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.17.1
+	github.com/invopop/jsonschema v0.13.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/shopspring/decimal v1.4.0
 	gonum.org/v1/gonum v0.17.0
@@ -521,10 +535,10 @@ require (
 	github.com/aquasecurity/jfather v0.0.8 // indirect
 	github.com/aquasecurity/trivy v0.61.1-0.20250407075540-f1329c7ea1aa // indirect
 	github.com/aquasecurity/trivy-checks v1.12.2-0.20251219190323-79d27547baf5 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.0 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.8 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
@@ -566,7 +580,6 @@ require (
 	github.com/hashicorp/go-getter v1.8.4 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kaptinlin/go-i18n v0.2.4 // indirect
@@ -636,11 +649,3 @@ tool (
 	mvdan.cc/gofumpt
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
-
-// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
-// https://github.com/anthropics/anthropic-sdk-go/pull/262
-replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
-
-// SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
-// https://github.com/kylecarbs/openai-go/pull/2
-replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae

@@ -37,6 +37,8 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 		Metadata:              marshalForProto(req.Metadata),
 		StartedAt:             timestamppb.New(req.StartedAt),
 		CorrelatingToolCallId: req.CorrelatingToolCallID,
+		CredentialKind:        req.CredentialKind,
+		CredentialHint:        req.CredentialHint,
 	})
 	return err
 }

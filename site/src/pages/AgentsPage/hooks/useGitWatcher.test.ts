@@ -283,6 +283,7 @@ describe("useGitWatcher", () => {
 		vi.useFakeTimers();
 
 		try {
+			vi.spyOn(Math, "random").mockReturnValue(0.5);
 			const socket1 = createMockSocket();
 
 			renderHook(() =>

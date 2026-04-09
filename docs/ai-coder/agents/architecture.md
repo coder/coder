@@ -180,6 +180,15 @@ configuration set by an administrator.
 |--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | `web_search` | Searches the internet for up-to-date information. Available when web search is enabled for the configured Anthropic, OpenAI, or Google provider. |
 
+### Workspace extension tools
+
+These tools are conditionally available based on the workspace contents.
+
+| Tool              | What it does                                                                                                                   |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `read_skill`      | Reads the instructions for a workspace skill by name. Available when the workspace has skills discovered in `.agents/skills/`. |
+| `read_skill_file` | Reads a supporting file from a skill's directory.                                                                              |
+
 ## What runs where
 
 Understanding the split between the control plane and the workspace is central
@@ -224,10 +233,11 @@ Because state lives in the database:
 - The agent can resume work by targeting a new workspace and continuing from the
   last git branch or checkpoint.
 
-## Security implications
+## Security posture
 
-The control plane architecture provides several security advantages for AI
-coding workflows.
+The control plane architecture provides built-in security properties for AI
+coding workflows. These are structural guarantees, not configuration options —
+they hold by default for every agent session.
 
 ### No API keys in workspaces
 

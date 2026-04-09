@@ -398,6 +398,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cap the raw request body to prevent excessive memory use
+	// from large dynamic tool schemas.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
+
 	var req codersdk.CreateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -488,6 +492,50 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.UnsafeDynamicTools) > 250 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many dynamic tools.",
+			Detail:  "Maximum 250 dynamic tools per chat.",
+		})
+		return
+	}
+
+	// Validate that dynamic tool names are non-empty and unique
+	// within the list. Name collision with built-in tools is
+	// checked at chatloop time when the full tool set is known.
+	if len(req.UnsafeDynamicTools) > 0 {
+		seenNames := make(map[string]struct{}, len(req.UnsafeDynamicTools))
+		for _, dt := range req.UnsafeDynamicTools {
+			if dt.Name == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Dynamic tool name must not be empty.",
+				})
+				return
+			}
+			if _, exists := seenNames[dt.Name]; exists {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Duplicate dynamic tool name.",
+					Detail:  fmt.Sprintf("Tool %q appears more than once.", dt.Name),
+				})
+				return
+			}
+			seenNames[dt.Name] = struct{}{}
+		}
+	}
+
+	var dynamicToolsJSON json.RawMessage
+	if len(req.UnsafeDynamicTools) > 0 {
+		var err error
+		dynamicToolsJSON, err = json.Marshal(req.UnsafeDynamicTools)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal dynamic tools.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -497,6 +545,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
+		DynamicTools:       dynamicToolsJSON,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -3183,6 +3232,70 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get chat retention days
+// @ID get-chat-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatRetentionDaysResponse
+// @Router /experimental/chats/config/retention-days [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	retentionDays, err := api.Database.GetChatRetentionDays(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat retention days.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatRetentionDaysResponse{
+		RetentionDays: retentionDays,
+	})
+}
+
+// Keep in sync with retentionDaysMaximum in
+// site/src/pages/AgentsPage/AgentSettingsBehaviorPageView.tsx.
+const retentionDaysMaximum = 3650 // ~10 years
+
+// @Summary Update chat retention days
+// @ID update-chat-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
+// @Success 204
+// @Router /experimental/chats/config/retention-days [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	var req codersdk.UpdateChatRetentionDaysRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.RetentionDays < 0 || req.RetentionDays > retentionDaysMaximum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Retention days must be between 0 and %d.", retentionDaysMaximum),
+		})
+		return
+	}
+	if err := api.Database.UpsertChatRetentionDays(ctx, req.RetentionDays); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat retention days.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -5686,4 +5799,78 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		ByModel:    modelEntries,
 		RecentPRs:  prEntries,
 	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	// Cap the raw request body to prevent excessive memory use.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
+	var req codersdk.SubmitToolResultsRequest
+
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.Results) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "At least one tool result is required.",
+		})
+		return
+	}
+
+	// Fast-path check outside the transaction. The authoritative
+	// check happens inside SubmitToolResults under a row lock.
+	if chat.Status != database.ChatStatusRequiresAction {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat is not waiting for tool results.",
+			Detail:  fmt.Sprintf("Chat status is %q, expected %q.", chat.Status, database.ChatStatusRequiresAction),
+		})
+		return
+	}
+
+	var dynamicTools json.RawMessage
+	if chat.DynamicTools.Valid {
+		dynamicTools = chat.DynamicTools.RawMessage
+	}
+
+	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+		ChatID:        chat.ID,
+		UserID:        apiKey.UserID,
+		ModelConfigID: chat.LastModelConfigID,
+		Results:       req.Results,
+		DynamicTools:  dynamicTools,
+	})
+	if err != nil {
+		var validationErr *chatd.ToolResultValidationError
+		var conflictErr *chatd.ToolResultStatusConflictError
+		switch {
+		case errors.As(err, &conflictErr):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is not waiting for tool results.",
+				Detail:  err.Error(),
+			})
+		case errors.As(err, &validationErr):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: validationErr.Message,
+				Detail:  validationErr.Detail,
+			})
+		default:
+			api.Logger.Error(ctx, "tool results submission failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error submitting tool results.",
+			})
+		}
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }

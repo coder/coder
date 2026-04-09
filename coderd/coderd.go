@@ -1189,6 +1189,8 @@ func New(options *Options) *API {
 				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
 				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
+				r.Get("/retention-days", api.getChatRetentionDays)
+				r.Put("/retention-days", api.putChatRetentionDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
 				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
@@ -1243,6 +1245,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
@@ -1605,6 +1608,15 @@ func New(options *Options) *API {
 
 						r.Get("/gitsshkey", api.gitSSHKey)
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
+						r.Route("/secrets", func(r chi.Router) {
+							r.Post("/", api.postUserSecret)
+							r.Get("/", api.getUserSecrets)
+							r.Route("/{name}", func(r chi.Router) {
+								r.Get("/", api.getUserSecret)
+								r.Patch("/", api.patchUserSecret)
+								r.Delete("/", api.deleteUserSecret)
+							})
+						})
 						r.Route("/notifications", func(r chi.Router) {
 							r.Route("/preferences", func(r chi.Router) {
 								r.Get("/", api.userNotificationPreferences)
@@ -1650,6 +1662,10 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
+				r.Route("/experimental", func(r chi.Router) {
+					r.Post("/chat-context", api.workspaceAgentAddChatContext)
+					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
 				})

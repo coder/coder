@@ -229,7 +229,7 @@ func TestLogSender_SkipHugeLog(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestLogSender_InvalidUTF8(t *testing.T) {
+func TestLogSender_SanitizeOutput(t *testing.T) {
 	t.Parallel()
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
@@ -243,7 +243,7 @@ func TestLogSender_InvalidUTF8(t *testing.T) {
 	uut.Enqueue(ls1,
 		Log{
 			CreatedAt: t0,
-			Output:    "test log 0, src 1\xc3\x28",
+			Output:    "test log 0, src 1\x00\xc3\x28",
 			Level:     codersdk.LogLevelInfo,
 		},
 		Log{
@@ -260,10 +260,10 @@ func TestLogSender_InvalidUTF8(t *testing.T) {
 
 	req := testutil.TryReceive(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
-	require.Len(t, req.Logs, 2, "it should sanitize invalid UTF-8, but still send")
-	// the 0xc3, 0x28 is an invalid 2-byte sequence in UTF-8.  The sanitizer replaces 0xc3 with ❌, and then
-	// interprets 0x28 as a 1-byte sequence "("
-	require.Equal(t, "test log 0, src 1❌(", req.Logs[0].GetOutput())
+	require.Len(t, req.Logs, 2, "it should sanitize invalid output, but still send")
+	// The sanitizer replaces the NUL byte and invalid UTF-8 with ❌ while
+	// preserving the valid "(" byte that follows 0xc3.
+	require.Equal(t, "test log 0, src 1❌❌(", req.Logs[0].GetOutput())
 	require.Equal(t, proto.Log_INFO, req.Logs[0].GetLevel())
 	require.Equal(t, "test log 1, src 1", req.Logs[1].GetOutput())
 	require.Equal(t, proto.Log_INFO, req.Logs[1].GetLevel())

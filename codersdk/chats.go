@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/invopop/jsonschema"
 	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 
@@ -42,12 +43,13 @@ func CompactionThresholdKey(modelConfigID uuid.UUID) string {
 type ChatStatus string
 
 const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
+	ChatStatusWaiting        ChatStatus = "waiting"
+	ChatStatusPending        ChatStatus = "pending"
+	ChatStatusRunning        ChatStatus = "running"
+	ChatStatusPaused         ChatStatus = "paused"
+	ChatStatusCompleted      ChatStatus = "completed"
+	ChatStatusError          ChatStatus = "error"
+	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
 // Chat represents a chat session with an AI agent.
@@ -212,6 +214,10 @@ type ChatMessagePart struct {
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
+	// CreatedAt records when this part was produced. Present on
+	// tool-call and tool-result parts so the frontend can compute
+	// tool execution duration.
+	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?"`
 	// ContextFilePath is the absolute path of a file loaded into
 	// the LLM context (e.g. an AGENTS.md instruction file).
 	ContextFilePath string `json:"context_file_path" variants:"context-file"`
@@ -361,6 +367,18 @@ type ChatInputPart struct {
 	Content string `json:"content,omitempty"`
 }
 
+// SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
+type SubmitToolResultsRequest struct {
+	Results []ToolResult `json:"results"`
+}
+
+// ToolResult is the client's response to a dynamic tool call.
+type ToolResult struct {
+	ToolCallID string          `json:"tool_call_id"`
+	Output     json.RawMessage `json:"output"`
+	IsError    bool            `json:"is_error"`
+}
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	Content       []ChatInputPart   `json:"content"`
@@ -369,6 +387,10 @@ type CreateChatRequest struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels        map[string]string `json:"labels,omitempty"`
+	// UnsafeDynamicTools declares client-executed tools that the
+	// LLM can invoke. This API is highly experimental and highly
+	// subject to change.
+	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -543,6 +565,17 @@ type UpdateChatWorkspaceTTLRequest struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
 	// Zero means disabled — the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
+}
+
+// ChatRetentionDaysResponse contains the current chat retention setting.
+type ChatRetentionDaysResponse struct {
+	RetentionDays int32 `json:"retention_days"`
+}
+
+// UpdateChatRetentionDaysRequest is a request to update the chat
+// retention period.
+type UpdateChatRetentionDaysRequest struct {
+	RetentionDays int32 `json:"retention_days"`
 }
 
 // ParseChatWorkspaceTTL parses a stored TTL string, returning the
@@ -917,12 +950,13 @@ type ChatDiffContents struct {
 type ChatStreamEventType string
 
 const (
-	ChatStreamEventTypeMessagePart ChatStreamEventType = "message_part"
-	ChatStreamEventTypeMessage     ChatStreamEventType = "message"
-	ChatStreamEventTypeStatus      ChatStreamEventType = "status"
-	ChatStreamEventTypeError       ChatStreamEventType = "error"
-	ChatStreamEventTypeQueueUpdate ChatStreamEventType = "queue_update"
-	ChatStreamEventTypeRetry       ChatStreamEventType = "retry"
+	ChatStreamEventTypeMessagePart    ChatStreamEventType = "message_part"
+	ChatStreamEventTypeMessage        ChatStreamEventType = "message"
+	ChatStreamEventTypeStatus         ChatStreamEventType = "status"
+	ChatStreamEventTypeError          ChatStreamEventType = "error"
+	ChatStreamEventTypeQueueUpdate    ChatStreamEventType = "queue_update"
+	ChatStreamEventTypeRetry          ChatStreamEventType = "retry"
+	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -977,16 +1011,123 @@ type ChatStreamRetry struct {
 	RetryingAt time.Time `json:"retrying_at" format:"date-time"`
 }
 
+// ChatStreamActionRequired is the payload of an action_required stream event.
+type ChatStreamActionRequired struct {
+	ToolCalls []ChatStreamToolCall `json:"tool_calls"`
+}
+
+// ChatStreamToolCall describes a pending dynamic tool call that the client
+// must execute.
+type ChatStreamToolCall struct {
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Args       string `json:"args"`
+}
+
+// DynamicToolCall represents a pending tool invocation from the
+// chat stream that the client must execute and submit back.
+type DynamicToolCall struct {
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Args       string `json:"args"`
+}
+
+// DynamicToolResponse holds the output of a dynamic tool
+// execution. IsError indicates a tool-level error the LLM
+// should see, as opposed to an infrastructure failure
+// (returned as the error return value).
+type DynamicToolResponse struct {
+	Content string `json:"content"`
+	IsError bool   `json:"is_error"`
+}
+
+// DynamicTool describes a client-declared tool definition. On the
+// client side, the Handler callback executes the tool when the LLM
+// invokes it. On the server side, only Name, Description, and
+// InputSchema are used (Handler is not serialized).
+type DynamicTool struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// InputSchema's JSON key "input_schema" uses snake_case for
+	// SDK consistency, deviating from the camelCase "inputSchema"
+	// convention used by MCP.
+	InputSchema json.RawMessage `json:"input_schema"`
+
+	// Handler executes the tool when the LLM invokes it.
+	// Not serialized — this only exists on the client side.
+	Handler func(ctx context.Context, call DynamicToolCall) (DynamicToolResponse, error) `json:"-"`
+}
+
+// NewDynamicTool creates a DynamicTool with a typed handler.
+// The JSON schema is derived from T using invopop/jsonschema.
+// The handler receives deserialized args and the DynamicToolCall metadata.
+func NewDynamicTool[T any](
+	name, description string,
+	handler func(ctx context.Context, args T, call DynamicToolCall) (DynamicToolResponse, error),
+) DynamicTool {
+	reflector := jsonschema.Reflector{
+		DoNotReference:            true,
+		Anonymous:                 true,
+		AllowAdditionalProperties: true,
+	}
+	schema := reflector.Reflect(new(T))
+	schema.Version = ""
+	schemaJSON, err := json.Marshal(schema)
+	if err != nil {
+		panic(fmt.Sprintf("codersdk: failed to marshal schema for %q: %v", name, err))
+	}
+
+	return DynamicTool{
+		Name:        name,
+		Description: description,
+		InputSchema: schemaJSON,
+		Handler: func(ctx context.Context, call DynamicToolCall) (DynamicToolResponse, error) {
+			var parsed T
+			if err := json.Unmarshal([]byte(call.Args), &parsed); err != nil {
+				return DynamicToolResponse{
+					Content: fmt.Sprintf("invalid parameters: %s", err),
+					IsError: true,
+				}, nil
+			}
+			return handler(ctx, parsed, call)
+		},
+	}
+}
+
+// ChatWatchEventKind represents the kind of event in the chat watch stream.
+type ChatWatchEventKind string
+
+const (
+	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
+	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
+)
+
+// ChatWatchEvent represents an event from the global chat watch stream.
+// It delivers lifecycle events (created, status change, title change)
+// for all of the authenticated user's chats. When Kind is
+// ActionRequired, ToolCalls contains the pending dynamic tool
+// invocations the client must execute and submit back.
+type ChatWatchEvent struct {
+	Kind      ChatWatchEventKind   `json:"kind"`
+	Chat      Chat                 `json:"chat"`
+	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+}
+
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
-	Type           ChatStreamEventType    `json:"type"`
-	ChatID         uuid.UUID              `json:"chat_id" format:"uuid"`
-	Message        *ChatMessage           `json:"message,omitempty"`
-	MessagePart    *ChatStreamMessagePart `json:"message_part,omitempty"`
-	Status         *ChatStreamStatus      `json:"status,omitempty"`
-	Error          *ChatStreamError       `json:"error,omitempty"`
-	Retry          *ChatStreamRetry       `json:"retry,omitempty"`
-	QueuedMessages []ChatQueuedMessage    `json:"queued_messages,omitempty"`
+	Type           ChatStreamEventType       `json:"type"`
+	ChatID         uuid.UUID                 `json:"chat_id" format:"uuid"`
+	Message        *ChatMessage              `json:"message,omitempty"`
+	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
+	Status         *ChatStreamStatus         `json:"status,omitempty"`
+	Error          *ChatStreamError          `json:"error,omitempty"`
+	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
+	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
+	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }
 
 type chatStreamEnvelope struct {
@@ -1667,6 +1808,33 @@ func (c *ExperimentalClient) UpdateChatWorkspaceTTL(ctx context.Context, req Upd
 	return nil
 }
 
+// GetChatRetentionDays returns the configured chat retention period.
+func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRetentionDaysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/retention-days", nil)
+	if err != nil {
+		return ChatRetentionDaysResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatRetentionDaysResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatRetentionDaysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatRetentionDays updates the chat retention period.
+func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatTemplateAllowlist returns the deployment-wide chat template allowlist.
 func (c *ExperimentalClient) GetChatTemplateAllowlist(ctx context.Context) (ChatTemplateAllowlist, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/template-allowlist", nil)
@@ -1891,6 +2059,73 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 						Message: fmt.Sprintf("unknown chat stream event type %q", envelope.Type),
 					},
 				})
+				return
+			}
+		}
+	}()
+
+	return events, closeFunc(func() error {
+		streamCancel()
+		return nil
+	}), nil
+}
+
+// WatchChats streams lifecycle events for all of the authenticated
+// user's chats in real time. The returned channel emits
+// ChatWatchEvent values for status changes, title changes, creation,
+// deletion, diff-status changes, and action-required notifications.
+// Callers must close the returned io.Closer to release the websocket
+// connection when done.
+func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEvent, io.Closer, error) {
+	conn, err := c.Dial(
+		ctx,
+		"/api/experimental/chats/watch",
+		&websocket.DialOptions{CompressionMode: websocket.CompressionDisabled},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	events := make(chan ChatWatchEvent, 128)
+
+	go func() {
+		defer close(events)
+		defer streamCancel()
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		}()
+
+		for {
+			var envelope chatStreamEnvelope
+			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+				if streamCtx.Err() != nil {
+					return
+				}
+				switch websocket.CloseStatus(err) {
+				case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+					return
+				}
+				return
+			}
+
+			switch envelope.Type {
+			case ServerSentEventTypePing:
+				continue
+			case ServerSentEventTypeData:
+				var event ChatWatchEvent
+				if err := json.Unmarshal(envelope.Data, &event); err != nil {
+					return
+				}
+				select {
+				case <-streamCtx.Done():
+					return
+				case events <- event:
+				}
+			case ServerSentEventTypeError:
+				return
+			default:
 				return
 			}
 		}
@@ -2207,6 +2442,20 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 	}
 	var resp ChatUsageLimitStatus
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// SubmitToolResults submits the results of dynamic tool calls for a chat
+// that is in requires_action status.
+func (c *ExperimentalClient) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/tool-results", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest

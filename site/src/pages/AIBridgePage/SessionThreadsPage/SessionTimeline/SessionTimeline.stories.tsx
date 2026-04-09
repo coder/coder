@@ -10,6 +10,8 @@ const mockThread: AIBridgeThread = {
 		"Can you check what files are in the project and summarize the structure?",
 	model: "claude-opus-4-6",
 	provider: "anthropic",
+	credential_kind: "centralized",
+	credential_hint: "sk-a...efgh",
 	started_at: "2026-03-09T09:28:15.000Z",
 	ended_at: "2026-03-09T09:28:47.000Z",
 	token_usage: {
@@ -58,6 +60,8 @@ const mockThreadLong: AIBridgeThread = {
 		"Please refactor the authentication module so that it uses the new token-based flow we discussed. Make sure to update all the related tests and add inline comments explaining the security rationale for each change.",
 	model: "claude-opus-4-6",
 	provider: "anthropic",
+	credential_kind: "centralized",
+	credential_hint: "sk-a...efgh",
 	started_at: "2026-03-09T10:00:00.000Z",
 	ended_at: "2026-03-09T10:05:30.000Z",
 	token_usage: {

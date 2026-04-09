@@ -2089,6 +2089,7 @@ describe("useChatStore", () => {
 
 	it("sets reconnectState on WebSocket disconnect and clears it after reconnect", async () => {
 		immediateAnimationFrame();
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
 
 		const chatID = "chat-disconnect";
 		const mockSocket1 = createMockSocket();
