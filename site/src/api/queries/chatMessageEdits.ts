@@ -49,11 +49,32 @@ export const buildOptimisticEditedMessage = ({
 	content: buildOptimisticEditedContent({ requestContent, originalMessage }),
 });
 
-export const projectEditedConversationIntoCache = (
-	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-	editedMessageId: number,
-	replacementMessage?: TypesGen.ChatMessage,
-): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
+const sortMessagesDescending = (
+	messages: readonly TypesGen.ChatMessage[],
+): TypesGen.ChatMessage[] => [...messages].sort((a, b) => b.id - a.id);
+
+const upsertFirstPageMessage = (
+	messages: readonly TypesGen.ChatMessage[],
+	message: TypesGen.ChatMessage,
+): TypesGen.ChatMessage[] => {
+	const byID = new Map(
+		messages.map((existingMessage) => [existingMessage.id, existingMessage]),
+	);
+	byID.set(message.id, message);
+	return sortMessagesDescending(Array.from(byID.values()));
+};
+
+export const projectEditedConversationIntoCache = ({
+	currentData,
+	editedMessageId,
+	replacementMessage,
+	queuedMessages,
+}: {
+	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
+	editedMessageId: number;
+	replacementMessage?: TypesGen.ChatMessage;
+	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+}): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
 	if (!currentData?.pages?.length) {
 		return currentData;
 	}
@@ -62,19 +83,56 @@ export const projectEditedConversationIntoCache = (
 		const truncatedMessages = page.messages.filter(
 			(message) => message.id < editedMessageId,
 		);
-		if (pageIndex !== 0 || !replacementMessage) {
-			return { ...page, messages: truncatedMessages };
-		}
-		const nextMessages = [replacementMessage, ...truncatedMessages];
-		nextMessages.sort((a, b) => b.id - a.id);
-		return {
+		const nextPage = {
 			...page,
-			messages: nextMessages,
+			...(pageIndex === 0 && queuedMessages !== undefined
+				? { queued_messages: queuedMessages }
+				: {}),
+		};
+		if (pageIndex !== 0 || !replacementMessage) {
+			return { ...nextPage, messages: truncatedMessages };
+		}
+		return {
+			...nextPage,
+			messages: upsertFirstPageMessage(truncatedMessages, replacementMessage),
 		};
 	});
 
 	return {
 		...currentData,
 		pages: truncatedPages,
+	};
+};
+
+export const reconcileEditedMessageInCache = ({
+	currentData,
+	optimisticMessageId,
+	responseMessage,
+}: {
+	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
+	optimisticMessageId: number;
+	responseMessage: TypesGen.ChatMessage;
+}): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
+	if (!currentData?.pages?.length) {
+		return currentData;
+	}
+
+	const replacedPages = currentData.pages.map((page, pageIndex) => {
+		const preservedMessages = page.messages.filter(
+			(message) =>
+				message.id !== optimisticMessageId && message.id !== responseMessage.id,
+		);
+		if (pageIndex !== 0) {
+			return { ...page, messages: preservedMessages };
+		}
+		return {
+			...page,
+			messages: upsertFirstPageMessage(preservedMessages, responseMessage),
+		};
+	});
+
+	return {
+		...currentData,
+		pages: replacedPages,
 	};
 };

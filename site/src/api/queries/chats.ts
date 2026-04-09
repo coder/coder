@@ -6,7 +6,10 @@ import type {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
-import { projectEditedConversationIntoCache } from "./chatMessageEdits";
+import {
+	reconcileEditedMessageInCache,
+	projectEditedConversationIntoCache,
+} from "./chatMessageEdits";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -631,7 +634,12 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		queryClient.setQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 		>(chatMessagesKey(chatId), (current) =>
-			projectEditedConversationIntoCache(current, messageId, optimisticMessage),
+			projectEditedConversationIntoCache({
+				currentData: current,
+				editedMessageId: messageId,
+				replacementMessage: optimisticMessage,
+				queuedMessages: [],
+			}),
 		);
 
 		return { previousData };
@@ -654,11 +662,11 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		queryClient.setQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 		>(chatMessagesKey(chatId), (current) =>
-			projectEditedConversationIntoCache(
-				current,
-				variables.messageId,
-				response.message,
-			),
+			reconcileEditedMessageInCache({
+				currentData: current,
+				optimisticMessageId: variables.messageId,
+				responseMessage: response.message,
+			}),
 		);
 	},
 	onSettled: () => {
