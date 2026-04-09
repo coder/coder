@@ -14479,15 +14479,6 @@ const docTemplate = `{
             "properties": {
                 "acquire_batch_size": {
                     "type": "integer"
-                },
-                "pubsub_batch_enabled": {
-                    "type": "boolean"
-                },
-                "pubsub_flush_interval": {
-                    "type": "integer"
-                },
-                "pubsub_queue_size": {
-                    "type": "integer"
                 }
             }
         },
