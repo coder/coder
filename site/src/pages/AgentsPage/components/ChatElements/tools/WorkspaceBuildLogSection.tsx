@@ -62,15 +62,19 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		: completedLogsQuery.data;
 
 	// --- Timeout: detect if logs never arrive ---
+	// Derive a stable boolean so the effect only re-runs when logs
+	// first appear or when the build ID changes, not on every
+	// appended log entry.
+	const hasLogs = Boolean(logs && logs.length > 0);
 	const [timedOut, setTimedOut] = useState(false);
 	useEffect(() => {
-		if (!effectiveBuildId || (logs && logs.length > 0)) {
-			setTimedOut(false);
+		setTimedOut(false);
+		if (!effectiveBuildId || hasLogs) {
 			return;
 		}
 		const timer = setTimeout(() => setTimedOut(true), LOG_LOAD_TIMEOUT_MS);
 		return () => clearTimeout(timer);
-	}, [effectiveBuildId, logs]);
+	}, [effectiveBuildId, hasLogs]);
 
 	// --- Error state ---
 	const hasError = timedOut || (!isRunning && completedLogsQuery.isError);
