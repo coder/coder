@@ -878,6 +878,168 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	require.Equal(t, 0, antCount, "antagonist workspaces (deleted and regular) should not be migrated")
 }
 
+func TestMigration000466ModelProviderPriority(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 466
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the one that creates ordered
+	// provider attachments for model configs.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	providerAID := uuid.New()
+	providerBID := uuid.New()
+	modelBoundID := uuid.New()
+	modelUnboundID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerAID, "openai", "OpenAI A", "", true, now, now},
+		},
+		{
+			`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerBID, "openai", "OpenAI B", "", true, now.Add(time.Second), now.Add(time.Second)},
+		},
+		{
+			`INSERT INTO chat_model_configs (
+				id, provider, model, display_name, enabled, context_limit,
+				compression_threshold, created_at, updated_at, provider_config_id
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			[]any{modelBoundID, "openai", "gpt-4-bound", "GPT 4 Bound", true, 100000, 70, now, now, providerAID},
+		},
+		{
+			`INSERT INTO chat_model_configs (
+				id, provider, model, display_name, enabled, context_limit,
+				compression_threshold, created_at, updated_at, provider_config_id
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			[]any{modelUnboundID, "openai", "gpt-4-unbound", "GPT 4 Unbound", true, 100000, 70, now, now, nil},
+		},
+	}
+
+	for i, fixture := range fixtures {
+		_, err := tx.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the up migration.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	type providerAttachment struct {
+		providerConfigID uuid.UUID
+		priority         int
+	}
+
+	getAttachments := func(t *testing.T, modelID uuid.UUID) []providerAttachment {
+		t.Helper()
+
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT provider_config_id, priority
+			FROM chat_model_provider_configs
+			WHERE model_config_id = $1
+			ORDER BY priority ASC
+		`, modelID)
+		require.NoError(t, err)
+		defer rows.Close()
+
+		var attachments []providerAttachment
+		for rows.Next() {
+			var attachment providerAttachment
+			err = rows.Scan(&attachment.providerConfigID, &attachment.priority)
+			require.NoError(t, err)
+			attachments = append(attachments, attachment)
+		}
+		require.NoError(t, rows.Err())
+
+		return attachments
+	}
+
+	boundAttachments := getAttachments(t, modelBoundID)
+	require.Equal(t, []providerAttachment{{
+		providerConfigID: providerAID,
+		priority:         0,
+	}}, boundAttachments)
+
+	unboundAttachments := getAttachments(t, modelUnboundID)
+	require.Equal(t, []providerAttachment{
+		{
+			providerConfigID: providerAID,
+			priority:         0,
+		},
+		{
+			providerConfigID: providerBID,
+			priority:         1,
+		},
+	}, unboundAttachments)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_providers
+		SET enabled = FALSE
+		WHERE id = $1
+	`, providerAID)
+	require.NoError(t, err)
+
+	// Run the down migration for 000466 only.
+	_, downMigrate := setupMigrate(t, sqlDB, "down466", ".")
+	require.NoError(t, downMigrate.Force(migrationVersion))
+	require.NoError(t, downMigrate.Steps(-1))
+
+	var modelBoundProviderConfigID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT provider_config_id
+		FROM chat_model_configs
+		WHERE id = $1
+	`, modelBoundID).Scan(&modelBoundProviderConfigID)
+	require.NoError(t, err)
+	require.Equal(t, providerAID, modelBoundProviderConfigID)
+
+	var modelUnboundProviderConfigID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT provider_config_id
+		FROM chat_model_configs
+		WHERE id = $1
+	`, modelUnboundID).Scan(&modelUnboundProviderConfigID)
+	require.NoError(t, err)
+	require.Equal(t, providerBID, modelUnboundProviderConfigID)
+
+	var dropped bool
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT to_regclass('public.chat_model_provider_configs') IS NULL
+	`).Scan(&dropped)
+	require.NoError(t, err)
+	require.True(t, dropped)
+}
+
 func TestMigration000457ChatAccessRole(t *testing.T) {
 	t.Parallel()
 

@@ -668,18 +668,29 @@ type CreateUserChatProviderKeyRequest struct {
 
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
-	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	Provider             string               `json:"provider"`
-	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid" typescript:"-"`
-	Model                string               `json:"model"`
-	DisplayName          string               `json:"display_name"`
-	Enabled              bool                 `json:"enabled"`
-	IsDefault            bool                 `json:"is_default"`
-	ContextLimit         int64                `json:"context_limit"`
-	CompressionThreshold int32                `json:"compression_threshold"`
-	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
-	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+	ID                   uuid.UUID                     `json:"id" format:"uuid"`
+	Provider             string                        `json:"provider"`
+	ProviderConfigs      []ChatModelProviderAttachment `json:"provider_configs,omitempty"`
+	Model                string                        `json:"model"`
+	DisplayName          string                        `json:"display_name"`
+	Enabled              bool                          `json:"enabled"`
+	IsDefault            bool                          `json:"is_default"`
+	ContextLimit         int64                         `json:"context_limit"`
+	CompressionThreshold int32                         `json:"compression_threshold"`
+	ModelConfig          *ChatModelCallConfig          `json:"model_config,omitempty"`
+	CreatedAt            time.Time                     `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time                     `json:"updated_at" format:"date-time"`
+}
+
+// ChatModelProviderAttachment links a model config to an ordered provider config.
+type ChatModelProviderAttachment struct {
+	ID               uuid.UUID `json:"id" format:"uuid"`
+	ProviderConfigID uuid.UUID `json:"provider_config_id" format:"uuid"`
+	Provider         string    `json:"provider"`
+	Priority         int32     `json:"priority"`
+	DisplayName      string    `json:"display_name"`
+	Enabled          bool      `json:"enabled"`
+	HasAPIKey        bool      `json:"has_api_key"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -881,7 +892,7 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
 	Provider             string               `json:"provider"`
-	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid" typescript:"-"`
+	ProviderConfigIDs    []uuid.UUID          `json:"provider_config_ids,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -894,7 +905,7 @@ type CreateChatModelConfigRequest struct {
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
 	Provider             string               `json:"provider,omitempty"`
-	ProviderConfigID     **uuid.UUID          `json:"provider_config_id,omitempty" format:"uuid" typescript:"-"`
+	ProviderConfigIDs    *[]uuid.UUID         `json:"provider_config_ids,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -902,41 +913,6 @@ type UpdateChatModelConfigRequest struct {
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
-}
-
-// UnmarshalJSON preserves an explicit JSON null for provider_config_id so
-// PATCH handlers can distinguish clearing the binding from omitting the field.
-func (r *UpdateChatModelConfigRequest) UnmarshalJSON(data []byte) error {
-	type updateChatModelConfigRequestAlias UpdateChatModelConfigRequest
-
-	var alias updateChatModelConfigRequestAlias
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	*r = UpdateChatModelConfigRequest(alias)
-
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-
-	rawProviderConfigID, ok := fields["provider_config_id"]
-	if !ok {
-		return nil
-	}
-	if bytes.Equal(bytes.TrimSpace(rawProviderConfigID), []byte("null")) {
-		var providerConfigID *uuid.UUID
-		r.ProviderConfigID = &providerConfigID
-		return nil
-	}
-
-	var providerConfigID uuid.UUID
-	if err := json.Unmarshal(rawProviderConfigID, &providerConfigID); err != nil {
-		return err
-	}
-	providerConfigIDPtr := &providerConfigID
-	r.ProviderConfigID = &providerConfigIDPtr
-	return nil
 }
 
 // ChatGitChange represents a git file change detected during a chat session.

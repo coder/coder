@@ -1664,6 +1664,7 @@ export interface ChatModelCallConfig {
 export interface ChatModelConfig {
 	readonly id: string;
 	readonly provider: string;
+	readonly provider_configs?: readonly ChatModelProviderAttachment[];
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -1790,6 +1791,20 @@ export interface ChatModelProvider {
 
 // From codersdk/chats.go
 /**
+ * ChatModelProviderAttachment links a model config to an ordered provider config.
+ */
+export interface ChatModelProviderAttachment {
+	readonly id: string;
+	readonly provider_config_id: string;
+	readonly provider: string;
+	readonly priority: number;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly has_api_key: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelProviderOptions contains typed provider-specific options.
  *
  * Note: Azure models use the `openai` options shape.
@@ -1868,6 +1883,7 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
+	readonly has_effective_api_key: boolean;
 	readonly central_api_key_enabled: boolean;
 	readonly allow_user_api_key: boolean;
 	readonly allow_central_api_key_fallback: boolean;
@@ -2457,6 +2473,7 @@ export interface CreateChatMessageResponse {
  */
 export interface CreateChatModelConfigRequest {
 	readonly provider: string;
+	readonly provider_config_ids?: readonly string[];
 	readonly model: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -2809,20 +2826,6 @@ export interface CreateUserRequestWithOrgs {
 	 * Service accounts are admin-managed accounts that cannot login.
 	 */
 	readonly service_account?: boolean;
-}
-
-// From codersdk/usersecrets.go
-/**
- * CreateUserSecretRequest is the payload for creating a new user
- * secret. Name and Value are required. All other fields are optional
- * and default to empty string.
- */
-export interface CreateUserSecretRequest {
-	readonly name: string;
-	readonly value: string;
-	readonly description?: string;
-	readonly env_name?: string;
-	readonly file_path?: string;
 }
 
 // From codersdk/workspaces.go
@@ -7371,6 +7374,7 @@ export interface UpdateChatDesktopEnabledRequest {
  */
 export interface UpdateChatModelConfigRequest {
 	readonly provider?: string;
+	readonly provider_config_ids?: string[];
 	readonly model?: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -7698,20 +7702,6 @@ export interface UpdateUserQuietHoursScheduleRequest {
 	 * schedule.
 	 */
 	readonly schedule: string;
-}
-
-// From codersdk/usersecrets.go
-/**
- * UpdateUserSecretRequest is the payload for partially updating a
- * user secret. At least one field must be non-nil. Pointer fields
- * distinguish "not sent" (nil) from "set to empty string" (pointer
- * to empty string).
- */
-export interface UpdateUserSecretRequest {
-	readonly value?: string;
-	readonly description?: string;
-	readonly env_name?: string;
-	readonly file_path?: string;
 }
 
 // From codersdk/workspaces.go
@@ -8064,35 +8054,6 @@ export interface UserQuietHoursScheduleResponse {
 export interface UserRoles {
 	readonly roles: readonly string[];
 	readonly organization_roles: Record<string, string[]>;
-}
-
-// From codersdk/usersecrets.go
-/**
- * UserSecret represents a user secret's metadata. The secret value
- * is never included in API responses.
- */
-export interface UserSecret {
-	readonly id: string;
-	readonly name: string;
-	readonly description: string;
-	readonly env_name: string;
-	readonly file_path: string;
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
-// From codersdk/usersecretvalidation.go
-/**
- * UserSecretEnvValidationOptions controls deployment-aware behavior
- * in environment variable name validation.
- */
-export interface UserSecretEnvValidationOptions {
-	/**
-	 * AIGatewayEnabled indicates that the deployment has AI Gateway
-	 * configured. When true, AI Gateway environment variables
-	 * (OPENAI_API_KEY, etc.) are reserved to prevent conflicts.
-	 */
-	readonly AIGatewayEnabled: boolean;
 }
 
 // From codersdk/users.go

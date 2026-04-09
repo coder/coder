@@ -91,10 +91,23 @@ const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	updated_at: "2025-01-01T00:00:00Z",
 };
 
+const providerAttachment = (
+	overrides: Partial<TypesGen.ChatModelProviderAttachment>,
+): TypesGen.ChatModelProviderAttachment => ({
+	id:
+		overrides.id ?? `attachment-${overrides.provider_config_id ?? "config-a"}`,
+	provider_config_id: overrides.provider_config_id ?? "config-a",
+	provider: overrides.provider ?? "openai",
+	priority: overrides.priority ?? 0,
+	display_name: overrides.display_name ?? "Test config",
+	enabled: overrides.enabled ?? true,
+	has_api_key: overrides.has_api_key ?? true,
+});
+
 // ── buildInitialModelFormValues ────────────────────────────────
 
 describe("buildInitialModelFormValues", () => {
-	it("returns create mode defaults including enabled=true", () => {
+	it("returns create mode defaults including empty providerConfigIds", () => {
 		expect(buildInitialModelFormValues()).toEqual({
 			model: "",
 			displayName: "",
@@ -103,7 +116,139 @@ describe("buildInitialModelFormValues", () => {
 			compressionThreshold: "",
 			isDefault: false,
 			config: emptyModelConfigFormState,
+			providerConfigIds: [],
 		});
+	});
+
+	it("returns a single providerConfigId when editing a model with one attachment", () => {
+		const result = buildInitialModelFormValues({
+			...baseChatModelConfig,
+			provider_configs: [
+				providerAttachment({
+					provider_config_id: "config-a",
+					priority: 0,
+				}),
+			],
+		});
+
+		expect(result.providerConfigIds).toEqual(["config-a"]);
+	});
+
+	it("sorts providerConfigIds by ascending attachment priority", () => {
+		const result = buildInitialModelFormValues({
+			...baseChatModelConfig,
+			provider_configs: [
+				providerAttachment({
+					id: "attachment-c",
+					provider_config_id: "config-c",
+					priority: 2,
+				}),
+				providerAttachment({
+					id: "attachment-a",
+					provider_config_id: "config-a",
+					priority: 0,
+				}),
+				providerAttachment({
+					id: "attachment-b",
+					provider_config_id: "config-b",
+					priority: 1,
+				}),
+			],
+		});
+
+		expect(result.providerConfigIds).toEqual([
+			"config-a",
+			"config-b",
+			"config-c",
+		]);
+	});
+
+	it("preserves source order for attachments with equal priorities", () => {
+		const result = buildInitialModelFormValues({
+			...baseChatModelConfig,
+			provider_configs: [
+				providerAttachment({
+					id: "attachment-b",
+					provider_config_id: "config-b",
+					priority: 1,
+				}),
+				providerAttachment({
+					id: "attachment-a",
+					provider_config_id: "config-a",
+					priority: 1,
+				}),
+				providerAttachment({
+					id: "attachment-c",
+					provider_config_id: "config-c",
+					priority: 2,
+				}),
+			],
+		});
+
+		expect(result.providerConfigIds).toEqual([
+			"config-b",
+			"config-a",
+			"config-c",
+		]);
+	});
+
+	it("returns empty providerConfigIds when provider_configs is undefined or empty", () => {
+		const undefinedProviderConfigs = buildInitialModelFormValues({
+			...baseChatModelConfig,
+			provider_configs: undefined,
+		});
+		const emptyProviderConfigs = buildInitialModelFormValues({
+			...baseChatModelConfig,
+			provider_configs: [],
+		});
+
+		expect(undefinedProviderConfigs.providerConfigIds).toEqual([]);
+		expect(emptyProviderConfigs.providerConfigIds).toEqual([]);
+	});
+
+	it("preserves ordered providerConfigIds alongside other populated fields", () => {
+		const result = buildInitialModelFormValues({
+			...baseChatModelConfig,
+			model: "gpt-4.1",
+			display_name: "GPT 4.1",
+			enabled: false,
+			is_default: true,
+			context_limit: 64000,
+			compression_threshold: 55,
+			model_config: {
+				max_output_tokens: 4096,
+				temperature: 0.7,
+			},
+			provider_configs: [
+				providerAttachment({
+					id: "attachment-c",
+					provider_config_id: "config-c",
+					priority: 2,
+				}),
+				providerAttachment({
+					id: "attachment-a",
+					provider_config_id: "config-a",
+					priority: 0,
+				}),
+				providerAttachment({
+					id: "attachment-b",
+					provider_config_id: "config-b",
+					priority: 1,
+				}),
+			],
+		});
+
+		expect(result).toMatchObject({
+			model: "gpt-4.1",
+			displayName: "GPT 4.1",
+			enabled: false,
+			contextLimit: "64000",
+			compressionThreshold: "55",
+			isDefault: true,
+			providerConfigIds: ["config-a", "config-b", "config-c"],
+		});
+		expect(result.config.maxOutputTokens).toBe("4096");
+		expect(result.config.temperature).toBe("0.7");
 	});
 
 	it("preserves enabled=true when editing an enabled model", () => {

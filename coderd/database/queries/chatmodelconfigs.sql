@@ -31,11 +31,11 @@ ORDER BY
 
 -- name: GetEnabledChatModelConfigs :many
 -- Returns enabled, non-deleted model configs that are usable at runtime.
--- Bound rows (provider_config_id IS NOT NULL) are kept only when the
--- referenced provider config exists and is still enabled.
--- Unbound rows (provider_config_id IS NULL) are kept regardless of
--- provider state so they remain visible for env-preset families and
--- families with only disabled DB-backed provider configs.
+-- Rows with explicit provider attachments are kept when any attached
+-- provider remains enabled. Legacy rows without attachments keep the old
+-- provider_config_id gate, and rows without any binding remain visible
+-- for env-preset families and families with only disabled DB-backed
+-- provider configs.
 SELECT
     cmc.*
 FROM
@@ -44,16 +44,30 @@ WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND (
-        -- Bound: the referenced provider must exist and be enabled.
-        (cmc.provider_config_id IS NOT NULL
-         AND EXISTS (
-             SELECT 1 FROM chat_providers cp
-             WHERE cp.id = cmc.provider_config_id
-               AND cp.enabled = TRUE
-         ))
-        OR
-        -- Unbound rows are kept regardless of provider state.
-        (cmc.provider_config_id IS NULL)
+        EXISTS (
+            SELECT 1
+            FROM chat_model_provider_configs cmpc
+            JOIN chat_providers cp ON cp.id = cmpc.provider_config_id
+            WHERE cmpc.model_config_id = cmc.id
+              AND cp.enabled = TRUE
+        )
+        OR (
+            NOT EXISTS (
+                SELECT 1
+                FROM chat_model_provider_configs cmpc
+                WHERE cmpc.model_config_id = cmc.id
+            )
+            AND (
+                (cmc.provider_config_id IS NOT NULL
+                 AND EXISTS (
+                     SELECT 1
+                     FROM chat_providers cp
+                     WHERE cp.id = cmc.provider_config_id
+                       AND cp.enabled = TRUE
+                 ))
+                OR (cmc.provider_config_id IS NULL)
+            )
+        )
     )
 ORDER BY
     cmc.provider ASC,

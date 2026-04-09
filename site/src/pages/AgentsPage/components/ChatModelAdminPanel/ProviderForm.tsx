@@ -33,6 +33,8 @@ const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
 interface ProviderFormProps {
 	providerState: ProviderState;
+	/** When provided, overrides `providerState.providerConfig`. */
+	providerConfig?: TypesGen.ChatProviderConfig;
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
 	onCreateProvider: (
@@ -46,16 +48,24 @@ interface ProviderFormProps {
 	onBack: () => void;
 }
 
-export const ProviderForm: FC<ProviderFormProps> = ({
-	providerState,
-	providerConfigsUnavailable,
-	isProviderMutationPending,
-	onCreateProvider,
-	onUpdateProvider,
-	onDeleteProvider,
-	onBack,
-}) => {
-	const { provider, providerConfig, baseURL, isEnvPreset } = providerState;
+export const ProviderForm: FC<ProviderFormProps> = (props) => {
+	const {
+		providerState,
+		providerConfigsUnavailable,
+		isProviderMutationPending,
+		onCreateProvider,
+		onUpdateProvider,
+		onDeleteProvider,
+		onBack,
+	} = props;
+	const { provider, baseURL, isEnvPreset } = providerState;
+	const hasProviderConfigOverride = Object.hasOwn(props, "providerConfig");
+	const providerConfig = hasProviderConfigOverride
+		? props.providerConfig
+		: providerState.providerConfig;
+	const hasManagedAPIKey = providerConfig?.has_api_key ?? false;
+	const resolvedBaseURL =
+		readOptionalString(providerConfig?.base_url) ?? baseURL;
 
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
@@ -75,7 +85,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	// so we can detect dirty state.
 	const [initialValues] = useState(() => ({
 		displayName: readOptionalString(providerConfig?.display_name) ?? "",
-		baseURL,
+		baseURL: resolvedBaseURL,
 		centralAPIKeyEnabled:
 			normalizedProviderConfig?.central_api_key_enabled ?? true,
 		allowUserAPIKey: normalizedProviderConfig?.allow_user_api_key ?? false,
@@ -85,7 +95,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	const [displayName, setDisplayName] = useState(initialValues.displayName);
 	const [apiKey, setApiKey] = useState(
-		providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
+		hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
@@ -100,7 +110,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
+	const isAPIKeyEnvManaged =
+		providerConfig?.source === "env_preset" ||
+		(!hasProviderConfigOverride && isEnvPreset && !providerConfig);
 	const shouldShowAPIKeyField = centralAPIKeyEnabled;
 	const shouldShowFallbackToggle = centralAPIKeyEnabled && allowUserAPIKey;
 	const effectiveInitialFallback =
@@ -113,9 +125,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	// stored deployment key yet. This covers both create and update flows,
 	// including toggling central-key usage on for an existing provider.
 	const requiresAPIKey =
-		!isAPIKeyEnvManaged &&
-		centralAPIKeyEnabled &&
-		!providerState.hasManagedAPIKey;
+		!isAPIKeyEnvManaged && centralAPIKeyEnabled && !hasManagedAPIKey;
 
 	const effectiveApiKey =
 		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
@@ -163,7 +173,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		if (providerConfig) {
 			const currentDisplayName =
 				readOptionalString(providerConfig.display_name) ?? "";
-			const currentBaseURL = baseURL.trim();
+			const currentBaseURL = resolvedBaseURL.trim();
 			const req: TypesGen.UpdateChatProviderConfigRequest = {
 				...(trimmedDisplayName !== currentDisplayName && {
 					display_name: trimmedDisplayName,

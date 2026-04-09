@@ -518,6 +518,58 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return ordered
 }
 
+// ProviderKeysFromConfig deep-copies fallback provider keys and overlays the
+// API key and base URL from a single attached provider config. The provider
+// name is normalized before any overlay is applied.
+func ProviderKeysFromConfig(
+	fallback ProviderAPIKeys,
+	provider string,
+	dbAPIKey string,
+	dbBaseURL string,
+) ProviderAPIKeys {
+	keys := ProviderAPIKeys{
+		OpenAI:    fallback.OpenAI,
+		Anthropic: fallback.Anthropic,
+	}
+	if fallback.ByProvider != nil {
+		keys.ByProvider = make(map[string]string, len(fallback.ByProvider))
+		for key, value := range fallback.ByProvider {
+			keys.ByProvider[key] = value
+		}
+	} else {
+		keys.ByProvider = make(map[string]string)
+	}
+	if fallback.BaseURLByProvider != nil {
+		keys.BaseURLByProvider = make(map[string]string, len(fallback.BaseURLByProvider))
+		for key, value := range fallback.BaseURLByProvider {
+			keys.BaseURLByProvider[key] = value
+		}
+	} else {
+		keys.BaseURLByProvider = make(map[string]string)
+	}
+
+	normalizedProvider := NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return keys
+	}
+
+	if trimmedAPIKey := strings.TrimSpace(dbAPIKey); trimmedAPIKey != "" {
+		keys.ByProvider[normalizedProvider] = trimmedAPIKey
+		switch normalizedProvider {
+		case fantasyopenai.Name:
+			keys.OpenAI = trimmedAPIKey
+		case fantasyanthropic.Name:
+			keys.Anthropic = trimmedAPIKey
+		}
+	}
+
+	// An empty base URL explicitly clears any inherited override so the
+	// provider's default endpoint is used.
+	keys.BaseURLByProvider[normalizedProvider] = strings.TrimSpace(dbBaseURL)
+
+	return keys
+}
+
 // NormalizeProvider canonicalizes a provider name.
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {

@@ -1,13 +1,17 @@
 import { useFormik } from "formik";
 import {
+	ArrowDownIcon,
+	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	InfoIcon,
 	PencilIcon,
+	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import {
@@ -47,6 +51,11 @@ import {
 	parsePositiveInteger,
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
+import {
+	buildModelProviderOptions,
+	type ModelProviderOption,
+	resolveDefaultOption,
+} from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 
 // ── Validation ──────────────────────────────────────────────────
@@ -113,12 +122,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showPricing, setShowPricing] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-	const canManageModels = Boolean(
-		selectedProviderState?.providerConfig &&
-			(selectedProviderState.hasEffectiveAPIKey ||
-				selectedProviderState.providerConfig.allow_user_api_key),
-	);
+	const selectedProviderConfigs = selectedProviderState?.providerConfigs ?? [];
 
 	const form = useFormik<ModelFormValues>({
 		initialValues: buildInitialModelFormValues(editingModel),
@@ -146,7 +150,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const builtModelConfig = buildResult.modelConfig;
 
 			if (isEditing && editingModel) {
-				const req: TypesGen.UpdateChatModelConfigRequest = {
+				const baseReq: TypesGen.UpdateChatModelConfigRequest = {
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
 					}),
@@ -171,12 +175,24 @@ export const ModelForm: FC<ModelFormProps> = ({
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
 				};
+				const currentIds = values.providerConfigIds;
+				const orderChanged =
+					currentIds.length !== existingOrderedIds.length ||
+					currentIds.some((id, i) => id !== existingOrderedIds[i]);
+
+				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...baseReq,
+					...(orderChanged && { provider_config_ids: currentIds }),
+				};
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!selectedProviderState || selectedProviderConfigs.length === 0) {
+					return;
+				}
 
-				const req: TypesGen.CreateChatModelConfigRequest = {
+				const providerConfigIDs = values.providerConfigIds;
+				const baseReq: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
 					model: trimmedModel,
 					enabled: true,
@@ -196,6 +212,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 						model_config: builtModelConfig,
 					}),
 				};
+				const req: TypesGen.CreateChatModelConfigRequest = {
+					...baseReq,
+					...(providerConfigIDs.length > 0 && {
+						provider_config_ids: providerConfigIDs,
+					}),
+				};
 
 				await onCreateModel(req);
 			}
@@ -204,6 +226,96 @@ export const ModelForm: FC<ModelFormProps> = ({
 			// here to avoid a double view-transition.
 		},
 	});
+
+	const allProviderOptions: ModelProviderOption[] =
+		buildModelProviderOptions(providerStates);
+	const selectedProviderOption = selectedProvider
+		? resolveDefaultOption(allProviderOptions, selectedProvider)
+		: undefined;
+	const attachedProviderIcon =
+		selectedProviderOption?.iconProvider ??
+		selectedProviderState?.provider ??
+		"";
+
+	const attachedProviderConfigIds = new Set(form.values.providerConfigIds);
+	const attachableOptions = allProviderOptions.filter(
+		(opt) =>
+			opt.provider === selectedProvider &&
+			!opt.isEnvFallback &&
+			!attachedProviderConfigIds.has(opt.configId),
+	);
+
+	const configLookup = new Map<
+		string,
+		{
+			displayName: string;
+			enabled: boolean;
+			hasApiKey: boolean;
+		}
+	>();
+	for (const c of selectedProviderConfigs) {
+		configLookup.set(c.id, {
+			displayName: c.display_name || c.base_url || c.id.slice(0, 8),
+			enabled: c.enabled,
+			hasApiKey: c.has_api_key,
+		});
+	}
+	if (editingModel?.provider_configs) {
+		for (const pc of editingModel.provider_configs) {
+			if (!configLookup.has(pc.provider_config_id)) {
+				configLookup.set(pc.provider_config_id, {
+					displayName: pc.display_name || pc.provider_config_id.slice(0, 8),
+					enabled: pc.enabled,
+					hasApiKey: pc.has_api_key,
+				});
+			}
+		}
+	}
+
+	const existingOrderedIds = !editingModel?.provider_configs
+		? []
+		: [...editingModel.provider_configs]
+				.sort((a, b) => a.priority - b.priority)
+				.map((pc) => pc.provider_config_id);
+
+	const [addPickerValue, setAddPickerValue] = useState("");
+
+	const attachedIds = form.values.providerConfigIds;
+	const providerConfigIdsError =
+		typeof form.errors.providerConfigIds === "string"
+			? form.errors.providerConfigIds
+			: undefined;
+
+	const updateProviderConfigIds = (next: string[]) => {
+		void form.setFieldValue("providerConfigIds", next);
+		form.setFieldError("providerConfigIds", undefined);
+	};
+
+	const moveAttachment = (index: number, direction: "up" | "down") => {
+		const next = [...attachedIds];
+		const target = direction === "up" ? index - 1 : index + 1;
+		if (target < 0 || target >= next.length) return;
+		[next[index], next[target]] = [next[target], next[index]];
+		updateProviderConfigIds(next);
+	};
+
+	const removeAttachment = (index: number) => {
+		const next = attachedIds.filter((_, i) => i !== index);
+		updateProviderConfigIds(next);
+	};
+
+	const addAttachment = (configId: string) => {
+		if (!configId || attachedIds.includes(configId)) return;
+		updateProviderConfigIds([...attachedIds, configId]);
+		setAddPickerValue("");
+	};
+
+	const canManageModels = Boolean(
+		selectedProviderState &&
+			selectedProviderConfigs.length > 0 &&
+			(selectedProviderState.hasEffectiveAPIKey ||
+				selectedProviderConfigs.some((config) => config.allow_user_api_key)),
+	);
 
 	const getFieldHelpers = getFormHelpers(form);
 
@@ -228,7 +340,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 			</Label>
 			<Select
 				value={selectedProvider ?? ""}
-				onValueChange={onSelectedProviderChange}
+				onValueChange={(provider) => {
+					if (!isEditing) {
+						void form.setFieldValue("providerConfigIds", []);
+						setAddPickerValue("");
+					}
+					onSelectedProviderChange(provider);
+				}}
 				disabled={isEditing || providerStates.length === 0}
 			>
 				<SelectTrigger
@@ -251,6 +369,111 @@ export const ModelForm: FC<ModelFormProps> = ({
 		</div>
 	);
 
+	const providerConfigurationsSection = (
+		<div className="grid gap-1.5">
+			<Label className="text-[13px] font-medium text-content-primary">
+				Provider Configurations
+			</Label>
+
+			{attachedIds.length === 0 ? (
+				<p className="m-0 text-xs text-content-secondary">
+					No provider configurations attached.
+				</p>
+			) : (
+				<div className="space-y-1">
+					{attachedIds.map((id, index) => {
+						const meta = configLookup.get(id);
+						return (
+							<div
+								key={id}
+								className="flex items-center gap-2 rounded-md border border-solid border-border px-2 py-1.5 text-[13px]"
+							>
+								<ProviderIcon
+									provider={attachedProviderIcon}
+									className="h-4 w-4 shrink-0"
+								/>
+								<span className="min-w-0 truncate font-medium text-content-primary">
+									{meta?.displayName ?? id.slice(0, 8)}
+								</span>
+								<Badge
+									size="sm"
+									variant={meta?.enabled !== false ? "green" : "warning"}
+								>
+									{meta?.enabled !== false ? "Enabled" : "Disabled"}
+								</Badge>
+								{meta && (
+									<span className="text-2xs text-content-secondary">
+										{meta.hasApiKey ? "API key set" : "No API key"}
+									</span>
+								)}
+								<span className="ml-auto flex items-center gap-0.5">
+									<Button
+										variant="subtle"
+										size="icon"
+										type="button"
+										aria-label="Move up"
+										disabled={index === 0}
+										onClick={() => moveAttachment(index, "up")}
+									>
+										<ArrowUpIcon className="h-3 w-3" />
+									</Button>
+									<Button
+										variant="subtle"
+										size="icon"
+										type="button"
+										aria-label="Move down"
+										disabled={index === attachedIds.length - 1}
+										onClick={() => moveAttachment(index, "down")}
+									>
+										<ArrowDownIcon className="h-3 w-3" />
+									</Button>
+									<Button
+										variant="subtle"
+										size="icon"
+										type="button"
+										aria-label="Remove"
+										onClick={() => removeAttachment(index)}
+									>
+										<XIcon className="h-3 w-3" />
+									</Button>
+								</span>
+							</div>
+						);
+					})}
+				</div>
+			)}
+
+			{attachableOptions.length > 0 && (
+				<Select
+					value={addPickerValue}
+					onValueChange={(value) => addAttachment(value)}
+				>
+					<SelectTrigger className="h-10 max-w-[240px] text-[13px]">
+						<SelectValue placeholder="Add configuration..." />
+					</SelectTrigger>
+					<SelectContent>
+						{attachableOptions.map((opt) => (
+							<SelectItem key={opt.key} value={opt.configId}>
+								<span className="flex items-center gap-2">
+									<ProviderIcon
+										provider={opt.iconProvider}
+										className="h-4 w-4"
+									/>
+									{opt.label}
+								</span>
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			)}
+			{providerConfigIdsError && (
+				<p className="m-0 text-xs text-content-destructive" role="alert">
+					{providerConfigIdsError}
+				</p>
+			)}
+		</div>
+	);
+
 	// No provider selected or configs unavailable.
 	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
@@ -260,7 +483,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
-				<div className="space-y-3">{providerSelect}</div>
+				<div className="space-y-3">
+					{providerSelect}
+					{providerConfigurationsSection}
+				</div>
 			</div>
 		);
 	}
@@ -276,8 +502,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
+					{providerConfigurationsSection}
 					<p className="text-sm text-content-secondary">
-						{!selectedProviderState.providerConfig
+						{selectedProviderConfigs.length === 0
 							? "Create a managed provider config on the Providers tab before adding models."
 							: "Set an API key for this provider on the Providers tab before adding models."}
 					</p>
@@ -360,6 +587,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
+					{providerConfigurationsSection}
 					{/* Model ID + Context Limit + Pricing */}
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">

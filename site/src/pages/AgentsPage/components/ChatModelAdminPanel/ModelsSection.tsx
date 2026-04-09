@@ -186,8 +186,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	// end users to bring their own key.
 	const addableProviders = providerStates.filter(
 		(ps) =>
-			ps.providerConfig &&
-			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
+			ps.providerConfigs.length > 0 &&
+			(ps.hasEffectiveAPIKey ||
+				ps.providerConfigs.some((pc) => pc.allow_user_api_key)),
 	);
 
 	const addButton = addableProviders.length > 0 && (
@@ -225,6 +226,26 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		void onUpdateModel(modelConfig.id, { is_default: true });
 	};
 
+	const getProviderConfigSummary = (
+		modelConfig: TypesGen.ChatModelConfig,
+	): string | null => {
+		const sortedAttachments = [...(modelConfig.provider_configs ?? [])].sort(
+			(a, b) => a.priority - b.priority,
+		);
+		if (sortedAttachments.length === 0) {
+			return null;
+		}
+
+		const primaryLabel =
+			sortedAttachments[0].display_name ||
+			sortedAttachments[0].provider_config_id.slice(0, 8);
+		const extraAttachments = sortedAttachments.length - 1;
+
+		return extraAttachments > 0
+			? `${primaryLabel} (+${extraAttachments} more)`
+			: primaryLabel;
+	};
+
 	return (
 		<>
 			{sectionLabel && (
@@ -256,6 +277,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						const showPricingWarning = !hasCustomPricing(
 							modelConfig.model_config,
 						);
+						const providerConfigSummary = getProviderConfigSummary(modelConfig);
 
 						return (
 							<div
@@ -291,6 +313,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										>
 											{modelConfig.display_name || modelConfig.model}
 										</span>
+										{providerConfigSummary && (
+											<span className="mt-0.5 block truncate text-xs text-content-secondary">
+												{providerConfigSummary}
+											</span>
+										)}
 										{showPricingWarning && (
 											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
 												<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />

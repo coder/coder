@@ -1,13 +1,29 @@
-import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
+import {
+	CheckCircleIcon,
+	ChevronRightIcon,
+	CircleIcon,
+	PlusIcon,
+} from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ProviderForm } from "./ProviderForm";
 import { ProviderIcon } from "./ProviderIcon";
+
+const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 
 type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 
@@ -47,10 +63,13 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	const canGoBack =
 		(location.state as { pushed?: boolean } | null)?.pushed === true;
 
+	const providerParam = searchParams.get("provider");
+	const configIdParam = searchParams.get("configId");
+	const newConfigParam = searchParams.get("newConfig");
+
 	// Derive the current view from URL search params so that
 	// browser back/forward navigation works as expected.
 	const view: ProviderView = (() => {
-		const providerParam = searchParams.get("provider");
 		if (providerParam) {
 			const exists = providerStates.some((ps) => ps.provider === providerParam);
 			return exists
@@ -60,11 +79,13 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		return { mode: "list" };
 	})();
 
-	// Clear provider search param and return to the list.
+	// Clear provider search params and return to the list.
 	const clearProviderView = () => {
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
 			next.delete("provider");
+			next.delete("configId");
+			next.delete("newConfig");
 			return next;
 		});
 	};
@@ -74,46 +95,125 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		view.mode === "detail"
 			? providerStates.find((ps) => ps.provider === view.provider)
 			: undefined;
+	const selectedConfig: TypesGen.ChatProviderConfig | undefined = (() => {
+		if (!detailProvider) return undefined;
+		if (newConfigParam) return undefined;
+		const configs = detailProvider.providerConfigs;
+		const firstDatabaseConfig = configs.find(
+			(config) => config.id !== nilProviderConfigID,
+		);
+		if (configIdParam) {
+			return (
+				configs.find((config) => config.id === configIdParam) ??
+				firstDatabaseConfig ??
+				configs[0]
+			);
+		}
+		return firstDatabaseConfig ?? configs[0];
+	})();
+	const providerFormConfig =
+		selectedConfig?.id === nilProviderConfigID ? undefined : selectedConfig;
+
+	const hasProviderFormConfigOverride =
+		newConfigParam !== null || providerFormConfig !== undefined;
 
 	if (view.mode === "detail" && detailProvider) {
 		const providerFormKey = [
 			detailProvider.provider,
-			detailProvider.providerConfig?.id ?? "new",
-			detailProvider.providerConfig?.display_name ?? "",
-			detailProvider.providerConfig?.base_url ?? detailProvider.baseURL,
-			detailProvider.providerConfig?.central_api_key_enabled ?? true,
-			detailProvider.providerConfig?.allow_user_api_key ?? false,
-			detailProvider.providerConfig?.allow_central_api_key_fallback ?? false,
-			detailProvider.providerConfig?.has_api_key ??
-				detailProvider.hasManagedAPIKey,
-			detailProvider.providerConfig?.updated_at ?? "",
+			providerFormConfig?.id ?? "new",
+			providerFormConfig?.display_name ?? "",
+			providerFormConfig?.base_url ?? detailProvider.baseURL,
+			providerFormConfig?.central_api_key_enabled ?? true,
+			providerFormConfig?.allow_user_api_key ?? false,
+			providerFormConfig?.allow_central_api_key_fallback ?? false,
+			providerFormConfig?.has_api_key ?? detailProvider.hasManagedAPIKey,
+			providerFormConfig?.updated_at ?? "",
 		].join("|");
 
 		return (
-			<ProviderForm
-				key={providerFormKey}
-				providerState={detailProvider}
-				providerConfigsUnavailable={providerConfigsUnavailable}
-				isProviderMutationPending={isProviderMutationPending}
-				onCreateProvider={onCreateProvider}
-				onUpdateProvider={onUpdateProvider}
-				onDeleteProvider={async (id) => {
-					await onDeleteProvider(id);
-					if (canGoBack) {
-						navigate(-1);
-					} else {
-						setSearchParams(
-							(prev) => {
-								const next = new URLSearchParams(prev);
-								next.delete("provider");
-								return next;
-							},
-							{ replace: true },
-						);
-					}
-				}}
-				onBack={clearProviderView}
-			/>
+			<>
+				{detailProvider.providerConfigs.length > 1 && (
+					<div className="mb-4 grid gap-1.5">
+						<Label className="text-[13px] font-medium text-content-primary">
+							Configuration
+						</Label>
+						<Select
+							value={selectedConfig?.id ?? ""}
+							onValueChange={(id) => {
+								setSearchParams((prev) => {
+									const next = new URLSearchParams(prev);
+									next.set("configId", id);
+									next.delete("newConfig");
+									return next;
+								});
+							}}
+						>
+							<SelectTrigger className="h-10 max-w-[320px] text-[13px]">
+								<SelectValue placeholder="Select configuration" />
+							</SelectTrigger>
+							<SelectContent>
+								{detailProvider.providerConfigs.map((providerConfig) => (
+									<SelectItem key={providerConfig.id} value={providerConfig.id}>
+										{providerConfig.display_name ||
+											providerConfig.base_url ||
+											providerConfig.id.slice(0, 8)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				)}
+				{detailProvider.providerConfigs.length > 0 && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="mb-4 gap-1.5"
+						onClick={() => {
+							setSearchParams(
+								(prev) => {
+									const next = new URLSearchParams(prev);
+									next.delete("configId");
+									next.set("newConfig", "1");
+									return next;
+								},
+								{ state: { pushed: true } },
+							);
+						}}
+					>
+						<PlusIcon className="h-4 w-4" />
+						New config
+					</Button>
+				)}
+				<ProviderForm
+					key={providerFormKey}
+					providerState={detailProvider}
+					{...(hasProviderFormConfigOverride
+						? { providerConfig: providerFormConfig }
+						: {})}
+					providerConfigsUnavailable={providerConfigsUnavailable}
+					isProviderMutationPending={isProviderMutationPending}
+					onCreateProvider={onCreateProvider}
+					onUpdateProvider={onUpdateProvider}
+					onDeleteProvider={async (id) => {
+						await onDeleteProvider(id);
+						if (canGoBack) {
+							navigate(-1);
+						} else {
+							setSearchParams(
+								(prev) => {
+									const next = new URLSearchParams(prev);
+									next.delete("provider");
+									next.delete("configId");
+									next.delete("newConfig");
+									return next;
+								},
+								{ replace: true },
+							);
+						}
+					}}
+					onBack={clearProviderView}
+				/>
+			</>
 		);
 	}
 

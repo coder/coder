@@ -30,6 +30,7 @@ export type ModelFormValues = {
 	compressionThreshold: string;
 	isDefault: boolean;
 	config: ModelConfigFormState;
+	providerConfigIds: string[];
 };
 
 // ── Preserved parsing utilities ────────────────────────────────
@@ -220,6 +221,20 @@ export const extractModelConfigFormState = (
 
 // ── Build initial model form values ────────────────────────────
 
+const getOrderedProviderConfigIds = (
+	providerConfigs: readonly TypesGen.ChatModelProviderAttachment[] | undefined,
+): string[] =>
+	(providerConfigs ?? [])
+		.map((attachment, index) => ({ attachment, index }))
+		.sort((left, right) => {
+			const priorityDifference =
+				left.attachment.priority - right.attachment.priority;
+			return priorityDifference !== 0
+				? priorityDifference
+				: left.index - right.index;
+		})
+		.map(({ attachment }) => attachment.provider_config_id);
+
 export const buildInitialModelFormValues = (
 	editingModel?: TypesGen.ChatModelConfig,
 ): ModelFormValues => ({
@@ -234,6 +249,9 @@ export const buildInitialModelFormValues = (
 	config: editingModel
 		? extractModelConfigFormState(editingModel)
 		: structuredClone(emptyModelConfigFormState),
+	providerConfigIds: getOrderedProviderConfigIds(
+		editingModel?.provider_configs,
+	),
 });
 
 function isNonNegativePricingField(field: FieldSchema): boolean {

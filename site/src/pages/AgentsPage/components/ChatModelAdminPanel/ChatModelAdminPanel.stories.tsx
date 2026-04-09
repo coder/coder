@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -13,6 +14,20 @@ import {
 const now = "2026-02-18T12:00:00.000Z";
 const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 
+const googleUserOnlyProviderConfigID = "11111111-1111-1111-1111-111111111111";
+
+const createGoogleUserOnlyProviderConfig = (): TypesGen.ChatProviderConfig =>
+	createProviderConfig({
+		id: googleUserOnlyProviderConfigID,
+		provider: "google",
+		display_name: "Google",
+		has_api_key: false,
+		central_api_key_enabled: false,
+		allow_user_api_key: true,
+		allow_central_api_key_fallback: false,
+		source: "database",
+	});
+
 const createProviderConfig = (
 	overrides: Partial<TypesGen.ChatProviderConfig> &
 		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
@@ -22,6 +37,8 @@ const createProviderConfig = (
 	display_name: overrides.display_name ?? "",
 	enabled: overrides.enabled ?? true,
 	has_api_key: overrides.has_api_key ?? false,
+	has_effective_api_key:
+		overrides.has_effective_api_key ?? overrides.has_api_key ?? false,
 	central_api_key_enabled: overrides.central_api_key_enabled ?? true,
 	allow_user_api_key: overrides.allow_user_api_key ?? false,
 	allow_central_api_key_fallback:
@@ -32,12 +49,46 @@ const createProviderConfig = (
 	updated_at: overrides.updated_at ?? now,
 });
 
+type ModelProviderAttachmentOverrides = Partial<
+	Omit<TypesGen.ChatModelProviderAttachment, "provider_config_id">
+>;
+
+const createModelProviderAttachment = (
+	providerConfigId: string,
+	overrides: ModelProviderAttachmentOverrides = {},
+): TypesGen.ChatModelProviderAttachment => ({
+	id: overrides.id ?? `attachment-${providerConfigId}`,
+	provider_config_id: providerConfigId,
+	provider: overrides.provider ?? "openai",
+	priority: overrides.priority ?? 0,
+	display_name: overrides.display_name ?? providerConfigId,
+	enabled: overrides.enabled ?? true,
+	has_api_key: overrides.has_api_key ?? false,
+});
+
+const createModelProviderAttachments = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[],
+): TypesGen.ChatModelProviderAttachment[] =>
+	providerConfigs.map((providerConfig, priority) =>
+		createModelProviderAttachment(providerConfig.id, {
+			provider: providerConfig.provider,
+			priority,
+			display_name:
+				providerConfig.display_name ||
+				providerConfig.base_url ||
+				providerConfig.id,
+			enabled: providerConfig.enabled,
+			has_api_key: providerConfig.has_api_key,
+		}),
+	);
+
 const createModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> &
 		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
 ): TypesGen.ChatModelConfig => ({
 	id: overrides.id,
 	provider: overrides.provider,
+	provider_configs: overrides.provider_configs ?? [],
 	model: overrides.model,
 	display_name: overrides.display_name ?? overrides.model,
 	enabled: overrides.enabled ?? true,
@@ -47,6 +98,88 @@ const createModelConfig = (
 	model_config: overrides.model_config,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
+});
+
+const createModelProviderAttachmentsFromIDs = (
+	providerConfigIds: readonly string[],
+	providerConfigs: readonly TypesGen.ChatProviderConfig[],
+	fallbackProvider: string,
+): TypesGen.ChatModelProviderAttachment[] =>
+	providerConfigIds.map((providerConfigId, priority) => {
+		const providerConfig = providerConfigs.find(
+			(config) => config.id === providerConfigId,
+		);
+
+		return createModelProviderAttachment(providerConfigId, {
+			provider: providerConfig?.provider ?? fallbackProvider,
+			priority,
+			display_name:
+				providerConfig?.display_name ||
+				providerConfig?.base_url ||
+				providerConfigId,
+			enabled: providerConfig?.enabled ?? true,
+			has_api_key: providerConfig?.has_api_key ?? false,
+		});
+	});
+
+const multiAttachmentPrimaryProviderConfig = createProviderConfig({
+	id: "3f4f2e43-9c0b-4b22-a0cf-4f4f20f994f1",
+	provider: "openai",
+	display_name: "OpenAI Primary",
+	has_api_key: true,
+	has_effective_api_key: true,
+	base_url: "https://api.openai.com/v1",
+});
+
+const multiAttachmentSandboxProviderConfig = createProviderConfig({
+	id: "55ed7e92-fad1-4d2e-9bba-78d27af5c949",
+	provider: "openai",
+	display_name: "OpenAI Sandbox",
+	has_api_key: false,
+	has_effective_api_key: false,
+	allow_user_api_key: true,
+	base_url: "https://sandbox.openai.example.com/v1",
+});
+
+const multiAttachmentArchiveProviderConfig = createProviderConfig({
+	id: "8e12d651-7430-4eb9-b2d6-d80a6107b7fb",
+	provider: "openai",
+	display_name: "OpenAI Archive",
+	enabled: false,
+	has_api_key: false,
+	has_effective_api_key: false,
+	allow_user_api_key: true,
+	base_url: "https://archive.openai.example.com/v1",
+});
+
+const multiAttachmentRecoveryProviderConfig = createProviderConfig({
+	id: "9d0b27c9-4637-4e8f-8dcb-2bd1fb4e6c1f",
+	provider: "openai",
+	display_name: "OpenAI Disaster Recovery",
+	has_api_key: true,
+	has_effective_api_key: true,
+	base_url: "https://dr.openai.example.com/v1",
+});
+
+const multiAttachmentProviderConfigs = [
+	multiAttachmentPrimaryProviderConfig,
+	multiAttachmentSandboxProviderConfig,
+	multiAttachmentArchiveProviderConfig,
+	multiAttachmentRecoveryProviderConfig,
+];
+
+const multiAttachmentModelConfig = createModelConfig({
+	id: "6d447897-7a60-4209-9dfa-46f726726d46",
+	provider: "openai",
+	provider_configs: createModelProviderAttachments([
+		multiAttachmentSandboxProviderConfig,
+		multiAttachmentPrimaryProviderConfig,
+		multiAttachmentArchiveProviderConfig,
+	]),
+	model: "gpt-4.1",
+	display_name: "GPT-4.1 Router",
+	enabled: true,
+	context_limit: 128000,
 });
 
 type ChatModelAdminPanelStoryProps = ComponentProps<typeof ChatModelAdminPanel>;
@@ -89,10 +222,7 @@ const setupChatSpies = (state: {
 				base_url: req.base_url ?? "",
 				source: "database",
 			});
-			state.providerConfigs = [
-				...state.providerConfigs.filter((p) => p.provider !== req.provider),
-				created,
-			];
+			state.providerConfigs = [...state.providerConfigs, created];
 			return created;
 		},
 	);
@@ -144,6 +274,11 @@ const setupChatSpies = (state: {
 			const created = createModelConfig({
 				id: `model-${state.modelConfigs.length + 1}`,
 				provider: req.provider,
+				provider_configs: createModelProviderAttachmentsFromIDs(
+					req.provider_config_ids ?? [],
+					state.providerConfigs,
+					req.provider,
+				),
 				model: req.model,
 				display_name: req.display_name || req.model,
 				enabled: req.enabled ?? true,
@@ -187,6 +322,14 @@ const setupChatSpies = (state: {
 			const updated = createModelConfig({
 				...current,
 				...req,
+				provider_configs:
+					req.provider_config_ids !== undefined
+						? createModelProviderAttachmentsFromIDs(
+								req.provider_config_ids,
+								state.providerConfigs,
+								current.provider,
+							)
+						: current.provider_configs,
 				id: current.id,
 				provider: current.provider,
 				model: current.model,
@@ -255,7 +398,7 @@ export const ProviderAccordionCards: Story = {
 		expect(body.queryByText("OpenAI")).not.toBeInTheDocument();
 
 		await userEvent.click(body.getByRole("button", { name: /OpenRouter/i }));
-		await expect(await body.findByLabelText("Base URL")).toBeInTheDocument();
+		await expect(body.getByLabelText("Base URL")).toBeInTheDocument();
 	},
 };
 
@@ -329,6 +472,201 @@ export const EnvPresetProviders: Story = {
 	},
 };
 
+export const MultiConfigProvider: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "openai-config-1",
+				provider: "openai",
+				display_name: "OpenAI (Production)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://api.openai.com/v1",
+				source: "database",
+			}),
+			createProviderConfig({
+				id: "openai-config-2",
+				provider: "openai",
+				display_name: "OpenAI (Staging)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://staging.openai.example.com/v1",
+				source: "database",
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-gpt4-staging",
+				provider: "openai",
+				provider_configs: [createModelProviderAttachment("openai-config-2")],
+				model: "gpt-4.1",
+				display_name: "GPT-4.1 (Staging)",
+				enabled: true,
+				context_limit: 128000,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Provider should be visible in the list.
+		await expect(
+			await body.findByRole("button", { name: /OpenAI/i }),
+		).toBeInTheDocument();
+
+		// Click into the provider detail.
+		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
+
+		// The config selector should be visible since there are 2 configs.
+		await expect(await body.findByText("Configuration")).toBeInTheDocument();
+	},
+};
+
+export const MultiConfigModelBinding: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "openai-config-prod",
+				provider: "openai",
+				display_name: "OpenAI (Production)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://api.openai.com/v1",
+				source: "database",
+			}),
+			createProviderConfig({
+				id: "openai-config-staging",
+				provider: "openai",
+				display_name: "OpenAI (Staging)",
+				has_api_key: true,
+				has_effective_api_key: true,
+				base_url: "https://staging.openai.example.com/v1",
+				source: "database",
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-gpt4-staging",
+				provider: "openai",
+				provider_configs: [
+					createModelProviderAttachment("openai-config-staging"),
+				],
+				model: "gpt-4.1",
+				display_name: "GPT-4.1 (Staging)",
+				enabled: true,
+				context_limit: 128000,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The model should be visible in the list.
+		await expect(
+			await body.findByText("GPT-4.1 (Staging)"),
+		).toBeInTheDocument();
+	},
+};
+
+export const MultiProviderAttachments: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: multiAttachmentProviderConfigs,
+		modelConfigsData: [multiAttachmentModelConfig],
+		modelCatalogData: { providers: [] },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				searchParams: { model: multiAttachmentModelConfig.id },
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await expect(
+			await body.findByLabelText(/Model Identifier/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByText("Provider Configurations"),
+		).toBeVisible();
+
+		const attachmentNames = body
+			.getAllByText(/OpenAI (Sandbox|Primary|Archive)/)
+			.map((element) => element.textContent);
+		expect(attachmentNames).toEqual([
+			"OpenAI Sandbox",
+			"OpenAI Primary",
+			"OpenAI Archive",
+		]);
+
+		const moveUpButtons = body.getAllByRole("button", { name: "Move up" });
+		const moveDownButtons = body.getAllByRole("button", { name: "Move down" });
+		const removeButtons = body.getAllByRole("button", { name: "Remove" });
+
+		expect(moveUpButtons).toHaveLength(3);
+		expect(moveUpButtons[0]).toBeDisabled();
+		expect(moveDownButtons).toHaveLength(3);
+		expect(moveDownButtons[2]).toBeDisabled();
+		expect(removeButtons).toHaveLength(3);
+
+		expect(body.getAllByText("Enabled")).toHaveLength(2);
+		expect(body.getAllByText("Disabled")).toHaveLength(1);
+		expect(body.getAllByText("No API key")).toHaveLength(2);
+		expect(body.getByText("API key set")).toBeInTheDocument();
+		expect(body.getByText("Add configuration...")).toBeInTheDocument();
+	},
+};
+
+export const EditModelAllowsClearingProviderConfigurations: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: multiAttachmentProviderConfigs,
+		modelConfigsData: [multiAttachmentModelConfig],
+		modelCatalogData: { providers: [] },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				searchParams: { model: multiAttachmentModelConfig.id },
+			},
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await expect(
+			await body.findByLabelText(/Model Identifier/i),
+		).toBeInTheDocument();
+
+		while (body.queryAllByRole("button", { name: "Remove" }).length > 0) {
+			await userEvent.click(body.getAllByRole("button", { name: "Remove" })[0]);
+		}
+
+		await expect(
+			await body.findByText("No provider configurations attached."),
+		).toBeVisible();
+		expect(
+			body.queryByText("At least one provider configuration is required."),
+		).not.toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
+		});
+		await userEvent.click(body.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(args.onUpdateModel).toHaveBeenCalledWith(
+				multiAttachmentModelConfig.id,
+				expect.objectContaining({ provider_config_ids: [] }),
+			);
+		});
+	},
+};
+
 export const CreateAndUpdateProvider: Story = {
 	render: function CreateAndUpdateProvider(args) {
 		const [providerConfigsData, setProviderConfigsData] = useState(
@@ -350,10 +688,7 @@ export const CreateAndUpdateProvider: Story = {
 					base_url: req.base_url ?? "",
 					source: "database",
 				});
-				setProviderConfigsData((current) => [
-					...(current ?? []).filter((p) => p.provider !== req.provider),
-					created,
-				]);
+				setProviderConfigsData((current) => [...(current ?? []), created]);
 				return result;
 			};
 
@@ -411,16 +746,7 @@ export const CreateAndUpdateProvider: Story = {
 	},
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: nilProviderConfigID,
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "supported",
-				enabled: false,
-				has_api_key: false,
-			}),
-		],
+		providerConfigsData: [],
 		modelCatalogData: {
 			providers: [
 				{
@@ -611,32 +937,12 @@ export const ProviderWithCentralFallback: Story = {
 export const ProviderWithUserKeysOnly: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-google-user-only",
-				provider: "google",
-				display_name: "Google",
-				has_api_key: false,
-				central_api_key_enabled: false,
-				allow_user_api_key: true,
-				allow_central_api_key_fallback: false,
-			}),
-		],
+		providerConfigsData: [createGoogleUserOnlyProviderConfig()],
 		modelCatalogData: { providers: [] },
 	},
 	beforeEach: () => {
 		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-google-user-only",
-					provider: "google",
-					display_name: "Google",
-					has_api_key: false,
-					central_api_key_enabled: false,
-					allow_user_api_key: true,
-					allow_central_api_key_fallback: false,
-				}),
-			],
+			providerConfigs: [createGoogleUserOnlyProviderConfig()],
 			modelConfigs: [],
 			modelCatalog: { providers: [] },
 		});
@@ -644,21 +950,21 @@ export const ProviderWithUserKeysOnly: Story = {
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(await body.findByRole("button", { name: /Google/i }));
-		await expect(
-			body.getByRole("switch", { name: "Central API key" }),
-		).not.toBeChecked();
-		await expect(
-			body.getByRole("switch", { name: "Allow user API keys" }),
-		).toBeChecked();
+		const centralAPIKeySwitch = await body.findByRole("switch", {
+			name: "Central API key",
+		});
+		const allowUserAPIKeysSwitch = await body.findByRole("switch", {
+			name: "Allow user API keys",
+		});
+		await expect(centralAPIKeySwitch).not.toBeChecked();
+		await expect(allowUserAPIKeysSwitch).toBeChecked();
 		expect(body.queryByLabelText(/^API Key$/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("switch", { name: "Use central key as fallback" }),
 		).not.toBeInTheDocument();
 
 		const saveButton = body.getByRole("button", { name: "Save changes" });
-		await userEvent.click(
-			body.getByRole("switch", { name: "Central API key" }),
-		);
+		await userEvent.click(centralAPIKeySwitch);
 		await expect(await body.findByLabelText(/^API Key$/i)).toBeRequired();
 		expect(saveButton).toBeDisabled();
 
@@ -675,7 +981,7 @@ export const ProviderWithUserKeysOnly: Story = {
 			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
 		});
 		expect(args.onUpdateProvider).toHaveBeenCalledWith(
-			"provider-google-user-only",
+			googleUserOnlyProviderConfigID,
 			expect.objectContaining({
 				api_key: "sk-google-central-key",
 				central_api_key_enabled: true,
@@ -718,6 +1024,80 @@ export const ProviderApiKeyInputMasked: Story = {
 			"type",
 			"password",
 		);
+	},
+};
+
+export const ProviderNewConfigUsesCreateMode: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai-primary",
+				provider: "openai",
+				display_name: "OpenAI Primary",
+				has_api_key: true,
+			}),
+			createProviderConfig({
+				id: "provider-openai-secondary",
+				provider: "openai",
+				display_name: "OpenAI Secondary",
+				has_api_key: true,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "New config" }),
+		);
+		await expect(
+			await body.findByRole("button", { name: "Create provider config" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Save changes" }),
+		).not.toBeInTheDocument();
+		await userEvent.type(
+			await body.findByLabelText(/^API Key$/i),
+			"sk-new-config",
+		);
+		await userEvent.click(
+			body.getByRole("button", { name: "Create provider config" }),
+		);
+		await waitFor(() => {
+			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onUpdateProvider).not.toHaveBeenCalled();
+	},
+};
+
+export const ModelFormAllowsEffectiveProviderKeys: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai-effective-key",
+				provider: "openai",
+				display_name: "OpenAI",
+				has_api_key: false,
+				has_effective_api_key: true,
+				central_api_key_enabled: true,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+		await expect(
+			await body.findByLabelText(/Model Identifier/i),
+		).toBeInTheDocument();
+		expect(
+			body.queryByText(
+				"Set an API key for this provider on the Providers tab before adding models.",
+			),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -99,11 +99,21 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	providerConfigID1 := uuid.New()
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		ID:                   providerConfigID1,
 		Provider:             "openai",
 		CentralApiKeyEnabled: true,
 		APIKey:               "test-key",
 		BaseUrl:              serverURL,
+	}}, nil)
+	db.EXPECT().GetModelProviderConfigs(gomock.Any(), modelConfigID).Return([]database.GetModelProviderConfigsRow{{
+		ID:               uuid.New(),
+		ModelConfigID:    modelConfigID,
+		ProviderConfigID: providerConfigID1,
+		Priority:         0,
+		Provider:         "openai",
+		ProviderEnabled:  true,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
@@ -262,11 +272,21 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	providerConfigID2 := uuid.New()
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		ID:                   providerConfigID2,
 		Provider:             "openai",
 		CentralApiKeyEnabled: true,
 		APIKey:               "test-key",
 		BaseUrl:              serverURL,
+	}}, nil)
+	db.EXPECT().GetModelProviderConfigs(gomock.Any(), modelConfigID).Return([]database.GetModelProviderConfigsRow{{
+		ID:               uuid.New(),
+		ModelConfigID:    modelConfigID,
+		ProviderConfigID: providerConfigID2,
+		Priority:         0,
+		Provider:         "openai",
+		ProviderEnabled:  true,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(

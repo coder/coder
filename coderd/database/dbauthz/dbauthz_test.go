@@ -465,6 +465,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatModelConfigByID(gomock.Any(), id).Return(nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("DeleteModelProviderConfigsByModelID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteModelProviderConfigsByModelID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns()
+	}))
 	s.Run("DeleteChatProviderByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
 		dbm.EXPECT().DeleteChatProviderByID(gomock.Any(), id).Return(nil).AnyTimes()
@@ -720,6 +725,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatModelConfig{configA, configB})
 	}))
+	s.Run("GetModelProviderConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetModelProviderConfigsRow{})
+		dbm.EXPECT().GetModelProviderConfigs(gomock.Any(), row.ModelConfigID).Return([]database.GetModelProviderConfigsRow{row}, nil).AnyTimes()
+		check.Args(row.ModelConfigID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetModelProviderConfigsRow{row})
+	}))
+	s.Run("GetModelProviderConfigsByModelIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		rowA := testutil.Fake(s.T(), faker, database.GetModelProviderConfigsByModelIDsRow{})
+		rowB := testutil.Fake(s.T(), faker, database.GetModelProviderConfigsByModelIDsRow{})
+		arg := []uuid.UUID{rowA.ModelConfigID, rowB.ModelConfigID}
+		dbm.EXPECT().GetModelProviderConfigsByModelIDs(gomock.Any(), arg).Return([]database.GetModelProviderConfigsByModelIDsRow{rowA, rowB}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetModelProviderConfigsByModelIDsRow{rowA, rowB})
+	}))
 	s.Run("GetChatProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.ChatProvider{})
 		dbm.EXPECT().GetChatProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
@@ -841,6 +858,12 @@ func (s *MethodTestSuite) TestChats() {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{Provider: arg.Provider, Model: arg.Model, DisplayName: arg.DisplayName, Enabled: arg.Enabled})
 		dbm.EXPECT().InsertChatModelConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
+	}))
+	s.Run("InsertModelProviderConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertModelProviderConfigParams{})
+		attachment := testutil.Fake(s.T(), faker, database.ChatModelProviderConfig{ModelConfigID: arg.ModelConfigID, ProviderConfigID: arg.ProviderConfigID, Priority: arg.Priority})
+		dbm.EXPECT().InsertModelProviderConfig(gomock.Any(), arg).Return(attachment, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(attachment)
 	}))
 	s.Run("InsertChatProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertChatProviderParams{

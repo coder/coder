@@ -24,12 +24,14 @@ type stubChatConfigStore struct {
 	getEnabledChatProviders   func(context.Context) ([]database.ChatProvider, error)
 	getChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
 	getDefaultChatModelConfig func(context.Context) (database.ChatModelConfig, error)
+	getModelProviderConfigs   func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error)
 	getUserChatCustomPrompt   func(context.Context, uuid.UUID) (string, error)
 
-	enabledProvidersCalls  atomic.Int32
-	modelConfigByIDCalls   atomic.Int32
-	defaultModelConfigCall atomic.Int32
-	userPromptCalls        atomic.Int32
+	enabledProvidersCalls     atomic.Int32
+	modelConfigByIDCalls      atomic.Int32
+	defaultModelConfigCall    atomic.Int32
+	modelProviderConfigsCalls atomic.Int32
+	userPromptCalls           atomic.Int32
 }
 
 func (s *stubChatConfigStore) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
@@ -54,6 +56,14 @@ func (s *stubChatConfigStore) GetDefaultChatModelConfig(ctx context.Context) (da
 		panic("unexpected GetDefaultChatModelConfig call")
 	}
 	return s.getDefaultChatModelConfig(ctx)
+}
+
+func (s *stubChatConfigStore) GetModelProviderConfigs(ctx context.Context, modelConfigID uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+	s.modelProviderConfigsCalls.Add(1)
+	if s.getModelProviderConfigs == nil {
+		panic("unexpected GetModelProviderConfigs call")
+	}
+	return s.getModelProviderConfigs(ctx, modelConfigID)
 }
 
 func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -355,6 +365,220 @@ func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
 	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
 	_, ok := cache.modelConfigs[configID]
 	require.False(t, ok)
+}
+
+func TestConfigCache_ModelAttachments_CacheHit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	modelID := uuid.New()
+	attachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.New(), "openai", 0),
+		testModelAttachment(modelID, uuid.New(), "anthropic", 1),
+	}
+	store := &stubChatConfigStore{
+		getModelProviderConfigs: func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+			return attachments, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+	second, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+
+	require.Equal(t, attachments, first)
+	require.Equal(t, attachments, second)
+	require.Equal(t, int32(1), store.modelProviderConfigsCalls.Load())
+}
+
+func TestConfigCache_ModelAttachments_TTLExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	modelID := uuid.New()
+	firstAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000051"), "openai", 0),
+	}
+	secondAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000052"), "anthropic", 0),
+	}
+	store := &stubChatConfigStore{}
+	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+		if store.modelProviderConfigsCalls.Load() == 1 {
+			return firstAttachments, nil
+		}
+		return secondAttachments, nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+	clock.Advance(chatConfigModelConfigTTL).MustWait(ctx)
+	second, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+
+	require.Equal(t, firstAttachments, first)
+	require.Equal(t, secondAttachments, second)
+	require.Equal(t, int32(2), store.modelProviderConfigsCalls.Load())
+}
+
+func TestConfigCache_InvalidateModelConfig_ClearsAttachments(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	modelID := uuid.New()
+	firstAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000061"), "openai", 0),
+	}
+	secondAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000062"), "openrouter", 0),
+	}
+	store := &stubChatConfigStore{}
+	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+		if store.modelProviderConfigsCalls.Load() == 1 {
+			return firstAttachments, nil
+		}
+		return secondAttachments, nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+	cache.InvalidateModelConfig(modelID)
+	_, ok := cache.modelAttachments[modelID]
+	require.False(t, ok)
+	require.Equal(t, uint64(1), cache.modelAttachmentEpoch)
+
+	second, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+
+	require.Equal(t, firstAttachments, first)
+	require.Equal(t, secondAttachments, second)
+	require.Equal(t, int32(2), store.modelProviderConfigsCalls.Load())
+}
+
+func TestConfigCache_InvalidateProviders_ClearsAttachments(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	modelID := uuid.New()
+	firstAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000071"), "openai", 0),
+	}
+	secondAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000072"), "google", 0),
+	}
+	store := &stubChatConfigStore{}
+	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+		if store.modelProviderConfigsCalls.Load() == 1 {
+			return firstAttachments, nil
+		}
+		return secondAttachments, nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+	cache.InvalidateProviders()
+	_, ok := cache.modelAttachments[modelID]
+	require.False(t, ok)
+
+	second, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+
+	require.Equal(t, firstAttachments, first)
+	require.Equal(t, secondAttachments, second)
+	require.Equal(t, int32(2), store.modelProviderConfigsCalls.Load())
+}
+
+func TestConfigCache_ModelAttachments_StaleWriteDiscarded(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	modelID := uuid.New()
+	initialAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000081"), "openai", 0),
+	}
+	staleAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000082"), "azure", 0),
+	}
+	freshAttachments := []database.GetModelProviderConfigsRow{
+		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000083"), "anthropic", 0),
+	}
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+		switch call := store.modelProviderConfigsCalls.Load(); call {
+		case 1:
+			return initialAttachments, nil
+		case 2:
+			close(firstStarted)
+			<-releaseFirst
+			return staleAttachments, nil
+		case 3:
+			close(secondStarted)
+			<-releaseSecond
+			return freshAttachments, nil
+		default:
+			return nil, xerrors.Errorf("unexpected model attachment call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	warm, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+	require.Equal(t, initialAttachments, warm)
+
+	cache.InvalidateProviders()
+
+	type result struct {
+		attachments []database.GetModelProviderConfigsRow
+		err         error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		attachments, err := cache.ModelAttachments(ctx, modelID)
+		firstResult <- result{attachments: attachments, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateProviders()
+
+	secondResult := make(chan result, 1)
+	go func() {
+		attachments, err := cache.ModelAttachments(ctx, modelID)
+		secondResult <- result{attachments: attachments, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.Equal(t, staleAttachments, first.attachments)
+	_, ok := cache.modelAttachments[modelID]
+	require.False(t, ok)
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.Equal(t, freshAttachments, second.attachments)
+	require.Equal(t, int32(3), store.modelProviderConfigsCalls.Load())
+
+	third, err := cache.ModelAttachments(ctx, modelID)
+	require.NoError(t, err)
+	require.Equal(t, freshAttachments, third)
+	require.Equal(t, int32(3), store.modelProviderConfigsCalls.Load())
 }
 
 func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
@@ -803,6 +1027,20 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 	require.NoError(t, err)
 	require.Equal(t, freshConfig, third)
 	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
+}
+
+func testModelAttachment(modelID, providerConfigID uuid.UUID, provider string, priority int32) database.GetModelProviderConfigsRow {
+	return database.GetModelProviderConfigsRow{
+		ID:                  uuid.New(),
+		ModelConfigID:       modelID,
+		ProviderConfigID:    providerConfigID,
+		Priority:            priority,
+		CreatedAt:           time.Unix(0, 0).UTC(),
+		UpdatedAt:           time.Unix(0, 0).UTC(),
+		Provider:            provider,
+		ProviderDisplayName: provider,
+		ProviderEnabled:     true,
+	}
 }
 
 func testChatProvider(name string) database.ChatProvider {

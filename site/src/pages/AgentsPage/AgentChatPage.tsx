@@ -630,24 +630,17 @@ const AgentChatPage: FC = () => {
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
-	// Destructure mutation results directly so the React Compiler
-	// tracks stable primitives/functions instead of the whole result
-	// object (TanStack Query v5 recreates it every render via object
-	// spread). Keeping no intermediate variable prevents future code
-	// from accidentally closing over the unstable object.
-	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
+	const sendMutation = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
 	);
-	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
-		editChatMessage(queryClient, agentId ?? ""),
-	);
-	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
+	const editMutation = useMutation(editChatMessage(queryClient, agentId ?? ""));
+	const interruptMutation = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
-	const { mutateAsync: deleteQueuedMessage } = useMutation(
+	const deleteQueuedMutation = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-	const { mutateAsync: promoteQueuedMessage } = useMutation(
+	const promoteQueuedMutation = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
@@ -745,7 +738,9 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		isSendPending || isEditPending || isInterruptPending;
+		sendMutation.isPending ||
+		editMutation.isPending ||
+		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
 	const handleUsageLimitError = (error: unknown): void => {
@@ -831,7 +826,7 @@ const AgentChatPage: FC = () => {
 			setPendingEditMessageId(editedMessageID);
 			scrollToBottomRef.current?.();
 			try {
-				await editMessage({
+				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
@@ -862,9 +857,9 @@ const AgentChatPage: FC = () => {
 		// For queued sends the WebSocket status events handle
 		// clearing; for non-queued sends we clear explicitly
 		// below. Clearing eagerly causes a visible cutoff.
-		let response: Awaited<ReturnType<typeof sendMessage>>;
+		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
-			response = await sendMessage(request);
+			response = await sendMutation.mutateAsync(request);
 		} catch (error) {
 			handleUsageLimitError(error);
 			throw error;
@@ -897,10 +892,10 @@ const AgentChatPage: FC = () => {
 	};
 
 	const handleInterrupt = () => {
-		if (!agentId || isInterruptPending) {
+		if (!agentId || interruptMutation.isPending) {
 			return;
 		}
-		void interrupt();
+		void interruptMutation.mutateAsync();
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -909,7 +904,7 @@ const AgentChatPage: FC = () => {
 			previousQueuedMessages.filter((message) => message.id !== id),
 		);
 		try {
-			await deleteQueuedMessage(id);
+			await deleteQueuedMutation.mutateAsync(id);
 		} catch (error) {
 			store.setQueuedMessages(previousQueuedMessages);
 			throw error;
@@ -930,7 +925,7 @@ const AgentChatPage: FC = () => {
 		store.clearStreamError();
 		store.setChatStatus("pending");
 		try {
-			const promotedMessage = await promoteQueuedMessage(id);
+			const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
 			// Insert the promoted message into the store and cache
 			// immediately so it appears in the timeline without
 			// waiting for the WebSocket to deliver it.
@@ -979,8 +974,7 @@ const AgentChatPage: FC = () => {
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
 
-	// See mutation destructuring comment above (React Compiler).
-	const { mutate: generateKey } = useMutation({
+	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
 
@@ -995,7 +989,7 @@ const AgentChatPage: FC = () => {
 		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
 		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
 
-		generateKey(undefined, {
+		generateKeyMutation.mutate(undefined, {
 			onSuccess: ({ key }) => {
 				location.href = getVSCodeHref(editor, {
 					owner: workspace.owner_name,
@@ -1144,7 +1138,7 @@ const AgentChatPage: FC = () => {
 			compressionThreshold={compressionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
-			isInterruptPending={isInterruptPending}
+			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			showSidebarPanel={showSidebarPanel}

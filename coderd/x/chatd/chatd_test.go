@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -102,6 +103,317 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestResolveChatModel(t *testing.T) {
+	t.Parallel()
+
+	type testDeps struct {
+		ctx    context.Context
+		db     database.Store
+		server *chatd.Server
+		user   database.User
+	}
+
+	newDeps := func(t *testing.T) testDeps {
+		t.Helper()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		return testDeps{
+			ctx:    ctx,
+			db:     db,
+			server: newTestServer(t, db, ps, uuid.New()),
+			user:   dbgen.User(t, db, database.User{}),
+		}
+	}
+
+	insertProvider := func(
+		t *testing.T,
+		deps testDeps,
+		provider string,
+		apiKey string,
+		baseURL string,
+		enabled bool,
+	) database.ChatProvider {
+		t.Helper()
+
+		providerConfig, err := deps.db.InsertChatProvider(
+			deps.ctx,
+			database.InsertChatProviderParams{
+				Provider:             provider,
+				DisplayName:          provider,
+				APIKey:               apiKey,
+				BaseUrl:              baseURL,
+				CreatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+				Enabled:              enabled,
+				CentralApiKeyEnabled: true,
+			},
+		)
+		require.NoError(t, err)
+		return providerConfig
+	}
+
+	insertModelConfig := func(
+		t *testing.T,
+		deps testDeps,
+		provider string,
+		modelName string,
+	) database.ChatModelConfig {
+		t.Helper()
+
+		modelConfig, err := deps.db.InsertChatModelConfig(
+			deps.ctx,
+			database.InsertChatModelConfigParams{
+				Provider:             provider,
+				Model:                modelName,
+				DisplayName:          "Test Model",
+				CreatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+				UpdatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+				Enabled:              true,
+				IsDefault:            true,
+				ContextLimit:         128000,
+				CompressionThreshold: 70,
+				Options:              json.RawMessage(`{}`),
+			},
+		)
+		require.NoError(t, err)
+		return modelConfig
+	}
+
+	newChat := func(ownerID uuid.UUID, modelConfigID uuid.UUID) database.Chat {
+		return database.Chat{
+			ID:                uuid.New(),
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "resolve-chat-model",
+		}
+	}
+
+	t.Run("UsesAttachedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		llmServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(llmServer.Close)
+
+		providerConfig := insertProvider(t, deps, "openai", "attached-key", llmServer.URL, true)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, providerConfig.ID, 0)
+
+		model, gotConfig, keys, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		require.Equal(t, modelConfig.ID, gotConfig.ID)
+		require.Equal(t, "attached-key", keys.APIKey("openai"))
+		require.Equal(t, llmServer.URL, keys.BaseURL("openai"))
+	})
+
+	t.Run("AttachedProviderClearsInheritedBaseURL", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		_ = insertProvider(t, deps, "openai", "family-key", "https://custom-openai.example.com", true)
+		attachedProvider := insertProvider(t, deps, "openai", "attached-key", "", true)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, attachedProvider.ID, 0)
+
+		_, gotConfig, keys, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, gotConfig.ID)
+		require.Equal(t, "attached-key", keys.APIKey("openai"))
+		require.Empty(t, keys.BaseURL("openai"))
+	})
+
+	t.Run("FallbackToSecondProvider", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		fallbackServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(fallbackServer.Close)
+		firstProvider := insertProvider(t, deps, "openai-compat", "", fallbackServer.URL, true)
+		secondProvider := insertProvider(t, deps, "openai", "second-key", fallbackServer.URL, true)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, firstProvider.ID, 0)
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, secondProvider.ID, 1)
+
+		_, gotConfig, keys, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, gotConfig.ID)
+		require.Empty(t, keys.APIKey("openai-compat"))
+		require.Equal(t, "second-key", keys.APIKey("openai"))
+		require.Equal(t, fallbackServer.URL, keys.BaseURL("openai"))
+	})
+
+	t.Run("AllProvidersDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		providerConfig := insertProvider(t, deps, "openai", "disabled-key", "", false)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, providerConfig.ID, 0)
+
+		_, _, _, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.ErrorContains(t, err, "no usable provider config")
+	})
+
+	t.Run("AllProvidersNoAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		providerConfig := insertProvider(t, deps, "openai", "", "", true)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, providerConfig.ID, 0)
+
+		_, _, _, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.ErrorContains(t, err, "no usable provider config")
+	})
+
+	t.Run("ExplicitAttachmentsDoNotFallBackToFamily", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		_ = insertProvider(t, deps, "openai", "family-key", "", true)
+		attachedProvider := insertProvider(t, deps, "openai", "disabled-key", "", false)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+		seedModelProviderAttachment(deps.ctx, t, deps.db, modelConfig.ID, attachedProvider.ID, 0)
+
+		_, _, _, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.ErrorContains(t, err, "no usable provider config")
+	})
+
+	t.Run("NoAttachmentsUsesFamilyFallback", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		providerConfig := insertProvider(t, deps, "openai", "family-key", "", true)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+
+		model, gotConfig, keys, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		require.Equal(t, modelConfig.ID, gotConfig.ID)
+		require.Equal(t, providerConfig.APIKey, keys.APIKey("openai"))
+	})
+
+	t.Run("NoAttachmentsUsesEnvFallback", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := chatd.New(chatd.Config{
+			Logger:                     logger,
+			Database:                   db,
+			ReplicaID:                  uuid.New(),
+			Pubsub:                     ps,
+			PendingChatAcquireInterval: testutil.WaitLong,
+			ProviderAPIKeys: chatprovider.ProviderAPIKeys{
+				OpenAI: "env-openai-key",
+			},
+		})
+		t.Cleanup(func() {
+			require.NoError(t, server.Close())
+		})
+		deps := testDeps{
+			ctx:    ctx,
+			db:     db,
+			server: server,
+			user:   dbgen.User(t, db, database.User{}),
+		}
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+
+		model, gotConfig, keys, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		require.Equal(t, modelConfig.ID, gotConfig.ID)
+		require.Equal(t, "env-openai-key", keys.APIKey("openai"))
+	})
+
+	t.Run("NoAttachmentsUsesLegacyBoundProvider", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		_ = insertProvider(t, deps, "openai", "family-key", "https://family.example.com", true)
+		boundProvider := insertProvider(t, deps, "openai", "bound-key", "https://bound.example.com", true)
+		modelConfig, err := deps.db.InsertChatModelConfig(
+			deps.ctx,
+			database.InsertChatModelConfigParams{
+				Provider:             "openai",
+				Model:                "gpt-4o-mini",
+				DisplayName:          "Test Model",
+				CreatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+				UpdatedBy:            uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+				Enabled:              true,
+				IsDefault:            true,
+				ContextLimit:         128000,
+				CompressionThreshold: 70,
+				Options:              json.RawMessage(`{}`),
+				ProviderConfigID:     uuid.NullUUID{UUID: boundProvider.ID, Valid: true},
+			},
+		)
+		require.NoError(t, err)
+
+		_, gotConfig, keys, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, gotConfig.ID)
+		require.Equal(t, "bound-key", keys.APIKey("openai"))
+		require.Equal(t, "https://bound.example.com", keys.BaseURL("openai"))
+	})
+
+	t.Run("NoAttachments", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDeps(t)
+		modelConfig := insertModelConfig(t, deps, "openai", "gpt-4o-mini")
+
+		_, _, _, err := chatd.ResolveChatModelForTest(
+			deps.ctx,
+			deps.server,
+			newChat(deps.user.ID, modelConfig.ID),
+		)
+		require.ErrorContains(t, err, "no usable provider config")
+	})
 }
 
 func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
@@ -3455,6 +3767,24 @@ func newActiveTestServer(
 	return server
 }
 
+func seedModelProviderAttachment(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	modelConfigID uuid.UUID,
+	providerConfigID uuid.UUID,
+	priority int32,
+) {
+	t.Helper()
+
+	_, err := db.InsertModelProviderConfig(ctx, database.InsertModelProviderConfigParams{
+		ModelConfigID:    modelConfigID,
+		ProviderConfigID: providerConfigID,
+		Priority:         priority,
+	})
+	require.NoError(t, err)
+}
+
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,
@@ -3476,7 +3806,7 @@ func seedChatDependenciesWithProvider(
 	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             provider,
 		DisplayName:          provider,
 		APIKey:               "test-key",
@@ -3499,6 +3829,7 @@ func seedChatDependenciesWithProvider(
 		Options:              json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
+	seedModelProviderAttachment(ctx, t, db, model.ID, providerConfig.ID, 0)
 	return user, model
 }
 
@@ -3542,6 +3873,7 @@ func seedChatDependenciesWithProviderPolicy(
 		Options:              json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
+	seedModelProviderAttachment(ctx, t, db, model.ID, providerConfig.ID, 0)
 
 	return user, providerConfig, model
 }

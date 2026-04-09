@@ -42,6 +42,11 @@ type modelConfigSnapshot struct {
 	generation uint64
 }
 
+type cachedModelAttachments struct {
+	attachments []database.GetModelProviderConfigsRow
+	expiresAt   time.Time
+}
+
 // cloneModelConfig returns a shallow copy of cfg with Options
 // deep-cloned so the cache owns its own backing array.
 func cloneModelConfig(cfg database.ChatModelConfig) database.ChatModelConfig {
@@ -58,7 +63,7 @@ type chatConfigCache struct {
 	// per-request context would mean the leader's cancellation
 	// (timeout, user disconnect) fans the error to every waiter.
 	// Storing the server context here makes that impossible by
-	// construction — callers cannot pass a request context into
+	// construction: callers cannot pass a request context into
 	// the shared fill path.
 	ctx context.Context
 
@@ -74,6 +79,11 @@ type chatConfigCache struct {
 	modelConfigs       map[uuid.UUID]cachedModelConfig
 	modelConfigFetches singleflight.Group[string, database.ChatModelConfig]
 
+	// Model attachments (keyed by model config ID).
+	modelAttachments       map[uuid.UUID]cachedModelAttachments
+	modelAttachmentEpoch   uint64
+	modelAttachmentFetches singleflight.Group[string, []database.GetModelProviderConfigsRow]
+
 	// Default model config (singleton).
 	defaultModelConfig           *cachedModelConfig
 	defaultModelConfigGeneration uint64
@@ -87,10 +97,11 @@ type chatConfigCache struct {
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
 	return &chatConfigCache{
-		db:           db,
-		clock:        clock,
-		ctx:          ctx,
-		modelConfigs: make(map[uuid.UUID]cachedModelConfig),
+		db:               db,
+		clock:            clock,
+		ctx:              ctx,
+		modelConfigs:     make(map[uuid.UUID]cachedModelConfig),
+		modelAttachments: make(map[uuid.UUID]cachedModelAttachments),
 		userPrompts: tlru.New[uuid.UUID](
 			tlru.ConstantCost[string],
 			chatConfigUserPromptEntryLimit,
@@ -234,10 +245,13 @@ func (c *chatConfigCache) InvalidateProviders() {
 	c.mu.Lock()
 	c.providers = nil
 	c.providerGeneration++
-	// Provider topology changed — model selections depend on
+	// Provider topology changed: model selections depend on
 	// provider existence, so flush all model-config state.
 	clear(c.modelConfigs)
 	c.modelTopologyEpoch++
+	// Attachments reference providers, so flush them too.
+	clear(c.modelAttachments)
+	c.modelAttachmentEpoch++
 	c.defaultModelConfig = nil
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
@@ -306,6 +320,79 @@ func (c *chatConfigCache) storeModelConfig(snap modelConfigSnapshot, config data
 	c.modelConfigs[config.ID] = cachedModelConfig{
 		config:    cloneModelConfig(config),
 		expiresAt: c.clock.Now().Add(chatConfigModelConfigTTL),
+	}
+}
+
+// ModelAttachments returns the cached provider config attachments for
+// a model, fetching from the database when the cache is cold or expired.
+func (c *chatConfigCache) ModelAttachments(ctx context.Context, modelID uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+	if attachments, ok := c.cachedModelAttachmentsFor(modelID); ok {
+		return attachments, nil
+	}
+
+	snap := c.modelAttachmentsSnapshot()
+	attachments, err := singleflightDoChan(
+		ctx,
+		&c.modelAttachmentFetches,
+		fmt.Sprintf("%d:%s", snap, modelID),
+		func() ([]database.GetModelProviderConfigsRow, error) {
+			if cached, ok := c.cachedModelAttachmentsFor(modelID); ok {
+				return cached, nil
+			}
+
+			fetched, err := c.db.GetModelProviderConfigs(c.ctx, modelID)
+			if err != nil {
+				return nil, err
+			}
+			c.storeModelAttachments(snap, modelID, fetched)
+			return slices.Clone(fetched), nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.Clone(attachments), nil
+}
+
+func (c *chatConfigCache) cachedModelAttachmentsFor(modelID uuid.UUID) ([]database.GetModelProviderConfigsRow, bool) {
+	c.mu.RLock()
+	entry, ok := c.modelAttachments[modelID]
+	c.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	if c.clock.Now().Before(entry.expiresAt) {
+		return slices.Clone(entry.attachments), true
+	}
+
+	c.mu.Lock()
+	if current, ok := c.modelAttachments[modelID]; ok && !c.clock.Now().Before(current.expiresAt) {
+		delete(c.modelAttachments, modelID)
+	}
+	c.mu.Unlock()
+
+	return nil, false
+}
+
+func (c *chatConfigCache) modelAttachmentsSnapshot() uint64 {
+	c.mu.RLock()
+	epoch := c.modelAttachmentEpoch
+	c.mu.RUnlock()
+	return epoch
+}
+
+func (c *chatConfigCache) storeModelAttachments(epoch uint64, modelID uuid.UUID, attachments []database.GetModelProviderConfigsRow) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.modelAttachmentEpoch != epoch {
+		return
+	}
+
+	c.modelAttachments[modelID] = cachedModelAttachments{
+		attachments: slices.Clone(attachments),
+		expiresAt:   c.clock.Now().Add(chatConfigModelConfigTTL),
 	}
 }
 
@@ -439,7 +526,9 @@ func (c *chatConfigCache) storeUserPrompt(epoch uint64, userID uuid.UUID, prompt
 func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
 	c.mu.Lock()
 	delete(c.modelConfigs, id)
+	delete(c.modelAttachments, id)
 	c.modelTopologyEpoch++
+	c.modelAttachmentEpoch++
 	c.defaultModelConfig = nil
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
