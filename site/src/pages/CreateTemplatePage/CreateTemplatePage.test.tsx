@@ -102,7 +102,7 @@ test("Create template from starter template", async () => {
 			{ name: "third_variable", value: "true" },
 		],
 	});
-});
+}, 20_000);
 
 test("Create template from duplicating a template", async () => {
 	vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);

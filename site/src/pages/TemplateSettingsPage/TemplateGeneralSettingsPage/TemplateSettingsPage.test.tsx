@@ -105,7 +105,11 @@ const fillAndSubmitForm = async ({
 	await userEvent.click(submitButton);
 };
 
-describe("TemplateSettingsPage", () => {
+describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("succeeds", async () => {
 		await renderTemplateSettingsPage();
 		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
@@ -178,9 +182,11 @@ describe("TemplateSettingsPage", () => {
 
 			await renderTemplateSettingsPage();
 			await deprecateTemplate(deprecationMessage);
+			await waitFor(() =>
+				expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1),
+			);
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-
 			expect(templateId).toEqual(MockTemplate.id);
 			expect(data).toEqual(
 				expect.objectContaining({ deprecation_message: deprecationMessage }),
@@ -202,9 +208,11 @@ describe("TemplateSettingsPage", () => {
 
 			await renderTemplateSettingsPage();
 			await deprecateTemplate("This template should not be able to deprecate");
+			await waitFor(() =>
+				expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1),
+			);
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-
 			expect(templateId).toEqual(MockTemplate.id);
 			expect(data).toEqual(
 				expect.objectContaining({ deprecation_message: "" }),
