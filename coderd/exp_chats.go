@@ -167,18 +167,18 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 		pubsub.HandleChatWatchEvent(
 			func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
 				if err != nil {
-					api.Logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
+					logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
 					return
 				}
 				if err := encoder.Encode(payload); err != nil {
-					api.Logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
+					logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
 					cancel()
 					return
 				}
 			},
 		))
 	if err != nil {
-		api.Logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
+		logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
 		return
 	}
