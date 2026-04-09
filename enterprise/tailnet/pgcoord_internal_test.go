@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -584,4 +585,106 @@ func TestQuerier_periodicRefresh(t *testing.T) {
 	// Clean up: cancel context so periodicRefresh exits.
 	cancel()
 	q.wg.Wait()
+}
+
+func TestNodesEqual(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BothNil", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, nodesEqual(nil, nil))
+	})
+
+	t.Run("OneNil", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, nodesEqual(&proto.Node{PreferredDerp: 1}, nil))
+		assert.False(t, nodesEqual(nil, &proto.Node{PreferredDerp: 1}))
+	})
+
+	t.Run("SameIgnoringAsOf", func(t *testing.T) {
+		t.Parallel()
+		a := &proto.Node{
+			PreferredDerp: 1,
+			AsOf:          timestamppb.Now(),
+		}
+		b := &proto.Node{
+			PreferredDerp: 1,
+			AsOf:          timestamppb.New(time.Now().Add(-time.Hour)),
+		}
+		assert.True(t, nodesEqual(a, b))
+		// Verify AsOf fields are restored.
+		assert.NotNil(t, a.AsOf)
+		assert.NotNil(t, b.AsOf)
+	})
+
+	t.Run("DifferentPreferredDERP", func(t *testing.T) {
+		t.Parallel()
+		a := &proto.Node{PreferredDerp: 1}
+		b := &proto.Node{PreferredDerp: 2}
+		assert.False(t, nodesEqual(a, b))
+	})
+}
+
+func TestBinderSkipsNoopUpsert(t *testing.T) {
+	t.Parallel()
+
+	key := bKey(uuid.New())
+	node := &proto.Node{PreferredDerp: 1}
+
+	b := &binder{
+		latest: make(map[bKey]binding),
+	}
+
+	bnd := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+
+	// First store should succeed.
+	assert.True(t, b.storeBinding(bnd))
+
+	// Same node (even with different AsOf) should be skipped.
+	bnd2 := binding{
+		bKey: key,
+		node: &proto.Node{PreferredDerp: 1, AsOf: timestamppb.Now()},
+		kind: proto.CoordinateResponse_PeerUpdate_NODE,
+	}
+	assert.False(t, b.storeBinding(bnd2))
+}
+
+func TestBinderAllowsChangedNode(t *testing.T) {
+	t.Parallel()
+
+	key := bKey(uuid.New())
+
+	b := &binder{
+		latest: make(map[bKey]binding),
+	}
+
+	bnd1 := binding{bKey: key, node: &proto.Node{PreferredDerp: 1}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd1))
+
+	bnd2 := binding{bKey: key, node: &proto.Node{PreferredDerp: 2}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd2))
+}
+
+func TestBinderLostToNodeTransition(t *testing.T) {
+	t.Parallel()
+
+	key := bKey(uuid.New())
+
+	b := &binder{
+		latest: make(map[bKey]binding),
+	}
+
+	node := &proto.Node{PreferredDerp: 1}
+
+	// NODE should enqueue.
+	bnd1 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd1))
+
+	// LOST should enqueue (transitions state).
+	bnd2 := binding{bKey: key, kind: proto.CoordinateResponse_PeerUpdate_LOST}
+	assert.True(t, b.storeBinding(bnd2))
+
+	// NODE again should enqueue (transitioning back from LOST).
+	bnd3 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+	assert.True(t, b.storeBinding(bnd3))
 }
