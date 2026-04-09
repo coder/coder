@@ -1071,11 +1071,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			return null;
 		}
 
+		const initialItemCount = Math.min(parsedMessages.length, 20);
+
 		return (
 			<div ref={setTimelineRoot} className="flex flex-col">
 				<Virtuoso
 					data={parsedMessages}
 					customScrollParent={customScrollParent}
+					initialItemCount={initialItemCount}
 					computeItemKey={(_, entry) => entry.message.id}
 					increaseViewportBy={{ top: 600, bottom: 600 }}
 					itemContent={(msgIdx, { message, parsed }) => {
