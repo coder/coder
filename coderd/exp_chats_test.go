@@ -1263,7 +1263,7 @@ func TestWatchChats(t *testing.T) {
 		}
 		payload, err := json.Marshal(event)
 		require.NoError(t, err)
-		err = api.Pubsub.Publish(coderdpubsub.ChatEventChannel(user.UserID), payload)
+		err = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
 		require.NoError(t, err)
 
 		for {

@@ -75,8 +75,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		err     error
 	}, 1)
 	cancelSub, err := pubsub.SubscribeWithErr(
-		coderdpubsub.ChatEventChannel(ownerID),
-		coderdpubsub.HandleChatEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
 			messageEvents <- struct {
 				payload codersdk.ChatWatchEvent
 				err     error
@@ -238,8 +238,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 		err     error
 	}, 1)
 	cancelSub, err := pubsub.SubscribeWithErr(
-		coderdpubsub.ChatEventChannel(ownerID),
-		coderdpubsub.HandleChatEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
 			messageEvents <- struct {
 				payload codersdk.ChatWatchEvent
 				err     error

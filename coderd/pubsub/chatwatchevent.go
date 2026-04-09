@@ -11,19 +11,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func ChatEventChannel(ownerID uuid.UUID) string {
+func ChatWatchEventChannel(ownerID uuid.UUID) string {
 	return fmt.Sprintf("chat:owner:%s", ownerID)
 }
 
-func HandleChatEvent(cb func(ctx context.Context, payload codersdk.ChatWatchEvent, err error)) func(ctx context.Context, message []byte, err error) {
+func HandleChatWatchEvent(cb func(ctx context.Context, payload codersdk.ChatWatchEvent, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {
-			cb(ctx, codersdk.ChatWatchEvent{}, xerrors.Errorf("chat event pubsub: %w", err))
+			cb(ctx, codersdk.ChatWatchEvent{}, xerrors.Errorf("chat watch event pubsub: %w", err))
 			return
 		}
 		var payload codersdk.ChatWatchEvent
 		if err := json.Unmarshal(message, &payload); err != nil {
-			cb(ctx, codersdk.ChatWatchEvent{}, xerrors.Errorf("unmarshal chat event: %w", err))
+			cb(ctx, codersdk.ChatWatchEvent{}, xerrors.Errorf("unmarshal chat watch event: %w", err))
 			return
 		}
 

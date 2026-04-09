@@ -851,6 +851,7 @@ export const StreamedSubagentTitle: Story = {
 					data: JSON.stringify([
 						{
 							type: "message_part",
+							chat_id: CHAT_ID,
 							message_part: {
 								part: {
 									type: "tool-call",
@@ -860,7 +861,7 @@ export const StreamedSubagentTitle: Story = {
 								},
 							},
 						},
-					]),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},
@@ -1147,6 +1148,7 @@ export const StreamedReasoning: Story = {
 					data: JSON.stringify([
 						{
 							type: "message_part",
+							chat_id: CHAT_ID,
 							message_part: {
 								part: {
 									type: "reasoning",
@@ -1154,7 +1156,7 @@ export const StreamedReasoning: Story = {
 								},
 							},
 						},
-					]),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},
@@ -1239,7 +1241,7 @@ export const WithWaitAgentComputerUseVNC: Story = {
 								},
 							},
 						},
-					]),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},

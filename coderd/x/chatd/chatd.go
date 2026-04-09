@@ -3659,7 +3659,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.F("kind", kind),
@@ -3705,7 +3705,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat action_required pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),

@@ -574,7 +574,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", txErr)
 	}
 
-	p.publishChatPubsubEvent(child, coderdpubsub.ChatEventKindCreated, nil)
+	p.publishChatPubsubEvent(child, codersdk.ChatWatchEventKindCreated, nil)
 	p.signalWake()
 	return child, nil
 }

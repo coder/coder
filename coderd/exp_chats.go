@@ -158,25 +158,25 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	// The encoder is only written from the pubsub delivery
-	// goroutine (msgQueue.run). Do not add a second write path
-	// without introducing synchronization.
+	// The encoder is only written from the SubscribeWithErr callback,
+	// which delivers serially per subscription. Do not add a second
+	// write path without introducing synchronization.
 	encoder := json.NewEncoder(wsNetConn)
 
-	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatEventChannel(apiKey.UserID),
-		pubsub.HandleChatEvent(
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID),
+		pubsub.HandleChatWatchEvent(
 			func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
 				if err != nil {
-					api.Logger.Error(ctx, "chat event subscription error", slog.Error(err))
+					api.Logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
 					return
 				}
 				if err := encoder.Encode(payload); err != nil {
-					api.Logger.Debug(ctx, "failed to send chat event", slog.Error(err))
+					api.Logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
 				}
 			},
 		))
 	if err != nil {
-		api.Logger.Error(ctx, "failed to subscribe to chat events", slog.Error(err))
+		api.Logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
 		return
 	}
@@ -2191,6 +2191,9 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
 	snapshot, events, cancelSub, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
+	// Subscribe only fails today when the receiver is nil, which
+	// the chatDaemon == nil guard above already catches. This is
+	// defensive against future Subscribe failure modes.
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
