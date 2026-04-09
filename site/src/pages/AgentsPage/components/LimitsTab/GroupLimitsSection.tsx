@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { type FC, useId, useState } from "react";
+import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type { Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
@@ -34,6 +35,8 @@ interface GroupLimitsSectionProps {
 		member_count: number;
 		spend_limit_micros: number | null;
 	}>;
+	/** Maps group_id → organization_name for building links to the group page. */
+	groupOrganizationNames?: Record<string, string>;
 	showGroupForm: boolean;
 	onShowGroupFormChange: (show: boolean) => void;
 	selectedGroup: Group | null;
@@ -65,6 +68,7 @@ interface GroupLimitsSectionProps {
 export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	hideHeader,
 	groupOverrides,
+	groupOrganizationNames,
 	showGroupForm,
 	onShowGroupFormChange,
 	selectedGroup,
@@ -111,49 +115,69 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{groupOverrides.map((override) => (
-								<TableRow key={override.group_id}>
-									<TableCell>
-										<AvatarData
-											title={override.group_display_name || override.group_name}
-											subtitle={override.group_name}
-											src={override.group_avatar_url}
-											imgFallbackText={override.group_name}
-										/>
-									</TableCell>
-									<TableCell>{override.member_count}</TableCell>
-									<TableCell>
-										{override.spend_limit_micros !== null
-											? formatCostMicros(override.spend_limit_micros)
-											: "Unlimited"}
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-2">
-											<Button
-												variant="outline"
-												size="sm"
-												type="button"
-												onClick={() => onEditGroupOverride(override)}
-												disabled={deletePending || upsertPending}
-											>
-												Edit
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												type="button"
-												onClick={() =>
-													setPendingDeleteGroupId(override.group_id)
-												}
-												disabled={deletePending || upsertPending || isEditing}
-											>
-												Delete
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
+							{groupOverrides.map((override) => {
+								const orgName = groupOrganizationNames?.[override.group_id];
+								const groupLink = orgName
+									? `/organizations/${orgName}/groups/${override.group_name}`
+									: undefined;
+
+								const avatar = (
+									<AvatarData
+										title={override.group_display_name || override.group_name}
+										subtitle={override.group_name}
+										src={override.group_avatar_url}
+										imgFallbackText={override.group_name}
+									/>
+								);
+
+								return (
+									<TableRow key={override.group_id}>
+										<TableCell>
+											{groupLink ? (
+												<Link
+													to={groupLink}
+													className="inline-flex no-underline hover:underline"
+												>
+													{avatar}
+												</Link>
+											) : (
+												avatar
+											)}
+										</TableCell>
+										<TableCell>{override.member_count}</TableCell>
+										<TableCell>
+											{override.spend_limit_micros !== null
+												? formatCostMicros(override.spend_limit_micros)
+												: "Unlimited"}
+										</TableCell>
+										<TableCell>
+											<div className="flex gap-2">
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													onClick={() => onEditGroupOverride(override)}
+													disabled={deletePending || upsertPending}
+												>
+													Edit
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													onClick={() =>
+														setPendingDeleteGroupId(override.group_id)
+													}
+													disabled={deletePending || upsertPending || isEditing}
+												>
+													Delete
+												</Button>
+											</div>
+										</TableCell>
+									</TableRow>
+								);
+							})}
+						</TableBody>{" "}
 					</Table>
 				) : (
 					<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
