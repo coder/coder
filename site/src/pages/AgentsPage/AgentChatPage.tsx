@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
+import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatDesktopEnabled,
@@ -25,7 +26,6 @@ import {
 	promoteChatQueuedMessage,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
-import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";

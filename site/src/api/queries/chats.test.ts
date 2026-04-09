@@ -2,6 +2,7 @@ import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	archiveChat,
 	cancelChatListRefetches,
@@ -27,7 +28,6 @@ import {
 	unpinChat,
 	updateInfiniteChatsCache,
 } from "./chats";
-import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 
 vi.mock("#/api/api", () => ({
 	API: {
