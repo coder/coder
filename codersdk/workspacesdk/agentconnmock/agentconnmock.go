@@ -550,6 +550,20 @@ func (mr *MockAgentConnMockRecorder) Speedtest(ctx, direction, duration any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Speedtest", reflect.TypeOf((*MockAgentConn)(nil).Speedtest), ctx, direction, duration)
 }
 
+// StartDesktopRecording mocks base method.
+func (m *MockAgentConn) StartDesktopRecording(ctx context.Context, req workspacesdk.StartDesktopRecordingRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartDesktopRecording", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StartDesktopRecording indicates an expected call of StartDesktopRecording.
+func (mr *MockAgentConnMockRecorder) StartDesktopRecording(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartDesktopRecording", reflect.TypeOf((*MockAgentConn)(nil).StartDesktopRecording), ctx, req)
+}
+
 // StartProcess mocks base method.
 func (m *MockAgentConn) StartProcess(ctx context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
 	m.ctrl.T.Helper()
@@ -563,6 +577,21 @@ func (m *MockAgentConn) StartProcess(ctx context.Context, req workspacesdk.Start
 func (mr *MockAgentConnMockRecorder) StartProcess(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartProcess", reflect.TypeOf((*MockAgentConn)(nil).StartProcess), ctx, req)
+}
+
+// StopDesktopRecording mocks base method.
+func (m *MockAgentConn) StopDesktopRecording(ctx context.Context, req workspacesdk.StopDesktopRecordingRequest) (io.ReadCloser, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StopDesktopRecording", ctx, req)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StopDesktopRecording indicates an expected call of StopDesktopRecording.
+func (mr *MockAgentConnMockRecorder) StopDesktopRecording(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopDesktopRecording", reflect.TypeOf((*MockAgentConn)(nil).StopDesktopRecording), ctx, req)
 }
 
 // TailnetConn mocks base method.

@@ -87,54 +87,51 @@ describe("AgentRowPreviewApps", () => {
 			workspaceAgent: EmptyAppPreview,
 			testName: "EmptyAppPreview",
 		},
-	])(
-		"<AgentRowPreview agent={$testName} /> displays appropriately",
-		({ workspaceAgent }) => {
-			renderComponent(<AgentRowPreview agent={workspaceAgent} />);
-			for (const app of workspaceAgent.apps) {
-				expect(
-					screen.getByText(app.display_name as string),
-				).toBeInTheDocument();
-			}
+	])("<AgentRowPreview agent={$testName} /> displays appropriately", ({
+		workspaceAgent,
+	}) => {
+		renderComponent(<AgentRowPreview agent={workspaceAgent} />);
+		for (const app of workspaceAgent.apps) {
+			expect(screen.getByText(app.display_name as string)).toBeInTheDocument();
+		}
 
-			for (const app of workspaceAgent.display_apps) {
-				// These get special treatment
-				if (app === "vscode" || app === "vscode_insiders") {
-					continue;
-				}
-				expect(screen.getByText(DisplayAppNameMap[app])).toBeInTheDocument();
+		for (const app of workspaceAgent.display_apps) {
+			// These get special treatment
+			if (app === "vscode" || app === "vscode_insiders") {
+				continue;
 			}
+			expect(screen.getByText(DisplayAppNameMap[app])).toBeInTheDocument();
+		}
 
-			// test VS Code display
-			if (workspaceAgent.display_apps.includes("vscode")) {
-				expect(screen.getByText(DisplayAppNameMap.vscode)).toBeInTheDocument();
-			} else if (workspaceAgent.display_apps.includes("vscode_insiders")) {
-				expect(
-					screen.getByText(DisplayAppNameMap.vscode_insiders),
-				).toBeInTheDocument();
-			} else {
-				expect(screen.queryByText("vscode")).not.toBeInTheDocument();
-				expect(screen.queryByText("vscode_insiders")).not.toBeInTheDocument();
-			}
+		// test VS Code display
+		if (workspaceAgent.display_apps.includes("vscode")) {
+			expect(screen.getByText(DisplayAppNameMap.vscode)).toBeInTheDocument();
+		} else if (workspaceAgent.display_apps.includes("vscode_insiders")) {
+			expect(
+				screen.getByText(DisplayAppNameMap.vscode_insiders),
+			).toBeInTheDocument();
+		} else {
+			expect(screen.queryByText("vscode")).not.toBeInTheDocument();
+			expect(screen.queryByText("vscode_insiders")).not.toBeInTheDocument();
+		}
 
-			// difference between all possible display apps and those displayed
-			const excludedApps = DisplayApps.filter(
-				(a) => !workspaceAgent.display_apps.includes(a),
-			);
+		// difference between all possible display apps and those displayed
+		const excludedApps = DisplayApps.filter(
+			(a) => !workspaceAgent.display_apps.includes(a),
+		);
 
-			for (const app of excludedApps) {
-				expect(
-					screen.queryByText(DisplayAppNameMap[app]),
-				).not.toBeInTheDocument();
-			}
+		for (const app of excludedApps) {
+			expect(
+				screen.queryByText(DisplayAppNameMap[app]),
+			).not.toBeInTheDocument();
+		}
 
-			// test empty state
-			if (
-				workspaceAgent.display_apps.length === 0 &&
-				workspaceAgent.apps.length === 0
-			) {
-				expect(screen.getByText("None")).toBeInTheDocument();
-			}
-		},
-	);
+		// test empty state
+		if (
+			workspaceAgent.display_apps.length === 0 &&
+			workspaceAgent.apps.length === 0
+		) {
+			expect(screen.getByText("None")).toBeInTheDocument();
+		}
+	});
 });

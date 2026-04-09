@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -172,6 +173,11 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
 	}
 
+	providerName := strings.TrimSpace(in.ProviderName)
+	if providerName == "" {
+		providerName = in.Provider
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:                         intcID,
 		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
@@ -179,6 +185,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
 		InitiatorID:                initID,
 		Provider:                   in.Provider,
+		ProviderName:               providerName,
 		Model:                      in.Model,
 		Metadata:                   out,
 		StartedAt:                  in.StartedAt.AsTime(),
@@ -240,6 +247,8 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
+			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
 			slog.F("metadata", metadata),
 		)
@@ -251,13 +260,15 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	_, err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
-		ID:                 uuid.New(),
-		InterceptionID:     intcID,
-		ProviderResponseID: in.GetMsgId(),
-		InputTokens:        in.GetInputTokens(),
-		OutputTokens:       in.GetOutputTokens(),
-		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		ID:                    uuid.New(),
+		InterceptionID:        intcID,
+		ProviderResponseID:    in.GetMsgId(),
+		InputTokens:           in.GetInputTokens(),
+		OutputTokens:          in.GetOutputTokens(),
+		CacheReadInputTokens:  in.GetCacheReadInputTokens(),
+		CacheWriteInputTokens: in.GetCacheWriteInputTokens(),
+		Metadata:              out,
+		CreatedAt:             in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)

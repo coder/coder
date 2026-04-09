@@ -1,4 +1,3 @@
-import IconButton from "@mui/material/IconButton";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -222,8 +221,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					<div>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TopbarIconButton component={RouterLink} to={templateLink}>
-									<ChevronLeftIcon className="size-icon-sm" />
+								<TopbarIconButton asChild>
+									<RouterLink to={templateLink}>
+										<ChevronLeftIcon />
+									</RouterLink>
 								</TopbarIconButton>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
@@ -325,15 +326,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							<div className="ml-auto [&_svg]:fill-content-primary">
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<IconButton
+										<Button
+											size="icon"
+											variant="subtle"
 											aria-label="Create File"
 											onClick={(event) => {
 												setCreateFileOpen(true);
 												event.currentTarget.blur();
 											}}
 										>
-											<PlusIcon className="size-icon-xs" />
-										</IconButton>
+											<PlusIcon />
+										</Button>
 									</TooltipTrigger>
 									<TooltipContent>Create File</TooltipContent>
 								</Tooltip>
@@ -484,17 +487,18 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								)}
 
 								{selectedTab && (
-									<IconButton
+									<Button
+										size="icon"
+										variant="subtle"
 										onClick={() => {
 											setSelectedTab(undefined);
 										}}
 										className={cn(
-											"w-9 h-9 rounded-none",
 											(selectedTab !== "logs" || !gotBuildLogs) && "ml-auto",
 										)}
 									>
-										<XIcon className="size-icon-xs" />
-									</IconButton>
+										<XIcon />
+									</Button>
 								)}
 							</div>
 

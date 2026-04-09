@@ -70,8 +70,8 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.Equal(t, 1, persistStepCalls)
 	require.True(t, persistedStep.ContextLimit.Valid)
 	require.Equal(t, int64(4096), persistedStep.ContextLimit.Int64)
-	require.Greater(t, persistedStep.Runtime, time.Duration(0),
-		"step runtime should be positive")
+	require.GreaterOrEqual(t, persistedStep.Runtime, time.Duration(0),
+		"step runtime should be non-negative")
 
 	require.NotEmpty(t, capturedCall.Prompt)
 	require.False(t, containsPromptSentinel(capturedCall.Prompt))

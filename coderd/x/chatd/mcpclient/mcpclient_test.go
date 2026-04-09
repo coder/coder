@@ -63,6 +63,17 @@ func greetTool() mcpserver.ServerTool {
 	}
 }
 
+// makeTool returns a ServerTool with the given name and a
+// no-op handler that always returns "ok".
+func makeTool(name string) mcpserver.ServerTool {
+	return mcpserver.ServerTool{
+		Tool: mcp.NewTool(name),
+		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return mcp.NewToolResultText("ok"), nil
+		},
+	}
+}
+
 // makeConfig builds a database.MCPServerConfig suitable for tests.
 func makeConfig(slug, url string) database.MCPServerConfig {
 	return database.MCPServerConfig{
@@ -196,6 +207,121 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 	names := toolNames(tools)
 	assert.Contains(t, names, "alpha__echo")
 	assert.Contains(t, names, "beta__greet")
+}
+
+func TestConnectAll_NoToolsAfterFiltering(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("filtered", ts.URL)
+	cfg.ToolAllowList = []string{"greet"}
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx,
+		logger,
+		[]database.MCPServerConfig{cfg},
+		nil,
+	)
+
+	require.Empty(t, tools)
+	assert.NotPanics(t, cleanup)
+}
+
+func TestConnectAll_DeterministicOrder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AcrossServers", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		ts1 := newTestMCPServer(t, makeTool("zebra"))
+		ts2 := newTestMCPServer(t, makeTool("alpha"))
+		ts3 := newTestMCPServer(t, makeTool("middle"))
+
+		tools, cleanup := mcpclient.ConnectAll(
+			ctx,
+			logger,
+			[]database.MCPServerConfig{
+				makeConfig("srv3", ts3.URL),
+				makeConfig("srv1", ts1.URL),
+				makeConfig("srv2", ts2.URL),
+			},
+			nil,
+		)
+		t.Cleanup(cleanup)
+
+		require.Len(t, tools, 3)
+		// Sorted by full prefixed name (slug__tool), so slug
+		// order determines the sequence, not the tool name.
+		assert.Equal(t,
+			[]string{"srv1__zebra", "srv2__alpha", "srv3__middle"},
+			toolNames(tools),
+		)
+	})
+
+	t.Run("WithMultiToolServer", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		multi := newTestMCPServer(t, makeTool("zeta"), makeTool("beta"))
+		other := newTestMCPServer(t, makeTool("gamma"))
+
+		tools, cleanup := mcpclient.ConnectAll(
+			ctx,
+			logger,
+			[]database.MCPServerConfig{
+				makeConfig("zzz", multi.URL),
+				makeConfig("aaa", other.URL),
+			},
+			nil,
+		)
+		t.Cleanup(cleanup)
+
+		require.Len(t, tools, 3)
+		assert.Equal(t,
+			[]string{"aaa__gamma", "zzz__beta", "zzz__zeta"},
+			toolNames(tools),
+		)
+	})
+
+	t.Run("TiebreakByConfigID", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		ts1 := newTestMCPServer(t, makeTool("b__z"))
+		ts2 := newTestMCPServer(t, makeTool("z"))
+
+		// Use fixed UUIDs so the tiebreaker order is
+		// predictable. Both servers produce the same prefixed
+		// name, a__b__z, due to the __ separator ambiguity.
+		cfg1 := makeConfig("a", ts1.URL)
+		cfg1.ID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+
+		cfg2 := makeConfig("a__b", ts2.URL)
+		cfg2.ID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+		tools, cleanup := mcpclient.ConnectAll(
+			ctx,
+			logger,
+			[]database.MCPServerConfig{cfg1, cfg2},
+			nil,
+		)
+		t.Cleanup(cleanup)
+
+		require.Len(t, tools, 2)
+		assert.Equal(t, []string{"a__b__z", "a__b__z"}, toolNames(tools))
+
+		id0 := tools[0].(mcpclient.MCPToolIdentifier).MCPServerConfigID()
+		id1 := tools[1].(mcpclient.MCPToolIdentifier).MCPServerConfigID()
+		assert.Equal(t, cfg2.ID, id0, "lower config ID should sort first")
+		assert.Equal(t, cfg1.ID, id1, "higher config ID should sort second")
+	})
 }
 
 func TestConnectAll_AuthHeaders(t *testing.T) {

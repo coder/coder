@@ -20,6 +20,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -42,6 +43,11 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
@@ -141,9 +147,18 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	attachedWorkspace?: AttachedWorkspaceInfo;
+}
+
+export interface AttachedWorkspaceInfo {
+	name: string;
+	route: string;
+	statusIcon: React.ReactNode;
+	statusLabel: string;
 }
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
+	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
 const ToolBadge: FC<{
@@ -156,6 +171,28 @@ const ToolBadge: FC<{
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
+
+	if (badge.kind === "attached-workspace") {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Link
+						to={badge.route}
+						target="_blank"
+						rel="noreferrer"
+						className={cn(
+							badgeCls,
+							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						)}
+					>
+						{badge.statusIcon}
+						{badge.name}
+					</Link>
+				</TooltipTrigger>
+				<TooltipContent>{badge.statusLabel}</TooltipContent>
+			</Tooltip>
+		);
+	}
 
 	if (badge.kind === "workspace") {
 		return (
@@ -247,6 +284,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	attachedWorkspace,
 }) => {
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -355,6 +393,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
+	if (attachedWorkspace) {
+		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
+	}
 	if (selectedWorkspace && onWorkspaceChange) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
@@ -883,7 +924,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (
 									<ToolBadge
-										key={badge.kind === "workspace" ? "ws" : badge.server.id}
+										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
 										badge={badge}
 										onRemoveWorkspace={handleRemoveWorkspace}
 										onRemoveMcp={handleRemoveMcp}
@@ -920,9 +961,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									{overflowBadges.map((badge) => (
 										<ToolBadge
 											key={
-												badge.kind === "workspace"
-													? "ws-overflow"
-													: badge.server.id
+												badge.kind === "mcp"
+													? badge.server.id
+													: `${badge.kind}-overflow`
 											}
 											badge={badge}
 											onRemoveWorkspace={handleRemoveWorkspace}

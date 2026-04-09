@@ -670,7 +670,11 @@ func (s *openAIServer) writeResponsesAPINonStreaming(w http.ResponseWriter, resp
 		"created": resp.Created,
 		"model":   resp.Model,
 		"output":  outputs,
-		"usage":   resp.Usage,
+		"usage": map[string]interface{}{
+			"input_tokens":  resp.Usage.PromptTokens,
+			"output_tokens": resp.Usage.CompletionTokens,
+			"total_tokens":  resp.Usage.TotalTokens,
+		},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
