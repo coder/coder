@@ -2,13 +2,12 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/input}
  */
+import type { ComponentPropsWithRef, FC } from "react";
 import { cn } from "#/utils/cn";
 
-export const Input: React.FC<React.ComponentPropsWithRef<"input">> = ({
-	className,
-	type,
-	...props
-}) => {
+export type InputProps = ComponentPropsWithRef<"input">;
+
+export const Input: FC<InputProps> = ({ className, type, ...props }) => {
 	return (
 		<input
 			type={type}

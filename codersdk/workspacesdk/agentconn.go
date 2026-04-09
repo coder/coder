@@ -1003,28 +1003,11 @@ type MCPToolInfo struct {
 	Required []string `json:"required"`
 }
 
-// Default values for context configuration. These are used
-// by the agent when env vars are unset and by the server as
-// fallbacks for older agents that don't support the
-// context-config endpoint.
-const (
-	DefaultInstructionsDir  = "~/.coder"
-	DefaultInstructionsFile = "AGENTS.md"
-	DefaultSkillsDir        = ".agents/skills"
-	DefaultSkillMetaFile    = "SKILL.md"
-	DefaultMCPConfigFile    = ".mcp.json"
-)
-
-// ContextConfigResponse is the response from the agent's
-// context configuration endpoint. Directory fields contain
-// fully resolved absolute paths. File name fields contain
-// basenames.
+// ContextConfigResponse is the response from the agent's context
+// configuration endpoint. Contains pre-read instruction file
+// contents and discovered skill metadata as chat message parts.
 type ContextConfigResponse struct {
-	InstructionsDirs []string `json:"instructions_dirs"`
-	InstructionsFile string   `json:"instructions_file"`
-	SkillsDirs       []string `json:"skills_dirs"`
-	SkillMetaFile    string   `json:"skill_meta_file"`
-	MCPConfigFiles   []string `json:"mcp_config_files"`
+	Parts []codersdk.ChatMessagePart `json:"parts"`
 }
 
 // CallMCPToolRequest is the request body for proxying an MCP

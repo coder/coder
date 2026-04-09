@@ -495,7 +495,8 @@
 						{
 							"title": "Headless Authentication",
 							"description": "Create and manage headless service accounts for automated systems and API integrations",
-							"path": "./admin/users/headless-auth.md"
+							"path": "./admin/users/headless-auth.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Groups \u0026 Roles",
@@ -1249,6 +1250,12 @@
 									"description": "Spend limits and cost tracking for Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 									"state": ["early access"]
+								},
+								{
+									"title": "Data Retention",
+									"description": "Automatic cleanup of old conversation data",
+									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+									"state": ["early access"]
 								}
 							]
 						},
@@ -1298,6 +1305,12 @@
 					"title": "Configuring Okta",
 					"description": "Custom claims/scopes with Okta for group/role sync",
 					"path": "./tutorials/configuring-okta.md"
+				},
+				{
+					"title": "Persistent Shared Workspaces",
+					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing",
+					"path": "./tutorials/persistent-shared-workspaces.md",
+					"state": ["premium"]
 				},
 				{
 					"title": "Google to AWS Federation",

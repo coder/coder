@@ -58,7 +58,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 				},
 
 				pre: ({ node, children }) => {
-					if (!node || !node.children) {
+					if (!node?.children) {
 						return <pre>{children}</pre>;
 					}
 					const firstChild = node.children[0];

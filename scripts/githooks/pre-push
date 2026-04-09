@@ -30,7 +30,15 @@ ALLOWLIST=(
 )
 
 cd "$(git rev-parse --show-toplevel)"
-unset GIT_DIR
+
+# Unset all repo-local Git env vars, not just GIT_DIR. In linked
+# worktrees the hook inherits variables like GIT_COMMON_DIR and
+# GIT_INDEX_FILE that confuse child processes (notably Go's VCS
+# stamping, which shells out to git and gets exit status 128).
+# Process substitution (not a pipe) so unset runs in the current shell.
+while IFS= read -r var; do
+	unset "$var"
+done < <(git rev-parse --local-env-vars)
 
 # In linked worktrees, set worktree-scoped hooksPath to override shared config.
 if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then

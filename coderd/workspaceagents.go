@@ -181,8 +181,9 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
-		output = append(output, logEntry.Output)
-		outputLength += len(logEntry.Output)
+		sanitizedOutput := agentsdk.SanitizeLogOutput(logEntry.Output)
+		output = append(output, sanitizedOutput)
+		outputLength += len(sanitizedOutput)
 		if logEntry.Level == "" {
 			// Default to "info" to support older agents that didn't have the level field.
 			logEntry.Level = codersdk.LogLevelInfo

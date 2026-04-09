@@ -14,7 +14,6 @@ import {
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
-	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectMessagesByID,
@@ -66,12 +65,19 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const hasStreamState = useChatSelector(store, selectHasStreamState);
-	const isTurnActive = isActiveChatStatus(chatStatus) || hasStreamState;
 
 	const messages = orderedMessageIDs
-		.map((messageID) => messagesByID.get(messageID))
+		.map((messageID) => {
+			const message = messagesByID.get(messageID);
+			if (!message && process.env.NODE_ENV !== "production") {
+				console.warn(
+					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
+						"not found in messagesByID. This may indicate a store/cache " +
+						"desync bug.",
+				);
+			}
+			return message;
+		})
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
@@ -96,7 +102,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={false}
-					isTurnActive={isTurnActive}
 				/>
 				<LiveStreamTail
 					store={store}
@@ -210,7 +215,17 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
 	const messages = orderedMessageIDs
-		.map((messageID) => messagesByID.get(messageID))
+		.map((messageID) => {
+			const message = messagesByID.get(messageID);
+			if (!message && process.env.NODE_ENV !== "production") {
+				console.warn(
+					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
+						"not found in messagesByID. This may indicate a store/cache " +
+						"desync bug.",
+				);
+			}
+			return message;
+		})
 		.filter(isChatMessage);
 	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
 	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {

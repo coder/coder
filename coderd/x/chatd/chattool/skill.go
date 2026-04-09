@@ -1,17 +1,16 @@
 package chattool
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
 	"path"
-	"regexp"
 	"strings"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -19,18 +18,6 @@ const (
 	maxSkillMetaBytes = 64 * 1024
 	maxSkillFileBytes = 512 * 1024
 )
-
-// skillNamePattern validates kebab-case skill names. Each segment
-// must start with a lowercase letter or digit, and segments are
-// separated by single hyphens.
-var skillNamePattern = regexp.MustCompile(
-	`^[a-z0-9]+(-[a-z0-9]+)*$`,
-)
-
-// markdownCommentRe strips HTML comments from skill bodies so
-// they don't leak into the prompt. Matches the same pattern
-// used by instruction.go in the parent package.
-var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 
 // SkillMeta is the frontmatter from a skill meta file discovered in a
 // workspace. It carries just enough information to list the skill
@@ -41,6 +28,9 @@ type SkillMeta struct {
 	// Dir is the absolute path to the skill directory inside
 	// the workspace filesystem.
 	Dir string
+	// MetaFile is the basename of the skill meta file (e.g.
+	// "SKILL.md"). When empty, DefaultSkillMetaFile is used.
+	MetaFile string
 }
 
 // SkillContent is the full body of a skill, loaded on demand
@@ -53,167 +43,6 @@ type SkillContent struct {
 	// Files lists relative paths of supporting files in the
 	// skill directory (everything except the skill meta file).
 	Files []string
-}
-
-// DiscoverSkills walks the given skills directories and returns
-// metadata for every valid skill it finds. Missing directories
-// or individual read errors are silently skipped so that a
-// partially broken skills tree never blocks the conversation.
-// Skill names must be unique across directories; first
-// occurrence wins.
-func DiscoverSkills(
-	ctx context.Context,
-	logger slog.Logger,
-	conn workspacesdk.AgentConn,
-	skillsDirs []string,
-	metaFile string,
-) ([]SkillMeta, error) {
-	seen := make(map[string]struct{})
-	var skills []SkillMeta
-
-	for _, skillsDirPath := range skillsDirs {
-		lsResp, err := conn.LS(ctx, "", workspacesdk.LSRequest{
-			Path:       []string{skillsDirPath},
-			Relativity: workspacesdk.LSRelativityRoot,
-		})
-		if err != nil {
-			// The skills directory is entirely optional.
-			// Skip on any error.
-			continue
-		}
-
-		for _, entry := range lsResp.Contents {
-			if !entry.IsDir {
-				continue
-			}
-
-			metaPath := path.Join(
-				entry.AbsolutePathString, metaFile,
-			)
-			reader, _, err := conn.ReadFile(
-				ctx, metaPath, 0, maxSkillMetaBytes+1,
-			)
-			if err != nil {
-				// The directory may have been removed between
-				// the LS and this read, or it simply lacks the
-				// meta file. Any error is non-fatal.
-				continue
-			}
-			raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
-			reader.Close()
-			if err != nil {
-				logger.Debug(ctx, "failed to read skill meta file",
-					slog.F("path", metaPath), slog.Error(err))
-				continue
-			}
-
-			// Silently truncate oversized metadata files so
-			// a single large file cannot exhaust memory.
-			if int64(len(raw)) > maxSkillMetaBytes {
-				raw = raw[:maxSkillMetaBytes]
-			}
-
-			name, description, _, err := parseSkillFrontmatter(
-				string(raw),
-			)
-			if err != nil {
-				logger.Debug(ctx, "failed to parse skill frontmatter",
-					slog.F("path", metaPath), slog.Error(err))
-				continue
-			}
-
-			// The directory name must match the declared name
-			// so skill references are unambiguous.
-			if name != entry.Name {
-				logger.Debug(ctx, "skill name does not match directory",
-					slog.F("dir", entry.Name), slog.F("declared_name", name))
-				continue
-			}
-			if !skillNamePattern.MatchString(name) {
-				logger.Debug(ctx, "skill name does not match pattern",
-					slog.F("name", name))
-				continue
-			}
-
-			// First occurrence wins across directories.
-			if _, ok := seen[name]; ok {
-				continue
-			}
-			seen[name] = struct{}{}
-
-			skills = append(skills, SkillMeta{
-				Name:        name,
-				Description: description,
-				Dir:         entry.AbsolutePathString,
-			})
-		}
-	}
-
-	return skills, nil
-}
-
-// parseSkillFrontmatter extracts name, description, and the
-// markdown body from a skill meta file. The frontmatter uses a
-// simple `key: value` format between `---` delimiters, and no
-// full YAML parser is needed.
-func parseSkillFrontmatter(
-	content string,
-) (name, description, body string, err error) {
-	content = strings.TrimPrefix(content, "\xef\xbb\xbf")
-	lines := strings.Split(content, "\n")
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return "", "", "", xerrors.New(
-			"missing opening frontmatter delimiter",
-		)
-	}
-
-	closingIdx := -1
-	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "---" {
-			closingIdx = i
-			break
-		}
-	}
-	if closingIdx < 0 {
-		return "", "", "", xerrors.New(
-			"missing closing frontmatter delimiter",
-		)
-	}
-
-	for _, line := range lines[1:closingIdx] {
-		key, value, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-		// Strip surrounding quotes from YAML string values.
-		if len(value) >= 2 {
-			if (value[0] == '"' && value[len(value)-1] == '"') ||
-				(value[0] == '\'' && value[len(value)-1] == '\'') {
-				value = value[1 : len(value)-1]
-			}
-		}
-		switch strings.ToLower(key) {
-		case "name":
-			name = value
-		case "description":
-			description = value
-		}
-	}
-
-	if name == "" {
-		return "", "", "", xerrors.New(
-			"frontmatter missing required 'name' field",
-		)
-	}
-
-	// Everything after the closing delimiter is the body.
-	body = strings.Join(lines[closingIdx+1:], "\n")
-	body = markdownCommentRe.ReplaceAllString(body, "")
-	body = strings.TrimSpace(body)
-
-	return name, description, body, nil
 }
 
 // FormatSkillIndex renders an XML block listing all discovered
@@ -245,9 +74,8 @@ func FormatSkillIndex(skills []SkillMeta) string {
 	return b.String()
 }
 
-// LoadSkillBody reads the full skill meta file for a discovered skill
-// and lists the supporting files in its directory. The caller
-// should have already obtained the SkillMeta from DiscoverSkills.
+// LoadSkillBody reads the full skill meta file for a discovered
+// skill and lists the supporting files in its directory.
 func LoadSkillBody(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -276,7 +104,7 @@ func LoadSkillBody(
 		raw = raw[:maxSkillMetaBytes]
 	}
 
-	_, _, body, err := parseSkillFrontmatter(string(raw))
+	_, _, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
 	if err != nil {
 		return SkillContent{}, xerrors.Errorf(
 			"parse skill frontmatter: %w", err,
@@ -379,12 +207,15 @@ func validateSkillFilePath(p string) error {
 	return nil
 }
 
+// DefaultSkillMetaFile is the fallback skill meta file name used
+// when loading skill bodies on demand from older agents.
+const DefaultSkillMetaFile = "SKILL.md"
+
 // ReadSkillOptions configures the read_skill and read_skill_file
 // tools.
 type ReadSkillOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	GetSkills        func() []SkillMeta
-	SkillMetaFile    string
 }
 
 // ReadSkillArgs are the parameters accepted by read_skill.
@@ -428,13 +259,14 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			content, err := LoadSkillBody(ctx, conn, skill, options.SkillMetaFile)
+			// Load the skill body from the workspace agent,
+			// respecting a custom meta file name if set.
+			content, err := LoadSkillBody(ctx, conn, skill, cmp.Or(skill.MetaFile, DefaultSkillMetaFile))
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					err.Error(),
 				), nil
 			}
-
 			return toolResponse(map[string]any{
 				"name":  content.Name,
 				"body":  content.Body,

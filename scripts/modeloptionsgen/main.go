@@ -18,6 +18,7 @@ type SchemaField struct {
 	GoName      string   `json:"go_name"`
 	Type        string   `json:"type"`
 	Description string   `json:"description,omitempty"`
+	Label       string   `json:"label,omitempty"`
 	Required    bool     `json:"required"`
 	Enum        []string `json:"enum,omitempty"`
 	InputType   string   `json:"input_type"`
@@ -135,6 +136,7 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 
 		typeName := goTypeToSchemaType(f.Type)
 		description := f.Tag.Get("description")
+		label := f.Tag.Get("label")
 		enumTag := f.Tag.Get("enum")
 
 		var enumValues []string
@@ -150,6 +152,7 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 			GoName:      goFieldPath(prefix, f.Name, t, fullJSONName),
 			Type:        typeName,
 			Description: description,
+			Label:       label,
 			Required:    required,
 			Enum:        enumValues,
 			InputType:   inputType,

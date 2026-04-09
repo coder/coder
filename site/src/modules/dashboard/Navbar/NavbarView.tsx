@@ -16,7 +16,7 @@ import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
-import { isDevBuild } from "#/utils/buildInfo";
+import { isDevBuild, isRcBuild } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
@@ -59,8 +59,17 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAIBridge,
 	proxyContextValue,
 }) => {
+	const isDev = buildInfo ? isDevBuild(buildInfo) : false;
+	const isRc = buildInfo ? isRcBuild(buildInfo) : false;
+	const isPreRelease = isDev || isRc;
+
 	return (
-		<div className="sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
+		<div
+			className={cn(
+				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6 relative",
+				isRc ? "navbar-stripe-rc" : isDev ? "navbar-stripe-devel" : undefined,
+			)}
+		>
 			<NavLink to="/workspaces">
 				{logo_url ? (
 					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />
@@ -70,6 +79,23 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			</NavLink>
 
 			<NavItems className="ml-4" user={user} />
+
+			{isPreRelease && buildInfo?.version && (
+				<a
+					href={buildInfo.external_url}
+					target="_blank"
+					rel="noreferrer"
+					className="absolute top-1 left-1/2 -translate-x-1/2 no-underline z-10"
+				>
+					<Badge
+						variant={isRc ? "info" : "warning"}
+						size="sm"
+						className="font-mono"
+					>
+						{buildInfo.version}
+					</Badge>
+				</a>
+			)}
 
 			<div className="flex items-center gap-3 ml-auto">
 				{supportLinks.filter(isNavbarLink).map((link) => (

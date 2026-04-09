@@ -395,7 +395,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 													])}
 												>
 													<dt>{toolUsage.tool}</dt>
-													<dd>
+													<dd className="overflow-x-auto">
 														<div className="flex flex-col gap-2">
 															<div>{toolUsage.input}</div>
 															{toolUsage.invocation_error && (

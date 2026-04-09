@@ -1,4 +1,4 @@
-import { CopyIcon, FileTextIcon, PencilIcon } from "lucide-react";
+import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -19,7 +18,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import {
 	decodeInlineTextAttachment,
@@ -257,7 +255,6 @@ export const BlockList: FC<{
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (content: string) => void;
 	urlTransform?: UrlTransform;
-	afterResponseSlot?: React.ReactNode;
 }> = ({
 	blocks,
 	tools,
@@ -271,7 +268,6 @@ export const BlockList: FC<{
 	onImageClick,
 	onTextFileClick,
 	urlTransform,
-	afterResponseSlot,
 }) => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
@@ -287,11 +283,6 @@ export const BlockList: FC<{
 	);
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
-
-	const lastResponseIndex = blocks.reduce(
-		(acc, b, idx) => (b.type === "response" ? idx : acc),
-		-1,
-	);
 
 	return (
 		<>
@@ -316,7 +307,6 @@ export const BlockList: FC<{
 						return (
 							<Fragment key={`${keyPrefix}-response-${index}`}>
 								{responseEl}
-								{index === lastResponseIndex ? afterResponseSlot : null}
 							</Fragment>
 						);
 					}
@@ -439,8 +429,8 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
-	isLastAssistantMessage?: boolean;
-	isLastInConversation?: boolean;
+	hideActions?: boolean;
+
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -458,9 +448,9 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		savingMessageId,
 		isAfterEditingMessage = false,
-		isLastAssistantMessage = false,
-		isLastInConversation = false,
+		hideActions = false,
 		fadeFromBottom = false,
+
 		urlTransform,
 		mcpServers,
 		subagentTitles,
@@ -471,8 +461,6 @@ const ChatMessageItem = memo<{
 		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] = useState<string | null>(null);
-		const [copyHovered, setCopyHovered] = useState(false);
-		const { showCopiedSuccess, copyToClipboard } = useClipboard();
 		if (
 			parsed.toolResults.length > 0 &&
 			parsed.toolCalls.length === 0 &&
@@ -619,26 +607,9 @@ const ChatMessageItem = memo<{
 							</MessageContent>
 						</Message>
 					) : (
-						<Message
-							className={cn(
-								"w-full",
-								isLastAssistantMessage &&
-									hasCopyableContent &&
-									!isLastInConversation &&
-									"pb-5",
-							)}
-						>
+						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
-								<div
-									className={cn(
-										"relative space-y-3 overflow-visible",
-										"before:content-[''] before:pointer-events-none before:absolute before:-left-2 before:top-0 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-border before:opacity-0 before:transition-opacity",
-										(copyHovered || showCopiedSuccess) &&
-											isLastAssistantMessage &&
-											hasCopyableContent &&
-											"before:opacity-100",
-									)}
-								>
+								<div className="relative space-y-3 overflow-visible">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -650,42 +621,6 @@ const ChatMessageItem = memo<{
 										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
-										afterResponseSlot={
-											hasCopyableContent && isLastAssistantMessage ? (
-												<div
-													className="flex !mt-0 -ml-2.5"
-													data-testid="assistant-copy-button"
-												>
-													<Tooltip
-														open={copyHovered || showCopiedSuccess || undefined}
-													>
-														<TooltipTrigger asChild>
-															<Button
-																size="icon"
-																variant="subtle"
-																className=""
-																onClick={() => {
-																	copyToClipboard(parsed.markdown);
-																	setCopyHovered(false);
-																}}
-																onMouseEnter={() => setCopyHovered(true)}
-																onMouseLeave={() => setCopyHovered(false)}
-															>
-																{showCopiedSuccess ? (
-																	<CheckIcon />
-																) : (
-																	<CopyIcon />
-																)}
-																<span className="sr-only">Copy message</span>
-															</Button>
-														</TooltipTrigger>
-														<TooltipContent side="bottom" align="start">
-															{showCopiedSuccess ? "Copied!" : "Copy message"}
-														</TooltipContent>
-													</Tooltip>
-												</div>
-											) : undefined
-										}
 									/>
 									{!hasRenderableContent && (
 										<div className="text-xs text-content-secondary">
@@ -697,25 +632,27 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
-				{isUser &&
-					!isSavingMessage &&
-					(hasCopyableContent || onEditUserMessage) && (
+				{!hideActions &&
+					(hasCopyableContent || (isUser && onEditUserMessage)) && (
 						<div
-							className="absolute right-0 top-full z-10 flex items-center gap-1 py-0.5 pl-6 pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
-							style={{
-								background:
-									"linear-gradient(to right, transparent, hsl(var(--surface-primary)) 40%)",
-							}}
+							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							data-testid="message-actions"
 						>
 							{hasCopyableContent && (
-								<CopyButton text={parsed.markdown} label="Copy message" />
+								<CopyButton
+									text={parsed.markdown}
+									label="Copy message"
+									className="size-6"
+									tooltipSide="bottom"
+								/>
 							)}
-							{onEditUserMessage && (
+							{isUser && onEditUserMessage && (
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<button
-											type="button"
-											className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+										<Button
+											size="icon"
+											variant="subtle"
+											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
 												const { text, fileBlocks } =
@@ -723,10 +660,11 @@ const ChatMessageItem = memo<{
 												onEditUserMessage(message.id, text, fileBlocks);
 											}}
 										>
-											<PencilIcon className="size-3.5" />
-										</button>
+											<PencilIcon />
+											<span className="sr-only">Edit message</span>
+										</Button>
 									</TooltipTrigger>
-									<TooltipContent side="top">Edit message</TooltipContent>
+									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
 							)}
 						</div>
@@ -813,6 +751,8 @@ const StickyUserMessage = memo<{
 			if (!scroller) return;
 
 			const MIN_HEIGHT = 72;
+			const STICKY_TOP = 8;
+
 			let scrollerTop = scroller.getBoundingClientRect().top;
 			let scrollerHeight = scroller.clientHeight;
 
@@ -827,7 +767,8 @@ const StickyUserMessage = memo<{
 				if (tooTall) {
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = "0px";
+					container.style.top = `${STICKY_TOP}px`;
+
 					return;
 				}
 				const sentinelTop = sentinel.getBoundingClientRect().top;
@@ -838,7 +779,8 @@ const StickyUserMessage = memo<{
 					// correct height immediately when isStuck flips.
 					container.style.setProperty("--clip-h", `${fullHeight}px`);
 					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = "0px";
+					container.style.top = `${STICKY_TOP}px`;
+
 					return;
 				}
 				const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
@@ -865,9 +807,9 @@ const StickyUserMessage = memo<{
 				}
 				if (nextSentinel) {
 					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
-					container.style.top = `${Math.min(0, nextY - visible)}px`;
+					container.style.top = `${Math.min(STICKY_TOP, nextY - visible + STICKY_TOP)}px`;
 				} else {
-					container.style.top = "0px";
+					container.style.top = `${STICKY_TOP}px`;
 				}
 			};
 			updateFnRef.current = update;
@@ -962,7 +904,7 @@ const StickyUserMessage = memo<{
 				<div
 					ref={containerRef}
 					className={cn(
-						"relative px-3 -mx-3 -mt-3",
+						"relative px-3 -mx-3 -mt-2",
 						!isTooTall && "sticky z-10",
 						!isReady && "invisible",
 						isStuck && !isTooTall && "pointer-events-none",
@@ -1056,11 +998,7 @@ interface ConversationTimelineProps {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
-	// When true the current turn is still in progress (the agent
-	// is streaming or a tool call is running). The copy button on
-	// the trailing assistant message is suppressed because the
-	// content is not yet final.
-	isTurnActive: boolean;
+	isTurnActive?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1074,7 +1012,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		mcpServers,
 		computerUseSubagentIds,
 		showDesktopPreviews,
-		isTurnActive,
 	}) => {
 		if (parsedMessages.length === 0) {
 			return null;
@@ -1097,22 +1034,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		}
 
 		return (
-			<div className="flex flex-col gap-3">
-				{(() => {
-					const lastAssistantPerTurnIds = new Set<number>();
-					let lastAsstId: number | null = null;
-					for (const { message: m } of parsedMessages) {
-						if (m.role === "assistant") lastAsstId = m.id;
-						else if (m.role === "user" && lastAsstId != null) {
-							lastAssistantPerTurnIds.add(lastAsstId);
-							lastAsstId = null;
-						}
-					}
-					if (lastAsstId != null && !isTurnActive) {
-						lastAssistantPerTurnIds.add(lastAsstId);
-					}
-					return parsedMessages.map(({ message, parsed }, msgIdx) =>
-						message.role === "user" ? (
+			<div className="flex flex-col gap-2">
+				{parsedMessages.map(({ message, parsed }, msgIdx) => {
+					if (message.role === "user") {
+						return (
 							<StickyUserMessage
 								key={message.id}
 								message={message}
@@ -1122,24 +1047,28 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								savingMessageId={savingMessageId}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 							/>
-						) : (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								savingMessageId={savingMessageId}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								isLastAssistantMessage={lastAssistantPerTurnIds.has(message.id)}
-								isLastInConversation={msgIdx === parsedMessages.length - 1}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								computerUseSubagentIds={computerUseSubagentIds}
-								showDesktopPreviews={showDesktopPreviews}
-							/>
-						),
+						);
+					}
+					// Hide actions on assistant messages that are not
+					// the last in a consecutive assistant chain.
+					const next = parsedMessages[msgIdx + 1];
+					const isLastInChain = !next || next.message.role === "user";
+					return (
+						<ChatMessageItem
+							key={message.id}
+							message={message}
+							parsed={parsed}
+							savingMessageId={savingMessageId}
+							urlTransform={urlTransform}
+							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							hideActions={!isLastInChain}
+							mcpServers={mcpServers}
+							subagentTitles={subagentTitles}
+							computerUseSubagentIds={computerUseSubagentIds}
+							showDesktopPreviews={showDesktopPreviews}
+						/>
 					);
-				})()}
+				})}
 			</div>
 		);
 	},

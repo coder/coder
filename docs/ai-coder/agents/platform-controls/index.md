@@ -11,11 +11,12 @@ This means:
 - **All agent configuration is admin-level.** Providers, models, system prompts,
   and tool permissions are set by platform teams from the control plane. These
   are not user preferences — they are deployment-wide policies.
-- **Developers never need to configure anything.** A developer just describes
-  the work they want done. They do not need to pick a provider, enter an API
-  key, or write a system prompt — the platform team has already set all of
-  that up. The goal is not to restrict developers, but to make configuration
-  unnecessary for a great experience.
+- **Developers never need to configure anything by default.** A developer just
+  describes the work they want done. They do not need to pick a provider or
+  write a system prompt — the platform team has already set all of that up.
+  When a platform team enables user API keys for a provider, developers may
+  optionally supply their own key — but this is an opt-in policy decision, not
+  a requirement.
 - **Enforcement, not defaults.** Settings configured by administrators are
   enforced server-side. Developers cannot override them. This is a deliberate
   distinction — a setting that a user can change is a preference, not a policy.
@@ -36,8 +37,12 @@ self-hosted models), and per-model parameters like context limits, thinking
 budgets, and reasoning effort.
 
 Developers select from the set of models an administrator has enabled. They
-cannot add their own providers, supply their own API keys, or access models that
-have not been explicitly configured.
+cannot add their own providers or access models that have not been explicitly
+configured.
+
+When an administrator enables user API keys on a provider, developers can
+supply their own key from the Agents settings page. See
+[User API keys (BYOK)](../models.md#user-api-keys-byok) for details.
 
 See [Models](../models.md) for setup instructions.
 
@@ -84,6 +89,30 @@ opt-out, or opt-in for each chat.
 
 See [MCP Servers](./mcp-servers.md) for configuration details.
 
+### Virtual desktop
+
+Administrators can enable a virtual desktop within agent workspaces.
+When enabled, agents can use `spawn_computer_use_agent` to interact with a
+desktop environment using screenshots, mouse, and keyboard input.
+
+This setting is available under **Agents** > **Settings** > **Behavior**.
+It requires:
+
+- The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
+  module to be installed in the workspace template.
+- An Anthropic provider to be configured (computer use is an Anthropic
+  capability).
+
+### Workspace autostop fallback
+
+Administrators can set a default autostop timer for agent-created workspaces
+that do not define one in their template. Template-defined autostop rules always
+take precedence. Active conversations extend the stop time automatically.
+
+This setting is available under **Agents** > **Settings** > **Behavior**.
+The maximum configurable value is 30 days. When disabled, workspaces follow
+their template's autostop rules (or none, if the template does not define any).
+
 ### Usage limits and analytics
 
 Administrators can set spend limits to cap LLM usage per user within a rolling
@@ -93,10 +122,19 @@ breakdowns.
 
 See [Usage & Analytics](./usage-insights.md) for details.
 
+### Data retention
+
+Administrators can configure a retention period for archived conversations.
+When enabled, archived conversations and orphaned files older than the
+retention period are automatically purged. The default is 30 days.
+
+This setting is available under **Agents** > **Settings** > **Behavior**.
+See [Data Retention](./chat-retention.md) for details.
+
 ## Where we are headed
 
 The controls above cover providers, models, system prompts, templates, MCP
-servers, and usage limits. We are continuing to invest in platform controls
+servers, usage limits, and data retention. We are continuing to invest in platform controls
 based on what we hear from customers deploying agents in regulated and
 enterprise environments.
 

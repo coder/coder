@@ -3,14 +3,6 @@ import { getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -27,6 +19,7 @@ import {
 	formatCostMicros,
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface UserOverridesSectionProps {
@@ -257,40 +250,16 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 				)}
 			</div>
 			{pendingDeleteUserId && (
-				<Dialog
-					open
+				<ConfirmDeleteDialog
+					entity="user override"
+					onConfirm={() => {
+						void onDeleteOverride(pendingDeleteUserId);
+						setPendingDeleteUserId(null);
+					}}
+					isPending={deletePending}
+					open={true}
 					onOpenChange={(open) => !open && setPendingDeleteUserId(null)}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete user override</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete this user limit override? This
-								action is irreversible.
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setPendingDeleteUserId(null)}
-								disabled={deletePending}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={() => {
-									void onDeleteOverride(pendingDeleteUserId);
-									setPendingDeleteUserId(null);
-								}}
-								disabled={deletePending}
-							>
-								{deletePending && <Spinner className="h-4 w-4" loading />}
-								Delete override
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				/>
 			)}{" "}
 		</section>
 	);

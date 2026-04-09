@@ -143,7 +143,7 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
-	server.inflight.Wait()
+	server.drainInflight()
 
 	// Now wire up the mock agent connection.
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -222,7 +222,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
-	server.inflight.Wait()
+	server.drainInflight()
 
 	// Wire up the mock agent connection. The mock has zero
 	// expectations — gomock will fail if StartDesktopRecording
