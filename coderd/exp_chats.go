@@ -158,6 +158,9 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
+	// The encoder is only written from the pubsub delivery
+	// goroutine (msgQueue.run). Do not add a second write path
+	// without introducing synchronization.
 	encoder := json.NewEncoder(wsNetConn)
 
 	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatEventChannel(apiKey.UserID),
@@ -174,6 +177,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 		))
 	if err != nil {
 		api.Logger.Error(ctx, "failed to subscribe to chat events", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
 		return
 	}
 	defer cancelSubscribe()

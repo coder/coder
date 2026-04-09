@@ -1176,7 +1176,7 @@ func TestWatchChats(t *testing.T) {
 				return true
 			}
 			return false
-		}, testutil.IntervalFast)
+		}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
 
 		require.Equal(t, createdChat.ID, got.ID)
 		require.Equal(t, createdChat.OwnerID, got.OwnerID)

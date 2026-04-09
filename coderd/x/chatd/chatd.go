@@ -3692,8 +3692,8 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 	toolCalls := pendingToStreamToolCalls(pending)
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 
-	event := coderdpubsub.ChatEvent{
-		Kind:      coderdpubsub.ChatEventKindActionRequired,
+	event := codersdk.ChatWatchEvent{
+		Kind:      codersdk.ChatWatchEventKindActionRequired,
 		Chat:      sdkChat,
 		ToolCalls: toolCalls,
 	}
