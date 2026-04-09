@@ -1,4 +1,5 @@
 import { Blob as NativeBlob } from "node:buffer";
+import ResizeObserver from "resize-observer-polyfill";
 
 // JSDom `Blob` is missing important methods[1] that have been standardized for
 // years. MDN categorizes this API as baseline[2].
@@ -9,7 +10,7 @@ import { Blob as NativeBlob } from "node:buffer";
 // changes.
 globalThis.Blob = NativeBlob;
 
-globalThis.ResizeObserver = require("resize-observer-polyfill");
+globalThis.ResizeObserver = ResizeObserver;
 
 // JSDOM does not implement window.matchMedia. Monaco editor (and other
 // libraries) rely on it for dark/light theme detection.
