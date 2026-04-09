@@ -1250,6 +1250,12 @@
 									"description": "Spend limits and cost tracking for Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 									"state": ["early access"]
+								},
+								{
+									"title": "Data Retention",
+									"description": "Automatic cleanup of old conversation data",
+									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+									"state": ["early access"]
 								}
 							]
 						},
@@ -1263,12 +1269,6 @@
 							"title": "Chats API",
 							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Chat Data Retention",
-							"description": "Automatic cleanup of old chat data",
-							"path": "./ai-coder/agents/chat-retention.md",
 							"state": ["early access"]
 						}
 					]
