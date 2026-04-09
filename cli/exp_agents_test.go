@@ -8,11 +8,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -3167,6 +3171,93 @@ func TestExpAgents(t *testing.T) {
 	})
 }
 
+func TestExpAgents_View_SingleStatusLine(t *testing.T) {
+	t.Parallel()
+
+	model := newVisualChatViewModel()
+	chat := testChat(codersdk.ChatStatusWaiting)
+	model.chat = &chat
+	model.chatStatus = chat.Status
+	model.lastUsage = &codersdk.ChatMessageUsage{
+		TotalTokens:  int64Ref(16),
+		ContextLimit: int64Ref(1000000),
+	}
+	model.messages = []codersdk.ChatMessage{
+		testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: "existing response",
+		}),
+	}
+	model.rebuildBlocks()
+
+	view := plainText(model.View())
+	waitingLines := make([]string, 0, 1)
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, string(codersdk.ChatStatusWaiting)) {
+			waitingLines = append(waitingLines, line)
+		}
+	}
+
+	require.Len(t, waitingLines, 1)
+	require.Contains(t, waitingLines[0], "waiting")
+	require.Contains(t, waitingLines[0], "tokens: 16/1000000")
+	require.NotContains(t, waitingLines[0], "Status: waiting")
+	require.NotContains(t, view, "Status: waiting")
+}
+
+func TestExpAgents_View_SeparatorBeforeComposer(t *testing.T) {
+	t.Parallel()
+
+	model := newVisualChatViewModel()
+	chat := testChat(codersdk.ChatStatusCompleted)
+	model.chat = &chat
+	model.chatStatus = chat.Status
+	model.messages = []codersdk.ChatMessage{
+		testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: "existing response",
+		}),
+	}
+	model.rebuildBlocks()
+
+	lines := strings.Split(plainText(model.View()), "\n")
+	composerLine := -1
+	for i, line := range lines {
+		if strings.Contains(line, "> ") || strings.Contains(line, model.composer.Placeholder) {
+			composerLine = i
+			break
+		}
+	}
+
+	require.Greater(t, composerLine, 0)
+	separatorLine := strings.TrimSpace(lines[composerLine-1])
+	require.NotEmpty(t, separatorLine)
+	require.Empty(t, strings.Trim(separatorLine, "─"))
+}
+
+func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
+	t.Parallel()
+
+	model := newVisualChatViewModel()
+	chat := testChat(codersdk.ChatStatusCompleted)
+	model.chat = &chat
+	model.chatStatus = chat.Status
+	model.messages = overflowingMessages(24)
+	model.rebuildBlocks()
+
+	defaultViewportHeight := model.viewport.Height
+	model.composer.SetValue(strings.Repeat("a", 250))
+	model.recalcViewportHeight()
+	model.syncViewportContent()
+
+	view := plainText(model.View())
+	lineCount := strings.Count(view, "\n") + 1
+
+	require.LessOrEqual(t, lineCount, model.height)
+	require.Less(t, model.viewport.Height, defaultViewportHeight)
+	require.Less(t, model.viewport.Height, 17)
+}
+
 func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {
 	t.Helper()
 
@@ -3197,6 +3288,34 @@ func mustBatchMsg(t testing.TB, cmd tea.Cmd) tea.BatchMsg {
 	batch, ok := msg.(tea.BatchMsg)
 	require.True(t, ok)
 	return batch
+}
+
+func newVisualChatViewModel() chatViewModel {
+	renderer := lipgloss.NewRenderer(os.Stderr)
+	styles := newTUIStyles(renderer)
+
+	composer := textinput.New()
+	composer.Placeholder = "Type a message..."
+	composer.Prompt = "> "
+	composer.Focus()
+
+	model := chatViewModel{
+		styles:           styles,
+		metadataResolved: true,
+		historyResolved:  true,
+		composer:         composer,
+		viewport:         viewport.New(80, 0),
+		width:            80,
+		height:           24,
+		composerFocused:  true,
+		expandedBlocks:   make(map[int]bool),
+		autoFollow:       true,
+	}
+	model.setComposerWidth()
+	model.recalcViewportHeight()
+	model.syncViewportContent()
+
+	return model
 }
 
 // newTestChatViewModel creates a chatViewModel for reducer tests.
