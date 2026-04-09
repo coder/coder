@@ -105,7 +105,7 @@ const fillAndSubmitForm = async ({
 	await userEvent.click(submitButton);
 };
 
-describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
+describe("TemplateSettingsPage", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});

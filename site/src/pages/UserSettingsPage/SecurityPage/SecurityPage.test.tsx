@@ -54,7 +54,7 @@ test("update password successfully", async () => {
 	expect(API.updateUserPassword).toBeCalledTimes(1);
 	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 
-	await waitFor(() => expect(window.location.pathname).toBe("/"));
+	await waitFor(() => expect(location.pathname).toBe("/"));
 });
 
 test("update password with incorrect old password", async () => {
