@@ -351,14 +351,14 @@ func anthropicDataStream(ctx context.Context, client anthropic.Client, model ant
 // and user text messages.
 func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []anthropic.TextBlockParam, error) {
 	var anthropicMessages []anthropic.MessageParam
-	var systemPrompt []anthropic.TextBlockParam
+	var systemBlocks []anthropic.TextBlockParam
 
 	for _, message := range messages {
 		switch message.Role {
 		case "system":
 			for _, part := range message.Parts {
 				if part.Type == aisdk.PartTypeText && part.Text != "" {
-					systemPrompt = append(systemPrompt, anthropic.TextBlockParam{
+					systemBlocks = append(systemBlocks, anthropic.TextBlockParam{
 						Text: part.Text,
 					})
 				}
@@ -370,7 +370,7 @@ func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []
 			}
 			var content []anthropic.ContentBlockParamUnion
 			for _, part := range message.Parts {
-				if part.Type == aisdk.PartTypeText {
+				if part.Type == aisdk.PartTypeText && part.Text != "" {
 					content = append(content, anthropic.ContentBlockParamUnion{
 						OfText: &anthropic.TextBlockParam{Text: part.Text},
 					})
@@ -387,7 +387,7 @@ func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []
 		}
 	}
 
-	return anthropicMessages, systemPrompt, nil
+	return anthropicMessages, systemBlocks, nil
 }
 
 // anthropicToDataStream converts an Anthropic SSE stream into
@@ -451,17 +451,22 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 				}
 
 			case anthropic.MessageDeltaEvent:
-				if event.Delta.StopReason == "tool_use" {
-					finalReason = aisdk.FinishReasonToolCalls
-					if event.Usage.OutputTokens != 0 {
-						tokens := event.Usage.OutputTokens
-						finalUsage.CompletionTokens = &tokens
-					}
+				if event.Usage.OutputTokens != 0 {
+					tokens := event.Usage.OutputTokens
+					finalUsage.CompletionTokens = &tokens
+				}
 
+				switch event.Delta.StopReason {
+				case "tool_use":
+					finalReason = aisdk.FinishReasonToolCalls
 					currentToolCall = struct {
 						ID   string
 						Args string
 					}{}
+				case "end_turn", "stop_sequence":
+					finalReason = aisdk.FinishReasonStop
+				case "max_tokens":
+					finalReason = aisdk.FinishReasonLength
 				}
 
 			case anthropic.MessageStopEvent:
