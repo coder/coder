@@ -4654,35 +4654,14 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		provider, err := tx.GetChatProviderByID(ctx, providerID)
-		if err != nil {
+		if _, err := tx.GetChatProviderByID(ctx, providerID); err != nil {
 			return err
-		}
-
-		remainingTotal, err := tx.CountChatProvidersByProviderExcludingID(ctx, database.CountChatProvidersByProviderExcludingIDParams{
-			Provider: provider.Provider,
-			ID:       providerID,
-		})
-		if err != nil {
-			return xerrors.Errorf("count remaining providers: %w", err)
 		}
 
 		//nolint:gocritic // System context is required to inspect
 		// attachment state before deleting the provider row.
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 		updatedBy := uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil}
-
-		//nolint:gocritic // System context required to read enabled chat providers.
-		enabledProviders, err := tx.GetEnabledChatProviders(systemCtx)
-		if err != nil {
-			return xerrors.Errorf("get enabled providers: %w", err)
-		}
-		shouldCleanUnbound := shouldCleanUnboundModelsAfterProviderDelete(
-			provider,
-			remainingTotal,
-			enabledProviders,
-			chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
-		)
 
 		modelConfigs, err := tx.GetChatModelConfigs(ctx)
 		if err != nil {
@@ -4711,50 +4690,37 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				remainingAttachments := make([]database.GetModelProviderConfigsByModelIDsRow, 0, len(attachments))
+				survivingAttachments := make([]database.GetModelProviderConfigsByModelIDsRow, 0, len(attachments))
 				hasDeletedAttachment := false
 				for _, attachment := range attachments {
 					if attachment.ProviderConfigID == providerID {
 						hasDeletedAttachment = true
 						continue
 					}
-					remainingAttachments = append(remainingAttachments, attachment)
+					survivingAttachments = append(survivingAttachments, attachment)
 				}
 				if !hasDeletedAttachment && !hasLegacyBinding {
 					continue
 				}
 
-				switch {
-				case len(remainingAttachments) == 0 && shouldCleanUnbound:
+				// If no surviving attachments remain, soft-delete the model.
+				if len(survivingAttachments) == 0 {
 					if err := tx.DeleteChatModelConfigByID(ctx, modelConfig.ID); err != nil {
 						return xerrors.Errorf("soft-delete model config with no remaining attachments: %w", err)
 					}
-				case len(remainingAttachments) == 0:
-					params := chatModelConfigToUpdateParams(modelConfig)
-					params.ProviderConfigID = uuid.NullUUID{}
-					params.UpdatedBy = updatedBy
-					if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
-						return xerrors.Errorf("clear chat model provider binding: %w", err)
-					}
-				default:
-					params := chatModelConfigToUpdateParams(modelConfig)
-					params.ProviderConfigID = uuid.NullUUID{UUID: remainingAttachments[0].ProviderConfigID, Valid: true}
-					params.UpdatedBy = updatedBy
-					if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
-						return xerrors.Errorf("rebind chat model provider attachment: %w", err)
-					}
+					continue
+				}
+
+				// Update provider_config_id to the first surviving attachment.
+				params := chatModelConfigToUpdateParams(modelConfig)
+				params.ProviderConfigID = uuid.NullUUID{UUID: survivingAttachments[0].ProviderConfigID, Valid: true}
+				params.UpdatedBy = updatedBy
+				if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
+					return xerrors.Errorf("rebind chat model provider attachment: %w", err)
 				}
 			}
 		}
 
-		if shouldCleanUnbound {
-			if _, err := tx.SoftDeleteUnboundChatModelConfigsByProvider(ctx, database.SoftDeleteUnboundChatModelConfigsByProviderParams{
-				Provider:  provider.Provider,
-				UpdatedBy: updatedBy,
-			}); err != nil {
-				return xerrors.Errorf("soft-delete unbound model configs: %w", err)
-			}
-		}
 		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
 			return xerrors.Errorf("ensure default model config after provider deletion: %w", err)
 		}
@@ -5178,26 +5144,17 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.ProviderConfigIDs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "At least one provider config ID is required.",
+		})
+		return
+	}
 	resolvedProviderConfigIDs := req.ProviderConfigIDs
-	if len(req.ProviderConfigIDs) > 0 {
-		providerConfigErr, providerConfigStatus := validateProviderConfigIDs(ctx, api.Database, provider, req.ProviderConfigIDs)
-		if providerConfigErr != nil {
-			httpapi.Write(ctx, rw, providerConfigStatus, *providerConfigErr)
-			return
-		}
-	} else {
-		providerConfig, err := api.Database.GetEnabledChatProviderByProvider(ctx, provider)
-		if err != nil {
-			if !xerrors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to resolve provider config.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		} else {
-			resolvedProviderConfigIDs = []uuid.UUID{providerConfig.ID}
-		}
+	providerConfigErr, providerConfigStatus := validateProviderConfigIDs(ctx, api.Database, provider, req.ProviderConfigIDs)
+	if providerConfigErr != nil {
+		httpapi.Write(ctx, rw, providerConfigStatus, *providerConfigErr)
+		return
 	}
 
 	model := strings.TrimSpace(req.Model)
@@ -5256,12 +5213,9 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
-		ProviderConfigID:     uuid.NullUUID{},
+		ProviderConfigID:     uuid.NullUUID{UUID: resolvedProviderConfigIDs[0], Valid: true},
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-	}
-	if len(resolvedProviderConfigIDs) > 0 {
-		insertParams.ProviderConfigID = uuid.NullUUID{UUID: resolvedProviderConfigIDs[0], Valid: true}
 	}
 
 	var (
@@ -5270,13 +5224,11 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		providerConfigValidationStatus int
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		if len(resolvedProviderConfigIDs) > 0 {
-			providerConfigErr, validationStatus := validateProviderConfigIDs(ctx, tx, provider, resolvedProviderConfigIDs)
-			if providerConfigErr != nil {
-				providerConfigValidationErr = providerConfigErr
-				providerConfigValidationStatus = validationStatus
-				return errModelProviderConfigValidation
-			}
+		providerConfigErr, validationStatus := validateProviderConfigIDs(ctx, tx, provider, resolvedProviderConfigIDs)
+		if providerConfigErr != nil {
+			providerConfigValidationErr = providerConfigErr
+			providerConfigValidationStatus = validationStatus
+			return errModelProviderConfigValidation
 		}
 
 		insertAsDefault := isDefault
@@ -5309,10 +5261,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		if len(resolvedProviderConfigIDs) > 0 {
-			if err := insertModelProviderConfigs(ctx, tx, inserted.ID, resolvedProviderConfigIDs); err != nil {
-				return xerrors.Errorf("insert provider config attachments: %w", err)
-			}
+		if err := insertModelProviderConfigs(ctx, tx, inserted.ID, resolvedProviderConfigIDs); err != nil {
+			return xerrors.Errorf("insert provider config attachments: %w", err)
 		}
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, inserted.ID)
@@ -5474,14 +5424,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		modelConfigRaw = encodedModelConfig
 	}
 
-	if req.ProviderConfigIDs != nil && len(*req.ProviderConfigIDs) > 0 {
-		providerConfigErr, providerConfigStatus := validateProviderConfigIDs(ctx, api.Database, provider, *req.ProviderConfigIDs)
-		if providerConfigErr != nil {
-			httpapi.Write(ctx, rw, providerConfigStatus, *providerConfigErr)
-			return
-		}
-	}
-
 	updateParams := database.UpdateChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -5496,13 +5438,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ID:                   existing.ID,
 	}
 	providerChanged := provider != existing.Provider
-	if req.ProviderConfigIDs != nil {
-		if len(*req.ProviderConfigIDs) > 0 {
-			updateParams.ProviderConfigID = uuid.NullUUID{UUID: (*req.ProviderConfigIDs)[0], Valid: true}
-		} else {
-			updateParams.ProviderConfigID = uuid.NullUUID{}
-		}
-	}
 
 	var (
 		updated                        database.ChatModelConfig
@@ -5510,31 +5445,53 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		providerConfigValidationStatus int
 	)
 	err = api.Database.InTx(func(tx database.Store) error {
-		var resolvedProviderConfigIDs []uuid.UUID
-		replaceProviderAttachments := req.ProviderConfigIDs != nil || providerChanged
-		switch {
-		case req.ProviderConfigIDs != nil:
-			if len(*req.ProviderConfigIDs) > 0 {
-				providerConfigErr, validationStatus := validateProviderConfigIDs(ctx, tx, provider, *req.ProviderConfigIDs)
-				if providerConfigErr != nil {
-					providerConfigValidationErr = providerConfigErr
-					providerConfigValidationStatus = validationStatus
-					return errModelProviderConfigValidation
-				}
-				resolvedProviderConfigIDs = append(resolvedProviderConfigIDs, (*req.ProviderConfigIDs)...)
-			}
-		case providerChanged:
-			providerConfig, err := tx.GetEnabledChatProviderByProvider(ctx, provider)
-			if err != nil {
-				if !xerrors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("resolve provider config: %w", err)
-				}
-				updateParams.ProviderConfigID = uuid.NullUUID{}
-			} else {
-				resolvedProviderConfigIDs = []uuid.UUID{providerConfig.ID}
-				updateParams.ProviderConfigID = uuid.NullUUID{UUID: providerConfig.ID, Valid: true}
-			}
+		// Load the model's current attachment rows to derive existing IDs.
+		//nolint:gocritic // System context is required to read provider config attachments.
+		existingAttachmentRows, err := tx.GetModelProviderConfigs(dbauthz.AsSystemRestricted(ctx), existing.ID)
+		if err != nil {
+			return xerrors.Errorf("load existing provider config attachments: %w", err)
 		}
+		existingIDs := make([]uuid.UUID, 0, len(existingAttachmentRows))
+		for _, row := range existingAttachmentRows {
+			existingIDs = append(existingIDs, row.ProviderConfigID)
+		}
+
+		// Compute the final set of provider config IDs: default to
+		// existing, then override when the request supplies explicit IDs.
+		finalIDs := existingIDs
+		if req.ProviderConfigIDs != nil {
+			finalIDs = *req.ProviderConfigIDs
+		}
+
+		// Reject invalid transitions.
+		if providerChanged && req.ProviderConfigIDs == nil {
+			providerConfigValidationErr = &codersdk.Response{
+				Message: "Provider config IDs are required when changing the provider.",
+			}
+			providerConfigValidationStatus = http.StatusBadRequest
+			return errModelProviderConfigValidation
+		}
+		if len(finalIDs) == 0 {
+			providerConfigValidationErr = &codersdk.Response{
+				Message: "At least one provider config ID is required.",
+			}
+			providerConfigValidationStatus = http.StatusBadRequest
+			return errModelProviderConfigValidation
+		}
+
+		// Validate all final IDs against the effective provider.
+		providerConfigErr, validationStatus := validateProviderConfigIDs(ctx, tx, provider, finalIDs)
+		if providerConfigErr != nil {
+			providerConfigValidationErr = providerConfigErr
+			providerConfigValidationStatus = validationStatus
+			return errModelProviderConfigValidation
+		}
+
+		// Set the canonical provider_config_id from the first final ID.
+		updateParams.ProviderConfigID = uuid.NullUUID{UUID: finalIDs[0], Valid: true}
+
+		replaceProviderAttachments := req.ProviderConfigIDs != nil || providerChanged
+		resolvedProviderConfigIDs := finalIDs
 
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
@@ -5543,7 +5500,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
+		_, err = tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
 			return err
 		}
@@ -5836,34 +5793,6 @@ func defaultChatProviderAPIKeys(
 	return chatprovider.MergeProviderAPIKeys(fallback, configuredProviders)
 }
 
-func shouldCleanUnboundModelsAfterProviderDelete(
-	deletedProvider database.ChatProvider,
-	remainingTotal int32,
-	enabledProviders []database.ChatProvider,
-	fallbackKeys chatprovider.ProviderAPIKeys,
-) bool {
-	remainingEnabledProviders := make(
-		[]database.ChatProvider, 0, len(enabledProviders),
-	)
-	remainingEnabledInFamily := 0
-	for _, provider := range enabledProviders {
-		if provider.ID == deletedProvider.ID {
-			continue
-		}
-		remainingEnabledProviders = append(remainingEnabledProviders, provider)
-		if chatprovider.NormalizeProvider(provider.Provider) == chatprovider.NormalizeProvider(deletedProvider.Provider) {
-			remainingEnabledInFamily++
-		}
-	}
-	if defaultChatProviderAPIKeys(
-		fallbackKeys,
-		remainingEnabledProviders,
-	).APIKey(deletedProvider.Provider) != "" {
-		return false
-	}
-	return remainingTotal == 0 || (deletedProvider.Enabled && remainingEnabledInFamily == 0)
-}
-
 func filterUserVisibleChatModelConfigs(
 	configs []database.ChatModelConfig,
 	attachmentsByModel map[uuid.UUID][]codersdk.ChatModelProviderAttachment,
@@ -5876,30 +5805,23 @@ func filterUserVisibleChatModelConfigs(
 	for _, provider := range enabledProviders {
 		enabledProviderByID[provider.ID] = provider
 	}
-	defaultProviderByFamily := make(map[string]database.ChatProvider)
-	for _, provider := range database.ChatProvidersByFamilyPrecedence(enabledProviders) {
-		defaultProviderByFamily[chatprovider.NormalizeProvider(provider.Provider)] = provider
-	}
 	providerVisible := func(provider database.ChatProvider) bool {
 		_, hasEffective := chatProviderConfigKeyBooleans(provider, defaultKeys)
 		return provider.AllowUserApiKey || hasEffective
 	}
 	return slices.DeleteFunc(configs, func(config database.ChatModelConfig) bool {
 		attachments := attachmentsByModel[config.ID]
-		if len(attachments) > 0 {
-			for _, attachment := range attachments {
-				provider, ok := enabledProviderByID[attachment.ProviderConfigID]
-				if ok && providerVisible(provider) {
-					return false
-				}
-			}
+		// Models with no explicit attachments are hidden.
+		if len(attachments) == 0 {
 			return true
 		}
-		defaultProvider, ok := defaultProviderByFamily[chatprovider.NormalizeProvider(config.Provider)]
-		if ok {
-			return !providerVisible(defaultProvider)
+		for _, attachment := range attachments {
+			provider, ok := enabledProviderByID[attachment.ProviderConfigID]
+			if ok && providerVisible(provider) {
+				return false
+			}
 		}
-		return defaultKeys.APIKey(config.Provider) == ""
+		return true
 	})
 }
 
@@ -5912,10 +5834,6 @@ func runtimeProvidersForVisibleModels(
 	for _, provider := range enabledProviders {
 		enabledProviderByID[provider.ID] = provider
 	}
-	defaultProviderByFamily := make(map[string]database.ChatProvider)
-	for _, provider := range database.ChatProvidersByFamilyPrecedence(enabledProviders) {
-		defaultProviderByFamily[chatprovider.NormalizeProvider(provider.Provider)] = provider
-	}
 	providers := make([]database.ChatProvider, 0, len(configs))
 	seenProviderIDs := make(map[uuid.UUID]struct{})
 	appendProvider := func(provider database.ChatProvider) {
@@ -5927,10 +5845,8 @@ func runtimeProvidersForVisibleModels(
 	}
 	for _, config := range configs {
 		attachments := attachmentsByModel[config.ID]
+		// Skip models with no explicit attachments.
 		if len(attachments) == 0 {
-			if defaultProvider, ok := defaultProviderByFamily[chatprovider.NormalizeProvider(config.Provider)]; ok {
-				appendProvider(defaultProvider)
-			}
 			continue
 		}
 		for _, attachment := range attachments {
