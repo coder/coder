@@ -43,8 +43,15 @@ else
 	current_commit=$(git rev-parse HEAD)
 	# Try to find the last tag that contains the current commit
 	last_tag=$(git tag --contains "$current_commit" --sort=version:refname | head -n 1)
-	# If there is no tag that contains the current commit,
-	# get the latest tag sorted by semver.
+	# If there is no tag that contains the current commit, find
+	# the nearest ancestor tag. This keeps the version anchored
+	# to the correct release series on release branches instead
+	# of picking up an unrelated RC from a newer series.
+	if [[ -z "${last_tag}" ]]; then
+		last_tag=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || true)
+	fi
+	# If git describe found nothing (e.g. shallow clone or fork
+	# without tags in ancestry), fall back to the global latest.
 	if [[ -z "${last_tag}" ]]; then
 		last_tag=$(git tag --sort=version:refname | tail -n 1)
 	fi

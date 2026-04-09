@@ -17,6 +17,7 @@ type CalculateResult struct {
 	PreviousVersion string `json:"previous_version"`
 	Channel         string `json:"channel"`
 	TargetRef       string `json:"target_ref"`
+	CreateBranch    string `json:"create_branch,omitempty"`
 }
 
 // String returns the JSON representation of the result.
@@ -37,8 +38,10 @@ func calculateNextVersion(releaseType, commitSHA, branch string) (*CalculateResu
 		return calculateRC(commitSHA)
 	case "release":
 		return calculateRelease(branch)
+	case "create-release-branch":
+		return calculateCreateBranch(commitSHA)
 	default:
-		return nil, xerrors.Errorf("unknown release type %q, must be rc or release", releaseType)
+		return nil, xerrors.Errorf("unknown release type %q, must be rc, release, or create-release-branch", releaseType)
 	}
 }
 
@@ -220,6 +223,114 @@ func calculateRelease(branch string) (*CalculateResult, error) {
 		PreviousVersion: prevVersionStr,
 		Channel:         channel,
 		TargetRef:       targetRef,
+	}, nil
+}
+
+func calculateCreateBranch(commitSHA string) (*CalculateResult, error) {
+	if commitSHA == "" {
+		return nil, xerrors.New("--commit is required for create-release-branch")
+	}
+
+	// Validate that the commit SHA looks like a hex string to
+	// prevent shell injection via git arguments.
+	hexRe := regexp.MustCompile(`^[0-9a-fA-F]+$`)
+	if !hexRe.MatchString(commitSHA) {
+		return nil, xerrors.Errorf("--commit must be a hex SHA (got %q)", commitSHA)
+	}
+
+	// Verify the commit is an ancestor of origin/main.
+	if err := gitRun("merge-base", "--is-ancestor", commitSHA, "origin/main"); err != nil {
+		return nil, xerrors.Errorf("commit %s is not an ancestor of origin/main", commitSHA)
+	}
+
+	allTags, err := allSemverTags()
+	if err != nil {
+		return nil, xerrors.Errorf("listing tags: %w", err)
+	}
+
+	// Find latest mainline (non-RC, non-prerelease) release.
+	var latestMainline *version
+	for _, t := range allTags {
+		if t.Pre == "" {
+			v := t
+			latestMainline = &v
+			break
+		}
+	}
+
+	// Find the latest RC tag.
+	var latestRC *version
+	for _, t := range allTags {
+		if t.IsRC() {
+			v := t
+			latestRC = &v
+			break
+		}
+	}
+
+	// Determine the next minor version for the branch.
+	var major, minor int
+	if latestMainline != nil {
+		major = latestMainline.Major
+		minor = latestMainline.Minor + 1
+		// If the latest RC already targets this minor, use it.
+		if latestRC != nil && latestRC.Major == major && latestRC.Minor == minor {
+			// Already aligned, keep major.minor.
+		}
+	} else {
+		// No mainline release found — start from a safe default.
+		major = 2
+		minor = 0
+	}
+
+	branchName := fmt.Sprintf("release/%d.%d", major, minor)
+
+	// Check whether the branch already exists on the remote.
+	if err := gitRun("rev-parse", "--verify", "origin/"+branchName); err == nil {
+		return nil, xerrors.Errorf("branch %s already exists", branchName)
+	}
+
+	// Find the latest RC tag for this major.minor series.
+	var seriesRC *version
+	for _, t := range allTags {
+		if t.IsRC() && t.Major == major && t.Minor == minor {
+			v := t
+			seriesRC = &v
+			break
+		}
+	}
+
+	var suggested version
+	var prevVersionStr string
+
+	if seriesRC != nil {
+		prevVersionStr = seriesRC.String()
+		suggested = version{
+			Major: major,
+			Minor: minor,
+			Patch: 0,
+			Pre:   fmt.Sprintf("rc.%d", seriesRC.rcNumber()+1),
+		}
+	} else {
+		if latestMainline != nil {
+			prevVersionStr = latestMainline.String()
+		} else {
+			prevVersionStr = "v0.0.0"
+		}
+		suggested = version{
+			Major: major,
+			Minor: minor,
+			Patch: 0,
+			Pre:   "rc.0",
+		}
+	}
+
+	return &CalculateResult{
+		Version:         suggested.String(),
+		PreviousVersion: prevVersionStr,
+		Channel:         "rc",
+		TargetRef:       commitSHA,
+		CreateBranch:    branchName,
 	}, nil
 }
 
