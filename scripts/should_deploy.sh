@@ -5,13 +5,16 @@
 # it maps to.
 #
 # Channel mapping:
-#   main           → dogfood  (dev.coder.com)
-#   release/X.Y    → mainline (X.Y is the highest published minor)
-#   release/X.Y-1  → stable   (one minor behind mainline)
-#   release/ESR    → esr      (read from .github/esr-version)
+#   main           → dogfood  (dev.coder.com, always)
+#   release/X.Y    → stable   (stable.coder.com, highest published minor)
+#   release/ESR    → esr      (esr.coder.com, from .github/esr-version)
 #
-# Mainline and stable are derived programmatically from published
-# vX.Y.0 tags. ESR is configured manually via .github/esr-version.
+# RC deployments (rc.coder.com) are handled separately by deploy.yaml
+# when the latest tag on main is an RC tag. This script does not output
+# "rc" — main always maps to dogfood.
+#
+# Stable is derived programmatically from published vX.Y.0 tags.
+# ESR is configured manually via .github/esr-version.
 #
 # To avoid masking unrelated failures, this script returns 0 in all
 # cases and prints one of the following to stdout:
@@ -41,25 +44,20 @@ fi
 branch_version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
 log "Current branch '$branch_name' (version $branch_version)"
 
-# Find mainline: the highest minor version with a published vX.Y.0 tag.
+# Find stable: the highest minor version with a published vX.Y.0 tag.
 # Exclude rc, dev, and pre-release tags.
-mainline_version=$(
+stable_version=$(
 	git tag -l 'v[0-9]*.[0-9]*.0' |
 		grep -vE '(rc|dev|-|\+)' |
 		sort -V | tail -n1 |
 		sed 's/^v//; s/\.0$//'
 )
 
-if [[ -z "$mainline_version" ]]; then
+if [[ -z "$stable_version" ]]; then
 	log "No published vX.Y.0 tags found, cannot determine channels"
 	echo "NOOP"
 	exit 0
 fi
-
-# Stable: one minor version behind mainline.
-mainline_major=${mainline_version%%.*}
-mainline_minor=${mainline_version#*.}
-stable_version="${mainline_major}.$((mainline_minor - 1))"
 
 # ESR: read from config file.
 esr_version=""
@@ -68,12 +66,9 @@ if [[ -f "$esr_config" ]]; then
 	esr_version=$(tr -d '[:space:]' <"$esr_config")
 fi
 
-log "Channel mapping: mainline=$mainline_version stable=$stable_version esr=${esr_version:-(none)}"
+log "Channel mapping: stable=$stable_version esr=${esr_version:-(none)}"
 
-if [[ "$branch_version" == "$mainline_version" ]]; then
-	log "VERDICT: DEPLOY mainline"
-	echo "DEPLOY mainline"
-elif [[ "$branch_version" == "$stable_version" ]]; then
+if [[ "$branch_version" == "$stable_version" ]]; then
 	log "VERDICT: DEPLOY stable"
 	echo "DEPLOY stable"
 elif [[ -n "$esr_version" && "$branch_version" == "$esr_version" ]]; then

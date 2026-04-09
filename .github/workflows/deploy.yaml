@@ -36,6 +36,9 @@ jobs:
     outputs:
       verdict: ${{ steps.check.outputs.verdict }}
       channel: ${{ steps.check.outputs.channel }}
+      # Whether main also has an active RC tag, triggering a
+      # parallel deployment to rc.coder.com.
+      deploy_rc: ${{ steps.check.outputs.deploy_rc }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -56,11 +59,24 @@ jobs:
           if [[ "$result" == NOOP ]]; then
             echo "verdict=NOOP" >> "$GITHUB_OUTPUT"
             echo "channel=" >> "$GITHUB_OUTPUT"
+            echo "deploy_rc=false" >> "$GITHUB_OUTPUT"
           else
             # Output is "DEPLOY <channel>"
             channel="${result#DEPLOY }"
             echo "verdict=DEPLOY" >> "$GITHUB_OUTPUT"
             echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
+            # When deploying to dogfood (main branch), also check
+            # if the latest tag is an RC. If so, deploy to rc too.
+            deploy_rc=false
+            if [[ "$channel" == "dogfood" ]]; then
+              latest_tag=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)
+              if [[ "$latest_tag" =~ -rc\. ]]; then
+                echo "RC tag detected: $latest_tag — will also deploy to rc"
+                deploy_rc=true
+              fi
+            fi
+            echo "deploy_rc=$deploy_rc" >> "$GITHUB_OUTPUT"
           fi
 
   deploy:
@@ -127,7 +143,7 @@ jobs:
 
       # Retag image with the channel name while maintaining the
       # multi-arch manifest. For dogfood this produces :dogfood, for
-      # release channels it produces :mainline, :stable, or :esr.
+      # release channels it produces :stable, or :esr.
       - name: Tag image for channel
         run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:$IMAGE_TAG" "$IMAGE"
         env:
@@ -147,14 +163,11 @@ jobs:
           # Flux auto-generates HelmChart sources named
           # <namespace>-<helmrelease>. For dogfood the namespace is
           # "coder", for release channels it is "coder-<channel>".
-          flux --namespace flux-system reconcile source chart "${ns}-coder"
-          flux --namespace flux-system reconcile source chart "${ns}-coder-provisioner"
-          flux --namespace "${ns}" reconcile helmrelease coder
-          flux --namespace "${ns}" reconcile helmrelease coder-provisioner
-
-          # Dogfood has additional tagged provisioner variants that
-          # release channels do not use.
           if [[ "$CHANNEL" == "dogfood" ]]; then
+            flux --namespace flux-system reconcile source chart "${ns}-coder"
+            flux --namespace flux-system reconcile source chart "${ns}-coder-provisioner"
+            flux --namespace "${ns}" reconcile helmrelease coder
+            flux --namespace "${ns}" reconcile helmrelease coder-provisioner
             flux --namespace "${ns}" reconcile helmrelease coder-provisioner-tagged
             flux --namespace "${ns}" reconcile helmrelease coder-provisioner-tagged-prebuilds
           fi
@@ -185,6 +198,69 @@ jobs:
           fi
         env:
           NAMESPACE: ${{ steps.params.outputs.namespace }}
+
+  # When main has an active RC tag, also deploy to rc.coder.com.
+  # This runs in parallel with the dogfood deploy above.
+  deploy-rc:
+    name: "deploy-rc"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: should-deploy
+    if: needs.should-deploy.outputs.deploy_rc == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: GHCR Login
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        with:
+          role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
+          aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
+
+      - name: Get Cluster Credentials
+        run: aws eks update-kubeconfig --name "$AWS_DOGFOOD_CLUSTER_NAME" --region "$AWS_DOGFOOD_DEPLOY_REGION"
+        env:
+          AWS_DOGFOOD_CLUSTER_NAME: ${{ vars.AWS_DOGFOOD_CLUSTER_NAME }}
+          AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
+
+      - name: Tag image as rc
+        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:rc" "$IMAGE"
+        env:
+          IMAGE: ${{ inputs.image }}
+
+      - name: Reconcile Flux (rc)
+        run: |
+          set -euxo pipefail
+          flux --namespace flux-system reconcile source git flux-system
+          flux --namespace flux-system reconcile kustomization flux-system
+          flux --namespace flux-system reconcile kustomization coder-rc
+
+      - name: Rollout Deployment (rc)
+        run: |
+          set -euxo pipefail
+          kubectl --namespace coder-rc rollout restart deployment/coder
+          kubectl --namespace coder-rc rollout status deployment/coder
+          kubectl --namespace coder-rc rollout restart deployment/coder-provisioner
+          kubectl --namespace coder-rc rollout status deployment/coder-provisioner
 
   # Workspace proxies are only deployed for the dogfood channel
   # (dev.coder.com). Release channels do not use workspace proxies.
