@@ -2461,6 +2461,9 @@ type chainModeInfo struct {
 	// trailingUserCount is the number of contiguous user messages
 	// at the end of the conversation that form the current turn.
 	trailingUserCount int
+	// contributingTrailingUserCount counts the trailing user
+	// messages that materially change the provider input.
+	contributingTrailingUserCount int
 }
 
 func userMessageContributesToChainMode(msg database.ChatMessage) bool {
@@ -2497,8 +2500,9 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 		if messages[i].Role != database.ChatMessageRoleUser {
 			break
 		}
+		info.trailingUserCount++
 		if userMessageContributesToChainMode(messages[i]) {
-			info.trailingUserCount++
+			info.contributingTrailingUserCount++
 		}
 	}
 	for ; i >= 0; i-- {
@@ -5164,7 +5168,7 @@ func (p *Server) runChat(
 	// assistant and tool messages that the provider already has.
 	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
-		chainInfo.trailingUserCount > 0 &&
+		chainInfo.contributingTrailingUserCount > 0 &&
 		chainInfo.modelConfigID == modelConfig.ID
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(

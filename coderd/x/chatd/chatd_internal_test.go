@@ -2233,7 +2233,8 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	got := resolveChainMode([]database.ChatMessage{assistant, skillOnly, user})
 	require.Equal(t, "resp-123", got.previousResponseID)
 	require.Equal(t, modelConfigID, got.modelConfigID)
-	require.Equal(t, 1, got.trailingUserCount)
+	require.Equal(t, 2, got.trailingUserCount)
+	require.Equal(t, 1, got.contributingTrailingUserCount)
 }
 
 func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
