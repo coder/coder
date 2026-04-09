@@ -3713,31 +3713,12 @@ FROM
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND (
-        EXISTS (
-            SELECT 1
-            FROM chat_model_provider_configs cmpc
-            JOIN chat_providers cp ON cp.id = cmpc.provider_config_id
-            WHERE cmpc.model_config_id = cmc.id
-              AND cp.enabled = TRUE
-        )
-        OR (
-            NOT EXISTS (
-                SELECT 1
-                FROM chat_model_provider_configs cmpc
-                WHERE cmpc.model_config_id = cmc.id
-            )
-            AND (
-                (cmc.provider_config_id IS NOT NULL
-                 AND EXISTS (
-                     SELECT 1
-                     FROM chat_providers cp
-                     WHERE cp.id = cmc.provider_config_id
-                       AND cp.enabled = TRUE
-                 ))
-                OR (cmc.provider_config_id IS NULL)
-            )
-        )
+    AND EXISTS (
+        SELECT 1
+        FROM chat_model_provider_configs cmpc
+        JOIN chat_providers cp ON cp.id = cmpc.provider_config_id
+        WHERE cmpc.model_config_id = cmc.id
+          AND cp.enabled = TRUE
     )
 ORDER BY
     cmc.provider ASC,
@@ -3746,12 +3727,8 @@ ORDER BY
     cmc.id DESC
 `
 
-// Returns enabled, non-deleted model configs that are usable at runtime.
-// Rows with explicit provider attachments are kept when any attached
-// provider remains enabled. Legacy rows without attachments keep the old
-// provider_config_id gate, and rows without any binding remain visible
-// for env-preset families and families with only disabled DB-backed
-// provider configs.
+// Returns enabled, non-deleted model configs that have at least one
+// explicitly attached, enabled provider config row.
 func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
 	if err != nil {

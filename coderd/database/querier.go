@@ -334,12 +334,8 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
-	// Returns enabled, non-deleted model configs that are usable at runtime.
-	// Rows with explicit provider attachments are kept when any attached
-	// provider remains enabled. Legacy rows without attachments keep the old
-	// provider_config_id gate, and rows without any binding remain visible
-	// for env-preset families and families with only disabled DB-backed
-	// provider configs.
+	// Returns enabled, non-deleted model configs that have at least one
+	// explicitly attached, enabled provider config row.
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	// Returns the oldest enabled provider config for a given provider family.
 	// Multiple enabled configs may exist per family; this returns the
