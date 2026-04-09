@@ -1043,9 +1043,10 @@ func TestListChatModels(t *testing.T) {
 
 		contextLimit := int64(4096)
 		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "anthropic",
-			Model:        "claude-sonnet",
-			ContextLimit: &contextLimit,
+			Provider:          "anthropic",
+			Model:             "claude-sonnet",
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{provider.ID},
 		})
 		require.NoError(t, err)
 
@@ -1100,9 +1101,10 @@ func TestListChatModels(t *testing.T) {
 
 		contextLimit := int64(4096)
 		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "google",
-			Model:        "gemini-1.5-pro",
-			ContextLimit: &contextLimit,
+			Provider:          "google",
+			Model:             "gemini-1.5-pro",
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{provider.ID},
 		})
 		require.NoError(t, err)
 
@@ -1198,14 +1200,29 @@ func TestListChatModels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		values := chatDeploymentValues(t)
 		values.AI.BridgeConfig.OpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		store, ps, _ := dbtestutil.NewDBWithSQLDB(t)
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: values,
+			Database:         store,
+			Pubsub:           ps,
+		}))
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		providerConfig, err := store.InsertChatProvider(dbauthz.AsSystemRestricted(ctx), database.InsertChatProviderParams{
+			Provider:             "openai",
+			DisplayName:          "OpenAI Deployment Only",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
+		})
+		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "openai",
-			Model:        "gpt-4o-deployment-only",
-			ContextLimit: &contextLimit,
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:          "openai",
+			Model:             "gpt-4o-deployment-only",
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{providerConfig.ID},
 		})
 		require.NoError(t, err)
 
@@ -1233,17 +1250,14 @@ func TestListChatModels(t *testing.T) {
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider: "openai",
-			APIKey:   "test-key",
-		})
-		require.NoError(t, err)
+		provider := createProviderConfig(ctx, t, client, "openai", "OpenAI Enabled", nil)
 
 		contextLimit := int64(4096)
-		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "openai",
-			Model:        "gpt-4o-mini",
-			ContextLimit: &contextLimit,
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:          "openai",
+			Model:             "gpt-4o-mini",
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{provider.ID},
 		})
 		require.NoError(t, err)
 
@@ -2694,11 +2708,15 @@ func TestDeleteChatProvider(t *testing.T) {
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		var foundSurvivor bool
+		var foundLegacyUnbound bool
 		for _, c := range configs {
 			require.NotEqual(t, boundModel.ID, c.ID,
 				"bound model should be soft-deleted after provider deletion")
-			require.NotEqual(t, unboundRow.ID, c.ID,
-				"unbound model should be soft-deleted after last-provider cleanup")
+			if c.ID == unboundRow.ID {
+				foundLegacyUnbound = true
+				require.Empty(t, c.ProviderConfigs,
+					"legacy zero-attachment models should remain admin-visible")
+			}
 			if c.ID == survivorModel.ID {
 				foundSurvivor = true
 				require.Len(t, c.ProviderConfigs, 1,
@@ -2708,11 +2726,35 @@ func TestDeleteChatProvider(t *testing.T) {
 			}
 		}
 		require.True(t, foundSurvivor, "surviving model config must still exist")
+		require.True(t, foundLegacyUnbound, "legacy zero-attachment model should remain in admin listings")
+
+		runtimeModels, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		var openAIProvider *codersdk.ChatModelProvider
+		var anthropicProvider *codersdk.ChatModelProvider
+		for i := range runtimeModels.Providers {
+			switch runtimeModels.Providers[i].Provider {
+			case "openai":
+				openAIProvider = &runtimeModels.Providers[i]
+			case "anthropic":
+				anthropicProvider = &runtimeModels.Providers[i]
+			}
+		}
+		require.Nil(t, openAIProvider,
+			"bound model should disappear from runtime listings after losing its last attachment")
+		require.NotNil(t, anthropicProvider)
+		require.Len(t, anthropicProvider.Models, 1)
+		require.Equal(t, survivorModel.Model, anthropicProvider.Models[0].Model)
 
 		storedChat, err := store.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, boundModel.ID, storedChat.LastModelConfigID,
 			"chat history should still reference the soft-deleted bound model")
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, messagesResult.Messages,
+			"existing chat messages should survive provider deletion")
 	})
 
 	t.Run("ReassignsDefaultAfterDeletingProviderOwnedDefault", func(t *testing.T) {
@@ -2808,6 +2850,12 @@ func TestDeleteChatProvider(t *testing.T) {
 		require.True(t, updatedModel.ProviderConfigID.Valid)
 		require.Equal(t, fallbackProviderConfig.ID, updatedModel.ProviderConfigID.UUID)
 
+		attachments, err := store.GetModelProviderConfigs(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
+		require.NoError(t, err)
+		require.Len(t, attachments, 1)
+		require.Equal(t, fallbackProviderConfig.ID, attachments[0].ProviderConfigID)
+		require.EqualValues(t, 1, attachments[0].Priority)
+
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 
@@ -2820,8 +2868,24 @@ func TestDeleteChatProvider(t *testing.T) {
 			require.True(t, config.IsDefault)
 			require.Len(t, config.ProviderConfigs, 1)
 			require.Equal(t, fallbackProviderConfig.ID, config.ProviderConfigs[0].ProviderConfigID)
+			require.EqualValues(t, 1, config.ProviderConfigs[0].Priority)
 		}
 		require.True(t, foundModel, "model with fallback attachment should survive provider deletion")
+
+		runtimeModels, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		var foundRuntimeModel bool
+		for _, provider := range runtimeModels.Providers {
+			if provider.Provider != "openai" {
+				continue
+			}
+			for _, runtimeModel := range provider.Models {
+				if runtimeModel.Model == modelConfig.Model {
+					foundRuntimeModel = true
+				}
+			}
+		}
+		require.True(t, foundRuntimeModel, "model with surviving fallback should remain runtime-visible")
 	})
 
 	t.Run("DeleteProviderWithActiveChatsSoftDeletesBoundModels", func(t *testing.T) {
@@ -3456,20 +3520,17 @@ func TestListChatModelConfigs(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider: "openai",
-			APIKey:   "test-api-key",
-		})
-		require.NoError(t, err)
+		disabledProviderConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Disabled", nil)
 
 		contextLimit := int64(4096)
 		enabled := false
 		disabledConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "openai",
-			Model:        "gpt-4o-disabled",
-			DisplayName:  "GPT-4o Disabled",
-			Enabled:      &enabled,
-			ContextLimit: &contextLimit,
+			Provider:          "openai",
+			Model:             "gpt-4o-disabled",
+			DisplayName:       "GPT-4o Disabled",
+			Enabled:           &enabled,
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{disabledProviderConfig.ID},
 		})
 		require.NoError(t, err)
 		require.False(t, disabledConfig.Enabled)
@@ -3498,14 +3559,17 @@ func TestListChatModelConfigs(t *testing.T) {
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
+		disabledProviderConfig := createProviderConfig(ctx, t, adminClient, "openai", "OpenAI Disabled", nil)
+
 		contextLimit := int64(4096)
 		enabled := false
 		_, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "openai",
-			Model:        "gpt-4o-disabled",
-			DisplayName:  "GPT-4o Disabled",
-			Enabled:      &enabled,
-			ContextLimit: &contextLimit,
+			Provider:          "openai",
+			Model:             "gpt-4o-disabled",
+			DisplayName:       "GPT-4o Disabled",
+			Enabled:           &enabled,
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{disabledProviderConfig.ID},
 		})
 		require.NoError(t, err)
 
@@ -3659,26 +3723,49 @@ func TestListChatModelConfigs(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		adminClient := newChatClient(t)
+		adminClient, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		visibleConfig := createChatModelConfig(t, adminClient)
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		contextLimit := int64(4096)
-		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "openai",
-			Model:        "gpt-4o-non-admin-no-provider-row",
-			DisplayName:  "GPT-4o Non Admin No Provider Row",
-			ContextLimit: &contextLimit,
+		legacyConfig, err := db.InsertChatModelConfig(dbauthz.AsSystemRestricted(ctx), database.InsertChatModelConfigParams{
+			Provider:             "openai",
+			Model:                "gpt-4o-non-admin-no-provider-row",
+			DisplayName:          "GPT-4o Non Admin No Provider Row",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			Enabled:              true,
+			IsDefault:            false,
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
 		})
 		require.NoError(t, err)
 
-		configs, err := memberClient.ListChatModelConfigs(ctx)
+		adminConfigs, err := adminClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		var foundLegacyForAdmin bool
+		for _, config := range adminConfigs {
+			if config.ID != legacyConfig.ID {
+				continue
+			}
+			foundLegacyForAdmin = true
+			require.Empty(t, config.ProviderConfigs)
+		}
+		require.True(t, foundLegacyForAdmin)
+
+		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 
-		for _, config := range configs {
-			require.NotEqual(t, modelConfig.ID, config.ID)
+		var foundVisibleForMember bool
+		for _, config := range memberConfigs {
+			require.NotEqual(t, legacyConfig.ID, config.ID)
+			if config.ID == visibleConfig.ID {
+				foundVisibleForMember = true
+			}
 		}
+		require.True(t, foundVisibleForMember)
 	})
 
 	t.Run("NonAdminExcludesModelsBoundToDisabledProviderConfigs", func(t *testing.T) {
@@ -4449,7 +4536,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Equal(t, providerConfig.ID, stored.ProviderConfigID.UUID)
 	})
 
-	t.Run("UnrelatedUpdatesSucceedWhenBoundProviderConfigIsDisabled", func(t *testing.T) {
+	t.Run("UnrelatedUpdatesFailWhenBoundProviderConfigIsDisabled", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4472,13 +4559,12 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "GPT-4o Mini Disabled Bound Edit",
 		})
-		require.NoError(t, err)
-		require.Equal(t, "GPT-4o Mini Disabled Bound Edit", updated.DisplayName)
-		require.Len(t, updated.ProviderConfigs, 1)
-		require.Equal(t, providerConfig.ID, updated.ProviderConfigs[0].ProviderConfigID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Provider config is disabled.", sdkErr.Message)
+		require.Equal(t, fmt.Sprintf("provider_config_id %s is not enabled", providerConfig.ID), sdkErr.Detail)
 	})
 
 	t.Run("EmptyProviderConfigIDsRejected", func(t *testing.T) {
