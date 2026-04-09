@@ -645,6 +645,7 @@ func updateChildLastInjectedContext(
 	chatID uuid.UUID,
 	parts []codersdk.ChatMessagePart,
 ) error {
+	parts = FilterContextPartsToLatestAgent(parts)
 	param, err := BuildLastInjectedContext(parts)
 	if err != nil {
 		logger.Warn(ctx, "failed to marshal inherited injected context",

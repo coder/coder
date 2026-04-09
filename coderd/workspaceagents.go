@@ -2461,8 +2461,8 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Filter to only context-file and skill parts.
-	filtered := chatd.FilterContextParts(req.Parts, true)
+	// Filter to only non-empty context-file and skill parts.
+	filtered := chatd.FilterContextParts(req.Parts, false)
 	if len(filtered) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "No context-file or skill parts provided.",

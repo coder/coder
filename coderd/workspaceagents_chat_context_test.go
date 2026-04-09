@@ -601,6 +601,22 @@ func TestAgentChatContext(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Too many context parts")
 	})
 
+	t.Run("AddRejectsEmptyContextFileParts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setup := newAgentChatContextTestSetup(t)
+
+		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+			Parts: []codersdk.ChatMessagePart{{
+				Type:            codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath: "/workspace/empty.md",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No context-file or skill parts provided.", sdkErr.Message)
+	})
+
 	t.Run("ClearIsIdempotentWhenNoActiveChatExists", func(t *testing.T) {
 		t.Parallel()
 
