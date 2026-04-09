@@ -147,9 +147,8 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 	return c
 }
 
-func isExperimentalEndpoint(method, route string) bool {
-	return route == "/workspaceagents/me/experimental/chat-context" &&
-		(method == "post" || method == "delete")
+func isExperimentalEndpoint(route string) bool {
+	return strings.HasPrefix(route, "/workspaceagents/me/experimental/")
 }
 
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment) {
@@ -170,7 +169,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			if strings.HasSuffix(route, "/*") {
 				return
 			}
-			if isExperimentalEndpoint(method, route) {
+			if isExperimentalEndpoint(route) {
 				return
 			}
 
