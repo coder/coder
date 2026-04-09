@@ -102,11 +102,15 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	}
 
 	return (
-		<ScrollArea className="mt-2" viewportClassName="max-h-96">
+		<ScrollArea
+			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			viewportClassName="max-h-64"
+			scrollBarClassName="w-1.5"
+		>
 			<WorkspaceBuildLogs
 				logs={logs}
 				sticky
-				className="border-0 rounded-none text-xs"
+				className="border-0 rounded-none"
 			/>
 		</ScrollArea>
 	);

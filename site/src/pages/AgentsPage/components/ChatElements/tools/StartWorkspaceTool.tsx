@@ -35,7 +35,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 
 	const header = (
 		<>
-			<PlayIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+			<PlayIcon className="h-4 w-4 shrink-0 text-content-secondary" />
 			<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
 			{isError && (
 				<Tooltip>

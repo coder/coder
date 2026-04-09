@@ -1,4 +1,9 @@
-import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ExternalLinkIcon,
+	LoaderIcon,
+	PlusCircleIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import {
@@ -58,6 +63,7 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const header = (
 		<>
+			<PlusCircleIcon className="h-4 w-4 shrink-0 text-content-secondary" />
 			<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
 			{isError && (
 				<Tooltip>
