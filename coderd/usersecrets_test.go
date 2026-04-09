@@ -48,6 +48,7 @@ func TestPostUserSecret(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Name is required")
 	})
 
 	t.Run("MissingValue", func(t *testing.T) {
@@ -61,6 +62,7 @@ func TestPostUserSecret(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Value is required")
 	})
 
 	t.Run("DuplicateName", func(t *testing.T) {
@@ -98,6 +100,28 @@ func TestPostUserSecret(t *testing.T) {
 			Name:    "env-dup-2",
 			Value:   "value2",
 			EnvName: "DUPLICATE_ENV",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	t.Run("DuplicateFilePath", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:     "fp-dup-1",
+			Value:    "value1",
+			FilePath: "/tmp/dup-file",
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:     "fp-dup-2",
+			Value:    "value2",
+			FilePath: "/tmp/dup-file",
 		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -315,6 +339,33 @@ func TestPatchUserSecret(t *testing.T) {
 		taken := "CONFLICT_TAKEN_ENV"
 		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "conflict-env-2", codersdk.UpdateUserSecretRequest{
 			EnvName: &taken,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	t.Run("ConflictFilePath", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:     "conflict-fp-1",
+			Value:    "value1",
+			FilePath: "/tmp/conflict-taken",
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "conflict-fp-2",
+			Value: "value2",
+		})
+		require.NoError(t, err)
+
+		taken := "/tmp/conflict-taken"
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "conflict-fp-2", codersdk.UpdateUserSecretRequest{
+			FilePath: &taken,
 		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
