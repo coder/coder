@@ -91,6 +91,15 @@ define atomic_write
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 endef
 
+# go-build-tool builds a Go helper into _gen/bin/ to avoid
+# go run caching link-stage executables in GOCACHE, which
+# causes the local build cache to grow with duplicate binaries.
+# Usage: $(call go-build-tool,<binary-name>,<package-path>)
+define go-build-tool
+	@mkdir -p _gen/bin
+	go build -o _gen/bin/$(1) $(2)
+endef
+
 # Shared temp directory for atomic writes. Lives at the project root
 # so all targets share the same filesystem, and is gitignored.
 # Order-only prerequisite: recipes that need it depend on | _gen
@@ -201,6 +210,7 @@ endif
 
 clean:
 	rm -rf build/ site/build/ site/out/
+	rm -rf _gen/bin
 	mkdir -p build/
 	git restore site/out/
 .PHONY: clean
@@ -655,7 +665,8 @@ lint/go:
 .PHONY: lint/go
 
 lint/examples:
-	go run ./scripts/examplegen/main.go -lint
+	$(call go-build-tool,examplegen,./scripts/examplegen)
+	_gen/bin/examplegen -lint
 .PHONY: lint/examples
 
 # Use shfmt to determine the shell files, takes editorconfig into consideration.
@@ -694,7 +705,8 @@ lint/actions/zizmor:
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql
-	go run ./scripts/check-scopes
+	$(call go-build-tool,check-scopes,./scripts/check-scopes)
+	_gen/bin/check-scopes
 .PHONY: lint/check-scopes
 
 # Verify migrations do not hardcode the public schema.
@@ -950,7 +962,8 @@ gen/mark-fresh:
 # Runs migrations to output a dump of the database schema after migrations are
 # applied.
 coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)
-	go run ./coderd/database/gen/dump/main.go
+	$(call go-build-tool,dbdump,./coderd/database/gen/dump)
+	_gen/bin/dbdump
 	touch "$@"
 
 # Generates Go code for querying the database.
@@ -1068,87 +1081,101 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 		./enterprise/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') | _gen
-	$(call atomic_write,go run -C ./scripts/apitypings main.go,./scripts/biome_format.sh)
+	$(call go-build-tool,apitypings,./scripts/apitypings)
+	$(call atomic_write,_gen/bin/apitypings,./scripts/biome_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
 	touch "$@"
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | _gen
+	$(call go-build-tool,gensite,./scripts/gensite)
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
-		go run ./scripts/gensite/ -icons "$$tmpfile" && \
+		_gen/bin/gensite -icons "$$tmpfile" && \
 		./scripts/biome_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates) | _gen
-	$(call atomic_write,go run ./scripts/examplegen/main.go)
+	$(call go-build-tool,examplegen,./scripts/examplegen)
+	$(call atomic_write,_gen/bin/examplegen)
 
 coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go | _gen
-	$(call atomic_write,go run ./scripts/typegen/main.go rbac object)
+	$(call go-build-tool,typegen,./scripts/typegen)
+	$(call atomic_write,_gen/bin/typegen rbac object)
 	touch "$@"
 
-# NOTE: depends on object_gen.go because `go run` compiles
-# coderd/rbac which includes it.
+# NOTE: depends on object_gen.go because the generator build
+# compiles coderd/rbac which includes it.
 coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go | _gen
 	# Write to a temp file first to avoid truncating the package
 	# during build since the generator imports the rbac package.
-	$(call atomic_write,go run ./scripts/typegen/main.go rbac scopenames)
+	$(call go-build-tool,typegen,./scripts/typegen)
+	$(call atomic_write,_gen/bin/typegen rbac scopenames)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
-# `go run` compiles coderd/rbac which includes both.
+# the generator build compiles coderd/rbac which includes both.
 codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen
 	# Write to a temp file to avoid truncating the target, which
 	# would break the codersdk package and any parallel build targets.
-	$(call atomic_write,go run scripts/typegen/main.go rbac codersdk)
+	$(call go-build-tool,typegen,./scripts/typegen)
+	$(call atomic_write,_gen/bin/typegen rbac codersdk)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
-# `go run` compiles coderd/rbac which includes both.
+# the generator build compiles coderd/rbac which includes both.
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen
 	# Generate SDK constants for external API key scopes.
-	$(call atomic_write,go run ./scripts/apikeyscopesgen)
+	$(call go-build-tool,apikeyscopesgen,./scripts/apikeyscopesgen)
+	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
-# `go run` compiles coderd/rbac which includes both.
+# the generator build compiles coderd/rbac which includes both.
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen
-	$(call atomic_write,go run scripts/typegen/main.go rbac typescript,./scripts/biome_format.sh)
+	$(call go-build-tool,typegen,./scripts/typegen)
+	$(call atomic_write,_gen/bin/typegen rbac typescript,./scripts/biome_format.sh)
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen
-	$(call atomic_write,go run scripts/typegen/main.go countries,./scripts/biome_format.sh)
+	$(call go-build-tool,typegen,./scripts/typegen)
+	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
 
 site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen
-	$(call atomic_write,go run ./scripts/modeloptionsgen/main.go | tail -n +2,./scripts/biome_format.sh)
+	$(call go-build-tool,modeloptionsgen,./scripts/modeloptionsgen)
+	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen
-	$(call atomic_write,go run ./scripts/metricsdocgen/scanner)
+	$(call go-build-tool,metricsdocgen-scanner,./scripts/metricsdocgen/scanner)
+	$(call atomic_write,_gen/bin/metricsdocgen-scanner)
 
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics | _gen
+	$(call go-build-tool,metricsdocgen,./scripts/metricsdocgen)
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
-		go run scripts/metricsdocgen/main.go --prometheus-doc-file="$$tmpfile" && \
+		_gen/bin/metricsdocgen --prometheus-doc-file="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES) | _gen
+	$(call go-build-tool,clidocgen,./scripts/clidocgen)
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
 		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
-		CI=true DOCS_DIR="$$tmpdir/docs" go run ./scripts/clidocgen && \
+		CI=true DOCS_DIR="$$tmpdir/docs" _gen/bin/clidocgen && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/*.md" && \
 		for f in "$$tmpdir/docs/reference/cli/"*.md; do mv "$$f" "docs/reference/cli/$$(basename "$$f")"; done && \
 		rm -rf "$$tmpdir"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen
+	$(call go-build-tool,auditdocgen,./scripts/auditdocgen)
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
-		go run scripts/auditdocgen/main.go --audit-doc-file="$$tmpfile" && \
+		_gen/bin/auditdocgen --audit-doc-file="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
