@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -74,6 +75,45 @@ func CollectContextPartsFromMessages(
 	}
 
 	return collected, nil
+}
+
+func latestContextAgentIDFromParts(parts []codersdk.ChatMessagePart) (uuid.UUID, bool) {
+	var lastID uuid.UUID
+	found := false
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeContextFile ||
+			!part.ContextFileAgentID.Valid {
+			continue
+		}
+		lastID = part.ContextFileAgentID.UUID
+		found = true
+	}
+	return lastID, found
+}
+
+// FilterContextPartsToLatestAgent keeps only parts stamped with the
+// latest workspace-agent ID seen in the slice. When no stamped
+// context-file parts exist, it returns the original slice unchanged.
+func FilterContextPartsToLatestAgent(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	latestAgentID, ok := latestContextAgentIDFromParts(parts)
+	if !ok {
+		return parts
+	}
+
+	filtered := make([]codersdk.ChatMessagePart, 0, len(parts))
+	for _, part := range parts {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeContextFile,
+			codersdk.ChatMessagePartTypeSkill:
+			if !part.ContextFileAgentID.Valid || part.ContextFileAgentID.UUID != latestAgentID {
+				continue
+			}
+		default:
+			continue
+		}
+		filtered = append(filtered, part)
+	}
+	return filtered
 }
 
 // BuildLastInjectedContext filters parts down to non-empty context-file

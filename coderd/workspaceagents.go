@@ -2798,6 +2798,7 @@ func updateAgentChatLastInjectedContextFromMessages(
 	if err != nil {
 		return xerrors.Errorf("collect injected context parts: %w", err)
 	}
+	parts = chatd.FilterContextPartsToLatestAgent(parts)
 
 	param, err := chatd.BuildLastInjectedContext(parts)
 	if err != nil {

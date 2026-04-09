@@ -4475,34 +4475,26 @@ func (p *Server) runChat(
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
 	// the workspace agent has changed (e.g. workspace rebuilt).
-	const (
-		instructionPersistReasonNone = iota
-		instructionPersistReasonMissing
-		instructionPersistReasonAgentChanged
-	)
 	needsInstructionPersist := false
-	instructionPersistReason := instructionPersistReasonNone
 	hasContextFiles := false
 	persistedSkills := skillsFromParts(messages)
 	latestInjectedAgentID, hasLatestInjectedAgent := latestContextAgentID(messages)
 	currentWorkspaceAgentID := uuid.Nil
 	hasCurrentWorkspaceAgent := false
 	if chat.WorkspaceID.Valid {
+		if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+			currentWorkspaceAgentID = agent.ID
+			hasCurrentWorkspaceAgent = true
+		}
 		persistedAgentID, found := contextFileAgentID(messages)
 		hasContextFiles = found
 		if !hasPersistedInstructionFiles(messages) {
 			needsInstructionPersist = true
-			instructionPersistReason = instructionPersistReasonMissing
-		} else if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-			currentWorkspaceAgentID = agent.ID
-			hasCurrentWorkspaceAgent = true
-			if agent.ID != persistedAgentID {
-				// Agent changed. Persist fresh instruction files.
-				// Old context-file messages remain in the conversation
-				// to preserve the prompt cache prefix.
-				needsInstructionPersist = true
-				instructionPersistReason = instructionPersistReasonAgentChanged
-			}
+		} else if hasCurrentWorkspaceAgent && currentWorkspaceAgentID != persistedAgentID {
+			// Agent changed. Persist fresh instruction files.
+			// Old context-file messages remain in the conversation
+			// to preserve the prompt cache prefix.
+			needsInstructionPersist = true
 		}
 	}
 	// Convert messages to prompt format in parallel with g2 work.
@@ -4535,11 +4527,10 @@ func (p *Server) runChat(
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
 			)
-			if instructionPersistReason == instructionPersistReasonAgentChanged &&
-				(!hasCurrentWorkspaceAgent || !hasLatestInjectedAgent || latestInjectedAgentID != currentWorkspaceAgentID) {
-				skills = discoveredSkills
-			} else {
+			if hasCurrentWorkspaceAgent && hasLatestInjectedAgent && latestInjectedAgentID == currentWorkspaceAgentID {
 				skills = mergeSkillMetas(persistedSkills, discoveredSkills)
+			} else {
+				skills = discoveredSkills
 			}
 			if persistErr != nil {
 				p.logger.Warn(ctx, "failed to persist instruction files",

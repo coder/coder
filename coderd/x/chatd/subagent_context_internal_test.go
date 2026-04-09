@@ -57,6 +57,43 @@ func TestCollectContextPartsFromMessagesSkipsSentinelContextFiles(t *testing.T) 
 	require.Equal(t, "# Project instructions", parts[1].ContextFileContent)
 }
 
+func TestFilterContextPartsToLatestAgent(t *testing.T) {
+	t.Parallel()
+
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	parts := []codersdk.ChatMessagePart{
+		{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/old/AGENTS.md",
+			ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+		},
+		{
+			Type:               codersdk.ChatMessagePartTypeSkill,
+			SkillName:          "repo-helper-old",
+			ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
+		},
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  newAgentID,
+				Valid: true,
+			},
+		},
+		{
+			Type:               codersdk.ChatMessagePartTypeSkill,
+			SkillName:          "repo-helper-new",
+			ContextFileAgentID: uuid.NullUUID{UUID: newAgentID, Valid: true},
+		},
+	}
+
+	got := FilterContextPartsToLatestAgent(parts)
+	require.Len(t, got, 2)
+	require.Equal(t, AgentChatContextSentinelPath, got[0].ContextFilePath)
+	require.Equal(t, "repo-helper-new", got[1].SkillName)
+}
+
 func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T) {
 	t.Parallel()
 
