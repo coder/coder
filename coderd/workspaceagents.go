@@ -2794,7 +2794,7 @@ func updateAgentChatLastInjectedContextFromMessages(
 		return xerrors.Errorf("load context messages for injected context: %w", err)
 	}
 
-	parts, err := chatd.CollectContextPartsFromMessages(ctx, logger, messages, false)
+	parts, err := chatd.CollectContextPartsFromMessages(ctx, logger, messages, true)
 	if err != nil {
 		return xerrors.Errorf("collect injected context parts: %w", err)
 	}

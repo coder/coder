@@ -57,6 +57,40 @@ func TestCollectContextPartsFromMessagesSkipsSentinelContextFiles(t *testing.T) 
 	require.Equal(t, "# Project instructions", parts[1].ContextFileContent)
 }
 
+func TestCollectContextPartsFromMessagesKeepsEmptyContextFilesWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	content, err := json.Marshal([]codersdk.ChatMessagePart{
+		{
+			Type:            codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath: AgentChatContextSentinelPath,
+			ContextFileAgentID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		},
+		{
+			Type:      codersdk.ChatMessagePartTypeSkill,
+			SkillName: "my-skill",
+		},
+	})
+	require.NoError(t, err)
+
+	parts, err := CollectContextPartsFromMessages(context.Background(), slog.Make(), []database.ChatMessage{ //nolint:exhaustruct // Only content fields matter for this unit test.
+		{
+			ID: 1,
+			Content: pqtype.NullRawMessage{
+				RawMessage: content,
+				Valid:      true,
+			},
+		},
+	}, true)
+	require.NoError(t, err)
+	require.Len(t, parts, 2)
+	require.Equal(t, AgentChatContextSentinelPath, parts[0].ContextFilePath)
+	require.Equal(t, "my-skill", parts[1].SkillName)
+}
+
 func TestFilterContextPartsToLatestAgent(t *testing.T) {
 	t.Parallel()
 
