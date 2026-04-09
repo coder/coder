@@ -42,6 +42,8 @@ const expectReconnectSchedule = (
 
 const deterministicRandom = () => 0.5;
 
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
@@ -564,6 +566,115 @@ describe("createReconnectingWebSocket", () => {
 		expect(maxReconnect.reconnect.delayMs).toBeGreaterThan(
 			minReconnect.reconnect.delayMs,
 		);
+	});
+
+	it("allows exponential backoff to grow when maxMs is Infinity", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			maxMs: Number.POSITIVE_INFINITY,
+			factor: 2,
+			jitter: 0,
+			random: deterministicRandom,
+		});
+
+		for (let i = 0; i < 4; i++) {
+			activeSocket.emit("close");
+			vi.runOnlyPendingTimers();
+		}
+		activeSocket.emit("close");
+
+		expectReconnectSchedule(disconnects[4]!, { attempt: 5, delayMs: 16000 });
+	});
+
+	it("applies uncapped jitter when maxMs is Infinity", () => {
+		const makeReconnect = (random: () => number) => {
+			let activeSocket = createMockSocket();
+			const connect = vi.fn(() => {
+				activeSocket = createMockSocket();
+				return activeSocket;
+			});
+			const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+				[];
+			const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+				disconnects.push({ reconnect, now: Date.now() });
+			});
+
+			createReconnectingWebSocket({
+				connect,
+				onDisconnect,
+				baseMs: 1000,
+				maxMs: Number.POSITIVE_INFINITY,
+				factor: 2,
+				jitter: 0.3,
+				random,
+			});
+
+			for (let i = 0; i < 4; i++) {
+				activeSocket.emit("close");
+				vi.runOnlyPendingTimers();
+			}
+			activeSocket.emit("close");
+
+			return disconnects[4]!;
+		};
+
+		const minReconnect = makeReconnect(() => 0);
+		expectReconnectSchedule(minReconnect, { attempt: 5, delayMs: 11200 });
+
+		vi.clearAllTimers();
+		vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
+
+		const maxReconnect = makeReconnect(() => 1);
+		expectReconnectSchedule(maxReconnect, { attempt: 5, delayMs: 20800 });
+		expect(maxReconnect.reconnect.delayMs).toBeGreaterThan(
+			minReconnect.reconnect.delayMs,
+		);
+	});
+
+	it("clamps uncapped overflow to the largest safe timer delay", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
+			[];
+		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
+			disconnects.push({ reconnect, now: Date.now() });
+		});
+
+		createReconnectingWebSocket({
+			connect,
+			onDisconnect,
+			baseMs: 1000,
+			maxMs: Number.POSITIVE_INFINITY,
+			factor: 1e308,
+			jitter: 0,
+			random: deterministicRandom,
+		});
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+		vi.runOnlyPendingTimers();
+
+		activeSocket.emit("close");
+		expectReconnectSchedule(disconnects[1]!, {
+			attempt: 2,
+			delayMs: MAX_TIMER_MS,
+		});
 	});
 
 	it("resets backoff on successful connection", () => {

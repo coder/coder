@@ -39,6 +39,11 @@ const RECONNECT_MAX_MS = 10_000;
 const RECONNECT_FACTOR = 2;
 
 /**
+ * Largest delay safe to pass to `setTimeout` (about 24.8 days).
+ */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/**
  * Default symmetric jitter applied to the computed reconnect delay.
  * `0.3` means the final delay is randomized within ±30% of the base
  * exponential-backoff value.
@@ -100,9 +105,10 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	baseMs?: number;
 
 	/**
-	 * Hard upper bound on the reconnect delay in milliseconds. Jitter is
-	 * applied to the capped backoff base, so the final delay never exceeds
-	 * this value.
+	 * Hard upper bound on the reconnect delay in milliseconds. Set to
+	 * `Infinity` to disable the reconnect-policy cap. Jitter is applied to
+	 * the capped backoff base, and the scheduled timer delay is still
+	 * clamped to the largest safe `setTimeout` value.
 	 */
 	maxMs?: number;
 
@@ -130,6 +136,13 @@ const normalizeUnitInterval = (value: number, fallback: number): number =>
 
 const normalizeDelayMs = (value: number, fallback: number): number =>
 	Number.isFinite(value) ? Math.max(0, value) : fallback;
+
+const normalizeMaxDelayMs = (value: number, fallback: number): number => {
+	if (value === Number.POSITIVE_INFINITY) {
+		return value;
+	}
+	return normalizeDelayMs(value, fallback);
+};
 
 const applyReconnectJitter = ({
 	delayMs,
@@ -164,7 +177,7 @@ const getReconnectSchedule = ({
 	jitter: number;
 	random: () => number;
 }): ReconnectSchedule => {
-	const safeMaxMs = normalizeDelayMs(maxMs, 0);
+	const safeMaxMs = normalizeMaxDelayMs(maxMs, 0);
 	const rawDelayMs = normalizeDelayMs(
 		baseMs * factor ** (attempt - 1),
 		safeMaxMs,
@@ -175,10 +188,11 @@ const getReconnectSchedule = ({
 		jitter,
 		random,
 	});
-	const delayMs = normalizeDelayMs(
+	const policyDelayMs = normalizeDelayMs(
 		Math.min(jitteredDelayMs, safeMaxMs),
 		safeMaxMs,
 	);
+	const delayMs = Math.min(policyDelayMs, MAX_TIMER_MS);
 	return {
 		attempt,
 		delayMs,
@@ -200,7 +214,8 @@ const getReconnectSchedule = ({
  * rawDelay = baseMs * factor ^ (attempt - 1)
  * cappedDelay = min(rawDelay, maxMs)
  * jitteredDelay = round(cappedDelay * (1 + offset))
- * delay = min(jitteredDelay, maxMs)
+ * policyDelay = min(jitteredDelay, maxMs)
+ * delay = min(policyDelay, MAX_TIMER_MS)
  * offset ∈ [-jitter, +jitter]
  * ```
  *
