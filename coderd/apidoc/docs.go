@@ -13239,6 +13239,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
                     }
                 },
+                "credential_hint": {
+                    "type": "string"
+                },
+                "credential_kind": {
+                    "type": "string"
+                },
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"

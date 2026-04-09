@@ -884,6 +884,8 @@
           ]
         }
       ],
+      "credential_hint": "string",
+      "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
@@ -1019,6 +1021,8 @@
       ]
     }
   ],
+  "credential_hint": "string",
+  "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
@@ -1043,6 +1047,8 @@
 | Name              | Type                                                                                   | Required | Restrictions | Description |
 |-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
+| `credential_hint` | string                                                                                 | false    |              |             |
+| `credential_kind` | string                                                                                 | false    |              |             |
 | `ended_at`        | string                                                                                 | false    |              |             |
 | `id`              | string                                                                                 | false    |              |             |
 | `model`           | string                                                                                 | false    |              |             |
