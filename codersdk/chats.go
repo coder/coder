@@ -891,7 +891,9 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string               `json:"provider"`
+	Provider string `json:"provider"`
+	// ProviderConfigIDs must contain at least one provider config ID. The
+	// server rejects requests that omit this field or send an empty list.
 	ProviderConfigIDs    []uuid.UUID          `json:"provider_config_ids,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -904,7 +906,11 @@ type CreateChatModelConfigRequest struct {
 
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
-	Provider             string               `json:"provider,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	// ProviderConfigIDs preserves existing attachments when omitted, as long
+	// as Provider is unchanged. If Provider changes, explicit IDs are
+	// required, and the server rejects updates that result in zero
+	// attachments.
 	ProviderConfigIDs    *[]uuid.UUID         `json:"provider_config_ids,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
