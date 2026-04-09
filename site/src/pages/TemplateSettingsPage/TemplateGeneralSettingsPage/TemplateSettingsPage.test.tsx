@@ -108,7 +108,7 @@ const fillAndSubmitForm = async ({
 describe("TemplateSettingsPage", () => {
 	it("succeeds", async () => {
 		await renderTemplateSettingsPage();
-		jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
 			...MockTemplate,
 			...validFormValues,
 		});
@@ -118,7 +118,7 @@ describe("TemplateSettingsPage", () => {
 
 	it("displays an error if the name is taken", async () => {
 		await renderTemplateSettingsPage();
-		jest.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
+		vi.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
 			mockApiError({
 				message: `Template with name "test-template" already exists`,
 				validations: [
@@ -173,7 +173,7 @@ describe("TemplateSettingsPage", () => {
 					});
 				}),
 			);
-			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 			const deprecationMessage = "This template is deprecated";
 
 			await renderTemplateSettingsPage();
@@ -198,7 +198,7 @@ describe("TemplateSettingsPage", () => {
 					});
 				}),
 			);
-			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 
 			await renderTemplateSettingsPage();
 			await deprecateTemplate("This template should not be able to deprecate");

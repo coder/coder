@@ -10,7 +10,7 @@ import TemplateFilesPage from "./TemplateFilesPage";
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the SyntaxHighlight is
 // not required for these tests, we can safely mock it.
-jest.mock("#/components/SyntaxHighlighter/SyntaxHighlighter", () => ({
+vi.mock("#/components/SyntaxHighlighter/SyntaxHighlighter", () => ({
 	SyntaxHighlighter: () => <div data-testid="syntax-highlighter" />,
 }));
 

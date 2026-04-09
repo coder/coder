@@ -10,3 +10,19 @@ import { Blob as NativeBlob } from "node:buffer";
 globalThis.Blob = NativeBlob;
 
 globalThis.ResizeObserver = require("resize-observer-polyfill");
+
+// JSDOM does not implement window.matchMedia. Monaco editor (and other
+// libraries) rely on it for dark/light theme detection.
+if (typeof globalThis.matchMedia !== "function") {
+	globalThis.matchMedia = (query: string) =>
+		({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		}) as MediaQueryList;
+}
