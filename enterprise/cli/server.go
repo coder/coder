@@ -162,6 +162,13 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
 
+		// Build the provider list once; both the bridge daemon and the
+		// proxy daemon consume it.
+		providers, err := buildProviders(options.DeploymentValues.AI.BridgeConfig)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("build aibridge providers: %w", err)
+		}
+
 		// In-memory aibridge daemon.
 		// TODO(@deansheather): the lifecycle of the aibridged server is
 		// probably better managed by the enterprise API type itself. Managing
@@ -169,7 +176,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// is not entitled to the feature.
 		var aibridgeDaemon *aibridged.Server
 		if options.DeploymentValues.AI.BridgeConfig.Enabled {
-			aibridgeDaemon, err = newAIBridgeDaemon(api)
+			aibridgeDaemon, err = newAIBridgeDaemon(api, providers)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("create aibridged: %w", err)
 			}
@@ -185,7 +192,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 
 		// In-memory AI Bridge Proxy daemon
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api)
+			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api, providers)
 			if err != nil {
 				_ = closers.Close()
 				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)

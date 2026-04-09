@@ -17,28 +17,11 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd"
 )
 
-func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
+func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*aibridged.Server, error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("aibridged")
-	cfg := coderAPI.DeploymentValues.AI.BridgeConfig
-
-	// Build circuit breaker config if enabled.
-	var cbConfig *config.CircuitBreaker
-	if cfg.CircuitBreakerEnabled.Value() {
-		cbConfig = &config.CircuitBreaker{
-			FailureThreshold: uint32(cfg.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
-			Interval:         cfg.CircuitBreakerInterval.Value(),
-			Timeout:          cfg.CircuitBreakerTimeout.Value(),
-			MaxRequests:      uint32(cfg.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
-		}
-	}
-
-	providers, err := buildProviders(cfg, cbConfig)
-	if err != nil {
-		return nil, xerrors.Errorf("build providers: %w", err)
-	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
 	metrics := aibridge.NewMetrics(reg)
@@ -68,7 +51,17 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 //     a clear error asking the admin to remove one or the other.
 //  2. Indexed providers (from CODER_AIBRIDGE_PROVIDER_<N>_*) are added next.
 //  3. Built-in providers are always added unless their name is already claimed.
-func buildProviders(cfg codersdk.AIBridgeConfig, cbConfig *config.CircuitBreaker) ([]aibridge.Provider, error) {
+func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
+	var cbConfig *config.CircuitBreaker
+	if cfg.CircuitBreakerEnabled.Value() {
+		cbConfig = &config.CircuitBreaker{
+			FailureThreshold: uint32(cfg.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+			Interval:         cfg.CircuitBreakerInterval.Value(),
+			Timeout:          cfg.CircuitBreakerTimeout.Value(),
+			MaxRequests:      uint32(cfg.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+		}
+	}
+
 	var providers []aibridge.Provider
 	usedNames := make(map[string]struct{})
 
