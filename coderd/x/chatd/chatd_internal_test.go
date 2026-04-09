@@ -2152,6 +2152,102 @@ func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestSubscribeQueueUpdateReloadsFreshSnapshotEvenDuringAnotherSubscriberInitialLoad(t *testing.T) {
+	t.Parallel()
+
+	ctxA, cancelCtxA := context.WithCancel(context.Background())
+	defer cancelCtxA()
+	ctxB, cancelCtxB := context.WithCancel(context.Background())
+	defer cancelCtxB()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued now")})
+	require.NoError(t, err)
+	updatedQueued := []database.ChatQueuedMessage{{
+		ID:        1,
+		ChatID:    chatID,
+		Content:   queuedContent,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}}
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil).Times(2)
+	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	}).Return(nil, nil).Times(2)
+
+	blockedInitialQueue := make(chan struct{})
+	releaseBlockedInitialQueue := make(chan struct{})
+	var queueCallMu sync.Mutex
+	queueCall := 0
+	db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).DoAndReturn(func(context.Context, uuid.UUID) ([]database.ChatQueuedMessage, error) {
+		queueCallMu.Lock()
+		queueCall++
+		call := queueCall
+		queueCallMu.Unlock()
+
+		switch call {
+		case 1:
+			return nil, nil
+		case 2:
+			select {
+			case <-blockedInitialQueue:
+			default:
+				close(blockedInitialQueue)
+			}
+			<-releaseBlockedInitialQueue
+			return nil, nil
+		default:
+			return updatedQueued, nil
+		}
+	}).AnyTimes()
+
+	_, eventsA, cancelA, ok := server.SubscribeAuthorized(ctxA, chat, nil, 0)
+	require.True(t, ok)
+	defer cancelA()
+
+	subscriberBResult := make(chan struct {
+		cancel func()
+		ok     bool
+	}, 1)
+	go func() {
+		_, _, cancel, ok := server.SubscribeAuthorized(ctxB, chat, nil, 0)
+		subscriberBResult <- struct {
+			cancel func()
+			ok     bool
+		}{cancel: cancel, ok: ok}
+	}()
+	waitForSignal(t, blockedInitialQueue)
+
+	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
+	})
+
+	event := requireStreamQueueUpdateEvent(t, eventsA)
+	require.Len(t, event.QueuedMessages, 1)
+	require.Equal(t, int64(1), event.QueuedMessages[0].ID)
+	require.Len(t, event.QueuedMessages[0].Content, 1)
+	require.Equal(t, "queued now", event.QueuedMessages[0].Content[0].Text)
+
+	close(releaseBlockedInitialQueue)
+	select {
+	case result := <-subscriberBResult:
+		require.True(t, result.ok)
+		if result.cancel != nil {
+			result.cancel()
+		}
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for second subscriber to finish initial snapshot")
+	}
+
+	requireNoStreamEvent(t, eventsA, 200*time.Millisecond)
+}
+
 func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 	t.Parallel()
 
@@ -2655,6 +2751,79 @@ func TestGetStreamChatMessagesCanceledWaiterDoesNotPoisonOthers(t *testing.T) {
 	}
 }
 
+func TestGetStreamChatMessagesUsesServerOwnedTimeoutDespiteLeaderDeadline(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	params := database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0}
+	message := database.ChatMessage{ID: 1, ChatID: chatID}
+
+	fetchCtxCh := make(chan context.Context, 1)
+	release := make(chan struct{})
+	db.EXPECT().GetChatMessagesByChatID(gomock.Any(), params).DoAndReturn(func(fetchCtx context.Context, _ database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
+		fetchCtxCh <- fetchCtx
+		<-release
+		return []database.ChatMessage{message}, nil
+	}).Times(1)
+
+	started := time.Now()
+	leaderCtx, leaderCancel := context.WithTimeout(context.Background(), testutil.IntervalFast)
+	defer leaderCancel()
+
+	leaderErrCh := make(chan error, 1)
+	go func() {
+		_, err := server.getStreamChatMessages(leaderCtx, params)
+		leaderErrCh <- err
+	}()
+
+	var fetchCtx context.Context
+	select {
+	case fetchCtx = <-fetchCtxCh:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for shared history fetch to start")
+	}
+
+	deadline, ok := fetchCtx.Deadline()
+	require.True(t, ok)
+	require.WithinDuration(t, started.Add(chatStreamHistoryFetchTimeout), deadline, 500*time.Millisecond)
+
+	followerCh := make(chan struct {
+		messages []database.ChatMessage
+		err      error
+	}, 1)
+	go func() {
+		msgs, err := server.getStreamChatMessages(context.Background(), params)
+		followerCh <- struct {
+			messages []database.ChatMessage
+			err      error
+		}{messages: msgs, err: err}
+	}()
+
+	<-leaderCtx.Done()
+	require.NoError(t, fetchCtx.Err())
+	close(release)
+
+	select {
+	case err := <-leaderErrCh:
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for leader to observe its deadline")
+	}
+
+	select {
+	case result := <-followerCh:
+		require.NoError(t, result.err)
+		require.Len(t, result.messages, 1)
+		require.Equal(t, int64(1), result.messages[0].ID)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for follower to receive shared fetch result")
+	}
+}
+
 func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
 	t.Parallel()
 
@@ -2707,27 +2876,14 @@ func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
 func TestStreamFetchContextsUseWorkloadSpecificDeadlinePolicies(t *testing.T) {
 	t.Parallel()
 
-	t.Run("HistoryPreservesDeadline", func(t *testing.T) {
+	t.Run("SharedHistoryUsesServerTimeoutEvenWhenCallerHasDeadline", func(t *testing.T) {
 		t.Parallel()
 
 		parent, parentCancel := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
 		defer parentCancel()
 
-		fetchCtx, fetchCancel := streamHistoryFetchContext(parent)
-		defer fetchCancel()
-
-		wantDeadline, ok := parent.Deadline()
-		require.True(t, ok)
-		gotDeadline, ok := fetchCtx.Deadline()
-		require.True(t, ok)
-		require.Equal(t, wantDeadline, gotDeadline)
-	})
-
-	t.Run("HistoryAppliesFallbackTimeout", func(t *testing.T) {
-		t.Parallel()
-
 		started := time.Now()
-		fetchCtx, fetchCancel := streamHistoryFetchContext(context.Background())
+		fetchCtx, fetchCancel := streamSharedHistoryFetchContext(parent)
 		defer fetchCancel()
 
 		deadline, ok := fetchCtx.Deadline()
@@ -2735,13 +2891,25 @@ func TestStreamFetchContextsUseWorkloadSpecificDeadlinePolicies(t *testing.T) {
 		require.WithinDuration(t, started.Add(chatStreamHistoryFetchTimeout), deadline, 250*time.Millisecond)
 	})
 
-	t.Run("ControlPreservesDeadline", func(t *testing.T) {
+	t.Run("SharedHistoryAppliesFallbackTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		started := time.Now()
+		fetchCtx, fetchCancel := streamSharedHistoryFetchContext(context.Background())
+		defer fetchCancel()
+
+		deadline, ok := fetchCtx.Deadline()
+		require.True(t, ok)
+		require.WithinDuration(t, started.Add(chatStreamHistoryFetchTimeout), deadline, 250*time.Millisecond)
+	})
+
+	t.Run("SubscriberControlPreservesDeadline", func(t *testing.T) {
 		t.Parallel()
 
 		parent, parentCancel := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
 		defer parentCancel()
 
-		fetchCtx, fetchCancel := streamControlFetchContext(parent)
+		fetchCtx, fetchCancel := streamSubscriberControlFetchContext(parent)
 		defer fetchCancel()
 
 		wantDeadline, ok := parent.Deadline()
@@ -2751,11 +2919,11 @@ func TestStreamFetchContextsUseWorkloadSpecificDeadlinePolicies(t *testing.T) {
 		require.Equal(t, wantDeadline, gotDeadline)
 	})
 
-	t.Run("ControlAppliesFallbackTimeout", func(t *testing.T) {
+	t.Run("SubscriberControlAppliesFallbackTimeout", func(t *testing.T) {
 		t.Parallel()
 
 		started := time.Now()
-		fetchCtx, fetchCancel := streamControlFetchContext(context.Background())
+		fetchCtx, fetchCancel := streamSubscriberControlFetchContext(context.Background())
 		defer fetchCancel()
 
 		deadline, ok := fetchCtx.Deadline()
@@ -2796,6 +2964,20 @@ func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEv
 		return event
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for chat stream message event")
+		return codersdk.ChatStreamEvent{}
+	}
+}
+
+func requireStreamQueueUpdateEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "chat stream closed before delivering an event")
+		require.Equal(t, codersdk.ChatStreamEventTypeQueueUpdate, event.Type)
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for chat stream queue update event")
 		return codersdk.ChatStreamEvent{}
 	}
 }
