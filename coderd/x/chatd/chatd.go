@@ -108,13 +108,12 @@ const (
 	// cross-replica relay subscribers time to connect and
 	// snapshot the buffer before it is garbage-collected.
 	bufferRetainGracePeriod = 5 * time.Second
-	// chatStreamHistoryFetchTimeout bounds detached history-path
-	// DB reads when the caller context has no deadline. It is
-	// intentionally generous because initial and catch-up scans
-	// may be larger than control-path metadata lookups.
+	// chatStreamHistoryFetchTimeout bounds server-owned shared
+	// history reads. It is intentionally generous because initial
+	// and catch-up scans may be larger than control-path lookups.
 	chatStreamHistoryFetchTimeout = 30 * time.Second
-	// chatStreamControlFetchTimeout bounds detached control-path
-	// DB reads when the caller context has no deadline.
+	// chatStreamControlFetchTimeout bounds subscriber-owned
+	// control-path DB reads when the caller has no deadline.
 	chatStreamControlFetchTimeout = 5 * time.Second
 
 	// streamJanitorInterval is how often sweepIdleStreams runs.
@@ -185,11 +184,10 @@ type Server struct {
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
-	// stream*Fetches coalesce concurrent chat stream snapshot and
-	// catch-up reads. They are not caches: once a shared fetch
+	// streamMessageFetches coalesces concurrent chat stream durable
+	// history reads. It is not a cache: once a shared fetch
 	// completes, future reads hit the database again.
 	streamMessageFetches singleflight.Group[string, []database.ChatMessage]
-	streamQueueFetches   singleflight.Group[string, []database.ChatQueuedMessage]
 
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
@@ -4275,40 +4273,33 @@ func cloneQueuedMessagesForStream(messages []database.ChatQueuedMessage) []datab
 	return cloned
 }
 
-// streamHistoryFetchContext detaches subscriber cancellation from a shared
-// history fetch while preserving any real caller deadline. When the caller has
-// no deadline, it applies a generous timeout so detached history scans cannot
-// run forever after every subscriber has already gone away.
-func streamHistoryFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
+// streamSharedHistoryFetchContext detaches subscriber cancellation from a
+// shared history fetch and runs it under a server-owned timeout budget.
+// Shared work should not inherit the winner's request deadline.
+func streamSharedHistoryFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.WithTimeout(context.Background(), chatStreamHistoryFetchTimeout)
+		ctx = context.Background()
 	}
-	detached := context.WithoutCancel(ctx)
-	if deadline, ok := ctx.Deadline(); ok {
-		return context.WithDeadline(detached, deadline)
-	}
-	return context.WithTimeout(detached, chatStreamHistoryFetchTimeout)
+	return context.WithTimeout(context.WithoutCancel(ctx), chatStreamHistoryFetchTimeout)
 }
 
-// streamControlFetchContext detaches subscriber cancellation from a small
-// control-path fetch while preserving any existing deadline. When the caller
-// has no deadline, it applies a bounded timeout so metadata queries cannot hang
-// indefinitely.
-func streamControlFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
+// streamSubscriberControlFetchContext keeps a control-path lookup tied to the
+// requesting subscriber while applying a fallback timeout when the caller has
+// no deadline.
+func streamSubscriberControlFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		return context.WithTimeout(context.Background(), chatStreamControlFetchTimeout)
 	}
-	detached := context.WithoutCancel(ctx)
-	if deadline, ok := ctx.Deadline(); ok {
-		return context.WithDeadline(detached, deadline)
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
 	}
-	return context.WithTimeout(detached, chatStreamControlFetchTimeout)
+	return context.WithTimeout(ctx, chatStreamControlFetchTimeout)
 }
 
 // getStreamChatMessages loads durable chat messages for an already-authorized
 // subscriber. Subscribe() must validate the caller before this helper is used.
-// The shared fetch intentionally runs as chatd so the singleflight leader's
-// request identity cannot affect authorization for other waiters.
+// The shared fetch intentionally runs as chatd so request identity and timeout
+// policy come from chatd rather than whichever caller won singleflight.
 func (p *Server) getStreamChatMessages(
 	ctx context.Context,
 	params database.GetChatMessagesByChatIDParams,
@@ -4321,7 +4312,7 @@ func (p *Server) getStreamChatMessages(
 		&p.streamMessageFetches,
 		fmt.Sprintf("chat-messages:%s:after:%d", params.ChatID, params.AfterID),
 		func() ([]database.ChatMessage, error) {
-			fetchCtx, cancel := streamHistoryFetchContext(ctx)
+			fetchCtx, cancel := streamSharedHistoryFetchContext(ctx)
 			defer cancel()
 			//nolint:gocritic // SubscribeAuthorized already validated the
 			// caller; the shared singleflight fetch runs as chatd so the
@@ -4335,30 +4326,20 @@ func (p *Server) getStreamChatMessages(
 	return cloneChatMessagesForStream(messages), nil
 }
 
-// getStreamQueuedMessages loads queued messages for an already-authorized
-// subscriber. Subscribe() must validate the caller before this helper is used.
-// The shared fetch intentionally runs as chatd so the singleflight leader's
-// request identity cannot affect authorization for other waiters.
-func (p *Server) getStreamQueuedMessages(
+// loadStreamQueuedMessages loads queued messages for a single authorized
+// subscriber. Queue snapshots are intentionally not singleflighted because a
+// chat-scoped key cannot distinguish the pre- and post-notification queue
+// state.
+func (p *Server) loadStreamQueuedMessages(
 	ctx context.Context,
 	chatID uuid.UUID,
 ) ([]database.ChatQueuedMessage, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	queued, err := singleflightDoChan(
-		ctx,
-		&p.streamQueueFetches,
-		fmt.Sprintf("chat-queue:%s", chatID),
-		func() ([]database.ChatQueuedMessage, error) {
-			fetchCtx, cancel := streamControlFetchContext(ctx)
-			defer cancel()
-			//nolint:gocritic // SubscribeAuthorized already validated the
-			// caller; the shared singleflight fetch runs as chatd so the
-			// leader's request identity cannot affect other authorized waiters.
-			return p.db.GetChatQueuedMessages(dbauthz.AsChatd(fetchCtx), chatID)
-		},
-	)
+	fetchCtx, cancel := streamSubscriberControlFetchContext(ctx)
+	defer cancel()
+	//nolint:gocritic // SubscribeAuthorized already validated the
+	// caller; queue reloads stay subscriber-scoped but still run as
+	// chatd so stream reads do not depend on request auth state.
+	queued, err := p.db.GetChatQueuedMessages(dbauthz.AsChatd(fetchCtx), chatID)
 	if err != nil {
 		return nil, err
 	}
@@ -4511,7 +4492,7 @@ func (p *Server) SubscribeAuthorized(
 	// Re-read the chat after the local/pubsub subscriptions are active so
 	// the initial status event and any enterprise relay setup use fresh
 	// state instead of the middleware-loaded row.
-	refreshCtx, refreshCancel := streamControlFetchContext(ctx)
+	refreshCtx, refreshCancel := streamSubscriberControlFetchContext(ctx)
 	snapshotChat, err := func() (database.Chat, error) {
 		defer refreshCancel()
 		//nolint:gocritic // SubscribeAuthorized already validated the
@@ -4579,7 +4560,7 @@ func (p *Server) SubscribeAuthorized(
 	}
 
 	// Load initial queue.
-	queued, err := p.getStreamQueuedMessages(ctx, chatID)
+	queued, err := p.loadStreamQueuedMessages(ctx, chatID)
 	if err != nil {
 		p.logger.Error(ctx, "failed to load initial queued messages",
 			slog.Error(err),
@@ -4780,7 +4761,7 @@ func (p *Server) SubscribeAuthorized(
 					}
 				}
 				if notify.QueueUpdate {
-					queuedMsgs, queueErr := p.getStreamQueuedMessages(mergedCtx, chatID)
+					queuedMsgs, queueErr := p.loadStreamQueuedMessages(mergedCtx, chatID)
 					if queueErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
 							slog.F("chat_id", chatID),
