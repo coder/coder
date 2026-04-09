@@ -10,8 +10,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/charmbracelet/anthropic-sdk-go"
+	anthropicoption "github.com/charmbracelet/anthropic-sdk-go/option"
+	"github.com/charmbracelet/anthropic-sdk-go/packages/ssestream"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -331,22 +332,174 @@ func Generate(ctx context.Context, logger slog.Logger, prompt string) TaskName {
 }
 
 func anthropicDataStream(ctx context.Context, client anthropic.Client, model anthropic.Model, input []aisdk.Message) (aisdk.DataStream, error) {
-	messages, system, err := aisdk.MessagesToAnthropic(input)
+	messages, system, err := messagesToAnthropic(input)
 	if err != nil {
 		return nil, xerrors.Errorf("convert messages to anthropic format: %w", err)
 	}
 
-	return aisdk.AnthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model: model,
-		// MaxTokens is set to 100 based on the maximum expected output size.
-		// The worst-case JSON output is 134 characters:
-		//   - Base structure: 43 chars (including formatting)
-		//   - task_name: 27 chars max
-		//   - display_name: 64 chars max
-		// Using Anthropic's token counting API, this worst-case output tokenizes to 70 tokens.
-		// We set MaxTokens to 100 to provide a safety buffer.
+	return anthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     model,
 		MaxTokens: 100,
 		System:    system,
 		Messages:  messages,
 	})), nil
+}
+
+// messagesToAnthropic converts internal message format to
+// Anthropic's API format. This is a simplified version that
+// only handles text parts since taskname only sends system
+// and user text messages.
+func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []anthropic.TextBlockParam, error) {
+	var anthropicMessages []anthropic.MessageParam
+	var systemPrompt []anthropic.TextBlockParam
+
+	for _, message := range messages {
+		switch message.Role {
+		case "system":
+			for _, part := range message.Parts {
+				if part.Type == aisdk.PartTypeText && part.Text != "" {
+					systemPrompt = append(systemPrompt, anthropic.TextBlockParam{
+						Text: part.Text,
+					})
+				}
+			}
+		case "user", "assistant":
+			role := anthropic.MessageParamRoleUser
+			if message.Role == "assistant" {
+				role = anthropic.MessageParamRoleAssistant
+			}
+			var content []anthropic.ContentBlockParamUnion
+			for _, part := range message.Parts {
+				if part.Type == aisdk.PartTypeText {
+					content = append(content, anthropic.ContentBlockParamUnion{
+						OfText: &anthropic.TextBlockParam{Text: part.Text},
+					})
+				}
+			}
+			if len(content) > 0 {
+				anthropicMessages = append(anthropicMessages, anthropic.MessageParam{
+					Role:    role,
+					Content: content,
+				})
+			}
+		default:
+			return nil, nil, xerrors.Errorf("unsupported message role: %s", message.Role)
+		}
+	}
+
+	return anthropicMessages, systemPrompt, nil
+}
+
+// anthropicToDataStream converts an Anthropic SSE stream into
+// an aisdk DataStream. This is a local port of the aisdk-go
+// bridge function using charmbracelet/anthropic-sdk-go types
+// (which resolve to coder/anthropic-sdk-go via go.mod replace).
+func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) aisdk.DataStream {
+	return func(yield func(aisdk.DataStreamPart, error) bool) {
+		var lastChunk *anthropic.MessageStreamEventUnion
+		var finalReason aisdk.FinishReason = aisdk.FinishReasonUnknown
+		var finalUsage aisdk.Usage
+		var currentToolCall struct {
+			ID   string
+			Args string
+		}
+
+		for stream.Next() {
+			chunk := stream.Current()
+			lastChunk = &chunk
+
+			event := chunk.AsAny()
+			switch event := event.(type) {
+			case anthropic.MessageStartEvent:
+				if !yield(aisdk.StartStepStreamPart{
+					MessageID: event.Message.ID,
+				}, nil) {
+					return
+				}
+
+			case anthropic.ContentBlockDeltaEvent:
+				switch delta := event.Delta.AsAny().(type) {
+				case anthropic.TextDelta:
+					if !yield(aisdk.TextStreamPart{Content: delta.Text}, nil) {
+						return
+					}
+				case anthropic.InputJSONDelta:
+					currentToolCall.Args += delta.PartialJSON
+					if !yield(aisdk.ToolCallDeltaStreamPart{
+						ToolCallID:    currentToolCall.ID,
+						ArgsTextDelta: delta.PartialJSON,
+					}, nil) {
+						return
+					}
+				case anthropic.ThinkingDelta:
+					if !yield(aisdk.ReasoningStreamPart{Content: delta.Thinking}, nil) {
+						return
+					}
+				}
+
+			case anthropic.ContentBlockStartEvent:
+				if block, ok := event.ContentBlock.AsAny().(anthropic.ToolUseBlock); ok {
+					currentToolCall.ID = block.ID
+					currentToolCall.Args = ""
+
+					if !yield(aisdk.ToolCallStartStreamPart{
+						ToolCallID: block.ID,
+						ToolName:   block.Name,
+					}, nil) {
+						return
+					}
+				}
+
+			case anthropic.MessageDeltaEvent:
+				if event.Delta.StopReason == "tool_use" {
+					finalReason = aisdk.FinishReasonToolCalls
+					if event.Usage.OutputTokens != 0 {
+						tokens := event.Usage.OutputTokens
+						finalUsage.CompletionTokens = &tokens
+					}
+
+					currentToolCall = struct {
+						ID   string
+						Args string
+					}{}
+				}
+
+			case anthropic.MessageStopEvent:
+				if finalReason == aisdk.FinishReasonUnknown {
+					finalReason = aisdk.FinishReasonStop
+				}
+
+				if !yield(aisdk.FinishStepStreamPart{
+					FinishReason: finalReason,
+					Usage:        finalUsage,
+					IsContinued:  false,
+				}, nil) {
+					return
+				}
+
+				if !yield(aisdk.FinishMessageStreamPart{
+					FinishReason: finalReason,
+					Usage:        finalUsage,
+				}, nil) {
+					return
+				}
+			}
+		}
+
+		if err := stream.Err(); err != nil {
+			yield(nil, xerrors.Errorf("anthropic stream error: %w", err))
+			return
+		}
+
+		if lastChunk == nil || lastChunk.Type != "message_stop" {
+			if finalReason == aisdk.FinishReasonUnknown {
+				finalReason = aisdk.FinishReasonError
+			}
+
+			yield(aisdk.FinishMessageStreamPart{
+				FinishReason: finalReason,
+				Usage:        finalUsage,
+			}, nil)
+		}
+	}
 }

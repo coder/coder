@@ -80,7 +80,6 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 1) Anthropic computer use + thinking effort
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
-// 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
 // See: https://github.com/coder/fantasy/commits/7aaf56df81f9
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
 
@@ -88,10 +87,6 @@ replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aa
 // additional performance improvements.
 // See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
-
-// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
-// https://github.com/anthropics/anthropic-sdk-go/pull/262
-replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
 
 // SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
 // https://github.com/kylecarbs/openai-go/pull/2
@@ -493,8 +488,8 @@ require (
 
 require (
 	charm.land/fantasy v0.8.1
-	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
+	github.com/charmbracelet/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aibridge v1.1.1-0.20260408143328-f72a795f1e77
 	github.com/coder/aisdk-go v0.0.9
@@ -530,6 +525,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
+	github.com/anthropics/anthropic-sdk-go v1.19.0 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/iamgo v0.0.10 // indirect
 	github.com/aquasecurity/jfather v0.0.8 // indirect
@@ -545,7 +541,6 @@ require (
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/charmbracelet/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab // indirect
 	github.com/charmbracelet/openai-go v0.0.0-20260319145158-d0740cc34266 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250904123553-b4e2667e5ad5 // indirect
 	github.com/charmbracelet/x/json v0.2.0 // indirect

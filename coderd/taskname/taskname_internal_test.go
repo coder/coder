@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/charmbracelet/anthropic-sdk-go"
+	anthropicoption "github.com/charmbracelet/anthropic-sdk-go/option"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
