@@ -338,7 +338,15 @@ func anthropicDataStream(ctx context.Context, client anthropic.Client, model ant
 	}
 
 	return anthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     model,
+		Model: model,
+		// MaxTokens is set to 100 based on the maximum expected
+		// output size. The worst-case JSON output is 134 chars:
+		//   - Base structure: 43 chars (including formatting)
+		//   - task_name: 27 chars max
+		//   - display_name: 64 chars max
+		// Using Anthropic's token counting API, this worst-case
+		// output tokenizes to 70 tokens. We set MaxTokens to 100
+		// to provide a safety buffer.
 		MaxTokens: 100,
 		System:    system,
 		Messages:  messages,
