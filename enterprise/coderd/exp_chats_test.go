@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -1091,4 +1092,94 @@ func (p cookieOnlySessionTokenProvider) SetDialOption(opts *websocket.DialOption
 		cookieName = "__Host-" + cookieName
 	}
 	opts.HTTPHeader.Set("Cookie", cookieName+"="+p.token)
+}
+
+func TestCreateChatNonDefaultOrg(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: func() *codersdk.DeploymentValues {
+				v := coderdtest.DeploymentValues(t)
+				v.Experiments = []string{string(codersdk.ExperimentAgents)}
+				return v
+			}(),
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+
+	// Set up a chat provider and model config.
+	provider, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		BaseURL:     "https://example.com",
+	})
+	require.NoError(t, err)
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:             provider.Provider,
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Test Model",
+		IsDefault:            boolPtr(true),
+		ContextLimit:         int64Ptr(1000),
+		CompressionThreshold: int32Ptr(70),
+	})
+	require.NoError(t, err)
+
+	// Create a second (non-default) org via the API.
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+	// Create a member in the default org, then add them to the second org.
+	memberClientRaw, member := coderdtest.CreateAnotherUser(
+		t, client, firstUser.OrganizationID, rbac.RoleAgentsAccess(),
+	)
+	_, err = client.PostOrganizationMember(ctx, secondOrg.ID, member.Username)
+	require.NoError(t, err)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	// Create a chat in the non-default org.
+	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: secondOrg.ID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello from non-default org",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, secondOrg.ID, chat.OrganizationID)
+	require.Equal(t, member.ID, chat.OwnerID)
+
+	// Verify the chat is visible when listing.
+	chats, err := memberClient.ListChats(ctx, nil)
+	require.NoError(t, err)
+	var found bool
+	for _, c := range chats {
+		if c.ID == chat.ID {
+			found = true
+			require.Equal(t, secondOrg.ID, c.OrganizationID)
+			break
+		}
+	}
+	require.True(t, found, "chat should be visible in list")
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
+}
+
+func int32Ptr(i int32) *int32 {
+	return &i
 }
