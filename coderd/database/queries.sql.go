@@ -5819,18 +5819,14 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.organization_id = $2
-        ELSE true
-    END
-    AND CASE
-        WHEN $3 :: boolean IS NULL THEN true
-        ELSE chats.archived = $3 :: boolean
+        WHEN $2 :: boolean IS NULL THEN true
+        ELSE chats.archived = $2 :: boolean
     END
     AND CASE
         -- This allows using the last element on a page as effectively a cursor.
         -- This is an important option for scripts that need to paginate without
         -- duplicating or missing data.
-        WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             -- The pagination cursor is the last ID of the previous page.
             -- The query is ordered by the updated_at field, so select all
             -- rows before the cursor.
@@ -5840,13 +5836,13 @@ WHERE
                 FROM
                     chats
                 WHERE
-                    id = $4
+                    id = $3
             )
         )
         ELSE true
     END
     AND CASE
-        WHEN $5::jsonb IS NOT NULL THEN chats.labels @> $5::jsonb
+        WHEN $4::jsonb IS NOT NULL THEN chats.labels @> $4::jsonb
         ELSE true
     END
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
@@ -5854,21 +5850,20 @@ WHERE
 ORDER BY
     -- Deterministic and consistent ordering of all rows, even if they share
     -- a timestamp. This is to ensure consistent pagination.
-    (updated_at, id) DESC OFFSET $6
+    (updated_at, id) DESC OFFSET $5
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($7 :: int, 0), 50)
+    COALESCE(NULLIF($6 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
-	OwnerID        uuid.UUID             `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID             `db:"organization_id" json:"organization_id"`
-	Archived       sql.NullBool          `db:"archived" json:"archived"`
-	AfterID        uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter    pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	OffsetOpt      int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnerID     uuid.UUID             `db:"owner_id" json:"owner_id"`
+	Archived    sql.NullBool          `db:"archived" json:"archived"`
+	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -5879,7 +5874,6 @@ type GetChatsRow struct {
 func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChats,
 		arg.OwnerID,
-		arg.OrganizationID,
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,

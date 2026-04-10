@@ -761,7 +761,6 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 	query := fmt.Sprintf("-- name: GetAuthorizedChats :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.OwnerID,
-		arg.OrganizationID,
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,

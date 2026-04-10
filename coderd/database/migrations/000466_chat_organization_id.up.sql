@@ -3,7 +3,7 @@ ALTER TABLE chats
     ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
 
 -- Step 2: Backfill from workspace org (primary path). Fall back to
--- user's sole org membership, then default org for rows where
+-- user's oldest org membership, then default org for rows where
 -- workspace_id was NULLed out by ON DELETE SET NULL or never set.
 UPDATE chats c
 SET organization_id = COALESCE(

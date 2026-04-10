@@ -841,7 +841,7 @@ func TestListChats(t *testing.T) {
 		require.Equal(t, memberChats[0].ID, memberChats[0].DiffStatus.ChatID)
 	})
 
-	t.Run("OrgMemberWithoutAgentsAccessCanReadOwnChats", func(t *testing.T) {
+	t.Run("OrgMemberWithoutAgentsAccessCanAccessOwnChats", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
@@ -850,9 +850,12 @@ func TestListChats(t *testing.T) {
 
 		// Create a member without agents-access and insert a chat
 		// owned by them via system context. With org-scoped chats,
-		// org members can read their own chats through org membership
-		// even without agents-access. The agents-access role gates
-		// chat creation (enforced in the handler), not reading.
+		// org members get full CRUD on their own chats through
+		// OrgMemberPermissions — without needing agents-access.
+		// The agents-access role only gates chat creation (postChats)
+		// and message sending (postChatMessages). Metadata operations
+		// like archive/pin/label and reading are not gated.
+		// See: https://github.com/coder/coder/issues/24250
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3937,6 +3940,41 @@ func TestPostChatMessages(t *testing.T) {
 				return false
 			}, testutil.WaitLong, testutil.IntervalFast)
 		}
+	})
+
+	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a member without agents-access and insert a
+		// chat owned by them via system context. Even though
+		// the member can read the chat through org membership,
+		// sending messages should be gated by agents-access
+		// because it triggers AI/LLM inference.
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           member.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "member chat",
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "this should fail",
+				},
+			},
+		})
+		requireSDKError(t, err, http.StatusForbidden)
 	})
 
 	t.Run("EmptyText", func(t *testing.T) {

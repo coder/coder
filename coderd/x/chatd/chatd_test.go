@@ -3550,10 +3550,15 @@ func seedChatDependenciesWithProviderPolicy(
 	centralAPIKeyEnabled bool,
 	allowUserAPIKey bool,
 	allowCentralAPIKeyFallback bool,
-) (database.User, database.ChatProvider, database.ChatModelConfig) {
+) (database.User, database.Organization, database.ChatProvider, database.ChatModelConfig) {
 	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
 	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:                   provider,
 		DisplayName:                provider,
@@ -3581,7 +3586,7 @@ func seedChatDependenciesWithProviderPolicy(
 	})
 	require.NoError(t, err)
 
-	return user, providerConfig, model
+	return user, org, providerConfig, model
 }
 
 func waitForTerminalChatStatusEvent(
@@ -4594,7 +4599,7 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 		)
 	})
 
-	user, provider, model := seedChatDependenciesWithProviderPolicy(
+	user, org, provider, model := seedChatDependenciesWithProviderPolicy(
 		ctx,
 		t,
 		db,
@@ -4612,7 +4617,6 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	org := dbgen.Organization(t, db, database.Organization{})
 	creator := newTestServer(t, db, ps, uuid.New())
 	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -4661,7 +4665,7 @@ func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
 		)
 	})
 
-	user, _, model := seedChatDependenciesWithProviderPolicy(
+	user, org, _, model := seedChatDependenciesWithProviderPolicy(
 		ctx,
 		t,
 		db,
@@ -4673,7 +4677,6 @@ func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
 		false,
 	)
 
-	org := dbgen.Organization(t, db, database.Organization{})
 	creator := newTestServer(t, db, ps, uuid.New())
 	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,

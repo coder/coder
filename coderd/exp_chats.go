@@ -1880,6 +1880,18 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	// Gate message sending behind the same agents-access check
+	// used by postChats. Sending a message triggers AI/LLM
+	// inference, so it should require the same authorization as
+	// chat creation. This is a handler-level band-aid — the
+	// structural fix is to make agents-access org-aware so
+	// dbauthz enforces this at the RBAC layer.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",

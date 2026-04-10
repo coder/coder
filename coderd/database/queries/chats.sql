@@ -349,10 +349,6 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.organization_id = @organization_id
-        ELSE true
-    END
-    AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
