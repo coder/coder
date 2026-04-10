@@ -445,6 +445,56 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("keeps a newer queue edit active when an older completed send turns inactive", async () => {
+		let rejectSend: ((reason?: unknown) => void) | undefined;
+		const onSend = vi.fn().mockImplementation(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectSend = reject;
+				}),
+		);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+
+		const { result, unmount } = renderHook(() =>
+			useConversationEditingState({
+				chatID,
+				onSend,
+				onDeleteQueuedMessage,
+				chatInputRef,
+				inputValueRef,
+			}),
+		);
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued draft A", []);
+		});
+
+		let sendPromise!: Promise<void>;
+		act(() => {
+			sendPromise = result.current.handleSendFromInput("hello");
+		});
+
+		expect(rejectSend).toBeTypeOf("function");
+
+		act(() => {
+			result.current.handleStartQueueEdit(12, "queued draft B", []);
+		});
+
+		await act(async () => {
+			rejectSend?.(new InactiveChatMutationError({ completedMutation: true }));
+			await expect(sendPromise).rejects.toBeInstanceOf(
+				InactiveChatMutationError,
+			);
+		});
+
+		expect(result.current.editingQueuedMessageID).toBe(12);
+		expect(result.current.editorInitialValue).toBe("queued draft B");
+		expect(onDeleteQueuedMessage).toHaveBeenCalledWith(9);
+		unmount();
+	});
+
 	it("does not write a draft key when chatID is undefined", () => {
 		const { result, unmount } = renderEditing(undefined);
 

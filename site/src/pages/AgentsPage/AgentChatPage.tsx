@@ -210,6 +210,10 @@ export function useConversationEditingState(deps: {
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
 		number | null
 	>(null);
+	const editingQueuedMessageIDRef = useRef<number | null>(null);
+	useLayoutEffect(() => {
+		editingQueuedMessageIDRef.current = editingQueuedMessageID;
+	}, [editingQueuedMessageID]);
 	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
 		useState<ParsedDraft | null>(null);
 
@@ -292,9 +296,11 @@ export function useConversationEditingState(deps: {
 					localStorage.removeItem(draftStorageKey);
 				}
 				if (queueEditID !== null) {
-					setEditingQueuedMessageID(null);
-					setDraftBeforeQueueEdit(null);
-					setEditingFileBlocks([]);
+					if (editingQueuedMessageIDRef.current === queueEditID) {
+						setEditingQueuedMessageID(null);
+						setDraftBeforeQueueEdit(null);
+						setEditingFileBlocks([]);
+					}
 					void onDeleteQueuedMessage(queueEditID);
 				}
 			}
