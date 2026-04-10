@@ -500,8 +500,17 @@ const AgentChatPage: FC = () => {
 				).text
 			: "",
 	);
+	// Guard in-flight mutations by both chat ID and navigation generation.
+	// This prevents stale completions from an earlier visit to the same
+	// chat ID (A -> B -> A) from applying to the current session.
 	const activeAgentIDRef = useRef(agentId);
+	const activeAgentGenerationRef = useRef(0);
+	const previousAgentIDRef = useRef(agentId);
 	useLayoutEffect(() => {
+		if (previousAgentIDRef.current !== agentId) {
+			previousAgentIDRef.current = agentId;
+			activeAgentGenerationRef.current += 1;
+		}
 		activeAgentIDRef.current = agentId;
 	}, [agentId]);
 
@@ -838,15 +847,23 @@ const AgentChatPage: FC = () => {
 		isSendPending || isEditPending || isInterruptPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
-	const isActiveAgent = (chatID: string | undefined): chatID is string => {
-		return Boolean(chatID) && activeAgentIDRef.current === chatID;
+	const isActiveAgent = (
+		chatID: string | undefined,
+		generation: number,
+	): chatID is string => {
+		return (
+			Boolean(chatID) &&
+			activeAgentIDRef.current === chatID &&
+			activeAgentGenerationRef.current === generation
+		);
 	};
 
 	const handleUsageLimitError = (
 		chatID: string | undefined,
+		generation: number,
 		error: unknown,
 	): void => {
-		if (!isActiveAgent(chatID)) {
+		if (!isActiveAgent(chatID, generation)) {
 			return;
 		}
 		if (
@@ -892,6 +909,7 @@ const AgentChatPage: FC = () => {
 			return;
 		}
 		const operationAgentID = agentId;
+		const operationGeneration = activeAgentGenerationRef.current;
 
 		const content: TypesGen.ChatInputPart[] = [];
 
@@ -933,7 +951,7 @@ const AgentChatPage: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
-				if (!isActiveAgent(operationAgentID)) {
+				if (!isActiveAgent(operationAgentID, operationGeneration)) {
 					return Promise.reject(
 						new InactiveChatMutationError({ completedMutation: true }),
 					);
@@ -942,11 +960,11 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				setPendingEditMessageId(null);
 			} catch (error) {
-				if (!isActiveAgent(operationAgentID)) {
+				if (!isActiveAgent(operationAgentID, operationGeneration)) {
 					return Promise.reject(new InactiveChatMutationError());
 				}
 				setPendingEditMessageId(null);
-				handleUsageLimitError(operationAgentID, error);
+				handleUsageLimitError(operationAgentID, operationGeneration, error);
 				throw error;
 			}
 			return;
@@ -972,13 +990,13 @@ const AgentChatPage: FC = () => {
 		try {
 			response = await sendMessage(request);
 		} catch (error) {
-			if (!isActiveAgent(operationAgentID)) {
+			if (!isActiveAgent(operationAgentID, operationGeneration)) {
 				return Promise.reject(new InactiveChatMutationError());
 			}
-			handleUsageLimitError(operationAgentID, error);
+			handleUsageLimitError(operationAgentID, operationGeneration, error);
 			throw error;
 		}
-		if (!isActiveAgent(operationAgentID)) {
+		if (!isActiveAgent(operationAgentID, operationGeneration)) {
 			return Promise.reject(
 				new InactiveChatMutationError({ completedMutation: true }),
 			);
@@ -1019,6 +1037,7 @@ const AgentChatPage: FC = () => {
 
 	const handleDeleteQueuedMessage = async (id: number) => {
 		const operationAgentID = agentId;
+		const operationGeneration = activeAgentGenerationRef.current;
 		const previousQueuedMessages = store.getSnapshot().queuedMessages;
 		store.setQueuedMessages(
 			previousQueuedMessages.filter((message) => message.id !== id),
@@ -1026,7 +1045,7 @@ const AgentChatPage: FC = () => {
 		try {
 			await deleteQueuedMessage(id);
 		} catch (error) {
-			if (!isActiveAgent(operationAgentID)) {
+			if (!isActiveAgent(operationAgentID, operationGeneration)) {
 				return;
 			}
 			store.setQueuedMessages(previousQueuedMessages);
@@ -1036,6 +1055,7 @@ const AgentChatPage: FC = () => {
 
 	const handlePromoteQueuedMessage = async (id: number) => {
 		const operationAgentID = agentId;
+		const operationGeneration = activeAgentGenerationRef.current;
 		const previousSnapshot = store.getSnapshot();
 		const previousQueuedMessages = previousSnapshot.queuedMessages;
 		const previousChatStatus = previousSnapshot.chatStatus;
@@ -1050,7 +1070,7 @@ const AgentChatPage: FC = () => {
 		store.setChatStatus("pending");
 		try {
 			const promotedMessage = await promoteQueuedMessage(id);
-			if (!isActiveAgent(operationAgentID)) {
+			if (!isActiveAgent(operationAgentID, operationGeneration)) {
 				return;
 			}
 			// Insert the promoted message into the store and cache
@@ -1059,12 +1079,12 @@ const AgentChatPage: FC = () => {
 			store.upsertDurableMessage(promotedMessage);
 			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
-			if (!isActiveAgent(operationAgentID)) {
+			if (!isActiveAgent(operationAgentID, operationGeneration)) {
 				return;
 			}
 			store.setQueuedMessages(previousQueuedMessages);
 			store.setChatStatus(previousChatStatus);
-			handleUsageLimitError(operationAgentID, error);
+			handleUsageLimitError(operationAgentID, operationGeneration, error);
 			throw error;
 		}
 	};
