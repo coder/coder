@@ -265,9 +265,14 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
 interface ThreadItemProps {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
+	isLastThread: boolean;
 }
 
-const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
+const ThreadItem: FC<ThreadItemProps> = ({
+	thread,
+	initiator,
+	isLastThread,
+}) => {
 	const [agenticLoopOpen, setAgenticLoopOpen] = useState(false);
 
 	const durationInMs =
@@ -398,8 +403,8 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				</BracketConnector>
 			) : (
 				// if no agentic loop, we need a little spacing element to create
-				// the visual gap between threads
-				<div className="h-4" />
+				// the visual gap between threads, unless this is the last thread
+				!isLastThread && <div className="h-4" />
 			)}
 		</>
 	);
@@ -525,8 +530,13 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
 					{/* threads */}
-					{threads.map((thread) => (
-						<ThreadItem key={thread.id} thread={thread} initiator={initiator} />
+					{threads.map((thread, i) => (
+						<ThreadItem
+							key={thread.id}
+							thread={thread}
+							initiator={initiator}
+							isLastThread={i === threads.length - 1}
+						/>
 					))}
 					{/* infinite scroll sentinel — sits 200px below the last thread */}
 					<div ref={sentinelRef} />
