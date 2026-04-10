@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -87,18 +88,14 @@ func summarizeToolContent(toolName, raw string, fields ...string) string {
 	return string(compactRunes[:toolSummaryFallbackWidth-1]) + "…"
 }
 
-func toolArgsSummary(toolName, argsJSON string) string {
-	return summarizeToolContent(toolName, argsJSON)
-}
+var toolArgsSummary = summarizeToolContent
 
 func toolResultSummary(toolName, argsJSON, resultJSON string) string {
-	if summary := toolArgsSummary(toolName, argsJSON); summary != "" {
-		return summary
-	}
-	if summary := summarizeToolContent(toolName, resultJSON); summary != "" {
-		return summary
-	}
-	return "null"
+	return cmp.Or(
+		summarizeToolContent(toolName, argsJSON),
+		summarizeToolContent(toolName, resultJSON),
+		"null",
+	)
 }
 
 func toolObjectSummary(toolName string, parsed any) string {
@@ -229,12 +226,17 @@ func renderExpandedToolBlock(styles tuiStyles, labelStyle lipgloss.Style, icon, 
 	if argsLine := renderToolDetail(styles, "args", args, width); argsLine != "" {
 		lines = append(lines, argsLine)
 	}
-	if result != "" {
-		if resultLine := renderToolDetail(styles, "result", result, width); resultLine != "" {
-			lines = append(lines, resultLine)
-		}
+	if resultLine := renderToolDetail(styles, "result", result, width); resultLine != "" {
+		lines = append(lines, resultLine)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func toolResultIconAndStyle(styles tuiStyles, block chatBlock) (string, lipgloss.Style) {
+	if block.isError {
+		return "✗", styles.errorText
+	}
+	return "✓", styles.toolSuccess
 }
 
 func renderToolCallBlock(styles tuiStyles, block chatBlock, width int) string {
@@ -247,7 +249,7 @@ func renderToolCallBlock(styles tuiStyles, block chatBlock, width int) string {
 		styles.toolPending,
 		"⏳",
 		toolDisplayLabel(block.toolName, block.kind, block.collapsedCount),
-		toolArgsSummary(block.toolName, block.args),
+		summarizeToolContent(block.toolName, block.args),
 		width,
 	)
 }
@@ -256,14 +258,9 @@ func renderToolResultBlock(styles tuiStyles, block chatBlock, width int) string 
 	if block.toolName == contextCompactionToolName {
 		return renderCompaction(styles, width)
 	}
-	icon := "✓"
-	labelStyle := styles.toolSuccess
-	if block.isError {
-		icon = "✗"
-		labelStyle = styles.errorText
-	}
+	icon, labelStyle := toolResultIconAndStyle(styles, block)
 
-	summary := toolArgsSummary(block.toolName, block.args)
+	summary := summarizeToolContent(block.toolName, block.args)
 	if summary == "" && block.isError {
 		summary = summarizeToolContent("", block.result, "error", "message", "detail", "stderr")
 	}
@@ -296,6 +293,7 @@ func contentWidth(width, inset int) int {
 }
 
 func renderOverlayFrame(styles tuiStyles, width int, sections ...string) string {
+	sections = slices.DeleteFunc(sections, func(section string) bool { return section == "" })
 	return styles.overlayBorder.Width(contentWidth(width, 6)).Render(strings.Join(sections, "\n\n"))
 }
 
@@ -346,12 +344,9 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 	}
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4
-	availableBodyLines := height - overhead
+	availableBodyLines := max(height-overhead, 0)
 	if height <= 0 {
 		availableBodyLines = 12
-	}
-	if availableBodyLines < 0 {
-		availableBodyLines = 0
 	}
 	wrappedDiff := wrapPreservingNewlines(diffBody, innerWidth)
 	if availableBodyLines == 0 {
@@ -359,15 +354,7 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 	} else {
 		wrappedDiff = clampLines(wrappedDiff, availableBodyLines)
 	}
-	sections := []string{strings.Join(headerBits, "\n")}
-	if summary != "" {
-		sections = append(sections, summary)
-	}
-	if wrappedDiff != "" {
-		sections = append(sections, wrappedDiff)
-	}
-	sections = append(sections, help)
-	return renderOverlayFrame(styles, width, sections...)
+	return renderOverlayFrame(styles, width, strings.Join(headerBits, "\n"), summary, wrappedDiff, help)
 }
 
 func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, selected string, cursor int, width, height int) string {
@@ -420,12 +407,9 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	}
 	help := styles.helpText.Render("Esc to close, Enter to select")
 	contentLines := lines
-	maxContentLines := height - countRenderedLines(help) - 4
+	maxContentLines := max(height-countRenderedLines(help)-4, 1)
 	if height <= 0 {
 		maxContentLines = len(contentLines)
-	}
-	if maxContentLines < 1 {
-		maxContentLines = 1
 	}
 	windowStart := 0
 	if cursorLine >= maxContentLines {

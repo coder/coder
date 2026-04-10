@@ -211,25 +211,18 @@ func (m *chatListModel) updateSelectedRowExpansion(intent chatExpansionIntent) b
 			m.expanded[row.chat.ID] = false
 			return true
 		}
-		if row.chat.ParentChatID == nil {
+		if row.chat.ParentChatID == nil || !m.expanded[*row.chat.ParentChatID] {
 			return false
 		}
 		parentID := *row.chat.ParentChatID
-		if !m.expanded[parentID] {
-			return false
-		}
 		m.expanded[parentID] = false
 		m.moveCursorToChat(parentID)
 		return true
 	case chatExpansionToggle:
-		if row.isExpanded {
-			if !m.expanded[row.chat.ID] {
-				return false
-			}
-			m.expanded[row.chat.ID] = false
-			return true
+		if row.isExpanded && !m.expanded[row.chat.ID] {
+			return false
 		}
-		m.expanded[row.chat.ID] = true
+		m.expanded[row.chat.ID] = !row.isExpanded
 	default:
 		return false
 	}
@@ -333,31 +326,32 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 			}
 		}
 
+		navigationHandled, normalizeNavigation := true, true
 		switch key {
 		case "/", "ctrl+f":
 			m.searching = true
 			m.search.Focus()
-			m.normalizeCursor()
-			return m, nil
-		case "up", "k", "down", "j":
-			if key == "up" || key == "k" {
-				m.cursor--
-			} else {
-				m.cursor++
-			}
-			m.normalizeCursor()
-			return m, nil
-		case "right", "l", "left", "h", "x":
-			intent := chatExpansionToggle
-			if key == "right" || key == "l" {
-				intent = chatExpansionExpand
-			} else if key == "left" || key == "h" {
-				intent = chatExpansionCollapse
-			}
-			if m.updateSelectedRowExpansion(intent) {
+		case "up", "k":
+			m.cursor--
+		case "down", "j":
+			m.cursor++
+		case "right", "l":
+			normalizeNavigation = m.updateSelectedRowExpansion(chatExpansionExpand)
+		case "left", "h":
+			normalizeNavigation = m.updateSelectedRowExpansion(chatExpansionCollapse)
+		case "x":
+			normalizeNavigation = m.updateSelectedRowExpansion(chatExpansionToggle)
+		default:
+			navigationHandled = false
+		}
+		if navigationHandled {
+			if normalizeNavigation {
 				m.normalizeCursor()
 			}
 			return m, nil
+		}
+
+		switch key {
 		case "enter":
 			selected := m.selectedChat()
 			if selected == nil {
