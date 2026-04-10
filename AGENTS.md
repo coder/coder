@@ -184,6 +184,15 @@ git pull origin branch-name
 
 Don't use `git push --force` unless explicitly requested.
 
+### Docs-only PRs
+
+For PRs that change **only** `docs/` files, use a flat branch name
+without `/` (e.g., `docs-fix-gateway-setup`, not
+`user/docs-fix-gateway-setup`). The docs preview site serves branch
+previews at `https://coder.com/docs/@<branch-name>` and `/` in the
+branch name breaks this URL. Include the preview base URL in the PR
+description so reviewers can browse the rendered changes.
+
 ### New Feature Checklist
 
 - [ ] Run `git pull` to ensure latest code
