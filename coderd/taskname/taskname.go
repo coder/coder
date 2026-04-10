@@ -414,9 +414,7 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 		var sawMessageStop bool
 
 		for stream.Next() {
-			chunk := stream.Current()
-			event := chunk.AsAny()
-			switch event := event.(type) {
+			switch event := stream.Current().AsAny().(type) {
 			case anthropic.MessageStartEvent:
 				if !yield(aisdk.StartStepStreamPart{
 					MessageID: event.Message.ID,

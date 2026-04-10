@@ -189,6 +189,7 @@ func TestMessagesToAnthropic(t *testing.T) {
 		expectMsgCount int
 		expectSysCount int
 		expectRole     anthropic.MessageParamRole
+		assertContent  func(t *testing.T, msgs []anthropic.MessageParam, sys []anthropic.TextBlockParam)
 	}{
 		{
 			name: "SystemAndUser",
@@ -199,6 +200,11 @@ func TestMessagesToAnthropic(t *testing.T) {
 			expectMsgCount: 1,
 			expectSysCount: 1,
 			expectRole:     anthropic.MessageParamRoleUser,
+			assertContent: func(t *testing.T, msgs []anthropic.MessageParam, sys []anthropic.TextBlockParam) {
+				t.Helper()
+				require.Equal(t, "You are helpful.", sys[0].Text)
+				require.Equal(t, "Hello", msgs[0].Content[0].OfText.Text)
+			},
 		},
 		{
 			name: "AssistantRole",
@@ -242,6 +248,11 @@ func TestMessagesToAnthropic(t *testing.T) {
 			expectMsgCount: 1,
 			expectSysCount: 0,
 			expectRole:     anthropic.MessageParamRoleUser,
+			assertContent: func(t *testing.T, msgs []anthropic.MessageParam, sys []anthropic.TextBlockParam) {
+				t.Helper()
+				require.Len(t, msgs[0].Content, 1)
+				require.Equal(t, "actual content", msgs[0].Content[0].OfText.Text)
+			},
 		},
 	}
 
@@ -261,14 +272,8 @@ func TestMessagesToAnthropic(t *testing.T) {
 			require.Len(t, sys, tc.expectSysCount)
 			require.Equal(t, tc.expectRole, msgs[0].Role)
 
-			// Assert text content for cases that check fidelity.
-			switch tc.name {
-			case "SystemAndUser":
-				require.Equal(t, "You are helpful.", sys[0].Text)
-				require.Equal(t, "Hello", msgs[0].Content[0].OfText.Text)
-			case "FiltersEmptyText":
-				require.Len(t, msgs[0].Content, 1)
-				require.Equal(t, "actual content", msgs[0].Content[0].OfText.Text)
+			if tc.assertContent != nil {
+				tc.assertContent(t, msgs, sys)
 			}
 		})
 	}
