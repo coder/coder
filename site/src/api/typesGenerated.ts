@@ -1666,6 +1666,7 @@ export interface ChatModelCallConfig {
 export interface ChatModelConfig {
 	readonly id: string;
 	readonly provider: string;
+	readonly provider_config_id?: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -2459,6 +2460,7 @@ export interface CreateChatMessageResponse {
  */
 export interface CreateChatModelConfigRequest {
 	readonly provider: string;
+	readonly provider_config_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;

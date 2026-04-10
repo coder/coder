@@ -1,4 +1,4 @@
-//nolint:testpackage // Internal test for unexported ChatProvidersByFamilyPrecedence helper.
+//nolint:testpackage // Tests the unexported ChatProvidersByFamilyPrecedence helper.
 package database
 
 import (

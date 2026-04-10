@@ -16,6 +16,16 @@ DROP INDEX IF EXISTS idx_chat_model_configs_provider_config_id;
 
 ALTER TABLE chat_providers ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
 
+-- Drop soft-deleted model configs whose provider family no longer exists so the
+-- restored foreign key can be recreated safely during rollback.
+DELETE FROM chat_model_configs AS cmc
+WHERE cmc.deleted = TRUE
+  AND NOT EXISTS (
+      SELECT 1
+      FROM chat_providers AS cp
+      WHERE cp.provider = cmc.provider
+  );
+
 -- Restore the FK from chat_model_configs.provider → chat_providers(provider).
 ALTER TABLE chat_model_configs ADD CONSTRAINT chat_model_configs_provider_fkey
     FOREIGN KEY (provider) REFERENCES chat_providers(provider) ON DELETE CASCADE;

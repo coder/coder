@@ -1750,7 +1750,10 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 }
 
 func (q *querier) CountChatProvidersByProviderExcludingID(ctx context.Context, arg database.CountChatProvidersByProviderExcludingIDParams) (int32, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatProvidersByProviderExcludingID(ctx, arg)
 }
 
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
@@ -2948,7 +2951,10 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.Ch
 }
 
 func (q *querier) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatProvider{}, err
+	}
+	return q.db.GetEnabledChatProviderByProvider(ctx, provider)
 }
 
 func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
@@ -5726,7 +5732,10 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 }
 
 func (q *querier) SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx context.Context, arg database.SoftDeleteBoundChatModelConfigsByProviderConfigIDParams) (int64, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return 0, err
+	}
+	return q.db.SoftDeleteBoundChatModelConfigsByProviderConfigID(ctx, arg)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
@@ -5767,7 +5776,10 @@ func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid
 }
 
 func (q *querier) SoftDeleteUnboundChatModelConfigsByProvider(ctx context.Context, arg database.SoftDeleteUnboundChatModelConfigsByProviderParams) (int64, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return 0, err
+	}
+	return q.db.SoftDeleteUnboundChatModelConfigsByProvider(ctx, arg)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

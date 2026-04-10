@@ -396,6 +396,17 @@ func (db *dbCrypt) GetChatProviderByID(ctx context.Context, id uuid.UUID) (datab
 	return provider, nil
 }
 
+func (db *dbCrypt) GetChatProviderByProvider(ctx context.Context, providerName string) (database.ChatProvider, error) {
+	provider, err := db.Store.GetChatProviderByProvider(ctx, providerName)
+	if err != nil {
+		return database.ChatProvider{}, err
+	}
+	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
+	return provider, nil
+}
+
 func (db *dbCrypt) GetEnabledChatProviderByProvider(ctx context.Context, providerName string) (database.ChatProvider, error) {
 	provider, err := db.Store.GetEnabledChatProviderByProvider(ctx, providerName)
 	if err != nil {

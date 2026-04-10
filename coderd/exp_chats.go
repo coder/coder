@@ -647,8 +647,8 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(visibleProviders),
 	)
-	enabledProviderNames := make(map[string]struct{}, len(enabledProviders))
-	for _, provider := range enabledProviders {
+	enabledProviderNames := make(map[string]struct{}, len(visibleProviders))
+	for _, provider := range visibleProviders {
 		normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
 		if normalizedProvider == "" {
 			continue
@@ -674,11 +674,6 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 				AllowCentralAPIKeyFallback: provider.AllowCentralApiKeyFallback,
 			},
 		)
-		normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		enabledProviderNames[normalizedProvider] = struct{}{}
 	}
 	configuredModels := make(
 		[]chatprovider.ConfiguredModel, 0, len(visibleModels),
@@ -4327,7 +4322,8 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateChatProviderAPIKeySize(strings.TrimSpace(req.APIKey)); err != nil {
+	trimmedAPIKey := strings.TrimSpace(req.APIKey)
+	if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "API key too large.",
 			Detail:  err.Error(),
@@ -4373,31 +4369,14 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if centralAPIKeyEnabled && strings.TrimSpace(req.APIKey) == "" {
+	if centralAPIKeyEnabled && !api.hasEffectiveCentralProviderAPIKey(ctx, database.ChatProvider{
+		Provider:             provider,
+		APIKey:               trimmedAPIKey,
+		BaseUrl:              baseURL,
+		CentralApiKeyEnabled: centralAPIKeyEnabled,
+	}, uuid.Nil) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "API key is required when central API key is enabled.",
-		})
-		return
-	}
-
-	// Enforce single provider per family. The unique DB constraint was
-	// dropped to prepare the schema for multi-provider support, but
-	// application-level uniqueness is preserved until that feature ships.
-	existingCount, err := api.Database.CountChatProvidersByProviderExcludingID(ctx,
-		database.CountChatProvidersByProviderExcludingIDParams{
-			Provider: provider,
-			ID:       uuid.Nil,
-		})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to check existing providers.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if existingCount > 0 {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "A provider config for this provider family already exists.",
 		})
 		return
 	}
@@ -4405,7 +4384,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	inserted, err = api.Database.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:                   provider,
 		DisplayName:                strings.TrimSpace(req.DisplayName),
-		APIKey:                     strings.TrimSpace(req.APIKey),
+		APIKey:                     trimmedAPIKey,
 		BaseUrl:                    baseURL,
 		ApiKeyKeyID:                sql.NullString{},
 		CreatedBy:                  uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
@@ -4553,8 +4532,13 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject enabling or keeping central API key without a direct stored key.
-	if centralAPIKeyEnabled && strings.TrimSpace(apiKey) == "" {
+	if centralAPIKeyEnabled && !api.hasEffectiveCentralProviderAPIKey(ctx, database.ChatProvider{
+		ID:                   existing.ID,
+		Provider:             existing.Provider,
+		APIKey:               apiKey,
+		BaseUrl:              baseURL,
+		CentralApiKeyEnabled: centralAPIKeyEnabled,
+	}, existing.ID) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "API key is required when central API key is enabled.",
 		})
@@ -5613,19 +5597,31 @@ func filterUserVisibleChatModelConfigs(
 		hasAPIKey := chatProviderConfigKeyBooleans(provider, defaultKeys)
 		return provider.AllowUserApiKey || hasAPIKey
 	}
-	return slices.DeleteFunc(configs, func(config database.ChatModelConfig) bool {
+	visibleConfigs := make([]database.ChatModelConfig, 0, len(configs))
+	for _, config := range configs {
 		if config.ProviderConfigID.Valid {
 			provider, ok := enabledProviderByID[config.ProviderConfigID.UUID]
-			if ok {
-				return !providerVisible(provider)
+			if !ok || !providerVisible(provider) {
+				continue
 			}
+			visibleConfigs = append(visibleConfigs, config)
+			continue
 		}
+
 		defaultProvider, ok := defaultProviderByFamily[chatprovider.NormalizeProvider(config.Provider)]
 		if ok {
-			return !providerVisible(defaultProvider)
+			if !providerVisible(defaultProvider) {
+				continue
+			}
+			visibleConfigs = append(visibleConfigs, config)
+			continue
 		}
-		return defaultKeys.APIKey(config.Provider) == ""
-	})
+		if defaultKeys.APIKey(config.Provider) == "" {
+			continue
+		}
+		visibleConfigs = append(visibleConfigs, config)
+	}
+	return visibleConfigs
 }
 
 func runtimeProvidersForVisibleModels(
@@ -5650,17 +5646,19 @@ func runtimeProvidersForVisibleModels(
 		providers = append(providers, provider)
 	}
 	for _, config := range configs {
-		if defaultProvider, ok := defaultProviderByFamily[chatprovider.NormalizeProvider(config.Provider)]; ok {
-			appendProvider(defaultProvider)
-		}
-		if !config.ProviderConfigID.Valid {
+		if config.ProviderConfigID.Valid {
+			enabledProvider, ok := enabledProviderByID[config.ProviderConfigID.UUID]
+			if !ok {
+				continue
+			}
+			appendProvider(enabledProvider)
 			continue
 		}
-		enabledProvider, ok := enabledProviderByID[config.ProviderConfigID.UUID]
+		defaultProvider, ok := defaultProviderByFamily[chatprovider.NormalizeProvider(config.Provider)]
 		if !ok {
 			continue
 		}
-		appendProvider(enabledProvider)
+		appendProvider(defaultProvider)
 	}
 	return providers
 }
@@ -5920,7 +5918,7 @@ func (api *API) hasEffectiveCentralProviderAPIKey(ctx context.Context, provider 
 	if strings.TrimSpace(provider.APIKey) != "" {
 		return true
 	}
-	deploymentKeys := ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
+	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	if deploymentKeys.APIKey(provider.Provider) != "" {
 		return true
 	}
