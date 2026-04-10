@@ -85,6 +85,45 @@ const validationSchema = Yup.object({
 
 // ── Component ──────────────────────────────────────────────────
 
+const buildConfigMeta = (
+	config: Parameters<typeof formatProviderConfigLabel>[0] & {
+		enabled: boolean;
+		has_api_key: boolean;
+	},
+) => ({
+	displayName: formatProviderConfigLabel(config),
+	enabled: config.enabled,
+	hasApiKey: config.has_api_key,
+});
+
+const AttachmentActions: FC<{
+	index: number;
+	lastIndex: number;
+	onMove: (direction: "up" | "down") => void;
+	onRemove: () => void;
+}> = ({ index, lastIndex, onMove, onRemove }) => (
+	<span className="ml-auto flex items-center gap-0.5">
+		{(
+			[
+				["Move up", index === 0, () => onMove("up"), ArrowUpIcon],
+				["Move down", index === lastIndex, () => onMove("down"), ArrowDownIcon],
+				["Remove", false, onRemove, XIcon],
+			] as const
+		).map(([label, disabled, onClick, Icon]) => (
+			<Button
+				key={label}
+				variant="subtle"
+				size="icon"
+				type="button"
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+			>
+				<Icon className="h-3 w-3" />
+			</Button>
+		))}
+	</span>
+);
 interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
 	editingModel?: TypesGen.ChatModelConfig;
@@ -249,31 +288,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 			!attachedProviderConfigIds.has(opt.configId),
 	);
 
-	const configLookup = new Map<
-		string,
-		{
-			displayName: string;
-			enabled: boolean;
-			hasApiKey: boolean;
-		}
-	>();
-	for (const c of selectedProviderConfigs) {
-		configLookup.set(c.id, {
-			displayName: formatProviderConfigLabel(c),
-			enabled: c.enabled,
-			hasApiKey: c.has_api_key,
-		});
-	}
-	if (editingModel?.provider_configs) {
-		for (const pc of editingModel.provider_configs) {
-			if (!configLookup.has(pc.provider_config_id)) {
-				configLookup.set(pc.provider_config_id, {
-					displayName: formatProviderConfigLabel(pc),
-					enabled: pc.enabled,
-					hasApiKey: pc.has_api_key,
-				});
-			}
-		}
+	const configLookup = new Map(
+		selectedProviderConfigs.map((config) => [
+			config.id,
+			buildConfigMeta(config),
+		]),
+	);
+	for (const config of editingModel?.provider_configs ?? []) {
+		const id = config.provider_config_id;
+		configLookup.set(id, configLookup.get(id) ?? buildConfigMeta(config));
 	}
 
 	const existingOrderedIds = !editingModel?.provider_configs
@@ -409,37 +432,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 										{meta.hasApiKey ? "API key set" : "No API key"}
 									</span>
 								)}
-								<span className="ml-auto flex items-center gap-0.5">
-									<Button
-										variant="subtle"
-										size="icon"
-										type="button"
-										aria-label="Move up"
-										disabled={index === 0}
-										onClick={() => moveAttachment(index, "up")}
-									>
-										<ArrowUpIcon className="h-3 w-3" />
-									</Button>
-									<Button
-										variant="subtle"
-										size="icon"
-										type="button"
-										aria-label="Move down"
-										disabled={index === attachedIds.length - 1}
-										onClick={() => moveAttachment(index, "down")}
-									>
-										<ArrowDownIcon className="h-3 w-3" />
-									</Button>
-									<Button
-										variant="subtle"
-										size="icon"
-										type="button"
-										aria-label="Remove"
-										onClick={() => removeAttachment(index)}
-									>
-										<XIcon className="h-3 w-3" />
-									</Button>
-								</span>
+								<AttachmentActions
+									index={index}
+									lastIndex={attachedIds.length - 1}
+									onMove={(direction) => moveAttachment(index, direction)}
+									onRemove={() => removeAttachment(index)}
+								/>
 							</div>
 						);
 					})}

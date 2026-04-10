@@ -20,10 +20,18 @@ import {
 import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { formatProviderConfigLabel } from "./modelProviderOptions";
 import { ProviderForm } from "./ProviderForm";
 import { ProviderIcon } from "./ProviderIcon";
 
 const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
+
+const clearProviderParams = (params: URLSearchParams) => {
+	params.delete("provider");
+	params.delete("configId");
+	params.delete("newConfig");
+	return params;
+};
 
 type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 
@@ -69,25 +77,14 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 
 	// Derive the current view from URL search params so that
 	// browser back/forward navigation works as expected.
-	const view: ProviderView = (() => {
-		if (providerParam) {
-			const exists = providerStates.some((ps) => ps.provider === providerParam);
-			return exists
-				? { mode: "detail", provider: providerParam }
-				: { mode: "list" };
-		}
-		return { mode: "list" };
-	})();
+	const view: ProviderView =
+		providerParam && providerStates.some((ps) => ps.provider === providerParam)
+			? { mode: "detail", provider: providerParam }
+			: { mode: "list" };
 
 	// Clear provider search params and return to the list.
 	const clearProviderView = () => {
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			next.delete("provider");
-			next.delete("configId");
-			next.delete("newConfig");
-			return next;
-		});
+		setSearchParams((prev) => clearProviderParams(new URLSearchParams(prev)));
 	};
 
 	// Detail view.
@@ -95,27 +92,22 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		view.mode === "detail"
 			? providerStates.find((ps) => ps.provider === view.provider)
 			: undefined;
-	const selectedConfig: TypesGen.ChatProviderConfig | undefined = (() => {
-		if (!detailProvider) return undefined;
-		if (newConfigParam) return undefined;
-		const configs = detailProvider.providerConfigs;
-		const firstDatabaseConfig = configs.find(
-			(config) => config.id !== nilProviderConfigID,
-		);
-		if (configIdParam) {
-			return (
-				configs.find((config) => config.id === configIdParam) ??
-				firstDatabaseConfig ??
-				configs[0]
-			);
-		}
-		return firstDatabaseConfig ?? configs[0];
-	})();
+	const selectedConfig =
+		!detailProvider || newConfigParam
+			? undefined
+			: (detailProvider.providerConfigs.find(
+					({ id }) => id === configIdParam,
+				) ??
+				detailProvider.providerConfigs.find(
+					({ id }) => id !== nilProviderConfigID,
+				) ??
+				detailProvider.providerConfigs[0]);
 	const providerFormConfig =
 		selectedConfig?.id === nilProviderConfigID ? undefined : selectedConfig;
-
-	const hasProviderFormConfigOverride =
-		newConfigParam !== null || providerFormConfig !== undefined;
+	const providerFormProps =
+		newConfigParam !== null || providerFormConfig !== undefined
+			? { providerConfig: providerFormConfig }
+			: {};
 
 	if (view.mode === "detail" && detailProvider) {
 		const providerFormKey = [
@@ -154,9 +146,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							<SelectContent>
 								{detailProvider.providerConfigs.map((providerConfig) => (
 									<SelectItem key={providerConfig.id} value={providerConfig.id}>
-										{providerConfig.display_name ||
-											providerConfig.base_url ||
-											providerConfig.id.slice(0, 8)}
+										{formatProviderConfigLabel(providerConfig)}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -187,9 +177,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				<ProviderForm
 					key={providerFormKey}
 					providerState={detailProvider}
-					{...(hasProviderFormConfigOverride
-						? { providerConfig: providerFormConfig }
-						: {})}
+					{...providerFormProps}
 					providerConfigsUnavailable={providerConfigsUnavailable}
 					isProviderMutationPending={isProviderMutationPending}
 					onCreateProvider={onCreateProvider}
@@ -200,13 +188,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							navigate(-1);
 						} else {
 							setSearchParams(
-								(prev) => {
-									const next = new URLSearchParams(prev);
-									next.delete("provider");
-									next.delete("configId");
-									next.delete("newConfig");
-									return next;
-								},
+								(prev) => clearProviderParams(new URLSearchParams(prev)),
 								{ replace: true },
 							);
 						}
