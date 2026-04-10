@@ -242,7 +242,9 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			}
 			setBuildID(result, buildID)
 
-			// Select the chat agent so follow-up tools wait on the			// intended workspace agent.
+			// Select the chat agent so follow-up tools wait on the
+			// intended workspace agent.
+
 			workspaceAgentID := uuid.Nil
 			if options.DB != nil {
 				agents, agentErr := options.DB.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)

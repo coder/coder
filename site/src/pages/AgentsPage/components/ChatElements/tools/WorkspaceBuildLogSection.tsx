@@ -81,14 +81,22 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
-	// --- Error state ---
-	const hasError = timedOut || (!isRunning && completedLogsQuery.isError);
+	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
 	if (!effectiveBuildId) {
 		return null;
 	}
 
-	if (hasError) {
+	if (fetchFailed) {
+		return (
+			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
+				<TriangleAlertIcon className="h-3 w-3" />
+				<span>Failed to load build logs.</span>
+			</div>
+		);
+	}
+
+	if (timedOut) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
 				<TriangleAlertIcon className="h-3 w-3" />
@@ -100,7 +108,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	if (!logs || logs.length === 0) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<LoaderIcon className="h-3 w-3 animate-spin" />
+				<LoaderIcon className="h-3 w-3 animate-spin motion-reduce:animate-none" />
 				<span>Loading build logs…</span>
 			</div>
 		);
