@@ -184,7 +184,12 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				TTLMillis:  ttlMs,
 			}
 
-			// Resolve workspace name.
+			// Resolve workspace name. This does a second
+			// GetTemplateByID when no name is provided; the first
+			// is the org-validation check above. Consolidating
+			// them would couple the security gate to the
+			// name-fallback path, and the cost is negligible next
+			// to the workspace build that follows.
 			name := strings.TrimSpace(args.Name)
 			if name == "" {
 				seed := "workspace"
