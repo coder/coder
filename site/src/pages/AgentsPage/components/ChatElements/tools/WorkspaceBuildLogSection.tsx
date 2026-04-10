@@ -97,6 +97,14 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
 	if (!effectiveBuildId) {
+		if (isRunning && workspaceId) {
+			return (
+				<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
+					<LoaderIcon className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+					<span>Loading build logs…</span>
+				</div>
+			);
+		}
 		return null;
 	}
 

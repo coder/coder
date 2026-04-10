@@ -1484,6 +1484,21 @@ export const StartWorkspaceCompleted: Story = {
 	},
 };
 
+export const StartWorkspaceLegacy: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "legacy-workspace",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Started legacy-workspace")).toBeInTheDocument();
+	},
+};
+
 export const StartWorkspaceError: Story = {
 	args: {
 		name: "start_workspace",
@@ -1556,6 +1571,21 @@ export const CreateWorkspaceCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceLegacy: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "legacy-workspace",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Created legacy-workspace")).toBeInTheDocument();
 	},
 };
 

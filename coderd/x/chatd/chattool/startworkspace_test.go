@@ -439,7 +439,7 @@ func TestStartWorkspace(t *testing.T) {
 			WorkspaceMu: &sync.Mutex{},
 		})
 
-		// Run tool.Run in a goroutine — it will see the job as
+		// Run tool.Run in a goroutine. It will see the job as
 		// Running and enter waitForBuild which polls every 2s.
 		type toolResult struct {
 			resp fantasy.ToolResponse
@@ -472,7 +472,7 @@ func TestStartWorkspace(t *testing.T) {
 		started, ok := result["started"].(bool)
 		require.True(t, ok)
 		require.True(t, started)
-		require.NotEmpty(t, result["build_id"], "expected build_id in response for in-progress build")
+		require.Equal(t, wsResp.Build.ID.String(), result["build_id"])
 	})
 
 	t.Run("DeletedWorkspace", func(t *testing.T) {
