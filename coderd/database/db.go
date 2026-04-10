@@ -15,6 +15,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
+
+	slog "cdr.dev/slog/v3"
 )
 
 // Store contains all queryable database functions.
@@ -51,6 +53,12 @@ type DBTX interface {
 func WithSerialRetryCount(count int) func(*sqlQuerier) {
 	return func(q *sqlQuerier) {
 		q.serialRetryCount = count
+	}
+}
+
+func WithLogger(logger slog.Logger) func(*sqlQuerier) {
+	return func(q *sqlQuerier) {
+		q.logger = logger
 	}
 }
 
@@ -120,6 +128,14 @@ type sqlQuerier struct {
 	// serialRetryCount is the number of times to retry a transaction
 	// if it fails with a serialization error.
 	serialRetryCount int
+
+	// logger is used to log warnings about transaction nesting.
+	// Zero value (slog.Logger{}) is a no-op logger.
+	logger slog.Logger
+
+	// txIsolationLevel tracks the isolation level of the current
+	// transaction, so nested InTx calls can report a mismatch.
+	txIsolationLevel sql.IsolationLevel
 }
 
 func (*sqlQuerier) Wrappers() []string {
@@ -187,6 +203,15 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
+		if txOpts.Isolation != sql.LevelDefault {
+			// The nested call requested a specific isolation level, but
+			// it will be silently ignored because we reuse the parent
+			// transaction. Log this so callers can detect the mismatch.
+			q.logger.Critical(context.Background(), "nested transaction requested specific isolation level; the outer transaction's isolation level will be used",
+				slog.F("parent_isolation", q.txIsolationLevel.String()),
+				slog.F("requested_isolation", txOpts.Isolation.String()),
+			)
+		}
 		err := function(q)
 		if err != nil {
 			return xerrors.Errorf("execute transaction: %w", err)
@@ -207,7 +232,11 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		// couldn't roll back for some reason, extend returned error
 		err = xerrors.Errorf("defer (%s): %w", rerr.Error(), err)
 	}()
-	err = function(&sqlQuerier{db: transaction})
+	err = function(&sqlQuerier{
+		db:               transaction,
+		logger:           q.logger,
+		txIsolationLevel: txOpts.Isolation,
+	})
 	if err != nil {
 		return xerrors.Errorf("execute transaction: %w", err)
 	}
