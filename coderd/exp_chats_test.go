@@ -991,12 +991,13 @@ func TestListChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Create the chat that will later be pinned. It gets the
 		// earliest updated_at because it is inserted first.
 		pinnedChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "pinned-chat",
@@ -1010,6 +1011,7 @@ func TestListChats(t *testing.T) {
 		fillerChats := make([]codersdk.Chat, 0, fillerCount)
 		for i := range fillerCount {
 			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
 					Text: fmt.Sprintf("filler-%d", i),
@@ -1073,7 +1075,7 @@ func TestListChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Create 5 chats: 2 will be pinned, 3 unpinned.
@@ -1081,6 +1083,7 @@ func TestListChats(t *testing.T) {
 		createdChats := make([]codersdk.Chat, 0, totalChats)
 		for i := range totalChats {
 			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
 					Text: fmt.Sprintf("cursor-pin-chat-%d", i),
