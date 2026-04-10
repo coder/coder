@@ -315,8 +315,11 @@ RUN \
 	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Add coder user and allow use of docker/sudo
-RUN useradd coder \
+# Add coder user and allow use of docker/sudo.
+# Ubuntu 26.04 ships a default "ubuntu" user at UID 1000;
+# remove it so we can create "coder" with that UID.
+RUN userdel -r ubuntu && \
+	useradd coder \
 	--create-home \
 	--shell=/bin/bash \
 	--groups=docker \
