@@ -369,7 +369,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	providerConfig, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -379,10 +379,11 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	contextLimit := int64(4096)
 	isDefault := true
 	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
+		Provider:          "openai-compat",
+		Model:             "gpt-4o-mini",
+		ContextLimit:      &contextLimit,
+		IsDefault:         &isDefault,
+		ProviderConfigIDs: []uuid.UUID{providerConfig.ID},
 	})
 	require.NoError(t, err)
 
@@ -2879,7 +2880,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	providerConfig, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -2889,10 +2890,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	contextLimit := int64(4096)
 	isDefault := true
 	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
+		Provider:          "openai-compat",
+		Model:             "gpt-4o-mini",
+		ContextLimit:      &contextLimit,
+		IsDefault:         &isDefault,
+		ProviderConfigIDs: []uuid.UUID{providerConfig.ID},
 	})
 	require.NoError(t, err)
 
@@ -3049,7 +3051,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	providerConfig, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -3059,10 +3061,11 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	contextLimit := int64(4096)
 	isDefault := true
 	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
+		Provider:          "openai-compat",
+		Model:             "gpt-4o-mini",
+		ContextLimit:      &contextLimit,
+		IsDefault:         &isDefault,
+		ProviderConfigIDs: []uuid.UUID{providerConfig.ID},
 	})
 	require.NoError(t, err)
 
@@ -5849,7 +5852,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	providerConfig, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -5859,10 +5862,11 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	contextLimit := int64(4096)
 	isDefault := true
 	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
+		Provider:          "openai-compat",
+		Model:             "gpt-4o-mini",
+		ContextLimit:      &contextLimit,
+		IsDefault:         &isDefault,
+		ProviderConfigIDs: []uuid.UUID{providerConfig.ID},
 	})
 	require.NoError(t, err)
 
