@@ -709,7 +709,7 @@ const ChatMessageInput = ({
 					initialEditorState={initialEditorState}
 				/>
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
-				<EditableStatePlugin disabled={!!disabled} />
+				<EditableStatePlugin disabled={Boolean(disabled)} />
 				{autoFocus && <AutoFocusPlugin />}
 			</div>
 		</LexicalComposer>

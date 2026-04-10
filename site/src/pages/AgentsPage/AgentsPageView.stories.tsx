@@ -30,7 +30,7 @@ import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
 import AgentSettingsPage from "./AgentSettingsPage";
-import { AgentSettingsUsagePageView } from "./AgentSettingsUsagePageView";
+import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 
@@ -194,40 +194,6 @@ const BehaviorRouteElement = () => {
 	);
 };
 
-const UsageRouteElement = () => (
-	<AgentSettingsUsagePageView
-		dateRange={{
-			startDate: new Date("2026-02-10"),
-			endDate: new Date("2026-03-12"),
-		}}
-		hasExplicitDateRange={false}
-		onDateRangeChange={fn()}
-		searchFilter=""
-		onSearchFilterChange={fn()}
-		page={1}
-		onPageChange={fn()}
-		pageSize={25}
-		offset={0}
-		usersData={mockUsageUsers}
-		isUsersLoading={false}
-		isUsersFetching={false}
-		usersError={null}
-		onUsersRetry={fn()}
-		selectedUserId={null}
-		selectedUser={null}
-		isSelectedUserLoading={false}
-		isSelectedUserError={false}
-		selectedUserError={null}
-		onSelectedUserRetry={fn()}
-		onClearSelectedUser={fn()}
-		onSelectUser={fn()}
-		summaryData={undefined}
-		isSummaryLoading={false}
-		summaryError={null}
-		onSummaryRetry={fn()}
-	/>
-);
-
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
@@ -238,7 +204,11 @@ const agentsRouting = {
 			children: [
 				{ index: true, element: <Navigate to="behavior" replace /> },
 				{ path: "behavior", element: <BehaviorRouteElement /> },
-				{ path: "usage", element: <UsageRouteElement /> },
+				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
+				{
+					path: "usage",
+					element: <Navigate to="/agents/settings/spend" replace />,
+				},
 			],
 		},
 		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
@@ -358,6 +328,21 @@ const meta: Meta<typeof AgentsPageView> = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
+			spend_limit_micros: null,
+			period: "month",
+			updated_at: "2026-02-18T00:00:00.000Z",
+			unpriced_model_count: 0,
+			overrides: [],
+			group_overrides: [],
+		});
+		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue({
+			start_date: "2026-02-10T00:00:00Z",
+			end_date: "2026-03-12T00:00:00Z",
+			count: 0,
+			users: [],
+		});
 	},
 };
 
@@ -703,12 +688,12 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Navigate to Usage section
-		await userEvent.click(screen.getByText("Usage"));
+		// Navigate to Spend section
+		await userEvent.click(screen.getByText("Spend"));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review deployment Coder Agents usage and drill into individual users.",
+					"Configure spend limits and monitor usage across your deployment.",
 				),
 			).toBeInTheDocument();
 		});

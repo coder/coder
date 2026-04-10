@@ -257,12 +257,12 @@ until you add a new personal key.
 ## Using an LLM proxy
 
 Organizations that route LLM traffic through a centralized proxy — such as
-Coder's AI Bridge or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
+Coder's AI Gateway or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
 
-For example, to route all OpenAI traffic through Coder's AI Bridge:
+For example, to route all OpenAI traffic through Coder's AI Gateway:
 
 1. Add or edit the **OpenAI** provider.
-1. Set the **Base URL** to your AI Bridge endpoint
+1. Set the **Base URL** to your AI Gateway endpoint
    (e.g., `https://example.coder.com/api/v2/aibridge/openai/v1`).
 1. Enter the API key your proxy expects.
 

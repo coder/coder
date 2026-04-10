@@ -35,7 +35,7 @@ const WorkspacePage: FC = () => {
 	// Template
 	const templateQuery = useQuery({
 		...templateQueryOptions(workspace?.template_id ?? ""),
-		enabled: !!workspace,
+		enabled: Boolean(workspace),
 	});
 	const template = templateQuery.data;
 

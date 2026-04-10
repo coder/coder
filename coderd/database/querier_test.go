@@ -7376,7 +7376,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		assert.Equal(t, "WORKFLOW_ENV", updatedSecret.EnvName) // EnvName unchanged
 
 		// 6. DELETE
-		err = db.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
+		_, err = db.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
 			UserID: testUser.ID,
 			Name:   "workflow-secret",
 		})

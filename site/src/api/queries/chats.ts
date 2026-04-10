@@ -5,6 +5,7 @@ import type {
 } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -992,12 +993,6 @@ type ChatCostDateParams = {
 	end_date?: string;
 };
 
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
 	[...chatsKey, "costSummary", user, params] as const;
 
@@ -1007,14 +1002,33 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
-	[...chatsKey, "costUsers", params] as const;
+interface PaginatedChatCostUsersPayload {
+	username: string;
+	start_date: string;
+	end_date: string;
+}
 
-export const chatCostUsers = (params?: ChatCostUsersParams) => ({
-	queryKey: chatCostUsersKey(params),
-	queryFn: () => API.experimental.getChatCostUsers(params),
-	staleTime: 60_000,
-});
+export function paginatedChatCostUsers(
+	payload: PaginatedChatCostUsersPayload,
+): UsePaginatedQueryOptions<
+	TypesGen.ChatCostUsersResponse,
+	PaginatedChatCostUsersPayload
+> {
+	return {
+		queryPayload: () => payload,
+		queryKey: ({ payload, pageNumber }) =>
+			[...chatsKey, "costUsers", payload, pageNumber] as const,
+		queryFn: ({ payload, limit, offset }) =>
+			API.experimental.getChatCostUsers({
+				start_date: payload.start_date,
+				end_date: payload.end_date,
+				username: payload.username || undefined,
+				limit,
+				offset,
+			}),
+		staleTime: 60_000,
+	};
+}
 
 const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
 	[...chatsKey, "prInsights", params] as const;

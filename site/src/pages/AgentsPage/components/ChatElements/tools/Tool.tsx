@@ -356,6 +356,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		: undefined;
 	const report = rec ? asString(rec.report) : "";
 	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
+	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
 	const title =
@@ -418,6 +419,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			}
 			variant={variant}
 			recordingFileId={recordingFileId || undefined}
+			thumbnailFileId={thumbnailFileId || undefined}
 		/>
 	);
 };

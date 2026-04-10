@@ -896,3 +896,46 @@ export const MultiAssistantTurnCopyButton: Story = {
 		expect(actions).toHaveLength(2);
 	},
 };
+
+/**
+ * Regression: thinking-only assistant messages must have consistent
+ * bottom spacing before the next user bubble. A spacer div fills the
+ * gap that would normally come from the invisible action bar.
+ */
+export const ThinkingOnlyAssistantSpacing: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Explain this code" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step. The user wants me to explain the code they shared.",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Any progress?" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The thinking-only assistant message has no action bar, but
+		// it should still have visible text and a spacer element.
+		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
+		expect(canvas.getByText("Any progress?")).toBeInTheDocument();
+	},
+};

@@ -1,11 +1,11 @@
-# Usage and Analytics
+# Spend Management
 
-Coder provides two admin-only views for monitoring and controlling agent
+Coder provides admin-only controls for monitoring and controlling agent
 spend: usage limits and cost tracking.
 
 ## Usage limits
 
-Navigate to **Agents** > **Settings** > **Limits**.
+Navigate to **Agents** > **Settings** > **Spend**.
 
 Usage limits cap how much each user can spend on LLM usage within a rolling
 time period. When enabled, the system checks the user's current spend before
@@ -53,7 +53,7 @@ their effective limit, current spend, and when the current period resets.
 
 ## Cost tracking
 
-Navigate to **Agents** > **Settings** > **Usage**.
+Navigate to **Agents** > **Settings** > **Spend**.
 
 This view shows deployment-wide LLM chat costs with per-user drill-down.
 

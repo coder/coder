@@ -78,7 +78,7 @@ const CreateWorkspacePage: FC = () => {
 	);
 	const templateVersionPresetsQuery = useQuery({
 		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: !!templateQuery.data,
+		enabled: Boolean(templateQuery.data),
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
@@ -87,7 +87,7 @@ const CreateWorkspacePage: FC = () => {
 				templateQuery.data?.id,
 			),
 		}),
-		enabled: !!templateQuery.data,
+		enabled: Boolean(templateQuery.data),
 	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;

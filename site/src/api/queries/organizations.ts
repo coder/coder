@@ -304,7 +304,7 @@ export const organizationsPermissions = (
 	organizationIds: string[] | undefined,
 ) => {
 	return {
-		enabled: !!organizationIds,
+		enabled: Boolean(organizationIds),
 		queryKey: [
 			"organizations",
 			[...(organizationIds ?? []).sort()],
@@ -351,7 +351,7 @@ export const workspacePermissionsByOrganization = (
 	userId: string,
 ) => {
 	return {
-		enabled: !!organizationIds,
+		enabled: Boolean(organizationIds),
 		queryKey: [
 			"workspaces",
 			[...(organizationIds ?? []).sort()],

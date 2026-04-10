@@ -801,7 +801,7 @@ func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 type RenderOAuthAllowData struct {
 	AppIcon     string
 	AppName     string
-	CancelURI   string
+	CancelURI   htmltemplate.URL
 	RedirectURI string
 	CSRFToken   string
 	Username    string

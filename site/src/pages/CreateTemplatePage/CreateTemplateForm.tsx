@@ -224,7 +224,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
 	const { data: provisioners } = useQuery({
 		...provisionerDaemons(selectedOrg?.id ?? ""),
-		enabled: showOrganizationPicker && !!selectedOrg,
+		enabled: showOrganizationPicker && Boolean(selectedOrg),
 	});
 
 	// TODO: Ideally, we would have a backend endpoint that could notify the

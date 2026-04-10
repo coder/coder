@@ -1007,8 +1007,8 @@
 							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
-							"title": "Security \u0026 Boundaries",
-							"description": "Learn about security and boundaries when running AI coding agents in Coder",
+							"title": "Security \u0026 Agent Firewall",
+							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
 						},
 						{
@@ -1025,162 +1025,162 @@
 					"state": ["premium"],
 					"children": [
 						{
-							"title": "Agent Boundaries",
-							"description": "Understanding Agent Boundaries in Coder Tasks",
-							"path": "./ai-coder/agent-boundaries/index.md",
+							"title": "Agent Firewall",
+							"description": "Understanding Agent Firewall in Coder Tasks",
+							"path": "./ai-coder/agent-firewall/index.md",
 							"state": ["premium"],
 							"children": [
 								{
 									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
-									"path": "./ai-coder/agent-boundaries/nsjail/index.md",
+									"path": "./ai-coder/agent-firewall/nsjail/index.md",
 									"children": [
 										{
 											"title": "NS Jail on Docker",
 											"description": "Runtime and permission requirements for running NS Jail on Docker",
-											"path": "./ai-coder/agent-boundaries/nsjail/docker.md"
+											"path": "./ai-coder/agent-firewall/nsjail/docker.md"
 										},
 										{
 											"title": "NS Jail on Kubernetes",
 											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
-											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
+											"path": "./ai-coder/agent-firewall/nsjail/k8s.md"
 										},
 										{
 											"title": "NS Jail on ECS",
 											"description": "Runtime and permission requirements for running NS Jail on ECS",
-											"path": "./ai-coder/agent-boundaries/nsjail/ecs.md"
+											"path": "./ai-coder/agent-firewall/nsjail/ecs.md"
 										}
 									]
 								},
 								{
 									"title": "LandJail",
 									"description": "Documentation for LandJail",
-									"path": "./ai-coder/agent-boundaries/landjail.md"
+									"path": "./ai-coder/agent-firewall/landjail.md"
 								},
 								{
 									"title": "Rules Engine",
-									"description": "Documentation for the Boundary rules engine",
-									"path": "./ai-coder/agent-boundaries/rules-engine.md"
+									"description": "Documentation for the Agent Firewall rules engine",
+									"path": "./ai-coder/agent-firewall/rules-engine.md"
 								},
 								{
 									"title": "Version Compatibility",
 									"description": "Version requirements and compatibility information",
-									"path": "./ai-coder/agent-boundaries/version.md"
+									"path": "./ai-coder/agent-firewall/version.md"
 								}
 							]
 						},
 						{
-							"title": "AI Bridge",
+							"title": "AI Gateway",
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
-							"path": "./ai-coder/ai-bridge/index.md",
+							"path": "./ai-coder/ai-gateway/index.md",
 							"icon_path": "./images/icons/api.svg",
 							"state": ["premium"],
 							"children": [
 								{
 									"title": "Setup",
-									"description": "How to set up and configure AI Bridge",
-									"path": "./ai-coder/ai-bridge/setup.md"
+									"description": "How to set up and configure AI Gateway",
+									"path": "./ai-coder/ai-gateway/setup.md"
 								},
 								{
 									"title": "Client Configuration",
-									"description": "How to configure your AI coding tools to use AI Bridge",
-									"path": "./ai-coder/ai-bridge/clients/index.md",
+									"description": "How to configure your AI coding tools to use AI Gateway",
+									"path": "./ai-coder/ai-gateway/clients/index.md",
 									"children": [
 										{
 											"title": "Claude Code",
-											"description": "Configure Claude Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
+											"description": "Configure Claude Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/claude-code.md"
 										},
 										{
 											"title": "Codex",
-											"description": "Configure Codex to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/codex.md"
+											"description": "Configure Codex to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/codex.md"
 										},
 										{
 											"title": "Mux",
-											"description": "Configure Mux to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/mux.md"
+											"description": "Configure Mux to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/mux.md"
 										},
 										{
 											"title": "OpenCode",
-											"description": "Configure OpenCode to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/opencode.md"
+											"description": "Configure OpenCode to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/opencode.md"
 										},
 										{
 											"title": "Factory",
-											"description": "Configure Factory to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/factory.md"
+											"description": "Configure Factory to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/factory.md"
 										},
 										{
 											"title": "Cline",
-											"description": "Configure Cline to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/cline.md"
+											"description": "Configure Cline to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/cline.md"
 										},
 										{
 											"title": "Kilo Code",
-											"description": "Configure Kilo Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
+											"description": "Configure Kilo Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/kilo-code.md"
 										},
 										{
 											"title": "Roo Code",
-											"description": "Configure Roo Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
+											"description": "Configure Roo Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/roo-code.md"
 										},
 										{
 											"title": "VS Code",
-											"description": "Configure VS Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/vscode.md"
+											"description": "Configure VS Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/vscode.md"
 										},
 										{
 											"title": "JetBrains",
-											"description": "Configure JetBrains IDEs to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
+											"description": "Configure JetBrains IDEs to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/jetbrains.md"
 										},
 										{
 											"title": "Zed",
-											"description": "Configure Zed to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/zed.md"
+											"description": "Configure Zed to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/zed.md"
 										},
 										{
 											"title": "GitHub Copilot",
-											"description": "Configure GitHub Copilot to use AI Bridge via AI Bridge Proxy",
-											"path": "./ai-coder/ai-bridge/clients/copilot.md"
+											"description": "Configure GitHub Copilot to use AI Gateway via AI Gateway Proxy",
+											"path": "./ai-coder/ai-gateway/clients/copilot.md"
 										}
 									]
 								},
 								{
 									"title": "MCP Tools Injection",
-									"description": "How to configure MCP servers for tools injection through AI Bridge",
-									"path": "./ai-coder/ai-bridge/mcp.md",
+									"description": "How to configure MCP servers for tools injection through AI Gateway",
+									"path": "./ai-coder/ai-gateway/mcp.md",
 									"state": ["early access"]
 								},
 								{
-									"title": "AI Bridge Proxy",
+									"title": "AI Gateway Proxy",
 									"description": "Proxy for AI coding tools without base URL override support",
-									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
+									"path": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md",
 									"state": ["premium"],
 									"children": [
 										{
 											"title": "Setup",
-											"description": "How to set up and configure AI Bridge Proxy",
-											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
+											"description": "How to set up and configure AI Gateway Proxy",
+											"path": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md"
 										}
 									]
 								},
 								{
 									"title": "Auditing AI Sessions",
 									"description": "How to audit AI sessions",
-									"path": "./ai-coder/ai-bridge/audit.md"
+									"path": "./ai-coder/ai-gateway/audit.md"
 								},
 								{
 									"title": "Monitoring",
-									"description": "How to monitor AI Bridge",
-									"path": "./ai-coder/ai-bridge/monitoring.md"
+									"description": "How to monitor AI Gateway",
+									"path": "./ai-coder/ai-gateway/monitoring.md"
 								},
 								{
 									"title": "Reference",
-									"description": "Technical reference for AI Bridge",
-									"path": "./ai-coder/ai-bridge/reference.md"
+									"description": "Technical reference for AI Gateway",
+									"path": "./ai-coder/ai-gateway/reference.md"
 								}
 							]
 						},
@@ -1246,7 +1246,7 @@
 									"state": ["early access"]
 								},
 								{
-									"title": "Usage \u0026 Analytics",
+									"title": "Spend Management",
 									"description": "Spend limits and cost tracking for Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 									"state": ["early access"]
@@ -1525,6 +1525,10 @@
 						{
 							"title": "Schemas",
 							"path": "./reference/api/schemas.md"
+						},
+						{
+							"title": "Secrets",
+							"path": "./reference/api/secrets.md"
 						},
 						{
 							"title": "Tasks",

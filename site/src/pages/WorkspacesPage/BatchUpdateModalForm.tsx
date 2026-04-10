@@ -116,12 +116,12 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<span className="leading-tight">{workspaceName}</span>
 						{running && (
-							<Badge size="xs" variant="warning" border="none">
+							<Badge size="xs" variant="warning">
 								Running
 							</Badge>
 						)}
 						{transitioning && (
-							<Badge size="xs" variant="warning" border="none">
+							<Badge size="xs" variant="warning">
 								Getting latest status
 							</Badge>
 						)}

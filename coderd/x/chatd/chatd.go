@@ -73,9 +73,9 @@ const (
 
 	// maxConcurrentRecordingUploads caps the number of recording
 	// stop-and-store operations that can run concurrently. Each
-	// slot buffers up to MaxRecordingSize (100 MB) in memory, so
-	// this value implicitly bounds memory to roughly
-	// maxConcurrentRecordingUploads * 100 MB.
+	// slot buffers up to MaxRecordingSize + MaxThumbnailSize
+	// (110 MB) in memory, so this value implicitly bounds memory
+	// to roughly maxConcurrentRecordingUploads * 110 MB.
 	maxConcurrentRecordingUploads = 25
 
 	// staleRecoveryIntervalDivisor determines how often the stale
@@ -996,7 +996,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, txErr
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCreated, nil)
 	p.signalWake()
 	return chat, nil
 }
@@ -1158,7 +1158,7 @@ func (p *Server) SendMessage(
 
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 	return result, nil
 }
@@ -1301,7 +1301,7 @@ func (p *Server) EditMessage(
 		QueueUpdate: true,
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
@@ -1355,10 +1355,10 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 
 	if interrupted {
 		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
-		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(statusChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	p.publishChatPubsubEvents(archivedChats, coderdpubsub.ChatEventKindDeleted)
+	p.publishChatPubsubEvents(archivedChats, codersdk.ChatWatchEventKindDeleted)
 	return nil
 }
 
@@ -1373,7 +1373,7 @@ func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 		ctx,
 		chat.ID,
 		"unarchive",
-		coderdpubsub.ChatEventKindCreated,
+		codersdk.ChatWatchEventKindCreated,
 		p.db.UnarchiveChatByID,
 	)
 }
@@ -1382,7 +1382,7 @@ func (p *Server) applyChatLifecycleTransition(
 	ctx context.Context,
 	chatID uuid.UUID,
 	action string,
-	kind coderdpubsub.ChatEventKind,
+	kind codersdk.ChatWatchEventKind,
 	transition func(context.Context, uuid.UUID) ([]database.Chat, error),
 ) error {
 	updatedChats, err := transition(ctx, chatID)
@@ -1545,7 +1545,7 @@ func (p *Server) PromoteQueued(
 	})
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
@@ -2092,7 +2092,7 @@ func (p *Server) regenerateChatTitleWithStore(
 		return updatedChat, nil
 	}
 
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 	return updatedChat, nil
 }
 
@@ -2347,7 +2347,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		return database.Chat{}, err
 	}
 	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return updatedChat, nil
 }
 
@@ -2461,6 +2461,33 @@ type chainModeInfo struct {
 	// trailingUserCount is the number of contiguous user messages
 	// at the end of the conversation that form the current turn.
 	trailingUserCount int
+	// contributingTrailingUserCount counts the trailing user
+	// messages that materially change the provider input.
+	contributingTrailingUserCount int
+}
+
+func userMessageContributesToChainMode(msg database.ChatMessage) bool {
+	parts, err := chatprompt.ParseContent(msg)
+	if err != nil {
+		return false
+	}
+	for _, part := range parts {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeText,
+			codersdk.ChatMessagePartTypeReasoning:
+			if strings.TrimSpace(part.Text) != "" {
+				return true
+			}
+		case codersdk.ChatMessagePartTypeFile,
+			codersdk.ChatMessagePartTypeFileReference:
+			return true
+		case codersdk.ChatMessagePartTypeContextFile:
+			if part.ContextFileContent != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // resolveChainMode scans DB messages from the end to count trailing user
@@ -2470,11 +2497,13 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 	var info chainModeInfo
 	i := len(messages) - 1
 	for ; i >= 0; i-- {
-		if messages[i].Role == database.ChatMessageRoleUser {
-			info.trailingUserCount++
-			continue
+		if messages[i].Role != database.ChatMessageRoleUser {
+			break
 		}
-		break
+		info.trailingUserCount++
+		if userMessageContributesToChainMode(messages[i]) {
+			info.contributingTrailingUserCount++
+		}
 	}
 	for ; i >= 0; i-- {
 		switch messages[i].Role {
@@ -2497,15 +2526,15 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 	return info
 }
 
-// filterPromptForChainMode keeps only system messages and the last
-// trailingUserCount user messages from the prompt. Assistant and tool
-// messages are dropped because the provider already has them via the
-// previous_response_id chain.
+// filterPromptForChainMode keeps only system messages and the trailing
+// user messages that still contribute model-visible content to the
+// current turn. Assistant and tool messages are dropped because the
+// provider already has them via the previous_response_id chain.
 func filterPromptForChainMode(
 	prompt []fantasy.Message,
-	trailingUserCount int,
+	info chainModeInfo,
 ) []fantasy.Message {
-	if trailingUserCount <= 0 {
+	if info.contributingTrailingUserCount <= 0 {
 		return prompt
 	}
 
@@ -2516,7 +2545,12 @@ func filterPromptForChainMode(
 		}
 	}
 
-	usersToSkip := totalUsers - trailingUserCount
+	// Prompt construction already drops user turns with no model-visible
+	// content, such as skill-only sentinel messages. That means the user
+	// count here stays aligned with contributingTrailingUserCount even
+	// when non-contributing DB turns are interleaved in the trailing
+	// block.
+	usersToSkip := totalUsers - info.contributingTrailingUserCount
 	if usersToSkip < 0 {
 		usersToSkip = 0
 	}
@@ -2560,6 +2594,28 @@ func appendChatMessage(
 	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
 	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
 	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
+}
+
+// BuildSingleChatMessageInsertParams creates batch insert params for one
+// message using the shared chat message builder.
+func BuildSingleChatMessageInsertParams(
+	chatID uuid.UUID,
+	role database.ChatMessageRole,
+	content pqtype.NullRawMessage,
+	visibility database.ChatMessageVisibility,
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+	createdBy uuid.UUID,
+) database.InsertChatMessagesParams {
+	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: chatID,
+	}
+	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
+	if createdBy != uuid.Nil {
+		msg = msg.withCreatedBy(createdBy)
+	}
+	appendChatMessage(&params, msg)
+	return params
 }
 
 func insertUserMessageAndSetPending(
@@ -3571,7 +3627,7 @@ func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.C
 }
 
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
-func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsub.ChatEventKind) {
+func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
 		p.publishChatPubsubEvent(chat, kind, nil)
 	}
@@ -3579,7 +3635,7 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsu
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind, diffStatus *codersdk.ChatDiffStatus) {
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
 	}
@@ -3591,7 +3647,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
-	event := coderdpubsub.ChatEvent{
+	event := codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: sdkChat,
 	}
@@ -3603,7 +3659,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.F("kind", kind),
@@ -3636,8 +3692,8 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 	toolCalls := pendingToStreamToolCalls(pending)
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 
-	event := coderdpubsub.ChatEvent{
-		Kind:      coderdpubsub.ChatEventKindActionRequired,
+	event := codersdk.ChatWatchEvent{
+		Kind:      codersdk.ChatWatchEventKindActionRequired,
 		Chat:      sdkChat,
 		ToolCalls: toolCalls,
 	}
@@ -3649,7 +3705,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat action_required pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
@@ -3677,7 +3733,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 	}
 
 	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange, &sdkStatus)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
 	return nil
 }
 
@@ -4159,7 +4215,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if title, ok := generatedTitle.Load(); ok {
 			updatedChat.Title = title
 		}
-		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 		// When the chat is parked in requires_action,
 		// publish the stream event and global pubsub event
@@ -4430,13 +4486,21 @@ func (p *Server) runChat(
 	// the workspace agent has changed (e.g. workspace rebuilt).
 	needsInstructionPersist := false
 	hasContextFiles := false
+	persistedSkills := skillsFromParts(messages)
+	latestInjectedAgentID, hasLatestInjectedAgent := latestContextAgentID(messages)
+	currentWorkspaceAgentID := uuid.Nil
+	hasCurrentWorkspaceAgent := false
 	if chat.WorkspaceID.Valid {
+		if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+			currentWorkspaceAgentID = agent.ID
+			hasCurrentWorkspaceAgent = true
+		}
 		persistedAgentID, found := contextFileAgentID(messages)
 		hasContextFiles = found
-		if !hasContextFiles {
+		if !hasPersistedInstructionFiles(messages) {
 			needsInstructionPersist = true
-		} else if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID != persistedAgentID {
-			// Agent changed — persist fresh instruction files.
+		} else if hasCurrentWorkspaceAgent && currentWorkspaceAgentID != persistedAgentID {
+			// Agent changed. Persist fresh instruction files.
 			// Old context-file messages remain in the conversation
 			// to preserve the prompt cache prefix.
 			needsInstructionPersist = true
@@ -4459,7 +4523,8 @@ func (p *Server) runChat(
 	if needsInstructionPersist {
 		g2.Go(func() error {
 			var persistErr error
-			instruction, skills, persistErr = p.persistInstructionFiles(
+			var discoveredSkills []chattool.SkillMeta
+			instruction, discoveredSkills, persistErr = p.persistInstructionFiles(
 				ctx,
 				chat,
 				modelConfig.ID,
@@ -4470,6 +4535,12 @@ func (p *Server) runChat(
 					}
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
+			)
+			skills = selectSkillMetasForInstructionRefresh(
+				persistedSkills,
+				discoveredSkills,
+				uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
+				uuid.NullUUID{UUID: latestInjectedAgentID, Valid: hasLatestInjectedAgent},
 			)
 			if persistErr != nil {
 				p.logger.Warn(ctx, "failed to persist instruction files",
@@ -4485,7 +4556,7 @@ func (p *Server) runChat(
 		// re-injected via InsertSystem after compaction drops
 		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
-		skills = skillsFromParts(messages)
+		skills = persistedSkills
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
@@ -5103,14 +5174,14 @@ func (p *Server) runChat(
 	// assistant and tool messages that the provider already has.
 	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
-		chainInfo.trailingUserCount > 0 &&
+		chainInfo.contributingTrailingUserCount > 0 &&
 		chainInfo.modelConfigID == modelConfig.ID
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
 			chainInfo.previousResponseID,
 		)
-		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
+		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
@@ -5164,7 +5235,7 @@ func (p *Server) runChat(
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
-					chainInfo.trailingUserCount,
+					chainInfo,
 				)
 			}
 			return reloadedPrompt, nil
@@ -5537,8 +5608,9 @@ func refreshChatWorkspaceSnapshot(
 }
 
 // contextFileAgentID extracts the workspace agent ID from the most
-// recent persisted context-file parts. Returns uuid.Nil, false if no
-// context-file parts exist.
+// recent persisted instruction-file parts. The skill-only sentinel is
+// ignored because it does not represent persisted instruction content.
+// Returns uuid.Nil, false if no instruction-file parts exist.
 func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 	var lastID uuid.UUID
 	found := false
@@ -5551,11 +5623,14 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 			continue
 		}
 		for _, p := range parts {
-			if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFileAgentID.Valid {
-				lastID = p.ContextFileAgentID.UUID
-				found = true
-				break
+			if p.Type != codersdk.ChatMessagePartTypeContextFile ||
+				!p.ContextFileAgentID.Valid ||
+				p.ContextFilePath == AgentChatContextSentinelPath {
+				continue
 			}
+			lastID = p.ContextFileAgentID.UUID
+			found = true
+			break
 		}
 	}
 	return lastID, found
@@ -5625,13 +5700,14 @@ func (p *Server) persistInstructionFiles(
 	// agent cannot know its own UUID, OS metadata, or
 	// directory — those are added here at the trust boundary.
 	var discoveredSkills []chattool.SkillMeta
-	var hasContent bool
+	var hasContent, hasContextFilePart bool
 	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
 
 	for i := range agentParts {
 		agentParts[i].ContextFileAgentID = agentID
 		switch agentParts[i].Type {
 		case codersdk.ChatMessagePartTypeContextFile:
+			hasContextFilePart = true
 			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
 			agentParts[i].ContextFileOS = agent.OperatingSystem
 			agentParts[i].ContextFileDirectory = directory
@@ -5652,13 +5728,13 @@ func (p *Server) persistInstructionFiles(
 		if !workspaceConnOK {
 			return "", nil, nil
 		}
-		// Persist a sentinel (plus any skill-only parts) so
-		// subsequent turns skip the workspace agent dial.
-		if len(agentParts) == 0 {
-			agentParts = []codersdk.ChatMessagePart{{
+		// Persist a blank context-file marker (plus any skill-only
+		// parts) so subsequent turns skip the workspace agent dial.
+		if !hasContextFilePart {
+			agentParts = append([]codersdk.ChatMessagePart{{
 				Type:               codersdk.ChatMessagePartTypeContextFile,
 				ContextFileAgentID: agentID,
-			}}
+			}}, agentParts...)
 		}
 		content, err := chatprompt.MarshalParts(agentParts)
 		if err != nil {
