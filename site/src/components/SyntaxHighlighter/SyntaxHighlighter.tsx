@@ -1,11 +1,15 @@
 import { useTheme } from "@emotion/react";
-import Editor, { DiffEditor, loader } from "@monaco-editor/react";
+import Editor, { DiffEditor } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
-import * as monaco from "monaco-editor";
-import { type ComponentProps, type FC, useCallback } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	useCallback,
+	useEffect,
+	useState,
+} from "react";
+import { ensureMonacoIsLoaded } from "#/utils/monaco";
 import { useCoderTheme } from "./coderTheme";
-
-loader.config({ monaco });
 
 // Shared editor props with onMount typed to accept either editor variant,
 // so callers don't need to know which underlying component will render.
@@ -37,6 +41,25 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 	const hasDiff = compareWith && value !== compareWith;
 	const theme = useTheme();
 	const coderTheme = useCoderTheme();
+	const [monacoReady, setMonacoReady] = useState(false);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		void ensureMonacoIsLoaded()
+			.then(() => {
+				if (isMounted) {
+					setMonacoReady(true);
+				}
+			})
+			.catch(() => {
+				// Not a biggie!
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
 	// Auto-scroll to first diff when the diff editor mounts and diffs are computed.
 	const handleDiffEditorMount = useCallback(
@@ -86,7 +109,7 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 		...editorProps,
 	};
 
-	if (coderTheme.isLoading) {
+	if (coderTheme.isLoading || !monacoReady) {
 		return null;
 	}
 
