@@ -176,52 +176,38 @@ func TestExpAgents(t *testing.T) {
 		t.Run("OpenChatSwitchesView", func(t *testing.T) {
 			t.Parallel()
 			tests := []struct {
-				name   string
-				msg    tea.Msg
-				assert func(t *testing.T, updated expChatsTUIModel, cmd tea.Cmd)
+				name         string
+				msg          tea.Msg
+				draft        bool
+				wantLoading  bool
+				wantBatchLen int
 			}{
-				{
-					"SelectedChat",
-					openSelectedChatMsg{chatID: uuid.New()},
-					func(t *testing.T, updated expChatsTUIModel, cmd tea.Cmd) {
-						t.Helper()
-						require.Equal(t, viewChat, updated.currentView)
-						require.True(t, updated.chat.loading)
-						require.Equal(t, 39, updated.chat.height)
-						require.Equal(t, 33, updated.chat.viewport.Height)
-						require.Len(t, mustBatchMsg(t, cmd), 3)
-					},
-				},
-				{
-					"DraftChat",
-					openDraftChatMsg{},
-					func(t *testing.T, updated expChatsTUIModel, cmd tea.Cmd) {
-						t.Helper()
-						require.Equal(t, viewChat, updated.currentView)
-						require.True(t, updated.chat.draft)
-						require.False(t, updated.chat.loading)
-						require.True(t, updated.chat.metadataResolved)
-						require.True(t, updated.chat.historyResolved)
-						require.Equal(t, 39, updated.chat.height)
-						require.Equal(t, 33, updated.chat.viewport.Height)
-						require.Nil(t, cmd)
-					},
-				},
+				{name: "SelectedChat", msg: openSelectedChatMsg{chatID: uuid.New()}, wantLoading: true, wantBatchLen: 3},
+				{name: "DraftChat", msg: openDraftChatMsg{}, draft: true},
 			}
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
-					model.width = 100
-					model.height = 40
-
+					model.width, model.height = 100, 40
 					updatedModel, cmd := model.Update(tt.msg)
 					updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
-					tt.assert(t, updated, cmd)
+					require.Equal(t, viewChat, updated.currentView)
+					require.Equal(t, 39, updated.chat.height)
+					require.Equal(t, 33, updated.chat.viewport.Height)
+					if tt.draft {
+						require.True(t, updated.chat.draft)
+						require.False(t, updated.chat.loading)
+						require.True(t, updated.chat.metadataResolved)
+						require.True(t, updated.chat.historyResolved)
+						require.Nil(t, cmd)
+						return
+					}
+					require.Equal(t, tt.wantLoading, updated.chat.loading)
+					require.Len(t, mustBatchMsg(t, cmd), tt.wantBatchLen)
 				})
 			}
 		})
-
 		t.Run("ReopensModelPickerAfterClosing", func(t *testing.T) {
 			t.Parallel()
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
@@ -704,52 +690,52 @@ func TestExpAgents(t *testing.T) {
 		t.Run("ErrorThenRetrySucceeds", func(t *testing.T) {
 			t.Parallel()
 			tests := []struct {
-				name string
-				run  func(t *testing.T)
+				name         string
+				errMsg       tea.Msg
+				retryMsg     tea.Msg
+				needsClient  bool
+				composerText string
+				wantBlocks   int
+				wantRetryCmd bool
 			}{
-				{"ChatOpened", func(t *testing.T) {
+				{name: "ChatOpened", errMsg: chatOpenedMsg{err: xerrors.New("open failed")}, retryMsg: chatOpenedMsg{chat: testChat(codersdk.ChatStatusRunning)}},
+				{name: "History", errMsg: chatHistoryMsg{err: xerrors.New("history failed")}, retryMsg: chatHistoryMsg{messages: []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "recovered"})}}, wantBlocks: 1},
+				{name: "Send", needsClient: true, composerText: "keep me", errMsg: messageSentMsg{err: xerrors.New("send failed")}, wantRetryCmd: true},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
 					model := newTestChatViewModel(nil)
-
-					updated, cmd := model.Update(chatOpenedMsg{err: xerrors.New("open failed")})
-					require.Nil(t, cmd)
-					require.NotNil(t, updated.err)
-
-					chat := testChat(codersdk.ChatStatusRunning)
-					updated, cmd = updated.Update(chatOpenedMsg{chat: chat})
-					require.NotNil(t, cmd)
-					require.NotNil(t, updated.chat)
-					require.Equal(t, chat.ID, updated.chat.ID)
-					require.Nil(t, updated.err)
-				}},
-				{"History", func(t *testing.T) {
-					model := newTestChatViewModel(nil)
-
-					updated, cmd := model.Update(chatHistoryMsg{err: xerrors.New("history failed")})
-					require.Nil(t, cmd)
-					require.NotNil(t, updated.err)
-
-					messages := []codersdk.ChatMessage{
-						testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "recovered"}),
+					if tt.needsClient {
+						model = newTestChatViewModel(failingExperimentalClient())
+						model.loading = false
+						chat := testChat(codersdk.ChatStatusCompleted)
+						model.chat = &chat
+						model.chatStatus = chat.Status
+						model.composer.SetValue(tt.composerText)
 					}
-					updated, cmd = updated.Update(chatHistoryMsg{messages: messages})
+					updated, cmd := model.Update(tt.errMsg)
 					require.Nil(t, cmd)
-					require.Equal(t, messages, updated.messages)
-					require.Len(t, updated.blocks, 1)
-					require.Nil(t, updated.err)
-				}},
-				{"Send", func(t *testing.T) {
-					model := newTestChatViewModel(failingExperimentalClient())
-					model.loading = false
-					chat := testChat(codersdk.ChatStatusCompleted)
-					model.chat = &chat
-					model.chatStatus = chat.Status
-					model.composer.SetValue("keep me")
-
-					updated, cmd := model.Update(messageSentMsg{err: xerrors.New("send failed")})
-					require.Nil(t, cmd)
-					require.Equal(t, "keep me", updated.composer.Value())
+					require.Error(t, updated.err)
+					if tt.retryMsg != nil {
+						updated, cmd = updated.Update(tt.retryMsg)
+						require.Nil(t, updated.err)
+						switch retryMsg := tt.retryMsg.(type) {
+						case chatOpenedMsg:
+							require.NotNil(t, cmd)
+							require.NotNil(t, updated.chat)
+							require.Equal(t, retryMsg.chat.ID, updated.chat.ID)
+						case chatHistoryMsg:
+							require.Nil(t, cmd)
+							require.Equal(t, retryMsg.messages, updated.messages)
+							require.Len(t, updated.blocks, tt.wantBlocks)
+						}
+					}
+					if !tt.wantRetryCmd {
+						return
+					}
+					require.Equal(t, tt.composerText, updated.composer.Value())
 					require.Contains(t, updated.View(), "send failed")
-
 					updated.composer.SetValue("retry me")
 					retried, retryCmd := updated.sendMessage()
 					require.NotNil(t, retryCmd)
@@ -757,16 +743,9 @@ func TestExpAgents(t *testing.T) {
 					require.Empty(t, retried.composer.Value())
 					_, ok := mustMsg(t, retryCmd).(messageSentMsg)
 					require.True(t, ok)
-				}},
-			}
-			for _, tt := range tests {
-				t.Run(tt.name, func(t *testing.T) {
-					t.Parallel()
-					tt.run(t)
 				})
 			}
 		})
-
 		t.Run("ChatHistoryEdgeCases", func(t *testing.T) {
 			t.Parallel()
 			cases := []struct {
@@ -1366,45 +1345,11 @@ func TestExpAgents(t *testing.T) {
 	t.Run("ChatView/ModelOverrideMapsCanonicalModelID", func(t *testing.T) {
 		t.Parallel()
 		tests := []struct {
-			name   string
-			setup  func(chatViewModel, codersdk.Chat) chatViewModel
-			assert func(*testing.T, uuid.UUID, codersdk.Chat, func() *codersdk.CreateChatRequest, func() *codersdk.CreateChatMessageRequest, tea.Cmd)
+			name  string
+			draft bool
 		}{
-			{
-				name: "DraftCreateReturnsChatCreatedMsg",
-				setup: func(model chatViewModel, _ codersdk.Chat) chatViewModel {
-					model.draft = true
-					return model
-				},
-				assert: func(t *testing.T, modelConfigID uuid.UUID, createdChat codersdk.Chat, createReq func() *codersdk.CreateChatRequest, _ func() *codersdk.CreateChatMessageRequest, cmd tea.Cmd) {
-					t.Helper()
-					msg, ok := mustMsg(t, cmd).(chatCreatedMsg)
-					require.True(t, ok)
-					require.NoError(t, msg.err)
-					req := createReq()
-					require.NotNil(t, req)
-					require.NotNil(t, req.ModelConfigID)
-					require.Equal(t, modelConfigID, *req.ModelConfigID)
-					require.Equal(t, createdChat.ID, msg.chat.ID)
-				},
-			},
-			{
-				name: "SendMessageReturnsMessageSentMsg",
-				setup: func(model chatViewModel, chat codersdk.Chat) chatViewModel {
-					model.setChat(chat)
-					return model
-				},
-				assert: func(t *testing.T, modelConfigID uuid.UUID, _ codersdk.Chat, _ func() *codersdk.CreateChatRequest, messageReq func() *codersdk.CreateChatMessageRequest, cmd tea.Cmd) {
-					t.Helper()
-					msg, ok := mustMsg(t, cmd).(messageSentMsg)
-					require.True(t, ok)
-					require.NoError(t, msg.err)
-					req := messageReq()
-					require.NotNil(t, req)
-					require.NotNil(t, req.ModelConfigID)
-					require.Equal(t, modelConfigID, *req.ModelConfigID)
-				},
-			},
+			{name: "DraftCreateReturnsChatCreatedMsg", draft: true},
+			{name: "SendMessageReturnsMessageSentMsg", draft: false},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -1433,20 +1378,37 @@ func TestExpAgents(t *testing.T) {
 						t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
 					}
 				})
-
-				model := tt.setup(newTestChatViewModel(client), chat)
+				model := newTestChatViewModel(client)
+				if tt.draft {
+					model.draft = true
+				} else {
+					model.setChat(chat)
+				}
 				model.loading = false
 				model.modelOverride = &modelOverride
 				model.composer.SetValue("hello")
-
 				updated, cmd := model.sendMessage()
 				require.NotNil(t, cmd)
 				require.Empty(t, updated.composer.Value())
-				tt.assert(t, modelConfigID, createdChat, func() *codersdk.CreateChatRequest { return createReq }, func() *codersdk.CreateChatMessageRequest { return messageReq }, cmd)
+				if tt.draft {
+					msg, ok := mustMsg(t, cmd).(chatCreatedMsg)
+					require.True(t, ok)
+					require.NoError(t, msg.err)
+					require.NotNil(t, createReq)
+					require.NotNil(t, createReq.ModelConfigID)
+					require.Equal(t, modelConfigID, *createReq.ModelConfigID)
+					require.Equal(t, createdChat.ID, msg.chat.ID)
+					return
+				}
+				msg, ok := mustMsg(t, cmd).(messageSentMsg)
+				require.True(t, ok)
+				require.NoError(t, msg.err)
+				require.NotNil(t, messageReq)
+				require.NotNil(t, messageReq.ModelConfigID)
+				require.Equal(t, modelConfigID, *messageReq.ModelConfigID)
 			})
 		}
 	})
-
 	t.Run("ChatView/ChatCreatedPromotesDraft", func(t *testing.T) {
 		t.Parallel()
 		model := newTestChatViewModel(nil)
