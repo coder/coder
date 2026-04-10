@@ -1407,14 +1407,17 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 	return presets
 }
 
-// maxCredentialHintLength is the maximum safe length for a masked
-// credential hint. Matches the VARCHAR(15) DB constraint.
-const maxCredentialHintLength = 15
-
 // sanitizeCredentialHint ensures the hint looks masked before exposing
 // it in the API. If it doesn't contain "..." or exceeds the max
 // length, it's replaced with "..." to prevent leaking raw secrets.
 func sanitizeCredentialHint(hint string) string {
+	// Matches the VARCHAR(15) DB constraint.
+	const maxCredentialHintLength = 15
+	
+	if hint == "" {
+		return ""
+	}
+
 	if len(hint) > maxCredentialHintLength || !strings.Contains(hint, "...") {
 		return "..."
 	}
