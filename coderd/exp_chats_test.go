@@ -851,7 +851,7 @@ func TestListChats(t *testing.T) {
 		// Create a member without agents-access and insert a chat
 		// owned by them via system context. With org-scoped chats,
 		// org members get full CRUD on their own chats through
-		// OrgMemberPermissions — without needing agents-access.
+		// OrgMemberPermissions, without needing agents-access.
 		// The agents-access role only gates chat creation (postChats)
 		// and message sending (postChatMessages). Metadata operations
 		// like archive/pin/label and reading are not gated.
