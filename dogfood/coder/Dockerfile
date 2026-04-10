@@ -8,7 +8,7 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:jammy@sha256:eb29ed27b0821dca09c2e28b39135e185fc1302036427d5f4d70a41ce8fd7659 AS go
+FROM ubuntu:resolute@sha256:cc925e589b7543b910fea57a240468940003fbfc0515245a495dd0ad8fe7cef1 AS go
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.25.8
@@ -83,7 +83,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:jammy@sha256:eb29ed27b0821dca09c2e28b39135e185fc1302036427d5f4d70a41ce8fd7659
+FROM ubuntu:resolute@sha256:cc925e589b7543b910fea57a240468940003fbfc0515245a495dd0ad8fe7cef1
 
 SHELL ["/bin/bash", "-c"]
 
@@ -96,7 +96,7 @@ ARG DEBIAN_FRONTEND="noninteractive"
 # Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
 # and unminimize to include man pages.
 RUN apt-get update && \
-	apt-get install --yes ca-certificates locales && \
+	apt-get install --yes ca-certificates locales unminimize && \
 	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
 	locale-gen && \
 	yes | unminimize
@@ -111,8 +111,7 @@ RUN mkdir -p /etc/sudoers.d && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
 # Use more reliable mirrors for Ubuntu packages
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
-	sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
 	apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
@@ -131,7 +130,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	docker-ce \
 	docker-ce-cli \
 	docker-compose-plugin \
-	exa \
+	eza \
 	fd-find \
 	file \
 	fish \
@@ -139,7 +138,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	git \
 	gnupg \
 	google-cloud-sdk \
-	helix \
+	hx \
 	htop \
 	httpie \
 	inetutils-tools \
@@ -163,7 +162,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	openssh-server \
 	openssl \
 	pkg-config \
-	postgresql-16 \
+	postgresql-18 \
 	python3 \
 	python3-pip \
 	ripgrep \
@@ -188,7 +187,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# Install Google Chrome directly from Google. Ubuntu 22.04 ships
+# Install Google Chrome directly from Google. Ubuntu 26.04 ships
 # chromium-browser as a snap-only package, which does not work in
 # Docker containers.
 # configure-chrome-flags.sh is automatically run after dpkg operations
@@ -262,8 +261,8 @@ RUN corepack enable && \
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 
 # Ensure PostgreSQL binaries are in the users $PATH.
-RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
-	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/16/bin/postgres 100
+RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/18/bin/initdb 100 && \
+	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/18/bin/postgres 100
 
 # Create links for injected dependencies
 RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \

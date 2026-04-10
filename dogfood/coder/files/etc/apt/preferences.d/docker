@@ -9,7 +9,7 @@ Pin-Priority: 1
 # containerd.io greater than our pinned version.
 Package: docker-ce
 Pin: origin download.docker.com
-Pin: version 5:27.*
+Pin: version 5:29.*
 Pin-Priority: 500
 
 # Docker command-line tool
