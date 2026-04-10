@@ -841,9 +841,8 @@ func TestListChats(t *testing.T) {
 		require.Equal(t, memberChats[0].ID, memberChats[0].DiffStatus.ChatID)
 	})
 
-	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+	t.Run("OrgMemberWithoutAgentsAccessCanReadOwnChats", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)

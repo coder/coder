@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
 
@@ -307,6 +311,13 @@ export const ForbiddenErrorWithRole: Story = {
 		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
 		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const WithOrganizationPicker: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
 	},
 };
 
