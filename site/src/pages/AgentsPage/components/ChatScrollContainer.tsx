@@ -617,7 +617,9 @@ const ChatScrollContainer: FC<{
 	// Pagination sentinel (IntersectionObserver)
 	// -------------------------------------------------------------------
 
-	const sentinelRef = useRef<HTMLDivElement>(null);
+	const [sentinelElement, setSentinelElement] = useState<HTMLDivElement | null>(
+		null,
+	);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	const hasFetchedRef = useRef(false);
@@ -653,9 +655,10 @@ const ChatScrollContainer: FC<{
 	}, [isFetchingMoreMessages, capturePrependSnapshot]);
 
 	useEffect(() => {
-		const sentinel = sentinelRef.current;
 		const container = scrollContainerRef.current;
-		if (!sentinel || !container) return;
+		if (!hasMoreMessages || !sentinelElement || !container) {
+			return;
+		}
 
 		const observer = new IntersectionObserver(
 			([entry]) => {
@@ -676,7 +679,7 @@ const ChatScrollContainer: FC<{
 		let deferInnerId: number | null = null;
 		const deferOuterId = requestAnimationFrame(() => {
 			deferInnerId = requestAnimationFrame(() => {
-				observer.observe(sentinel);
+				observer.observe(sentinelElement);
 			});
 		});
 		return () => {
@@ -687,7 +690,12 @@ const ChatScrollContainer: FC<{
 			observer.disconnect();
 			observerRef.current = null;
 		};
-	}, [scrollContainerRef, onFetchMoreMessages]);
+	}, [
+		hasMoreMessages,
+		scrollContainerRef,
+		onFetchMoreMessages,
+		sentinelElement,
+	]);
 
 	// Re-observe the sentinel after a fetch completes so the
 	// IntersectionObserver fires again if it stayed visible.
@@ -695,13 +703,12 @@ const ChatScrollContainer: FC<{
 		if (isFetchingMoreMessages) return;
 		if (!hasFetchedRef.current) return;
 
-		const sentinel = sentinelRef.current;
 		const observer = observerRef.current;
-		if (sentinel && observer) {
-			observer.unobserve(sentinel);
-			observer.observe(sentinel);
+		if (sentinelElement && observer) {
+			observer.unobserve(sentinelElement);
+			observer.observe(sentinelElement);
 		}
-	}, [isFetchingMoreMessages]);
+	}, [isFetchingMoreMessages, sentinelElement]);
 
 	// -------------------------------------------------------------------
 	// Render
@@ -718,7 +725,7 @@ const ChatScrollContainer: FC<{
 			>
 				<div ref={contentRef}>
 					{hasMoreMessages && (
-						<div ref={sentinelRef} className="h-px shrink-0" />
+						<div ref={setSentinelElement} className="h-px shrink-0" />
 					)}
 					{children}
 				</div>

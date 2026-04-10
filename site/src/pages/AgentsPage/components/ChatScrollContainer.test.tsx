@@ -67,6 +67,51 @@ describe("ChatScrollContainer pagination sentinel", () => {
 		expect(onFetchMoreMessages).toHaveBeenCalledTimes(1);
 	});
 
+	it("reinitializes pagination observation when a chat switch adds a sentinel", () => {
+		const onFetchMoreMessages = vi.fn();
+		const scrollContainerRef = createRef<HTMLDivElement | null>();
+		const scrollToBottomRef = createRef<(() => void) | null>();
+
+		const { rerender } = render(
+			<ChatScrollContainer
+				resetKey="chat-a"
+				scrollContainerRef={scrollContainerRef}
+				scrollToBottomRef={scrollToBottomRef}
+				isFetchingMoreMessages={false}
+				hasMoreMessages={false}
+				onFetchMoreMessages={onFetchMoreMessages}
+			>
+				<div style={{ height: 400 }}>messages</div>
+			</ChatScrollContainer>,
+		);
+
+		expect(intersectionCallback).toBeNull();
+
+		rerender(
+			<ChatScrollContainer
+				resetKey="chat-b"
+				scrollContainerRef={scrollContainerRef}
+				scrollToBottomRef={scrollToBottomRef}
+				isFetchingMoreMessages={false}
+				hasMoreMessages
+				onFetchMoreMessages={onFetchMoreMessages}
+			>
+				<div style={{ height: 400 }}>messages</div>
+			</ChatScrollContainer>,
+		);
+
+		expect(intersectionCallback).not.toBeNull();
+
+		act(() => {
+			intersectionCallback?.(
+				[{ isIntersecting: true } as IntersectionObserverEntry],
+				{} as IntersectionObserver,
+			);
+		});
+
+		expect(onFetchMoreMessages).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not trigger a duplicate fetch after chat reset when the new chat is already fetching", () => {
 		const onFetchMoreMessages = vi.fn();
 		const scrollContainerRef = createRef<HTMLDivElement | null>();
