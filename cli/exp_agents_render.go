@@ -544,6 +544,9 @@ func canCollapseToolBlocks(a, b chatBlock) bool {
 	if a.kind == blockToolResult && a.isError != b.isError {
 		return false
 	}
+	if a.args != b.args || a.result != b.result {
+		return false
+	}
 	return true
 }
 

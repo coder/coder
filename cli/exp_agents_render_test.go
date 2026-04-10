@@ -499,8 +499,8 @@ func TestExpAgentsRender(t *testing.T) {
 
 			blocks := []chatBlock{
 				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
-				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":2}`, result: `{"base":{"ref":"main"}}`},
-				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":3}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
 				{kind: blockToolResult, toolName: "create_file", args: `{"path":"main.go"}`, result: `{"ok":true}`},
 			}
 
@@ -510,12 +510,28 @@ func TestExpAgentsRender(t *testing.T) {
 			require.Contains(t, output, "create file")
 		})
 
-		t.Run("ExpandedToolBlockPreventsCollapse", func(t *testing.T) {
+		t.Run("DoesNotCollapseDifferentToolResults", func(t *testing.T) {
 			t.Parallel()
 
 			blocks := []chatBlock{
 				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
 				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":2}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":3}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "create_file", args: `{"path":"main.go"}`, result: `{"ok":true}`},
+			}
+
+			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 80))
+			require.Equal(t, 4, strings.Count(output, "✓"))
+			require.NotContains(t, output, "get pull request (x3)")
+			require.Contains(t, output, "create file")
+		})
+
+		t.Run("ExpandedToolBlockPreventsCollapse", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
+				{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw","pull_number":1}`, result: `{"base":{"ref":"main"}}`},
 			}
 
 			output := plainText(renderChatBlocks(styles, blocks, 1, map[int]bool{1: true}, false, 80))
