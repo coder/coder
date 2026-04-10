@@ -321,7 +321,7 @@ appear in the `files` field on subsequent
 
 | Status            | Meaning                                                      |
 |-------------------|--------------------------------------------------------------|
-| `waiting`         | Idle — newly created, finished successfully, or interrupted. |
+| `waiting`         | Idle. Newly created, finished successfully, or interrupted.  |
 | `pending`         | Queued for processing.                                       |
 | `running`         | Agent is actively working.                                   |
 | `error`           | Agent encountered an error.                                  |
