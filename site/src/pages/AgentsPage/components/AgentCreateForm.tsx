@@ -363,7 +363,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							required
 							value={selectedOrg}
 							options={[...organizations]}
-							onChange={setSelectedOrg}
+							onChange={(newOrg) => {
+								const orgChanged =
+									(newOrg === null) !== (selectedOrg === null) ||
+									(newOrg !== null &&
+										selectedOrg !== null &&
+										newOrg.id !== selectedOrg.id);
+								if (orgChanged && attachments.length > 0) {
+									if (
+										!window.confirm(
+											"Changing organization will remove your current attachments. Continue?",
+										)
+									) {
+										return;
+									}
+									resetAttachments();
+								}
+								setSelectedOrg(newOrg);
+							}}
 						/>
 					</div>
 				)}
