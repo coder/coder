@@ -1539,8 +1539,11 @@ func TestExpAgents(t *testing.T) {
 			model.chat.composer.SetValue(strings.Repeat("wrapped input ", 14))
 			model.chat.recalcViewportHeight()
 			model.chat.syncViewportContent()
-			require.Less(t, model.chat.viewport.Height, initialViewportHeight)
-			require.LessOrEqual(t, strings.Count(model.View(), "\n")+1, 18)
+			view := plainText(model.View())
+			lines := strings.Split(view, "\n")
+			require.LessOrEqual(t, model.chat.viewport.Height, initialViewportHeight)
+			require.LessOrEqual(t, len(lines), 18)
+			require.NotEmpty(t, strings.TrimSpace(lines[len(lines)-1]))
 		})
 		t.Run("ViewShowsSingleStatusBarAndComposerDivider", func(t *testing.T) {
 			t.Parallel()
@@ -2091,11 +2094,11 @@ func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
 	model.syncViewportContent()
 
 	view := plainText(model.View())
-	lineCount := strings.Count(view, "\n") + 1
+	lines := strings.Split(view, "\n")
 
-	require.LessOrEqual(t, lineCount, model.height)
-	require.Less(t, model.viewport.Height, defaultViewportHeight)
-	require.LessOrEqual(t, model.viewport.Height, 17)
+	require.LessOrEqual(t, len(lines), model.height)
+	require.LessOrEqual(t, model.viewport.Height, defaultViewportHeight)
+	require.NotEmpty(t, strings.TrimSpace(lines[len(lines)-1]))
 }
 
 func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {

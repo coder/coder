@@ -263,13 +263,12 @@ func (m *chatViewModel) recalcViewportHeight() {
 		viewWidth = 80
 	}
 
-	composerWidth := max(10, viewWidth-2)
-	composerTextWidth := lipgloss.Width(m.composer.View())
-	composerLines := max(1, (composerTextWidth+composerWidth-1)/composerWidth)
+	composerView := m.styles.composerStyle.Width(max(10, viewWidth-2)).Render(m.composer.View())
+	composerHeight := lipgloss.Height(composerView)
 
-	const chromeLines = 5
+	const nonViewportHeight = 4
 	m.viewport.Width = m.width
-	m.viewport.Height = max(0, m.height-chromeLines-composerLines)
+	m.viewport.Height = max(0, m.height-nonViewportHeight-composerHeight)
 }
 func (m *chatViewModel) refreshViewport() { m.recalcViewportHeight(); m.syncViewportContent() }
 
