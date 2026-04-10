@@ -1810,9 +1810,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		// - pinOrder > 0 && already pinned: reorder (shift
 		//   neighbors, clamp to [1, count]).
 		// - pinOrder > 0 && not pinned: append to end. The
-		//   requested value is intentionally ignored because
-		//   PinChatByID also bumps updated_at to keep the
-		//   chat visible in the paginated sidebar.
+		//   requested value is intentionally ignored; the
+		//   SQL ORDER BY sorts pinned chats first so they
+		//   appear on page 1 of the paginated sidebar.
 		var err error
 		errMsg := "Failed to pin chat."
 		switch {

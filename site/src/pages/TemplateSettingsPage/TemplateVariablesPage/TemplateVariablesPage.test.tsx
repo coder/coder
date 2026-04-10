@@ -19,7 +19,7 @@ import TemplateVariablesPage from "./TemplateVariablesPage";
 // a real `delay(1000)` call. Without this mock the 1 s wall-clock wait races
 // against the default `waitFor` timeout (also 1 s), making the "submit"
 // assertion flaky in CI.
-jest.mock("#/utils/delay", () => ({
+vi.mock("#/utils/delay", () => ({
 	delay: () => Promise.resolve(),
 }));
 
@@ -39,16 +39,14 @@ const renderTemplateVariablesPage = async () => {
 
 describe("TemplateVariablesPage", () => {
 	it("renders with variables", async () => {
-		jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
-		jest
-			.spyOn(API, "getTemplateVersion")
-			.mockResolvedValueOnce(MockTemplateVersion);
-		jest
-			.spyOn(API, "getTemplateVersionVariables")
-			.mockResolvedValueOnce([
-				MockTemplateVersionVariable1,
-				MockTemplateVersionVariable2,
-			]);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
+		vi.spyOn(API, "getTemplateVersion").mockResolvedValueOnce(
+			MockTemplateVersion,
+		);
+		vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([
+			MockTemplateVersionVariable1,
+			MockTemplateVersionVariable2,
+		]);
 
 		await renderTemplateVariablesPage();
 
@@ -64,20 +62,16 @@ describe("TemplateVariablesPage", () => {
 	});
 
 	it("user submits the form successfully", async () => {
-		jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
-		jest
-			.spyOn(API, "getTemplateVersion")
-			.mockResolvedValue(MockTemplateVersion);
-		jest
-			.spyOn(API, "getTemplateVersionVariables")
-			.mockResolvedValueOnce([
-				MockTemplateVersionVariable1,
-				MockTemplateVersionVariable2,
-			]);
-		jest
-			.spyOn(API, "createTemplateVersion")
-			.mockResolvedValueOnce(MockTemplateVersion2);
-		jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
+		vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
+		vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+		vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([
+			MockTemplateVersionVariable1,
+			MockTemplateVersionVariable2,
+		]);
+		vi.spyOn(API, "createTemplateVersion").mockResolvedValueOnce(
+			MockTemplateVersion2,
+		);
+		vi.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
 			message: "done",
 		});
 
@@ -107,7 +101,7 @@ describe("TemplateVariablesPage", () => {
 		await userEvent.type(secondVariableField, validFormValues.second_variable);
 
 		// Submit the form
-		const toastSuccessSpy = jest.spyOn(toast, "success");
+		const toastSuccessSpy = vi.spyOn(toast, "success");
 		const submitButton = await screen.findByText(/save/i);
 		await userEvent.click(submitButton);
 

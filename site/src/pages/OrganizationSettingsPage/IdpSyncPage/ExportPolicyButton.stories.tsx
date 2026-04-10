@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { Mock } from "vitest";
 import {
 	MockGroupSyncSettings,
 	MockOrganization,
@@ -40,7 +41,7 @@ export const ClickExportGroupPolicy: Story = {
 				`${MockOrganization.name}_groups-policy.json`,
 			),
 		);
-		const blob: Blob = (args.download as jest.Mock).mock.lastCall[0];
+		const blob: Blob = (args.download as Mock).mock.lastCall![0];
 		await expect(blob.type).toEqual("application/json");
 		await expect(await blob.text()).toEqual(
 			JSON.stringify(MockGroupSyncSettings, null, 2),
@@ -66,7 +67,7 @@ export const ClickExportRolePolicy: Story = {
 				`${MockOrganization.name}_roles-policy.json`,
 			),
 		);
-		const blob: Blob = (args.download as jest.Mock).mock.lastCall[0];
+		const blob: Blob = (args.download as Mock).mock.lastCall![0];
 		await expect(blob.type).toEqual("application/json");
 		await expect(await blob.text()).toEqual(
 			JSON.stringify(MockRoleSyncSettings, null, 2),

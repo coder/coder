@@ -14,9 +14,10 @@ import {
 import TemplateEmbedPage from "./TemplateEmbedPage";
 
 test("Users can fill the parameters and copy the open in coder url", async () => {
-	jest
-		.spyOn(API, "getTemplateVersionRichParameters")
-		.mockResolvedValue([parameter1, parameter2]);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
+		parameter1,
+		parameter2,
+	]);
 
 	renderWithAuth(
 		<TemplateLayout>
@@ -47,10 +48,10 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
 	await user.clear(secondParameterField);
 	await user.type(secondParameterField, "123456");
 
-	jest.spyOn(window.navigator.clipboard, "writeText");
+	vi.spyOn(navigator.clipboard, "writeText");
 	const copyButton = screen.getByRole("button", { name: /copy/i });
 	await userEvent.click(copyButton);
-	expect(window.navigator.clipboard.writeText).toBeCalledWith(
-		`[![Open in Coder](http://localhost/open-in-coder.svg)](http://localhost/templates/${MockTemplate.organization_name}/${MockTemplate.name}/workspace?mode=manual&name=my-first-workspace&param.first_parameter=firstParameterValue&param.second_parameter=123456)`,
+	expect(navigator.clipboard.writeText).toBeCalledWith(
+		`[![Open in Coder](${location.origin}/open-in-coder.svg)](${location.origin}/templates/${MockTemplate.organization_name}/${MockTemplate.name}/workspace?mode=manual&name=my-first-workspace&param.first_parameter=firstParameterValue&param.second_parameter=123456)`,
 	);
 });

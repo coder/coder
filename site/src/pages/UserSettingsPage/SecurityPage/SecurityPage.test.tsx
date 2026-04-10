@@ -36,16 +36,16 @@ const fillAndSubmitSecurityForm = () => {
 };
 
 beforeEach(() => {
-	jest.spyOn(API, "getAuthMethods").mockResolvedValue(MockAuthMethodsAll);
-	jest.spyOn(API, "getUserLoginType").mockResolvedValue({
+	vi.spyOn(API, "getAuthMethods").mockResolvedValue(MockAuthMethodsAll);
+	vi.spyOn(API, "getUserLoginType").mockResolvedValue({
 		login_type: "password",
 	});
 });
 
 test("update password successfully", async () => {
-	jest
-		.spyOn(API, "updateUserPassword")
-		.mockImplementationOnce((_userId, _data) => Promise.resolve(undefined));
+	vi.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) =>
+		Promise.resolve(undefined),
+	);
 	const { user } = await renderPage();
 	fillAndSubmitSecurityForm();
 
@@ -54,11 +54,11 @@ test("update password successfully", async () => {
 	expect(API.updateUserPassword).toBeCalledTimes(1);
 	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 
-	await waitFor(() => expect(window.location).toBeAt("/"));
+	await waitFor(() => expect(location.pathname).toBe("/"));
 });
 
 test("update password with incorrect old password", async () => {
-	jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+	vi.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
 		mockApiError({
 			message: "Incorrect password.",
 			validations: [{ detail: "Incorrect password.", field: "old_password" }],
@@ -76,7 +76,7 @@ test("update password with incorrect old password", async () => {
 });
 
 test("update password when submit returns an unknown error", async () => {
-	jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
+	vi.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
 		data: "unknown error",
 	});
 
@@ -92,16 +92,14 @@ test("update password when submit returns an unknown error", async () => {
 test("change login type to OIDC", async () => {
 	const user = userEvent.setup();
 	const { user: userData } = await renderPage();
-	const convertToOAUTHSpy = jest
-		.spyOn(API, "convertToOAUTH")
-		.mockResolvedValue({
-			state_string: "some-state-string",
-			expires_at: "2021-01-01T00:00:00Z",
-			to_type: "oidc",
-			user_id: userData.id,
-		} as OAuthConversionResponse);
+	const convertToOAUTHSpy = vi.spyOn(API, "convertToOAUTH").mockResolvedValue({
+		state_string: "some-state-string",
+		expires_at: "2021-01-01T00:00:00Z",
+		to_type: "oidc",
+		user_id: userData.id,
+	} as OAuthConversionResponse);
 
-	jest.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
+	vi.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
 		// Does a noop
 		return "";
 	});

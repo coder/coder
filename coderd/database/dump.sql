@@ -3791,8 +3791,6 @@ CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_con
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
-CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);
-
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);

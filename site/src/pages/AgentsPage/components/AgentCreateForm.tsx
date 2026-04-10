@@ -383,15 +383,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					</div>
 				) : null}
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
-					Coder Agents is available via{" "}
 					<a
-						href={docs("/ai-coder/agents/early-access")}
+						href={docs("/ai-coder/agents")}
 						target="_blank"
 						rel="noreferrer"
 						className="text-content-secondary/50 underline hover:text-content-secondary"
 					>
-						Early Access
-					</a>
+						Introductory access
+					</a>{" "}
+					to Coder Agents through September 2026
 				</p>
 			</div>
 		</div>
