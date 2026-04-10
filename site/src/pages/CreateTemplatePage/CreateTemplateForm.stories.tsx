@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { screen, userEvent } from "storybook/test";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
 import {
 	getProvisionerDaemonsKey,
 	organizationsKey,
@@ -146,7 +146,14 @@ export const StarterTemplatePermissionsCheck: Story = {
 		showOrganizationPicker: true,
 	},
 	play: async () => {
+		// When only one org passes the permission check, it should be
+		// auto-selected in the picker.
 		const organizationPicker = screen.getByTestId("organization-autocomplete");
+		await waitFor(() =>
+			expect(organizationPicker).toHaveTextContent(
+				MockDefaultOrganization.display_name,
+			),
+		);
 		await userEvent.click(organizationPicker);
 	},
 };

@@ -164,22 +164,23 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		);
 	}, [organizationsQuery.data, permissionsQuery.data]);
 
-	// Auto-select when only one org is available, and clear invalid
-	// selections after permission filtering. This follows the React
-	// pattern of adjusting state during render to avoid useEffect.
+	// Clear invalid selections when permission filtering removes the
+	// selected org. Uses the React render-time adjustment pattern.
 	const [prevOrgOptions, setPrevOrgOptions] = useState(orgOptions);
 	if (orgOptions !== prevOrgOptions) {
 		setPrevOrgOptions(orgOptions);
-		if (orgOptions.length === 1 && selectedOrg === null) {
-			setSelectedOrg(orgOptions[0]);
-			void form.setFieldValue("organization", orgOptions[0].id ?? "");
-		} else if (
-			selectedOrg &&
-			!orgOptions.some((o) => o.id === selectedOrg.id)
-		) {
+		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
 			setSelectedOrg(null);
 			void form.setFieldValue("organization", "");
 		}
+	}
+
+	// Auto-select when exactly one org is available and nothing is
+	// selected. Runs every render (not gated on options change) so it
+	// works when mock data is available synchronously on first render.
+	if (orgOptions.length === 1 && selectedOrg === null) {
+		setSelectedOrg(orgOptions[0]);
+		void form.setFieldValue("organization", orgOptions[0].id ?? "");
 	}
 
 	const getFieldHelpers = getFormHelpers(form, error);
