@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -1127,9 +1128,9 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 		Provider:             provider.Provider,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
-		IsDefault:            boolPtr(true),
-		ContextLimit:         int64Ptr(1000),
-		CompressionThreshold: int32Ptr(70),
+		IsDefault:            ptr.Ref(true),
+		ContextLimit:         ptr.Ref(int64(1000)),
+		CompressionThreshold: ptr.Ref(int32(70)),
 	})
 	require.NoError(t, err)
 
@@ -1170,16 +1171,4 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 		}
 	}
 	require.True(t, found, "chat should be visible in list")
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
-func int64Ptr(i int64) *int64 {
-	return &i
-}
-
-func int32Ptr(i int32) *int32 {
-	return &i
 }
