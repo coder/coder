@@ -18,33 +18,51 @@ import (
 func TestSecretCreate(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+	t.Run("MissingValue", func(t *testing.T) {
+		t.Parallel()
 
-	inv, root := clitest.New(
-		t,
-		"secret",
-		"create",
-		"openai-key",
-		"--value", "super-secret-value",
-		"--description", "Personal OPENAI_API key",
-		"--inject-env", "OPEN_AI_KEY",
-		"--inject-file", "~/.openai-key",
-	)
-	output := clitest.Capture(inv)
-	clitest.SetupConfig(t, client, root)
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	err := inv.WithContext(ctx).Run()
-	require.NoError(t, err)
-	require.Contains(t, output.Stdout(), "openai-key")
+		inv, root := clitest.New(t, "secret", "create", "openai-key")
+		clitest.SetupConfig(t, client, root)
 
-	secret, err := client.UserSecretByName(ctx, codersdk.Me, "openai-key")
-	require.NoError(t, err)
-	require.Equal(t, "openai-key", secret.Name)
-	require.Equal(t, "Personal OPENAI_API key", secret.Description)
-	require.Equal(t, "OPEN_AI_KEY", secret.EnvName)
-	require.Equal(t, "~/.openai-key", secret.FilePath)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "Missing values for the required flags: value")
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(
+			t,
+			"secret",
+			"create",
+			"openai-key",
+			"--value", "super-secret-value",
+			"--description", "Personal OPENAI_API key",
+			"--inject-env", "OPEN_AI_KEY",
+			"--inject-file", "~/.openai-key",
+		)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, output.Stdout(), "openai-key")
+
+		secret, err := client.UserSecretByName(ctx, codersdk.Me, "openai-key")
+		require.NoError(t, err)
+		require.Equal(t, "openai-key", secret.Name)
+		require.Equal(t, "Personal OPENAI_API key", secret.Description)
+		require.Equal(t, "OPEN_AI_KEY", secret.EnvName)
+		require.Equal(t, "~/.openai-key", secret.FilePath)
+	})
 }
 
 func TestSecretUpdate(t *testing.T) {
@@ -278,33 +296,61 @@ func TestSecretList(t *testing.T) {
 func TestSecretDelete(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 
-	setupCtx := testutil.Context(t, testutil.WaitMedium)
-	_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-		Name:  "github-token",
-		Value: "ghp_xxxxxxxxxxxx",
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		setupCtx := testutil.Context(t, testutil.WaitMedium)
+		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "github-token",
+			Value: "ghp_xxxxxxxxxxxx",
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "secret", "delete", "github-token")
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		pty := ptytest.New(t).Attach(inv)
+		waiter := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatchContext(ctx, "Delete secret")
+		pty.ExpectMatchContext(ctx, "github-token")
+		pty.WriteLine("yes")
+		pty.ExpectMatchContext(ctx, "Deleted secret")
+
+		require.NoError(t, waiter.Wait())
+
+		_, err = client.UserSecretByName(setupCtx, codersdk.Me, "github-token")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
-	require.NoError(t, err)
 
-	inv, root := clitest.New(t, "secret", "delete", "github-token")
-	clitest.SetupConfig(t, client, root)
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	inv = inv.WithContext(ctx)
-	pty := ptytest.New(t).Attach(inv)
-	waiter := clitest.StartWithWaiter(t, inv)
-	pty.ExpectMatchContext(ctx, "Delete secret")
-	pty.ExpectMatchContext(ctx, "github-token")
-	pty.WriteLine("yes")
-	pty.ExpectMatchContext(ctx, "Deleted secret")
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
-	require.NoError(t, waiter.Wait())
+		inv, root := clitest.New(t, "secret", "delete", "missing-secret")
+		clitest.SetupConfig(t, client, root)
 
-	_, err = client.UserSecretByName(setupCtx, codersdk.Me, "github-token")
-	require.Error(t, err)
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		pty := ptytest.New(t).Attach(inv)
+		waiter := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatchContext(ctx, "Delete secret")
+		pty.ExpectMatchContext(ctx, "missing-secret")
+		pty.WriteLine("yes")
+
+		err := waiter.Wait()
+		require.ErrorContains(t, err, `delete secret "missing-secret"`)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
 }

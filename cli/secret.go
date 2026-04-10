@@ -72,8 +72,9 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 			{
 				Name:        "value",
 				Flag:        "value",
-				Description: "Set the secret value.",
+				Description: "Set the secret value. This flag is required.",
 				Value:       serpent.StringOf(&value),
+				Required:    true,
 			},
 			{
 				Name:        "description",
