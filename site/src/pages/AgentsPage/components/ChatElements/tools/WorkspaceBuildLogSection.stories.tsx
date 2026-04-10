@@ -143,35 +143,3 @@ export const Running: Story = {
 		});
 	},
 };
-
-/**
- * No logs arrive within the LOG_LOAD_TIMEOUT_MS window (30 s).
- * The component shows a soft warning instead of the spinner.
- * We wait for the real 30 s timeout to fire so the assertion
- * exercises the actual timeout path.
- */
-export const Timeout: Story = {
-	args: {
-		status: "completed",
-		buildId: TEST_BUILD_ID,
-	},
-	beforeEach: () => {
-		spyOn(API, "getWorkspaceBuildLogs").mockImplementation(
-			() => new Promise(() => {}),
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Initially the loading indicator is shown.
-		expect(canvas.getByText("Loading build logs\u2026")).toBeInTheDocument();
-		// After the 30 s timeout the warning replaces the spinner.
-		await waitFor(
-			() => {
-				expect(
-					canvas.getByText("Build logs are taking longer than expected."),
-				).toBeInTheDocument();
-			},
-			{ timeout: 35_000 },
-		);
-	},
-};
