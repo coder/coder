@@ -87,10 +87,13 @@ replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aa
 // with performance improvements, including the appendCompact fix from
 // https://github.com/anthropics/anthropic-sdk-go/pull/262 (previously
 // carried by the dannykopping/anthropic-sdk-go fork, now folded in).
-// All runtime Anthropic SDK usage goes through this fork via the
-// charmbracelet module path. The upstream anthropics/anthropic-sdk-go
-// remains as an indirect dep (via aisdk-go and aibridge) but is never
-// called at runtime.
+// Direct Anthropic SDK usage in coder/coder goes through the
+// github.com/charmbracelet/anthropic-sdk-go module path, which we replace
+// below with github.com/coder/anthropic-sdk-go.
+// The upstream github.com/anthropics/anthropic-sdk-go module may still
+// appear as an indirect dependency and may be used at runtime by transitive
+// components such as aisdk-go / aibridge; it is just not the module path
+// used directly by coder/coder itself.
 // See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
 
