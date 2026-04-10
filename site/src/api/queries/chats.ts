@@ -202,7 +202,6 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const CHAT_QUERY_STALE_TIME_MS = 30 * 1000;
-const CHAT_MESSAGES_QUERY_STALE_TIME_MS = 30 * 1000;
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 
@@ -253,7 +252,6 @@ const MESSAGES_PAGE_SIZE = 50;
 
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
-	staleTime: CHAT_MESSAGES_QUERY_STALE_TIME_MS,
 	initialPageParam: undefined as number | undefined,
 	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
 		API.experimental.getChatMessages(chatId, {

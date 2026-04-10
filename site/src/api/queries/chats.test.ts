@@ -114,9 +114,9 @@ describe("chat query config", () => {
 		const query = chat("chat-1");
 		expect(query.staleTime).toBeGreaterThan(0);
 	});
-	it("uses a non-zero staleTime for messages to avoid immediate warm-cache refetches", () => {
+	it("does not pin message queries as fresh so remounts can refetch queue state", () => {
 		const query = chatMessagesForInfiniteScroll("chat-1");
-		expect(query.staleTime).toBeGreaterThan(0);
+		expect(query).not.toHaveProperty("staleTime");
 	});
 });
 

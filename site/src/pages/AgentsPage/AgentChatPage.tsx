@@ -286,13 +286,17 @@ export function useConversationEditingState(deps: {
 		} catch (error) {
 			if (
 				error instanceof InactiveChatMutationError &&
-				error.completedMutation &&
-				queueEditID !== null
+				error.completedMutation
 			) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-				setEditingFileBlocks([]);
-				void onDeleteQueuedMessage(queueEditID);
+				if (draftStorageKey) {
+					localStorage.removeItem(draftStorageKey);
+				}
+				if (queueEditID !== null) {
+					setEditingQueuedMessageID(null);
+					setDraftBeforeQueueEdit(null);
+					setEditingFileBlocks([]);
+					void onDeleteQueuedMessage(queueEditID);
+				}
 			}
 			throw error;
 		}
