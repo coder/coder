@@ -474,17 +474,21 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/MessageReceiving", func(t *testing.T) {
 		t.Parallel()
-		t.Run("ChatOpenedStoresChatAndClearsLoading", func(t *testing.T) {
+		t.Run("ChatOpenedSuccessAndError", func(t *testing.T) {
 			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.metadataResolved = false
-			model.historyResolved = true
+			setup := func() chatViewModel {
+				model := newTestChatViewModel(nil)
+				model.loading = true
+				model.metadataResolved = false
+				model.historyResolved = true
+				return model
+			}
+
+			// Success path.
 			diffStatus := &codersdk.ChatDiffStatus{ChatID: uuid.New()}
 			chat := testChat(codersdk.ChatStatusRunning)
 			chat.DiffStatus = diffStatus
-
-			updated, cmd := model.Update(chatOpenedMsg{chat: chat})
+			updated, cmd := setup().Update(chatOpenedMsg{chat: chat})
 			require.NotNil(t, cmd)
 			require.NotNil(t, updated.chat)
 			require.Equal(t, chat.ID, updated.chat.ID)
@@ -492,28 +496,26 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, diffStatus, updated.diffStatus)
 			require.False(t, updated.loading)
 			require.Nil(t, updated.err)
-		})
 
-		t.Run("ChatOpenedErrorSetsErrAndClearsLoading", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.metadataResolved = false
-			model.historyResolved = true
-
-			updated, cmd := model.Update(chatOpenedMsg{err: xerrors.New("open failed")})
+			// Error path.
+			updated, cmd = setup().Update(chatOpenedMsg{err: xerrors.New("open failed")})
 			require.Nil(t, cmd)
 			require.NotNil(t, updated.err)
 			require.Equal(t, "open failed", updated.err.Error())
 			require.False(t, updated.loading)
 		})
 
-		t.Run("ChatHistoryStoresMessagesRebuildsBlocksAndTracksLastUsage", func(t *testing.T) {
+		t.Run("ChatHistorySuccessAndError", func(t *testing.T) {
 			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.metadataResolved = true
-			model.historyResolved = false
+			setup := func() chatViewModel {
+				model := newTestChatViewModel(nil)
+				model.loading = true
+				model.metadataResolved = true
+				model.historyResolved = false
+				return model
+			}
+
+			// Success path.
 			usageA := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(10)}
 			usageB := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(20)}
 			messages := []codersdk.ChatMessage{
@@ -529,68 +531,57 @@ func TestExpAgents(t *testing.T) {
 					return msg
 				}(),
 			}
-
-			updated, cmd := model.Update(chatHistoryMsg{messages: messages})
+			updated, cmd := setup().Update(chatHistoryMsg{messages: messages})
 			require.Nil(t, cmd)
 			require.Equal(t, messages, updated.messages)
 			require.Len(t, updated.blocks, 3)
 			require.Equal(t, usageB, updated.lastUsage)
 			require.False(t, updated.loading)
-		})
 
-		t.Run("ChatHistoryErrorSetsErrAndClearsLoading", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.metadataResolved = true
-			model.historyResolved = false
-
-			updated, cmd := model.Update(chatHistoryMsg{err: xerrors.New("history failed")})
+			// Error path.
+			updated, cmd = setup().Update(chatHistoryMsg{err: xerrors.New("history failed")})
 			require.Nil(t, cmd)
 			require.NotNil(t, updated.err)
 			require.Equal(t, "history failed", updated.err.Error())
 			require.False(t, updated.loading)
 		})
 
-		t.Run("OpenHistoryReadiness", func(t *testing.T) {
+		t.Run("OpenHistoryBothSucceedOutOfOrder", func(t *testing.T) {
 			t.Parallel()
-			t.Run("BothSucceedOutOfOrder", func(t *testing.T) {
-				t.Parallel()
-				model := newTestChatViewModel(nil)
-				model.loading = true
-				model.metadataResolved = false
-				model.historyResolved = false
+			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = false
+			model.historyResolved = false
 
-				model, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{
-					testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"}),
-				}})
-				require.True(t, model.loading)
-				require.Nil(t, model.err)
+			model, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"}),
+			}})
+			require.True(t, model.loading)
+			require.Nil(t, model.err)
 
-				model.streaming = true
-				chat := testChat(codersdk.ChatStatusCompleted)
-				model, _ = model.Update(chatOpenedMsg{chat: chat})
-				require.False(t, model.loading)
-				require.Nil(t, model.err)
-				require.NotNil(t, model.chat)
-				require.Len(t, model.messages, 1)
-			})
+			model.streaming = true
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model, _ = model.Update(chatOpenedMsg{chat: chat})
+			require.False(t, model.loading)
+			require.Nil(t, model.err)
+			require.NotNil(t, model.chat)
+			require.Len(t, model.messages, 1)
+		})
 
-			t.Run("BothFail", func(t *testing.T) {
-				t.Parallel()
-				model := newTestChatViewModel(nil)
-				model.loading = true
-				model.metadataResolved = false
-				model.historyResolved = false
+		t.Run("OpenHistoryBothFail", func(t *testing.T) {
+			t.Parallel()
+			model := newTestChatViewModel(nil)
+			model.loading = true
+			model.metadataResolved = false
+			model.historyResolved = false
 
-				model, _ = model.Update(chatOpenedMsg{err: xerrors.New("open err")})
-				require.True(t, model.loading)
+			model, _ = model.Update(chatOpenedMsg{err: xerrors.New("open err")})
+			require.True(t, model.loading)
 
-				model, _ = model.Update(chatHistoryMsg{err: xerrors.New("history err")})
-				require.False(t, model.loading)
-				require.NotNil(t, model.err)
-				require.Equal(t, "open err", model.err.Error())
-			})
+			model, _ = model.Update(chatHistoryMsg{err: xerrors.New("history err")})
+			require.False(t, model.loading)
+			require.NotNil(t, model.err)
+			require.Equal(t, "open err", model.err.Error())
 		})
 
 		t.Run("StaleAsyncMessagesAreDropped", func(t *testing.T) {
@@ -833,14 +824,19 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "final", updated.blocks[0].text)
 		})
 
-		t.Run("StatusUpdatesChatStatus", func(t *testing.T) {
+		t.Run("StatusEventRouting", func(t *testing.T) {
 			t.Parallel()
-			model := newTestChatViewModel(nil)
-			chat := testChat(codersdk.ChatStatusWaiting)
-			model.chat = &chat
-			model.activeChatID = chat.ID
-			model.chatStatus = codersdk.ChatStatusWaiting
+			setup := func() (chatViewModel, codersdk.Chat) {
+				model := newTestChatViewModel(nil)
+				chat := testChat(codersdk.ChatStatusWaiting)
+				model.chat = &chat
+				model.activeChatID = chat.ID
+				model.chatStatus = codersdk.ChatStatusWaiting
+				return model, chat
+			}
 
+			// Same chat: status updates.
+			model, chat := setup()
 			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
 				Type:   codersdk.ChatStreamEventTypeStatus,
 				ChatID: chat.ID,
@@ -850,17 +846,10 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
 			require.NotNil(t, updated.chat)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chat.Status)
-		})
 
-		t.Run("StatusFromDifferentChatIsIgnored", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(nil)
-			chat := testChat(codersdk.ChatStatusWaiting)
-			model.chat = &chat
-			model.activeChatID = chat.ID
-			model.chatStatus = codersdk.ChatStatusWaiting
-
-			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+			// Different chat: status ignored.
+			model, _ = setup()
+			updated, cmd = model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
 				Type:   codersdk.ChatStreamEventTypeStatus,
 				ChatID: uuid.New(),
 				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
