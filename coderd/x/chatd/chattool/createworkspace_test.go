@@ -147,7 +147,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		Return("0s", nil)
 
 	db.EXPECT().
-		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
 		Return(database.WorkspaceBuild{
 			ID:          buildID,
 			WorkspaceID: workspaceID,
@@ -177,6 +177,9 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 			ID:        workspaceID,
 			Name:      req.Name,
 			OwnerName: "testuser",
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID: buildID,
+			},
 		}, nil
 	}
 	agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -236,7 +239,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 	db.EXPECT().
-		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
 		Return(database.WorkspaceBuild{
 			ID:          buildID,
 			WorkspaceID: workspaceID,
@@ -363,7 +366,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				Return(tc.ttlReturn, tc.ttlErr)
 
 			db.EXPECT().
-				GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+				GetWorkspaceBuildByID(gomock.Any(), buildID).
 				Return(database.WorkspaceBuild{
 					ID:          buildID,
 					WorkspaceID: workspaceID,
@@ -387,6 +390,9 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 					ID:        workspaceID,
 					Name:      req.Name,
 					OwnerName: "testuser",
+					LatestBuild: codersdk.WorkspaceBuild{
+						ID: buildID,
+					},
 				}, nil
 			}
 
@@ -498,7 +504,8 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 		}, nil)
 
 	// GetLatestWorkspaceBuildByWorkspaceID is called once in
-	// checkExistingWorkspace and once in waitForBuild's first poll.
+	// checkExistingWorkspace. waitForBuild now uses
+	// GetWorkspaceBuildByID to track the specific build.
 	db.EXPECT().
 		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return(database.WorkspaceBuild{
@@ -506,8 +513,15 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 			WorkspaceID: workspaceID,
 			JobID:       jobID,
 			Transition:  database.WorkspaceTransitionStart,
-		}, nil).
-		Times(2)
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  database.WorkspaceTransitionStart,
+		}, nil)
 
 	// First GetProvisionerJobByID (in checkExistingWorkspace) returns
 	// Running, triggering waitForBuild. The second call (waitForBuild's

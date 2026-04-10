@@ -230,16 +230,14 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Wait for the build to complete and the agent to
 			// come online so subsequent tools can use the
 			// workspace immediately.
-			var buildID uuid.UUID
-			if options.DB != nil {
-				buildID, err = waitForBuild(ctx, options.DB, workspace.ID)
-				if err != nil {
+			buildID := workspace.LatestBuild.ID
+			if options.DB != nil && buildID != uuid.Nil {
+				if err := waitForBuild(ctx, options.DB, buildID); err != nil {
 					return fantasy.NewTextErrorResponse(
 						xerrors.Errorf("workspace build failed: %w", err).Error(),
 					), nil
 				}
 			}
-
 			result := map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
@@ -329,8 +327,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		database.ProvisionerJobStatusRunning:
 		// Build is in progress — wait for it instead of
 		// creating a new workspace.
-		buildID, err := waitForBuild(ctx, db, ws.ID)
-		if err != nil {
+		if err := waitForBuild(ctx, db, build.ID); err != nil {
 			return nil, false, xerrors.Errorf(
 				"existing workspace build failed: %w", err,
 			)
@@ -341,7 +338,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			"status":         "already_exists",
 			"message":        "workspace build completed",
 		}
-		setBuildID(result, buildID)
+		setBuildID(result, build.ID)
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {
 			selected, selectErr := agentselect.FindChatAgent(agents)
@@ -418,14 +415,13 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	}
 }
 
-// waitForBuild polls the workspace's latest build until it
-// completes or the context expires. Returns the build ID on
-// success.
+// waitForBuild polls the specified build until its provisioner job
+// completes or the context expires.
 func waitForBuild(
 	ctx context.Context,
 	db database.Store,
-	workspaceID uuid.UUID,
-) (uuid.UUID, error) {
+	buildID uuid.UUID,
+) error {
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
 
@@ -433,40 +429,38 @@ func waitForBuild(
 	defer ticker.Stop()
 
 	for {
-		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(
-			buildCtx, workspaceID,
-		)
+		build, err := db.GetWorkspaceBuildByID(buildCtx, buildID)
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("get latest build: %w", err)
+			return xerrors.Errorf("get build: %w", err)
 		}
 
 		job, err := db.GetProvisionerJobByID(buildCtx, build.JobID)
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("get provisioner job: %w", err)
+			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
 		switch job.JobStatus {
 		case database.ProvisionerJobStatusSucceeded:
-			return build.ID, nil
+			return nil
 		case database.ProvisionerJobStatusFailed:
 			errMsg := "build failed"
 			if job.Error.Valid {
 				errMsg = job.Error.String
 			}
-			return uuid.Nil, xerrors.New(errMsg)
+			return xerrors.New(errMsg)
 		case database.ProvisionerJobStatusCanceled:
-			return uuid.Nil, xerrors.New("build was canceled")
+			return xerrors.New("build was canceled")
 		case database.ProvisionerJobStatusPending,
 			database.ProvisionerJobStatusRunning,
 			database.ProvisionerJobStatusCanceling:
 			// Still in progress — keep waiting.
 		default:
-			return uuid.Nil, xerrors.Errorf("unexpected job status: %s", job.JobStatus)
+			return xerrors.Errorf("unexpected job status: %s", job.JobStatus)
 		}
 
 		select {
 		case <-buildCtx.Done():
-			return uuid.Nil, xerrors.Errorf(
+			return xerrors.Errorf(
 				"timed out waiting for workspace build: %w",
 				buildCtx.Err(),
 			)

@@ -99,13 +99,12 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
-				buildID, err := waitForBuild(ctx, options.DB, ws.ID)
-				if err != nil {
+				if err := waitForBuild(ctx, options.DB, build.ID); err != nil {
 					return fantasy.NewTextErrorResponse(
 						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
 					), nil
 				}
-				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, buildID)
+				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
 
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
@@ -126,7 +125,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			_, err = options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
@@ -135,14 +134,13 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			buildID, err := waitForBuild(ctx, options.DB, ws.ID)
-			if err != nil {
+			if err := waitForBuild(ctx, options.DB, startBuild.ID); err != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
 				), nil
 			}
 
-			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, buildID)
+			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
 		},
 	)
 }

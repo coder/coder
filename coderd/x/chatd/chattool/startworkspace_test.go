@@ -353,11 +353,11 @@ func TestStartWorkspace(t *testing.T) {
 			require.Equal(t, ws.ID, wsID)
 
 			// Simulate start by inserting a new completed "start" build.
-			dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStart,
 				BuildNumber: 2,
 			}).Do()
-			return codersdk.WorkspaceBuild{}, nil
+			return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
 		}
 
 		agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
