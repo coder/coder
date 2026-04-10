@@ -17,7 +17,7 @@ coder secret create [flags] <name>
 |------|---------------------|
 | Type | <code>string</code> |
 
-Set the secret value.
+Set the secret value. This flag is required.
 
 ### --description
 
