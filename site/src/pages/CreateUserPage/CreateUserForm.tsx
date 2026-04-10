@@ -132,7 +132,10 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		null,
 	);
 
-	const organizationsQuery = useQuery(organizations());
+	const organizationsQuery = useQuery({
+		...organizations(),
+		enabled: showOrganizations,
+	});
 
 	const orgAuthCheck: TypesGen.AuthorizationCheck = {
 		object: { resource_type: "organization_member" },
@@ -153,7 +156,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 
 	const permissionsQuery = useQuery({
 		...checkAuthorization({ checks: orgChecks ?? {} }),
-		enabled: Boolean(organizationsQuery.data),
+		enabled: showOrganizations && Boolean(organizationsQuery.data),
 	});
 
 	const orgOptions = useMemo(() => {

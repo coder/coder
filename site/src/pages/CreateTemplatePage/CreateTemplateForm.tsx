@@ -224,7 +224,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
-	const organizationsQuery = useQuery(organizations());
+	const organizationsQuery = useQuery({
+		...organizations(),
+		enabled: Boolean(showOrganizationPicker),
+	});
 
 	const authCheck: AuthorizationCheck = {
 		object: { resource_type: "template" },
@@ -245,7 +248,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
 	const permissionsQuery = useQuery({
 		...checkAuthorization({ checks: orgChecks ?? {} }),
-		enabled: Boolean(organizationsQuery.data),
+		enabled:
+			Boolean(showOrganizationPicker) && Boolean(organizationsQuery.data),
 	});
 
 	const orgOptions = useMemo(() => {
