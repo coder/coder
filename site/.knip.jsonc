@@ -1,7 +1,12 @@
 {
 	"$schema": "https://unpkg.com/knip@5/schema.json",
 	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
-	"project": ["./src/**/*.ts", "./src/**/*.tsx", "./e2e/**/*.ts"],
+	"project": [
+		"./src/**/*.ts",
+		"./src/**/*.tsx",
+		"./test/**/*.ts",
+		"./e2e/**/*.ts"
+	],
 	"ignore": ["**/*Generated.ts", "src/api/chatModelOptions.ts"],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
