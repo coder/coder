@@ -105,7 +105,7 @@ export function getAgentHealthIssues(
 			title: agentScriptMessages.start_error.title,
 			detail: agentScriptMessages.start_error.detail,
 			severity: "warning",
-			prominent: true,
+			prominent: false,
 		});
 	}
 

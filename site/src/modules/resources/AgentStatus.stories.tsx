@@ -67,7 +67,7 @@ export const StartupScriptFailed: Story = {
 			"Startup script failed",
 			agentScriptMessages.start_error.title,
 			agentScriptMessages.start_error.detail,
-			true,
+			false,
 		);
 	},
 };
