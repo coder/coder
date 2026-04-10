@@ -1,6 +1,10 @@
 package codersdk
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,4 +42,68 @@ type UpdateUserSecretRequest struct {
 	Description *string `json:"description,omitempty"`
 	EnvName     *string `json:"env_name,omitempty"`
 	FilePath    *string `json:"file_path,omitempty"`
+}
+
+func (c *Client) CreateUserSecret(ctx context.Context, user string, req CreateUserSecretRequest) (UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/secrets", user), req)
+	if err != nil {
+		return UserSecret{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return UserSecret{}, ReadBodyAsError(res)
+	}
+	var secret UserSecret
+	return secret, json.NewDecoder(res.Body).Decode(&secret)
+}
+
+func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/secrets", user), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var secrets []UserSecret
+	return secrets, json.NewDecoder(res.Body).Decode(&secrets)
+}
+
+func (c *Client) UserSecretByName(ctx context.Context, user string, name string) (UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/secrets/%s", user, name), nil)
+	if err != nil {
+		return UserSecret{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserSecret{}, ReadBodyAsError(res)
+	}
+	var secret UserSecret
+	return secret, json.NewDecoder(res.Body).Decode(&secret)
+}
+
+func (c *Client) UpdateUserSecret(ctx context.Context, user string, name string, req UpdateUserSecretRequest) (UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/users/%s/secrets/%s", user, name), req)
+	if err != nil {
+		return UserSecret{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserSecret{}, ReadBodyAsError(res)
+	}
+	var secret UserSecret
+	return secret, json.NewDecoder(res.Body).Decode(&secret)
+}
+
+func (c *Client) DeleteUserSecret(ctx context.Context, user string, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/secrets/%s", user, name), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

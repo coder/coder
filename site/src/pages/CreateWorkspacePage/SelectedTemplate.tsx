@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -10,42 +9,28 @@ interface SelectedTemplateProps {
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 	return (
-		<Stack direction="row" css={styles.template}>
+		<Stack
+			direction="row"
+			className="py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border"
+		>
 			<Avatar
 				variant="icon"
 				size="lg"
 				src={template.icon}
 				fallback={template.name}
 			/>
-
 			<Stack direction="column" spacing={0}>
-				<span css={styles.templateName}>
+				<span className="text-base">
 					{"display_name" in template && template.display_name.length > 0
 						? template.display_name
 						: template.name}
 				</span>
 				{template.description && (
-					<span css={styles.templateDescription}>{template.description}</span>
+					<span className="text-sm text-content-secondary">
+						{template.description}
+					</span>
 				)}
 			</Stack>
 		</Stack>
 	);
 };
-
-const styles = {
-	template: (theme) => ({
-		padding: "20px 24px",
-		borderRadius: 8,
-		backgroundColor: theme.palette.background.paper,
-		border: `1px solid ${theme.palette.divider}`,
-	}),
-
-	templateName: {
-		fontSize: 16,
-	},
-
-	templateDescription: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

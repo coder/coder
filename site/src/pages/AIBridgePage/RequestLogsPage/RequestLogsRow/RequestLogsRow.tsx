@@ -1,4 +1,4 @@
-import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -12,6 +12,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { formatDate, humanDuration } from "#/utils/time";
+import { TokenBadges } from "../../TokenBadges";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
@@ -140,7 +141,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						])}
 					>
 						<ChevronRightIcon
-							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+							className={cn(
+								"mr-4 transition-transform size-3.5",
+								isOpen && "rotate-90",
+							)}
 						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
@@ -163,32 +167,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell className="w-32">
 					<div className="flex items-center">
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Badge className="gap-0 rounded-e-none">
-										<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
-										<span className="truncate min-w-0 w-full">
-											{inputTokens}
-										</span>
-									</Badge>
-								</TooltipTrigger>
-								<TooltipContent>{inputTokens} Input Tokens</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
-										<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
-										<span className="truncate min-w-0 w-full">
-											{outputTokens}
-										</span>
-									</Badge>
-								</TooltipTrigger>
-								<TooltipContent>{outputTokens} Output Tokens</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<TokenBadges
+							inputTokens={inputTokens}
+							outputTokens={outputTokens}
+						/>
 					</div>
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
@@ -235,7 +217,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						</TooltipProvider>
 					</div>
 				</TableCell>
-				<TableCell className="w-32 text-center">{toolCalls}</TableCell>
+				<TableCell className="w-32 text-center">
+					<Badge>{toolCalls}</Badge>
+				</TableCell>
 			</TableRow>
 			{isOpen && (
 				<TableRow>
@@ -323,42 +307,16 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
-									{interception.tool_usages.length}
+									<Badge>{interception.tool_usages.length}</Badge>
 								</dd>
 
 								<dt>Input/Output Tokens:</dt>
 								<dd data-chromatic="ignore">
 									<div className="flex items-center">
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Badge className="gap-0 rounded-e-none">
-														<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
-														<span className="truncate min-w-0 w-full">
-															{inputTokens}
-														</span>
-													</Badge>
-												</TooltipTrigger>
-												<TooltipContent>
-													{inputTokens} Input Tokens
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
-														<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
-														<span className="truncate min-w-0 w-full">
-															{outputTokens}
-														</span>
-													</Badge>
-												</TooltipTrigger>
-												<TooltipContent>
-													{outputTokens} Output Tokens
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
+										<TokenBadges
+											inputTokens={inputTokens}
+											outputTokens={outputTokens}
+										/>
 									</div>
 								</dd>
 							</dl>

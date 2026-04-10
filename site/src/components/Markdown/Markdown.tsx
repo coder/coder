@@ -85,14 +85,8 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 						</SyntaxHighlighter>
 					) : (
 						<code
-							css={(theme) => ({
-								padding: "1px 4px",
-								background: theme.palette.divider,
-								borderRadius: 4,
-								color: theme.palette.text.primary,
-								fontSize: 14,
-							})}
-							{...props}
+							className="rounded-sm bg-border px-1 py-px text-[14px] text-content-primary"
+							{...restProps}
 						>
 							{children}
 						</code>
@@ -155,80 +149,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 	);
 };
 
-interface InlineMarkdownProps {
-	/**
-	 * The Markdown text to parse and render
-	 */
-	children: string;
-
-	/**
-	 * Additional element types to allow.
-	 * Allows italic, bold, links, and inline code snippets by default.
-	 * eg. `["ol", "ul", "li"]` to support lists.
-	 */
-	allowedElements?: readonly string[];
-
-	className?: string;
-
-	/**
-	 * Can override the behavior of the generated elements
-	 */
-	components?: Options["components"];
-}
-
-/**
- * Supports a strict subset of Markdown that behaves well as inline/confined content.
- */
-export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
-	const { children, allowedElements = [], className, components = {} } = props;
-
-	return (
-		<ReactMarkdown
-			className={className}
-			allowedElements={[
-				"p",
-				"em",
-				"strong",
-				"a",
-				"pre",
-				"code",
-				...allowedElements,
-			]}
-			unwrapDisallowed
-			components={{
-				p: ({ children }) => <>{children}</>,
-
-				a: ({ href, target, children }) => (
-					<Link href={href} target={target}>
-						{children}
-					</Link>
-				),
-
-				code: ({ node, className, children, style, ...props }) => (
-					<code
-						css={(theme) => ({
-							padding: "1px 4px",
-							background: theme.palette.divider,
-							borderRadius: 4,
-							color: theme.palette.text.primary,
-							fontSize: 14,
-						})}
-						{...props}
-					>
-						{children}
-					</code>
-				),
-
-				...components,
-			}}
-		>
-			{children}
-		</ReactMarkdown>
-	);
-};
-
 export const MemoizedMarkdown = memo(Markdown, isEqual);
-export const MemoizedInlineMarkdown = memo(InlineMarkdown, isEqual);
 
 const githubFlavoredMarkdownAlertTypes = [
 	"tip",
