@@ -203,11 +203,12 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
-		if txOpts.Isolation != sql.LevelDefault {
-			// The nested call requested a specific isolation level, but
-			// it will be silently ignored because we reuse the parent
-			// transaction. Log this so callers can detect the mismatch.
-			q.logger.Critical(context.Background(), "nested transaction requested specific isolation level; the outer transaction's isolation level will be used",
+		if txOpts.Isolation > q.txIsolationLevel {
+			// The nested call requested a stricter isolation level than
+			// the parent, but it will be silently ignored because we
+			// reuse the parent transaction. Log this so callers can
+			// detect the mismatch.
+			q.logger.Critical(context.Background(), "nested transaction requested stricter isolation level than the outer transaction provides",
 				slog.F("parent_isolation", q.txIsolationLevel.String()),
 				slog.F("requested_isolation", txOpts.Isolation.String()),
 			)
