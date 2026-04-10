@@ -4,10 +4,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { ReviewUnreadDialog } from "./components/ReviewUnreadDialog";
 import {
 	AgentsSidebar,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
+import { useUnreadChats } from "./hooks/useUnreadChats";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -70,6 +72,10 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	reviewDialogOpen: boolean;
+	onOpenReviewDialog: () => void;
+	onCloseReviewDialog: () => void;
+	onChatReviewed: (chatId: string) => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -106,9 +112,15 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
+	reviewDialogOpen,
+	onOpenReviewDialog,
+	onCloseReviewDialog,
+	onChatReviewed,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
+
+	const { unreadChats } = useUnreadChats(chatList);
 
 	// Mobile can't fit the sidebar nav and content side by side,
 	// so we show one or the other depending on the route depth.
@@ -190,6 +202,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
 					isAdmin={isAgentsAdmin}
+					onOpenReviewDialog={onOpenReviewDialog}
 				/>
 			</div>
 			<div
@@ -204,6 +217,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			>
 				<Outlet context={outletContextValue} />
 			</div>
+			<ReviewUnreadDialog
+				open={reviewDialogOpen}
+				onOpenChange={onCloseReviewDialog}
+				unreadChats={unreadChats}
+				onChatReviewed={onChatReviewed}
+			/>
 		</div>
 	);
 };

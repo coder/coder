@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -268,6 +268,21 @@ const AgentsPage: FC = () => {
 		readonly string[]
 	>([]);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+	const markChatAsRead = useCallback(
+		(chatId: string) => {
+			updateInfiniteChatsCache(queryClient, (chats) => {
+				let changed = false;
+				const next = chats.map((c) => {
+					if (c.id !== chatId || !c.has_unread) return c;
+					changed = true;
+					return { ...c, has_unread: false };
+				});
+				return changed ? next : chats;
+			});
+		},
+		[queryClient],
+	);
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
@@ -720,6 +735,10 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
+				reviewDialogOpen={reviewDialogOpen}
+				onOpenReviewDialog={() => setReviewDialogOpen(true)}
+				onCloseReviewDialog={() => setReviewDialogOpen(false)}
+				onChatReviewed={markChatAsRead}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

@@ -94,6 +94,7 @@ import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import { ReviewUnreadButton } from "./ReviewUnreadButton";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -142,6 +143,7 @@ interface AgentsSidebarProps {
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
 	isAdmin?: boolean;
+	onOpenReviewDialog?: () => void;
 }
 
 const statusConfig = {
@@ -757,6 +759,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchivedFilterChange,
 		onCollapse,
 		isAdmin = false,
+		onOpenReviewDialog,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -1032,6 +1035,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>
+					{onOpenReviewDialog && (
+						<ReviewUnreadButton chatList={chats} onClick={onOpenReviewDialog} />
+					)}
 				</div>
 				<ScrollArea
 					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"

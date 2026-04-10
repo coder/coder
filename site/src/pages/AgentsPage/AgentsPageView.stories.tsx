@@ -250,6 +250,10 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	hasNextPage: false,
 	onLoadMore: fn(),
 	isFetchingNextPage: false,
+	reviewDialogOpen: false,
+	onOpenReviewDialog: fn(),
+	onCloseReviewDialog: fn(),
+	onChatReviewed: fn(),
 };
 
 const meta: Meta<typeof AgentsPageView> = {
