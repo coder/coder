@@ -158,6 +158,15 @@ func (m *expChatsTUIModel) handleEsc(msg tea.KeyMsg) tea.Cmd {
 	return tea.Quit
 }
 
+func isOverlayCloseKey(msg tea.KeyMsg) bool {
+	if msg.Type == tea.KeyEsc || msg.Type == tea.KeyEscape {
+		return true
+	}
+
+	key := msg.String()
+	return key == "esc" || key == "ctrl+["
+}
+
 func (m *expChatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "up", "k":
@@ -175,6 +184,8 @@ func (m *expChatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
 			m.modelOverride = &selected.ID
 			m.overlay = overlayNone
 		}
+	case "ctrl+p", "q":
+		m.overlay = overlayNone
 	}
 	return nil
 }
@@ -290,16 +301,20 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle overlays first so their keys do not leak to the underlying
 		// view.
 		if m.overlay == overlayModelPicker {
-			if msg.Type == tea.KeyEsc || msg.String() == "esc" {
+			if isOverlayCloseKey(msg) {
 				m.overlay = overlayNone
-				return m, nil
+				return m, tea.ClearScreen
 			}
-			return m, m.handleModelPickerKey(msg)
+			cmd := m.handleModelPickerKey(msg)
+			if m.overlay == overlayNone {
+				return m, tea.Batch(cmd, tea.ClearScreen)
+			}
+			return m, cmd
 		}
 		if m.overlay == overlayDiffDrawer {
-			if msg.Type == tea.KeyEsc || msg.String() == "esc" {
+			if isOverlayCloseKey(msg) {
 				m.overlay = overlayNone
-				return m, nil
+				return m, tea.ClearScreen
 			}
 			return m, nil
 		}

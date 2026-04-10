@@ -78,11 +78,38 @@ func TestExpAgents(t *testing.T) {
 				model.overlay = tt.overlay
 
 				updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
-				updated := mustTUIModel(t, updatedModel, cmd)
+				updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 				require.Equal(t, viewChat, updated.currentView)
 				require.Equal(t, overlayNone, updated.overlay)
 			})
 		}
+
+		t.Run("AdditionalOverlayCloseKeys", func(t *testing.T) {
+			t.Parallel()
+			tests := []struct {
+				name    string
+				overlay tuiOverlay
+				key     tea.KeyMsg
+			}{
+				{name: "ModelPicker/KeyEscape", overlay: overlayModelPicker, key: tea.KeyMsg{Type: tea.KeyEscape}},
+				{name: "ModelPicker/CtrlOpenBracket", overlay: overlayModelPicker, key: tea.KeyMsg{Type: tea.KeyCtrlOpenBracket}},
+				{name: "DiffDrawer/KeyEscape", overlay: overlayDiffDrawer, key: tea.KeyMsg{Type: tea.KeyEscape}},
+				{name: "DiffDrawer/CtrlOpenBracket", overlay: overlayDiffDrawer, key: tea.KeyMsg{Type: tea.KeyCtrlOpenBracket}},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+					model.currentView = viewChat
+					model.overlay = tt.overlay
+
+					updatedModel, cmd := model.Update(tt.key)
+					updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
+					require.Equal(t, viewChat, updated.currentView)
+					require.Equal(t, overlayNone, updated.overlay)
+				})
+			}
+		})
 
 		t.Run("EscFromChatViewReturnsToListAndRefreshes", func(t *testing.T) {
 			t.Parallel()
@@ -327,14 +354,14 @@ func TestExpAgents(t *testing.T) {
 				model.width = 80
 				model.height = 24
 				updatedModel, cmd := model.Update(modelsListedMsg{catalog: twoModelCatalog})
-				updated := mustTUIModel(t, updatedModel, cmd)
+				updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 
 				updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
-				updated = mustTUIModel(t, updatedModel, cmd)
+				updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 				require.Equal(t, overlayModelPicker, updated.overlay)
 
 				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-				updated = mustTUIModel(t, updatedModel, cmd)
+				updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 				require.Equal(t, overlayNone, updated.overlay)
 			})
 
@@ -355,11 +382,47 @@ func TestExpAgents(t *testing.T) {
 				require.Equal(t, overlayModelPicker, updated.overlay)
 
 				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-				updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
-				require.Nil(t, cmd)
+				updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+				// ClearScreen cmd is expected
 				require.Equal(t, overlayNone, updated.overlay)
 				require.Equal(t, viewChat, updated.currentView)
 				require.Equal(t, "keep draft", updated.chat.composer.Value())
+			})
+
+			t.Run("AdditionalCloseKeysClosePickerWithoutLeavingChat", func(t *testing.T) {
+				t.Parallel()
+				tests := []struct {
+					name string
+					key  tea.KeyMsg
+				}{
+					{name: "CtrlP", key: tea.KeyMsg{Type: tea.KeyCtrlP}},
+					{name: "Q", key: keyRunes("q")},
+				}
+				for _, tt := range tests {
+					t.Run(tt.name, func(t *testing.T) {
+						t.Parallel()
+						model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+						model.currentView = viewChat
+						model.width = 80
+						model.height = 24
+						model.chat.draft = true
+						model.chat.composerFocused = true
+						model.chat.composer.SetValue("keep draft")
+						updatedModel, cmd := model.Update(modelsListedMsg{catalog: twoModelCatalog})
+						updated := mustTUIModel(t, updatedModel, cmd)
+
+						updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+						updated = mustTUIModel(t, updatedModel, cmd)
+						require.Equal(t, overlayModelPicker, updated.overlay)
+
+						updatedModel, cmd = updated.Update(tt.key)
+						updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+						// ClearScreen cmd is expected
+						require.Equal(t, overlayNone, updated.overlay)
+						require.Equal(t, viewChat, updated.currentView)
+						require.Equal(t, "keep draft", updated.chat.composer.Value())
+					})
+				}
 			})
 
 			t.Run("EnterSelectsModelWithoutSendingDraft", func(t *testing.T) {
@@ -383,8 +446,8 @@ func TestExpAgents(t *testing.T) {
 				require.Equal(t, 1, updated.chat.modelPickerCursor)
 
 				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-				updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
-				require.Nil(t, cmd)
+				updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+				// ClearScreen cmd is expected
 				require.Equal(t, overlayNone, updated.overlay)
 				require.NotNil(t, updated.chat.modelOverride)
 				require.NotNil(t, updated.modelOverride)
@@ -432,7 +495,7 @@ func TestExpAgents(t *testing.T) {
 				require.Equal(t, 1, updated.chat.modelPickerCursor)
 
 				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-				updated = mustTUIModel(t, updatedModel, cmd)
+				updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 				require.Equal(t, overlayNone, updated.overlay)
 				require.NotNil(t, updated.chat.modelOverride)
 				require.NotNil(t, updated.modelOverride)
@@ -478,7 +541,7 @@ func TestExpAgents(t *testing.T) {
 			model.overlay = overlayModelPicker
 
 			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
-			updated := mustTUIModel(t, updatedModel, cmd)
+			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, viewChat, updated.currentView)
 			require.Equal(t, overlayNone, updated.overlay)
 
@@ -1898,7 +1961,7 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, 1, updated.chat.modelPickerCursor)
 
 			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			updated = mustTUIModel(t, updatedModel, cmd)
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, overlayNone, updated.overlay)
 			require.NotNil(t, updated.chat.modelOverride)
 			require.NotNil(t, updated.modelOverride)
