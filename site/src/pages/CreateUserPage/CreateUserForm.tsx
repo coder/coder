@@ -1,7 +1,7 @@
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
@@ -165,20 +165,22 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	}, [organizationsQuery.data, permissionsQuery.data]);
 
 	// Auto-select when only one org is available, and clear invalid
-	// selections after permission filtering.
-	useEffect(() => {
-		if (orgOptions.length === 0) return;
+	// selections after permission filtering. This follows the React
+	// pattern of adjusting state during render to avoid useEffect.
+	const [prevOrgOptions, setPrevOrgOptions] = useState(orgOptions);
+	if (orgOptions !== prevOrgOptions) {
+		setPrevOrgOptions(orgOptions);
 		if (orgOptions.length === 1 && selectedOrg === null) {
-			const org = orgOptions[0];
-			setSelectedOrg(org);
-			void form.setFieldValue("organization", org.id ?? "");
-			return;
-		}
-		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(orgOptions[0]);
+			void form.setFieldValue("organization", orgOptions[0].id ?? "");
+		} else if (
+			selectedOrg &&
+			!orgOptions.some((o) => o.id === selectedOrg.id)
+		) {
 			setSelectedOrg(null);
 			void form.setFieldValue("organization", "");
 		}
-	}, [orgOptions, selectedOrg, form]);
+	}
 
 	const getFieldHelpers = getFormHelpers(form, error);
 

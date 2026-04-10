@@ -1,16 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import type { Organization } from "#/api/typesGenerated";
 import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { OrganizationAutocomplete } from "./OrganizationAutocomplete";
-
-type OnChangeFn = (org: Organization | null) => void;
 
 const meta: Meta<typeof OrganizationAutocomplete> = {
 	title: "components/OrganizationAutocomplete",
 	component: OrganizationAutocomplete,
 	args: {
-		onChange: fn<OnChangeFn>(),
+		onChange: fn(),
 		options: [MockOrganization, MockOrganization2],
 	},
 };

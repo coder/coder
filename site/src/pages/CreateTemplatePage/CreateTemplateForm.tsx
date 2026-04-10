@@ -3,7 +3,7 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import * as Yup from "yup";
@@ -257,20 +257,22 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	}, [organizationsQuery.data, permissionsQuery.data]);
 
 	// Auto-select when only one org is available, and clear invalid
-	// selections after permission filtering.
-	useEffect(() => {
-		if (orgOptions.length === 0) return;
+	// selections after permission filtering. This follows the React
+	// pattern of adjusting state during render to avoid useEffect.
+	const [prevOrgOptions, setPrevOrgOptions] = useState(orgOptions);
+	if (orgOptions !== prevOrgOptions) {
+		setPrevOrgOptions(orgOptions);
 		if (orgOptions.length === 1 && selectedOrg === null) {
-			const org = orgOptions[0];
-			setSelectedOrg(org);
-			void form.setFieldValue("organization", org.name || "");
-			return;
-		}
-		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(orgOptions[0]);
+			void form.setFieldValue("organization", orgOptions[0].name || "");
+		} else if (
+			selectedOrg &&
+			!orgOptions.some((o) => o.id === selectedOrg.id)
+		) {
 			setSelectedOrg(null);
 			void form.setFieldValue("organization", "");
 		}
-	}, [orgOptions, selectedOrg, form]);
+	}
 
 	const { data: provisioners } = useQuery({
 		...provisionerDaemons(selectedOrg?.id ?? ""),
