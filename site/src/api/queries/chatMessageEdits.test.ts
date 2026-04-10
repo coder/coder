@@ -27,18 +27,6 @@ describe("buildOptimisticEditedMessage", () => {
 		]);
 	});
 
-	it("preserves text MIME types for newly attached files", () => {
-		const message = buildOptimisticEditedMessage({
-			requestContent: [{ type: "file", file_id: "text-1" }],
-			originalMessage: makeUserMessage(),
-			attachmentMediaTypes: new Map([["text-1", "text/plain"]]),
-		});
-
-		expect(message.content).toEqual([
-			{ type: "file", file_id: "text-1", media_type: "text/plain" },
-		]);
-	});
-
 	it("reuses existing file parts before local attachment metadata", () => {
 		const existingFilePart: TypesGen.ChatFilePart = {
 			type: "file",

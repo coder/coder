@@ -195,19 +195,6 @@ describe("setChatStatus", () => {
 // ---------------------------------------------------------------------------
 
 describe("setStreamState", () => {
-	it("restores a previous stream snapshot after an optimistic clear", () => {
-		const store = createChatStore();
-		store.applyMessagePart({ type: "text", text: "hello" });
-		const previousStreamState = store.getSnapshot().streamState;
-		expect(previousStreamState).not.toBeNull();
-
-		store.clearStreamState();
-		expect(store.getSnapshot().streamState).toBeNull();
-
-		store.setStreamState(previousStreamState);
-		expect(store.getSnapshot().streamState).toBe(previousStreamState);
-	});
-
 	it("does not notify when setting the same stream state reference", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "hello" });

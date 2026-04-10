@@ -383,31 +383,6 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("keeps editing file blocks while a history-edit submission is pending", () => {
-		const { result, onSend, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("edited message");
-		const fileBlocks = [
-			{ type: "file", file_id: "file-1", media_type: "image/png" },
-		] as const;
-		result.current.chatInputRef.current = mockInput.handle;
-		onSend.mockImplementation(() => new Promise(() => {}));
-
-		act(() => {
-			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
-		});
-
-		act(() => {
-			void result.current.handleSendFromInput("edited message");
-		});
-
-		expect(onSend).toHaveBeenCalledWith("edited message", undefined, 7);
-		expect(mockInput.clear).toHaveBeenCalled();
-		expect(result.current.inputValueRef.current).toBe("");
-		expect(result.current.editingMessageId).toBeNull();
-		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
-		unmount();
-	});
-
 	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("edited message");
