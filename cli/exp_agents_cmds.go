@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"slices"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -68,9 +69,18 @@ type (
 		event      codersdk.ChatStreamEvent
 		err        error
 	}
+	streamRetryMsg struct {
+		generation uint64
+	}
 	toggleModelPickerMsg struct{}
 	toggleDiffDrawerMsg  struct{}
 )
+
+func scheduleStreamRetry(generation uint64, delay time.Duration) tea.Cmd {
+	return tea.Tick(delay, func(time.Time) tea.Msg {
+		return streamRetryMsg{generation: generation}
+	})
+}
 
 func apiCmd[T any](fn func() (T, error), wrap func(T, error) tea.Msg) tea.Cmd {
 	return func() tea.Msg {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -589,8 +590,9 @@ func (m chatViewModel) handleStreamError(err error, wasSpinnerActive bool) (chat
 	updated, cmd := m.startStreamWithSpinner(wasSpinnerActive)
 	if updated.streaming {
 		updated.err = nil
+		return updated, cmd
 	}
-	return updated, cmd
+	return updated, tea.Batch(cmd, scheduleStreamRetry(updated.chatGeneration, 2*time.Second))
 }
 
 func (m *chatViewModel) getOrCreateMarkdownRenderer(width int) *glamour.TermRenderer {
@@ -841,6 +843,20 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		updated, cmd := m.handleStreamEvent(msg.event)
 		return updated, updated.startSpinnerIfNeeded(spinnerState(wasSpinnerActive), cmd)
+
+	case streamRetryMsg:
+		if !m.matchesGeneration(msg.generation) {
+			return m, nil
+		}
+		if m.streaming || !m.shouldReconnect() {
+			return m, nil
+		}
+		updated, cmd := m.startStreamWithSpinner(wasSpinnerActive)
+		if updated.streaming {
+			updated.err = nil
+			return updated, cmd
+		}
+		return updated, tea.Batch(cmd, scheduleStreamRetry(updated.chatGeneration, 5*time.Second))
 
 	case modelsListedMsg:
 		if msg.err != nil {

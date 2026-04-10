@@ -1115,7 +1115,7 @@ func TestExpAgents(t *testing.T) {
 			model.setChat(chat)
 			model.streaming = true
 			updated, cmd := model.Update(chatStreamEventMsg{chatID: chat.ID, err: io.EOF})
-			require.Nil(t, cmd)
+			require.NotNil(t, cmd)
 			require.False(t, updated.streaming)
 			require.True(t, updated.reconnecting)
 		})
