@@ -46,6 +46,8 @@ type chatBlock struct {
 	cachedCollapsedCount int
 }
 
+type spinnerState bool
+
 type streamAccumulator struct {
 	parts      []codersdk.ChatMessagePart
 	role       codersdk.ChatMessageRole
@@ -269,18 +271,19 @@ func (m *chatViewModel) recalcViewportHeight() {
 	m.viewport.Width = m.width
 	m.viewport.Height = max(0, m.height-chromeLines-composerLines)
 }
-
-// combinedError returns the first non-nil error from the
-// open/history resolution pair.
-func (m chatViewModel) combinedError() error {
-	if m.metadataErr != nil {
-		return m.metadataErr
-	}
-	return m.historyErr
-}
+func (m *chatViewModel) refreshViewport() { m.recalcViewportHeight(); m.syncViewportContent() }
 
 func (m chatViewModel) readyToStartStream() bool {
 	return m.metadataResolved && m.historyResolved && m.err == nil && m.chat != nil && m.client != nil && !m.streaming
+}
+
+func (m *chatViewModel) finishLoading(wasSpinnerActive bool) (chatViewModel, tea.Cmd) {
+	m.err = m.historyErr
+	if m.metadataErr != nil {
+		m.err = m.metadataErr
+	}
+	m.loading = !m.metadataResolved || !m.historyResolved
+	return m.startStreamIfReady(wasSpinnerActive)
 }
 
 // restorePendingComposerIfEmpty restores pending text to the
@@ -297,9 +300,7 @@ func (m *chatViewModel) stopStream() {
 	m.intentionalClose = true
 	if m.streamCloser != nil {
 		_ = m.streamCloser.Close()
-		m.streamCloser = nil
-		m.streamEventCh = nil
-		m.streaming = false
+		m.streaming, m.streamCloser, m.streamEventCh = false, nil, nil
 	}
 }
 
@@ -327,16 +328,9 @@ func (m chatViewModel) isInterruptible() bool {
 }
 
 func (m chatViewModel) shouldReconnect() bool {
-	if m.chat == nil {
-		return false
-	}
-	return m.isInterruptible() || m.chatStatus == codersdk.ChatStatusWaiting
+	return m.chat != nil && (m.isInterruptible() || m.chatStatus == codersdk.ChatStatusWaiting)
 }
-
-func (m chatViewModel) Init() tea.Cmd {
-	return m.spinner.Tick
-}
-
+func (m chatViewModel) Init() tea.Cmd { return m.spinner.Tick }
 func (m chatViewModel) spinnerActive() bool {
 	return m.reconnecting || m.accumulator.pending || m.isInterruptible()
 }
@@ -346,6 +340,16 @@ func (m chatViewModel) spinnerLabel() string {
 		return "Reconnecting..."
 	}
 	return "Thinking..."
+}
+
+func (m chatViewModel) startSpinnerIfNeeded(wasSpinnerActive spinnerState, cmd tea.Cmd) tea.Cmd {
+	if bool(wasSpinnerActive) || !m.spinnerActive() {
+		return cmd
+	}
+	if cmd == nil {
+		return m.spinner.Tick
+	}
+	return tea.Batch(cmd, m.spinner.Tick)
 }
 
 func availableChatModels(catalog codersdk.ChatModelsResponse) []codersdk.ChatModel {
@@ -442,12 +446,21 @@ func (m chatViewModel) startStream() (chatViewModel, tea.Cmd) {
 		m.err = err
 		return m, nil
 	}
-	m.streaming = true
-	m.streamCloser = closer
-	m.streamEventCh = eventCh
-	m.reconnecting = false
-	(&m).syncViewportContent()
+	m.streaming, m.streamCloser, m.streamEventCh, m.reconnecting = true, closer, eventCh, false
+	m.syncViewportContent()
 	return m, listenToStream(m.activeChatID, m.chatGeneration, m.streamEventCh)
+}
+
+func (m chatViewModel) startStreamWithSpinner(wasSpinnerActive bool) (chatViewModel, tea.Cmd) {
+	updated, cmd := m.startStream()
+	return updated, updated.startSpinnerIfNeeded(spinnerState(wasSpinnerActive), cmd)
+}
+
+func (m chatViewModel) startStreamIfReady(wasSpinnerActive bool) (chatViewModel, tea.Cmd) {
+	if !m.readyToStartStream() {
+		return m, m.startSpinnerIfNeeded(spinnerState(wasSpinnerActive), nil)
+	}
+	return m.startStreamWithSpinner(wasSpinnerActive)
 }
 
 // rebuildBlocks merges persisted messages + accumulator into renderable blocks.
@@ -549,6 +562,28 @@ func (m *chatViewModel) clearPendingStreamAccumulator() {
 	m.rebuildBlocks()
 }
 
+func (m chatViewModel) handleStreamError(err error, wasSpinnerActive bool) (chatViewModel, tea.Cmd) {
+	if !xerrors.Is(err, io.EOF) {
+		m.err = err
+	}
+	m.streaming, m.streamCloser, m.streamEventCh = false, nil, nil
+	if m.intentionalClose {
+		m.intentionalClose = false
+		return m, nil
+	}
+	if !m.shouldReconnect() {
+		return m, nil
+	}
+	m.clearPendingStreamAccumulator()
+	m.reconnecting = true
+	m.syncViewportContent()
+	updated, cmd := m.startStreamWithSpinner(wasSpinnerActive)
+	if updated.streaming {
+		updated.err = nil
+	}
+	return updated, cmd
+}
+
 func (m *chatViewModel) getOrCreateMarkdownRenderer(width int) *glamour.TermRenderer {
 	if m.cachedRendererWidth == width && m.cachedRenderer != nil {
 		return m.cachedRenderer
@@ -621,23 +656,12 @@ func (m *chatViewModel) addMessageIfNew(msg codersdk.ChatMessage) bool {
 
 func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 	wasSpinnerActive := m.spinnerActive()
-	startSpinner := func(updated chatViewModel, cmd tea.Cmd) tea.Cmd {
-		if wasSpinnerActive || !updated.spinnerActive() {
-			return cmd
-		}
-		if cmd == nil {
-			return updated.spinner.Tick
-		}
-		return tea.Batch(cmd, updated.spinner.Tick)
-	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		(&m).setComposerWidth()
-		(&m).recalcViewportHeight()
-		(&m).syncViewportContent()
+		m.width, m.height = msg.Width, msg.Height
+		m.setComposerWidth()
+		m.refreshViewport()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -646,7 +670,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		(&m).syncViewportContent()
+		m.syncViewportContent()
 		return m, cmd
 
 	case tea.KeyMsg:
@@ -657,7 +681,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			} else {
 				m.composer.Blur()
 			}
-			(&m).syncViewportContent()
+			m.syncViewportContent()
 			return m, nil
 		}
 
@@ -690,8 +714,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			}
 			var cmd tea.Cmd
 			m.composer, cmd = m.composer.Update(msg)
-			(&m).recalcViewportHeight()
-			(&m).syncViewportContent()
+			m.refreshViewport()
 			return m, cmd
 		}
 
@@ -728,16 +751,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.metadataErr = msg.err
 		} else {
 			m.metadataErr = nil
-			chat := msg.chat
-			m.setChat(chat)
+			m.setChat(msg.chat)
 		}
-		m.err = m.combinedError()
-		m.loading = !m.metadataResolved || !m.historyResolved
-		if m.readyToStartStream() {
-			updated, cmd := m.startStream()
-			return updated, startSpinner(updated, cmd)
-		}
-		return m, startSpinner(m, nil)
+		return m.finishLoading(wasSpinnerActive)
 
 	case chatHistoryMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -747,9 +763,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		if msg.err != nil {
 			m.historyErr = msg.err
 		} else {
-			m.historyErr = nil
-			m.messages = msg.messages
-			m.lastUsage = nil
+			m.historyErr, m.messages, m.lastUsage = nil, msg.messages, nil
 			for i := len(m.messages) - 1; i >= 0; i-- {
 				if m.messages[i].Usage != nil {
 					m.lastUsage = m.messages[i].Usage
@@ -759,13 +773,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.autoFollow = true
 			m.rebuildBlocks()
 		}
-		m.err = m.combinedError()
-		m.loading = !m.metadataResolved || !m.historyResolved
-		if m.readyToStartStream() {
-			updated, cmd := m.startStream()
-			return updated, startSpinner(updated, cmd)
-		}
-		return m, startSpinner(m, nil)
+		return m.finishLoading(wasSpinnerActive)
 
 	case chatCreatedMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -777,13 +785,10 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.restorePendingComposerIfEmpty()
 			return m, nil
 		}
-		chat := msg.chat
-		m.setChat(chat)
+		m.setChat(msg.chat)
 		m.draft = false
-		m.err = nil
-		m.pendingComposerText = ""
-		updated, cmd := m.startStream()
-		return updated, startSpinner(updated, cmd)
+		m.err, m.pendingComposerText = nil, ""
+		return m.startStreamWithSpinner(wasSpinnerActive)
 
 	case messageSentMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -794,8 +799,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.restorePendingComposerIfEmpty()
 			return m, nil
 		}
-		m.err = nil
-		m.pendingComposerText = ""
+		m.err, m.pendingComposerText = nil, ""
 		if msg.resp.Message != nil {
 			m.addMessageIfNew(*msg.resp.Message)
 		}
@@ -803,11 +807,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.queuedMessages = []codersdk.ChatQueuedMessage{*msg.resp.QueuedMessage}
 		}
 		m.rebuildBlocks()
-		if m.readyToStartStream() {
-			updated, cmd := m.startStream()
-			return updated, startSpinner(updated, cmd)
-		}
-		return m, startSpinner(m, nil)
+		return m.startStreamIfReady(wasSpinnerActive)
 
 	case chatInterruptedMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -819,40 +819,19 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 		chat := msg.chat
-		m.chat = &chat
-		m.chatStatus = chat.Status
-		(&m).syncViewportContent()
-		return m, startSpinner(m, nil)
+		m.chat, m.chatStatus = &chat, chat.Status
+		m.syncViewportContent()
+		return m, m.startSpinnerIfNeeded(spinnerState(wasSpinnerActive), nil)
 
 	case chatStreamEventMsg:
 		if !m.matchesGeneration(msg.generation) {
 			return m, nil
 		}
 		if msg.err != nil {
-			if !xerrors.Is(msg.err, io.EOF) {
-				m.err = msg.err
-			}
-			m.streaming = false
-			m.streamCloser = nil
-			m.streamEventCh = nil
-			if m.intentionalClose {
-				m.intentionalClose = false
-				return m, nil
-			}
-			if m.shouldReconnect() {
-				m.clearPendingStreamAccumulator()
-				m.reconnecting = true
-				(&m).syncViewportContent()
-				updated, cmd := m.startStream()
-				if updated.streaming {
-					updated.err = nil
-				}
-				return updated, startSpinner(updated, cmd)
-			}
-			return m, nil
+			return m.handleStreamError(msg.err, wasSpinnerActive)
 		}
 		updated, cmd := m.handleStreamEvent(msg.event)
-		return updated, startSpinner(updated, cmd)
+		return updated, updated.startSpinnerIfNeeded(spinnerState(wasSpinnerActive), cmd)
 
 	case modelsListedMsg:
 		if msg.err != nil {
@@ -917,7 +896,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 			if m.chat != nil {
 				m.chat.Status = event.Status.Status
 			}
-			(&m).syncViewportContent()
+			m.syncViewportContent()
 		}
 
 	case codersdk.ChatStreamEventTypeQueueUpdate:
@@ -926,7 +905,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 
 	case codersdk.ChatStreamEventTypeRetry:
 		m.reconnecting = true
-		(&m).syncViewportContent()
+		m.syncViewportContent()
 
 	case codersdk.ChatStreamEventTypeError:
 		if event.Error != nil {
