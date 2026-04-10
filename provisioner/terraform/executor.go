@@ -31,6 +31,11 @@ var (
 	version190 = version.Must(version.NewVersion("1.9.0"))
 )
 
+// resourceSamplingInterval controls how often the procSampler
+// reads /proc to collect provider resource usage. Five seconds
+// balances resolution against overhead for multi-minute builds.
+const resourceSamplingInterval = 5 * time.Second
+
 type executor struct {
 	logger     slog.Logger
 	server     *server
@@ -42,6 +47,10 @@ type executor struct {
 	files         tfpath.Layout
 	// used to capture execution times at various stages
 	timings *timingAggregator
+	// lastResourceSample stores the resource usage captured by the
+	// most recent command execution. The executor mutex ensures
+	// single-writer access, mirroring the pattern used by timings.
+	lastResourceSample *ProcessSample
 }
 
 func (e *executor) basicEnv() []string {
@@ -110,9 +119,17 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		e.logger.Debug(ctx, "failed to start command", slog.F("args", args))
 		return err
 	}
+
+	sampler := newProcSampler(cmd.Process.Pid, resourceSamplingInterval)
+	sampler.Start(ctx)
+
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
 	err = cmd.Wait()
+
+	sample := sampler.Stop()
+	e.lastResourceSample = &sample
+
 	e.logger.Debug(ctx, "command done", slog.F("args", args), slog.Error(err))
 	return err
 }
@@ -144,9 +161,17 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 	if err != nil {
 		return err
 	}
+
+	sampler := newProcSampler(cmd.Process.Pid, resourceSamplingInterval)
+	sampler.Start(ctx)
+
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
 	err = cmd.Wait()
+
+	sample := sampler.Stop()
+	e.lastResourceSample = &sample
+
 	if err != nil {
 		errString, _ := io.ReadAll(stdErr)
 		return xerrors.Errorf("%s: %w", errString, err)
@@ -502,9 +527,17 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	sampler := newProcSampler(cmd.Process.Pid, resourceSamplingInterval)
+	sampler.Start(ctx)
+
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
 	err = cmd.Wait()
+
+	sample := sampler.Stop()
+	e.lastResourceSample = &sample
+
 	if err != nil {
 		return "", xerrors.Errorf("graph: %w", err)
 	}

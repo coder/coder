@@ -157,6 +157,8 @@ func (s *server) Init(
 
 	s.logger.Debug(ctx, "ran initialization")
 
+	logResourceSample(ctx, s.logger, "init", e)
+
 	return &proto.InitComplete{
 		Timings:         e.timings.aggregate(),
 		Modules:         modules,
@@ -213,8 +215,11 @@ func (s *server) Plan(
 	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
 	if err != nil {
+		logResourceSample(ctx, s.logger, "plan", e)
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
+
+	logResourceSample(ctx, s.logger, "plan", e)
 
 	resp.Timings = e.timings.aggregate()
 	return resp
@@ -260,8 +265,11 @@ func (s *server) Graph(
 	rawGraph, err := e.graph(ctx, killCtx)
 	endStage(err)
 	if err != nil {
+		logResourceSample(ctx, s.logger, "graph", e)
 		return provisionersdk.GraphError("generate graph: %s", err)
 	}
+
+	logResourceSample(ctx, s.logger, "graph", e)
 
 	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
@@ -322,6 +330,8 @@ func (s *server) Apply(
 	)
 	endStage(err)
 	if err != nil {
+		logResourceSample(ctx, s.logger, "apply", e)
+
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
 		// In this case, we return Complete with an explicit error message.
@@ -332,6 +342,9 @@ func (s *server) Apply(
 			Timings: e.timings.aggregate(),
 		}
 	}
+
+	logResourceSample(ctx, s.logger, "apply", e)
+
 	resp.Timings = e.timings.aggregate()
 	return resp
 }
@@ -500,4 +513,24 @@ func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
 // the provider, we can remove this function.
 func gitAuthAccessTokenEnvironmentVariable(id string) string {
 	return fmt.Sprintf("CODER_GIT_AUTH_ACCESS_TOKEN_%s", id)
+}
+
+// logResourceSample emits a structured INFO log with the resource
+// usage captured by the executor's procSampler. This gives
+// operators immediate visibility into provider memory and CPU
+// consumption without requiring Prometheus.
+func logResourceSample(ctx context.Context, logger slog.Logger, stage string, e *executor) {
+	sample := e.lastResourceSample
+	if sample == nil || len(sample.Providers) == 0 {
+		return
+	}
+
+	for name, usage := range sample.Providers {
+		logger.Info(ctx, "terraform provider resource usage",
+			slog.F("stage", stage),
+			slog.F("provider", name),
+			slog.F("peak_rss_bytes", usage.PeakRSSBytes),
+			slog.F("cpu_time_seconds", usage.CPUTimeSeconds),
+		)
+	}
 }
