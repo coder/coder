@@ -47,6 +47,8 @@ Roo Code allows you to configure providers via the UI.
 1. **Model ID**: Enter the model you wish to use (e.g., `gpt-4o`).
 1. **Custom Headers**: Add `X-Coder-AI-Governance-Token` with your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
+![Roo Code BYOK OpenAI Settings](../../../images/aibridge/clients/roo-code-byok-openai.png)
+
 </div>
 
 ### Notes
