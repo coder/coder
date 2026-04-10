@@ -651,6 +651,52 @@ func TestPostChats(t *testing.T) {
 		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
 	})
 
+	t.Run("SuccessNonDefaultOrg", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a second (non-default) org and add the member to it.
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, member := coderdtest.CreateAnotherUser(
+			t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess(),
+		)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         member.ID,
+			OrganizationID: secondOrg.ID,
+		})
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from non-default org",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, secondOrg.ID, chat.OrganizationID)
+		require.Equal(t, member.ID, chat.OwnerID)
+
+		// Verify the chat is visible when listing.
+		chats, err := memberClient.ListChats(ctx, nil)
+		require.NoError(t, err)
+		var found bool
+		for _, c := range chats {
+			if c.ID == chat.ID {
+				found = true
+				require.Equal(t, secondOrg.ID, c.OrganizationID)
+				break
+			}
+		}
+		require.True(t, found, "chat should be visible in list")
+	})
+
 	t.Run("NilOrganizationID", func(t *testing.T) {
 		t.Parallel()
 
