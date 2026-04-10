@@ -96,7 +96,14 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						theme="light"
 						onSelect={() => onChangeTheme("light")}
 					/>
-				</div>
+					<ThemePreviewButton
+						displayName="Purple"
+						active={currentTheme === "purple"}
+						theme="purple"
+						preview
+						onSelect={() => onChangeTheme("purple")}
+					/>
+				</div>{" "}
 			</Section>
 			<Section
 				title={
@@ -139,7 +146,7 @@ function toTerminalFontName(value: string): TerminalFontName {
 		: "";
 }
 
-type ThemeMode = "dark" | "light";
+type ThemeMode = "dark" | "light" | "purple";
 
 interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
 	themes: [ThemeMode, ThemeMode];
@@ -250,7 +257,7 @@ const ThemePreview: FC<ThemePreviewProps> = ({
 	theme,
 }) => {
 	return (
-		<div className={theme}>
+		<div className={theme === "purple" ? "dark" : theme}>
 			<div
 				className={cn(
 					"w-56 overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
@@ -267,14 +274,24 @@ const ThemePreview: FC<ThemePreviewProps> = ({
 							<div className="bg-content-secondary h-1.5 w-5 rounded" />
 						</div>
 						<div className="flex items-center gap-1.5">
-							<div className="bg-green-400 h-1.5 w-3 rounded" />
+							<div
+								className={cn(
+									"h-1.5 w-3 rounded",
+									theme === "purple" ? "bg-violet-400" : "bg-green-400",
+								)}
+							/>
 							<div className="bg-content-primary h-2 w-2 rounded-full" />
-						</div>
+						</div>{" "}
 					</div>
 					<div className="w-32 mx-auto">
 						<div className="bg-content-primary h-2 w-11 rounded mb-1.5" />
 						<div className="border border-solid rounded-t overflow-clip">
-							<div className="bg-surface-secondary h-2.5 -m-px" />
+							<div
+								className={cn(
+									"h-2.5 -m-px",
+									theme === "purple" ? "bg-violet-950" : "bg-surface-secondary",
+								)}
+							/>{" "}
 							<div className="h-4 border-0 border-t border-border border-solid">
 								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
 							</div>

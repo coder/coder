@@ -24,6 +24,11 @@ import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes, { DEFAULT_THEME, type Theme } from "#/theme";
 
+// Map custom theme names to their underlying color scheme for CSS class.
+const themeToColorScheme: Record<string, string> = {
+	purple: "dark",
+};
+
 /**
  *
  */
@@ -76,12 +81,19 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (themePreference === "auto") {
 			root.classList.add(preferredColorScheme);
 		} else {
-			root.classList.add(themePreference);
+			// Custom themes (e.g. purple) map to an underlying color scheme
+			// for Tailwind dark/light class, but also set their own class.
+			const colorScheme = themeToColorScheme[themePreference];
+			if (colorScheme) {
+				root.classList.add(colorScheme, themePreference);
+			} else {
+				root.classList.add(themePreference);
+			}
 		}
 
 		return () => {
 			if (!root.dataset.embedTheme) {
-				root.classList.remove("light", "dark");
+				root.classList.remove("light", "dark", "purple");
 			}
 		};
 	}, [themePreference, preferredColorScheme]);
