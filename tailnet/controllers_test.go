@@ -2023,6 +2023,92 @@ func TestTunnelAllWorkspaceUpdatesController_HandleErrors(t *testing.T) {
 	}
 }
 
+func TestTunnelAllWorkspaceUpdatesController_ReconnectPreservesDNS(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+
+	fConn := &fakeCoordinatee{}
+	tsc := tailnet.NewTunnelSrcCoordController(logger, fConn)
+	fDNS := newFakeDNSSetter(ctx, t)
+	uut := tailnet.NewTunnelAllWorkspaceUpdatesController(logger, tsc,
+		tailnet.WithDNS(fDNS, "testy", tailnet.DNSNameOptions{Suffix: "mctest"}),
+	)
+
+	// Connect coordinator
+	coordC := newFakeCoordinatorClient(ctx, t)
+	coordCW := tsc.New(coordC)
+
+	// Connect first workspace update client and send a snapshot
+	w1ID := testUUID(1)
+	w1a1ID := testUUID(1, 1)
+	updateC1 := newFakeWorkspaceUpdateClient(ctx, t)
+	updateCW1 := uut.New(updateC1)
+
+	initUp := &proto.WorkspaceUpdate{
+		UpsertedWorkspaces: []*proto.Workspace{
+			{Id: w1ID[:], Name: "w1"},
+		},
+		UpsertedAgents: []*proto.Agent{
+			{Id: w1a1ID[:], Name: "w1a1", WorkspaceId: w1ID[:]},
+		},
+	}
+
+	upRecvCall := testutil.TryReceive(ctx, t, updateC1.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.resp, initUp)
+
+	// Consume the AddTunnel coordination call
+	coordCall := testutil.TryReceive(ctx, t, coordC.reqs)
+	testutil.RequireSend(ctx, t, coordCall.err, nil)
+
+	// Consume the initial DNS set call
+	dnsCall := testutil.TryReceive(ctx, t, fDNS.calls)
+	require.NotEmpty(t, dnsCall.hosts)
+	initialHosts := dnsCall.hosts
+	testutil.RequireSend(ctx, t, dnsCall.err, nil)
+
+	// Simulate disconnect: hang up the first workspace update client
+	upRecvCall = testutil.TryReceive(ctx, t, updateC1.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.err, io.EOF)
+	err := testutil.TryReceive(ctx, t, updateCW1.Wait())
+	require.ErrorIs(t, err, io.EOF)
+
+	// Reconnect with a new workspace update client. The controller
+	// should carry over workspace state and immediately re-apply DNS.
+	updateC2 := newFakeWorkspaceUpdateClient(ctx, t)
+
+	// New() will call SetDNSHosts synchronously with the inherited
+	// hosts. We need to consume that call concurrently because the
+	// fake DNS setter blocks until the test reads from the channel.
+	reconnDNSHosts := make(chan map[dnsname.FQDN][]netip.Addr, 1)
+	go func() {
+		call := testutil.TryReceive(ctx, t, fDNS.calls)
+		reconnDNSHosts <- call.hosts
+		testutil.RequireSend(ctx, t, call.err, nil)
+	}()
+
+	updateCW2 := uut.New(updateC2)
+
+	// Verify DNS was re-applied with the previously known hosts
+	// before any server snapshot arrives on the new client.
+	gotHosts := testutil.TryReceive(ctx, t, reconnDNSHosts)
+	require.Equal(t, initialHosts, gotHosts)
+
+	// Cleanup: tear down the second workspace update client
+	upRecvCall = testutil.TryReceive(ctx, t, updateC2.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.err, io.EOF)
+	err = testutil.TryReceive(ctx, t, updateCW2.Wait())
+	require.ErrorIs(t, err, io.EOF)
+
+	// Cleanup: tear down coordinator
+	coordRecv := testutil.TryReceive(ctx, t, coordC.resps)
+	testutil.RequireSend(ctx, t, coordRecv.err, io.EOF)
+	cCall := testutil.TryReceive(ctx, t, coordC.close)
+	testutil.RequireSend(ctx, t, cCall, nil)
+	err = testutil.TryReceive(ctx, t, coordCW.Wait())
+	require.ErrorIs(t, err, io.EOF)
+}
+
 func TestBasicDERPController_RewriteDERPMap(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
