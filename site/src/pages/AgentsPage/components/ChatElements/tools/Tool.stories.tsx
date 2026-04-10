@@ -1508,6 +1508,10 @@ export const StartWorkspaceError: Story = {
 			error: "workspace was deleted; use create_workspace to make a new one",
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to start workspace")).toBeInTheDocument();
+	},
 };
 
 export const StartWorkspaceBuildFailed: Story = {
