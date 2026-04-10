@@ -1038,7 +1038,8 @@ func TestListChats(t *testing.T) {
 		}
 		require.Len(t, seenIDs, totalChats, "all chats should appear in paginated results")
 
-		// Pinned chats should come before unpinned ones.
+		// Pinned chats should come before unpinned ones, and
+		// within the pinned group, lower pin_order sorts first.
 		pinnedSeen := false
 		unpinnedSeen := false
 		for _, c := range allPaginated {
@@ -1050,6 +1051,13 @@ func TestListChats(t *testing.T) {
 			}
 		}
 		require.True(t, pinnedSeen, "at least one pinned chat should exist")
+
+		// Verify within-pinned ordering: pin_order=1 before
+		// pin_order=2 (the -pin_order DESC column).
+		require.Equal(t, createdChats[0].ID, allPaginated[0].ID,
+			"pin_order=1 chat should be first")
+		require.Equal(t, createdChats[1].ID, allPaginated[1].ID,
+			"pin_order=2 chat should be second")
 	})
 }
 
