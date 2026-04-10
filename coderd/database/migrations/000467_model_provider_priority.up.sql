@@ -15,6 +15,7 @@ CREATE INDEX idx_chat_model_provider_configs_order
     ON chat_model_provider_configs (model_config_id, priority);
 
 -- Preserve explicit provider_config_id bindings when present and enabled.
+-- Otherwise, fan out family-level providers ordered by creation time.
 INSERT INTO chat_model_provider_configs (model_config_id, provider_config_id, priority)
 SELECT
     cmc.id,
@@ -26,11 +27,8 @@ JOIN
     chat_providers cp ON cp.id = cmc.provider_config_id AND cp.enabled = TRUE
 WHERE
     cmc.deleted = FALSE
-    AND cmc.provider_config_id IS NOT NULL;
-
--- Fan out family-level providers for models without an explicit binding,
--- ordered by provider creation time.
-INSERT INTO chat_model_provider_configs (model_config_id, provider_config_id, priority)
+    AND cmc.provider_config_id IS NOT NULL
+UNION ALL
 SELECT
     cmc.id,
     cp.id,

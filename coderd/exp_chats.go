@@ -638,6 +638,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	attachmentsByModel := map[uuid.UUID][]codersdk.ChatModelProviderAttachment{}
 	if len(enabledModels) > 0 {
 		modelIDs := make([]uuid.UUID, 0, len(enabledModels))
@@ -653,12 +654,10 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 		providersByID := chatProvidersByID(enabledProviders)
 		attachmentsByModel = convertProviderConfigAttachmentsBatch(attachmentRows, providersByID, deploymentKeys)
 	}
 
-	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	visibleModels := enabledModels
 	visibleProviders := enabledProviders
 	if !isAdmin {
