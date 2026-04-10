@@ -22,6 +22,7 @@ import {
 } from "#/components/Table/Table";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
+import { paginateItems } from "#/utils/paginateItems";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
 dayjs.extend(relativeTime);
@@ -298,18 +299,16 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 	const isEmpty = summary.total_prs_created === 0;
 
 	// Client-side pagination for recent PRs table.
-	// Page state is intentionally not reset when data changes — the clamped
-	// derivation below guarantees the displayed page is always valid.
+	// Page resets to 1 on data refresh because the parent unmounts this
+	// component during loading. Clamping ensures the page is valid if the
+	// list shrinks without a full remount.
 	const [recentPrsPage, setRecentPrsPage] = useState(1);
-	const recentPrsMaxPage = Math.max(
-		1,
-		Math.ceil(recent_prs.length / RECENT_PRS_PAGE_SIZE),
-	);
-	const clampedRecentPrsPage = Math.min(recentPrsPage, recentPrsMaxPage);
-	const pagedRecentPrs = recent_prs.slice(
-		(clampedRecentPrsPage - 1) * RECENT_PRS_PAGE_SIZE,
-		clampedRecentPrsPage * RECENT_PRS_PAGE_SIZE,
-	);
+	const {
+		pagedItems: pagedRecentPrs,
+		clampedPage: clampedRecentPrsPage,
+		hasPreviousPage: hasRecentPrsPrev,
+		hasNextPage: hasRecentPrsNext,
+	} = paginateItems(recent_prs, RECENT_PRS_PAGE_SIZE, recentPrsPage);
 
 	return (
 		<div className="space-y-8">
@@ -504,11 +503,8 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 											currentPage={clampedRecentPrsPage}
 											pageSize={RECENT_PRS_PAGE_SIZE}
 											onPageChange={setRecentPrsPage}
-											hasPreviousPage={clampedRecentPrsPage > 1}
-											hasNextPage={
-												clampedRecentPrsPage * RECENT_PRS_PAGE_SIZE <
-												recent_prs.length
-											}
+											hasPreviousPage={hasRecentPrsPrev}
+											hasNextPage={hasRecentPrsNext}
 										/>
 									</div>
 								)}

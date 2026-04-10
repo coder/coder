@@ -5632,7 +5632,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		previousSummary database.GetPRInsightsSummaryRow
 		timeSeries      []database.GetPRInsightsTimeSeriesRow
 		byModel         []database.GetPRInsightsPerModelRow
-		recentPRs       []database.GetPRInsightsRecentPRsRow
+		recentPRs       []database.GetPRInsightsPullRequestsRow
 	)
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -5680,7 +5680,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 
 	eg.Go(func() error {
 		var err error
-		recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
+		recentPRs, err = api.Database.GetPRInsightsPullRequests(egCtx, database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   ownerID,
