@@ -84,7 +84,10 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 							{String(children)}
 						</SyntaxHighlighter>
 					) : (
-						<code className="rounded-sm bg-border px-1 py-px text-[14px] text-content-primary" {...restProps}>
+						<code
+							className="rounded-sm bg-border px-1 py-px text-[14px] text-content-primary"
+							{...restProps}
+						>
 							{children}
 						</code>
 					);
