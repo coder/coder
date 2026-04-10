@@ -43,9 +43,22 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	});
 	const liveBuildId = workspaceQuery.data?.latest_build?.id;
 
-	// Use the live build ID while running, the result build ID when
-	// completed.
-	const effectiveBuildId = isRunning ? liveBuildId : buildId;
+	// Only stream from a build that is actually in progress.
+	// When the workspace query returns cached data from a previous
+	// (e.g. stop) build, liveBuildId would point at the wrong build.
+	// Treating it as undefined lets the component show the loading
+	// state until the poll picks up the new start build.
+	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
+	const activeBuildId =
+		latestBuildStatus === "pending" ||
+		latestBuildStatus === "starting" ||
+		latestBuildStatus === "running"
+			? liveBuildId
+			: undefined;
+
+	// Use the active build ID while running, the result build ID
+	// when completed.
+	const effectiveBuildId = isRunning ? activeBuildId : buildId;
 
 	// --- Running builds: stream via WebSocket ---
 	const streamingLogs = useWorkspaceBuildLogs(

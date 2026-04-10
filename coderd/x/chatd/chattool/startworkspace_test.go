@@ -385,6 +385,78 @@ func TestStartWorkspace(t *testing.T) {
 		require.NotEmpty(t, result["build_id"], "expected build_id in response after starting a stopped workspace")
 	})
 
+	t.Run("InProgressBuild", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		// Create a workspace with a build that is still running.
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStart,
+		}).Starting().Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-in-progress-build",
+		})
+		require.NoError(t, err)
+
+		// Complete the build in the background so waitForBuild
+		// can pick it up.
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			now := time.Now().UTC()
+			err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID:          wsResp.Build.JobID,
+				UpdatedAt:   now,
+				CompletedAt: sql.NullTime{Time: now, Valid: true},
+			})
+			if err != nil {
+				t.Logf("failed to complete job: %v", err)
+			}
+		}()
+
+		agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return nil, func() {}, nil
+		}
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:          db,
+			OwnerID:     user.ID,
+			ChatID:      chat.ID,
+			AgentConnFn: agentConnFn,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StartFn should not be called for an in-progress build")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		started, ok := result["started"].(bool)
+		require.True(t, ok)
+		require.True(t, started)
+		require.NotEmpty(t, result["build_id"], "expected build_id in response for in-progress build")
+	})
+
 	t.Run("DeletedWorkspace", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

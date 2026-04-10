@@ -113,11 +113,42 @@ export const FetchError: Story = {
 };
 
 /**
+ * Tool is running with an active build in progress. The workspace
+ * query returns a latest_build with status="starting", so the
+ * component derives an activeBuildId and shows the loading state
+ * while waiting for the WebSocket stream.
+ */
+export const Running: Story = {
+	args: {
+		status: "running",
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", TEST_WORKSPACE_ID],
+				data: {
+					id: TEST_WORKSPACE_ID,
+					latest_build: {
+						id: TEST_BUILD_ID,
+						status: "starting",
+					},
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Loading build logs\u2026")).toBeInTheDocument();
+		});
+	},
+};
+
+/**
  * No logs arrive within the LOG_LOAD_TIMEOUT_MS window (30 s).
  * The component shows a soft warning instead of the spinner.
- * In Storybook's UI the timeout message appears after 30 seconds
- * of real time; the play function verifies the initial loading
- * state that precedes it.
+ * We wait for the real 30 s timeout to fire so the assertion
+ * exercises the actual timeout path.
  */
 export const Timeout: Story = {
 	args: {
@@ -131,8 +162,16 @@ export const Timeout: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The loading indicator is shown while waiting for the
-		// timeout to fire.
+		// Initially the loading indicator is shown.
 		expect(canvas.getByText("Loading build logs\u2026")).toBeInTheDocument();
+		// After the 30 s timeout the warning replaces the spinner.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByText("Build logs are taking longer than expected."),
+				).toBeInTheDocument();
+			},
+			{ timeout: 35_000 },
+		);
 	},
 };

@@ -196,6 +196,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Persist the workspace binding on the chat
 			// immediately so the frontend can start streaming
 			// build logs while the build is still running.
+			// Note: this binding is intentional even if the build
+			// later fails. The checkExistingWorkspace recovery
+			// path handles failed workspaces by allowing
+			// re-creation.
 			if options.DB != nil && options.ChatID != uuid.Nil {
 				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 					ID: options.ChatID,
@@ -244,7 +248,6 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 
 			// Select the chat agent so follow-up tools wait on the
 			// intended workspace agent.
-
 			workspaceAgentID := uuid.Nil
 			if options.DB != nil {
 				agents, agentErr := options.DB.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
