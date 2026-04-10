@@ -77,6 +77,49 @@ function deepGet(obj: unknown, path: string[]): unknown {
 	return current;
 }
 
+const expectFields = (value: unknown, expected: Record<string, unknown>) => {
+	for (const [path, expectedValue] of Object.entries(expected)) {
+		expect(deepGet(value, path.split("."))).toEqual(expectedValue);
+	}
+};
+
+const expectExtractedFields = (
+	modelConfig: TypesGen.ChatModelCallConfig,
+	expected: Record<string, unknown>,
+) => {
+	expectFields(
+		extractModelConfigFormState({
+			...baseChatModelConfig,
+			model_config: modelConfig,
+		}),
+		expected,
+	);
+};
+
+const expectProviderFields = (
+	provider: string,
+	providerOptions: Record<string, unknown>,
+	expected: Record<string, unknown>,
+) => {
+	expectFields(
+		extractModelConfigFormState({
+			...baseChatModelConfig,
+			model_config: { provider_options: { [provider]: providerOptions } },
+		})[provider],
+		expected,
+	);
+};
+
+const expectBuiltFields = (
+	overrides: Record<string, unknown>,
+	expected: Record<string, unknown>,
+	provider: string | null | undefined = "openai",
+) => {
+	const result = buildModelConfigFromForm(provider, formWith(overrides));
+	expect(result.fieldErrors).toEqual({});
+	expectFields(result.modelConfig, expected);
+};
+
 /** Minimal ChatModelConfig with no model_config. */
 const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	id: "test-id",
@@ -218,81 +261,50 @@ describe("buildInitialModelFormValues", () => {
 // ── parsePositiveInteger ───────────────────────────────────────
 
 describe("parsePositiveInteger", () => {
-	it("returns null for empty string", () => {
-		expect(parsePositiveInteger("")).toBeNull();
+	const sharedCases = [
+		["returns null for empty string", "", null],
+		["returns null for whitespace-only string", "   ", null],
+		["parses a valid positive integer", "42", 42],
+		["parses a string with surrounding whitespace", "  42  ", 42],
+		["returns null for negative numbers", "-5", null],
+		["returns null for non-numeric strings", "abc", null],
+	] as const;
+
+	it.each([
+		...sharedCases,
+		["returns null for zero", "0", null],
+		["returns null for Infinity", "Infinity", null],
+	] as const)("%s", (_description, input, expected) => {
+		expect(parsePositiveInteger(input)).toBe(expected);
 	});
 
-	it("returns null for whitespace-only string", () => {
-		expect(parsePositiveInteger("   ")).toBeNull();
-	});
-
-	it("parses a valid positive integer", () => {
-		expect(parsePositiveInteger("42")).toBe(42);
-	});
-
-	it("parses a string with surrounding whitespace", () => {
-		expect(parsePositiveInteger("  42  ")).toBe(42);
-	});
-
-	it("returns null for zero", () => {
-		expect(parsePositiveInteger("0")).toBeNull();
-	});
-
-	it("returns null for negative numbers", () => {
-		expect(parsePositiveInteger("-5")).toBeNull();
-	});
-
-	it("returns null for non-numeric strings", () => {
-		expect(parsePositiveInteger("abc")).toBeNull();
-	});
-
-	it("returns null for Infinity", () => {
-		expect(parsePositiveInteger("Infinity")).toBeNull();
-	});
-
-	it("truncates floating point values to integer", () => {
-		expect(parsePositiveInteger("3.9")).toBe(3);
-		expect(parsePositiveInteger("1.1")).toBe(1);
+	it.each([
+		["3.9", 3],
+		["1.1", 1],
+	] as const)("truncates floating point value %s to %d", (input, expected) => {
+		expect(parsePositiveInteger(input)).toBe(expected);
 	});
 });
 
 // ── parseThresholdInteger ──────────────────────────────────────
 
 describe("parseThresholdInteger", () => {
-	it("returns null for empty string", () => {
-		expect(parseThresholdInteger("")).toBeNull();
-	});
+	const sharedCases = [
+		["returns null for empty string", "", null],
+		["returns null for whitespace-only string", "   ", null],
+		["parses a value in range", "50", 50],
+		["trims whitespace before parsing", "  70  ", 70],
+		["returns null for negative values", "-1", null],
+		["returns null for non-numeric strings", "abc", null],
+	] as const;
 
-	it("returns null for whitespace-only string", () => {
-		expect(parseThresholdInteger("   ")).toBeNull();
-	});
-
-	it("parses 0 (lower bound)", () => {
-		expect(parseThresholdInteger("0")).toBe(0);
-	});
-
-	it("parses 100 (upper bound)", () => {
-		expect(parseThresholdInteger("100")).toBe(100);
-	});
-
-	it("parses a value in range", () => {
-		expect(parseThresholdInteger("50")).toBe(50);
-	});
-
-	it("returns null for values above 100", () => {
-		expect(parseThresholdInteger("101")).toBeNull();
-	});
-
-	it("returns null for negative values", () => {
-		expect(parseThresholdInteger("-1")).toBeNull();
-	});
-
-	it("returns null for non-numeric strings", () => {
-		expect(parseThresholdInteger("abc")).toBeNull();
-	});
-
-	it("trims whitespace before parsing", () => {
-		expect(parseThresholdInteger("  70  ")).toBe(70);
+	it.each([
+		...sharedCases,
+		["parses 0 (lower bound)", "0", 0],
+		["parses 100 (upper bound)", "100", 100],
+		["returns null for values above 100", "101", null],
+	] as const)("%s", (_description, input, expected) => {
+		expect(parseThresholdInteger(input)).toBe(expected);
 	});
 });
 
@@ -310,9 +322,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts top-level numeric fields", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
+		expectExtractedFields(
+			{
 				max_output_tokens: 4096,
 				temperature: 0.7,
 				top_p: 0.9,
@@ -320,20 +331,20 @@ describe("extractModelConfigFormState", () => {
 				presence_penalty: 0.5,
 				frequency_penalty: 0.3,
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		expect(result.maxOutputTokens).toBe("4096");
-		expect(result.temperature).toBe("0.7");
-		expect(result.topP).toBe("0.9");
-		expect(result.topK).toBe("40");
-		expect(result.presencePenalty).toBe("0.5");
-		expect(result.frequencyPenalty).toBe("0.3");
+			{
+				maxOutputTokens: "4096",
+				temperature: "0.7",
+				topP: "0.9",
+				topK: "40",
+				presencePenalty: "0.5",
+				frequencyPenalty: "0.3",
+			},
+		);
 	});
 
 	it("extracts pricing fields", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
+		expectExtractedFields(
+			{
 				cost: {
 					input_price_per_million_tokens: "0.15",
 					output_price_per_million_tokens: "0.6",
@@ -341,184 +352,141 @@ describe("extractModelConfigFormState", () => {
 					cache_write_price_per_million_tokens: "0.3",
 				},
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		expect(deepGet(result, ["cost", "inputPricePerMillionTokens"])).toBe(
-			"0.15",
-		);
-		expect(deepGet(result, ["cost", "outputPricePerMillionTokens"])).toBe(
-			"0.6",
-		);
-		expect(deepGet(result, ["cost", "cacheReadPricePerMillionTokens"])).toBe(
-			"0.03",
-		);
-		expect(deepGet(result, ["cost", "cacheWritePricePerMillionTokens"])).toBe(
-			"0.3",
+			{
+				"cost.inputPricePerMillionTokens": "0.15",
+				"cost.outputPricePerMillionTokens": "0.6",
+				"cost.cacheReadPricePerMillionTokens": "0.03",
+				"cost.cacheWritePricePerMillionTokens": "0.3",
+			},
 		);
 	});
-	it("extracts OpenAI provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					openai: {
-						reasoning_effort: "high",
-						parallel_tool_calls: true,
-						text_verbosity: "medium",
-						service_tier: "auto",
-						reasoning_summary: "concise",
-						user: "test-user",
-						prompt_cache_key: "my-cache-key",
-					},
-				},
-			},
-		};
-		const result = extractModelConfigFormState(model);
-		const openai = result.openai as Record<string, unknown>;
-		expect(openai.reasoningEffort).toBe("high");
-		expect(openai.parallelToolCalls).toBe("true");
-		expect(openai.textVerbosity).toBe("medium");
-		expect(openai.serviceTier).toBe("auto");
-		expect(openai.reasoningSummary).toBe("concise");
-		expect(openai.user).toBe("test-user");
-		expect(openai.promptCacheKey).toBe("my-cache-key");
-	});
 
-	it("extracts Anthropic provider options with thinking", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					anthropic: {
-						effort: "high",
-						thinking: { budget_tokens: 1024 },
-						send_reasoning: true,
-						disable_parallel_tool_use: false,
-					},
-				},
-			},
-		};
-		const result = extractModelConfigFormState(model);
-		const anthropic = result.anthropic as Record<string, unknown>;
-		expect(anthropic.effort).toBe("high");
-		expect(deepGet(anthropic, ["thinking", "budgetTokens"])).toBe("1024");
-		expect(anthropic.sendReasoning).toBe("true");
-		expect(anthropic.disableParallelToolUse).toBe("false");
-	});
+	const googleSafetySettings = [{ category: "harm", threshold: "block" }];
 
-	it("extracts Google provider options with safety settings", () => {
-		const safetySettings = [{ category: "harm", threshold: "block" }];
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					google: {
-						thinking_config: {
-							thinking_budget: 2048,
-							include_thoughts: true,
-						},
-						cached_content: "cache-123",
-						safety_settings: safetySettings,
-					},
-				},
+	it.each([
+		{
+			description: "extracts OpenAI provider options",
+			provider: "openai",
+			providerOptions: {
+				reasoning_effort: "high",
+				parallel_tool_calls: true,
+				text_verbosity: "medium",
+				service_tier: "auto",
+				reasoning_summary: "concise",
+				user: "test-user",
+				prompt_cache_key: "my-cache-key",
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		const google = result.google as Record<string, unknown>;
-		expect(deepGet(google, ["thinkingConfig", "thinkingBudget"])).toBe("2048");
-		expect(deepGet(google, ["thinkingConfig", "includeThoughts"])).toBe("true");
-		expect(google.cachedContent).toBe("cache-123");
-		expect(google.safetySettings).toBe(JSON.stringify(safetySettings, null, 2));
-	});
-
-	it("returns empty string for google safety settings when absent", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					google: {},
-				},
+			expected: {
+				reasoningEffort: "high",
+				parallelToolCalls: "true",
+				textVerbosity: "medium",
+				serviceTier: "auto",
+				reasoningSummary: "concise",
+				user: "test-user",
+				promptCacheKey: "my-cache-key",
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		const google = result.google as Record<string, unknown>;
-		expect(google.safetySettings).toBe("");
-	});
-
-	it("extracts OpenAI-compatible provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					openaicompat: {
-						reasoning_effort: "low",
-						user: "compat-user",
-					},
-				},
+		},
+		{
+			description: "extracts Anthropic provider options with thinking",
+			provider: "anthropic",
+			providerOptions: {
+				effort: "high",
+				thinking: { budget_tokens: 1024 },
+				send_reasoning: true,
+				disable_parallel_tool_use: false,
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		const openaicompat = result.openaicompat as Record<string, unknown>;
-		expect(openaicompat.reasoningEffort).toBe("low");
-		expect(openaicompat.user).toBe("compat-user");
-	});
-
-	it("extracts OpenRouter provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					openrouter: {
-						reasoning: {
-							enabled: true,
-							effort: "medium",
-							max_tokens: 500,
-							exclude: false,
-						},
-						parallel_tool_calls: true,
-						include_usage: true,
-						user: "router-user",
-					},
-				},
+			expected: {
+				effort: "high",
+				"thinking.budgetTokens": "1024",
+				sendReasoning: "true",
+				disableParallelToolUse: "false",
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		const openrouter = result.openrouter as Record<string, unknown>;
-		expect(deepGet(openrouter, ["reasoning", "enabled"])).toBe("true");
-		expect(deepGet(openrouter, ["reasoning", "effort"])).toBe("medium");
-		expect(deepGet(openrouter, ["reasoning", "maxTokens"])).toBe("500");
-		expect(deepGet(openrouter, ["reasoning", "exclude"])).toBe("false");
-		expect(openrouter.parallelToolCalls).toBe("true");
-		expect(openrouter.includeUsage).toBe("true");
-		expect(openrouter.user).toBe("router-user");
-	});
-
-	it("extracts Vercel provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				provider_options: {
-					vercel: {
-						reasoning: {
-							enabled: false,
-							effort: "high",
-							max_tokens: 1000,
-							exclude: true,
-						},
-						parallel_tool_calls: false,
-						user: "vercel-user",
-					},
+		},
+		{
+			description: "extracts Google provider options with safety settings",
+			provider: "google",
+			providerOptions: {
+				thinking_config: {
+					thinking_budget: 2048,
+					include_thoughts: true,
 				},
+				cached_content: "cache-123",
+				safety_settings: googleSafetySettings,
 			},
-		};
-		const result = extractModelConfigFormState(model);
-		const vercel = result.vercel as Record<string, unknown>;
-		expect(deepGet(vercel, ["reasoning", "enabled"])).toBe("false");
-		expect(deepGet(vercel, ["reasoning", "effort"])).toBe("high");
-		expect(deepGet(vercel, ["reasoning", "maxTokens"])).toBe("1000");
-		expect(deepGet(vercel, ["reasoning", "exclude"])).toBe("true");
-		expect(vercel.parallelToolCalls).toBe("false");
-		expect(vercel.user).toBe("vercel-user");
+			expected: {
+				"thinkingConfig.thinkingBudget": "2048",
+				"thinkingConfig.includeThoughts": "true",
+				cachedContent: "cache-123",
+				safetySettings: JSON.stringify(googleSafetySettings, null, 2),
+			},
+		},
+		{
+			description:
+				"returns empty string for google safety settings when absent",
+			provider: "google",
+			providerOptions: {},
+			expected: { safetySettings: "" },
+		},
+		{
+			description: "extracts OpenAI-compatible provider options",
+			provider: "openaicompat",
+			providerOptions: {
+				reasoning_effort: "low",
+				user: "compat-user",
+			},
+			expected: {
+				reasoningEffort: "low",
+				user: "compat-user",
+			},
+		},
+		{
+			description: "extracts OpenRouter provider options",
+			provider: "openrouter",
+			providerOptions: {
+				reasoning: {
+					enabled: true,
+					effort: "medium",
+					max_tokens: 500,
+					exclude: false,
+				},
+				parallel_tool_calls: true,
+				include_usage: true,
+				user: "router-user",
+			},
+			expected: {
+				"reasoning.enabled": "true",
+				"reasoning.effort": "medium",
+				"reasoning.maxTokens": "500",
+				"reasoning.exclude": "false",
+				parallelToolCalls: "true",
+				includeUsage: "true",
+				user: "router-user",
+			},
+		},
+		{
+			description: "extracts Vercel provider options",
+			provider: "vercel",
+			providerOptions: {
+				reasoning: {
+					enabled: false,
+					effort: "high",
+					max_tokens: 1000,
+					exclude: true,
+				},
+				parallel_tool_calls: false,
+				user: "vercel-user",
+			},
+			expected: {
+				"reasoning.enabled": "false",
+				"reasoning.effort": "high",
+				"reasoning.maxTokens": "1000",
+				"reasoning.exclude": "true",
+				parallelToolCalls: "false",
+				user: "vercel-user",
+			},
+		},
+	] as const)("$description", ({ provider, providerOptions, expected }) => {
+		expectProviderFields(provider, providerOptions, expected);
 	});
 
 	it("handles missing provider_options gracefully", () => {
@@ -566,50 +534,15 @@ describe("buildModelConfigFromForm", () => {
 	});
 
 	describe("top-level numeric fields", () => {
-		it("builds config with valid maxOutputTokens", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ maxOutputTokens: "4096" }),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig?.max_output_tokens).toBe(4096);
-		});
-
-		it("builds config with valid temperature", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ temperature: "0.7" }),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig?.temperature).toBe(0.7);
-		});
-
-		it("builds config with valid topP", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ topP: "0.95" }),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig?.top_p).toBe(0.95);
-		});
-
-		it("builds config with valid topK", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ topK: "40" }),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig?.top_k).toBe(40);
-		});
-
-		it("builds config with presencePenalty and frequencyPenalty", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ presencePenalty: "0.5", frequencyPenalty: "0.3" }),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig?.presence_penalty).toBe(0.5);
-			expect(result.modelConfig?.frequency_penalty).toBe(0.3);
+		it.each([
+			["maxOutputTokens", "4096", "max_output_tokens", 4096],
+			["temperature", "0.7", "temperature", 0.7],
+			["topP", "0.95", "top_p", 0.95],
+			["topK", "40", "top_k", 40],
+			["presencePenalty", "0.5", "presence_penalty", 0.5],
+			["frequencyPenalty", "0.3", "frequency_penalty", 0.3],
+		] as const)("builds config with valid %s", (fieldName, value, path, expected) => {
+			expectBuiltFields({ [fieldName]: value }, { [path]: expected });
 		});
 
 		it("reports error for non-numeric maxOutputTokens", () => {
@@ -665,27 +598,33 @@ describe("buildModelConfigFromForm", () => {
 	});
 
 	describe("pricing fields", () => {
-		it("builds config with valid pricing fields", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({
-					cost: {
-						inputPricePerMillionTokens: "0.15",
-						outputPricePerMillionTokens: "0.6",
-						cacheReadPricePerMillionTokens: "0.03",
-						cacheWritePricePerMillionTokens: "0.3",
-					},
-				}),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig).toMatchObject({
-				cost: {
-					input_price_per_million_tokens: "0.15",
-					output_price_per_million_tokens: "0.6",
-					cache_read_price_per_million_tokens: "0.03",
-					cache_write_price_per_million_tokens: "0.3",
-				},
-			});
+		it.each([
+			[
+				"inputPricePerMillionTokens",
+				"0.15",
+				"cost.input_price_per_million_tokens",
+				"0.15",
+			],
+			[
+				"outputPricePerMillionTokens",
+				"0.6",
+				"cost.output_price_per_million_tokens",
+				"0.6",
+			],
+			[
+				"cacheReadPricePerMillionTokens",
+				"0.03",
+				"cost.cache_read_price_per_million_tokens",
+				"0.03",
+			],
+			[
+				"cacheWritePricePerMillionTokens",
+				"0.3",
+				"cost.cache_write_price_per_million_tokens",
+				"0.3",
+			],
+		] as const)("builds config with valid pricing field %s", (fieldName, value, path, expected) => {
+			expectBuiltFields({ cost: { [fieldName]: value } }, { [path]: expected });
 		});
 
 		it("reports error for negative pricing fields", () => {
