@@ -13,7 +13,6 @@ import type {
 import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
-import { getAgentHealthIssue } from "#/modules/workspaces/health";
 
 dayjs.extend(relativeTime);
 
@@ -93,12 +92,10 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	) {
 		const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
 		const hasActions = permissions.updateWorkspace || troubleshootingURL;
-		const healthIssue = getAgentHealthIssue(workspace);
-
 		notifications.push({
-			title: healthIssue.title,
-			severity: healthIssue.severity,
-			detail: healthIssue.detail,
+			title: "One or more workspace agents need attention",
+			severity: "warning",
+			detail: "Expand an agent's logs to view per-agent health details.",
 			actions: hasActions ? (
 				<>
 					{permissions.updateWorkspace && (

@@ -1,10 +1,10 @@
-import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
 
 /**
  * Canonical messages for startup and shutdown script issues.
  * Used by the per-agent-row tooltips in AgentStatus; the
- * start-related entries are also shared with the workspace-level
- * health classification in getAgentHealthIssue.
+ * start-related entries are also shared with per-agent health
+ * classification in getAgentHealthIssue.
  */
 export const agentScriptMessages = {
 	start_error: {
@@ -62,121 +62,70 @@ interface AgentHealthIssue {
 }
 
 /**
- * Classifies the health issue affecting a workspace based on agent
- * status and lifecycle state. Returns a title and detail message
- * that accurately describes the root cause rather than using a
- * generic "unhealthy" label.
+ * Classifies the health issue for a single failing top-level agent.
+ * This avoids workspace-wide aggregation so alerts describe one
+ * concrete agent state at a time.
  */
-export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
-	const failingAgentCount = workspace.health.failing_agents.length;
-	const statusSet = new Set<WorkspaceAgentStatus>();
-	let hasStartError = false;
-	let hasStartTimeout = false;
-	let hasShutdownState = false;
-
-	for (const resource of workspace.latest_build.resources) {
-		for (const agent of resource.agents ?? []) {
-			// Skip sub-agents (devcontainer agents) to match the
-			// backend health calculation which excludes them.
-			if (agent.parent_id !== null) {
-				continue;
-			}
-			statusSet.add(agent.status);
-			if (agent.lifecycle_state === "start_error") {
-				hasStartError = true;
-			}
-			if (agent.lifecycle_state === "start_timeout") {
-				hasStartTimeout = true;
-			}
-			if (
-				agent.lifecycle_state === "shutting_down" ||
-				agent.lifecycle_state === "shutdown_error" ||
-				agent.lifecycle_state === "shutdown_timeout"
-			) {
-				hasShutdownState = true;
-			}
-		}
-	}
-
-	const plural = failingAgentCount > 1;
-
-	if (statusSet.has("disconnected")) {
+export function getAgentHealthIssue(
+	agent: WorkspaceAgent,
+): AgentHealthIssue | undefined {
+	if (agent.status === "disconnected") {
 		return {
-			title: plural
-				? `${failingAgentCount} workspace agents have disconnected`
-				: agentConnectionMessages.disconnected.title,
+			title: agentConnectionMessages.disconnected.title,
 			detail: agentConnectionMessages.disconnected.detail,
 			severity: "warning",
-			prominent: true,
+			prominent: false,
 		};
 	}
 
-	if (statusSet.has("timeout")) {
+	if (agent.status === "timeout") {
 		return {
-			title: plural
-				? `${failingAgentCount} agents are taking longer than expected to connect`
-				: agentConnectionMessages.timeout.title,
+			title: agentConnectionMessages.timeout.title,
 			detail: agentConnectionMessages.timeout.detail,
 			severity: "warning",
 			prominent: false,
 		};
 	}
 
-	if (hasShutdownState) {
+	if (
+		agent.lifecycle_state === "shutting_down" ||
+		agent.lifecycle_state === "shutdown_error" ||
+		agent.lifecycle_state === "shutdown_timeout"
+	) {
 		return {
-			title: plural
-				? `${failingAgentCount} workspace agents are shutting down`
-				: "Workspace agent is shutting down",
+			title: "Workspace agent is shutting down",
 			detail: "The workspace is not available while agents shut down.",
 			severity: "info",
 			prominent: false,
 		};
 	}
 
-	if (hasStartError) {
+	if (agent.lifecycle_state === "start_error") {
 		return {
-			title: plural
-				? `Startup scripts failed on ${failingAgentCount} agents`
-				: agentScriptMessages.start_error.title,
+			title: agentScriptMessages.start_error.title,
 			detail: agentScriptMessages.start_error.detail,
 			severity: "warning",
 			prominent: true,
 		};
 	}
 
-	// The backend does not mark start_timeout agents as unhealthy on
-	// their own (it treats it as a soft issue). This branch is only
-	// reachable in multi-agent workspaces where a different agent
-	// triggered the unhealthy flag but none of the higher-priority
-	// branches matched.
-	if (hasStartTimeout) {
+	if (agent.lifecycle_state === "start_timeout") {
 		return {
-			title: plural
-				? `Startup scripts are taking longer than expected on ${failingAgentCount} agents`
-				: agentScriptMessages.start_timeout.title,
+			title: agentScriptMessages.start_timeout.title,
 			detail: agentScriptMessages.start_timeout.detail,
 			severity: "warning",
 			prominent: false,
 		};
 	}
 
-	if (statusSet.has("connecting")) {
+	if (agent.status === "connecting") {
 		return {
-			title: plural
-				? `${failingAgentCount} workspace agents are connecting`
-				: agentConnectionMessages.connecting.title,
+			title: agentConnectionMessages.connecting.title,
 			detail: agentConnectionMessages.connecting.detail,
 			severity: "info",
 			prominent: false,
 		};
 	}
 
-	return {
-		title: plural
-			? `${failingAgentCount} workspace agents are still connecting`
-			: "Workspace agent is still connecting",
-		detail: "Check the log output if the connection does not complete.",
-		severity: "info",
-		prominent: false,
-	};
+	return undefined;
 }
