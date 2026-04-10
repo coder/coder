@@ -263,6 +263,7 @@ export const useChatStore = (
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
+		store.resetTransientState();
 		store.setQueuedMessages([]);
 		if (!chatID) {
 			return;

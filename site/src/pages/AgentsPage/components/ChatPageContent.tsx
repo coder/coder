@@ -3,6 +3,7 @@ import {
 	Profiler,
 	type ReactNode,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -278,7 +279,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setUploadStates,
 	} = useFileAttachments(organizationId);
 	const previousChatIDRef = useRef(chatID);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (previousChatIDRef.current === chatID) {
 			return;
 		}
