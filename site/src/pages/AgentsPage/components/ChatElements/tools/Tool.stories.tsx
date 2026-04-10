@@ -1444,6 +1444,18 @@ export const StartWorkspaceCompleted: Story = {
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
 	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Started my-project")).toBeInTheDocument();
@@ -1485,6 +1497,18 @@ export const CreateWorkspaceCompleted: Story = {
 			workspace_name: "my-project",
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
