@@ -113,6 +113,32 @@ export const FetchError: Story = {
 };
 
 /**
+ * Build completed with zero log output. The REST query succeeds but
+ * returns an empty array, so the component shows "No build logs
+ * available." instead of a perpetual spinner.
+ */
+export const CompletedEmptyLogs: Story = {
+	args: {
+		status: "completed",
+		buildId: TEST_BUILD_ID,
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["workspaceBuilds", TEST_BUILD_ID, "logs"],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("No build logs available.")).toBeInTheDocument();
+		});
+	},
+};
+
+/**
  * Tool is running with an active build in progress. The workspace
  * query returns a latest_build with status="starting", so the
  * component derives an activeBuildId and shows the loading state

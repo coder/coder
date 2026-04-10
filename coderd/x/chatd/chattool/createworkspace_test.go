@@ -557,6 +557,70 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 	require.Equal(t, "workspace build completed", result["message"])
 }
 
+func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	buildID := uuid.New()
+
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+
+	db.EXPECT().
+		GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:   workspaceID,
+			Name: "failing-workspace",
+		}, nil)
+
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  database.WorkspaceTransitionStart,
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  database.WorkspaceTransitionStart,
+		}, nil)
+
+	// First call returns Running (triggers waitForBuild), second
+	// returns Failed so waitForBuild returns an error.
+	firstJob := db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusRunning,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusFailed,
+		}, nil).
+		After(firstJob)
+
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	_, _, failedBuildID, err := options.checkExistingWorkspace(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "existing workspace build failed")
+	require.Equal(t, buildID, failedBuildID)
+}
+
 func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)

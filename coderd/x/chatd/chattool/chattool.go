@@ -9,9 +9,21 @@ import (
 )
 
 // toolResponse builds a fantasy.ToolResponse from a JSON-serializable
-// result payload.
-func toolResponse(result any) fantasy.ToolResponse {
+// result map. The map constraint ensures all tool results serialize
+// to JSON objects, which the frontend parses via asRecord().
+func toolResponse(result map[string]any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextResponse("{}")
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
+// buildToolResponse marshals a buildErrorResult into a tool response.
+// Separate from toolResponse to keep the map[string]any constraint
+// on the general helper while allowing typed error structs.
+func buildToolResponse(r buildErrorResult) fantasy.ToolResponse {
+	data, err := json.Marshal(r)
 	if err != nil {
 		return fantasy.NewTextResponse("{}")
 	}

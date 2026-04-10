@@ -318,7 +318,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						shouldShowSidebar && !visualExpanded && "flex-row",
 					)}
 				>
-					{" "}
 					{titleElement}
 					<div
 						className={cn(

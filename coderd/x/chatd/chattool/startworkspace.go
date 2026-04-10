@@ -106,7 +106,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 					// viewer. The fantasy/chatprompt pipeline double-wraps
 					// IsError content, which would bury the structured fields.
 					// The frontend detects errors via the "error" key instead.
-					return toolResponse(newBuildError(
+					return buildToolResponse(newBuildError(
 						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
 						build.ID,
 					)), nil
@@ -141,7 +141,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			if err := waitForBuild(ctx, options.DB, startBuild.ID); err != nil {
-				return toolResponse(newBuildError(
+				return buildToolResponse(newBuildError(
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
 					startBuild.ID,
 				)), nil

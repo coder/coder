@@ -124,7 +124,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			existing, done, failedBuildID, existErr := options.checkExistingWorkspace(ctx)
 			if existErr != nil {
 				if failedBuildID != uuid.Nil {
-					return toolResponse(newBuildError(existErr.Error(), failedBuildID)), nil
+					return buildToolResponse(newBuildError(existErr.Error(), failedBuildID)), nil
 				}
 				return fantasy.NewTextErrorResponse(existErr.Error()), nil
 			}
@@ -236,7 +236,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			buildID := workspace.LatestBuild.ID
 			if options.DB != nil && buildID != uuid.Nil {
 				if err := waitForBuild(ctx, options.DB, buildID); err != nil {
-					return toolResponse(newBuildError(
+					return buildToolResponse(newBuildError(
 						xerrors.Errorf("workspace build failed: %w", err).Error(),
 						buildID,
 					)), nil
