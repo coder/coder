@@ -8,6 +8,12 @@ import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
 } from "./ChatModelAdminPanel";
+import {
+	createModelConfig,
+	createModelProviderAttachment,
+	createModelProviderAttachments,
+	createProviderConfig,
+} from "./storyFixtures";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -27,78 +33,6 @@ const createGoogleUserOnlyProviderConfig = (): TypesGen.ChatProviderConfig =>
 		allow_central_api_key_fallback: false,
 		source: "database",
 	});
-
-const createProviderConfig = (
-	overrides: Partial<TypesGen.ChatProviderConfig> &
-		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
-): TypesGen.ChatProviderConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	display_name: overrides.display_name ?? "",
-	enabled: overrides.enabled ?? true,
-	has_api_key: overrides.has_api_key ?? false,
-	has_effective_api_key:
-		overrides.has_effective_api_key ?? overrides.has_api_key ?? false,
-	central_api_key_enabled: overrides.central_api_key_enabled ?? true,
-	allow_user_api_key: overrides.allow_user_api_key ?? false,
-	allow_central_api_key_fallback:
-		overrides.allow_central_api_key_fallback ?? false,
-	base_url: overrides.base_url ?? "",
-	source: overrides.source ?? "database",
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-});
-
-type ModelProviderAttachmentOverrides = Partial<
-	Omit<TypesGen.ChatModelProviderAttachment, "provider_config_id">
->;
-
-const createModelProviderAttachment = (
-	providerConfigId: string,
-	overrides: ModelProviderAttachmentOverrides = {},
-): TypesGen.ChatModelProviderAttachment => ({
-	id: overrides.id ?? `attachment-${providerConfigId}`,
-	provider_config_id: providerConfigId,
-	provider: overrides.provider ?? "openai",
-	priority: overrides.priority ?? 0,
-	display_name: overrides.display_name ?? providerConfigId,
-	enabled: overrides.enabled ?? true,
-	has_api_key: overrides.has_api_key ?? false,
-});
-
-const createModelProviderAttachments = (
-	providerConfigs: readonly TypesGen.ChatProviderConfig[],
-): TypesGen.ChatModelProviderAttachment[] =>
-	providerConfigs.map((providerConfig, priority) =>
-		createModelProviderAttachment(providerConfig.id, {
-			provider: providerConfig.provider,
-			priority,
-			display_name:
-				providerConfig.display_name ||
-				providerConfig.base_url ||
-				providerConfig.id,
-			enabled: providerConfig.enabled,
-			has_api_key: providerConfig.has_api_key,
-		}),
-	);
-
-const createModelConfig = (
-	overrides: Partial<TypesGen.ChatModelConfig> &
-		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
-): TypesGen.ChatModelConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	provider_configs: overrides.provider_configs ?? [],
-	model: overrides.model,
-	display_name: overrides.display_name ?? overrides.model,
-	enabled: overrides.enabled ?? true,
-	is_default: overrides.is_default ?? false,
-	context_limit: overrides.context_limit ?? 200000,
-	compression_threshold: overrides.compression_threshold ?? 70,
-	model_config: overrides.model_config,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-});
 
 const createModelProviderAttachmentsFromIDs = (
 	providerConfigIds: readonly string[],
@@ -122,51 +56,49 @@ const createModelProviderAttachmentsFromIDs = (
 		});
 	});
 
-const multiAttachmentPrimaryProviderConfig = createProviderConfig({
-	id: "3f4f2e43-9c0b-4b22-a0cf-4f4f20f994f1",
-	provider: "openai",
-	display_name: "OpenAI Primary",
-	has_api_key: true,
-	has_effective_api_key: true,
-	base_url: "https://api.openai.com/v1",
-});
-
-const multiAttachmentSandboxProviderConfig = createProviderConfig({
-	id: "55ed7e92-fad1-4d2e-9bba-78d27af5c949",
-	provider: "openai",
-	display_name: "OpenAI Sandbox",
-	has_api_key: false,
-	has_effective_api_key: false,
-	allow_user_api_key: true,
-	base_url: "https://sandbox.openai.example.com/v1",
-});
-
-const multiAttachmentArchiveProviderConfig = createProviderConfig({
-	id: "8e12d651-7430-4eb9-b2d6-d80a6107b7fb",
-	provider: "openai",
-	display_name: "OpenAI Archive",
-	enabled: false,
-	has_api_key: false,
-	has_effective_api_key: false,
-	allow_user_api_key: true,
-	base_url: "https://archive.openai.example.com/v1",
-});
-
-const multiAttachmentRecoveryProviderConfig = createProviderConfig({
-	id: "9d0b27c9-4637-4e8f-8dcb-2bd1fb4e6c1f",
-	provider: "openai",
-	display_name: "OpenAI Disaster Recovery",
-	has_api_key: true,
-	has_effective_api_key: true,
-	base_url: "https://dr.openai.example.com/v1",
-});
-
 const multiAttachmentProviderConfigs = [
+	createProviderConfig({
+		id: "3f4f2e43-9c0b-4b22-a0cf-4f4f20f994f1",
+		provider: "openai",
+		display_name: "OpenAI Primary",
+		has_api_key: true,
+		has_effective_api_key: true,
+		base_url: "https://api.openai.com/v1",
+	}),
+	createProviderConfig({
+		id: "55ed7e92-fad1-4d2e-9bba-78d27af5c949",
+		provider: "openai",
+		display_name: "OpenAI Sandbox",
+		has_api_key: false,
+		has_effective_api_key: false,
+		allow_user_api_key: true,
+		base_url: "https://sandbox.openai.example.com/v1",
+	}),
+	createProviderConfig({
+		id: "8e12d651-7430-4eb9-b2d6-d80a6107b7fb",
+		provider: "openai",
+		display_name: "OpenAI Archive",
+		enabled: false,
+		has_api_key: false,
+		has_effective_api_key: false,
+		allow_user_api_key: true,
+		base_url: "https://archive.openai.example.com/v1",
+	}),
+	createProviderConfig({
+		id: "9d0b27c9-4637-4e8f-8dcb-2bd1fb4e6c1f",
+		provider: "openai",
+		display_name: "OpenAI Disaster Recovery",
+		has_api_key: true,
+		has_effective_api_key: true,
+		base_url: "https://dr.openai.example.com/v1",
+	}),
+];
+
+const [
 	multiAttachmentPrimaryProviderConfig,
 	multiAttachmentSandboxProviderConfig,
 	multiAttachmentArchiveProviderConfig,
-	multiAttachmentRecoveryProviderConfig,
-];
+] = multiAttachmentProviderConfigs;
 
 const multiAttachmentModelConfig = createModelConfig({
 	id: "6d447897-7a60-4209-9dfa-46f726726d46",
