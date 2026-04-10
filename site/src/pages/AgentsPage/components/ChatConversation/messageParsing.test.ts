@@ -467,6 +467,25 @@ describe("resolveParsedConversation", () => {
 		expect(cache.entriesByChatID.has(chat1)).toBe(false);
 		expect(cache.entriesByChatID.has(chat2)).toBe(true);
 	});
+
+	it("evicts empty-string chat IDs when they are the least recently used", () => {
+		const cache = createParsedConversationCache(1);
+
+		resolveParsedConversation({
+			cache,
+			chatID: "",
+			messages: [makeMessage(1, "")],
+		});
+		resolveParsedConversation({
+			cache,
+			chatID: "chat-2",
+			messages: [makeMessage(1, "chat-2")],
+		});
+
+		expect(cache.entriesByChatID.has("")).toBe(false);
+		expect(cache.entriesByChatID.has("chat-2")).toBe(true);
+		expect(cache.entriesByChatID.size).toBe(1);
+	});
 });
 
 describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {

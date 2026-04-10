@@ -615,15 +615,19 @@ const ChatScrollContainer: FC<{
 	const hasFetchedRef = useRef(false);
 	const wasFetchingRef = useRef(false);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (resetKey === undefined) {
 			return;
 		}
 		hasFetchedRef.current = false;
-		isFetchingRef.current = false;
+		// Keep the fetch guard aligned with the incoming chat state so
+		// the sentinel cannot trigger a duplicate fetch on chat switch.
+		isFetchingRef.current = isFetchingMoreMessages;
+		// Force the next layout sync to detect an active fetch transition
+		// for the new chat and capture prepend state when needed.
 		wasFetchingRef.current = false;
 		scrollToBottom("instant");
-	}, [resetKey, scrollToBottom]);
+	}, [resetKey, isFetchingMoreMessages, scrollToBottom]);
 
 	useLayoutEffect(() => {
 		const wasFetching = wasFetchingRef.current;

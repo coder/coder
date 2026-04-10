@@ -1,4 +1,10 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	useEffect,
+	useEffectEvent,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
@@ -201,7 +207,7 @@ export const useChatStore = (
 		},
 	);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
 			// immediately so the previous chat's messages aren't
@@ -252,7 +258,7 @@ export const useChatStore = (
 		});
 	}, [chatID, chatMessages, store]);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		// Only hydrate from REST when the WebSocket hasn't delivered
 		// a status event yet. Once the WS is the authoritative
 		// source, a stale REST refetch must not overwrite the
@@ -262,7 +268,7 @@ export const useChatStore = (
 		}
 	}, [chatRecord?.status, store]);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;

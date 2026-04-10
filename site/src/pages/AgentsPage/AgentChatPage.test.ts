@@ -438,6 +438,53 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("clears active edit state when chatID changes", () => {
+		const chatA = "chat-aaa";
+		const chatB = "chat-bbb";
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
+
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+		const { result, rerender, unmount } = renderHook(
+			({ activeChatID }: { activeChatID: string | undefined }) =>
+				useConversationEditingState({
+					chatID: activeChatID,
+					onSend,
+					onDeleteQueuedMessage,
+					chatInputRef,
+					inputValueRef,
+				}),
+			{ initialProps: { activeChatID: chatA } },
+		);
+
+		expect(result.current.editorInitialValue).toBe("draft A");
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited history");
+			result.current.handleStartQueueEdit(9, "queued edit", []);
+		});
+
+		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editingQueuedMessageID).toBe(9);
+		expect(result.current.editorInitialValue).toBe("queued edit");
+		const remountKeyBeforeSwitch = result.current.remountKey;
+
+		act(() => {
+			rerender({ activeChatID: chatB });
+		});
+
+		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editingQueuedMessageID).toBeNull();
+		expect(result.current.editingFileBlocks).toEqual([]);
+		expect(result.current.editorInitialValue).toBe("draft B");
+		expect(inputValueRef.current).toBe("draft B");
+		expect(result.current.remountKey).toBe(remountKeyBeforeSwitch + 1);
+		unmount();
+	});
+
 	it("clears the draft from localStorage on successful send", async () => {
 		localStorage.setItem(expectedKey, "draft to clear");
 

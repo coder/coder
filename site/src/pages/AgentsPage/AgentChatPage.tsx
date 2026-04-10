@@ -203,7 +203,7 @@ export function useConversationEditingState(deps: {
 		useState<ParsedDraft | null>(null);
 
 	const previousChatIDRef = useRef(chatID);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (previousChatIDRef.current === chatID) {
 			return;
 		}

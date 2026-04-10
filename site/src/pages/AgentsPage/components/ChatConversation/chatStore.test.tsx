@@ -1096,7 +1096,7 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		const initialOptions = {
+		const initialOptions: Parameters<typeof useChatStore>[0] = {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: makeChat(chatID1),
@@ -1437,7 +1437,7 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		const initialOptions = {
+		const initialOptions: Parameters<typeof useChatStore>[0] = {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: makeChat(chatID1),
@@ -1528,7 +1528,7 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		const initialOptions = {
+		const initialOptions: Parameters<typeof useChatStore>[0] = {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: makeChat(chatID1),
@@ -1582,6 +1582,78 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
 		expect(result.current.queuedMessages).toEqual([]);
+	});
+
+	it("clears messages, queued messages, and status when switching chats before new data resolves", async () => {
+		immediateAnimationFrame();
+
+		const chatID1 = "chat-1";
+		const chatID2 = "chat-2";
+		const msg1 = makeMessage(chatID1, 1, "user", "first");
+		const queuedMsg = makeQueuedMessage(chatID1, 10, "queued");
+
+		const mockSocket1 = createMockSocket();
+		const mockSocket2 = createMockSocket();
+		mockWatchChatReturn(mockSocket2);
+		vi.mocked(watchChat)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const initialOptions: Parameters<typeof useChatStore>[0] = {
+			chatID: chatID1,
+			chatMessages: [msg1] as TypesGen.ChatMessage[],
+			chatRecord: makeChat(chatID1),
+			chatMessagesData: {
+				messages: [msg1],
+				queued_messages: [queuedMsg],
+				has_more: false,
+			},
+			chatQueuedMessages: [queuedMsg],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID1, 1);
+		});
+		expect(result.current.orderedMessageIDs).toEqual([msg1.id]);
+		expect(result.current.queuedMessages.map((m) => m.id)).toEqual([
+			queuedMsg.id,
+		]);
+		expect(result.current.chatStatus).toBe("running");
+
+		rerender({
+			...initialOptions,
+			chatID: chatID2,
+			chatMessages: undefined,
+			chatRecord: undefined,
+			chatMessagesData: undefined,
+			chatQueuedMessages: undefined,
+		});
+
+		expect(result.current.orderedMessageIDs).toEqual([]);
+		expect(result.current.queuedMessages).toEqual([]);
+		expect(result.current.chatStatus).toBeNull();
 	});
 
 	it("does not apply message parts after status changes to waiting", async () => {

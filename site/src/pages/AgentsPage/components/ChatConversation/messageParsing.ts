@@ -397,7 +397,7 @@ export const resolveParsedConversation = ({
 	cache.entriesByChatID.set(chatID, snapshot);
 	if (cache.entriesByChatID.size > cache.maxSize) {
 		const oldestChatID = cache.entriesByChatID.keys().next().value;
-		if (oldestChatID) {
+		if (oldestChatID !== undefined) {
 			cache.entriesByChatID.delete(oldestChatID);
 		}
 	}
