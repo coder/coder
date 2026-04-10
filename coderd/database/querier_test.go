@@ -10813,13 +10813,13 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("AllPRsReturnedWithSafetyCap", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Create 25 distinct PRs — more than the old LIMIT 20 — and
 		// verify all are returned.
 		const prCount = 25
 		for i := range prCount {
-			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			chat := createChat(t, store, userID, mcID, orgID, fmt.Sprintf("chat-%d", i))
 			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
 			linkPR(t, store, chat.ID,
 				fmt.Sprintf("https://github.com/org/repo/pull/%d", 100+i),
