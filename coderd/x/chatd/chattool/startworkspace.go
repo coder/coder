@@ -199,8 +199,6 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 		})
 }
 
-
-
 // waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
 // success response. When buildID is non-nil, it is included in the
