@@ -12,6 +12,7 @@ import {
 	createModelConfig,
 	createModelProviderAttachment,
 	createModelProviderAttachments,
+	createOpenAIProductionStagingPair,
 	createProviderConfig,
 } from "./storyFixtures";
 
@@ -20,19 +21,87 @@ import {
 const now = "2026-02-18T12:00:00.000Z";
 const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 
-const googleUserOnlyProviderConfigID = "11111111-1111-1111-1111-111111111111";
+const emptyModelCatalogData = {
+	providers: [],
+} satisfies TypesGen.ChatModelsResponse;
 
-const createGoogleUserOnlyProviderConfig = (): TypesGen.ChatProviderConfig =>
-	createProviderConfig({
-		id: googleUserOnlyProviderConfigID,
-		provider: "google",
-		display_name: "Google",
-		has_api_key: false,
-		central_api_key_enabled: false,
-		allow_user_api_key: true,
-		allow_central_api_key_fallback: false,
-		source: "database",
-	});
+type StoryBody = ReturnType<typeof within>;
+
+const googleUserOnlyProviderConfigID = "11111111-1111-1111-1111-111111111111";
+const googleUserOnlyProviderConfig = createProviderConfig({
+	id: googleUserOnlyProviderConfigID,
+	provider: "google",
+	display_name: "Google",
+	has_api_key: false,
+	central_api_key_enabled: false,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: false,
+	source: "database",
+});
+
+const providerWithUserKeysEnabledConfig = createProviderConfig({
+	id: "provider-openai-user-keys",
+	provider: "openai",
+	display_name: "OpenAI",
+	has_api_key: true,
+	central_api_key_enabled: true,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: false,
+});
+
+const providerWithCentralFallbackConfig = createProviderConfig({
+	id: "provider-openrouter-fallback",
+	provider: "openrouter",
+	display_name: "OpenRouter",
+	has_api_key: true,
+	central_api_key_enabled: true,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: true,
+});
+
+const providerApiKeyInputMaskedConfig = createProviderConfig({
+	id: "provider-openai-mask",
+	provider: "openai",
+	display_name: "OpenAI",
+	has_api_key: true,
+});
+
+const modelFormUserKeyOnlyProviderConfig = createProviderConfig({
+	id: "provider-google-user-only-models",
+	provider: "google",
+	display_name: "Google",
+	has_api_key: false,
+	central_api_key_enabled: false,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: false,
+});
+
+const providerInvalidCredentialStateConfig = createProviderConfig({
+	id: "provider-bedrock-invalid",
+	provider: "bedrock",
+	display_name: "Bedrock",
+	has_api_key: false,
+	central_api_key_enabled: false,
+	allow_user_api_key: false,
+	allow_central_api_key_fallback: false,
+});
+
+const defaultOpenAIProviderConfig = createProviderConfig({
+	id: "provider-openai",
+	provider: "openai",
+	display_name: "OpenAI",
+	source: "database",
+	has_api_key: true,
+});
+
+const [multiConfigProviderPrimary, multiConfigProviderStaging] =
+	createOpenAIProductionStagingPair("openai-config-1", "openai-config-2");
+
+const [multiConfigModelBindingPrimary, multiConfigModelBindingStaging] =
+	createOpenAIProductionStagingPair(
+		"openai-config-prod",
+		"openai-config-staging",
+	);
 
 const createModelProviderAttachmentsFromIDs = (
 	providerConfigIds: readonly string[],
@@ -277,6 +346,95 @@ const setupChatSpies = (state: {
 	);
 };
 
+const createSingleProviderStoryArgs = (
+	section: ChatModelAdminSection,
+	providerConfig: TypesGen.ChatProviderConfig,
+) => ({
+	section,
+	providerConfigsData: [providerConfig],
+	modelCatalogData: emptyModelCatalogData,
+});
+
+const setupSingleProviderChatSpies = (
+	providerConfig: TypesGen.ChatProviderConfig,
+) => {
+	return () => {
+		setupChatSpies({
+			providerConfigs: [providerConfig],
+			modelConfigs: [],
+			modelCatalog: emptyModelCatalogData,
+		});
+	};
+};
+
+const openProviderDetails = async (body: StoryBody, providerLabel: string) => {
+	await userEvent.click(
+		await body.findByRole("button", { name: new RegExp(providerLabel, "i") }),
+	);
+};
+
+type ProviderCredentialStateOptions = {
+	providerLabel: string;
+	showUserKeysBadge?: boolean;
+	centralAPIKeyEnabled: boolean;
+	allowUserAPIKey: boolean;
+	centralFallback: boolean | "hidden";
+	showAPIKeyInput: boolean;
+};
+
+const expectProviderCredentialState = async (
+	body: StoryBody,
+	options: ProviderCredentialStateOptions,
+) => {
+	if (options.showUserKeysBadge) {
+		await expect(
+			await body.findByText("User keys enabled"),
+		).toBeInTheDocument();
+	}
+
+	await openProviderDetails(body, options.providerLabel);
+
+	const centralAPIKeySwitch = await body.findByRole("switch", {
+		name: "Central API key",
+	});
+	const allowUserAPIKeysSwitch = await body.findByRole("switch", {
+		name: "Allow user API keys",
+	});
+
+	if (options.centralAPIKeyEnabled) {
+		await expect(centralAPIKeySwitch).toBeChecked();
+	} else {
+		await expect(centralAPIKeySwitch).not.toBeChecked();
+	}
+
+	if (options.allowUserAPIKey) {
+		await expect(allowUserAPIKeysSwitch).toBeChecked();
+	} else {
+		await expect(allowUserAPIKeysSwitch).not.toBeChecked();
+	}
+
+	if (options.centralFallback === "hidden") {
+		expect(
+			body.queryByRole("switch", { name: "Use central key as fallback" }),
+		).not.toBeInTheDocument();
+	} else {
+		const fallbackSwitch = await body.findByRole("switch", {
+			name: "Use central key as fallback",
+		});
+		if (options.centralFallback) {
+			await expect(fallbackSwitch).toBeChecked();
+		} else {
+			await expect(fallbackSwitch).not.toBeChecked();
+		}
+	}
+
+	if (options.showAPIKeyInput) {
+		await expect(await body.findByLabelText(/^API Key$/i)).toBeInTheDocument();
+	} else {
+		expect(body.queryByLabelText(/^API Key$/i)).not.toBeInTheDocument();
+	}
+};
+
 // ── Meta ───────────────────────────────────────────────────────
 
 const meta: Meta<typeof ChatModelAdminPanel> = {
@@ -408,82 +566,15 @@ export const MultiConfigProvider: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
 		providerConfigsData: [
-			createProviderConfig({
-				id: "openai-config-1",
-				provider: "openai",
-				display_name: "OpenAI (Production)",
-				has_api_key: true,
-				has_effective_api_key: true,
-				base_url: "https://api.openai.com/v1",
-				source: "database",
-			}),
-			createProviderConfig({
-				id: "openai-config-2",
-				provider: "openai",
-				display_name: "OpenAI (Staging)",
-				has_api_key: true,
-				has_effective_api_key: true,
-				base_url: "https://staging.openai.example.com/v1",
-				source: "database",
-			}),
-		],
-		modelConfigsData: [
-			createModelConfig({
-				id: "model-gpt4-staging",
-				provider: "openai",
-				provider_configs: [createModelProviderAttachment("openai-config-2")],
-				model: "gpt-4.1",
-				display_name: "GPT-4.1 (Staging)",
-				enabled: true,
-				context_limit: 128000,
-			}),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-
-		// Provider should be visible in the list.
-		await expect(
-			await body.findByRole("button", { name: /OpenAI/i }),
-		).toBeInTheDocument();
-
-		// Click into the provider detail.
-		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
-
-		// The config selector should be visible since there are 2 configs.
-		await expect(await body.findByText("Configuration")).toBeInTheDocument();
-	},
-};
-
-export const MultiConfigModelBinding: Story = {
-	args: {
-		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "openai-config-prod",
-				provider: "openai",
-				display_name: "OpenAI (Production)",
-				has_api_key: true,
-				has_effective_api_key: true,
-				base_url: "https://api.openai.com/v1",
-				source: "database",
-			}),
-			createProviderConfig({
-				id: "openai-config-staging",
-				provider: "openai",
-				display_name: "OpenAI (Staging)",
-				has_api_key: true,
-				has_effective_api_key: true,
-				base_url: "https://staging.openai.example.com/v1",
-				source: "database",
-			}),
+			multiConfigProviderPrimary,
+			multiConfigProviderStaging,
 		],
 		modelConfigsData: [
 			createModelConfig({
 				id: "model-gpt4-staging",
 				provider: "openai",
 				provider_configs: [
-					createModelProviderAttachment("openai-config-staging"),
+					createModelProviderAttachment(multiConfigProviderStaging.id),
 				],
 				model: "gpt-4.1",
 				display_name: "GPT-4.1 (Staging)",
@@ -495,7 +586,38 @@ export const MultiConfigModelBinding: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// The model should be visible in the list.
+		await expect(
+			await body.findByRole("button", { name: /OpenAI/i }),
+		).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
+		await expect(await body.findByText("Configuration")).toBeInTheDocument();
+	},
+};
+
+export const MultiConfigModelBinding: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			multiConfigModelBindingPrimary,
+			multiConfigModelBindingStaging,
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-gpt4-staging",
+				provider: "openai",
+				provider_configs: [
+					createModelProviderAttachment(multiConfigModelBindingStaging.id),
+				],
+				model: "gpt-4.1",
+				display_name: "GPT-4.1 (Staging)",
+				enabled: true,
+				context_limit: 128000,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
 		await expect(
 			await body.findByText("GPT-4.1 (Staging)"),
 		).toBeInTheDocument();
@@ -765,130 +887,61 @@ export const CreateAndUpdateProvider: Story = {
 };
 
 export const ProviderWithUserKeysEnabled: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai-user-keys",
-				provider: "openai",
-				display_name: "OpenAI",
-				has_api_key: true,
-				central_api_key_enabled: true,
-				allow_user_api_key: true,
-				allow_central_api_key_fallback: false,
-			}),
-		],
-		modelCatalogData: { providers: [] },
-	},
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai-user-keys",
-					provider: "openai",
-					display_name: "OpenAI",
-					has_api_key: true,
-					central_api_key_enabled: true,
-					allow_user_api_key: true,
-					allow_central_api_key_fallback: false,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
+	args: createSingleProviderStoryArgs(
+		"providers",
+		providerWithUserKeysEnabledConfig,
+	),
+	beforeEach: setupSingleProviderChatSpies(providerWithUserKeysEnabledConfig),
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await expect(
-			await body.findByText("User keys enabled"),
-		).toBeInTheDocument();
-		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
-		await expect(
-			await body.findByRole("switch", { name: "Allow user API keys" }),
-		).toBeChecked();
-		await expect(
-			await body.findByRole("switch", {
-				name: "Use central key as fallback",
-			}),
-		).not.toBeChecked();
+		await expectProviderCredentialState(body, {
+			providerLabel: "OpenAI",
+			showUserKeysBadge: true,
+			centralAPIKeyEnabled: true,
+			allowUserAPIKey: true,
+			centralFallback: false,
+			showAPIKeyInput: true,
+		});
 	},
 };
 
 export const ProviderWithCentralFallback: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openrouter-fallback",
-				provider: "openrouter",
-				display_name: "OpenRouter",
-				has_api_key: true,
-				central_api_key_enabled: true,
-				allow_user_api_key: true,
-				allow_central_api_key_fallback: true,
-			}),
-		],
-		modelCatalogData: { providers: [] },
-	},
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openrouter-fallback",
-					provider: "openrouter",
-					display_name: "OpenRouter",
-					has_api_key: true,
-					central_api_key_enabled: true,
-					allow_user_api_key: true,
-					allow_central_api_key_fallback: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
+	args: createSingleProviderStoryArgs(
+		"providers",
+		providerWithCentralFallbackConfig,
+	),
+	beforeEach: setupSingleProviderChatSpies(providerWithCentralFallbackConfig),
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			await body.findByRole("button", { name: /OpenRouter/i }),
-		);
-		await expect(
-			await body.findByRole("switch", {
-				name: "Use central key as fallback",
-			}),
-		).toBeChecked();
+		await expectProviderCredentialState(body, {
+			providerLabel: "OpenRouter",
+			centralAPIKeyEnabled: true,
+			allowUserAPIKey: true,
+			centralFallback: true,
+			showAPIKeyInput: true,
+		});
 	},
 };
 
 export const ProviderWithUserKeysOnly: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [createGoogleUserOnlyProviderConfig()],
-		modelCatalogData: { providers: [] },
-	},
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [createGoogleUserOnlyProviderConfig()],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
+	args: createSingleProviderStoryArgs(
+		"providers",
+		googleUserOnlyProviderConfig,
+	),
+	beforeEach: setupSingleProviderChatSpies(googleUserOnlyProviderConfig),
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(await body.findByRole("button", { name: /Google/i }));
-		const centralAPIKeySwitch = await body.findByRole("switch", {
+		await expectProviderCredentialState(body, {
+			providerLabel: "Google",
+			centralAPIKeyEnabled: false,
+			allowUserAPIKey: true,
+			centralFallback: "hidden",
+			showAPIKeyInput: false,
+		});
+
+		const centralAPIKeySwitch = body.getByRole("switch", {
 			name: "Central API key",
 		});
-		const allowUserAPIKeysSwitch = await body.findByRole("switch", {
-			name: "Allow user API keys",
-		});
-		await expect(centralAPIKeySwitch).not.toBeChecked();
-		await expect(allowUserAPIKeysSwitch).toBeChecked();
-		expect(body.queryByLabelText(/^API Key$/i)).not.toBeInTheDocument();
-		expect(
-			body.queryByRole("switch", { name: "Use central key as fallback" }),
-		).not.toBeInTheDocument();
-
 		const saveButton = body.getByRole("button", { name: "Save changes" });
 		await userEvent.click(centralAPIKeySwitch);
 		await expect(await body.findByLabelText(/^API Key$/i)).toBeRequired();
@@ -917,35 +970,14 @@ export const ProviderWithUserKeysOnly: Story = {
 };
 
 export const ProviderApiKeyInputMasked: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai-mask",
-				provider: "openai",
-				display_name: "OpenAI",
-				has_api_key: true,
-			}),
-		],
-		modelCatalogData: { providers: [] },
-	},
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai-mask",
-					provider: "openai",
-					display_name: "OpenAI",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
+	args: createSingleProviderStoryArgs(
+		"providers",
+		providerApiKeyInputMaskedConfig,
+	),
+	beforeEach: setupSingleProviderChatSpies(providerApiKeyInputMaskedConfig),
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await openProviderDetails(body, "OpenAI");
 		await expect(await body.findByLabelText(/^API Key$/i)).toHaveAttribute(
 			"type",
 			"password",
@@ -1028,38 +1060,11 @@ export const ModelFormAllowsEffectiveProviderKeys: Story = {
 };
 
 export const ModelFormUserKeyOnlyProvider: Story = {
-	args: {
-		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-google-user-only-models",
-				provider: "google",
-				display_name: "Google",
-				has_api_key: false,
-				central_api_key_enabled: false,
-				allow_user_api_key: true,
-				allow_central_api_key_fallback: false,
-			}),
-		],
-		modelCatalogData: { providers: [] },
-	},
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-google-user-only-models",
-					provider: "google",
-					display_name: "Google",
-					has_api_key: false,
-					central_api_key_enabled: false,
-					allow_user_api_key: true,
-					allow_central_api_key_fallback: false,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
+	args: createSingleProviderStoryArgs(
+		"models",
+		modelFormUserKeyOnlyProviderConfig,
+	),
+	beforeEach: setupSingleProviderChatSpies(modelFormUserKeyOnlyProviderConfig),
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Google");
@@ -1075,43 +1080,16 @@ export const ModelFormUserKeyOnlyProvider: Story = {
 };
 
 export const ProviderInvalidCredentialState: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-bedrock-invalid",
-				provider: "bedrock",
-				display_name: "Bedrock",
-				has_api_key: false,
-				central_api_key_enabled: false,
-				allow_user_api_key: false,
-				allow_central_api_key_fallback: false,
-			}),
-		],
-		modelCatalogData: { providers: [] },
-	},
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-bedrock-invalid",
-					provider: "bedrock",
-					display_name: "Bedrock",
-					has_api_key: false,
-					central_api_key_enabled: false,
-					allow_user_api_key: false,
-					allow_central_api_key_fallback: false,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
+	args: createSingleProviderStoryArgs(
+		"providers",
+		providerInvalidCredentialStateConfig,
+	),
+	beforeEach: setupSingleProviderChatSpies(
+		providerInvalidCredentialStateConfig,
+	),
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			await body.findByRole("button", { name: /Bedrock/i }),
-		);
+		await openProviderDetails(body, "Bedrock");
 		await expect(
 			body.findByText("At least one credential source must be enabled"),
 		).resolves.toBeInTheDocument();
@@ -1163,15 +1141,7 @@ const expandSection = async (body: ReturnType<typeof within>, name: string) => {
 export const CreateModelRequiresProviderConfiguration: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -1194,15 +1164,7 @@ export const CreateModelRequiresProviderConfiguration: Story = {
 export const NoModelConfigByDefault: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -1245,15 +1207,7 @@ export const NoModelConfigByDefault: Story = {
 export const SubmitModelConfigExplicitly: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -1305,15 +1259,7 @@ export const SubmitModelConfigExplicitly: Story = {
 export const UpdateModelEnabledToggle: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
 			createModelConfig({
 				id: "model-enabled",
@@ -1492,15 +1438,7 @@ export const ModelFormBedrock: Story = {
 export const ModelPricingWarningInList: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
 			createModelConfig({
 				id: "model-warning",
@@ -1522,15 +1460,7 @@ export const ModelPricingWarningInList: Story = {
 export const ModelDeleteConfirmation: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
 			createModelConfig({
 				id: "model-1",
@@ -1571,15 +1501,7 @@ export const ModelDeleteConfirmation: Story = {
 export const ModelDeleteCancelled: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
 			createModelConfig({
 				id: "model-1",
@@ -1612,15 +1534,7 @@ export const ModelDeleteCancelled: Story = {
 export const ModelDeleteConfirmed: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
 			createModelConfig({
 				id: "model-1",
@@ -1651,15 +1565,7 @@ export const ModelDeleteConfirmed: Story = {
 export const ProviderDeleteConfirmation: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -1689,15 +1595,7 @@ export const ProviderDeleteConfirmation: Story = {
 export const ProviderDeleteCancelled: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -1724,15 +1622,7 @@ export const ProviderDeleteCancelled: Story = {
 export const ProviderDeleteConfirmed: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -1755,15 +1645,7 @@ export const ProviderDeleteConfirmed: Story = {
 export const ValidatesModelConfigFields: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
+		providerConfigsData: [defaultOpenAIProviderConfig],
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);

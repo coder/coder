@@ -32,6 +32,30 @@ export const createProviderConfig = (
 	};
 };
 
+export const createOpenAIProductionStagingPair = (
+	productionId: string,
+	stagingId: string,
+): [TypesGen.ChatProviderConfig, TypesGen.ChatProviderConfig] => [
+	createProviderConfig({
+		id: productionId,
+		provider: "openai",
+		display_name: "OpenAI (Production)",
+		has_api_key: true,
+		has_effective_api_key: true,
+		base_url: "https://api.openai.com/v1",
+		source: "database",
+	}),
+	createProviderConfig({
+		id: stagingId,
+		provider: "openai",
+		display_name: "OpenAI (Staging)",
+		has_api_key: true,
+		has_effective_api_key: true,
+		base_url: "https://staging.openai.example.com/v1",
+		source: "database",
+	}),
+];
+
 type ModelProviderAttachmentOverrides = Partial<
 	Omit<TypesGen.ChatModelProviderAttachment, "provider_config_id">
 >;
