@@ -23,7 +23,6 @@ import {
 } from "#/components/Table/Table";
 import colors from "#/theme/tailwindColors";
 import { cn } from "#/utils/cn";
-import { inlineCodeClassName } from "./inlineCodeClassName";
 
 interface MarkdownProps {
 	/**
@@ -85,7 +84,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 							{String(children)}
 						</SyntaxHighlighter>
 					) : (
-						<code className={inlineCodeClassName} {...restProps}>
+						<code className="rounded-sm bg-border px-1 py-px text-[14px] text-content-primary" {...restProps}>
 							{children}
 						</code>
 					);
