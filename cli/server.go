@@ -2928,7 +2928,6 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
 
 	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
-	// A plain lexicographic sort would mis-order multi-digit indices.
 	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
 		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
 		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
