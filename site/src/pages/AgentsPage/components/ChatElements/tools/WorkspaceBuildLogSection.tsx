@@ -60,18 +60,11 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 			? liveBuildId
 			: undefined;
 
-	// Only trust the chat binding's build ID if a build is
-	// actually in progress. A stale chatBuildId from a previous
-	// tool call would otherwise stream old completed build logs.
-	const chatBuildIsActive =
-		chatBuildId &&
-		(latestBuildStatus === "pending" || latestBuildStatus === "starting");
-
-	// While running: prefer active chat binding, fall back to
-	// polled workspace. When completed: use build ID from tool
-	// result.
+	// While running: prefer chat binding (instant via pubsub),
+	// fall back to polled workspace (2s latency). When completed:
+	// use the build ID from the tool result.
 	const effectiveBuildId = isRunning
-		? ((chatBuildIsActive ? chatBuildId : undefined) ?? polledActiveBuildId)
+		? (chatBuildId ?? polledActiveBuildId)
 		: buildId;
 
 	// --- Running builds: stream via WebSocket ---
