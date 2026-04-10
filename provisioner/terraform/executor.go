@@ -89,6 +89,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.files.WorkDirectory()
+	cmd.SysProcAttr = cmdSysProcAttr()
 	if env == nil {
 		// We don't want to passthrough host env when unset.
 		env = []string{}
@@ -130,6 +131,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.files.WorkDirectory()
+	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.Env = env
 	out := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
@@ -187,6 +189,7 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 
 	// #nosec
 	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
+	cmd.SysProcAttr = cmdSysProcAttr()
 	out, err := cmd.Output()
 	if err != nil {
 		select {
@@ -492,6 +495,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
 	cmd.Stdout = &out
 	cmd.Dir = e.files.WorkDirectory()
+	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
@@ -575,14 +579,11 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, 
 	go func() {
 		select {
 		case <-ctx.Done():
-			var err error
-			switch runtime.GOOS {
-			case "windows":
-				// Interrupts aren't supported by Windows.
-				err = cmd.Process.Kill()
-			default:
-				err = cmd.Process.Signal(os.Interrupt)
-			}
+			// Signal the entire process group so child processes
+			// (e.g. provider plugins) are also interrupted. On
+			// Windows, signalProcessGroup falls back to the
+			// single process.
+			err := signalProcessGroup(cmd.Process.Pid, os.Interrupt)
 			logger.Debug(ctx, "interrupted command", slog.F("args", cmd.Args), slog.Error(err))
 
 		case <-killCtx.Done():

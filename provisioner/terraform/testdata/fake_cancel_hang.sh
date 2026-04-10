@@ -27,7 +27,17 @@ plan)
 	trap 'json_print interrupt' INT
 
 	json_print plan_start
-	sleep 10 2>/dev/null >/dev/null
+	# Background sleep inherits SIG_IGN for SIGINT in
+	# non-interactive shells, so group-wide interrupts
+	# won't kill it.  Redirect output so the background
+	# process doesn't hold Go's pipes open.  The
+	# while-loop re-waits after the trap handler runs,
+	# keeping the script alive.
+	sleep 10 >/dev/null 2>&1 &
+	CHILD=$!
+	while kill -0 $CHILD 2>/dev/null; do
+		wait $CHILD 2>/dev/null
+	done
 	json_print plan_end
 
 	exit 0
