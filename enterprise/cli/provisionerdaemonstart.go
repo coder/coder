@@ -180,9 +180,11 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			}()
 
 			// Create the registry before starting the Terraform
-			// server goroutine so provider resource metrics are
-			// registered on the same registry that Prometheus
-			// will scrape.
+			// Build a Prometheus registry so provider resource
+			// metrics and the Prometheus HTTP handler share the
+			// same registry. When prometheus is disabled, leave
+			// the registry nil — terraform.Serve will create a
+			// throwaway sink internally.
 			var prometheusRegistry *prometheus.Registry
 			if prometheusEnable {
 				prometheusRegistry = prometheus.NewRegistry()
@@ -192,6 +194,13 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			go func() {
 				defer cancel()
 
+				// Avoid passing a typed-nil *prometheus.Registry
+				// through the Registerer interface, which would
+				// bypass nil checks in terraform.Serve.
+				var registerer prometheus.Registerer
+				if prometheusRegistry != nil {
+					registerer = prometheusRegistry
+				}
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
 						Listener:      terraformServer,
@@ -200,7 +209,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 						Experiments:   coderd.ReadExperiments(logger, experiments),
 					},
 					CachePath:  cacheDir,
-					Registerer: prometheusRegistry,
+					Registerer: registerer,
 				})
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {
