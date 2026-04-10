@@ -469,7 +469,7 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
-	result, done, err := options.checkExistingWorkspace(context.Background())
+	result, done, _, err := options.checkExistingWorkspace(context.Background())
 	require.NoError(t, err)
 	require.True(t, done)
 	require.Equal(t, "already_exists", result["status"])
@@ -547,7 +547,7 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 		Return([]database.WorkspaceAgent{}, nil)
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-	result, done, err := options.checkExistingWorkspace(context.Background())
+	result, done, _, err := options.checkExistingWorkspace(context.Background())
 	require.NoError(t, err)
 	require.True(t, done)
 	require.Equal(t, false, result["created"])
@@ -598,7 +598,7 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
-	result, done, err := options.checkExistingWorkspace(context.Background())
+	result, done, _, err := options.checkExistingWorkspace(context.Background())
 	require.NoError(t, err)
 	require.True(t, done)
 	require.Equal(t, 1, connectCalls)
@@ -658,7 +658,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 				Return([]database.WorkspaceAgent{tc.agent}, nil)
 
 			options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-			result, done, err := options.checkExistingWorkspace(context.Background())
+			result, done, _, err := options.checkExistingWorkspace(context.Background())
 			require.NoError(t, err)
 			require.False(t, done)
 			require.Nil(t, result)
@@ -691,7 +691,7 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 		}, nil)
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-	result, done, err := options.checkExistingWorkspace(context.Background())
+	result, done, _, err := options.checkExistingWorkspace(context.Background())
 	require.NoError(t, err)
 	require.False(t, done, "should allow creation for deleted workspace")
 	require.Nil(t, result)

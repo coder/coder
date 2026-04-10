@@ -100,6 +100,12 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
 				if err := waitForBuild(ctx, options.DB, build.ID); err != nil {
+					// newBuildError returns via toolResponse (IsError: false)
+					// rather than NewTextErrorResponse (IsError: true) so the
+					// JSON result preserves build_id for the frontend's log
+					// viewer. The fantasy/chatprompt pipeline double-wraps
+					// IsError content, which would bury the structured fields.
+					// The frontend detects errors via the "error" key instead.
 					return toolResponse(newBuildError(
 						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
 						build.ID,

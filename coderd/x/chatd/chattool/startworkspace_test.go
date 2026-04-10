@@ -347,16 +347,17 @@ func TestStartWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		var startCalled bool
+		var startBuildID uuid.UUID
 		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 			startCalled = true
 			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
 			require.Equal(t, ws.ID, wsID)
-
 			// Simulate start by inserting a new completed "start" build.
 			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStart,
 				BuildNumber: 2,
 			}).Do()
+			startBuildID = buildResp.Build.ID
 			return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
 		}
 
@@ -382,7 +383,7 @@ func TestStartWorkspace(t *testing.T) {
 		started, ok := result["started"].(bool)
 		require.True(t, ok)
 		require.True(t, started)
-		require.NotEmpty(t, result["build_id"], "expected build_id in response after starting a stopped workspace")
+		require.Equal(t, startBuildID.String(), result["build_id"])
 	})
 
 	t.Run("InProgressBuild", func(t *testing.T) {
@@ -472,6 +473,84 @@ func TestStartWorkspace(t *testing.T) {
 		started, ok := result["started"].(bool)
 		require.True(t, ok)
 		require.True(t, started)
+		require.Equal(t, wsResp.Build.ID.String(), result["build_id"])
+	})
+
+	t.Run("FailedBuild", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		// Create a workspace with a build that is still running.
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStart,
+		}).Starting().Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-failed-build",
+		})
+		require.NoError(t, err)
+
+		jobRead := make(chan struct{}, 1)
+		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      wrappedDB,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StartFn should not be called for an in-progress build")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		type toolResult struct {
+			resp fantasy.ToolResponse
+			err  error
+		}
+		done := make(chan toolResult, 1)
+		go func() {
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+			done <- toolResult{resp, err}
+		}()
+
+		// Wait for the tool to observe the running job.
+		testutil.TryReceive(ctx, t, jobRead)
+
+		// Fail the build.
+		now := time.Now().UTC()
+		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:          wsResp.Build.JobID,
+			UpdatedAt:   now,
+			CompletedAt: sql.NullTime{Time: now, Valid: true},
+			Error:       sql.NullString{String: "terraform apply failed", Valid: true},
+		}))
+
+		res := testutil.TryReceive(ctx, t, done)
+		require.NoError(t, res.err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(res.resp.Content), &result))
+		require.Contains(t, result["error"], "waiting for in-progress build")
 		require.Equal(t, wsResp.Build.ID.String(), result["build_id"])
 	})
 
