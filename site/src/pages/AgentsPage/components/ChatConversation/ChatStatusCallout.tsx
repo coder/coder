@@ -1,10 +1,8 @@
-import { ExternalLinkIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
-import { Pill } from "#/components/Pill/Pill";
+import { Link } from "#/components/Link/Link";
 import { Response, Shimmer } from "../ChatElements";
-import { getKindLabel, getProviderStatusURL } from "./chatStatusHelpers";
+import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
 const RESPONSE_STARTUP_GRACE_MS = 15_000;
@@ -116,76 +114,58 @@ const StatusCountdown: FC<{
 
 const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	const statusURL = getProviderStatusURL(status.kind, status.provider);
-	const pillType =
-		status.phase === "failed"
-			? "error"
-			: status.kind === "generic"
-				? "inactive"
-				: "warning";
 	const severity =
 		status.phase === "failed"
 			? "error"
 			: status.kind === "generic"
 				? "info"
 				: "warning";
-	const hasMetadata =
-		status.phase === "retrying" ||
-		(status.phase === "failed" && status.statusCode !== undefined);
+	const metadataItems: React.ReactNode[] = [];
+	if (status.phase === "retrying" && status.retryingAt) {
+		metadataItems.push(
+			<StatusCountdown
+				key="countdown"
+				deadline={status.retryingAt}
+				label="Retrying in"
+			/>,
+		);
+	}
+	if (status.phase === "retrying") {
+		metadataItems.push(<span key="attempt">Attempt {status.attempt}</span>);
+	}
+	if (status.phase === "failed" && status.statusCode !== undefined) {
+		metadataItems.push(<span key="code">HTTP {status.statusCode}</span>);
+	}
 
 	return (
 		<Alert
 			severity={severity}
-			className="py-3"
 			actions={
-				statusURL && (
-					<Button asChild variant="subtle" size="sm">
-						<a href={statusURL} target="_blank" rel="noreferrer">
-							Status
-							<ExternalLinkIcon />
-						</a>
-					</Button>
-				)
+				metadataItems.length > 0 ? (
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
+						{metadataItems}
+					</div>
+				) : undefined
 			}
 		>
-			<div className="space-y-2.5">
-				<div className="flex flex-wrap items-center gap-2">
-					<AlertTitle>{status.title}</AlertTitle>
-					<Pill
-						className="h-5 px-2.5 text-[10px] font-semibold"
-						type={pillType}
-					>
-						{getKindLabel(status.kind)}
-					</Pill>
-				</div>
-				<AlertDescription>{status.message}</AlertDescription>
-				{hasMetadata && (
-					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
-						{status.phase === "retrying" && status.retryingAt && (
-							<StatusCountdown
-								deadline={status.retryingAt}
-								label="Retrying in"
-							/>
-						)}
-						{status.phase === "retrying" && (
-							<span>Attempt {status.attempt}</span>
-						)}
-
-						{status.phase === "failed" && status.statusCode !== undefined && (
-							<span>HTTP {status.statusCode}</span>
-						)}
-					</div>
+			<AlertTitle>{status.title}</AlertTitle>
+			<AlertDescription>
+				{status.message}{" "}
+				{statusURL && (
+					<Link href={statusURL} target="_blank" rel="noreferrer">
+						Status
+					</Link>
 				)}
-			</div>
+			</AlertDescription>
 		</Alert>
 	);
 };
 
 const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 	return (
-		<Alert severity="info" className="py-3">
-			<div className="space-y-2.5">
-				<AlertTitle>{status.title}</AlertTitle>
-				<AlertDescription>{status.message}</AlertDescription>
+		<Alert
+			severity="info"
+			actions={
 				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
 					<StatusCountdown
 						deadline={status.retryingAt}
@@ -193,7 +173,10 @@ const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 					/>
 					<span>Attempt {status.attempt}</span>
 				</div>
-			</div>
+			}
+		>
+			<AlertTitle>{status.title}</AlertTitle>
+			<AlertDescription>{status.message}</AlertDescription>
 		</Alert>
 	);
 };

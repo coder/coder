@@ -151,7 +151,7 @@ export const WorkspaceParametersPageView: FC<
 			</header>
 
 			{submitError && !isApiValidationError(submitError) ? (
-				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
+				<ErrorAlert error={submitError} className="mb-12" />
 			) : null}
 
 			{templateVersionParameters && buildParameters ? (

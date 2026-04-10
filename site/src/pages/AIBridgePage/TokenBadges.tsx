@@ -55,9 +55,9 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-4">
-								<div className="text-xs text-content-secondary">Input</div>
-								<div className="text-xs text-content-secondary">
-									{inputTokens}
+								<div className="text-sm text-content-secondary">Input</div>
+								<div className="text-sm text-content-secondary">
+									{inputTokens.toLocaleString()}
 								</div>
 							</div>
 						</div>
@@ -70,9 +70,9 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-4">
-								<div className="text-xs text-content-secondary">Output</div>
-								<div className="text-xs text-content-secondary">
-									{outputTokens}
+								<div className="text-sm text-content-secondary">Output</div>
+								<div className="text-sm text-content-secondary">
+									{outputTokens.toLocaleString()}
 								</div>
 							</div>
 						</div>
@@ -82,7 +82,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="text-content-primary text-sm mt-4">
 								Token usage metadata
 							</div>
-							<pre className="mt-2 p-4 bg-surface-secondary rounded text-xs overflow-x-auto">
+							<pre className="mt-2 mb-1 p-4 bg-surface-secondary rounded overflow-x-auto">
 								<JsonPrettyPrinter input={JSON.stringify(tokenUsageMetadata)} />
 							</pre>
 						</>

@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -110,19 +111,19 @@ func TestSpawnComputerUseAgent_SystemPromptFormat(t *testing.T) {
 
 	// The system message raw content is a JSON-encoded string.
 	// It should contain the system prompt with the user prompt.
-	var rawSystemContent string
+	var foundPrompt bool
 	for _, msg := range messages {
 		if msg.Role != "system" {
 			continue
 		}
-		if msg.Content.Valid {
-			rawSystemContent = string(msg.Content.RawMessage)
+		if msg.Content.Valid && strings.Contains(string(msg.Content.RawMessage), prompt) {
+			foundPrompt = true
 			break
 		}
 	}
 
-	assert.Contains(t, rawSystemContent, prompt,
-		"system prompt raw content should contain the user prompt")
+	assert.True(t, foundPrompt,
+		"at least one system message should contain the user prompt")
 }
 
 func TestSpawnComputerUseAgent_ChildIsListedUnderParent(t *testing.T) {

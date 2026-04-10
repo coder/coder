@@ -41,7 +41,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	return (
 		<Dialog css={styles.dialogWrapper} open onClose={onCancel}>
 			{/* Banner preview */}
-			<div css={{ position: "fixed", top: 0, left: 0, right: 0 }}>
+			<div className="fixed top-0 left-0 right-0">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}

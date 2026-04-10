@@ -34,6 +34,11 @@ export const agentScriptMessages = {
  * process connecting to the Coder control plane).
  */
 export const agentConnectionMessages = {
+	connecting: {
+		title: "Workspace agent is connecting",
+		detail:
+			"The workspace agent has not connected yet. Wait for it to connect or check the logs if it does not.",
+	},
 	timeout: {
 		title: "Agent is taking longer than expected to connect",
 		detail:
@@ -151,6 +156,17 @@ export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
 				: agentScriptMessages.start_timeout.title,
 			detail: agentScriptMessages.start_timeout.detail,
 			severity: "warning",
+			prominent: false,
+		};
+	}
+
+	if (statusSet.has("connecting")) {
+		return {
+			title: plural
+				? `${failingAgentCount} workspace agents are connecting`
+				: agentConnectionMessages.connecting.title,
+			detail: agentConnectionMessages.connecting.detail,
+			severity: "info",
 			prominent: false,
 		};
 	}

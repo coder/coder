@@ -10,4 +10,5 @@ export default meta;
 type Story = StoryObj<typeof NotFoundPage>;
 
 const Example: Story = {};
+
 export { Example as NotFoundPage };

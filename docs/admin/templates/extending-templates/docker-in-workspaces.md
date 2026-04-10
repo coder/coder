@@ -37,14 +37,11 @@ resource "docker_container" "workspace" {
 resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
-  startup_script = <<EOF
+  startup_script = <<-EOF
     #!/bin/sh
-
-    # Start Docker
-    sudo dockerd &
-
-    # ...
-    EOF
+    set -e
+    sudo service docker start
+  EOF
 }
 ```
 
@@ -78,13 +75,10 @@ resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
-  startup_script = <<EOF
+  startup_script = <<-EOF
     #!/bin/sh
-
-    # Start Docker
-    sudo dockerd &
-
-    # ...
+    set -e
+    sudo service docker start
   EOF
 }
 

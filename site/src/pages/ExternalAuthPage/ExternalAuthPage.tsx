@@ -83,7 +83,7 @@ const ExternalAuthPage: FC = () => {
 				<SignInLayout>
 					<Welcome>Failed to validate oauth access token</Welcome>
 
-					<p css={{ textAlign: "center" }}>
+					<p className="text-center">
 						Attempted to validate the user&apos;s oauth access token from the
 						authentication flow. This situation may occur as a result of an
 						external authentication provider misconfiguration. Verify the

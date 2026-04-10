@@ -46,7 +46,7 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No OAuth2 applications have been authorized.
 								</div>
 							</TableCell>

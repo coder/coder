@@ -37,9 +37,9 @@ const Example: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(body.getByRole("button"));
+			await userEvent.click(body.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplateVersion.message,
 				),
 			);

@@ -11,17 +11,16 @@ import (
 
 func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
-		Use:   "want <unit> <depends-on>",
-		Short: "Declare that a unit depends on another unit completing before it can start",
-		Long:  "Declare that a unit depends on another unit completing before it can start. The unit specified first will not start until the second has signaled that it has completed.",
+		Use:   "want <unit> <depends-on> [depends-on...]",
+		Short: "Declare that a unit depends on other units completing before it can start",
+		Long:  "Declare that a unit depends on one or more other units completing before it can start. The unit specified first will not start until all subsequent units have signaled that they have completed.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 
-			if len(i.Args) != 2 {
-				return xerrors.New("exactly two arguments are required: unit and depends-on")
+			if len(i.Args) < 2 {
+				return xerrors.New("at least two arguments are required: unit and one or more depends-on")
 			}
 			dependentUnit := unit.ID(i.Args[0])
-			dependsOn := unit.ID(i.Args[1])
 
 			opts := []agentsocket.Option{}
 			if *socketPath != "" {
@@ -34,8 +33,10 @@ func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
 			}
 			defer client.Close()
 
-			if err := client.SyncWant(ctx, dependentUnit, dependsOn); err != nil {
-				return xerrors.Errorf("declare dependency failed: %w", err)
+			for _, dep := range i.Args[1:] {
+				if err := client.SyncWant(ctx, dependentUnit, unit.ID(dep)); err != nil {
+					return xerrors.Errorf("declare dependency failed: %w", err)
+				}
 			}
 
 			cliui.Info(i.Stdout, "Success")

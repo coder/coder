@@ -7,17 +7,6 @@ import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Section } from "../Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
-export const Language = {
-	title: "SSH keys",
-	regenerateDialogTitle: "Regenerate SSH key?",
-	regenerationError: "Failed to regenerate SSH key",
-	regenerationSuccess: "SSH Key regenerated successfully.",
-	regenerateDialogMessage:
-		"You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
-	confirmLabel: "Confirm",
-	cancelLabel: "Cancel",
-};
-
 const SSHKeysPage: FC = () => {
 	const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
 		useState(false);
@@ -30,7 +19,7 @@ const SSHKeysPage: FC = () => {
 
 	return (
 		<>
-			<Section title={Language.title}>
+			<Section title="SSH keys">
 				<SSHKeysPageView
 					isLoading={userSSHKeyQuery.isLoading}
 					getSSHKeyError={userSSHKeyQuery.error}
@@ -44,18 +33,21 @@ const SSHKeysPage: FC = () => {
 				hideCancel={false}
 				open={isConfirmingRegeneration}
 				confirmLoading={regenerateSSHKeyMutation.isPending}
-				title={Language.regenerateDialogTitle}
-				description={Language.regenerateDialogMessage}
-				confirmText={Language.confirmLabel}
+				title="Regenerate SSH key?"
+				description="You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces."
+				confirmText="Confirm"
 				onClose={() => setIsConfirmingRegeneration(false)}
 				onConfirm={async () => {
 					try {
 						await regenerateSSHKeyMutation.mutateAsync();
-						toast.success(Language.regenerationSuccess);
+						toast.success("SSH Key regenerated successfully.");
 					} catch (error) {
-						toast.error(getErrorMessage(error, Language.regenerationError), {
-							description: getErrorDetail(error),
-						});
+						toast.error(
+							getErrorMessage(error, "Failed to regenerate SSH key"),
+							{
+								description: getErrorDetail(error),
+							},
+						);
 					} finally {
 						setIsConfirmingRegeneration(false);
 					}

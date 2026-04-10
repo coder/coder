@@ -1,9 +1,29 @@
--- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
-WHERE id = @id OR root_chat_id = @id;
+-- name: ArchiveChatByID :many
+WITH chats AS (
+    UPDATE chats
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+)
+SELECT *
+FROM chats
+ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
--- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
+-- name: UnarchiveChatByID :many
+-- Unarchives a chat (and its children). Stale file references are
+-- handled automatically by FK cascades on chat_file_links: when
+-- dbpurge deletes a chat_files row, the corresponding
+-- chat_file_links rows are cascade-deleted by PostgreSQL.
+WITH chats AS (
+    UPDATE chats SET
+        archived = false,
+        updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+)
+SELECT *
+FROM chats
+ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
 -- name: PinChatByID :exec
 WITH target_chat AS (
@@ -377,8 +397,10 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    status,
     mcp_server_ids,
-    labels
+    labels,
+    dynamic_tools
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -389,8 +411,10 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
+    @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
-    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
+    sqlc.narg('dynamic_tools')::jsonb
 )
 RETURNING
     *;
@@ -550,6 +574,43 @@ WHERE
 RETURNING
     *;
 
+-- name: LinkChatFiles :one
+-- LinkChatFiles inserts file associations into the chat_file_links
+-- join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
+-- is conditional: it only proceeds when the total number of links
+-- (existing + genuinely new) does not exceed max_file_links. Returns
+-- the number of genuinely new file IDs that were NOT inserted due to
+-- the cap. A return value of 0 means all files were linked (or were
+-- already linked). A positive value means the cap blocked that many
+-- new links.
+WITH current AS (
+    SELECT COUNT(*) AS cnt
+    FROM chat_file_links
+    WHERE chat_id = @chat_id::uuid
+),
+new_links AS (
+    SELECT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
+),
+genuinely_new AS (
+    SELECT nl.chat_id, nl.file_id
+    FROM new_links nl
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chat_file_links cfl
+        WHERE cfl.chat_id = nl.chat_id AND cfl.file_id = nl.file_id
+    )
+),
+inserted AS (
+    INSERT INTO chat_file_links (chat_id, file_id)
+    SELECT gn.chat_id, gn.file_id
+    FROM genuinely_new gn, current c
+    WHERE c.cnt + (SELECT COUNT(*) FROM genuinely_new) <= @max_file_links::int
+    ON CONFLICT (chat_id, file_id) DO NOTHING
+    RETURNING file_id
+)
+SELECT
+    (SELECT COUNT(*)::int FROM genuinely_new) -
+    (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
+
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
 -- to prevent multiple replicas from acquiring the same chat.
@@ -610,27 +671,34 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck (running but heartbeat has expired).
--- Used for recovery after coderd crashes or long hangs.
+-- Find chats that appear stuck and need recovery. This covers:
+--   1. Running chats whose heartbeat has expired (worker crash).
+--   2. Chats awaiting client action (requires_action) past the
+--      timeout threshold (client disappeared).
 SELECT
     *
 FROM
     chats
 WHERE
-    status = 'running'::chat_status
-    AND heartbeat_at < @stale_threshold::timestamptz;
+    (status = 'running'::chat_status
+        AND heartbeat_at < @stale_threshold::timestamptz)
+    OR (status = 'requires_action'::chat_status
+        AND updated_at < @stale_threshold::timestamptz);
 
--- name: UpdateChatHeartbeat :execrows
--- Bumps the heartbeat timestamp for a running chat so that other
--- replicas know the worker is still alive.
+-- name: UpdateChatHeartbeats :many
+-- Bumps the heartbeat timestamp for the given set of chat IDs,
+-- provided they are still running and owned by the specified
+-- worker. Returns the IDs that were actually updated so the
+-- caller can detect stolen or completed chats via set-difference.
 UPDATE
     chats
 SET
-    heartbeat_at = NOW()
+    heartbeat_at = @now::timestamptz
 WHERE
-    id = @id::uuid
+    id = ANY(@ids::uuid[])
     AND worker_id = @worker_id::uuid
-    AND status = 'running'::chat_status;
+    AND status = 'running'::chat_status
+RETURNING id;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT
@@ -866,7 +934,8 @@ SELECT
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM
     chat_messages cm
 JOIN
@@ -896,7 +965,8 @@ SELECT
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM
     chat_messages cm
 JOIN
@@ -931,7 +1001,8 @@ WITH chat_costs AS (
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
         COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
     WHERE c.owner_id = @owner_id::uuid
@@ -948,7 +1019,8 @@ SELECT
     cc.total_input_tokens,
     cc.total_output_tokens,
     cc.total_cache_read_tokens,
-    cc.total_cache_creation_tokens
+    cc.total_cache_creation_tokens,
+    cc.total_runtime_ms
 FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
@@ -974,7 +1046,8 @@ WITH chat_cost_users AS (
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
         COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
     FROM
         chat_messages cm
     JOIN
@@ -1008,6 +1081,7 @@ SELECT
     total_output_tokens,
     total_cache_read_tokens,
     total_cache_creation_tokens,
+    total_runtime_ms,
     COUNT(*) OVER()::bigint AS total_count
 FROM
     chat_cost_users
@@ -1157,3 +1231,88 @@ LIMIT 1;
 UPDATE chats
 SET last_read_message_id = @last_read_message_id::bigint
 WHERE id = @id::uuid;
+
+-- name: DeleteOldChats :execrows
+-- Deletes chats that have been archived for longer than the given
+-- threshold. Active (non-archived) chats are never deleted.
+-- Related chat_messages, chat_diff_statuses, and
+-- chat_queued_messages are removed via ON DELETE CASCADE.
+-- Parent/root references on child chats are SET NULL.
+WITH deletable AS (
+    SELECT id
+    FROM chats
+    WHERE archived = true
+      AND updated_at < @before_time::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT @limit_count
+)
+DELETE FROM chats
+USING deletable
+WHERE chats.id = deletable.id
+  AND chats.archived = true;
+
+-- name: GetChatsUpdatedAfter :many
+-- Retrieves chats updated after the given timestamp for telemetry
+-- snapshot collection. Uses updated_at so that long-running chats
+-- still appear in each snapshot window while they are active.
+SELECT
+    id, owner_id, created_at, updated_at, status,
+    (parent_chat_id IS NOT NULL)::bool AS has_parent,
+    root_chat_id, workspace_id,
+    mode, archived, last_model_config_id
+FROM chats
+WHERE updated_at > @updated_after;
+
+-- name: GetChatMessageSummariesPerChat :many
+-- Aggregates message-level metrics per chat for messages created
+-- after the given timestamp. Uses message created_at so that
+-- ongoing activity in long-running chats is captured each window.
+SELECT
+    cm.chat_id,
+    COUNT(*)::bigint AS message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS user_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS assistant_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'tool')::bigint AS tool_message_count,
+    COUNT(*) FILTER (WHERE cm.role = 'system')::bigint AS system_message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
+    COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
+FROM chat_messages cm
+WHERE cm.created_at > @created_after
+  AND cm.deleted = false
+GROUP BY cm.chat_id;
+
+-- name: GetChatModelConfigsForTelemetry :many
+-- Returns all model configurations for telemetry snapshot collection.
+SELECT id, provider, model, context_limit, enabled, is_default
+FROM chat_model_configs
+WHERE deleted = false;
+-- name: GetActiveChatsByAgentID :many
+SELECT *
+FROM chats
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    -- Active statuses only: waiting, pending, running, paused,
+    -- requires_action.
+    -- Excludes completed and error (terminal states).
+    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
+ORDER BY updated_at DESC;
+
+-- name: ClearChatMessageProviderResponseIDsByChatID :exec
+UPDATE chat_messages
+SET provider_response_id = NULL
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND provider_response_id IS NOT NULL;
+
+-- name: SoftDeleteContextFileMessages :exec
+UPDATE chat_messages SET deleted = true
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND content::jsonb @> '[{"type": "context-file"}]';

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	_resetForTesting,
 	getChimeEnabled,
 	LOCK_HOLD_MS,
 	maybePlayChime,
@@ -80,6 +81,7 @@ describe("maybePlayChime", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		localStorage.clear();
+		_resetForTesting();
 		// Explicitly enable the chime — the default is now disabled.
 		setChimeEnabled(true);
 

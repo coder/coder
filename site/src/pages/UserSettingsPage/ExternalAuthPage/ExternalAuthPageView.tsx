@@ -162,7 +162,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 					)}
 				</Stack>
 			</TableCell>
-			<TableCell css={{ textAlign: "right" }}>
+			<TableCell className="text-right">
 				<Button
 					disabled={authenticated || externalAuthPollingState === "polling"}
 					onClick={() => {

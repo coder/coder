@@ -1261,10 +1261,11 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -1285,6 +1286,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 3 chats owned by owner.
 	for i := range 3 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
@@ -1295,6 +1297,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 2 chats owned by member.
 	for i := range 2 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
@@ -1416,6 +1419,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				Status:            database.ChatStatusWaiting,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
@@ -3562,9 +3566,11 @@ func connectionOnlyIDs[T database.ConnectionLog | database.GetConnectionLogsOffs
 	return ids
 }
 
-func TestUpsertConnectionLog(t *testing.T) {
+func TestBatchUpsertConnectionLogs(t *testing.T) {
 	t.Parallel()
+
 	createWorkspace := func(t *testing.T, db database.Store) database.WorkspaceTable {
+		t.Helper()
 		u := dbgen.User(t, db, database.User{})
 		o := dbgen.Organization(t, db, database.Organization{})
 		tpl := dbgen.Template(t, db, database.Template{
@@ -3580,253 +3586,536 @@ func TestUpsertConnectionLog(t *testing.T) {
 		})
 	}
 
+	// zeroTime is the sentinel value that the SQL treats as "no
+	// connect/disconnect time provided".
+	zeroTime := time.Time{}
+
+	defaultIP := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(127, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+
+	t.Run("SingleConnect", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		connectTime := dbtime.Now()
+
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{connectTime},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{0},
+			CodeValid:        []bool{false},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{""},
+			DisconnectTime:   []time.Time{zeroTime},
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.True(t, connectTime.Equal(rows[0].ConnectionLog.ConnectTime))
+		require.False(t, rows[0].ConnectionLog.DisconnectTime.Valid,
+			"disconnect_time should be NULL for a connect-only event")
+	})
+
 	t.Run("ConnectThenDisconnect", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
-
 		ws := createWorkspace(t, db)
-
-		connectionID := uuid.New()
-		agentName := "test-agent"
-
-		// 1. Insert a 'connect' event.
+		connID := uuid.New()
 		connectTime := dbtime.Now()
-		connectParams := database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             connectTime,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-			WorkspaceID:      ws.ID,
-			WorkspaceName:    ws.Name,
-			AgentName:        agentName,
-			Type:             database.ConnectionTypeSsh,
-			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
-			ConnectionStatus: database.ConnectionStatusConnected,
-			Ip: pqtype.Inet{
-				IPNet: net.IPNet{
-					IP:   net.IPv4(127, 0, 0, 1),
-					Mask: net.IPv4Mask(255, 255, 255, 255),
-				},
-				Valid: true,
-			},
-		}
 
-		log1, err := db.UpsertConnectionLog(ctx, connectParams)
+		// Insert connect.
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{connectTime},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{0},
+			CodeValid:        []bool{false},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{""},
+			DisconnectTime:   []time.Time{zeroTime},
+		})
 		require.NoError(t, err)
-		require.Equal(t, connectParams.ID, log1.ID)
-		require.False(t, log1.DisconnectTime.Valid, "DisconnectTime should not be set on connect")
 
-		// Check that one row exists.
+		// Insert disconnect for same connection.
+		disconnectTime := connectTime.Add(time.Second)
+		err = db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{zeroTime},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{1},
+			CodeValid:        []bool{true},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{"test disconnect"},
+			DisconnectTime:   []time.Time{disconnectTime},
+		})
+		require.NoError(t, err)
+
 		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
-
-		// 2. Insert a 'disconnected' event for the same connection.
-		disconnectTime := connectTime.Add(time.Second)
-		disconnectParams := database.UpsertConnectionLogParams{
-			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
-			WorkspaceID:      ws.ID,
-			AgentName:        agentName,
-			ConnectionStatus: database.ConnectionStatusDisconnected,
-
-			// Updated to:
-			Time:             disconnectTime,
-			DisconnectReason: sql.NullString{String: "test disconnect", Valid: true},
-			Code:             sql.NullInt32{Int32: 1, Valid: true},
-
-			// Ignored
-			ID:               uuid.New(),
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-			WorkspaceName:    ws.Name,
-			Type:             database.ConnectionTypeSsh,
-			Ip: pqtype.Inet{
-				IPNet: net.IPNet{
-					IP:   net.IPv4(127, 0, 0, 1),
-					Mask: net.IPv4Mask(255, 255, 255, 254),
-				},
-				Valid: true,
-			},
-		}
-
-		log2, err := db.UpsertConnectionLog(ctx, disconnectParams)
-		require.NoError(t, err)
-
-		// Updated
-		require.Equal(t, log1.ID, log2.ID)
-		require.True(t, log2.DisconnectTime.Valid)
-		require.True(t, disconnectTime.Equal(log2.DisconnectTime.Time))
-		require.Equal(t, disconnectParams.DisconnectReason.String, log2.DisconnectReason.String)
-
-		rows, err = db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
+		row := rows[0].ConnectionLog
+		require.True(t, connectTime.Equal(row.ConnectTime))
+		require.True(t, row.DisconnectTime.Valid)
+		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
+		require.Equal(t, "test disconnect", row.DisconnectReason.String)
+		require.Equal(t, int32(1), row.Code.Int32)
 	})
 
-	t.Run("ConnectDoesNotUpdate", func(t *testing.T) {
+	t.Run("DuplicateConnectIsNoOp", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
-
 		ws := createWorkspace(t, db)
-
-		connectionID := uuid.New()
-		agentName := "test-agent"
-
-		// 1. Insert a 'connect' event.
+		connID := uuid.New()
 		connectTime := dbtime.Now()
-		connectParams := database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             connectTime,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-			WorkspaceID:      ws.ID,
-			WorkspaceName:    ws.Name,
-			AgentName:        agentName,
-			Type:             database.ConnectionTypeSsh,
-			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
-			ConnectionStatus: database.ConnectionStatusConnected,
-			Ip: pqtype.Inet{
-				IPNet: net.IPNet{
-					IP:   net.IPv4(127, 0, 0, 1),
-					Mask: net.IPv4Mask(255, 255, 255, 255),
-				},
-				Valid: true,
-			},
+
+		mkParams := func(ct time.Time, ip pqtype.Inet) database.BatchUpsertConnectionLogsParams {
+			return database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{ct},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{0},
+				CodeValid:        []bool{false},
+				Ip:               []pqtype.Inet{ip},
+				UserAgent:        []string{""},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{""},
+				ConnectionID:     []uuid.UUID{connID},
+				DisconnectReason: []string{""},
+				DisconnectTime:   []time.Time{zeroTime},
+			}
 		}
 
-		log, err := db.UpsertConnectionLog(ctx, connectParams)
+		err := db.BatchUpsertConnectionLogs(ctx, mkParams(connectTime, defaultIP))
 		require.NoError(t, err)
 
-		// 2. Insert another 'connect' event for the same connection.
-		connectTime2 := connectTime.Add(time.Second)
-		connectParams2 := database.UpsertConnectionLogParams{
-			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
-			WorkspaceID:      ws.ID,
-			AgentName:        agentName,
-			ConnectionStatus: database.ConnectionStatusConnected,
+		rows1, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows1, 1)
 
-			// Ignored
-			ID:               uuid.New(),
-			Time:             connectTime2,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-			WorkspaceName:    ws.Name,
-			Type:             database.ConnectionTypeSsh,
-			Code:             sql.NullInt32{Int32: 0, Valid: false},
-			Ip: pqtype.Inet{
-				IPNet: net.IPNet{
-					IP:   net.IPv4(127, 0, 0, 1),
-					Mask: net.IPv4Mask(255, 255, 255, 254),
-				},
-				Valid: true,
+		// Second connect with later time and different IP.
+		otherIP := pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(10, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
 			},
+			Valid: true,
 		}
-
-		origLog, err := db.UpsertConnectionLog(ctx, connectParams2)
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams(connectTime.Add(time.Second), otherIP))
 		require.NoError(t, err)
-		require.Equal(t, log, origLog, "connect update should be a no-op")
 
-		// Check that still only one row exists.
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		rows2, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
 		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.Equal(t, log, rows[0].ConnectionLog)
+		require.Len(t, rows2, 1)
+
+		// The LEAST logic should pick the earlier connect_time; IP and
+		// other fields are not updated on conflict.
+		require.True(t, connectTime.Equal(rows2[0].ConnectionLog.ConnectTime),
+			"connect_time should remain the original (earlier) value")
 	})
 
-	t.Run("DisconnectThenConnect", func(t *testing.T) {
+	t.Run("OrderIndependentConnectTime", func(t *testing.T) {
 		t.Parallel()
-
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
-
 		ws := createWorkspace(t, db)
-
-		connectionID := uuid.New()
-		agentName := "test-agent"
-
-		// Insert just a 'disconect' event
+		connID := uuid.New()
 		disconnectTime := dbtime.Now()
-		disconnectParams := database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             disconnectTime,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-			WorkspaceID:      ws.ID,
-			WorkspaceName:    ws.Name,
-			AgentName:        agentName,
-			Type:             database.ConnectionTypeSsh,
-			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
-			ConnectionStatus: database.ConnectionStatusDisconnected,
-			DisconnectReason: sql.NullString{String: "server shutting down", Valid: true},
-			Ip: pqtype.Inet{
-				IPNet: net.IPNet{
-					IP:   net.IPv4(127, 0, 0, 1),
-					Mask: net.IPv4Mask(255, 255, 255, 255),
-				},
-				Valid: true,
-			},
+		connectTime := disconnectTime.Add(-5 * time.Second)
+
+		// Disconnect arrives first.
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{disconnectTime},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{0},
+			CodeValid:        []bool{true},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{"bye"},
+			DisconnectTime:   []time.Time{disconnectTime},
+		})
+		require.NoError(t, err)
+
+		// Connect arrives second with the real (earlier) connect_time.
+		err = db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{connectTime},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{0},
+			CodeValid:        []bool{false},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{""},
+			DisconnectTime:   []time.Time{zeroTime},
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.True(t, connectTime.Equal(rows[0].ConnectionLog.ConnectTime),
+			"LEAST should pick the earlier connect_time")
+	})
+
+	t.Run("DisconnectFieldsAreWriteOnce", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		disconnectTime := dbtime.Now()
+
+		mkDisconnect := func(reason string, code int32) database.BatchUpsertConnectionLogsParams {
+			return database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{disconnectTime},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{code},
+				CodeValid:        []bool{true},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{""},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{""},
+				ConnectionID:     []uuid.UUID{connID},
+				DisconnectReason: []string{reason},
+				DisconnectTime:   []time.Time{disconnectTime},
+			}
 		}
 
-		_, err := db.UpsertConnectionLog(ctx, disconnectParams)
+		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1))
 		require.NoError(t, err)
 
-		firstRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		// Second disconnect with different reason and code.
+		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2))
 		require.NoError(t, err)
-		require.Len(t, firstRows, 1)
 
-		// We expect the connection event to be marked as closed with the start
-		// and close time being the same.
-		require.True(t, firstRows[0].ConnectionLog.DisconnectTime.Valid)
-		require.Equal(t, disconnectTime, firstRows[0].ConnectionLog.DisconnectTime.Time.UTC())
-		require.Equal(t, firstRows[0].ConnectionLog.ConnectTime.UTC(), firstRows[0].ConnectionLog.DisconnectTime.Time.UTC())
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		row := rows[0].ConnectionLog
+		require.Equal(t, "first reason", row.DisconnectReason.String,
+			"disconnect_reason should not be overwritten")
+		require.Equal(t, int32(1), row.Code.Int32,
+			"code should not be overwritten")
+	})
 
-		// Now insert a 'connect' event for the same connection.
-		// This should be a no op
-		connectTime := disconnectTime.Add(time.Second)
-		connectParams := database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             connectTime,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-			WorkspaceID:      ws.ID,
-			WorkspaceName:    ws.Name,
-			AgentName:        agentName,
-			Type:             database.ConnectionTypeSsh,
-			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
-			ConnectionStatus: database.ConnectionStatusConnected,
-			DisconnectReason: sql.NullString{String: "reconnected", Valid: true},
-			Code:             sql.NullInt32{Int32: 0, Valid: false},
-			Ip: pqtype.Inet{
-				IPNet: net.IPNet{
-					IP:   net.IPv4(127, 0, 0, 1),
-					Mask: net.IPv4Mask(255, 255, 255, 255),
-				},
-				Valid: true,
-			},
+	t.Run("ConnectAfterDisconnectIsNoOp", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		disconnectTime := dbtime.Now()
+
+		// Insert disconnect first.
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{disconnectTime},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{42},
+			CodeValid:        []bool{true},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{"server shutdown"},
+			DisconnectTime:   []time.Time{disconnectTime},
+		})
+		require.NoError(t, err)
+
+		rows1, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows1, 1)
+		require.True(t, rows1[0].ConnectionLog.DisconnectTime.Valid)
+		require.Equal(t, "server shutdown", rows1[0].ConnectionLog.DisconnectReason.String)
+		require.Equal(t, int32(42), rows1[0].ConnectionLog.Code.Int32)
+
+		// Insert connect for same connection_id.
+		err = db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{disconnectTime.Add(time.Second)},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{0},
+			CodeValid:        []bool{false},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{""},
+			DisconnectTime:   []time.Time{zeroTime},
+		})
+		require.NoError(t, err)
+
+		rows2, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows2, 1)
+		row := rows2[0].ConnectionLog
+		require.True(t, row.DisconnectTime.Valid,
+			"disconnect_time should not be cleared by a later connect")
+		require.Equal(t, "server shutdown", row.DisconnectReason.String,
+			"disconnect_reason should not be cleared")
+		require.Equal(t, int32(42), row.Code.Int32,
+			"code should not be cleared")
+	})
+
+	t.Run("CodeZeroPreserved", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		now := dbtime.Now()
+
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{now},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{0},
+			CodeValid:        []bool{true},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{"normal"},
+			DisconnectTime:   []time.Time{now},
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
+		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
+			"code=0 should be preserved, not treated as NULL")
+	})
+
+	t.Run("CodeNullWhenInvalid", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		now := dbtime.Now()
+
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               []uuid.UUID{uuid.New()},
+			ConnectTime:      []time.Time{now},
+			OrganizationID:   []uuid.UUID{ws.OrganizationID},
+			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+			WorkspaceID:      []uuid.UUID{ws.ID},
+			WorkspaceName:    []string{ws.Name},
+			AgentName:        []string{"agent"},
+			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+			Code:             []int32{99},
+			CodeValid:        []bool{false},
+			Ip:               []pqtype.Inet{defaultIP},
+			UserAgent:        []string{""},
+			UserID:           []uuid.UUID{uuid.Nil},
+			SlugOrPort:       []string{""},
+			ConnectionID:     []uuid.UUID{connID},
+			DisconnectReason: []string{""},
+			DisconnectTime:   []time.Time{zeroTime},
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.False(t, rows[0].ConnectionLog.Code.Valid,
+			"code should be NULL when code_valid is false")
+	})
+
+	t.Run("NullConnectionIDEvents", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		now := dbtime.Now()
+
+		// Insert two web events with NULL connection_id (uuid.Nil →
+		// NULL via NULLIF) for the same workspace/agent.
+		for i := range 2 {
+			err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{now.Add(time.Duration(i) * time.Second)},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{200},
+				CodeValid:        []bool{true},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{"Mozilla/5.0"},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{"web-terminal"},
+				ConnectionID:     []uuid.UUID{uuid.Nil},
+				DisconnectReason: []string{""},
+				DisconnectTime:   []time.Time{zeroTime},
+			})
+			require.NoError(t, err)
 		}
 
-		_, err = db.UpsertConnectionLog(ctx, connectParams)
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
 		require.NoError(t, err)
+		require.Len(t, rows, 2,
+			"NULL connection_id rows should not conflict with each other")
+	})
 
-		secondRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
-		require.NoError(t, err)
-		require.Len(t, secondRows, 1)
-		require.Equal(t, firstRows, secondRows)
+	t.Run("MultipleIndependentConnections", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		now := dbtime.Now()
 
-		// Upsert a disconnection, which should also be a no op
-		disconnectParams.DisconnectReason = sql.NullString{
-			String: "updated close reason",
-			Valid:  true,
+		n := 5
+		ids := make([]uuid.UUID, n)
+		connectTimes := make([]time.Time, n)
+		orgIDs := make([]uuid.UUID, n)
+		ownerIDs := make([]uuid.UUID, n)
+		wsIDs := make([]uuid.UUID, n)
+		wsNames := make([]string, n)
+		agentNames := make([]string, n)
+		types := make([]database.ConnectionType, n)
+		codes := make([]int32, n)
+		codeValids := make([]bool, n)
+		ips := make([]pqtype.Inet, n)
+		userAgents := make([]string, n)
+		userIDs := make([]uuid.UUID, n)
+		slugOrPorts := make([]string, n)
+		connIDs := make([]uuid.UUID, n)
+		disconnectReasons := make([]string, n)
+		disconnectTimes := make([]time.Time, n)
+
+		for i := range n {
+			ids[i] = uuid.New()
+			connectTimes[i] = now.Add(time.Duration(i) * time.Second)
+			orgIDs[i] = ws.OrganizationID
+			ownerIDs[i] = ws.OwnerID
+			wsIDs[i] = ws.ID
+			wsNames[i] = ws.Name
+			agentNames[i] = "agent"
+			types[i] = database.ConnectionTypeSsh
+			codes[i] = 0
+			codeValids[i] = false
+			ips[i] = defaultIP
+			userAgents[i] = ""
+			userIDs[i] = uuid.Nil
+			slugOrPorts[i] = ""
+			connIDs[i] = uuid.New()
+			disconnectReasons[i] = ""
+			disconnectTimes[i] = zeroTime
 		}
-		_, err = db.UpsertConnectionLog(ctx, disconnectParams)
+
+		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+			ID:               ids,
+			ConnectTime:      connectTimes,
+			OrganizationID:   orgIDs,
+			WorkspaceOwnerID: ownerIDs,
+			WorkspaceID:      wsIDs,
+			WorkspaceName:    wsNames,
+			AgentName:        agentNames,
+			Type:             types,
+			Code:             codes,
+			CodeValid:        codeValids,
+			Ip:               ips,
+			UserAgent:        userAgents,
+			UserID:           userIDs,
+			SlugOrPort:       slugOrPorts,
+			ConnectionID:     connIDs,
+			DisconnectReason: disconnectReasons,
+			DisconnectTime:   disconnectTimes,
+		})
 		require.NoError(t, err)
-		thirdRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
 		require.NoError(t, err)
-		require.Len(t, secondRows, 1)
-		// The close reason shouldn't be updated
-		require.Equal(t, secondRows, thirdRows)
+		require.Len(t, rows, n, "each unique connection_id should produce its own row")
 	})
 }
 
@@ -7050,13 +7339,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, secretID, createdSecret.ID)
 
-		// 2. READ by ID
-		readSecret, err := db.GetUserSecret(ctx, createdSecret.ID)
-		require.NoError(t, err)
-		assert.Equal(t, createdSecret.ID, readSecret.ID)
-		assert.Equal(t, "workflow-secret", readSecret.Name)
-
-		// 3. READ by UserID and Name
+		// 2. READ by UserID and Name
 		readByNameParams := database.GetUserSecretByUserIDAndNameParams{
 			UserID: testUser.ID,
 			Name:   "workflow-secret",
@@ -7064,33 +7347,43 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		readByNameSecret, err := db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
 		require.NoError(t, err)
 		assert.Equal(t, createdSecret.ID, readByNameSecret.ID)
+		assert.Equal(t, "workflow-secret", readByNameSecret.Name)
 
-		// 4. LIST
+		// 3. LIST (metadata only)
 		secrets, err := db.ListUserSecrets(ctx, testUser.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 1)
 		assert.Equal(t, createdSecret.ID, secrets[0].ID)
 
-		// 5. UPDATE
-		updateParams := database.UpdateUserSecretParams{
-			ID:          createdSecret.ID,
-			Description: "Updated workflow description",
-			Value:       "updated-workflow-value",
-			EnvName:     "UPDATED_WORKFLOW_ENV",
-			FilePath:    "/updated/workflow/path",
+		// 4. LIST with values
+		secretsWithValues, err := db.ListUserSecretsWithValues(ctx, testUser.ID)
+		require.NoError(t, err)
+		require.Len(t, secretsWithValues, 1)
+		assert.Equal(t, "workflow-value", secretsWithValues[0].Value)
+
+		// 5. UPDATE (partial - only description)
+		updateParams := database.UpdateUserSecretByUserIDAndNameParams{
+			UserID:            testUser.ID,
+			Name:              "workflow-secret",
+			UpdateDescription: true,
+			Description:       "Updated workflow description",
 		}
 
-		updatedSecret, err := db.UpdateUserSecret(ctx, updateParams)
+		updatedSecret, err := db.UpdateUserSecretByUserIDAndName(ctx, updateParams)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated workflow description", updatedSecret.Description)
-		assert.Equal(t, "updated-workflow-value", updatedSecret.Value)
+		assert.Equal(t, "workflow-value", updatedSecret.Value) // Value unchanged
+		assert.Equal(t, "WORKFLOW_ENV", updatedSecret.EnvName) // EnvName unchanged
 
 		// 6. DELETE
-		err = db.DeleteUserSecret(ctx, createdSecret.ID)
+		_, err = db.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID,
+			Name:   "workflow-secret",
+		})
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = db.GetUserSecret(ctx, createdSecret.ID)
+		_, err = db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows in result set")
 
@@ -7160,9 +7453,13 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		})
 
 		// Verify both secrets exist
-		_, err = db.GetUserSecret(ctx, secret1.ID)
+		_, err = db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID, Name: secret1.Name,
+		})
 		require.NoError(t, err)
-		_, err = db.GetUserSecret(ctx, secret2.ID)
+		_, err = db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID, Name: secret2.Name,
+		})
 		require.NoError(t, err)
 	})
 }
@@ -7185,14 +7482,14 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 
 	// Create secrets for users
-	user1Secret := dbgen.UserSecret(t, db, database.UserSecret{
+	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:      user1.ID,
 		Name:        "user1-secret",
 		Description: "User 1's secret",
 		Value:       "user1-value",
 	})
 
-	user2Secret := dbgen.UserSecret(t, db, database.UserSecret{
+	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:      user2.ID,
 		Name:        "user2-secret",
 		Description: "User 2's secret",
@@ -7202,7 +7499,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	testCases := []struct {
 		name           string
 		subject        rbac.Subject
-		secretID       uuid.UUID
+		lookupUserID   uuid.UUID
+		lookupName     string
 		expectedAccess bool
 	}{
 		{
@@ -7212,7 +7510,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user1Secret.ID,
+			lookupUserID:   user1.ID,
+			lookupName:     "user1-secret",
 			expectedAccess: true,
 		},
 		{
@@ -7222,7 +7521,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user2Secret.ID,
+			lookupUserID:   user2.ID,
+			lookupName:     "user2-secret",
 			expectedAccess: false,
 		},
 		{
@@ -7232,7 +7532,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user1Secret.ID,
+			lookupUserID:   user1.ID,
+			lookupName:     "user1-secret",
 			expectedAccess: false,
 		},
 		{
@@ -7242,7 +7543,8 @@ func TestUserSecretsAuthorization(t *testing.T) {
 				Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
 				Scope: rbac.ScopeAll,
 			},
-			secretID:       user1Secret.ID,
+			lookupUserID:   user1.ID,
+			lookupName:     "user1-secret",
 			expectedAccess: false,
 		},
 	}
@@ -7254,8 +7556,10 @@ func TestUserSecretsAuthorization(t *testing.T) {
 
 			authCtx := dbauthz.As(ctx, tc.subject)
 
-			// Test GetUserSecret
-			_, err := authDB.GetUserSecret(authCtx, tc.secretID)
+			_, err := authDB.GetUserSecretByUserIDAndName(authCtx, database.GetUserSecretByUserIDAndNameParams{
+				UserID: tc.lookupUserID,
+				Name:   tc.lookupName,
+			})
 
 			if tc.expectedAccess {
 				require.NoError(t, err, "expected access to be granted")
@@ -8781,10 +9085,11 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 
 		for _, uid := range []uuid.UUID{{1}, {2}, {3}} {
 			insertParams := database.InsertAIBridgeInterceptionParams{
-				ID:          uid,
-				InitiatorID: user.ID,
-				Metadata:    json.RawMessage("{}"),
-				Client:      sql.NullString{String: "client", Valid: true},
+				ID:             uid,
+				InitiatorID:    user.ID,
+				Metadata:       json.RawMessage("{}"),
+				Client:         sql.NullString{String: "client", Valid: true},
+				CredentialKind: database.CredentialKindCentralized,
 			}
 
 			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
@@ -9453,10 +9758,11 @@ func TestInsertChatMessages(t *testing.T) {
 		provider := "openai"
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    provider,
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             provider,
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -9472,6 +9778,7 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9617,10 +9924,11 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// A chat_providers row is required as a FK for model configs.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -9641,6 +9949,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	newChat := func(t *testing.T) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9987,10 +10296,11 @@ func TestGetPRInsights(t *testing.T) {
 		user := dbgen.User(t, store, database.User{})
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    "anthropic",
-			DisplayName: "Anthropic",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             "anthropic",
+			DisplayName:          "Anthropic",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -10014,6 +10324,7 @@ func TestGetPRInsights(t *testing.T) {
 	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
 			Title:             title,
@@ -10149,6 +10460,7 @@ func TestGetPRInsights(t *testing.T) {
 	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
 			Title:             title,
@@ -10509,10 +10821,11 @@ func TestChatPinOrderQueries(t *testing.T) {
 		// timed test context doesn't tick during DB init.
 		bg := context.Background()
 		_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
-			Provider:    "openai",
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -10538,6 +10851,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.Helper()
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             title,
@@ -10646,7 +10960,8 @@ func TestChatPinOrderQueries(t *testing.T) {
 		}
 
 		// Archive the middle pin.
-		require.NoError(t, db.ArchiveChatByID(ctx, second.ID))
+		_, err := db.ArchiveChatByID(ctx, second.ID)
+		require.NoError(t, err)
 
 		// Archived chat should have pin_order cleared. Remaining
 		// pins keep their original positions; the next mutation
@@ -10687,10 +11002,11 @@ func TestChatLabels(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -10717,6 +11033,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "labeled-chat",
@@ -10739,6 +11056,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "no-labels-chat",
@@ -10754,6 +11072,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "update-labels-chat",
@@ -10794,6 +11113,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "original-title",
@@ -10830,6 +11150,7 @@ func TestChatLabels(t *testing.T) {
 			labelsJSON, err := json.Marshal(tc.labels)
 			require.NoError(t, err)
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				Status:            database.ChatStatusWaiting,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             tc.title,
@@ -10893,10 +11214,11 @@ func TestChatHasUnread(t *testing.T) {
 	user := dbgen.User(t, store, database.User{})
 
 	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -10915,6 +11237,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "test-chat-" + uuid.NewString(),

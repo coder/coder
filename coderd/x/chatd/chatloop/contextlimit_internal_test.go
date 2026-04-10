@@ -53,6 +53,29 @@ func TestNormalizeMetadataKey(t *testing.T) {
 	}
 }
 
+func TestMetadataKeyWords(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		key  string
+		want []string
+	}{
+		{"max_context_tokens", []string{"max", "context", "tokens"}},
+		{"maxContextTokens", []string{"max", "context", "tokens"}},
+		{"MAX_CONTEXT", []string{"max", "context"}},
+		{"ContextWindow", []string{"context", "window"}},
+		{"context2limit", []string{"context", "limit"}},
+		{"", []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+			got := metadataKeyWords(tt.key)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestIsContextLimitKey(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +83,6 @@ func TestIsContextLimitKey(t *testing.T) {
 		name string
 		key  string
 		want bool
-		skip bool
 	}{ // Exact matches after normalization.
 		{name: "context_limit", key: "context_limit", want: true},
 		{name: "context_window", key: "context_window", want: true},
@@ -75,18 +97,22 @@ func TestIsContextLimitKey(t *testing.T) {
 		{name: "Context-Window mixed case", key: "Context-Window", want: true},
 		{name: "MAX_CONTEXT_TOKENS screaming", key: "MAX_CONTEXT_TOKENS", want: true},
 		{name: "contextLimit camelCase", key: "contextLimit", want: true},
+		{name: "modelContextLimit camelCase", key: "modelContextLimit", want: true},
 
-		// Fallback heuristic: contains "context" + limit/window/length.
+		// Fallback heuristic: tokenized "context" + limit/window/length.
 		{name: "model_context_limit", key: "model_context_limit", want: true},
 		{name: "context_window_size", key: "context_window_size", want: true},
 		{name: "context_length_max", key: "context_length_max", want: true},
 
-		// Fallback heuristic: starts with "max" + contains "context".
-		// BUG(isContextLimitKey): "max_context_version" matches
-		// because it contains "context" and starts with "max",
-		// but a version field is not a context limit.
-		// TODO: Fix the heuristic and remove this skip.
-		{name: "max_context_version false positive", key: "max_context_version", want: false, skip: true}, // Non-matching keys.
+		// Exact matches remain valid after separator stripping.
+		{name: "max_context_", key: "max_context_", want: true},
+		{name: "max_context_limit", key: "max_context_limit", want: true},
+
+		// Non-matching keys should not be treated as context limits.
+		{name: "max_context_version false positive", key: "max_context_version", want: false},
+		{name: "context_tokens_used false positive", key: "context_tokens_used", want: false},
+		{name: "context_length_used false positive", key: "context_length_used", want: false},
+		{name: "context_window_used false positive", key: "context_window_used", want: false},
 		{name: "context_id no limit keyword", key: "context_id", want: false},
 		{name: "empty string", key: "", want: false},
 		{name: "unrelated key", key: "model_name", want: false},
@@ -97,9 +123,6 @@ func TestIsContextLimitKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if tt.skip {
-				t.Skip("known bug: isContextLimitKey false positive")
-			}
 			got := isContextLimitKey(tt.key)
 			require.Equal(t, tt.want, got)
 		})
@@ -378,6 +401,19 @@ func TestExtractContextLimit(t *testing.T) {
 				data: map[string]any{
 					"model":  "gpt-4",
 					"tokens": float64(1000),
+				},
+			},
+		}
+		result := extractContextLimit(metadata)
+		assert.False(t, result.Valid)
+	})
+
+	t.Run("ContextUsageCountersIgnored", func(t *testing.T) {
+		t.Parallel()
+		metadata := fantasy.ProviderMetadata{
+			"openai": &testProviderData{
+				data: map[string]any{
+					"context_tokens_used": float64(64000),
 				},
 			},
 		}

@@ -1,4 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
+import { cn } from "#/utils/cn";
 export type BarColors = {
 	stroke: string;
 	fill: string;
@@ -30,7 +30,17 @@ export const Bar: React.FC<BarProps> = ({
 	offset,
 	...htmlProps
 }) => {
-	return <div css={barCSS({ colors, scale, value, offset })} {...htmlProps} />;
+	return (
+		<div
+			{...htmlProps}
+			className={cn(
+				"relative flex h-[inherit] min-w-6 rounded-lg border border-border bg-surface-primary p-[7px]",
+				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
+				htmlProps.className,
+			)}
+			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
+		/>
+	);
 };
 
 type ClickableBarProps = BaseBarProps<React.ComponentPropsWithRef<"button">>;
@@ -45,55 +55,31 @@ export const ClickableBar: React.FC<ClickableBarProps> = ({
 	return (
 		<button
 			type="button"
-			css={[...barCSS({ colors, scale, value, offset }), styles.clickable]}
 			{...htmlProps}
+			className={cn(
+				"relative flex h-inherit min-w-[34px] cursor-pointer rounded-lg border border-border bg-surface-primary p-[7px]",
+				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
+				"outline-none hover:border-content-link focus-visible:border-content-link active:border-content-link",
+				htmlProps.className,
+			)}
+			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
 		/>
 	);
 };
 
-const barCSS = ({ scale, value, colors, offset }: BaseBarProps<unknown>) => {
-	return [
-		styles.bar,
-		{
-			width: `calc((var(--x-axis-width) * ${value}) / ${scale})`,
-			backgroundColor: colors?.fill,
-			borderColor: colors?.stroke,
-			marginLeft: `calc((var(--x-axis-width) * ${offset}) / ${scale})`,
-		},
-	];
-};
-
-const styles = {
-	bar: (theme) => ({
-		border: "1px solid",
-		borderColor: theme.palette.divider,
-		backgroundColor: theme.palette.background.default,
-		borderRadius: 8,
-		// The bar should fill the row height.
-		height: "inherit",
-		display: "flex",
-		padding: 7,
-		minWidth: 24,
-		// Increase hover area
-		position: "relative",
-		"&::after": {
-			content: '""',
-			position: "absolute",
-			top: -2,
-			right: -8,
-			bottom: -2,
-			left: -8,
-		},
-	}),
-	clickable: (theme) => ({
-		cursor: "pointer",
-		// We need to make the bar width at least 34px to allow the "..." icons to be displayed.
-		// The calculation is border * 1 + side paddings * 2 + icon width (which is 18px)
-		minWidth: 34,
-
-		"&:focus, &:hover, &:active": {
-			outline: "none",
-			borderColor: theme.roles.active.outline,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+const barStyle = ({
+	scale,
+	value,
+	colors,
+	offset,
+	style,
+}: BaseBarProps<unknown> & {
+	style?: React.CSSProperties;
+}): React.CSSProperties => ({
+	width: `calc((var(--x-axis-width) * ${value}) / ${scale})`,
+	marginLeft: `calc((var(--x-axis-width) * ${offset}) / ${scale})`,
+	backgroundColor: colors?.fill,
+	borderColor: colors?.stroke,
+	borderStyle: "solid",
+	...style,
+});

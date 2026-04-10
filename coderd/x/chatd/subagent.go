@@ -4,19 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -166,22 +170,92 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				}
 
 				parent := currentChat()
-				targetChat, report, err := p.awaitSubagentCompletion(
-					ctx,
-					parent.ID,
-					targetChatID,
-					timeout,
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+
+				// Authorize: the target chat must be a descendant
+				// of the current (parent) chat.
+				isDescendant, descErr := isSubagentDescendant(ctx, p.db, parent.ID, targetChatID)
+				if descErr != nil {
+					return fantasy.NewTextErrorResponse(
+						fmt.Sprintf("failed to verify subagent relationship: %v", descErr)), nil
+				}
+				if !isDescendant {
+					return fantasy.NewTextErrorResponse(
+						"target chat is not a subagent of the current chat"), nil
 				}
 
-				return toolJSONResponse(map[string]any{
+				// Check if the target is a computer_use subagent
+				// and start a desktop recording. Failures are
+				// best-effort warnings — recording never blocks
+				// the wait_agent flow.
+				var recordingID string
+				var agentConn workspacesdk.AgentConn
+
+				targetChatInfo, lookupErr := p.db.GetChatByID(ctx, targetChatID)
+				if lookupErr != nil && !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for recording",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
+				}
+				isComputerUseChat := lookupErr == nil && targetChatInfo.Mode.Valid &&
+					targetChatInfo.Mode.ChatMode == database.ChatModeComputerUse &&
+					targetChatInfo.AgentID.Valid
+				canRecord := isComputerUseChat && p.agentConnFn != nil
+
+				if canRecord {
+					conn, closeFn, connErr := p.agentConnFn(ctx, targetChatInfo.AgentID.UUID)
+					if connErr == nil {
+						agentConn = conn
+						defer closeFn()
+
+						recordingID = targetChatID.String()
+						startErr := conn.StartDesktopRecording(ctx,
+							workspacesdk.StartDesktopRecordingRequest{RecordingID: recordingID})
+						if startErr != nil {
+							p.logger.Warn(ctx, "failed to start desktop recording",
+								slog.Error(startErr))
+							recordingID = "" // Don't try to stop.
+						}
+					} else {
+						p.logger.Warn(ctx, "failed to get agent conn for recording",
+							slog.Error(connErr))
+					}
+				}
+
+				targetChat, report, awaitErr := p.awaitSubagentCompletion(
+					ctx, parent.ID, targetChatID, timeout,
+				)
+
+				// On timeout/error, leave the recording running on
+				// the agent so the next wait_agent call continues
+				// it seamlessly.
+				if awaitErr != nil {
+					return fantasy.NewTextErrorResponse(awaitErr.Error()), nil
+				}
+
+				// Only stop and store the recording on success.
+				var recResult recordingResult
+				if recordingID != "" && agentConn != nil {
+					// Use a fresh context for cleanup so a canceled
+					// parent context doesn't prevent recording storage.
+					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
+					defer stopCancel()
+					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
+						recordingID, parent.OwnerID, parent.WorkspaceID)
+				}
+				resp := map[string]any{
 					"chat_id": targetChatID.String(),
 					"title":   targetChat.Title,
 					"report":  report,
 					"status":  string(targetChat.Status),
-				}), nil
+				}
+				if recResult.recordingFileID != "" {
+					resp["recording_file_id"] = recResult.recordingFileID
+				}
+				if recResult.thumbnailFileID != "" {
+					resp["thumbnail_file_id"] = recResult.thumbnailFileID
+				}
+				return toolJSONResponse(resp), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -288,48 +362,19 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				prompt := strings.TrimSpace(args.Prompt)
-				if prompt == "" {
-					return fantasy.NewTextErrorResponse("prompt is required"), nil
-				}
-
-				title := strings.TrimSpace(args.Title)
-				if title == "" {
-					title = subagentFallbackChatTitle(prompt)
-				}
-
-				rootChatID := parent.ID
-				if parent.RootChatID.Valid {
-					rootChatID = parent.RootChatID.UUID
-				}
-				if parent.LastModelConfigID == uuid.Nil {
-					return fantasy.NewTextErrorResponse("parent chat model config id is required"), nil
-				}
-
-				// Create the child chat with Mode set to
-				// computer_use. This signals runChat to use the
-				// predefined computer use model and include the
-				// computer tool.
-				childChat, err := p.CreateChat(ctx, CreateOptions{
-					OwnerID:     parent.OwnerID,
-					WorkspaceID: parent.WorkspaceID,
-					BuildID:     parent.BuildID,
-					AgentID:     parent.AgentID,
-					ParentChatID: uuid.NullUUID{
-						UUID:  parent.ID,
-						Valid: true,
+				childChat, err := p.createChildSubagentChatWithOptions(
+					ctx,
+					parent,
+					args.Prompt,
+					args.Title,
+					childSubagentChatOptions{
+						chatMode: database.NullChatMode{
+							ChatMode: database.ChatModeComputerUse,
+							Valid:    true,
+						},
+						systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(args.Prompt),
 					},
-					RootChatID: uuid.NullUUID{
-						UUID:  rootChatID,
-						Valid: true,
-					},
-					ModelConfigID:      parent.LastModelConfigID,
-					Title:              title,
-					ChatMode:           database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
-					SystemPrompt:       computerUseSubagentSystemPrompt + "\n\n" + prompt,
-					InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
-					MCPServerIDs:       parent.MCPServerIDs,
-				})
+				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
@@ -354,11 +399,26 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 	return chatID, nil
 }
 
+type childSubagentChatOptions struct {
+	chatMode     database.NullChatMode
+	systemPrompt string
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
 	prompt string,
 	title string,
+) (database.Chat, error) {
+	return p.createChildSubagentChatWithOptions(ctx, parent, prompt, title, childSubagentChatOptions{})
+}
+
+func (p *Server) createChildSubagentChatWithOptions(
+	ctx context.Context,
+	parent database.Chat,
+	prompt string,
+	title string,
+	opts childSubagentChatOptions,
 ) (database.Chat, error) {
 	if parent.ParentChatID.Valid {
 		return database.Chat{}, xerrors.New("delegated chats cannot create child subagents")
@@ -382,29 +442,249 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.New("parent chat model config id is required")
 	}
 
-	child, err := p.CreateChat(ctx, CreateOptions{
-		OwnerID:     parent.OwnerID,
-		WorkspaceID: parent.WorkspaceID,
-		BuildID:     parent.BuildID,
-		AgentID:     parent.AgentID,
-		ParentChatID: uuid.NullUUID{
-			UUID:  parent.ID,
-			Valid: true,
-		},
-		RootChatID: uuid.NullUUID{
-			UUID:  rootChatID,
-			Valid: true,
-		},
-		ModelConfigID:      parent.LastModelConfigID,
-		Title:              title,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
-		MCPServerIDs:       parent.MCPServerIDs,
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
+	mcpServerIDs := parent.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
 	}
 
+	labelsJSON, err := json.Marshal(database.StringMap{})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
+	}
+	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+
+	var child database.Chat
+	txErr := p.db.InTx(func(tx database.Store) error {
+		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID); limitErr != nil {
+			return limitErr
+		}
+
+		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           parent.OwnerID,
+			WorkspaceID:       parent.WorkspaceID,
+			BuildID:           parent.BuildID,
+			AgentID:           parent.AgentID,
+			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
+			LastModelConfigID: parent.LastModelConfigID,
+			Title:             title,
+			Mode:              opts.chatMode,
+			Status:            database.ChatStatusPending,
+			MCPServerIDs:      mcpServerIDs,
+			Labels: pqtype.NullRawMessage{
+				RawMessage: labelsJSON,
+				Valid:      true,
+			},
+			DynamicTools: pqtype.NullRawMessage{},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert child chat: %w", err)
+		}
+
+		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		if insertedChat.WorkspaceID.Valid {
+			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
+		}
+		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(workspaceAwareness),
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal workspace awareness: %w", err)
+		}
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return xerrors.Errorf("marshal initial user content: %w", err)
+		}
+
+		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: insertedChat.ID,
+		}
+		if deploymentPrompt != "" {
+			deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(deploymentPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal deployment system prompt: %w", err)
+			}
+			appendChatMessage(&systemParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				deploymentContent,
+				database.ChatMessageVisibilityModel,
+				parent.LastModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+		if childSystemPrompt != "" {
+			childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(childSystemPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal child system prompt: %w", err)
+			}
+			appendChatMessage(&systemParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				childSystemPromptContent,
+				database.ChatMessageVisibilityModel,
+				parent.LastModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+		appendChatMessage(&systemParams, newChatMessage(
+			database.ChatMessageRoleSystem,
+			workspaceAwarenessContent,
+			database.ChatMessageVisibilityModel,
+			parent.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+		))
+		if _, err := tx.InsertChatMessages(ctx, systemParams); err != nil {
+			return xerrors.Errorf("insert initial child system messages: %w", err)
+		}
+
+		child = insertedChat
+
+		// Copy persisted context before the initial child prompt so the
+		// child cannot be acquired until its inherited context is in
+		// place. signalWake runs only after commit.
+		copiedContextParts, err := copyParentContextMessages(ctx, p.logger, tx, parent, child)
+		if err != nil {
+			return xerrors.Errorf("copy parent context messages: %w", err)
+		}
+		if err := updateChildLastInjectedContext(ctx, p.logger, tx, child.ID, copiedContextParts); err != nil {
+			return xerrors.Errorf("update child injected context: %w", err)
+		}
+
+		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: insertedChat.ID,
+		}
+		appendChatMessage(&userParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			userContent,
+			database.ChatMessageVisibilityBoth,
+			parent.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCreatedBy(parent.OwnerID))
+		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
+			return xerrors.Errorf("insert initial child user message: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if txErr != nil {
+		return database.Chat{}, xerrors.Errorf("create child chat: %w", txErr)
+	}
+
+	p.publishChatPubsubEvent(child, coderdpubsub.ChatEventKindCreated, nil)
+	p.signalWake()
 	return child, nil
+}
+
+// copyParentContextMessages reads persisted context-file and skill
+// messages from the parent chat and inserts copies into the child
+// chat. This ensures sub-agents inherit the same instruction and
+// skill context as their parent without independently re-fetching
+// from the agent.
+func copyParentContextMessages(
+	ctx context.Context,
+	logger slog.Logger,
+	store database.Store,
+	parent database.Chat,
+	child database.Chat,
+) ([]codersdk.ChatMessagePart, error) {
+	parentMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  parent.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get parent messages: %w", err)
+	}
+
+	var (
+		copiedParts      []codersdk.ChatMessagePart
+		copiedRole       database.ChatMessageRole
+		copiedVisibility database.ChatMessageVisibility
+		copiedVersion    int16
+	)
+	for _, msg := range parentMessages {
+		if !msg.Content.Valid {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			logger.Warn(ctx, "failed to unmarshal parent context message",
+				slog.F("parent_chat_id", parent.ID),
+				slog.F("message_id", msg.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		messageContextParts := FilterContextParts(parts, true)
+		if len(messageContextParts) == 0 {
+			continue
+		}
+		if copiedParts == nil {
+			copiedRole = msg.Role
+			copiedVisibility = msg.Visibility
+			copiedVersion = msg.ContentVersion
+		}
+		copiedParts = append(copiedParts, messageContextParts...)
+	}
+	if len(copiedParts) == 0 {
+		return nil, nil
+	}
+
+	copiedParts = FilterContextPartsToLatestAgent(copiedParts)
+	filteredContent, err := chatprompt.MarshalParts(copiedParts)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
+	}
+
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: child.ID,
+	}
+	appendChatMessage(&msgParams, newChatMessage(
+		copiedRole,
+		filteredContent,
+		copiedVisibility,
+		child.LastModelConfigID,
+		copiedVersion,
+	))
+	if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
+		return nil, xerrors.Errorf("insert context message: %w", err)
+	}
+
+	return copiedParts, nil
+}
+
+func updateChildLastInjectedContext(
+	ctx context.Context,
+	logger slog.Logger,
+	store database.Store,
+	chatID uuid.UUID,
+	parts []codersdk.ChatMessagePart,
+) error {
+	parts = FilterContextPartsToLatestAgent(parts)
+	param, err := BuildLastInjectedContext(parts)
+	if err != nil {
+		logger.Warn(ctx, "failed to marshal inherited injected context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return xerrors.Errorf("marshal inherited injected context: %w", err)
+	}
+	if _, err := store.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
+		ID:                  chatID,
+		LastInjectedContext: param,
+	}); err != nil {
+		logger.Warn(ctx, "failed to update inherited injected context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return xerrors.Errorf("update inherited injected context: %w", err)
+	}
+
+	return nil
 }
 
 func (p *Server) sendSubagentMessage(

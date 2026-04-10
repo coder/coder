@@ -776,6 +776,12 @@ func defaultAIBridgeProvider(host string) string {
 		return aibridge.ProviderOpenAI
 	case HostCopilot:
 		return aibridge.ProviderCopilot
+	case agplaibridge.HostCopilotBusiness:
+		return agplaibridge.ProviderCopilotBusiness
+	case agplaibridge.HostCopilotEnterprise:
+		return agplaibridge.ProviderCopilotEnterprise
+	case agplaibridge.HostChatGPT:
+		return agplaibridge.ProviderChatGPT
 	default:
 		return ""
 	}

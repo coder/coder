@@ -1,4 +1,4 @@
-import { type FC, useMemo, useState } from "react";
+import { type FC, useEffectEvent, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -9,7 +9,6 @@ import { templates, templateVersionRoot } from "#/api/queries/templates";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePagination } from "#/hooks/usePagination";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -28,15 +27,14 @@ const ACTIVE_BUILDS_REFRESH_INTERVAL = 5_000;
 const NO_ACTIVE_BUILDS_REFRESH_INTERVAL = 30_000;
 
 function useSafeSearchParams() {
-	// Have to wrap setSearchParams because React Router doesn't make sure that
-	// the function's memory reference stays stable on each render, even though
-	// its logic never changes, and even though it has function update support
+	// Have to wrap setSearchParams because React Router doesn't guarantee
+	// a stable reference for setSearchParams across renders.
 	const [searchParams, setSearchParams] = useSearchParams();
-	const stableSetSearchParams = useEffectEvent(setSearchParams);
+	const setSearchParamsEvent = useEffectEvent(setSearchParams);
 
 	// Need this to be a tuple type, but can't use "as const", because that would
 	// make the whole array readonly and cause type mismatches downstream
-	return [searchParams, stableSetSearchParams] as ReturnType<
+	return [searchParams, setSearchParamsEvent] as ReturnType<
 		typeof useSearchParams
 	>;
 }

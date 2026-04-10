@@ -236,12 +236,9 @@ export const RightPanel = ({
 			className={cn(
 				visualExpanded
 					? "absolute inset-0 z-30 flex flex-col"
-					: cn(
-							"relative min-h-0 min-w-0",
-							visualOpen
-								? "flex h-full w-[100vw] min-w-0 flex-col border-0 border-solid border-border-default md:border-l md:w-[var(--panel-width)] md:min-w-[360px] md:max-w-[70vw]"
-								: "hidden",
-						),
+					: visualOpen
+						? "fixed inset-0 z-30 flex flex-col bg-surface-primary lg:relative lg:inset-auto lg:z-auto lg:h-full lg:min-h-0 lg:border-l lg:border-solid lg:border-border-default lg:w-[var(--panel-width)] lg:min-w-[360px] lg:max-w-[70vw]"
+						: "relative min-h-0 min-w-0 hidden",
 			)}
 		>
 			{/* Drag handle (sm+, on the left edge of the panel) */}
@@ -250,7 +247,7 @@ export const RightPanel = ({
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link md:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link lg:block",
 					visualExpanded && "-left-1",
 				)}
 			/>

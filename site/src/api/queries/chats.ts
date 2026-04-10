@@ -1,13 +1,18 @@
-import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import type {
+	InfiniteData,
+	QueryClient,
+	UseInfiniteQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
 	const sorted = workspaceIds.toSorted();
@@ -145,16 +150,55 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 };
 
 /**
- * Cancel in-flight refetches for sidebar chat-list queries.
- * Call this before writing WebSocket-driven cache updates so a
- * concurrent refetch (e.g. from createChat.onSuccess or the
- * watchChats onOpen handler) cannot overwrite the update with
- * stale server data that predates async title generation.
+ * Predicate that matches chat-list queries performing a regular
+ * refetch (window-focus, invalidation, mount) but not a
+ * fetchNextPage or fetchPreviousPage. During pagination fetches
+ * react-query sets fetchMeta.fetchMore.direction to "forward"
+ * or "backward"; regular refetches leave fetchMeta null.
+ *
+ * Also excludes queries that have never loaded data. Cancelling
+ * a first-ever fetch with revert:true leaves the query stuck in
+ * { status: 'pending', fetchStatus: 'idle', data: undefined }
+ * with no automatic recovery, so the sidebar shows skeletons
+ * forever until the user refocuses the window.
  */
-export const cancelChatListQueries = (queryClient: QueryClient) => {
+const isChatListRefetch = (query: {
+	queryKey: readonly unknown[];
+	state: { data: unknown; fetchMeta: unknown };
+}): boolean => {
+	if (!isChatListQuery(query)) return false;
+	// Never cancel the initial load. Reverting a first-ever
+	// fetch produces a stuck pending/idle state that react-query
+	// does not automatically recover from.
+	if (query.state.data === undefined) return false;
+	const meta = query.state.fetchMeta as {
+		fetchMore?: { direction?: string };
+	} | null;
+	if (meta?.fetchMore?.direction) return false;
+	return true;
+};
+
+/**
+ * Cancel in-flight background refetches for sidebar chat-list
+ * queries, but leave fetchNextPage / fetchPreviousPage fetches
+ * alone. Call this before writing WebSocket-driven cache
+ * updates so a concurrent refetch cannot overwrite the update
+ * with stale server data.
+ *
+ * Pagination fetches are intentionally excluded because
+ * cancelling them would prevent the sidebar from loading
+ * additional pages when WebSocket events arrive frequently.
+ *
+ * Mutation onMutate handlers should keep the broad
+ * isChatListQuery predicate instead: mutations are infrequent
+ * and must cancel pagination fetches to protect optimistic
+ * updates from being overwritten by the oldPages snapshot
+ * that fetchNextPage captured before the mutation.
+ */
+export const cancelChatListRefetches = (queryClient: QueryClient) => {
 	return queryClient.cancelQueries({
 		queryKey: chatsKey,
-		predicate: isChatListQuery,
+		predicate: isChatListRefetch,
 	});
 };
 
@@ -563,11 +607,65 @@ type EditChatMessageMutationArgs = {
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onSuccess: () => {
-		// Editing truncates all messages after the edited one on the
-		// server. The WebSocket can insert/update messages but cannot
-		// remove stale ones, so a full messages refetch is required.
-		// Use exact matching to avoid cascading to unrelated queries
+	onMutate: async ({ messageId }: EditChatMessageMutationArgs) => {
+		// Cancel in-flight refetches so they don't overwrite the
+		// optimistic update before the mutation completes.
+		await queryClient.cancelQueries({
+			queryKey: chatMessagesKey(chatId),
+			exact: true,
+		});
+
+		const previousData = queryClient.getQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse>
+		>(chatMessagesKey(chatId));
+
+		// Optimistically remove the edited message and everything
+		// after it. The server soft-deletes these and inserts a
+		// replacement with a new ID. Without this, the WebSocket
+		// handler's upsertCacheMessages adds new messages to the
+		// React Query cache without removing the soft-deleted ones,
+		// causing deleted messages to flash back into view until
+		// the full REST refetch resolves.
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatId), (current) => {
+			if (!current?.pages?.length) {
+				return current;
+			}
+			return {
+				...current,
+				pages: current.pages.map((page) => ({
+					...page,
+					messages: page.messages.filter((m) => m.id < messageId),
+				})),
+			};
+		});
+
+		return { previousData };
+	},
+	onError: (
+		_error: unknown,
+		_variables: EditChatMessageMutationArgs,
+		context:
+			| {
+					previousData?:
+						| InfiniteData<TypesGen.ChatMessagesResponse>
+						| undefined;
+			  }
+			| undefined,
+	) => {
+		// Restore the cache on failure so the user sees the
+		// original messages again.
+		if (context?.previousData) {
+			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+		}
+	},
+	onSettled: () => {
+		// Always reconcile with the server regardless of whether
+		// the mutation succeeded or failed. On success this picks
+		// up the replacement message; on failure it confirms the
+		// restore from onError matches the server state. Use exact
+		// matching to avoid cascading to unrelated queries
 		// (diff-status, diff-contents, cost summaries, etc.).
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
@@ -673,6 +771,22 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatRetentionDaysKey = ["chat-retention-days"] as const;
+
+export const chatRetentionDays = () => ({
+	queryKey: chatRetentionDaysKey,
+	queryFn: () => API.experimental.getChatRetentionDays(),
+});
+
+export const updateChatRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatRetentionDaysKey,
+		});
+	},
+});
+
 const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
 
 export const chatTemplateAllowlist = () => ({
@@ -764,6 +878,47 @@ export const chatModelConfigs = () => ({
 		API.experimental.getChatModelConfigs(),
 });
 
+export const userChatProviderConfigsKey = [
+	"user-chat-provider-configs",
+] as const;
+
+export const userChatProviderConfigs = () => ({
+	queryKey: userChatProviderConfigsKey,
+	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
+		API.experimental.getUserChatProviderConfigs(),
+});
+
+type UpsertUserChatProviderKeyArgs = {
+	providerConfigId: string;
+	req: TypesGen.CreateUserChatProviderKeyRequest;
+};
+
+export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
+		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.experimental.deleteUserChatProviderKey(providerConfigId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	await Promise.all([
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
@@ -838,12 +993,6 @@ type ChatCostDateParams = {
 	end_date?: string;
 };
 
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
 	[...chatsKey, "costSummary", user, params] as const;
 
@@ -853,14 +1002,33 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
-	[...chatsKey, "costUsers", params] as const;
+interface PaginatedChatCostUsersPayload {
+	username: string;
+	start_date: string;
+	end_date: string;
+}
 
-export const chatCostUsers = (params?: ChatCostUsersParams) => ({
-	queryKey: chatCostUsersKey(params),
-	queryFn: () => API.experimental.getChatCostUsers(params),
-	staleTime: 60_000,
-});
+export function paginatedChatCostUsers(
+	payload: PaginatedChatCostUsersPayload,
+): UsePaginatedQueryOptions<
+	TypesGen.ChatCostUsersResponse,
+	PaginatedChatCostUsersPayload
+> {
+	return {
+		queryPayload: () => payload,
+		queryKey: ({ payload, pageNumber }) =>
+			[...chatsKey, "costUsers", payload, pageNumber] as const,
+		queryFn: ({ payload, limit, offset }) =>
+			API.experimental.getChatCostUsers({
+				start_date: payload.start_date,
+				end_date: payload.end_date,
+				username: payload.username || undefined,
+				limit,
+				offset,
+			}),
+		staleTime: 60_000,
+	};
+}
 
 const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
 	[...chatsKey, "prInsights", params] as const;

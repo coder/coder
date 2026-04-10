@@ -321,9 +321,9 @@ export const TemplateInfoPopover: Story = {
 		const canvas = within(canvasElement);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(canvas.getByText(baseWorkspace.name));
+			await userEvent.click(canvas.getByText(baseWorkspace.name));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplate.display_name,
 				),
 			);
@@ -347,11 +347,9 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 		const canvas = within(canvasElement);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(canvas.getByText(baseWorkspace.name));
+			await userEvent.click(canvas.getByText(baseWorkspace.name));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					MockTemplate.name,
-				),
+				expect(screen.getByRole("dialog")).toHaveTextContent(MockTemplate.name),
 			);
 		});
 	},

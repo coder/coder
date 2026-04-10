@@ -66,7 +66,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
 		{
-			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			canDebug: Boolean(deployment?.config.enable_terraform_debug_mode),
 			isOwner: user.roles.some((role) => role.name === "owner"),
 		},
 	);
@@ -171,10 +171,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	};
 
 	return (
-		<div
-			css={{ display: "flex", alignItems: "center", gap: 8 }}
-			data-testid="workspace-actions"
-		>
+		<div className="flex items-center gap-2" data-testid="workspace-actions">
 			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
 			{isUpdating
 				? buttonMapping.updating

@@ -37,7 +37,7 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 			 *
 			 * @see {@link https://css-tricks.com/flexbox-truncated-text/}
 			 */}
-			<div css={{ marginRight: "auto", minWidth: 0 }}>
+			<div className="mr-auto min-w-0">
 				<h3
 					// Lets users hover over truncated text to see whole thing
 					title={header}

@@ -7,7 +7,6 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
-import { Language } from "./SecurityForm";
 import SecurityPage from "./SecurityPage";
 import * as SSO from "./SingleSignOnSection";
 
@@ -33,7 +32,7 @@ const fillAndSubmitSecurityForm = () => {
 	fireEvent.change(screen.getByLabelText("Confirm Password"), {
 		target: { value: newSecurityFormValues.confirm_password },
 	});
-	fireEvent.click(screen.getByText(Language.updatePassword));
+	fireEvent.click(screen.getByText("Update password"));
 };
 
 beforeEach(() => {

@@ -8,12 +8,12 @@ import type {
 } from "#/api/typesGenerated";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -52,8 +52,8 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 	variant = "warning",
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label={ariaLabel}>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild role="status" aria-label={ariaLabel}>
 				<TriangleAlertIcon
 					className={cn(
 						"relative size-3.5",
@@ -62,10 +62,10 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 							: "text-content-destructive",
 					)}
 				/>
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>{title}</HelpTooltipTitle>
-				<HelpTooltipText>
+			</HelpPopoverTrigger>
+			<HelpPopoverContent>
+				<HelpPopoverTitle>{title}</HelpPopoverTitle>
+				<HelpPopoverText>
 					{detail}
 					{troubleshootingURL && (
 						<>
@@ -75,9 +75,9 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 							</Link>
 						</>
 					)}
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+				</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
