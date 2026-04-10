@@ -250,6 +250,7 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
+	require.Equal(t, parentChat.OrganizationID, childChat.OrganizationID)
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)

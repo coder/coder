@@ -2136,6 +2136,15 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	// Gate queued-message promotion behind agents-access.
+	// Promoting a queued message triggers AI/LLM inference,
+	// same as sending a new message.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
 	if err != nil {
@@ -5852,6 +5861,15 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
+
+	// Gate tool-result submission behind agents-access.
+	// Submitting tool results resumes AI/LLM inference on
+	// a chat in requires_action state.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	// Cap the raw request body to prevent excessive memory use.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
