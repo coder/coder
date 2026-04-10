@@ -5,20 +5,19 @@ import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 import {
-	createModelConfig,
 	createModelProviderAttachments,
-	createProviderConfig,
+	createOpenAIModelConfig,
+	createOpenAIProviderConfig,
 	type StoryFixtureOptions,
 } from "./storyFixtures";
 
 const now = "2025-01-01T00:00:00Z";
 const storyFixtureOptions: StoryFixtureOptions = { now };
 
-const primaryProviderConfig = createProviderConfig(
+const primaryProviderConfig = createOpenAIProviderConfig(
+	"d889b26b-9d4e-4e1b-94de-d9a4f625bbf7",
+	"OpenAI Primary",
 	{
-		id: "d889b26b-9d4e-4e1b-94de-d9a4f625bbf7",
-		provider: "openai",
-		display_name: "OpenAI Primary",
 		has_api_key: true,
 		has_effective_api_key: true,
 		base_url: "https://api.openai.com/v1",
@@ -26,11 +25,10 @@ const primaryProviderConfig = createProviderConfig(
 	storyFixtureOptions,
 );
 
-const fallbackProviderConfig = createProviderConfig(
+const fallbackProviderConfig = createOpenAIProviderConfig(
+	"e03c44a3-91d0-4f08-8a95-14a0268cb2d5",
+	"OpenAI Fallback",
 	{
-		id: "e03c44a3-91d0-4f08-8a95-14a0268cb2d5",
-		provider: "openai",
-		display_name: "OpenAI Fallback",
 		has_api_key: true,
 		has_effective_api_key: true,
 		base_url: "https://fallback.openai.example.com/v1",
@@ -38,11 +36,10 @@ const fallbackProviderConfig = createProviderConfig(
 	storyFixtureOptions,
 );
 
-const sandboxProviderConfig = createProviderConfig(
+const sandboxProviderConfig = createOpenAIProviderConfig(
+	"a19ad8d4-35ad-4e47-8243-5f7f14cc57f8",
+	"OpenAI Sandbox",
 	{
-		id: "a19ad8d4-35ad-4e47-8243-5f7f14cc57f8",
-		provider: "openai",
-		display_name: "OpenAI Sandbox",
 		has_api_key: false,
 		has_effective_api_key: false,
 		allow_user_api_key: true,
@@ -69,11 +66,10 @@ const providerState: ProviderState = {
 	baseURL: primaryProviderConfig.base_url ?? "",
 };
 
-const baseModelConfig = createModelConfig(
+const baseModelConfig = createOpenAIModelConfig(
+	"f3f8f726-3a3f-4b85-bf5d-4ba4d427e5fe",
+	"gpt-4.1",
 	{
-		id: "f3f8f726-3a3f-4b85-bf5d-4ba4d427e5fe",
-		provider: "openai",
-		model: "gpt-4.1",
 		display_name: "GPT-4.1",
 		context_limit: 128000,
 		compression_threshold: 80,

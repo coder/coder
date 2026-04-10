@@ -2,6 +2,14 @@ import type * as TypesGen from "#/api/typesGenerated";
 
 const defaultNow = "2026-02-18T12:00:00.000Z";
 
+type ProviderConfigOverrides = Partial<
+	Omit<TypesGen.ChatProviderConfig, "id" | "provider" | "display_name">
+>;
+
+type ModelConfigOverrides = Partial<
+	Omit<TypesGen.ChatModelConfig, "id" | "provider" | "model">
+>;
+
 export type StoryFixtureOptions = {
 	now?: string;
 };
@@ -32,27 +40,54 @@ export const createProviderConfig = (
 	};
 };
 
+export const createOpenAIProviderConfig = (
+	id: string,
+	displayName: string,
+	overrides: ProviderConfigOverrides = {},
+	options: StoryFixtureOptions = {},
+): TypesGen.ChatProviderConfig =>
+	createProviderConfig(
+		{
+			id,
+			provider: "openai",
+			display_name: displayName,
+			...overrides,
+		},
+		options,
+	);
+
+export const createUserKeyOnlyProviderConfig = (
+	id: string,
+	provider: TypesGen.ChatProviderConfig["provider"],
+	displayName: string,
+	options: StoryFixtureOptions = {},
+): TypesGen.ChatProviderConfig =>
+	createProviderConfig(
+		{
+			id,
+			provider,
+			display_name: displayName,
+			has_api_key: false,
+			central_api_key_enabled: false,
+			allow_user_api_key: true,
+			allow_central_api_key_fallback: false,
+		},
+		options,
+	);
+
 export const createOpenAIProductionStagingPair = (
 	productionId: string,
 	stagingId: string,
 ): [TypesGen.ChatProviderConfig, TypesGen.ChatProviderConfig] => [
-	createProviderConfig({
-		id: productionId,
-		provider: "openai",
-		display_name: "OpenAI (Production)",
+	createOpenAIProviderConfig(productionId, "OpenAI (Production)", {
 		has_api_key: true,
 		has_effective_api_key: true,
 		base_url: "https://api.openai.com/v1",
-		source: "database",
 	}),
-	createProviderConfig({
-		id: stagingId,
-		provider: "openai",
-		display_name: "OpenAI (Staging)",
+	createOpenAIProviderConfig(stagingId, "OpenAI (Staging)", {
 		has_api_key: true,
 		has_effective_api_key: true,
 		base_url: "https://staging.openai.example.com/v1",
-		source: "database",
 	}),
 ];
 
@@ -111,3 +146,19 @@ export const createModelConfig = (
 		updated_at: overrides.updated_at ?? now,
 	};
 };
+
+export const createOpenAIModelConfig = (
+	id: string,
+	model: string,
+	overrides: ModelConfigOverrides = {},
+	options: StoryFixtureOptions = {},
+): TypesGen.ChatModelConfig =>
+	createModelConfig(
+		{
+			id,
+			provider: "openai",
+			model,
+			...overrides,
+		},
+		options,
+	);

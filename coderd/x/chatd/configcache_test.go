@@ -74,6 +74,17 @@ func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userI
 	return s.getUserChatCustomPrompt(ctx, userID)
 }
 
+func setupCache(t *testing.T, wait time.Duration) (context.Context, *quartz.Mock, *stubChatConfigStore, *chatConfigCache) {
+	t.Helper()
+	if wait == 0 {
+		wait = testutil.WaitShort
+	}
+	ctx := testutil.Context(t, wait)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{}
+	return ctx, clock, store, newChatConfigCache(ctx, store, clock)
+}
+
 func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
 	t.Parallel()
 
@@ -129,14 +140,11 @@ func TestConfigCache_EnabledProviders_PreservesAllProviders(t *testing.T) {
 func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	store := &stubChatConfigStore{}
+	ctx, clock, store, cache := setupCache(t, 0)
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		call := store.enabledProvidersCalls.Load()
 		return []database.ChatProvider{testChatProvider(fmt.Sprintf("provider-%d", call))}, nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -151,14 +159,11 @@ func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {
 func TestConfigCache_EnabledProviders_Invalidation(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	store := &stubChatConfigStore{}
+	ctx, _, store, cache := setupCache(t, 0)
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		call := store.enabledProvidersCalls.Load()
 		return []database.ChatProvider{testChatProvider(fmt.Sprintf("provider-%d", call))}, nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -199,17 +204,14 @@ func TestConfigCache_EnabledProviderByID_WarmCacheHit(t *testing.T) {
 func TestConfigCache_EnabledProviderByID_TTLExpiryRefreshesSliceAndIndex(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
+	ctx, clock, store, cache := setupCache(t, 0)
 	providerID := uuid.MustParse("00000000-0000-0000-0000-000000000021")
-	store := &stubChatConfigStore{}
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		call := store.enabledProvidersCalls.Load()
 		provider := testChatProvider(fmt.Sprintf("provider-%d", call))
 		provider.ID = providerID
 		return []database.ChatProvider{provider}, nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	firstProviders, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -231,17 +233,14 @@ func TestConfigCache_EnabledProviderByID_TTLExpiryRefreshesSliceAndIndex(t *test
 func TestConfigCache_EnabledProviderByID_InvalidationClearsSliceAndIndex(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
+	ctx, _, store, cache := setupCache(t, 0)
 	providerID := uuid.MustParse("00000000-0000-0000-0000-000000000031")
-	store := &stubChatConfigStore{}
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		call := store.enabledProvidersCalls.Load()
 		provider := testChatProvider(fmt.Sprintf("provider-%d", call))
 		provider.ID = providerID
 		return []database.ChatProvider{provider}, nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	firstProviders, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -569,15 +568,12 @@ func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
 func TestConfigCache_UserPrompt_ExpiredEntryRefetches(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
+	ctx, _, store, cache := setupCache(t, 0)
 	userID := uuid.New()
-	store := &stubChatConfigStore{}
 	store.getUserChatCustomPrompt = func(context.Context, uuid.UUID) (string, error) {
 		call := store.userPromptCalls.Load()
 		return fmt.Sprintf("prompt-%d", call), nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 	cache.userPrompts.Set(userID, "stale", -time.Second)
 
 	first, err := cache.UserPrompt(ctx, userID)
@@ -593,15 +589,12 @@ func TestConfigCache_UserPrompt_ExpiredEntryRefetches(t *testing.T) {
 func TestConfigCache_InvalidateUserPrompt(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
+	ctx, _, store, cache := setupCache(t, 0)
 	userID := uuid.New()
-	store := &stubChatConfigStore{}
 	store.getUserChatCustomPrompt = func(context.Context, uuid.UUID) (string, error) {
 		call := store.userPromptCalls.Load()
 		return fmt.Sprintf("prompt-%d", call), nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.UserPrompt(ctx, userID)
 	require.NoError(t, err)
@@ -651,19 +644,16 @@ func TestConfigCache_InvalidateUserPrompt_BlocksStaleInFlightPrompt(t *testing.T
 func TestConfigCache_Singleflight(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	clock := quartz.NewMock(t)
+	ctx, _, store, cache := setupCache(t, testutil.WaitMedium)
 	providers := []database.ChatProvider{testChatProvider("provider-a")}
 	fetchStarted := make(chan struct{})
 	releaseFetch := make(chan struct{})
 	var startedOnce sync.Once
-	store := &stubChatConfigStore{}
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		startedOnce.Do(func() { close(fetchStarted) })
 		<-releaseFetch
 		return providers, nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	const callers = 8
 	results := make([][]database.ChatProvider, callers)
@@ -694,14 +684,12 @@ func TestConfigCache_Singleflight(t *testing.T) {
 func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	clock := quartz.NewMock(t)
+	ctx, _, store, cache := setupCache(t, testutil.WaitMedium)
 	firstProviders := []database.ChatProvider{testChatProvider("provider-a")}
 	secondProviders := []database.ChatProvider{testChatProvider("provider-b")}
 	fetchStarted := make(chan struct{})
 	releaseFetch := make(chan struct{})
 	var startedOnce sync.Once
-	store := &stubChatConfigStore{}
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		call := store.enabledProvidersCalls.Load()
 		if call == 1 {
@@ -711,7 +699,6 @@ func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 		}
 		return secondProviders, nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	resultCh := make(chan []database.ChatProvider, 1)
 	errCh := make(chan error, 1)
@@ -781,15 +768,12 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightProviders(t *testing
 func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
+	ctx, _, store, cache := setupCache(t, 0)
 	configID := uuid.New()
-	store := &stubChatConfigStore{}
 	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 		call := store.modelConfigByIDCalls.Load()
 		return testChatModelConfig(configID, fmt.Sprintf("model-%d", call)), nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
@@ -804,14 +788,11 @@ func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
 func TestConfigCache_InvalidateProviders_CascadesToDefaultModelConfig(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	store := &stubChatConfigStore{}
+	ctx, _, store, cache := setupCache(t, 0)
 	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
 		call := store.defaultModelConfigCall.Load()
 		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.DefaultModelConfig(ctx)
 	require.NoError(t, err)

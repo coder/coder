@@ -194,6 +194,39 @@ func requireChatModelProviderAttachment(
 	require.True(t, attachment.HasAPIKey)
 }
 
+func requireModelInProvider(
+	t *testing.T,
+	provider *codersdk.ChatModelProvider,
+	modelProvider string,
+	model string,
+) {
+	t.Helper()
+	require.NotNil(t, provider)
+	for _, candidate := range provider.Models {
+		if candidate.Provider == modelProvider && candidate.Model == model {
+			return
+		}
+	}
+	require.Failf(
+		t,
+		"expected model in provider",
+		"expected %s/%s in provider %s",
+		modelProvider,
+		model,
+		provider.Provider,
+	)
+}
+
+func requireStoredModelBoundToProviderConfig(
+	t *testing.T,
+	stored database.ChatModelConfig,
+	providerConfigID uuid.UUID,
+) {
+	t.Helper()
+	require.True(t, stored.ProviderConfigID.Valid)
+	require.Equal(t, providerConfigID, stored.ProviderConfigID.UUID)
+}
+
 type failNextChatSystemPromptStore struct {
 	database.Store
 
@@ -1050,14 +1083,7 @@ func TestListChatModels(t *testing.T) {
 
 		openAIProvider := requireAvailableProvider(t, models.Providers, "openai")
 
-		foundModel := false
-		for _, model := range openAIProvider.Models {
-			if model.Provider == "openai" && model.Model == "gpt-4o-mini" {
-				foundModel = true
-				break
-			}
-		}
-		require.True(t, foundModel)
+		requireModelInProvider(t, openAIProvider, "openai", "gpt-4o-mini")
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
@@ -1069,20 +1095,6 @@ func TestListChatModels(t *testing.T) {
 		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		_, err := unauthenticatedClient.ListChatModels(ctx)
 		requireSDKError(t, err, http.StatusUnauthorized)
-	})
-
-	t.Run("CentralOnlyProviderAvailable", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
-
-		models, err := client.ListChatModels(ctx)
-		require.NoError(t, err)
-
-		requireAvailableProvider(t, models.Providers, "openai")
 	})
 
 	t.Run("UserOnlyProviderRequiresUserKey", func(t *testing.T) {
@@ -2629,8 +2641,7 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		storedBoundModel, err := store.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), boundModel.ID)
 		require.NoError(t, err)
-		require.True(t, storedBoundModel.ProviderConfigID.Valid)
-		require.Equal(t, providerConfig.ID, storedBoundModel.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, storedBoundModel, providerConfig.ID)
 
 		survivorModel, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:          "anthropic",
@@ -2814,16 +2825,14 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		storedModel, err := store.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, storedModel.ProviderConfigID.Valid)
-		require.Equal(t, primaryProviderConfig.ID, storedModel.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, storedModel, primaryProviderConfig.ID)
 
 		err = client.DeleteChatProvider(ctx, primaryProviderConfig.ID)
 		require.NoError(t, err)
 
 		updatedModel, err := store.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, updatedModel.ProviderConfigID.Valid)
-		require.Equal(t, fallbackProviderConfig.ID, updatedModel.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, updatedModel, fallbackProviderConfig.ID)
 
 		attachments, err := store.GetModelProviderConfigs(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
@@ -3866,8 +3875,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		stored, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, stored.ProviderConfigID.Valid)
-		require.Equal(t, providerConfig.ID, stored.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, stored, providerConfig.ID)
 		require.Len(t, modelConfig.ProviderConfigs, 1)
 		requireChatModelProviderAttachment(t, modelConfig.ProviderConfigs[0], providerConfig, 0)
 	})
@@ -3892,8 +3900,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		stored, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, stored.ProviderConfigID.Valid)
-		require.Equal(t, secondProviderConfig.ID, stored.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, stored, secondProviderConfig.ID)
 	})
 
 	t.Run("DuplicateProviderConfigIDs", func(t *testing.T) {
@@ -4291,8 +4298,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		stored, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, stored.ProviderConfigID.Valid)
-		require.Equal(t, secondProviderConfig.ID, stored.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, stored, secondProviderConfig.ID)
 
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
@@ -4331,8 +4337,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		stored, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, stored.ProviderConfigID.Valid)
-		require.Equal(t, secondProviderConfig.ID, stored.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, stored, secondProviderConfig.ID)
 	})
 
 	t.Run("UpdateDuplicateProviderConfigIDs", func(t *testing.T) {
@@ -4371,8 +4376,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		stored, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfig.ID)
 		require.NoError(t, err)
-		require.True(t, stored.ProviderConfigID.Valid)
-		require.Equal(t, providerConfig.ID, stored.ProviderConfigID.UUID)
+		requireStoredModelBoundToProviderConfig(t, stored, providerConfig.ID)
 	})
 
 	t.Run("UnrelatedUpdatesFailWhenBoundProviderConfigIsDisabled", func(t *testing.T) {

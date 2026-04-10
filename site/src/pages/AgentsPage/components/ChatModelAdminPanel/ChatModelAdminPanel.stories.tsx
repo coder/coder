@@ -12,8 +12,11 @@ import {
 	createModelConfig,
 	createModelProviderAttachment,
 	createModelProviderAttachments,
+	createOpenAIModelConfig,
 	createOpenAIProductionStagingPair,
+	createOpenAIProviderConfig,
 	createProviderConfig,
+	createUserKeyOnlyProviderConfig,
 } from "./storyFixtures";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -28,26 +31,20 @@ const emptyModelCatalogData = {
 type StoryBody = ReturnType<typeof within>;
 
 const googleUserOnlyProviderConfigID = "11111111-1111-1111-1111-111111111111";
-const googleUserOnlyProviderConfig = createProviderConfig({
-	id: googleUserOnlyProviderConfigID,
-	provider: "google",
-	display_name: "Google",
-	has_api_key: false,
-	central_api_key_enabled: false,
-	allow_user_api_key: true,
-	allow_central_api_key_fallback: false,
-	source: "database",
-});
+const googleUserOnlyProviderConfig = createUserKeyOnlyProviderConfig(
+	googleUserOnlyProviderConfigID,
+	"google",
+	"Google",
+);
 
-const providerWithUserKeysEnabledConfig = createProviderConfig({
-	id: "provider-openai-user-keys",
-	provider: "openai",
-	display_name: "OpenAI",
-	has_api_key: true,
-	central_api_key_enabled: true,
-	allow_user_api_key: true,
-	allow_central_api_key_fallback: false,
-});
+const providerWithUserKeysEnabledConfig = createOpenAIProviderConfig(
+	"provider-openai-user-keys",
+	"OpenAI",
+	{
+		has_api_key: true,
+		allow_user_api_key: true,
+	},
+);
 
 const providerWithCentralFallbackConfig = createProviderConfig({
 	id: "provider-openrouter-fallback",
@@ -59,22 +56,17 @@ const providerWithCentralFallbackConfig = createProviderConfig({
 	allow_central_api_key_fallback: true,
 });
 
-const providerApiKeyInputMaskedConfig = createProviderConfig({
-	id: "provider-openai-mask",
-	provider: "openai",
-	display_name: "OpenAI",
-	has_api_key: true,
-});
+const providerApiKeyInputMaskedConfig = createOpenAIProviderConfig(
+	"provider-openai-mask",
+	"OpenAI",
+	{ has_api_key: true },
+);
 
-const modelFormUserKeyOnlyProviderConfig = createProviderConfig({
-	id: "provider-google-user-only-models",
-	provider: "google",
-	display_name: "Google",
-	has_api_key: false,
-	central_api_key_enabled: false,
-	allow_user_api_key: true,
-	allow_central_api_key_fallback: false,
-});
+const modelFormUserKeyOnlyProviderConfig = createUserKeyOnlyProviderConfig(
+	"provider-google-user-only-models",
+	"google",
+	"Google",
+);
 
 const providerInvalidCredentialStateConfig = createProviderConfig({
 	id: "provider-bedrock-invalid",
@@ -86,13 +78,11 @@ const providerInvalidCredentialStateConfig = createProviderConfig({
 	allow_central_api_key_fallback: false,
 });
 
-const defaultOpenAIProviderConfig = createProviderConfig({
-	id: "provider-openai",
-	provider: "openai",
-	display_name: "OpenAI",
-	source: "database",
-	has_api_key: true,
-});
+const defaultOpenAIProviderConfig = createOpenAIProviderConfig(
+	"provider-openai",
+	"OpenAI",
+	{ has_api_key: true },
+);
 
 const [multiConfigProviderPrimary, multiConfigProviderStaging] =
 	createOpenAIProductionStagingPair("openai-config-1", "openai-config-2");
@@ -126,41 +116,45 @@ const createModelProviderAttachmentsFromIDs = (
 	});
 
 const multiAttachmentProviderConfigs = [
-	createProviderConfig({
-		id: "3f4f2e43-9c0b-4b22-a0cf-4f4f20f994f1",
-		provider: "openai",
-		display_name: "OpenAI Primary",
-		has_api_key: true,
-		has_effective_api_key: true,
-		base_url: "https://api.openai.com/v1",
-	}),
-	createProviderConfig({
-		id: "55ed7e92-fad1-4d2e-9bba-78d27af5c949",
-		provider: "openai",
-		display_name: "OpenAI Sandbox",
-		has_api_key: false,
-		has_effective_api_key: false,
-		allow_user_api_key: true,
-		base_url: "https://sandbox.openai.example.com/v1",
-	}),
-	createProviderConfig({
-		id: "8e12d651-7430-4eb9-b2d6-d80a6107b7fb",
-		provider: "openai",
-		display_name: "OpenAI Archive",
-		enabled: false,
-		has_api_key: false,
-		has_effective_api_key: false,
-		allow_user_api_key: true,
-		base_url: "https://archive.openai.example.com/v1",
-	}),
-	createProviderConfig({
-		id: "9d0b27c9-4637-4e8f-8dcb-2bd1fb4e6c1f",
-		provider: "openai",
-		display_name: "OpenAI Disaster Recovery",
-		has_api_key: true,
-		has_effective_api_key: true,
-		base_url: "https://dr.openai.example.com/v1",
-	}),
+	createOpenAIProviderConfig(
+		"3f4f2e43-9c0b-4b22-a0cf-4f4f20f994f1",
+		"OpenAI Primary",
+		{
+			has_api_key: true,
+			has_effective_api_key: true,
+			base_url: "https://api.openai.com/v1",
+		},
+	),
+	createOpenAIProviderConfig(
+		"55ed7e92-fad1-4d2e-9bba-78d27af5c949",
+		"OpenAI Sandbox",
+		{
+			has_api_key: false,
+			has_effective_api_key: false,
+			allow_user_api_key: true,
+			base_url: "https://sandbox.openai.example.com/v1",
+		},
+	),
+	createOpenAIProviderConfig(
+		"8e12d651-7430-4eb9-b2d6-d80a6107b7fb",
+		"OpenAI Archive",
+		{
+			enabled: false,
+			has_api_key: false,
+			has_effective_api_key: false,
+			allow_user_api_key: true,
+			base_url: "https://archive.openai.example.com/v1",
+		},
+	),
+	createOpenAIProviderConfig(
+		"9d0b27c9-4637-4e8f-8dcb-2bd1fb4e6c1f",
+		"OpenAI Disaster Recovery",
+		{
+			has_api_key: true,
+			has_effective_api_key: true,
+			base_url: "https://dr.openai.example.com/v1",
+		},
+	),
 ];
 
 const [
@@ -169,19 +163,20 @@ const [
 	multiAttachmentArchiveProviderConfig,
 ] = multiAttachmentProviderConfigs;
 
-const multiAttachmentModelConfig = createModelConfig({
-	id: "6d447897-7a60-4209-9dfa-46f726726d46",
-	provider: "openai",
-	provider_configs: createModelProviderAttachments([
-		multiAttachmentSandboxProviderConfig,
-		multiAttachmentPrimaryProviderConfig,
-		multiAttachmentArchiveProviderConfig,
-	]),
-	model: "gpt-4.1",
-	display_name: "GPT-4.1 Router",
-	enabled: true,
-	context_limit: 128000,
-});
+const multiAttachmentModelConfig = createOpenAIModelConfig(
+	"6d447897-7a60-4209-9dfa-46f726726d46",
+	"gpt-4.1",
+	{
+		provider_configs: createModelProviderAttachments([
+			multiAttachmentSandboxProviderConfig,
+			multiAttachmentPrimaryProviderConfig,
+			multiAttachmentArchiveProviderConfig,
+		]),
+		display_name: "GPT-4.1 Router",
+		enabled: true,
+		context_limit: 128000,
+	},
+);
 
 type ChatModelAdminPanelStoryProps = ComponentProps<typeof ChatModelAdminPanel>;
 
@@ -496,10 +491,7 @@ export const EnvPresetProviders: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
 		providerConfigsData: [
-			createProviderConfig({
-				id: nilProviderConfigID,
-				provider: "openai",
-				display_name: "OpenAI",
+			createOpenAIProviderConfig(nilProviderConfigID, "OpenAI", {
 				has_api_key: true,
 				source: "env_preset",
 				enabled: true,
@@ -570,13 +562,10 @@ export const MultiConfigProvider: Story = {
 			multiConfigProviderStaging,
 		],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-gpt4-staging",
-				provider: "openai",
+			createOpenAIModelConfig("model-gpt4-staging", "gpt-4.1", {
 				provider_configs: [
 					createModelProviderAttachment(multiConfigProviderStaging.id),
 				],
-				model: "gpt-4.1",
 				display_name: "GPT-4.1 (Staging)",
 				enabled: true,
 				context_limit: 128000,
@@ -602,13 +591,10 @@ export const MultiConfigModelBinding: Story = {
 			multiConfigModelBindingStaging,
 		],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-gpt4-staging",
-				provider: "openai",
+			createOpenAIModelConfig("model-gpt4-staging", "gpt-4.1", {
 				provider_configs: [
 					createModelProviderAttachment(multiConfigModelBindingStaging.id),
 				],
-				model: "gpt-4.1",
 				display_name: "GPT-4.1 (Staging)",
 				enabled: true,
 				context_limit: 128000,
@@ -989,18 +975,14 @@ export const ProviderNewConfigUsesCreateMode: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
 		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai-primary",
-				provider: "openai",
-				display_name: "OpenAI Primary",
+			createOpenAIProviderConfig("provider-openai-primary", "OpenAI Primary", {
 				has_api_key: true,
 			}),
-			createProviderConfig({
-				id: "provider-openai-secondary",
-				provider: "openai",
-				display_name: "OpenAI Secondary",
-				has_api_key: true,
-			}),
+			createOpenAIProviderConfig(
+				"provider-openai-secondary",
+				"OpenAI Secondary",
+				{ has_api_key: true },
+			),
 		],
 		modelCatalogData: { providers: [] },
 	},
@@ -1034,13 +1016,9 @@ export const ModelFormAllowsEffectiveProviderKeys: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai-effective-key",
-				provider: "openai",
-				display_name: "OpenAI",
+			createOpenAIProviderConfig("provider-openai-effective-key", "OpenAI", {
 				has_api_key: false,
 				has_effective_api_key: true,
-				central_api_key_enabled: true,
 			}),
 		],
 		modelCatalogData: { providers: [] },
@@ -1261,17 +1239,13 @@ export const UpdateModelEnabledToggle: Story = {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-enabled",
-				provider: "openai",
+			createOpenAIModelConfig("model-enabled", "gpt-test-enabled", {
 				provider_configs: [
 					createModelProviderAttachment("provider-openai", {
-						provider: "openai",
 						display_name: "OpenAI",
 						has_api_key: true,
 					}),
 				],
-				model: "gpt-test-enabled",
 				display_name: "GPT Test Enabled",
 				enabled: true,
 			}),
@@ -1440,10 +1414,7 @@ export const ModelPricingWarningInList: Story = {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-warning",
-				provider: "openai",
-				model: "gpt-4.1",
+			createOpenAIModelConfig("model-warning", "gpt-4.1", {
 				display_name: "GPT-4.1",
 			}),
 		],
@@ -1462,10 +1433,7 @@ export const ModelDeleteConfirmation: Story = {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-1",
-				provider: "openai",
-				model: "gpt-4o",
+			createOpenAIModelConfig("model-1", "gpt-4o", {
 				display_name: "GPT-4o",
 			}),
 		],
@@ -1503,10 +1471,7 @@ export const ModelDeleteCancelled: Story = {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-1",
-				provider: "openai",
-				model: "gpt-4o",
+			createOpenAIModelConfig("model-1", "gpt-4o", {
 				display_name: "GPT-4o",
 			}),
 		],
@@ -1536,10 +1501,7 @@ export const ModelDeleteConfirmed: Story = {
 		section: "models" as ChatModelAdminSection,
 		providerConfigsData: [defaultOpenAIProviderConfig],
 		modelConfigsData: [
-			createModelConfig({
-				id: "model-1",
-				provider: "openai",
-				model: "gpt-4o",
+			createOpenAIModelConfig("model-1", "gpt-4o", {
 				display_name: "GPT-4o",
 			}),
 		],

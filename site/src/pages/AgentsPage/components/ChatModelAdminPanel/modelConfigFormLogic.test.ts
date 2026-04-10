@@ -9,6 +9,7 @@ import {
 	parsePositiveInteger,
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
+import { createModelProviderAttachment } from "./storyFixtures";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -134,29 +135,6 @@ const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	updated_at: "2025-01-01T00:00:00Z",
 };
 
-const providerAttachment = (
-	overrides: Partial<TypesGen.ChatModelProviderAttachment>,
-): TypesGen.ChatModelProviderAttachment => ({
-	id:
-		overrides.id ?? `attachment-${overrides.provider_config_id ?? "config-a"}`,
-	provider_config_id: overrides.provider_config_id ?? "config-a",
-	provider: overrides.provider ?? "openai",
-	priority: overrides.priority ?? 0,
-	display_name: overrides.display_name ?? "Test config",
-	enabled: overrides.enabled ?? true,
-	has_api_key: overrides.has_api_key ?? true,
-});
-
-const attachments = (
-	...configs: readonly (readonly [
-		provider_config_id: string,
-		priority: number,
-	])[]
-): TypesGen.ChatModelProviderAttachment[] =>
-	configs.map(([provider_config_id, priority]) =>
-		providerAttachment({ provider_config_id, priority }),
-	);
-
 const expectProviderConfigIds = (
 	provider_configs: readonly TypesGen.ChatModelProviderAttachment[] | undefined,
 	expected: string[],
@@ -186,18 +164,29 @@ describe("buildInitialModelFormValues", () => {
 	});
 
 	it("returns a single providerConfigId when editing a model with one attachment", () => {
-		expectProviderConfigIds(attachments(["config-a", 0]), ["config-a"]);
+		expectProviderConfigIds(
+			[createModelProviderAttachment("config-a")],
+			["config-a"],
+		);
 	});
 
 	it.each([
 		[
 			"sorts providerConfigIds by ascending attachment priority",
-			attachments(["config-c", 2], ["config-a", 0], ["config-b", 1]),
+			[
+				createModelProviderAttachment("config-c", { priority: 2 }),
+				createModelProviderAttachment("config-a", { priority: 0 }),
+				createModelProviderAttachment("config-b", { priority: 1 }),
+			],
 			["config-a", "config-b", "config-c"],
 		],
 		[
 			"preserves source order for attachments with equal priorities",
-			attachments(["config-b", 1], ["config-a", 1], ["config-c", 2]),
+			[
+				createModelProviderAttachment("config-b", { priority: 1 }),
+				createModelProviderAttachment("config-a", { priority: 1 }),
+				createModelProviderAttachment("config-c", { priority: 2 }),
+			],
 			["config-b", "config-a", "config-c"],
 		],
 	])("%s", (_description, provider_configs, expected) => {
@@ -224,11 +213,11 @@ describe("buildInitialModelFormValues", () => {
 				max_output_tokens: 4096,
 				temperature: 0.7,
 			},
-			provider_configs: attachments(
-				["config-c", 2],
-				["config-a", 0],
-				["config-b", 1],
-			),
+			provider_configs: [
+				createModelProviderAttachment("config-c", { priority: 2 }),
+				createModelProviderAttachment("config-a", { priority: 0 }),
+				createModelProviderAttachment("config-b", { priority: 1 }),
+			],
 		});
 
 		expect(result).toMatchObject({

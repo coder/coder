@@ -8,7 +8,7 @@ import {
 	PencilIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -123,6 +123,46 @@ const AttachmentActions: FC<{
 			</Button>
 		))}
 	</span>
+);
+
+type ExpandableSectionProps = {
+	title: string;
+	description: string;
+	expanded: boolean;
+	onToggle: () => void;
+	children: ReactNode;
+	contentClassName?: string;
+};
+
+const ExpandableSection: FC<ExpandableSectionProps> = ({
+	title,
+	description,
+	expanded,
+	onToggle,
+	children,
+	contentClassName,
+}) => (
+	<div className="border-0 border-t border-solid border-border pt-4">
+		<button
+			type="button"
+			onClick={onToggle}
+			aria-expanded={expanded}
+			className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+		>
+			<div>
+				<h3 className="m-0 text-sm font-medium text-content-primary">
+					{title}
+				</h3>
+				<p className="m-0 text-xs text-content-secondary">{description}</p>
+			</div>
+			{expanded ? (
+				<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+			) : (
+				<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+			)}
+		</button>
+		{expanded && <div className={cn("pt-3", contentClassName)}>{children}</div>}
+	</div>
 );
 interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
@@ -687,150 +727,92 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 
-					{/* Usage Tracking */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowPricing((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Cost Tracking{" "}
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Set per-token pricing so Coder can track costs and enforce
-									spending limits.
-								</p>
-							</div>
-							{showPricing ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showPricing && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
-								<PricingModelConfigFields
-									provider={selectedProviderState.provider}
-									form={form}
-									fieldErrors={modelConfigFormBuildResult.fieldErrors}
-									disabled={isSaving}
-								/>
-							</div>
-						)}
-					</div>
+					<ExpandableSection
+						title="Cost Tracking"
+						description="Set per-token pricing so Coder can track costs and enforce spending limits."
+						expanded={showPricing}
+						onToggle={() => setShowPricing((v) => !v)}
+						contentClassName="grid grid-cols-2 gap-3 sm:grid-cols-4"
+					>
+						<PricingModelConfigFields
+							provider={selectedProviderState.provider}
+							form={form}
+							fieldErrors={modelConfigFormBuildResult.fieldErrors}
+							disabled={isSaving}
+						/>
+					</ExpandableSection>
 
-					{/* Provider Configuration */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowProviderConfig((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Provider Configuration
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Tune provider-specific behavior like reasoning, tool calling,
-									and web search.
-								</p>
-							</div>
-							{showProviderConfig ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showProviderConfig && (
-							<div className="pt-3">
-								<ModelConfigFields
-									provider={selectedProviderState.provider}
-									form={form}
-									fieldErrors={modelConfigFormBuildResult.fieldErrors}
-									disabled={isSaving}
-								/>
-							</div>
-						)}
-					</div>
+					<ExpandableSection
+						title="Provider Configuration"
+						description="Tune provider-specific behavior like reasoning, tool calling, and web search."
+						expanded={showProviderConfig}
+						onToggle={() => setShowProviderConfig((v) => !v)}
+					>
+						<ModelConfigFields
+							provider={selectedProviderState.provider}
+							form={form}
+							fieldErrors={modelConfigFormBuildResult.fieldErrors}
+							disabled={isSaving}
+						/>
+					</ExpandableSection>
 
-					{/* Advanced */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowAdvanced((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Advanced
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Low-level parameters like temperature and penalties. Rarely
-									need changing.
-								</p>
-							</div>
-							{showAdvanced ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showAdvanced && (
-							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
-								<GeneralModelConfigFields
-									provider={selectedProviderState.provider}
-									form={form}
-									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+					<ExpandableSection
+						title="Advanced"
+						description="Low-level parameters like temperature and penalties. Rarely need changing."
+						expanded={showAdvanced}
+						onToggle={() => setShowAdvanced((v) => !v)}
+						contentClassName="grid grid-cols-2 gap-3 sm:grid-cols-3"
+					>
+						<GeneralModelConfigFields
+							provider={selectedProviderState.provider}
+							form={form}
+							fieldErrors={modelConfigFormBuildResult.fieldErrors}
+							disabled={isSaving}
+						/>
+						<div className="flex min-w-0 flex-col gap-1.5">
+							<Label
+								htmlFor={compressionThresholdField.id}
+								className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+							>
+								Compression Threshold
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<InfoIcon className="h-3 w-3 text-content-secondary" />
+									</TooltipTrigger>
+									<TooltipContent side="top" className="max-w-[240px]">
+										Percentage at which context is compressed.
+									</TooltipContent>
+								</Tooltip>
+							</Label>
+							<InputGroup
+								className={cn(
+									"h-9",
+									compressionThresholdField.error &&
+										"border-border-destructive",
+								)}
+							>
+								<InputGroupInput
+									id={compressionThresholdField.id}
+									name={compressionThresholdField.name}
+									className="h-9 text-[13px] placeholder:text-content-disabled"
+									placeholder="70"
+									value={compressionThresholdField.value}
+									onChange={compressionThresholdField.onChange}
+									onBlur={compressionThresholdField.onBlur}
 									disabled={isSaving}
+									aria-invalid={compressionThresholdField.error}
 								/>
-								<div className="flex min-w-0 flex-col gap-1.5">
-									<Label
-										htmlFor={compressionThresholdField.id}
-										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
-									>
-										Compression Threshold
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<InfoIcon className="h-3 w-3 text-content-secondary" />
-											</TooltipTrigger>
-											<TooltipContent side="top" className="max-w-[240px]">
-												Percentage at which context is compressed.
-											</TooltipContent>
-										</Tooltip>
-									</Label>
-									<InputGroup
-										className={cn(
-											"h-9",
-											compressionThresholdField.error &&
-												"border-border-destructive",
-										)}
-									>
-										<InputGroupInput
-											id={compressionThresholdField.id}
-											name={compressionThresholdField.name}
-											className="h-9 text-[13px] placeholder:text-content-disabled"
-											placeholder="70"
-											value={compressionThresholdField.value}
-											onChange={compressionThresholdField.onChange}
-											onBlur={compressionThresholdField.onBlur}
-											disabled={isSaving}
-											aria-invalid={compressionThresholdField.error}
-										/>
-										<InputGroupAddon align="inline-end">
-											<span className="text-xs text-content-disabled">%</span>
-										</InputGroupAddon>
-									</InputGroup>
-									{compressionThresholdField.error && (
-										<p className="m-0 text-xs text-content-destructive">
-											{compressionThresholdField.helperText}
-										</p>
-									)}
-								</div>
-							</div>
-						)}
-					</div>
+								<InputGroupAddon align="inline-end">
+									<span className="text-xs text-content-disabled">%</span>
+								</InputGroupAddon>
+							</InputGroup>
+							{compressionThresholdField.error && (
+								<p className="m-0 text-xs text-content-destructive">
+									{compressionThresholdField.helperText}
+								</p>
+							)}
+						</div>
+					</ExpandableSection>
 				</div>
 				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
