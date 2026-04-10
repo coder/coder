@@ -4292,6 +4292,20 @@ export interface MatchedProvisioners {
  */
 export const MaxChatFileIDs = 20;
 
+// From codersdk/usersecretvalidation.go
+/**
+ * MaxSecretValueSize is the maximum size of a user secret value
+ * in bytes. This limit applies uniformly to both env var and
+ * file-destined secrets because the value field is shared and
+ * the destination can change after creation. 32KB is generous
+ * for env vars (most are under 1KB) but necessary for file
+ * content like SSH keys, TLS certificate chains, and JSON
+ * configs. We are not trying to be overly restrictive here;
+ * users can use the full 32KB for env var values even though
+ * it would be unusual.
+ */
+export const MaxSecretValueSize = 32768; // 32KB
+
 // From codersdk/organizations.go
 export interface MinimalOrganization {
 	readonly id: string;
