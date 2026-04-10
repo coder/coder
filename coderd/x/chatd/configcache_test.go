@@ -374,179 +374,139 @@ type modelAttachmentSpec struct {
 }
 
 type modelAttachmentsTestScenario struct {
-	ctx               context.Context
-	clock             *quartz.Mock
-	modelID           uuid.UUID
-	store             *stubChatConfigStore
-	cache             *chatConfigCache
-	firstAttachments  []database.GetModelProviderConfigsRow
-	secondAttachments []database.GetModelProviderConfigsRow
+	ctx         context.Context
+	clock       *quartz.Mock
+	modelID     uuid.UUID
+	store       *stubChatConfigStore
+	cache       *chatConfigCache
+	attachments [][]database.GetModelProviderConfigsRow
+	blocked     []blockedCall[[]database.GetModelProviderConfigsRow]
 }
 
-func buildModelAttachments(modelID uuid.UUID, specs []modelAttachmentSpec) []database.GetModelProviderConfigsRow {
-	attachments := make([]database.GetModelProviderConfigsRow, 0, len(specs))
-	for _, spec := range specs {
-		providerConfigID := uuid.New()
-		if spec.id != "" {
-			providerConfigID = uuid.MustParse(spec.id)
-		}
-		attachments = append(attachments, testModelAttachment(modelID, providerConfigID, spec.provider, spec.priority))
-	}
-	return attachments
+func singleModelAttachment(id, provider string) []modelAttachmentSpec {
+	return []modelAttachmentSpec{{id: id, provider: provider}}
 }
 
-func newModelAttachmentsTestScenario(t *testing.T, firstSpecs, secondSpecs []modelAttachmentSpec) modelAttachmentsTestScenario {
+func newModelAttachmentsTestScenario(t *testing.T, wait time.Duration, prepare func(*modelAttachmentsTestScenario), sets ...[]modelAttachmentSpec) modelAttachmentsTestScenario {
 	t.Helper()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	modelID := uuid.New()
-	firstAttachments := buildModelAttachments(modelID, firstSpecs)
-	secondAttachments := buildModelAttachments(modelID, secondSpecs)
-	if secondSpecs == nil {
-		secondAttachments = firstAttachments
+	if wait == 0 {
+		wait = testutil.WaitShort
 	}
-
-	scenario := modelAttachmentsTestScenario{
-		ctx:               ctx,
-		clock:             clock,
-		modelID:           modelID,
-		firstAttachments:  firstAttachments,
-		secondAttachments: secondAttachments,
+	scenario := modelAttachmentsTestScenario{ctx: testutil.Context(t, wait), clock: quartz.NewMock(t), modelID: uuid.New()}
+	for _, specs := range sets {
+		attachments := make([]database.GetModelProviderConfigsRow, 0, len(specs))
+		for _, spec := range specs {
+			providerConfigID := uuid.New()
+			if spec.id != "" {
+				providerConfigID = uuid.MustParse(spec.id)
+			}
+			attachments = append(attachments, testModelAttachment(scenario.modelID, providerConfigID, spec.provider, spec.priority))
+		}
+		scenario.attachments = append(scenario.attachments, attachments)
+	}
+	require.NotEmpty(t, scenario.attachments)
+	if prepare != nil {
+		prepare(&scenario)
 	}
 	scenario.store = &stubChatConfigStore{}
 	scenario.store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
-		if scenario.store.modelProviderConfigsCalls.Load() == 1 {
-			return scenario.firstAttachments, nil
+		call := int(scenario.store.modelProviderConfigsCalls.Load()) - 1
+		if len(scenario.blocked) > 0 && call > 0 {
+			if call > len(scenario.blocked) {
+				return nil, xerrors.Errorf("unexpected model attachment call %d", call+1)
+			}
+			fetch := scenario.blocked[call-1]
+			close(fetch.started)
+			<-fetch.release
+			return fetch.value, nil
 		}
-		return scenario.secondAttachments, nil
+		if call >= len(scenario.attachments) {
+			call = len(scenario.attachments) - 1
+		}
+		return scenario.attachments[call], nil
 	}
-	scenario.cache = newChatConfigCache(ctx, scenario.store, clock)
+	scenario.cache = newChatConfigCache(scenario.ctx, scenario.store, scenario.clock)
 	return scenario
 }
 
 func TestConfigCache_ModelAttachments(t *testing.T) {
 	t.Parallel()
-
-	const (
-		modelAttachmentsActionNone = ""
-		modelAttachmentsActionTTL  = "ttl"
-		modelAttachmentsActionCfg  = "invalidateModelConfig"
-		modelAttachmentsActionProv = "invalidateProviders"
-	)
-
+	assertInvalidated := func(t *testing.T, scenario modelAttachmentsTestScenario) {
+		_, ok := scenario.cache.modelAttachments[scenario.modelID]
+		require.False(t, ok)
+		require.Equal(t, uint64(1), scenario.cache.modelAttachmentEpoch)
+	}
 	tests := []struct {
-		name       string
-		first      []modelAttachmentSpec
-		second     []modelAttachmentSpec
-		action     string
-		wantEpoch  uint64
-		storeCalls int32
+		name      string
+		sets      [][]modelAttachmentSpec
+		before    func(*testing.T, modelAttachmentsTestScenario)
+		wantCalls int32
 	}{
+		{name: "CacheHit", sets: [][]modelAttachmentSpec{{{provider: "openai"}, {provider: "anthropic", priority: 1}}}, wantCalls: 1},
 		{
-			name:       "CacheHit",
-			first:      []modelAttachmentSpec{{provider: "openai"}, {provider: "anthropic", priority: 1}},
-			action:     modelAttachmentsActionNone,
-			storeCalls: 1,
+			name: "TTLExpiry", sets: [][]modelAttachmentSpec{singleModelAttachment("00000000-0000-0000-0000-000000000051", "openai"), singleModelAttachment("00000000-0000-0000-0000-000000000052", "anthropic")}, wantCalls: 2,
+			before: func(t *testing.T, scenario modelAttachmentsTestScenario) {
+				scenario.clock.Advance(chatConfigModelConfigTTL).MustWait(scenario.ctx)
+			},
 		},
 		{
-			name:       "TTLExpiry",
-			first:      []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000051", provider: "openai"}},
-			second:     []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000052", provider: "anthropic"}},
-			action:     modelAttachmentsActionTTL,
-			storeCalls: 2,
+			name: "InvalidateModelConfig_ClearsAttachments", sets: [][]modelAttachmentSpec{singleModelAttachment("00000000-0000-0000-0000-000000000061", "openai"), singleModelAttachment("00000000-0000-0000-0000-000000000062", "openrouter")}, wantCalls: 2,
+			before: func(t *testing.T, scenario modelAttachmentsTestScenario) {
+				scenario.cache.InvalidateModelConfig(scenario.modelID)
+				assertInvalidated(t, scenario)
+			},
 		},
 		{
-			name:       "InvalidateModelConfig_ClearsAttachments",
-			first:      []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000061", provider: "openai"}},
-			second:     []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000062", provider: "openrouter"}},
-			action:     modelAttachmentsActionCfg,
-			wantEpoch:  1,
-			storeCalls: 2,
-		},
-		{
-			name:       "InvalidateProviders_ClearsAttachments",
-			first:      []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000071", provider: "openai"}},
-			second:     []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000072", provider: "google"}},
-			action:     modelAttachmentsActionProv,
-			storeCalls: 2,
+			name: "InvalidateProviders_ClearsAttachments", sets: [][]modelAttachmentSpec{singleModelAttachment("00000000-0000-0000-0000-000000000071", "openai"), singleModelAttachment("00000000-0000-0000-0000-000000000072", "google")}, wantCalls: 2,
+			before: func(t *testing.T, scenario modelAttachmentsTestScenario) {
+				scenario.cache.InvalidateProviders()
+				assertInvalidated(t, scenario)
+			},
 		},
 	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			scenario := newModelAttachmentsTestScenario(t, tc.first, tc.second)
+			scenario := newModelAttachmentsTestScenario(t, 0, nil, tt.sets...)
 			first, err := scenario.cache.ModelAttachments(scenario.ctx, scenario.modelID)
 			require.NoError(t, err)
-
-			switch tc.action {
-			case modelAttachmentsActionTTL:
-				scenario.clock.Advance(chatConfigModelConfigTTL).MustWait(scenario.ctx)
-			case modelAttachmentsActionCfg:
-				scenario.cache.InvalidateModelConfig(scenario.modelID)
-				_, ok := scenario.cache.modelAttachments[scenario.modelID]
-				require.False(t, ok)
-				require.Equal(t, tc.wantEpoch, scenario.cache.modelAttachmentEpoch)
-			case modelAttachmentsActionProv:
-				scenario.cache.InvalidateProviders()
-				_, ok := scenario.cache.modelAttachments[scenario.modelID]
-				require.False(t, ok)
+			if tt.before != nil {
+				tt.before(t, scenario)
 			}
-
 			second, err := scenario.cache.ModelAttachments(scenario.ctx, scenario.modelID)
 			require.NoError(t, err)
-			require.Equal(t, scenario.firstAttachments, first)
-			require.Equal(t, scenario.secondAttachments, second)
-			require.Equal(t, tc.storeCalls, scenario.store.modelProviderConfigsCalls.Load())
+			require.Equal(t, scenario.attachments[0], first)
+			require.Equal(t, scenario.attachments[len(scenario.attachments)-1], second)
+			require.Equal(t, tt.wantCalls, scenario.store.modelProviderConfigsCalls.Load())
 		})
 	}
 }
 
 func TestConfigCache_ModelAttachments_StaleWriteDiscarded(t *testing.T) {
 	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	clock := quartz.NewMock(t)
-	modelID := uuid.New()
-	initialAttachments := buildModelAttachments(modelID, []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000081", provider: "openai"}})
-	blocked := []blockedCall[[]database.GetModelProviderConfigsRow]{
-		newBlockedCall(buildModelAttachments(modelID, []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000082", provider: "azure"}})),
-		newBlockedCall(buildModelAttachments(modelID, []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000083", provider: "anthropic"}})),
-	}
-	store := &stubChatConfigStore{}
-	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
-		switch call := store.modelProviderConfigsCalls.Load(); call {
-		case 1:
-			return initialAttachments, nil
-		case 2, 3:
-			fetch := blocked[call-2]
-			close(fetch.started)
-			<-fetch.release
-			return fetch.value, nil
-		default:
-			return nil, xerrors.Errorf("unexpected model attachment call %d", call)
+	scenario := newModelAttachmentsTestScenario(t, testutil.WaitMedium, func(scenario *modelAttachmentsTestScenario) {
+		for _, attachments := range scenario.attachments[1:] {
+			scenario.blocked = append(scenario.blocked, newBlockedCall(attachments))
 		}
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	warm, err := cache.ModelAttachments(ctx, modelID)
+	},
+		singleModelAttachment("00000000-0000-0000-0000-000000000081", "openai"),
+		singleModelAttachment("00000000-0000-0000-0000-000000000082", "azure"),
+		singleModelAttachment("00000000-0000-0000-0000-000000000083", "anthropic"),
+	)
+	warm, err := scenario.cache.ModelAttachments(scenario.ctx, scenario.modelID)
 	require.NoError(t, err)
-	require.Equal(t, initialAttachments, warm)
-	cache.InvalidateProviders()
-
+	require.Equal(t, scenario.attachments[0], warm)
+	scenario.cache.InvalidateProviders()
 	runBlockedStaleWriteTest(
 		t,
-		blocked,
-		func() ([]database.GetModelProviderConfigsRow, error) { return cache.ModelAttachments(ctx, modelID) },
-		cache.InvalidateProviders,
-		func(t *testing.T) {
-			_, ok := cache.modelAttachments[modelID]
-			require.False(t, ok)
+		scenario.blocked,
+		func() ([]database.GetModelProviderConfigsRow, error) {
+			return scenario.cache.ModelAttachments(scenario.ctx, scenario.modelID)
 		},
-		func() int32 { return store.modelProviderConfigsCalls.Load() },
+		scenario.cache.InvalidateProviders,
+		func(t *testing.T) { _, ok := scenario.cache.modelAttachments[scenario.modelID]; require.False(t, ok) },
+		func() int32 { return scenario.store.modelProviderConfigsCalls.Load() },
 		3,
 	)
 }
