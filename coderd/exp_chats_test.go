@@ -161,6 +161,105 @@ func defaultCreateChatModelConfigRequest(
 	}
 }
 
+type providerConfigIDValidationCase struct {
+	name                   string
+	requestProvider        string
+	requestModel           string
+	setupProviderConfigIDs func(*testing.T, context.Context, *codersdk.ExperimentalClient) []uuid.UUID
+	wantMessage            string
+}
+
+func providerConfigIDValidationNotFoundCase(
+	requestProvider string,
+	requestModel string,
+) providerConfigIDValidationCase {
+	return providerConfigIDValidationCase{
+		name:            "NotFound",
+		requestProvider: requestProvider,
+		requestModel:    requestModel,
+		setupProviderConfigIDs: func(_ *testing.T, _ context.Context, _ *codersdk.ExperimentalClient) []uuid.UUID {
+			return []uuid.UUID{uuid.New()}
+		},
+		wantMessage: "Provider config not found.",
+	}
+}
+
+func providerConfigIDValidationDisabledCase(
+	requestProvider string,
+	requestModel string,
+	providerConfigProvider string,
+) providerConfigIDValidationCase {
+	return providerConfigIDValidationCase{
+		name:            "Disabled",
+		requestProvider: requestProvider,
+		requestModel:    requestModel,
+		setupProviderConfigIDs: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) []uuid.UUID {
+			providerConfig := createProviderConfig(
+				ctx,
+				t,
+				client,
+				providerConfigProvider,
+				fmt.Sprintf("%s Disabled", providerConfigProvider),
+				nil,
+			)
+			_, err := client.UpdateChatProvider(ctx, providerConfig.ID, codersdk.UpdateChatProviderConfigRequest{
+				Enabled: ptr.Ref(false),
+			})
+			require.NoError(t, err)
+			return []uuid.UUID{providerConfig.ID}
+		},
+		wantMessage: "Provider config is disabled.",
+	}
+}
+
+func providerConfigIDValidationWrongFamilyCase(
+	requestProvider string,
+	requestModel string,
+	providerConfigProvider string,
+) providerConfigIDValidationCase {
+	return providerConfigIDValidationCase{
+		name:            "WrongFamily",
+		requestProvider: requestProvider,
+		requestModel:    requestModel,
+		setupProviderConfigIDs: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) []uuid.UUID {
+			providerConfig := createProviderConfig(
+				ctx,
+				t,
+				client,
+				providerConfigProvider,
+				fmt.Sprintf("%s Wrong Family", providerConfigProvider),
+				nil,
+			)
+			return []uuid.UUID{providerConfig.ID}
+		},
+		wantMessage: "Provider config does not match the requested provider.",
+	}
+}
+
+func runProviderConfigIDValidationCases(
+	t *testing.T,
+	testCases []providerConfigIDValidationCase,
+	run func(*testing.T, context.Context, *codersdk.ExperimentalClient, providerConfigIDValidationCase, []uuid.UUID) error,
+) {
+	t.Helper()
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			_ = coderdtest.CreateFirstUser(t, client.Client)
+
+			providerConfigIDs := tc.setupProviderConfigIDs(t, ctx, client)
+			err := run(t, ctx, client, tc, providerConfigIDs)
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, tc.wantMessage, sdkErr.Message)
+		})
+	}
+}
+
 func createProviderBackedChatModelConfig(
 	ctx context.Context,
 	t *testing.T,
@@ -3959,51 +4058,25 @@ func TestCreateChatModelConfig(t *testing.T) {
 	t.Run("ProviderConfigIDValidation", func(t *testing.T) {
 		t.Parallel()
 
-		testCases := []struct {
-			name  string
-			setup func(*testing.T, context.Context, *codersdk.ExperimentalClient) codersdk.CreateChatModelConfigRequest
-			want  string
-		}{
-			{
-				name: "NotFound",
-				setup: func(_ *testing.T, _ context.Context, _ *codersdk.ExperimentalClient) codersdk.CreateChatModelConfigRequest {
-					return defaultCreateChatModelConfigRequest("openai", "gpt-4o-mini", uuid.New())
-				},
-				want: "Provider config not found.",
-			},
-			{
-				name: "Disabled",
-				setup: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) codersdk.CreateChatModelConfigRequest {
-					providerConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Disabled", nil)
-					_, err := client.UpdateChatProvider(ctx, providerConfig.ID, codersdk.UpdateChatProviderConfigRequest{Enabled: ptr.Ref(false)})
-					require.NoError(t, err)
-					return defaultCreateChatModelConfigRequest("openai", "gpt-4o-mini", providerConfig.ID)
-				},
-				want: "Provider config is disabled.",
-			},
-			{
-				name: "WrongFamily",
-				setup: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) codersdk.CreateChatModelConfigRequest {
-					providerConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Wrong Family", nil)
-					return defaultCreateChatModelConfigRequest("anthropic", "claude-3-5-sonnet", providerConfig.ID)
-				},
-				want: "Provider config does not match the requested provider.",
-			},
+		testCases := []providerConfigIDValidationCase{
+			providerConfigIDValidationNotFoundCase("openai", "gpt-4o-mini"),
+			providerConfigIDValidationDisabledCase("openai", "gpt-4o-mini", "openai"),
+			providerConfigIDValidationWrongFamilyCase("anthropic", "claude-3-5-sonnet", "openai"),
 		}
 
-		for _, tc := range testCases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
+		runProviderConfigIDValidationCases(
+			t,
+			testCases,
+			func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, tc providerConfigIDValidationCase, providerConfigIDs []uuid.UUID) error {
+				t.Helper()
 
-				ctx := testutil.Context(t, testutil.WaitLong)
-				client := newChatClient(t)
-				_ = coderdtest.CreateFirstUser(t, client.Client)
-				_, err := client.CreateChatModelConfig(ctx, tc.setup(t, ctx, client))
-				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-				require.Equal(t, tc.want, sdkErr.Message)
-			})
-		}
+				_, err := client.CreateChatModelConfig(
+					ctx,
+					defaultCreateChatModelConfigRequest(tc.requestProvider, tc.requestModel, providerConfigIDs...),
+				)
+				return err
+			},
+		)
 	})
 }
 
@@ -4047,53 +4120,25 @@ func TestUpdateChatModelConfig(t *testing.T) {
 	t.Run("ProviderConfigIDValidation", func(t *testing.T) {
 		t.Parallel()
 
-		testCases := []struct {
-			name              string
-			providerConfigIDs func(*testing.T, context.Context, *codersdk.ExperimentalClient) []uuid.UUID
-			wantMessage       string
-		}{
-			{
-				name: "NotFound",
-				providerConfigIDs: func(_ *testing.T, _ context.Context, _ *codersdk.ExperimentalClient) []uuid.UUID {
-					return []uuid.UUID{uuid.New()}
-				},
-				wantMessage: "Provider config not found.",
-			},
-			{
-				name: "Disabled",
-				providerConfigIDs: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) []uuid.UUID {
-					providerConfig := createProviderConfig(ctx, t, client, "openai", "OpenAI Disabled", nil)
-					_, err := client.UpdateChatProvider(ctx, providerConfig.ID, codersdk.UpdateChatProviderConfigRequest{Enabled: ptr.Ref(false)})
-					require.NoError(t, err)
-					return []uuid.UUID{providerConfig.ID}
-				},
-				wantMessage: "Provider config is disabled.",
-			},
-			{
-				name: "WrongFamily",
-				providerConfigIDs: func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient) []uuid.UUID {
-					providerConfig := createProviderConfig(ctx, t, client, "anthropic", "Anthropic Wrong Family", nil)
-					return []uuid.UUID{providerConfig.ID}
-				},
-				wantMessage: "Provider config does not match the requested provider.",
-			},
+		testCases := []providerConfigIDValidationCase{
+			providerConfigIDValidationNotFoundCase("openai", "gpt-4o-mini"),
+			providerConfigIDValidationDisabledCase("openai", "gpt-4o-mini", "openai"),
+			providerConfigIDValidationWrongFamilyCase("openai", "gpt-4o-mini", "anthropic"),
 		}
 
-		for _, tc := range testCases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
+		runProviderConfigIDValidationCases(
+			t,
+			testCases,
+			func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, _ providerConfigIDValidationCase, providerConfigIDs []uuid.UUID) error {
+				t.Helper()
 
-				ctx := testutil.Context(t, testutil.WaitLong)
-				client := newChatClient(t)
-				_ = coderdtest.CreateFirstUser(t, client.Client)
 				modelConfig := createChatModelConfig(t, client)
-
-				_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{ProviderConfigIDs: ptr.Ref(tc.providerConfigIDs(t, ctx, client))})
-				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-				require.Equal(t, tc.wantMessage, sdkErr.Message)
-			})
-		}
+				_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+					ProviderConfigIDs: ptr.Ref(providerConfigIDs),
+				})
+				return err
+			},
+		)
 	})
 	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
 		t.Parallel()
