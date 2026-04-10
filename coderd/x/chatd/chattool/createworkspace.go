@@ -346,25 +346,23 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		database.ProvisionerJobStatusRunning:
 		// Build is in progress. Publish the build ID so the
 		// frontend can start streaming logs, then wait.
-		if o.ChatID != uuid.Nil {
-			updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-				ID:          o.ChatID,
-				WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
-				BuildID: uuid.NullUUID{
-					UUID:  build.ID,
-					Valid: build.ID != uuid.Nil,
-				},
-				AgentID: uuid.NullUUID{},
-			})
-			if bindErr != nil {
-				o.Logger.Error(ctx, "failed to persist build ID on chat binding",
-					slog.F("chat_id", o.ChatID),
-					slog.F("build_id", build.ID),
-					slog.Error(bindErr),
-				)
-			} else if o.OnChatUpdated != nil {
-				o.OnChatUpdated(updatedChat)
-			}
+		updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          o.ChatID,
+			WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+			BuildID: uuid.NullUUID{
+				UUID:  build.ID,
+				Valid: build.ID != uuid.Nil,
+			},
+			AgentID: uuid.NullUUID{},
+		})
+		if bindErr != nil {
+			o.Logger.Error(ctx, "failed to persist build ID on chat binding",
+				slog.F("chat_id", o.ChatID),
+				slog.F("build_id", build.ID),
+				slog.Error(bindErr),
+			)
+		} else if o.OnChatUpdated != nil {
+			o.OnChatUpdated(updatedChat)
 		}
 		if err := waitForBuild(ctx, db, build.ID); err != nil {
 			return existingWorkspaceResult{
