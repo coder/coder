@@ -4,7 +4,7 @@ import type { WorkspaceAgent } from "#/api/typesGenerated";
  * Canonical messages for startup and shutdown script issues.
  * Used by the per-agent-row tooltips in AgentStatus; the
  * start-related entries are also shared with per-agent health
- * classification in getAgentHealthIssue.
+ * classification in getAgentHealthIssues.
  */
 export const agentScriptMessages = {
 	start_error: {
@@ -51,7 +51,7 @@ export const agentConnectionMessages = {
 	},
 } as const;
 
-interface AgentHealthIssue {
+export interface AgentHealthIssue {
 	title: string;
 	detail: string;
 	severity: "info" | "warning";
@@ -62,29 +62,29 @@ interface AgentHealthIssue {
 }
 
 /**
- * Classifies the health issue for a single failing top-level agent.
- * This avoids workspace-wide aggregation so alerts describe one
- * concrete agent state at a time.
+ * Classifies all health issues for an individual agent.
  */
-export function getAgentHealthIssue(
+export function getAgentHealthIssues(
 	agent: WorkspaceAgent,
-): AgentHealthIssue | undefined {
+): AgentHealthIssue[] {
+	const issues: AgentHealthIssue[] = [];
+
 	if (agent.status === "disconnected") {
-		return {
+		issues.push({
 			title: agentConnectionMessages.disconnected.title,
 			detail: agentConnectionMessages.disconnected.detail,
 			severity: "warning",
 			prominent: false,
-		};
+		});
 	}
 
 	if (agent.status === "timeout") {
-		return {
+		issues.push({
 			title: agentConnectionMessages.timeout.title,
 			detail: agentConnectionMessages.timeout.detail,
 			severity: "warning",
 			prominent: false,
-		};
+		});
 	}
 
 	if (
@@ -92,40 +92,40 @@ export function getAgentHealthIssue(
 		agent.lifecycle_state === "shutdown_error" ||
 		agent.lifecycle_state === "shutdown_timeout"
 	) {
-		return {
+		issues.push({
 			title: "Workspace agent is shutting down",
 			detail: "The workspace is not available while agents shut down.",
 			severity: "info",
 			prominent: false,
-		};
+		});
 	}
 
 	if (agent.lifecycle_state === "start_error") {
-		return {
+		issues.push({
 			title: agentScriptMessages.start_error.title,
 			detail: agentScriptMessages.start_error.detail,
 			severity: "warning",
 			prominent: true,
-		};
+		});
 	}
 
 	if (agent.lifecycle_state === "start_timeout") {
-		return {
+		issues.push({
 			title: agentScriptMessages.start_timeout.title,
 			detail: agentScriptMessages.start_timeout.detail,
 			severity: "warning",
 			prominent: false,
-		};
+		});
 	}
 
 	if (agent.status === "connecting") {
-		return {
+		issues.push({
 			title: agentConnectionMessages.connecting.title,
 			detail: agentConnectionMessages.connecting.detail,
 			severity: "info",
 			prominent: false,
-		};
+		});
 	}
 
-	return undefined;
+	return issues;
 }

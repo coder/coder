@@ -45,7 +45,7 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { getAgentHealthIssue } from "#/modules/workspaces/health";
+import { getAgentHealthIssues } from "#/modules/workspaces/health";
 import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
@@ -210,7 +210,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const healthIssue = getAgentHealthIssue(agent);
+	const healthIssues = getAgentHealthIssues(agent);
 
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
 	const sourceLogTabs = agent.log_sources
@@ -476,12 +476,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 					<Collapse in={showLogs}>
 						<div className="px-4 pb-4">
-							{healthIssue && (
-								<div className="mb-4">
-									<AgentAlert
-										{...healthIssue}
-										troubleshootingURL={agent.troubleshooting_url}
-									/>
+							{healthIssues.length > 0 && (
+								<div className="mb-4 flex flex-col gap-3">
+									{healthIssues.map((issue) => (
+										<AgentAlert
+											key={`${issue.title}-${issue.detail}`}
+											{...issue}
+											troubleshootingURL={agent.troubleshooting_url}
+										/>
+									))}
 								</div>
 							)}
 							<div className="border border-solid rounded-md overflow-clip">

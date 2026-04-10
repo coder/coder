@@ -5,7 +5,7 @@ import type {
 	WorkspaceAgentStatus,
 } from "#/api/typesGenerated";
 import { MockWorkspaceAgent } from "#/testHelpers/entities";
-import { getAgentHealthIssue } from "./health";
+import { getAgentHealthIssues } from "./health";
 
 interface AgentOverrides {
 	status?: WorkspaceAgentStatus;
@@ -22,95 +22,110 @@ function buildAgent(overrides: AgentOverrides): WorkspaceAgent {
 	};
 }
 
-describe("getAgentHealthIssue", () => {
+describe("getAgentHealthIssues", () => {
 	it("returns disconnected issue for a disconnected agent", () => {
 		expect(
-			getAgentHealthIssue(buildAgent({ status: "disconnected" })),
-		).toMatchObject({
-			title: "Workspace agent has disconnected",
-			severity: "warning",
-			prominent: true,
-		});
+			getAgentHealthIssues(buildAgent({ status: "disconnected" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Workspace agent has disconnected",
+				severity: "warning",
+				prominent: false,
+			}),
+		);
 	});
 
 	it("returns timeout issue for a timed-out agent", () => {
 		expect(
-			getAgentHealthIssue(buildAgent({ status: "timeout" })),
-		).toMatchObject({
-			title: "Agent is taking longer than expected to connect",
-			severity: "warning",
-			prominent: false,
-		});
+			getAgentHealthIssues(buildAgent({ status: "timeout" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Agent is taking longer than expected to connect",
+				severity: "warning",
+				prominent: false,
+			}),
+		);
 	});
 
 	it("returns shutdown issue for shutdown lifecycle states", () => {
 		expect(
-			getAgentHealthIssue(buildAgent({ lifecycle_state: "shutting_down" })),
-		).toMatchObject({
-			title: "Workspace agent is shutting down",
-			severity: "info",
-		});
+			getAgentHealthIssues(buildAgent({ lifecycle_state: "shutting_down" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Workspace agent is shutting down",
+				severity: "info",
+			}),
+		);
 		expect(
-			getAgentHealthIssue(buildAgent({ lifecycle_state: "shutdown_error" })),
-		).toMatchObject({
-			title: "Workspace agent is shutting down",
-			severity: "info",
-		});
+			getAgentHealthIssues(buildAgent({ lifecycle_state: "shutdown_error" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Workspace agent is shutting down",
+				severity: "info",
+			}),
+		);
 		expect(
-			getAgentHealthIssue(buildAgent({ lifecycle_state: "shutdown_timeout" })),
-		).toMatchObject({
-			title: "Workspace agent is shutting down",
-			severity: "info",
-		});
+			getAgentHealthIssues(buildAgent({ lifecycle_state: "shutdown_timeout" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Workspace agent is shutting down",
+				severity: "info",
+			}),
+		);
 	});
 
 	it("returns startup script issues", () => {
 		expect(
-			getAgentHealthIssue(buildAgent({ lifecycle_state: "start_error" })),
-		).toMatchObject({
-			title: "Startup script failed",
-			severity: "warning",
-			prominent: true,
-		});
+			getAgentHealthIssues(buildAgent({ lifecycle_state: "start_error" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Startup script failed",
+				severity: "warning",
+				prominent: true,
+			}),
+		);
 		expect(
-			getAgentHealthIssue(buildAgent({ lifecycle_state: "start_timeout" })),
-		).toMatchObject({
-			title: "Startup script is taking longer than expected",
-			severity: "warning",
-			prominent: false,
-		});
+			getAgentHealthIssues(buildAgent({ lifecycle_state: "start_timeout" })),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Startup script is taking longer than expected",
+				severity: "warning",
+				prominent: false,
+			}),
+		);
 	});
 
 	it("returns connecting issue for a connecting agent", () => {
 		expect(
-			getAgentHealthIssue(
+			getAgentHealthIssues(
 				buildAgent({ status: "connecting", lifecycle_state: "starting" }),
 			),
-		).toMatchObject({
-			title: "Workspace agent is connecting",
-			severity: "info",
-			prominent: false,
-		});
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Workspace agent is connecting",
+				severity: "info",
+				prominent: false,
+			}),
+		);
 	});
 
-	it("returns undefined for healthy ready connected agent", () => {
+	it("returns empty list for healthy ready connected agent", () => {
 		expect(
-			getAgentHealthIssue(
+			getAgentHealthIssues(
 				buildAgent({ status: "connected", lifecycle_state: "ready" }),
 			),
-		).toBeUndefined();
+		).toEqual([]);
 	});
 
-	it("prioritizes status over lifecycle when both are set", () => {
-		expect(
-			getAgentHealthIssue(
-				buildAgent({ status: "disconnected", lifecycle_state: "start_error" }),
-			)?.title,
-		).toBe("Workspace agent has disconnected");
-		expect(
-			getAgentHealthIssue(
-				buildAgent({ status: "timeout", lifecycle_state: "shutting_down" }),
-			)?.title,
-		).toBe("Agent is taking longer than expected to connect");
+	it("returns multiple issues when multiple conditions match", () => {
+		const issues = getAgentHealthIssues(
+			buildAgent({ status: "disconnected", lifecycle_state: "start_error" }),
+		);
+		expect(issues).toContainEqual(
+			expect.objectContaining({ title: "Workspace agent has disconnected" }),
+		);
+		expect(issues).toContainEqual(
+			expect.objectContaining({ title: "Startup script failed" }),
+		);
 	});
 });
