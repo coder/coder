@@ -771,6 +771,9 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
+			m.logger.Debug(m.ctx, "peer no longer in best mappings, sending DISCONNECTED",
+				slog.F("peer_id", k),
+			)
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
@@ -1614,6 +1617,10 @@ func (h *heartbeats) filter(mappings []mapping) []mapping {
 				// the only mapping available for it. Newer mappings will take
 				// precedence.
 				m.kind = proto.CoordinateResponse_PeerUpdate_LOST
+				h.logger.Debug(h.ctx, "mapping rewritten to LOST due to missed heartbeats",
+					slog.F("peer_id", m.peer),
+					slog.F("coordinator_id", m.coordinator),
+				)
 			}
 		}
 
