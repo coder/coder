@@ -631,14 +631,11 @@ const ChatScrollContainer: FC<{
 		// A prepend snapshot from the previous chat must not be applied
 		// to the next chat's resize cycle.
 		resetPrependSnapshot();
-		// Keep the fetch guard aligned with the incoming chat state so
-		// the sentinel cannot trigger a duplicate fetch on chat switch.
-		isFetchingRef.current = isFetchingMoreMessages;
 		// Force the next layout sync to detect an active fetch transition
 		// for the new chat and capture prepend state when needed.
 		wasFetchingRef.current = false;
 		scrollToBottom("instant");
-	}, [resetKey, isFetchingMoreMessages, scrollToBottom, resetPrependSnapshot]);
+	}, [resetKey, scrollToBottom, resetPrependSnapshot]);
 
 	useLayoutEffect(() => {
 		const wasFetching = wasFetchingRef.current;

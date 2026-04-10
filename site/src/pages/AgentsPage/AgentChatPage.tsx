@@ -85,6 +85,20 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
+/** @internal Exported for testing. */
+export class InactiveChatMutationError extends Error {
+	constructor() {
+		super("Chat mutation was canceled after navigating to another chat.");
+		this.name = "InactiveChatMutationError";
+	}
+}
+
+const isInactiveChatMutationError = (
+	error: unknown,
+): error is InactiveChatMutationError => {
+	return error instanceof InactiveChatMutationError;
+};
+
 /**
  * Read the persisted plain-text draft for a given chat ID.
  * Returns the text portion of the draft (stripping Lexical JSON
@@ -270,7 +284,14 @@ export function useConversationEditingState(deps: {
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
 
-		await onSend(message, fileIds, editedMessageID);
+		try {
+			await onSend(message, fileIds, editedMessageID);
+		} catch (error) {
+			if (isInactiveChatMutationError(error)) {
+				return;
+			}
+			throw error;
+		}
 		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
@@ -881,14 +902,14 @@ const AgentChatPage: FC = () => {
 					req: request,
 				});
 				if (!isActiveAgent(operationAgentID)) {
-					return;
+					return Promise.reject(new InactiveChatMutationError());
 				}
 				store.clearStreamState();
 				store.setChatStatus("running");
 				setPendingEditMessageId(null);
 			} catch (error) {
 				if (!isActiveAgent(operationAgentID)) {
-					return;
+					return Promise.reject(new InactiveChatMutationError());
 				}
 				setPendingEditMessageId(null);
 				handleUsageLimitError(operationAgentID, error);
@@ -918,13 +939,13 @@ const AgentChatPage: FC = () => {
 			response = await sendMessage(request);
 		} catch (error) {
 			if (!isActiveAgent(operationAgentID)) {
-				return;
+				return Promise.reject(new InactiveChatMutationError());
 			}
 			handleUsageLimitError(operationAgentID, error);
 			throw error;
 		}
 		if (!isActiveAgent(operationAgentID)) {
-			return;
+			return Promise.reject(new InactiveChatMutationError());
 		}
 		// When the server accepts the message immediately (not
 		// queued), clear the stream and insert the user's message

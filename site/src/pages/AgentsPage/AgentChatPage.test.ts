@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
+	InactiveChatMutationError,
 	useConversationEditingState,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
@@ -341,6 +342,39 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+		unmount();
+	});
+
+	it("does not clear the active draft when send is canceled after chat switch", async () => {
+		const onSend = vi.fn().mockRejectedValue(new InactiveChatMutationError());
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+		localStorage.setItem(expectedKey, "draft to preserve");
+		inputValueRef.current = "draft to preserve";
+
+		const { result, unmount } = renderHook(() =>
+			useConversationEditingState({
+				chatID,
+				onSend,
+				onDeleteQueuedMessage,
+				chatInputRef,
+				inputValueRef,
+			}),
+		);
+
+		const mockInput = createMockChatInputHandle("draft to preserve");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		await act(async () => {
+			await result.current.handleSendFromInput("hello");
+		});
+
+		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(mockInput.clear).not.toHaveBeenCalled();
+		expect(mockInput.focus).not.toHaveBeenCalled();
+		expect(localStorage.getItem(expectedKey)).toBe("draft to preserve");
+		expect(result.current.inputValueRef.current).toBe("draft to preserve");
 		unmount();
 	});
 
