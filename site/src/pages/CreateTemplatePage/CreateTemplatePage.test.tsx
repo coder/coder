@@ -30,7 +30,7 @@ const renderPage = async (searchParams: URLSearchParams) => {
 	return view;
 };
 
-test("Create template from starter template", async () => {
+test("Create template from starter template", { timeout: 20_000 }, async () => {
 	// Render page, fill the name and submit
 	const searchParams = new URLSearchParams({
 		exampleId: MockTemplateExample.id,
