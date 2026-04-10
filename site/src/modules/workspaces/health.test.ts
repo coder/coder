@@ -152,14 +152,15 @@ describe("getAgentHealthIssue", () => {
 			});
 		});
 
-		it("returns connecting issue as default fallback", () => {
+		it("returns connecting issue for a connecting agent", () => {
 			const ws = buildWorkspace(
 				[{ status: "connecting", lifecycle_state: "starting" }],
 				1,
 			);
 			expect(getAgentHealthIssue(ws)).toEqual({
-				title: "Workspace agent is still connecting",
-				detail: "Check the log output if the connection does not complete.",
+				title: "Workspace agent is connecting",
+				detail:
+					"The workspace agent has not connected yet. Wait for it to connect or check the logs if it does not.",
 				severity: "info",
 				prominent: false,
 			});
@@ -227,7 +228,7 @@ describe("getAgentHealthIssue", () => {
 				2,
 			);
 			const result = getAgentHealthIssue(ws);
-			expect(result.title).toBe("2 workspace agents are still connecting");
+			expect(result.title).toBe("2 workspace agents are connecting");
 		});
 
 		it("uses singular title when only one agent is failing", () => {
@@ -329,7 +330,7 @@ describe("getAgentHealthIssue", () => {
 				1,
 			);
 			const result = getAgentHealthIssue(ws);
-			expect(result.title).toBe("Workspace agent is still connecting");
+			expect(result.title).toBe("Workspace agent is connecting");
 			expect(result.severity).toBe("info");
 		});
 

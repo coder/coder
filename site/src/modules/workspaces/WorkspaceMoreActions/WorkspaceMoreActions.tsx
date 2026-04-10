@@ -256,7 +256,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}
-				canDeleteFailedWorkspace={!!permissions?.deleteFailedWorkspace}
+				canDeleteFailedWorkspace={Boolean(permissions?.deleteFailedWorkspace)}
 				isOpen={isConfirmingDelete}
 				onCancel={() => {
 					setIsConfirmingDelete(false);

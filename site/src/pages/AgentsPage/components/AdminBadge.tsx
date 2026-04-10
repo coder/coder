@@ -1,5 +1,6 @@
 import { ShieldIcon } from "lucide-react";
 import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -11,10 +12,10 @@ export const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="ml-auto inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-2 py-1 text-[11px] leading-none font-medium text-content-secondary">
+				<Badge variant="default" size="sm" className="ml-auto cursor-default">
 					<ShieldIcon className="h-3 w-3" />
 					Admin
-				</span>
+				</Badge>
 			</TooltipTrigger>
 			<TooltipContent side="right">
 				Only visible to deployment administrators.

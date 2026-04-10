@@ -66,7 +66,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
 		{
-			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			canDebug: Boolean(deployment?.config.enable_terraform_debug_mode),
 			isOwner: user.roles.some((role) => role.name === "owner"),
 		},
 	);

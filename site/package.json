@@ -127,7 +127,7 @@
 	"devDependencies": {
 		"@babel/core": "7.29.0",
 		"@babel/plugin-syntax-typescript": "7.28.6",
-		"@biomejs/biome": "2.2.4",
+		"@biomejs/biome": "2.4.10",
 		"@chromatic-com/storybook": "5.0.1",
 		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.50.1",

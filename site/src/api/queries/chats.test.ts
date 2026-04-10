@@ -7,8 +7,6 @@ import {
 	cancelChatListRefetches,
 	chatCostSummary,
 	chatCostSummaryKey,
-	chatCostUsers,
-	chatCostUsersKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
@@ -20,6 +18,7 @@ import {
 	infiniteChats,
 	interruptChat,
 	invalidateChatListQueries,
+	paginatedChatCostUsers,
 	pinChat,
 	promoteChatQueuedMessage,
 	regenerateChatTitle,
@@ -174,20 +173,6 @@ describe("invalidateChatListQueries", () => {
 			queryClient.getQueryState([...chatsKey, undefined])?.isInvalidated,
 			"infinite chats with undefined opts should be invalidated",
 		).toBe(true);
-	});
-
-	it("does not invalidate chatCostUsersKey", async () => {
-		const queryClient = createTestQueryClient();
-
-		queryClient.setQueryData(chatCostUsersKey(undefined), {});
-		queryClient.setQueryData(chatsKey, [makeChat("chat-1")]);
-
-		await invalidateChatListQueries(queryClient);
-
-		expect(
-			queryClient.getQueryState(chatCostUsersKey(undefined))?.isInvalidated,
-			"chatCostUsersKey should NOT be invalidated",
-		).not.toBe(true);
 	});
 
 	it("does not invalidate a different chat's queries", async () => {
@@ -631,25 +616,42 @@ describe("chat cost query factories", () => {
 		);
 	});
 
-	it("builds a distinct users query key and forwards snake_case params", async () => {
-		const params = {
+	it("builds paginated cost users query with correct key and coerces empty username", async () => {
+		const payload = {
 			start_date: "2025-01-01",
 			end_date: "2025-01-31",
-			username: "alice",
-			limit: 10,
-			offset: 20,
+			username: "",
 		};
 		vi.mocked(API.experimental.getChatCostUsers).mockResolvedValue(
 			{} as TypesGen.ChatCostUsersResponse,
 		);
+		const result = paginatedChatCostUsers(payload);
 
-		const query = chatCostUsers(params);
+		// queryPayload returns the original payload.
+		const pageParams = {
+			pageNumber: 2,
+			limit: 25,
+			offset: 25,
+			searchParams: new URLSearchParams(),
+		};
+		expect(result.queryPayload(pageParams)).toEqual(payload);
 
-		expect(chatCostUsersKey(params)).toEqual(["chats", "costUsers", params]);
-		expect(query.queryKey).toEqual(["chats", "costUsers", params]);
-		expect(query.queryKey).not.toEqual(chatCostSummaryKey("me", params));
-		await query.queryFn();
-		expect(API.experimental.getChatCostUsers).toHaveBeenCalledWith(params);
+		// queryKey includes the payload and page number.
+		const key = result.queryKey({ ...pageParams, payload });
+		expect(key).toEqual(["chats", "costUsers", payload, 2]);
+
+		// queryFn coerces empty username to undefined.
+		// Cast needed because PaginatedQueryFnContext includes
+		// react-query internal fields that aren't relevant here.
+		await (
+			result.queryFn as (params: Record<string, unknown>) => Promise<unknown>
+		)({
+			...pageParams,
+			payload,
+		});
+		expect(API.experimental.getChatCostUsers).toHaveBeenCalledWith(
+			expect.objectContaining({ username: undefined, limit: 25, offset: 25 }),
+		);
 	});
 });
 

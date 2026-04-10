@@ -102,6 +102,8 @@ export const MultipleSessions: Story = {
 			token_usage_summary: {
 				input_tokens: 1000 * (i + 1),
 				output_tokens: 300 * (i + 1),
+				cache_read_input_tokens: 800 * (i + 1),
+				cache_write_input_tokens: 50 * (i + 1),
 			},
 		})),
 	},

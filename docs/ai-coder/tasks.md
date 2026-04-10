@@ -15,7 +15,7 @@ The Task details view shows the user's complete chat, workspace status and, buil
 ![VS Code IDE Extension Details View](../images/guides/ai-agents/vs_code_tasks_extension_details.png)
 
 > [!NOTE]
-> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Bridge](./ai-bridge/index.md) or [Agent Boundaries](./agent-boundaries/index.md). To scale beyond the 1,000 build limit or enable AI Governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
+> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md). To scale beyond the 1,000 build limit or enable AI Governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
 
 ## Supported Agents (and Models)
 

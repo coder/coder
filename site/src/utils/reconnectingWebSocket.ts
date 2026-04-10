@@ -32,11 +32,18 @@
 /** Default base delay for exponential backoff (milliseconds). */
 const RECONNECT_BASE_MS = 1_000;
 
-/** Default maximum delay cap for exponential backoff (milliseconds). */
+/** Default maximum base delay cap for exponential backoff (milliseconds). */
 const RECONNECT_MAX_MS = 10_000;
 
 /** Default multiplier applied to the base delay on each retry. */
 const RECONNECT_FACTOR = 2;
+
+/**
+ * Default symmetric jitter applied to the computed reconnect delay.
+ * `0.3` means the final delay is randomized within ±30% of the base
+ * exponential-backoff value.
+ */
+const RECONNECT_JITTER = 0.3;
 
 /**
  * Metadata for the reconnect attempt that was just scheduled.
@@ -92,25 +99,83 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	/** Base delay in milliseconds. Defaults to {@link RECONNECT_BASE_MS}. */
 	baseMs?: number;
 
-	/** Maximum delay cap in milliseconds. Defaults to {@link RECONNECT_MAX_MS}. */
+	/**
+	 * Hard upper bound on the reconnect delay in milliseconds. Jitter is
+	 * applied to the capped backoff base, so the final delay never exceeds
+	 * this value.
+	 */
 	maxMs?: number;
 
 	/** Multiplier applied per attempt. Defaults to {@link RECONNECT_FACTOR}. */
 	factor?: number;
+
+	/**
+	 * Symmetric jitter applied to the computed delay. `0.3` means the
+	 * final delay may vary within ±30% of the base exponential-backoff
+	 * value. Set to `0` to preserve exact legacy timing. Values are
+	 * clamped to `[0, 1]`; non-finite values are treated as `0`.
+	 */
+	jitter?: number;
+
+	/**
+	 * Random-number source used for jitter. Defaults to `Math.random` and
+	 * exists primarily as a deterministic test seam. Output is normalized
+	 * to `[0, 1]`; non-finite values fall back to `0.5`.
+	 */
+	random?: () => number;
 }
+
+const normalizeUnitInterval = (value: number, fallback: number): number =>
+	Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : fallback;
+
+const normalizeDelayMs = (value: number, fallback: number): number =>
+	Number.isFinite(value) ? Math.max(0, value) : fallback;
+
+const applyReconnectJitter = ({
+	delayMs,
+	jitter,
+	random,
+}: {
+	delayMs: number;
+	jitter: number;
+	random: () => number;
+}): number => {
+	const safeJitter = normalizeUnitInterval(jitter, 0);
+	if (safeJitter <= 0) {
+		return delayMs;
+	}
+	const safeRandom = normalizeUnitInterval(random(), 0.5);
+	const jitterOffset = (safeRandom * 2 - 1) * safeJitter;
+	return normalizeDelayMs(Math.round(delayMs * (1 + jitterOffset)), delayMs);
+};
 
 const getReconnectSchedule = ({
 	attempt,
 	baseMs,
 	maxMs,
 	factor,
+	jitter,
+	random,
 }: {
 	attempt: number;
 	baseMs: number;
 	maxMs: number;
 	factor: number;
+	jitter: number;
+	random: () => number;
 }): ReconnectSchedule => {
-	const delayMs = Math.min(baseMs * factor ** (attempt - 1), maxMs);
+	const safeMaxMs = normalizeDelayMs(maxMs, 0);
+	const rawDelayMs = normalizeDelayMs(
+		baseMs * factor ** (attempt - 1),
+		safeMaxMs,
+	);
+	const cappedDelayMs = Math.min(rawDelayMs, safeMaxMs);
+	const jitteredDelayMs = applyReconnectJitter({
+		delayMs: cappedDelayMs,
+		jitter,
+		random,
+	});
+	const delayMs = Math.min(jitteredDelayMs, safeMaxMs);
 	return {
 		attempt,
 		delayMs,
@@ -129,7 +194,11 @@ const getReconnectSchedule = ({
  *
  * Backoff delay formula:
  * ```
- * delay = min(baseMs * factor ^ (attempt - 1), maxMs)
+ * rawDelay = baseMs * factor ^ (attempt - 1)
+ * cappedDelay = min(rawDelay, maxMs)
+ * jitteredDelay = round(cappedDelay * (1 + offset))
+ * delay = min(jitteredDelay, maxMs)
+ * offset ∈ [-jitter, +jitter]
  * ```
  *
  * The reconnect attempt counter resets after a successful `open`.
@@ -146,6 +215,8 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		baseMs = RECONNECT_BASE_MS,
 		maxMs = RECONNECT_MAX_MS,
 		factor = RECONNECT_FACTOR,
+		jitter = RECONNECT_JITTER,
+		random = Math.random,
 	} = options;
 
 	let disposed = false;
@@ -195,6 +266,8 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				baseMs,
 				maxMs,
 				factor,
+				jitter,
+				random,
 			});
 			onDisconnect?.(reconnect);
 			scheduleReconnect(reconnect);

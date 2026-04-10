@@ -3,6 +3,7 @@ import { userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
+	MockBuildInfo,
 	MockTasks,
 	MockUserMember,
 	MockUserOwner,
@@ -168,5 +169,35 @@ export const DefaultSupportLinks: Story = {
 			},
 			{ icon: "star", name: "Star the Repo", target: "" },
 		],
+	},
+};
+
+export const DevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.21.0-devel+abc123",
+			external_url: "https://github.com/coder/coder/commit/abc123",
+		},
+	},
+};
+
+export const RcBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.21.0-rc.1+def456",
+			external_url: "https://github.com/coder/coder/releases/tag/v2.21.0-rc.1",
+		},
+	},
+};
+
+export const RcDevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.33.0-rc.1-devel+727ec00f7",
+			external_url: "https://github.com/coder/coder/commit/727ec00f7",
+		},
 	},
 };

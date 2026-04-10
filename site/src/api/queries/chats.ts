@@ -5,13 +5,14 @@ import type {
 } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
 	const sorted = workspaceIds.toSorted();
@@ -770,6 +771,22 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatRetentionDaysKey = ["chat-retention-days"] as const;
+
+export const chatRetentionDays = () => ({
+	queryKey: chatRetentionDaysKey,
+	queryFn: () => API.experimental.getChatRetentionDays(),
+});
+
+export const updateChatRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatRetentionDaysKey,
+		});
+	},
+});
+
 const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
 
 export const chatTemplateAllowlist = () => ({
@@ -861,6 +878,47 @@ export const chatModelConfigs = () => ({
 		API.experimental.getChatModelConfigs(),
 });
 
+export const userChatProviderConfigsKey = [
+	"user-chat-provider-configs",
+] as const;
+
+export const userChatProviderConfigs = () => ({
+	queryKey: userChatProviderConfigsKey,
+	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
+		API.experimental.getUserChatProviderConfigs(),
+});
+
+type UpsertUserChatProviderKeyArgs = {
+	providerConfigId: string;
+	req: TypesGen.CreateUserChatProviderKeyRequest;
+};
+
+export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
+		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.experimental.deleteUserChatProviderKey(providerConfigId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	await Promise.all([
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
@@ -935,12 +993,6 @@ type ChatCostDateParams = {
 	end_date?: string;
 };
 
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
 	[...chatsKey, "costSummary", user, params] as const;
 
@@ -950,14 +1002,33 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
-	[...chatsKey, "costUsers", params] as const;
+interface PaginatedChatCostUsersPayload {
+	username: string;
+	start_date: string;
+	end_date: string;
+}
 
-export const chatCostUsers = (params?: ChatCostUsersParams) => ({
-	queryKey: chatCostUsersKey(params),
-	queryFn: () => API.experimental.getChatCostUsers(params),
-	staleTime: 60_000,
-});
+export function paginatedChatCostUsers(
+	payload: PaginatedChatCostUsersPayload,
+): UsePaginatedQueryOptions<
+	TypesGen.ChatCostUsersResponse,
+	PaginatedChatCostUsersPayload
+> {
+	return {
+		queryPayload: () => payload,
+		queryKey: ({ payload, pageNumber }) =>
+			[...chatsKey, "costUsers", payload, pageNumber] as const,
+		queryFn: ({ payload, limit, offset }) =>
+			API.experimental.getChatCostUsers({
+				start_date: payload.start_date,
+				end_date: payload.end_date,
+				username: payload.username || undefined,
+				limit,
+				offset,
+			}),
+		staleTime: 60_000,
+	};
+}
 
 const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
 	[...chatsKey, "prInsights", params] as const;

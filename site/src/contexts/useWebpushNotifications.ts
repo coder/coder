@@ -35,7 +35,7 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 			try {
 				const registration = await navigator.serviceWorker.ready;
 				const subscription = await registration.pushManager.getSubscription();
-				setSubscribed(!!subscription);
+				setSubscribed(Boolean(subscription));
 			} catch (error) {
 				console.error("Error checking push subscription:", error);
 				setSubscribed(false);

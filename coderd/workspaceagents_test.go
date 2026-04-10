@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -90,7 +91,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
 		_, err = anotherClient.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
-		require.True(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
+		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
 	t.Run("HasFallbackTroubleshootingURL", func(t *testing.T) {
 		t.Parallel()
@@ -258,6 +259,50 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		require.Len(t, logChunk, 2) // No EOF.
 		require.Equal(t, "testing", logChunk[0].Output)
 		require.Equal(t, "testing2", logChunk[1].Output)
+	})
+	t.Run("SanitizesNulBytesAndTracksSanitizedLength", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		rawOutput := "before\x00after"
+		sanitizedOutput := agentsdk.SanitizeLogOutput(rawOutput)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{
+				{
+					CreatedAt: dbtime.Now(),
+					Output:    rawOutput,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
+		require.NoError(t, err)
+		require.EqualValues(t, len(sanitizedOutput), agent.LogsLength)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID, 0, true)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+
+		var logChunk []codersdk.WorkspaceAgentLog
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.Len(t, logChunk, 1)
+		require.Equal(t, sanitizedOutput, logChunk[0].Output)
 	})
 	t.Run("Close logs on outdated build", func(t *testing.T) {
 		t.Parallel()
@@ -3278,51 +3323,205 @@ func TestAgentConnectionInfo(t *testing.T) {
 func TestReinit(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	pubsubSpy := pubsubReinitSpy{
-		Pubsub:           ps,
-		triedToSubscribe: make(chan string),
+	// Helper to create the prebuilds system user's workspace (an
+	// unclaimed prebuild) and return the build result. The first
+	// build's InitiatorID defaults to PrebuildsSystemUserID via
+	// dbfake.
+	setupPrebuildWorkspace := func(t *testing.T, db database.Store, orgID uuid.UUID) dbfake.WorkspaceResponse {
+		t.Helper()
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        database.PrebuildsSystemUserID,
+		}).WithAgent().Do()
 	}
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   &pubsubSpy,
+
+	// Helper to simulate claiming a prebuild: change the workspace
+	// owner to the real user and create a second (claim) build.
+	claimPrebuild := func(t *testing.T, db database.Store, sqlDB *sql.DB, ws database.WorkspaceTable, claimerID uuid.UUID, templateVersionID uuid.UUID, complete bool) dbfake.WorkspaceResponse {
+		t.Helper()
+		// Change the workspace owner to the claiming user.
+		_, err := sqlDB.Exec("UPDATE workspaces SET owner_id = $1 WHERE id = $2", claimerID, ws.ID)
+		require.NoError(t, err)
+
+		// Update the in-memory workspace to reflect the new owner
+		// so that dbfake uses it for the second build.
+		ws.OwnerID = claimerID
+
+		builder := dbfake.WorkspaceBuild(t, db, ws).
+			Seed(database.WorkspaceBuild{
+				TemplateVersionID: templateVersionID,
+				BuildNumber:       2,
+				InitiatorID:       claimerID,
+				Transition:        database.WorkspaceTransitionStart,
+			}).
+			WithAgent()
+		if !complete {
+			builder = builder.Starting()
+		}
+		return builder.Do()
+	}
+
+	t.Run("unclaimed prebuild receives reinit via pubsub", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		pubsubSpy := pubsubReinitSpy{
+			Pubsub:           ps,
+			triedToSubscribe: make(chan string),
+		}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   &pubsubSpy,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+
+		pubsubSpy.Lock()
+		pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+		pubsubSpy.Unlock()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
+
+		// We need to subscribe before we publish, lest we miss the
+		// event.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+
+		// Now that we're subscribed, publish the event.
+		err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+			WorkspaceID: r.Workspace.ID,
+			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		})
+		require.NoError(t, err)
+
+		ctx = testutil.Context(t, testutil.WaitShort)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 	})
-	user := coderdtest.CreateFirstUser(t, client)
 
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+	// Verifies the durable claim check: when an agent reconnects
+	// after missing the pubsub event, the handler detects that the
+	// workspace was originally a prebuild (first build initiated by
+	// PrebuildsSystemUserID), is now claimed (owner changed), and
+	// the claim build completed, so it sends a one-shot reinit
+	// event immediately.
+	t.Run("claimed prebuild receives one-shot reinit on reconnect", func(t *testing.T) {
+		t.Parallel()
 
-	pubsubSpy.Lock()
-	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
-	pubsubSpy.Unlock()
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
 
-	agentCtx := testutil.Context(t, testutil.WaitShort)
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		// Create an unclaimed prebuild (build 1, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
 
-	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
-	go func() {
-		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
-		assert.NoError(t, err)
-		agentReinitializedCh <- reinitEvent
-	}()
+		// Claim it: change owner + create build 2 (completed).
+		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
 
-	// We need to subscribe before we publish, lest we miss the event
-	ctx := testutil.Context(t, testutil.WaitShort)
-	testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
 
-	// Now that we're subscribed, publish the event
-	err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
-		WorkspaceID: r.Workspace.ID,
-		Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
+
+		// The agent should receive a reinit event immediately from
+		// the durable claim check — no pubsub publish needed.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+		require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
+		require.Equal(t, user.UserID, reinitEvent.OwnerID)
 	})
-	require.NoError(t, err)
 
-	ctx = testutil.Context(t, testutil.WaitShort)
-	reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
-	require.NotNil(t, reinitEvent)
-	require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+	// Verifies that when the claim build completed with an error,
+	// the handler returns 409 so the agent treats it as terminal
+	// and stops retrying (WaitForReinitLoop exits on any 409).
+	t.Run("failed claim build returns terminal 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an unclaimed prebuild (build 1, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+
+		// Claim it: create build 2 as completed (so agent rows
+		// exist and the token is valid for auth).
+		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
+
+		// Simulate a claim build failure: set an error on the
+		// provisioner job. This models the case where terraform
+		// apply partially succeeded (creating resources/agents)
+		// but ultimately errored.
+		_, err := sqlDB.Exec(
+			"UPDATE provisioner_jobs SET error = 'simulated claim failure' WHERE id = $1",
+			claimR.Build.JobID,
+		)
+		require.NoError(t, err)
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
+
+		_, err = agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	// Verifies that a regular workspace (never a prebuild) gets a
+	// 409 Conflict response, causing the agent's reinit loop to
+	// close the channel gracefully.
+	t.Run("regular workspace gets 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a regular workspace (not a prebuild). The first
+		// build's initiator will be the user, not the prebuilds
+		// system user.
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		// WaitForReinit should return an error wrapping a 409.
+		_, err := agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
 }
 
 type pubsubReinitSpy struct {

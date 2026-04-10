@@ -1,0 +1,93 @@
+# Ensures that only bug fixes are cherry-picked to release branches.
+# PRs targeting release/* must have a title starting with "fix:" or "fix(scope):".
+name: PR Cherry-Pick Check
+
+on:
+  # zizmor: ignore[dangerous-triggers] Only reads PR metadata and comments; does not checkout PR code.
+  pull_request_target:
+    types: [opened, reopened, edited]
+    branches:
+      - "release/*"
+
+permissions:
+  pull-requests: write
+
+jobs:
+  check-cherry-pick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Check PR title for bug fix
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            const prNumber = context.payload.pull_request.number;
+            const baseBranch = context.payload.pull_request.base.ref;
+            const author = context.payload.pull_request.user.login;
+
+            console.log(`PR #${prNumber}: "${title}" -> ${baseBranch}`);
+
+            // Match conventional commit "fix:" or "fix(scope):" prefix.
+            const isBugFix = /^fix(\(.+\))?:/.test(title);
+
+            if (isBugFix) {
+              console.log("PR title indicates a bug fix. No action needed.");
+              return;
+            }
+
+            console.log("PR title does not indicate a bug fix. Commenting.");
+
+            // Check for an existing comment from this bot to avoid duplicates
+            // on title edits.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const marker = "<!-- cherry-pick-check -->";
+            const existingComment = comments.find(
+              (c) => c.body && c.body.includes(marker),
+            );
+
+            const body = [
+              marker,
+              `👋 Hey @${author}!`,
+              "",
+              `This PR is targeting the \`${baseBranch}\` release branch, but its title does not start with \`fix:\` or \`fix(scope):\`.`,
+              "",
+              "Only **bug fixes** should be cherry-picked to release branches. If this is a bug fix, please update the PR title to match the conventional commit format:",
+              "",
+              "```",
+              "fix: description of the bug fix",
+              "fix(scope): description of the bug fix",
+              "```",
+              "",
+              "If this is **not** a bug fix, it likely should not target a release branch.",
+            ].join("\n");
+
+            if (existingComment) {
+              console.log(`Updating existing comment ${existingComment.id}.`);
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
+            core.warning(
+              `PR #${prNumber} targets ${baseBranch} but is not a bug fix. Title must start with "fix:" or "fix(scope):".`,
+            );

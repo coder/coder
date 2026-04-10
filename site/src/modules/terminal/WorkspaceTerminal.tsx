@@ -9,6 +9,7 @@ import {
 	type Ref,
 	useCallback,
 	useEffect,
+	useEffectEvent,
 	useId,
 	useImperativeHandle,
 	useRef,
@@ -20,7 +21,6 @@ import {
 	WebsocketBuilder,
 	WebsocketEvent,
 } from "websocket-ts";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import { terminalWebsocketUrl } from "#/utils/terminal";
@@ -121,7 +121,7 @@ export const WorkspaceTerminal = ({
 				width: terminal.cols,
 			};
 		},
-		[reportTerminalError],
+		[],
 	);
 
 	const refit = useCallback(() => {
@@ -261,10 +261,8 @@ export const WorkspaceTerminal = ({
 	}, [
 		hasBeenVisible,
 		copyToClipboard,
-		handleOpenLink,
 		refit,
 		renderer,
-		reportTerminalError,
 		terminalFontFamily,
 		backgroundColor,
 	]);
@@ -462,13 +460,11 @@ export const WorkspaceTerminal = ({
 		containerUser,
 		errorMessage,
 		getTerminalDimensions,
-		handleStatusChange,
 		initialCommand,
 		loading,
 		operatingSystem,
 		reconnectionToken,
 		refit,
-		reportTerminalError,
 		terminal,
 	]);
 
@@ -490,16 +486,16 @@ export const WorkspaceTerminal = ({
 				}
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar {
-					width: 10px;
+					width: 8px;
 				}
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-track {
-					background-color: inherit;
+					background-color: transparent;
 				}
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: rgba(255, 255, 255, 0.18);
+					background-color: hsl(var(--surface-quaternary));
 				}
 			`}</style>
 			<div

@@ -1459,11 +1459,12 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "openai",
-		APIKey:      "test-key",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "openai",
+		APIKey:               "test-key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -1943,11 +1944,12 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "anthropic",
-		DisplayName: "anthropic",
-		APIKey:      "test-key",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "anthropic",
+		DisplayName:          "anthropic",
+		APIKey:               "test-key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -2325,5 +2327,50 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 
 		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
 		require.True(t, isText, "expected ToolResultOutputContentText")
+	})
+}
+
+func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
+	t.Parallel()
+
+	// PartFromContent must NOT stamp CreatedAt itself.
+	// The chatloop layer records timestamps separately and
+	// the persistence layer applies them. PartFromContent
+	// is called in multiple contexts (SSE publishing,
+	// persistence) so stamping inside it would produce
+	// inaccurate durations.
+
+	t.Run("ToolCallHasNilCreatedAt", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.PartFromContent(fantasy.ToolCallContent{
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+		})
+		assert.Nil(t, part.CreatedAt)
+	})
+
+	t.Run("ToolCallPointerHasNilCreatedAt", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.PartFromContent(&fantasy.ToolCallContent{
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+		})
+		assert.Nil(t, part.CreatedAt)
+	})
+
+	t.Run("ToolResultHasNilCreatedAt", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+			Result:     fantasy.ToolResultOutputContentText{Text: "{}"},
+		})
+		assert.Nil(t, part.CreatedAt)
+	})
+
+	t.Run("TextHasNilCreatedAt", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.PartFromContent(fantasy.TextContent{Text: "hello"})
+		assert.Nil(t, part.CreatedAt)
 	})
 }
