@@ -30,7 +30,7 @@ export function useTime<T>(func: () => T, options: UseTimeOptions = {}): T {
 		}
 
 		const handle = setInterval(() => {
-			setComputedValue(() => thunk());
+			setComputedValue(thunk());
 		}, interval);
 
 		return () => {
