@@ -367,134 +367,142 @@ func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestConfigCache_ModelAttachments_CacheHit(t *testing.T) {
-	t.Parallel()
+type modelAttachmentSpec struct {
+	id       string
+	provider string
+	priority int32
+}
+
+type modelAttachmentsTestScenario struct {
+	ctx               context.Context
+	clock             *quartz.Mock
+	modelID           uuid.UUID
+	store             *stubChatConfigStore
+	cache             *chatConfigCache
+	firstAttachments  []database.GetModelProviderConfigsRow
+	secondAttachments []database.GetModelProviderConfigsRow
+}
+
+func buildModelAttachments(modelID uuid.UUID, specs []modelAttachmentSpec) []database.GetModelProviderConfigsRow {
+	attachments := make([]database.GetModelProviderConfigsRow, 0, len(specs))
+	for _, spec := range specs {
+		providerConfigID := uuid.New()
+		if spec.id != "" {
+			providerConfigID = uuid.MustParse(spec.id)
+		}
+		attachments = append(attachments, testModelAttachment(modelID, providerConfigID, spec.provider, spec.priority))
+	}
+	return attachments
+}
+
+func newModelAttachmentsTestScenario(t *testing.T, firstSpecs, secondSpecs []modelAttachmentSpec) modelAttachmentsTestScenario {
+	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	modelID := uuid.New()
-	attachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.New(), "openai", 0),
-		testModelAttachment(modelID, uuid.New(), "anthropic", 1),
+	firstAttachments := buildModelAttachments(modelID, firstSpecs)
+	secondAttachments := buildModelAttachments(modelID, secondSpecs)
+	if secondSpecs == nil {
+		secondAttachments = firstAttachments
 	}
-	store := &stubChatConfigStore{
-		getModelProviderConfigs: func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
-			return attachments, nil
+
+	scenario := modelAttachmentsTestScenario{
+		ctx:               ctx,
+		clock:             clock,
+		modelID:           modelID,
+		firstAttachments:  firstAttachments,
+		secondAttachments: secondAttachments,
+	}
+	scenario.store = &stubChatConfigStore{}
+	scenario.store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+		if scenario.store.modelProviderConfigsCalls.Load() == 1 {
+			return scenario.firstAttachments, nil
+		}
+		return scenario.secondAttachments, nil
+	}
+	scenario.cache = newChatConfigCache(ctx, scenario.store, clock)
+	return scenario
+}
+
+func TestConfigCache_ModelAttachments(t *testing.T) {
+	t.Parallel()
+
+	const (
+		modelAttachmentsActionNone = ""
+		modelAttachmentsActionTTL  = "ttl"
+		modelAttachmentsActionCfg  = "invalidateModelConfig"
+		modelAttachmentsActionProv = "invalidateProviders"
+	)
+
+	tests := []struct {
+		name       string
+		first      []modelAttachmentSpec
+		second     []modelAttachmentSpec
+		action     string
+		wantEpoch  uint64
+		storeCalls int32
+	}{
+		{
+			name:       "CacheHit",
+			first:      []modelAttachmentSpec{{provider: "openai"}, {provider: "anthropic", priority: 1}},
+			action:     modelAttachmentsActionNone,
+			storeCalls: 1,
+		},
+		{
+			name:       "TTLExpiry",
+			first:      []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000051", provider: "openai"}},
+			second:     []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000052", provider: "anthropic"}},
+			action:     modelAttachmentsActionTTL,
+			storeCalls: 2,
+		},
+		{
+			name:       "InvalidateModelConfig_ClearsAttachments",
+			first:      []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000061", provider: "openai"}},
+			second:     []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000062", provider: "openrouter"}},
+			action:     modelAttachmentsActionCfg,
+			wantEpoch:  1,
+			storeCalls: 2,
+		},
+		{
+			name:       "InvalidateProviders_ClearsAttachments",
+			first:      []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000071", provider: "openai"}},
+			second:     []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000072", provider: "google"}},
+			action:     modelAttachmentsActionProv,
+			storeCalls: 2,
 		},
 	}
-	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-	second, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.Equal(t, attachments, first)
-	require.Equal(t, attachments, second)
-	require.Equal(t, int32(1), store.modelProviderConfigsCalls.Load())
-}
+			scenario := newModelAttachmentsTestScenario(t, tc.first, tc.second)
+			first, err := scenario.cache.ModelAttachments(scenario.ctx, scenario.modelID)
+			require.NoError(t, err)
 
-func TestConfigCache_ModelAttachments_TTLExpiry(t *testing.T) {
-	t.Parallel()
+			switch tc.action {
+			case modelAttachmentsActionTTL:
+				scenario.clock.Advance(chatConfigModelConfigTTL).MustWait(scenario.ctx)
+			case modelAttachmentsActionCfg:
+				scenario.cache.InvalidateModelConfig(scenario.modelID)
+				_, ok := scenario.cache.modelAttachments[scenario.modelID]
+				require.False(t, ok)
+				require.Equal(t, tc.wantEpoch, scenario.cache.modelAttachmentEpoch)
+			case modelAttachmentsActionProv:
+				scenario.cache.InvalidateProviders()
+				_, ok := scenario.cache.modelAttachments[scenario.modelID]
+				require.False(t, ok)
+			}
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	modelID := uuid.New()
-	firstAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000051"), "openai", 0),
+			second, err := scenario.cache.ModelAttachments(scenario.ctx, scenario.modelID)
+			require.NoError(t, err)
+			require.Equal(t, scenario.firstAttachments, first)
+			require.Equal(t, scenario.secondAttachments, second)
+			require.Equal(t, tc.storeCalls, scenario.store.modelProviderConfigsCalls.Load())
+		})
 	}
-	secondAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000052"), "anthropic", 0),
-	}
-	store := &stubChatConfigStore{}
-	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
-		if store.modelProviderConfigsCalls.Load() == 1 {
-			return firstAttachments, nil
-		}
-		return secondAttachments, nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-	clock.Advance(chatConfigModelConfigTTL).MustWait(ctx)
-	second, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-
-	require.Equal(t, firstAttachments, first)
-	require.Equal(t, secondAttachments, second)
-	require.Equal(t, int32(2), store.modelProviderConfigsCalls.Load())
-}
-
-func TestConfigCache_InvalidateModelConfig_ClearsAttachments(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	modelID := uuid.New()
-	firstAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000061"), "openai", 0),
-	}
-	secondAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000062"), "openrouter", 0),
-	}
-	store := &stubChatConfigStore{}
-	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
-		if store.modelProviderConfigsCalls.Load() == 1 {
-			return firstAttachments, nil
-		}
-		return secondAttachments, nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-	cache.InvalidateModelConfig(modelID)
-	_, ok := cache.modelAttachments[modelID]
-	require.False(t, ok)
-	require.Equal(t, uint64(1), cache.modelAttachmentEpoch)
-
-	second, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-
-	require.Equal(t, firstAttachments, first)
-	require.Equal(t, secondAttachments, second)
-	require.Equal(t, int32(2), store.modelProviderConfigsCalls.Load())
-}
-
-func TestConfigCache_InvalidateProviders_ClearsAttachments(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	modelID := uuid.New()
-	firstAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000071"), "openai", 0),
-	}
-	secondAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000072"), "google", 0),
-	}
-	store := &stubChatConfigStore{}
-	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
-		if store.modelProviderConfigsCalls.Load() == 1 {
-			return firstAttachments, nil
-		}
-		return secondAttachments, nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-	cache.InvalidateProviders()
-	_, ok := cache.modelAttachments[modelID]
-	require.False(t, ok)
-
-	second, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-
-	require.Equal(t, firstAttachments, first)
-	require.Equal(t, secondAttachments, second)
-	require.Equal(t, int32(2), store.modelProviderConfigsCalls.Load())
 }
 
 func TestConfigCache_ModelAttachments_StaleWriteDiscarded(t *testing.T) {
@@ -503,32 +511,21 @@ func TestConfigCache_ModelAttachments_StaleWriteDiscarded(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
 	modelID := uuid.New()
-	initialAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000081"), "openai", 0),
+	initialAttachments := buildModelAttachments(modelID, []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000081", provider: "openai"}})
+	blocked := []blockedCall[[]database.GetModelProviderConfigsRow]{
+		newBlockedCall(buildModelAttachments(modelID, []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000082", provider: "azure"}})),
+		newBlockedCall(buildModelAttachments(modelID, []modelAttachmentSpec{{id: "00000000-0000-0000-0000-000000000083", provider: "anthropic"}})),
 	}
-	staleAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000082"), "azure", 0),
-	}
-	freshAttachments := []database.GetModelProviderConfigsRow{
-		testModelAttachment(modelID, uuid.MustParse("00000000-0000-0000-0000-000000000083"), "anthropic", 0),
-	}
-	firstStarted := make(chan struct{})
-	secondStarted := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	releaseSecond := make(chan struct{})
 	store := &stubChatConfigStore{}
 	store.getModelProviderConfigs = func(context.Context, uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
 		switch call := store.modelProviderConfigsCalls.Load(); call {
 		case 1:
 			return initialAttachments, nil
-		case 2:
-			close(firstStarted)
-			<-releaseFirst
-			return staleAttachments, nil
-		case 3:
-			close(secondStarted)
-			<-releaseSecond
-			return freshAttachments, nil
+		case 2, 3:
+			fetch := blocked[call-2]
+			close(fetch.started)
+			<-fetch.release
+			return fetch.value, nil
 		default:
 			return nil, xerrors.Errorf("unexpected model attachment call %d", call)
 		}
@@ -538,47 +535,20 @@ func TestConfigCache_ModelAttachments_StaleWriteDiscarded(t *testing.T) {
 	warm, err := cache.ModelAttachments(ctx, modelID)
 	require.NoError(t, err)
 	require.Equal(t, initialAttachments, warm)
-
 	cache.InvalidateProviders()
 
-	type result struct {
-		attachments []database.GetModelProviderConfigsRow
-		err         error
-	}
-
-	firstResult := make(chan result, 1)
-	go func() {
-		attachments, err := cache.ModelAttachments(ctx, modelID)
-		firstResult <- result{attachments: attachments, err: err}
-	}()
-
-	waitForSignal(t, firstStarted)
-	cache.InvalidateProviders()
-
-	secondResult := make(chan result, 1)
-	go func() {
-		attachments, err := cache.ModelAttachments(ctx, modelID)
-		secondResult <- result{attachments: attachments, err: err}
-	}()
-
-	waitForSignal(t, secondStarted)
-	close(releaseFirst)
-	first := <-firstResult
-	require.NoError(t, first.err)
-	require.Equal(t, staleAttachments, first.attachments)
-	_, ok := cache.modelAttachments[modelID]
-	require.False(t, ok)
-
-	close(releaseSecond)
-	second := <-secondResult
-	require.NoError(t, second.err)
-	require.Equal(t, freshAttachments, second.attachments)
-	require.Equal(t, int32(3), store.modelProviderConfigsCalls.Load())
-
-	third, err := cache.ModelAttachments(ctx, modelID)
-	require.NoError(t, err)
-	require.Equal(t, freshAttachments, third)
-	require.Equal(t, int32(3), store.modelProviderConfigsCalls.Load())
+	runBlockedStaleWriteTest(
+		t,
+		blocked,
+		func() ([]database.GetModelProviderConfigsRow, error) { return cache.ModelAttachments(ctx, modelID) },
+		cache.InvalidateProviders,
+		func(t *testing.T) {
+			_, ok := cache.modelAttachments[modelID]
+			require.False(t, ok)
+		},
+		func() int32 { return store.modelProviderConfigsCalls.Load() },
+		3,
+	)
 }
 
 func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
@@ -689,67 +659,33 @@ func TestConfigCache_InvalidateUserPrompt_BlocksStaleInFlightPrompt(t *testing.T
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
 	userID := uuid.New()
-	const stalePrompt = "stale prompt"
-	const freshPrompt = "fresh prompt"
-	firstStarted := make(chan struct{})
-	secondStarted := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	releaseSecond := make(chan struct{})
+	blocked := []blockedCall[string]{newBlockedCall("stale prompt"), newBlockedCall("fresh prompt")}
 	store := &stubChatConfigStore{}
 	store.getUserChatCustomPrompt = func(context.Context, uuid.UUID) (string, error) {
 		switch call := store.userPromptCalls.Load(); call {
-		case 1:
-			close(firstStarted)
-			<-releaseFirst
-			return stalePrompt, nil
-		case 2:
-			close(secondStarted)
-			<-releaseSecond
-			return freshPrompt, nil
+		case 1, 2:
+			fetch := blocked[call-1]
+			close(fetch.started)
+			<-fetch.release
+			return fetch.value, nil
 		default:
 			return "", xerrors.Errorf("unexpected user prompt call %d", call)
 		}
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	type result struct {
-		prompt string
-		err    error
-	}
-
-	firstResult := make(chan result, 1)
-	go func() {
-		prompt, err := cache.UserPrompt(ctx, userID)
-		firstResult <- result{prompt: prompt, err: err}
-	}()
-
-	waitForSignal(t, firstStarted)
-	cache.InvalidateUserPrompt(userID)
-
-	secondResult := make(chan result, 1)
-	go func() {
-		prompt, err := cache.UserPrompt(ctx, userID)
-		secondResult <- result{prompt: prompt, err: err}
-	}()
-
-	waitForSignal(t, secondStarted)
-	close(releaseFirst)
-	first := <-firstResult
-	require.NoError(t, first.err)
-	require.Equal(t, stalePrompt, first.prompt)
-	_, _, ok := cache.userPrompts.Get(userID)
-	require.False(t, ok)
-
-	close(releaseSecond)
-	second := <-secondResult
-	require.NoError(t, second.err)
-	require.Equal(t, freshPrompt, second.prompt)
-	require.Equal(t, int32(2), store.userPromptCalls.Load())
-
-	third, err := cache.UserPrompt(ctx, userID)
-	require.NoError(t, err)
-	require.Equal(t, freshPrompt, third)
-	require.Equal(t, int32(2), store.userPromptCalls.Load())
+	runBlockedStaleWriteTest(
+		t,
+		blocked,
+		func() (string, error) { return cache.UserPrompt(ctx, userID) },
+		func() { cache.InvalidateUserPrompt(userID) },
+		func(t *testing.T) {
+			_, _, ok := cache.userPrompts.Get(userID)
+			require.False(t, ok)
+		},
+		func() int32 { return store.userPromptCalls.Load() },
+		2,
+	)
 }
 
 func TestConfigCache_Singleflight(t *testing.T) {
@@ -853,66 +789,33 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightProviders(t *testing
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
-	staleProviders := []database.ChatProvider{testChatProvider("provider-stale")}
-	freshProviders := []database.ChatProvider{testChatProvider("provider-fresh")}
-	firstStarted := make(chan struct{})
-	secondStarted := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	releaseSecond := make(chan struct{})
+	blocked := []blockedCall[[]database.ChatProvider]{
+		newBlockedCall([]database.ChatProvider{testChatProvider("provider-stale")}),
+		newBlockedCall([]database.ChatProvider{testChatProvider("provider-fresh")}),
+	}
 	store := &stubChatConfigStore{}
 	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
 		switch call := store.enabledProvidersCalls.Load(); call {
-		case 1:
-			close(firstStarted)
-			<-releaseFirst
-			return staleProviders, nil
-		case 2:
-			close(secondStarted)
-			<-releaseSecond
-			return freshProviders, nil
+		case 1, 2:
+			fetch := blocked[call-1]
+			close(fetch.started)
+			<-fetch.release
+			return fetch.value, nil
 		default:
 			return nil, xerrors.Errorf("unexpected provider call %d", call)
 		}
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	type result struct {
-		providers []database.ChatProvider
-		err       error
-	}
-
-	firstResult := make(chan result, 1)
-	go func() {
-		providers, err := cache.EnabledProviders(ctx)
-		firstResult <- result{providers: providers, err: err}
-	}()
-
-	waitForSignal(t, firstStarted)
-	cache.InvalidateProviders()
-
-	secondResult := make(chan result, 1)
-	go func() {
-		providers, err := cache.EnabledProviders(ctx)
-		secondResult <- result{providers: providers, err: err}
-	}()
-
-	waitForSignal(t, secondStarted)
-	close(releaseFirst)
-	first := <-firstResult
-	require.NoError(t, first.err)
-	require.Equal(t, staleProviders, first.providers)
-	require.Nil(t, cache.providers)
-
-	close(releaseSecond)
-	second := <-secondResult
-	require.NoError(t, second.err)
-	require.Equal(t, freshProviders, second.providers)
-	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
-
-	third, err := cache.EnabledProviders(ctx)
-	require.NoError(t, err)
-	require.Equal(t, freshProviders, third)
-	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
+	runBlockedStaleWriteTest(
+		t,
+		blocked,
+		func() ([]database.ChatProvider, error) { return cache.EnabledProviders(ctx) },
+		cache.InvalidateProviders,
+		func(t *testing.T) { require.Nil(t, cache.providers) },
+		func() int32 { return store.enabledProvidersCalls.Load() },
+		2,
+	)
 }
 
 func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
@@ -966,67 +869,36 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
 	configID := uuid.New()
-	staleConfig := testChatModelConfig(configID, "stale-model")
-	freshConfig := testChatModelConfig(configID, "fresh-model")
-	firstStarted := make(chan struct{})
-	secondStarted := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	releaseSecond := make(chan struct{})
+	blocked := []blockedCall[database.ChatModelConfig]{
+		newBlockedCall(testChatModelConfig(configID, "stale-model")),
+		newBlockedCall(testChatModelConfig(configID, "fresh-model")),
+	}
 	store := &stubChatConfigStore{}
 	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 		switch call := store.modelConfigByIDCalls.Load(); call {
-		case 1:
-			close(firstStarted)
-			<-releaseFirst
-			return staleConfig, nil
-		case 2:
-			close(secondStarted)
-			<-releaseSecond
-			return freshConfig, nil
+		case 1, 2:
+			fetch := blocked[call-1]
+			close(fetch.started)
+			<-fetch.release
+			return fetch.value, nil
 		default:
 			return database.ChatModelConfig{}, xerrors.Errorf("unexpected model config call %d", call)
 		}
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	type result struct {
-		config database.ChatModelConfig
-		err    error
-	}
-
-	firstResult := make(chan result, 1)
-	go func() {
-		config, err := cache.ModelConfigByID(ctx, configID)
-		firstResult <- result{config: config, err: err}
-	}()
-
-	waitForSignal(t, firstStarted)
-	cache.InvalidateProviders()
-
-	secondResult := make(chan result, 1)
-	go func() {
-		config, err := cache.ModelConfigByID(ctx, configID)
-		secondResult <- result{config: config, err: err}
-	}()
-
-	waitForSignal(t, secondStarted)
-	close(releaseFirst)
-	first := <-firstResult
-	require.NoError(t, first.err)
-	require.Equal(t, staleConfig, first.config)
-	_, ok := cache.modelConfigs[configID]
-	require.False(t, ok)
-
-	close(releaseSecond)
-	second := <-secondResult
-	require.NoError(t, second.err)
-	require.Equal(t, freshConfig, second.config)
-	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
-
-	third, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	require.Equal(t, freshConfig, third)
-	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
+	runBlockedStaleWriteTest(
+		t,
+		blocked,
+		func() (database.ChatModelConfig, error) { return cache.ModelConfigByID(ctx, configID) },
+		cache.InvalidateProviders,
+		func(t *testing.T) {
+			_, ok := cache.modelConfigs[configID]
+			require.False(t, ok)
+		},
+		func() int32 { return store.modelConfigByIDCalls.Load() },
+		2,
+	)
 }
 
 func testModelAttachment(modelID, providerConfigID uuid.UUID, provider string, priority int32) database.GetModelProviderConfigsRow {
@@ -1076,6 +948,75 @@ func waitForSignal(t *testing.T, ch <-chan struct{}) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("timed out waiting for signal")
 	}
+}
+
+type blockedCall[T any] struct {
+	started chan struct{}
+	release chan struct{}
+	value   T
+}
+
+func newBlockedCall[T any](value T) blockedCall[T] {
+	return blockedCall[T]{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		value:   value,
+	}
+}
+
+type asyncCall[T any] struct {
+	value T
+	err   error
+	done  chan struct{}
+}
+
+func startAsyncCall[T any](wg *sync.WaitGroup, call func() (T, error)) *asyncCall[T] {
+	result := &asyncCall[T]{done: make(chan struct{})}
+	wg.Go(func() {
+		defer close(result.done)
+		result.value, result.err = call()
+	})
+	return result
+}
+
+func awaitAsyncCall[T any](t *testing.T, result *asyncCall[T]) T {
+	t.Helper()
+	<-result.done
+	require.NoError(t, result.err)
+	return result.value
+}
+
+func runBlockedStaleWriteTest[T any](
+	t *testing.T,
+	blocked []blockedCall[T],
+	call func() (T, error),
+	betweenCalls func(),
+	assertCleared func(t *testing.T),
+	storeCalls func() int32,
+	expectedCalls int32,
+) {
+	t.Helper()
+
+	var wg sync.WaitGroup
+	first := startAsyncCall(&wg, call)
+	waitForSignal(t, blocked[0].started)
+	betweenCalls()
+
+	second := startAsyncCall(&wg, call)
+	waitForSignal(t, blocked[1].started)
+	close(blocked[0].release)
+	require.Equal(t, blocked[0].value, awaitAsyncCall(t, first))
+	assertCleared(t)
+
+	close(blocked[1].release)
+	require.Equal(t, blocked[1].value, awaitAsyncCall(t, second))
+	wg.Wait()
+	require.Equal(t, expectedCalls, storeCalls())
+
+	third, err := call()
+	require.NoError(t, err)
+	require.Equal(t, blocked[1].value, third)
+	require.Equal(t, expectedCalls, storeCalls())
 }
 
 // TestConfigCache_CallerCancellation verifies the DoChan-based
