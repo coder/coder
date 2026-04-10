@@ -92,6 +92,10 @@ interface CreateUserFormProps {
 	serviceAccountsEnabled: boolean;
 }
 
+// Stable reference for empty org options to avoid re-render loops
+// in the render-time state adjustment pattern.
+const emptyOrgs: TypesGen.Organization[] = [];
+
 export const CreateUserForm: FC<CreateUserFormProps> = ({
 	error,
 	isLoading,
@@ -138,7 +142,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		}),
 		enabled: showOrganizations,
 	});
-	const orgOptions = permittedOrgsQuery.data ?? [];
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 
 	// Clear invalid selections when permission filtering removes the
 	// selected org. Uses the React render-time adjustment pattern.

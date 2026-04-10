@@ -194,6 +194,10 @@ type CreateTemplateFormProps = (
 	showOrganizationPicker?: boolean;
 };
 
+// Stable reference for empty org options to avoid re-render loops
+// in the render-time state adjustment pattern.
+const emptyOrgs: Organization[] = [];
+
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	const [searchParams] = useSearchParams();
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -232,7 +236,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 		}),
 		enabled: Boolean(showOrganizationPicker),
 	});
-	const orgOptions = permittedOrgsQuery.data ?? [];
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 
 	// Clear invalid selections when permission filtering removes the
 	// selected org. Uses the React render-time adjustment pattern.
