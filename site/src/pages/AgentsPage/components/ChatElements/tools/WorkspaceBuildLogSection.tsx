@@ -124,7 +124,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		);
 	}
 
-	if (timedOut) {
+	if (timedOut && !hasLogs) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
 				<TriangleAlertIcon className="h-3 w-3" />

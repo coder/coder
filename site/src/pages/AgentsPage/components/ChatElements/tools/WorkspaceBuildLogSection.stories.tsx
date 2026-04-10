@@ -40,11 +40,11 @@ const meta: Meta<typeof WorkspaceBuildLogSection> = {
 	component: WorkspaceBuildLogSection,
 	decorators: [
 		(Story) => (
-			<ChatWorkspaceContext.Provider value={{ workspaceId: TEST_WORKSPACE_ID }}>
+			<ChatWorkspaceContext value={{ workspaceId: TEST_WORKSPACE_ID }}>
 				<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
 					<Story />
 				</div>
-			</ChatWorkspaceContext.Provider>
+			</ChatWorkspaceContext>
 		),
 	],
 };

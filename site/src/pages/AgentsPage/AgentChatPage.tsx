@@ -1236,9 +1236,9 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
-				workspace={workspace}
-				workspaceAgent={workspaceAgent}
-				chatBuildId={chatQuery.data?.build_id}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			chatBuildId={chatQuery.data?.build_id}
 			store={store}
 			editing={editing}
 			effectiveSelectedModel={effectiveSelectedModel}

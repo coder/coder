@@ -121,15 +121,15 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			// Check for an existing workspace on the chat.
-			existing, done, failedBuildID, existErr := options.checkExistingWorkspace(ctx)
-			if existErr != nil {
-				if failedBuildID != uuid.Nil {
-					return buildToolResponse(newBuildError(existErr.Error(), failedBuildID)), nil
+			check := options.checkExistingWorkspace(ctx)
+			if check.Err != nil {
+				if check.FailedBuildID != uuid.Nil {
+					return buildToolResponse(newBuildError(check.Err.Error(), check.FailedBuildID)), nil
 				}
-				return fantasy.NewTextErrorResponse(existErr.Error()), nil
+				return fantasy.NewTextErrorResponse(check.Err.Error()), nil
 			}
-			if done {
-				return toolResponse(existing), nil
+			if check.Done {
+				return toolResponse(check.Result), nil
 			}
 			ownerID := options.OwnerID
 
@@ -280,6 +280,20 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 		})
 }
 
+// existingWorkspaceResult holds the outcome of checking for an
+// existing workspace on the chat.
+type existingWorkspaceResult struct {
+	// Result is the tool response map when Done is true.
+	Result map[string]any
+	// Done indicates the caller should return early.
+	Done bool
+	// FailedBuildID is set when waitForBuild failed, so the
+	// caller can include it in a structured error response.
+	FailedBuildID uuid.UUID
+	// Err is non-nil when the check itself failed.
+	Err error
+}
+
 // checkExistingWorkspace checks whether the configured chat already has
 // a usable workspace. Returns the result map and true if the caller
 // should return early (workspace exists and is alive or building).
@@ -287,9 +301,9 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 // is dead or missing).
 func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
-) (map[string]any, bool, uuid.UUID, error) {
+) existingWorkspaceResult {
 	if o.DB == nil || o.ChatID == uuid.Nil {
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 	}
 
 	db := o.DB
@@ -299,31 +313,31 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 
 	chat, err := db.GetChatByID(ctx, chatID)
 	if err != nil {
-		return nil, false, uuid.Nil, xerrors.Errorf("load chat: %w", err)
+		return existingWorkspaceResult{Err: xerrors.Errorf("load chat: %w", err)}
 	}
 	if !chat.WorkspaceID.Valid {
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 	}
 
 	ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		return nil, false, uuid.Nil, xerrors.Errorf("load workspace: %w", err)
+		return existingWorkspaceResult{Err: xerrors.Errorf("load workspace: %w", err)}
 	}
 	// Workspace was soft-deleted — allow creation.
 	if ws.Deleted {
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 	}
 
 	// Check the latest build status.
 	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil {
 		// Can't determine status — allow creation.
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 	}
 
 	job, err := db.GetProvisionerJobByID(ctx, build.JobID)
 	if err != nil {
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 	}
 
 	switch job.JobStatus {
@@ -332,9 +346,10 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		// Build is in progress — wait for it instead of
 		// creating a new workspace.
 		if err := waitForBuild(ctx, db, build.ID); err != nil {
-			return nil, false, build.ID, xerrors.Errorf(
-				"existing workspace build failed: %w", err,
-			)
+			return existingWorkspaceResult{
+				FailedBuildID: build.ID,
+				Err:           xerrors.Errorf("existing workspace build failed: %w", err),
+			}
 		}
 		result := map[string]any{
 			"created":        false,
@@ -357,18 +372,18 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				result[k] = v
 			}
 		}
-		return result, true, uuid.Nil, nil
+		return existingWorkspaceResult{Result: result, Done: true}
 
 	case database.ProvisionerJobStatusSucceeded:
 		// If the workspace was stopped, tell the model to use
 		// start_workspace instead of creating a new one.
 		if build.Transition == database.WorkspaceTransitionStop {
-			return map[string]any{
+			return existingWorkspaceResult{Result: map[string]any{
 				"created":        false,
 				"workspace_name": ws.Name,
 				"status":         "stopped",
 				"message":        "workspace is stopped; use start_workspace to start it",
-			}, true, uuid.Nil, nil
+			}, Done: true}
 		}
 
 		// Build succeeded — use the agent's recent DB-backed
@@ -397,13 +412,13 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				for k, v := range waitForAgentReady(ctx, db, selected.ID, nil) {
 					result[k] = v
 				}
-				return result, true, uuid.Nil, nil
+				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusConnecting:
 				result["message"] = "workspace exists and the agent is still connecting"
 				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 					result[k] = v
 				}
-				return result, true, uuid.Nil, nil
+				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusDisconnected,
 				database.WorkspaceAgentStatusTimeout:
 				// Agent is offline or never became ready - allow
@@ -411,11 +426,11 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			}
 		}
 		// No agent ID or no agent status — allow creation.
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 
 	default:
 		// Failed, canceled, etc — allow creation.
-		return nil, false, uuid.Nil, nil
+		return existingWorkspaceResult{}
 	}
 }
 

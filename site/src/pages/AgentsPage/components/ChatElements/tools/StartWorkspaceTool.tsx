@@ -5,7 +5,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import type { ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
@@ -38,7 +37,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	const header = (
 		<>
 			<MonitorPlayIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
+			<span className="text-sm text-content-secondary">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>

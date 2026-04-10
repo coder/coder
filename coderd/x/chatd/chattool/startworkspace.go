@@ -102,6 +102,28 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
+				// Publish the build ID to the frontend so it
+				// can start streaming logs immediately.
+				if options.DB != nil && options.ChatID != uuid.Nil {
+					updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+						ID:          options.ChatID,
+						WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+						BuildID: uuid.NullUUID{
+							UUID:  build.ID,
+							Valid: build.ID != uuid.Nil,
+						},
+						AgentID: uuid.NullUUID{},
+					})
+					if bindErr != nil {
+						options.Logger.Error(ctx, "failed to persist build ID on chat binding",
+							slog.F("chat_id", options.ChatID),
+							slog.F("build_id", build.ID),
+							slog.Error(bindErr),
+						)
+					} else if options.OnChatUpdated != nil {
+						options.OnChatUpdated(updatedChat)
+					}
+				}
 				if err := waitForBuild(ctx, options.DB, build.ID); err != nil {
 					// newBuildError returns via toolResponse (IsError: false)
 					// rather than NewTextErrorResponse (IsError: true) so the

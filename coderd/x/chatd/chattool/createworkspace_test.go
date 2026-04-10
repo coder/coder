@@ -469,12 +469,12 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
-	result, done, _, err := options.checkExistingWorkspace(context.Background())
-	require.NoError(t, err)
-	require.True(t, done)
-	require.Equal(t, "already_exists", result["status"])
-	require.Equal(t, "existing-workspace", result["workspace_name"])
-	require.Equal(t, "workspace is already running and recently connected", result["message"])
+	check := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, check.Err)
+	require.True(t, check.Done)
+	require.Equal(t, "already_exists", check.Result["status"])
+	require.Equal(t, "existing-workspace", check.Result["workspace_name"])
+	require.Equal(t, "workspace is already running and recently connected", check.Result["message"])
 }
 
 func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
@@ -547,14 +547,14 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 		Return([]database.WorkspaceAgent{}, nil)
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-	result, done, _, err := options.checkExistingWorkspace(context.Background())
-	require.NoError(t, err)
-	require.True(t, done)
-	require.Equal(t, false, result["created"])
-	require.Equal(t, "already_exists", result["status"])
-	require.Equal(t, buildID.String(), result["build_id"])
-	require.Equal(t, "building-workspace", result["workspace_name"])
-	require.Equal(t, "workspace build completed", result["message"])
+	check := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, check.Err)
+	require.True(t, check.Done)
+	require.Equal(t, false, check.Result["created"])
+	require.Equal(t, "already_exists", check.Result["status"])
+	require.Equal(t, buildID.String(), check.Result["build_id"])
+	require.Equal(t, "building-workspace", check.Result["workspace_name"])
+	require.Equal(t, "workspace build completed", check.Result["message"])
 }
 
 func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.T) {
@@ -615,10 +615,10 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 		After(firstJob)
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-	_, _, failedBuildID, err := options.checkExistingWorkspace(context.Background())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "existing workspace build failed")
-	require.Equal(t, buildID, failedBuildID)
+	check := options.checkExistingWorkspace(context.Background())
+	require.Error(t, check.Err)
+	require.Contains(t, check.Err.Error(), "existing workspace build failed")
+	require.Equal(t, buildID, check.FailedBuildID)
 }
 
 func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
@@ -662,12 +662,12 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
-	result, done, _, err := options.checkExistingWorkspace(context.Background())
-	require.NoError(t, err)
-	require.True(t, done)
+	check := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, check.Err)
+	require.True(t, check.Done)
 	require.Equal(t, 1, connectCalls)
-	require.Equal(t, "already_exists", result["status"])
-	require.Equal(t, "workspace exists and the agent is still connecting", result["message"])
+	require.Equal(t, "already_exists", check.Result["status"])
+	require.Equal(t, "workspace exists and the agent is still connecting", check.Result["message"])
 }
 
 func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
@@ -722,10 +722,10 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 				Return([]database.WorkspaceAgent{tc.agent}, nil)
 
 			options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-			result, done, _, err := options.checkExistingWorkspace(context.Background())
-			require.NoError(t, err)
-			require.False(t, done)
-			require.Nil(t, result)
+			check := options.checkExistingWorkspace(context.Background())
+			require.NoError(t, check.Err)
+			require.False(t, check.Done)
+			require.Nil(t, check.Result)
 		})
 	}
 }
@@ -755,10 +755,10 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 		}, nil)
 
 	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
-	result, done, _, err := options.checkExistingWorkspace(context.Background())
-	require.NoError(t, err)
-	require.False(t, done, "should allow creation for deleted workspace")
-	require.Nil(t, result)
+	check := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, check.Err)
+	require.False(t, check.Done, "should allow creation for deleted workspace")
+	require.Nil(t, check.Result)
 }
 
 func testCheckExistingWorkspaceOptions(
