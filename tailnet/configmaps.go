@@ -732,7 +732,16 @@ func (l *peerLifecycle) setLostTimer(c *configMaps) {
 	if l.lostTimer != nil {
 		l.lostTimer.Stop()
 	}
-	ttl := lostTimeout - c.clock.Since(l.lastHandshake)
+	var ttl time.Duration
+	if l.lastHandshake.IsZero() {
+		// Peer has never completed a handshake. Give it the full
+		// lostTimeout to establish one rather than deleting it
+		// immediately. A zero lastHandshake just means WireGuard
+		// hasn't connected yet, not that the peer is gone.
+		ttl = lostTimeout
+	} else {
+		ttl = lostTimeout - c.clock.Since(l.lastHandshake)
+	}
 	if ttl <= 0 {
 		ttl = time.Nanosecond
 	}

@@ -641,6 +641,97 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	_ = testutil.TryReceive(ctx, t, done)
 }
 
+func TestConfigMaps_updatePeers_lost_zero_handshake(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
+	defer uut.close()
+	mClock := quartz.NewMock(t)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+
+	// Respond to the status request from updatePeers(NODE) with no
+	// handshake information, so lastHandshake stays zero.
+	expectNoStatus := func() <-chan struct{} {
+		called := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				t.Error("timeout waiting for status")
+				return
+			case b := <-fEng.status:
+				_ = b // don't add any peer
+			}
+			select {
+			case <-ctx.Done():
+				t.Error("timeout sending done")
+			case fEng.statusDone <- struct{}{}:
+				close(called)
+			}
+		}()
+		return called
+	}
+
+	// Add the peer via NODE update — no handshake in status.
+	s1 := expectNoStatus()
+	updates := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(updates)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 1)
+	require.Len(t, r.wg.Peers, 1)
+	_ = testutil.TryReceive(ctx, t, s1)
+
+	// Mark the peer as LOST, still with no handshake.
+	s2 := expectNoStatus()
+	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_LOST
+	updates[0].Node = nil
+	uut.updatePeers(updates)
+	_ = testutil.TryReceive(ctx, t, s2)
+
+	// Peer should NOT be removed immediately.
+	select {
+	case <-fEng.setNetworkMap:
+		t.Fatal("should not reprogram")
+	default:
+		// OK!
+	}
+
+	// Prepare a status response for when the lost timer fires after
+	// lostTimeout. Return empty status (no handshake ever happened).
+	s3 := expectNoStatus()
+	mClock.Advance(lostTimeout).MustWait(ctx)
+	_ = testutil.TryReceive(ctx, t, s3)
+
+	// Now the peer should be removed.
+	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r = testutil.TryReceive(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 0)
+	require.Len(t, r.wg.Peers, 0)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.TryReceive(ctx, t, done)
+}
+
 func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
