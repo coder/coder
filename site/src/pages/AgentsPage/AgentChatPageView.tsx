@@ -91,6 +91,7 @@ interface AgentChatPageViewProps {
 	isArchived: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
+	chatBuildId?: string;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -181,6 +182,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchived,
 	workspaceAgent,
 	workspace,
+	chatBuildId,
 	store,
 	editing,
 	effectiveSelectedModel,
@@ -310,7 +312,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const shouldShowSidebar = showSidebarPanel;
 
 	return (
-		<ChatWorkspaceContext value={workspace?.id}>
+		<ChatWorkspaceContext
+			value={{ workspaceId: workspace?.id, buildId: chatBuildId }}
+		>
 			<DesktopPanelContext value={desktopPanelCtx}>
 				<div
 					className={cn(

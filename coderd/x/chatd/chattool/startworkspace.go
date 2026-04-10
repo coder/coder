@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
@@ -24,12 +25,14 @@ type StartWorkspaceFn func(
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
-	DB          database.Store
-	OwnerID     uuid.UUID
-	ChatID      uuid.UUID
-	StartFn     StartWorkspaceFn
-	AgentConnFn AgentConnFunc
-	WorkspaceMu *sync.Mutex
+	DB            database.Store
+	OwnerID       uuid.UUID
+	ChatID        uuid.UUID
+	StartFn       StartWorkspaceFn
+	AgentConnFn   AgentConnFunc
+	WorkspaceMu   *sync.Mutex
+	OnChatUpdated func(database.Chat)
+	Logger        slog.Logger
 }
 
 // StartWorkspace returns a tool that starts a stopped workspace
@@ -138,6 +141,29 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("start workspace: %w", err).Error(),
 				), nil
+			}
+
+			// Persist the build ID on the chat binding so the
+			// frontend can stream logs without polling.
+			if options.DB != nil && options.ChatID != uuid.Nil {
+				updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID:          options.ChatID,
+					WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+					BuildID: uuid.NullUUID{
+						UUID:  startBuild.ID,
+						Valid: startBuild.ID != uuid.Nil,
+					},
+					AgentID: uuid.NullUUID{},
+				})
+				if bindErr != nil {
+					options.Logger.Error(ctx, "failed to persist build ID on chat binding",
+						slog.F("chat_id", options.ChatID),
+						slog.F("build_id", startBuild.ID),
+						slog.Error(bindErr),
+					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
+				}
 			}
 
 			if err := waitForBuild(ctx, options.DB, startBuild.ID); err != nil {

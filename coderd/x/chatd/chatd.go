@@ -5034,6 +5034,11 @@ func (p *Server) runChat(
 				StartFn:     p.startWorkspaceFn,
 				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 				WorkspaceMu: &workspaceMu,
+				OnChatUpdated: func(chat database.Chat) {
+					workspaceCtx.selectWorkspace(chat)
+					p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindStatusChange, nil)
+				},
+				Logger: p.logger,
 			}),
 		)
 		// Plan presentation tool.

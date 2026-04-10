@@ -7,7 +7,10 @@ import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { useChatWorkspaceId } from "../../../context/ChatWorkspaceContext";
+import {
+	useChatBuildId,
+	useChatWorkspaceId,
+} from "../../../context/ChatWorkspaceContext";
 import type { ToolStatus } from "./utils";
 
 interface WorkspaceBuildLogSectionProps {
@@ -34,31 +37,35 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 }) => {
 	const isRunning = status === "running";
 
-	// During execution, get the live build ID from the workspace.
+	// Primary source: build ID from the chat binding, pushed via
+	// pubsub when create_workspace or start_workspace persists it.
+	// This avoids the 2s polling latency.
+	const chatBuildId = useChatBuildId();
+
+	// Fallback: poll the workspace to infer the build ID from
+	// latest_build. Only used when the binding hasn't arrived yet.
 	const workspaceId = useChatWorkspaceId();
+	const needsPoll = isRunning && !chatBuildId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
-		enabled: isRunning && Boolean(workspaceId),
-		refetchInterval: isRunning ? 2000 : false,
+		enabled: needsPoll && Boolean(workspaceId),
+		refetchInterval: needsPoll ? 2000 : false,
 	});
 	const liveBuildId = workspaceQuery.data?.latest_build?.id;
 
-	// Only stream from a build that is actually in progress.
-	// When the workspace query returns cached data from a previous
-	// (e.g. stop) build, liveBuildId would point at the wrong build.
-	// Treating it as undefined lets the component show the loading
-	// state until the poll picks up the new start build.
+	// Only use the polled build if it's actually in progress.
 	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
-	const activeBuildId =
+	const polledActiveBuildId =
 		latestBuildStatus === "pending" ||
 		latestBuildStatus === "starting" ||
 		latestBuildStatus === "running"
 			? liveBuildId
 			: undefined;
 
-	// Use the active build ID while running, the result build ID
-	// when completed.
-	const effectiveBuildId = isRunning ? activeBuildId : buildId;
+	// Resolve: chat binding > polled workspace > tool result.
+	const effectiveBuildId = isRunning
+		? (chatBuildId ?? polledActiveBuildId)
+		: buildId;
 
 	// --- Running builds: stream via WebSocket ---
 	const streamingLogs = useWorkspaceBuildLogs(

@@ -1430,7 +1430,9 @@ export const StartWorkspaceRunning: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<ChatWorkspaceContext.Provider value="test-workspace-id">
+			<ChatWorkspaceContext.Provider
+				value={{ workspaceId: "test-workspace-id" }}
+			>
 				<Story />
 			</ChatWorkspaceContext.Provider>
 		),
@@ -1548,7 +1550,9 @@ export const CreateWorkspaceRunning: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<ChatWorkspaceContext.Provider value="test-workspace-id">
+			<ChatWorkspaceContext.Provider
+				value={{ workspaceId: "test-workspace-id" }}
+			>
 				<Story />
 			</ChatWorkspaceContext.Provider>
 		),
