@@ -440,7 +440,7 @@ func (m chatListModel) View() string {
 		}
 
 		titleWidth := max(m.width-statusWidth-18-len(rowPrefix)-len(extraText), 20)
-		title := m.styles.truncate(row.chat.Title, titleWidth)
+		title := m.styles.truncate(sanitizeTerminalRenderableText(row.chat.Title), titleWidth)
 		status := m.styles.statusColor(row.chat.Status).Render(string(row.chat.Status))
 		rowText := fmt.Sprintf("%s%s %s %s%s", rowPrefix, rowStyle.Render(title), status, m.styles.dimmedText.Render(timeAgo(row.chat.UpdatedAt)), extra)
 		lines = append(lines, rowText)
@@ -451,7 +451,7 @@ func (m chatListModel) View() string {
 			if row.depth > 0 {
 				errPrefix += strings.Repeat("  ", row.depth)
 			}
-			lines = append(lines, errPrefix+m.styles.dimmedText.Render(m.styles.truncate(*row.chat.LastError, errWidth)))
+			lines = append(lines, errPrefix+m.styles.dimmedText.Render(m.styles.truncate(sanitizeTerminalRenderableText(*row.chat.LastError), errWidth)))
 		}
 	}
 

@@ -957,7 +957,7 @@ func (m chatViewModel) View() string {
 		if len(chatID) > 8 {
 			shortID = chatID[:8]
 		}
-		header = fmt.Sprintf("%s (%s)", m.chat.Title, shortID)
+		header = fmt.Sprintf("%s (%s)", sanitizeTerminalRenderableText(m.chat.Title), shortID)
 	}
 
 	statusBar := renderStatusBar(
