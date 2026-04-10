@@ -59,6 +59,7 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
+import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -66,7 +67,6 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
-import type { PendingAttachment } from "./types";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	getModelOptionsFromConfigs,
@@ -286,43 +286,38 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Wraps the parent onSend to clear local input/editing state
-	// and handle queue-edit deletion.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
+	// Clears the composer for an in-flight history edit and
+	// returns a rollback function that restores the editing draft
+	// if the send fails.
+	const clearInputForHistoryEdit = (message: string) => {
+		const snapshot = {
+			editorState: serializedEditorStateRef.current,
+			fileBlocks: editingFileBlocks,
+			messageId: editingMessageId,
+		};
+
+		chatInputRef.current?.clear();
+		inputValueRef.current = "";
+		setEditingMessageId(null);
+
+		return () => {
+			setDraftState({
+				editorInitialValue: message,
+				initialEditorState: snapshot.editorState,
+			});
+			serializedEditorStateRef.current = snapshot.editorState;
+			setRemountKey((k) => k + 1);
+			inputValueRef.current = message;
+			setEditingMessageId(snapshot.messageId);
+			setEditingFileBlocks(snapshot.fileBlocks);
+		};
+	};
+
+	// Clears all input and editing state after a successful send.
+	const finalizeSuccessfulSend = (
+		editedMessageID: number | undefined,
+		queueEditID: number | null,
 	) => {
-		const editedMessageID =
-			editingMessageId !== null ? editingMessageId : undefined;
-		const queueEditID = editingQueuedMessageID;
-		const submittedEditorState = serializedEditorStateRef.current;
-		const submittedEditingFileBlocks = editingFileBlocks;
-		const shouldClearInputOptimistically = editedMessageID !== undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
-
-		if (shouldClearInputOptimistically) {
-			chatInputRef.current?.clear();
-			inputValueRef.current = "";
-			setEditingMessageId(null);
-		}
-
-		try {
-			await sendPromise;
-		} catch (error) {
-			if (shouldClearInputOptimistically) {
-				setDraftState({
-					editorInitialValue: message,
-					initialEditorState: submittedEditorState,
-				});
-				serializedEditorStateRef.current = submittedEditorState;
-				setRemountKey((k) => k + 1);
-				inputValueRef.current = message;
-				setEditingMessageId(editedMessageID ?? null);
-				setEditingFileBlocks(submittedEditingFileBlocks);
-			}
-			throw error;
-		}
-		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
@@ -342,6 +337,34 @@ export function useConversationEditingState(deps: {
 			setEditingFileBlocks([]);
 			void onDeleteQueuedMessage(queueEditID);
 		}
+	};
+
+	// Wraps the parent onSend to clear local input/editing state
+	// and handle queue-edit deletion.
+	const handleSendFromInput = async (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => {
+		const editedMessageID =
+			editingMessageId !== null ? editingMessageId : undefined;
+		const queueEditID = editingQueuedMessageID;
+		const sendPromise = onSend(message, attachments, editedMessageID);
+
+		// For history edits, clear input immediately and prepare
+		// a rollback in case the send fails.
+		const rollback =
+			editedMessageID !== undefined
+				? clearInputForHistoryEdit(message)
+				: undefined;
+
+		try {
+			await sendPromise;
+		} catch (error) {
+			rollback?.();
+			throw error;
+		}
+
+		finalizeSuccessfulSend(editedMessageID, queueEditID);
 	};
 
 	const handleContentChange = (

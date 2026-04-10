@@ -9,7 +9,7 @@ import {
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
-import type { PendingAttachment } from "./types";
+import type { PendingAttachment } from "./components/ChatPageContent";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;

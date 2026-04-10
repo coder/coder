@@ -4,7 +4,6 @@ import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import type { PendingAttachment } from "../types";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -117,6 +116,11 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			</div>
 		</Profiler>
 	);
+};
+
+export type PendingAttachment = {
+	fileId: string;
+	mediaType: string;
 };
 
 interface ChatPageInputProps {
