@@ -1,4 +1,4 @@
-import { type FC, Profiler, type ReactNode, useEffect, useMemo } from "react";
+import { type FC, Profiler, type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -78,19 +78,15 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	const parsedConversationCache = useMemo(
-		() => createParsedConversationCache(),
-		[],
+	const [parsedConversationCache] = useState(() =>
+		createParsedConversationCache(),
 	);
-	const { parsedMessages, subagentTitles, computerUseSubagentIds } = useMemo(
-		() =>
-			resolveParsedConversation({
-				cache: parsedConversationCache,
-				chatID: chatID ?? "",
-				messages,
-			}),
-		[chatID, messages, parsedConversationCache],
-	);
+	const { parsedMessages, subagentTitles, computerUseSubagentIds } =
+		resolveParsedConversation({
+			cache: parsedConversationCache,
+			chatID: chatID ?? "",
+			messages,
+		});
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (

@@ -23,10 +23,9 @@ class MockIntersectionObserver implements IntersectionObserver {
 describe("ChatScrollContainer pagination sentinel", () => {
 	beforeEach(() => {
 		intersectionCallback = null;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			MockIntersectionObserver as unknown as typeof IntersectionObserver,
-		);
+		const mockIntersectionObserver: typeof IntersectionObserver =
+			MockIntersectionObserver;
+		vi.stubGlobal("IntersectionObserver", mockIntersectionObserver);
 		vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
 			callback(0);
 			return 1;
