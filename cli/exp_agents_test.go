@@ -141,19 +141,41 @@ func TestExpAgents(t *testing.T) {
 			require.Empty(t, updated.chat.messages)
 		})
 
-		t.Run("EscFromSearchClearsFilterBeforeQuit", func(t *testing.T) {
+		t.Run("EscFromSearchClearsFilterAndRestoresListNavigation", func(t *testing.T) {
 			t.Parallel()
+			chats := []codersdk.Chat{
+				{ID: uuid.New(), Title: "alpha", Status: codersdk.ChatStatusCompleted, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				{ID: uuid.New(), Title: "beta", Status: codersdk.ChatStatusCompleted, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				{ID: uuid.New(), Title: "gamma", Status: codersdk.ChatStatusCompleted, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			}
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+			model = mustTUIModel(t, updatedModel, cmd)
 			model.currentView = viewList
 			model.list.loading = false
-			model.list.searching = true
-			model.list.search.SetValue("test")
+			model.list.chats = chats
 
-			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updatedModel, cmd = model.Update(keyRunes("/"))
 			updated := mustTUIModel(t, updatedModel, cmd)
-			require.False(t, updated.quitting)
 			require.True(t, updated.list.searching)
+
+			updatedModel, cmd = updated.Update(keyRunes("b"))
+			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, "b", updated.list.search.Value())
+
+			updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.False(t, updated.quitting)
+			require.False(t, updated.list.searching)
 			require.Empty(t, updated.list.search.Value())
+
+			updatedModel, cmd = updated.Update(keyRunes("j"))
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, 1, updated.list.cursor)
+
+			updatedModel, cmd = updated.Update(keyRunes("k"))
+			updated = mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, 0, updated.list.cursor)
 		})
 
 		for name, view := range map[string]tuiView{
@@ -207,6 +229,54 @@ func TestExpAgents(t *testing.T) {
 					require.Len(t, mustBatchMsg(t, cmd), tt.wantBatchLen)
 				})
 			}
+		})
+		t.Run("EscFromChatViewRestoresListHeaderAndPadsTerminal", func(t *testing.T) {
+			t.Parallel()
+			assertReturnToList := func(t testing.TB, model expChatsTUIModel) {
+				t.Helper()
+				updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+				updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
+				require.Equal(t, viewList, updated.currentView)
+				firstLine, _, _ := strings.Cut(plainText(updated.View()), "\n")
+				require.Equal(t, "Coder Chats", firstLine)
+				require.Equal(t, updated.height, countRenderedLines(plainText(updated.View())))
+			}
+
+			t.Run("SelectedChat", func(t *testing.T) {
+				t.Parallel()
+				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+				updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+				model = mustTUIModel(t, updatedModel, cmd)
+				model.list.loading = false
+				model.list.chats = []codersdk.Chat{testChat(codersdk.ChatStatusCompleted)}
+				chatID := uuid.New()
+
+				updatedModel, cmd = model.Update(openSelectedChatMsg{chatID: chatID})
+				model, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+				openedChat := testChat(codersdk.ChatStatusCompleted)
+				openedChat.ID = chatID
+				openedChat.Title = "Existing chat"
+				updatedModel, cmd = model.Update(chatOpenedMsg{generation: model.chat.chatGeneration, chatID: chatID, chat: openedChat})
+				model = mustTUIModel(t, updatedModel, cmd)
+				require.Contains(t, plainText(model.View()), "Existing chat")
+
+				assertReturnToList(t, model)
+			})
+
+			t.Run("DraftChat", func(t *testing.T) {
+				t.Parallel()
+				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+				updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+				model = mustTUIModel(t, updatedModel, cmd)
+				model.list.loading = false
+				model.list.chats = []codersdk.Chat{testChat(codersdk.ChatStatusCompleted)}
+
+				updatedModel, cmd = model.Update(openDraftChatMsg{})
+				model, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
+				require.Contains(t, plainText(model.View()), "New Chat (draft)")
+
+				assertReturnToList(t, model)
+			})
 		})
 		t.Run("ReopensModelPickerAfterClosing", func(t *testing.T) {
 			t.Parallel()

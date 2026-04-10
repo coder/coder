@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -259,6 +260,20 @@ func (m expChatsTUIModel) diffOverlayView() string {
 	}
 }
 
+func padViewHeight(text string, height int) string {
+	if height <= 0 {
+		return text
+	}
+	if text == "" {
+		return strings.Repeat("\n", max(height-1, 0))
+	}
+	lineCount := countRenderedLines(text)
+	if lineCount >= height {
+		return text
+	}
+	return text + strings.Repeat("\n", height-lineCount)
+}
+
 func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -334,5 +349,5 @@ func (m expChatsTUIModel) View() string {
 	case overlayDiffDrawer:
 		base += "\n" + m.diffOverlayView()
 	}
-	return base
+	return padViewHeight(base, m.height)
 }

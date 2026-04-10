@@ -306,14 +306,16 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 	case tea.KeyMsg:
 		key := msg.String()
 		if m.searching {
-			if key == "esc" && m.search.Value() != "" {
-				m.search.SetValue("")
-				m.normalizeCursor()
-				m.offset = 0
-				return m, nil
-			}
 			switch key {
-			case "esc", "enter":
+			case "esc":
+				if m.search.Value() != "" {
+					m.search.SetValue("")
+				}
+				m.search.Blur()
+				m.searching = false
+				m.normalizeCursor()
+				return m, nil
+			case "enter":
 				m.search.Blur()
 				m.searching = false
 				m.normalizeCursor()
