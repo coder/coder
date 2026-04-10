@@ -6,7 +6,7 @@ import { authMethods } from "#/api/queries/users";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { getApplicationName } from "#/utils/appearance";
-import { retrieveRedirect } from "#/utils/redirect";
+import { retrieveRedirect, sanitizeRedirect } from "#/utils/redirect";
 import { sendDeploymentEvent } from "#/utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
@@ -56,8 +56,7 @@ const LoginPage: FC = () => {
 		// use `<Navigate>`, react would handle the redirect itself and never
 		// request the page from the backend.
 		if (isApiRouteRedirect) {
-			const sanitizedUrl = new URL(redirectTo, window.location.origin);
-			window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
+			window.location.href = sanitizeRedirect(redirectTo);
 			// Setting the href should immediately request a new page. Show an
 			// error state if it doesn't.
 			redirectError = new Error("unable to redirect");
@@ -90,9 +89,7 @@ const LoginPage: FC = () => {
 					// so the server re-renders the HTML with all metadata
 					// tags populated (userAppearance, user, permissions,
 					// etc.) using the new session cookie.
-					window.location.href = redirectUrl
-						? redirectUrl.pathname
-						: redirectTo;
+					window.location.href = sanitizeRedirect(redirectTo);
 				}}
 				redirectTo={redirectTo}
 			/>
