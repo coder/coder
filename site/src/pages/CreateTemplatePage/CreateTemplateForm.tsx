@@ -3,14 +3,15 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import * as Yup from "yup";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { organizations, provisionerDaemons } from "#/api/queries/organizations";
+import {
+	permittedOrganizations,
+	provisionerDaemons,
+} from "#/api/queries/organizations";
 import type {
-	AuthorizationCheck,
 	CreateTemplateVersionRequest,
 	Organization,
 	ProvisionerJobLog,
@@ -224,41 +225,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
-	const organizationsQuery = useQuery({
-		...organizations(),
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "template" },
+			action: "create",
+		}),
 		enabled: Boolean(showOrganizationPicker),
 	});
-
-	const authCheck: AuthorizationCheck = {
-		object: { resource_type: "template" },
-		action: "create",
-	};
-
-	const orgChecks =
-		organizationsQuery.data &&
-		Object.fromEntries(
-			organizationsQuery.data.map((org) => [
-				org.id,
-				{
-					...authCheck,
-					object: { ...authCheck.object, organization_id: org.id },
-				},
-			]),
-		);
-
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks: orgChecks ?? {} }),
-		enabled:
-			Boolean(showOrganizationPicker) && Boolean(organizationsQuery.data),
-	});
-
-	const orgOptions = useMemo(() => {
-		if (!organizationsQuery.data) return [];
-		if (!permissionsQuery.data) return [];
-		return organizationsQuery.data.filter(
-			(org) => permissionsQuery.data[org.id],
-		);
-	}, [organizationsQuery.data, permissionsQuery.data]);
+	const orgOptions = permittedOrgsQuery.data ?? [];
 
 	// Clear invalid selections when permission filtering removes the
 	// selected org. Uses the React render-time adjustment pattern.

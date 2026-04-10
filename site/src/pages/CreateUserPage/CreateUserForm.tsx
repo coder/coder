@@ -1,12 +1,11 @@
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { organizations } from "#/api/queries/organizations";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -132,40 +131,14 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		null,
 	);
 
-	const organizationsQuery = useQuery({
-		...organizations(),
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "organization_member" },
+			action: "create",
+		}),
 		enabled: showOrganizations,
 	});
-
-	const orgAuthCheck: TypesGen.AuthorizationCheck = {
-		object: { resource_type: "organization_member" },
-		action: "create",
-	};
-
-	const orgChecks =
-		organizationsQuery.data &&
-		Object.fromEntries(
-			organizationsQuery.data.map((org) => [
-				org.id,
-				{
-					...orgAuthCheck,
-					object: { ...orgAuthCheck.object, organization_id: org.id },
-				},
-			]),
-		);
-
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks: orgChecks ?? {} }),
-		enabled: showOrganizations && Boolean(organizationsQuery.data),
-	});
-
-	const orgOptions = useMemo(() => {
-		if (!organizationsQuery.data) return [];
-		if (!permissionsQuery.data) return [];
-		return organizationsQuery.data.filter(
-			(org) => permissionsQuery.data[org.id],
-		);
-	}, [organizationsQuery.data, permissionsQuery.data]);
+	const orgOptions = permittedOrgsQuery.data ?? [];
 
 	// Clear invalid selections when permission filtering removes the
 	// selected org. Uses the React render-time adjustment pattern.
