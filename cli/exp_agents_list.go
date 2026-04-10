@@ -245,18 +245,15 @@ func (m chatListModel) selectedChat() *codersdk.Chat {
 	return &row.chat
 }
 
-func (m *chatListModel) clampCursor() {
-	rows := m.displayRows()
-	if len(rows) == 0 {
+func (m *chatListModel) normalizeCursor() {
+	total := len(m.displayRows())
+	if total == 0 {
 		m.cursor = 0
+		m.offset = 0
 		return
 	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	if m.cursor >= len(rows) {
-		m.cursor = len(rows) - 1
-	}
+	m.cursor = min(max(m.cursor, 0), total-1)
+	m.offset, _ = m.visibleWindow(total)
 }
 
 func (m chatListModel) visibleChatCount() int {
@@ -285,11 +282,6 @@ func (m chatListModel) visibleWindow(total int) (start int, end int) {
 	return start, end
 }
 
-func (m *chatListModel) ensureCursorVisible() {
-	offset, _ := m.visibleWindow(len(m.displayRows()))
-	m.offset = offset
-}
-
 func (m chatListModel) Init() tea.Cmd {
 	return m.spinner.Tick
 }
@@ -301,7 +293,7 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.ensureCursorVisible()
+		m.normalizeCursor()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -315,69 +307,55 @@ func (m chatListModel) Update(msg tea.Msg) (chatListModel, tea.Cmd) {
 		m.chats = msg.chats
 		m.err = msg.err
 		m.loading = false
-		m.clampCursor()
-		m.ensureCursorVisible()
+		m.normalizeCursor()
 		return m, nil
 
 	case tea.KeyMsg:
+		key := msg.String()
 		if m.searching {
-			switch msg.String() {
-			case "esc":
-				if m.search.Value() != "" {
-					m.search.SetValue("")
-					m.clampCursor()
-					m.offset = 0
-					return m, nil
-				}
-				m.search.Blur()
-				m.searching = false
-				m.ensureCursorVisible()
+			if key == "esc" && m.search.Value() != "" {
+				m.search.SetValue("")
+				m.normalizeCursor()
+				m.offset = 0
 				return m, nil
-			case "enter":
+			}
+			switch key {
+			case "esc", "enter":
 				m.search.Blur()
 				m.searching = false
-				m.ensureCursorVisible()
+				m.normalizeCursor()
 				return m, nil
 			default:
 				m.search, cmd = m.search.Update(msg)
-				m.clampCursor()
+				m.normalizeCursor()
 				m.offset = 0
 				return m, cmd
 			}
 		}
 
-		switch msg.String() {
+		switch key {
 		case "/", "ctrl+f":
 			m.searching = true
 			m.search.Focus()
-			m.ensureCursorVisible()
+			m.normalizeCursor()
 			return m, nil
-		case "up", "k":
-			m.cursor--
-			m.clampCursor()
-			m.ensureCursorVisible()
-			return m, nil
-		case "down", "j":
-			m.cursor++
-			m.clampCursor()
-			m.ensureCursorVisible()
-			return m, nil
-		case "right", "l":
-			if m.updateSelectedRowExpansion(chatExpansionExpand) {
-				m.clampCursor()
-				m.ensureCursorVisible()
+		case "up", "k", "down", "j":
+			if key == "up" || key == "k" {
+				m.cursor--
+			} else {
+				m.cursor++
 			}
+			m.normalizeCursor()
 			return m, nil
-		case "left", "h":
-			if m.updateSelectedRowExpansion(chatExpansionCollapse) {
-				m.clampCursor()
-				m.ensureCursorVisible()
+		case "right", "l", "left", "h", "x":
+			intent := chatExpansionToggle
+			if key == "right" || key == "l" {
+				intent = chatExpansionExpand
+			} else if key == "left" || key == "h" {
+				intent = chatExpansionCollapse
 			}
-			return m, nil
-		case "x":
-			if m.updateSelectedRowExpansion(chatExpansionToggle) {
-				m.clampCursor()
-				m.ensureCursorVisible()
+			if m.updateSelectedRowExpansion(intent) {
+				m.normalizeCursor()
 			}
 			return m, nil
 		case "enter":
