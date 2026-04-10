@@ -129,15 +129,24 @@ func (s *procSampler) sample() {
 
 		name := resolveProviderName(proc, stat.Comm)
 
-		rssBytes := uint64(stat.ResidentMemory()) // #nosec G115 -- RSS is non-negative.
+		// VmHWM is the kernel-tracked peak RSS (high-water mark)
+		// for this process. It is monotonically non-decreasing,
+		// so the last successfully read value is always the true
+		// peak — no manual max-tracking required. We read it
+		// from /proc/<pid>/status rather than computing RSS from
+		// /proc/<pid>/stat, because stat only gives instantaneous
+		// RSS and we would miss spikes between samples.
+		var peakRSSBytes uint64
+		if status, err := proc.NewStatus(); err == nil {
+			peakRSSBytes = status.VmHWM * 1024 // VmHWM is in kB.
+		}
+
+		// CPU time is also monotonically non-decreasing, so the
+		// last reading is the cumulative total.
 		cpuTime := stat.CPUTime()
 
 		existing := s.current[name]
-		if rssBytes > existing.PeakRSSBytes {
-			existing.PeakRSSBytes = rssBytes
-		}
-		// CPU time only increases, so the latest reading is the
-		// cumulative total.
+		existing.PeakRSSBytes = peakRSSBytes
 		existing.CPUTimeSeconds = cpuTime
 		s.current[name] = existing
 	}
