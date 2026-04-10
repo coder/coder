@@ -159,7 +159,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	};
 
 	return (
-		<div aria-label="Files" role="tree">
+		<div>
 			{Object.entries(fileTree)
 				.sort(compareFileTreeEntries)
 				.map(([filename, child]) => buildTreeItems(filename, filename, child))}
@@ -226,7 +226,7 @@ interface TreeNodeProps {
 }
 
 const nodeClasses =
-	"flex h-8 cursor-pointer select-none items-center gap-1 border-none bg-transparent px-4 text-[13px] w-full text-left";
+	"flex h-8 cursor-pointer select-none items-center gap-1 border-none bg-transparent px-4 text-[13px] w-full text-left hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
 
 const FileNode: FC<TreeNodeProps> = ({
 	label,
@@ -240,7 +240,6 @@ const FileNode: FC<TreeNodeProps> = ({
 	return (
 		<button
 			type="button"
-			role="treeitem"
 			className={cn(
 				nodeClasses,
 				isHidden ? "text-content-disabled" : "text-content-secondary",
@@ -275,7 +274,7 @@ const FolderNode: FC<FolderNodeProps> = ({
 	const [open, setOpen] = useState(defaultOpen);
 
 	return (
-		<Collapsible open={open} onOpenChange={setOpen} role="treeitem">
+		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<button
 					type="button"
@@ -284,6 +283,7 @@ const FolderNode: FC<FolderNodeProps> = ({
 						isHidden ? "text-content-disabled" : "text-content-secondary",
 						isActive && "bg-surface-sky text-content-link",
 					)}
+					aria-expanded={open}
 					style={
 						{
 							paddingLeft: `${(depth + 1) * 8 + 8}px`,
@@ -291,8 +291,7 @@ const FolderNode: FC<FolderNodeProps> = ({
 					}
 					onClick={() => {
 						// CollapsibleTrigger handles open/close toggling.
-						// Fire onSelect so the parent knows the folder
-						// was clicked.
+						// Also fire onClick so the caller is notified.
 						onClick();
 					}}
 					onContextMenu={onContextMenu}
@@ -306,7 +305,7 @@ const FolderNode: FC<FolderNodeProps> = ({
 					<span className="truncate">{label}</span>
 				</button>
 			</CollapsibleTrigger>
-			<CollapsibleContent role="group">{children}</CollapsibleContent>
+			<CollapsibleContent>{children}</CollapsibleContent>
 		</Collapsible>
 	);
 };
