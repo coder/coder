@@ -21,11 +21,11 @@ func (r *RootCmd) secrets() *serpent.Command {
 		Long: FormatExamples(
 			Example{
 				Description: "Create a secret",
-				Command:     "coder secret create openai-key --value \"$SECRET_VALUE\" --description \"Personal OPENAI_API key\" --inject-env OPEN_AI_KEY --inject-file ~/.openai-key",
+				Command:     "coder secret create openai-key --value \"$SECRET_VALUE\" --description \"Personal OPENAI_API key\" --inject-env OPEN_AI_KEY --inject-file \"~/.openai-key\"",
 			},
 			Example{
 				Description: "Update a secret",
-				Command:     "coder secret update openai-key --value \"$NEW_SECRET_VALUE\" --description \"Updated description\" --inject-env NEW_ENV_NAME --inject-file ~/.new-path",
+				Command:     "coder secret update openai-key --value \"$NEW_SECRET_VALUE\" --description \"Updated description\" --inject-env NEW_ENV_NAME --inject-file \"~/.new-path\"",
 			},
 			Example{
 				Description: "List your secrets",
