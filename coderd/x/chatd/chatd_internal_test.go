@@ -2695,13 +2695,14 @@ func TestSubscribeWorkerControl_CancelsRegisteredRun(t *testing.T) {
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
-	server.registerHeartbeat(&heartbeatEntry{
+	entry := &heartbeatEntry{
 		cancelWithCause: cancel,
 		chatID:          chatID,
 		runGeneration:   runGeneration,
 		logger:          logger,
-	})
-	defer server.unregisterHeartbeat(chatID)
+	}
+	server.registerHeartbeat(entry)
+	defer server.unregisterHeartbeat(entry)
 
 	controlCancel := server.subscribeWorkerControl(ctx)
 	require.NotNil(t, controlCancel)
@@ -2718,6 +2719,59 @@ func TestSubscribeWorkerControl_CancelsRegisteredRun(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted)
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestRegisterHeartbeat_ReplacesOlderGenerationAndIgnoresStaleUnregister(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chatID := uuid.New()
+
+	server := &Server{
+		logger:            logger,
+		heartbeatRegistry: make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	oldCtx, oldCancel := context.WithCancelCause(ctx)
+	defer oldCancel(nil)
+	oldEntry := &heartbeatEntry{
+		cancelWithCause: oldCancel,
+		chatID:          chatID,
+		runGeneration:   1,
+		logger:          logger,
+	}
+	server.registerHeartbeat(oldEntry)
+
+	newCtx, newCancel := context.WithCancelCause(ctx)
+	defer newCancel(nil)
+	newEntry := &heartbeatEntry{
+		cancelWithCause: newCancel,
+		chatID:          chatID,
+		runGeneration:   2,
+		logger:          logger,
+	}
+	server.registerHeartbeat(newEntry)
+
+	require.ErrorIs(t, context.Cause(oldCtx), chatloop.ErrInterrupted)
+	require.NoError(t, context.Cause(newCtx))
+
+	server.heartbeatMu.Lock()
+	require.Same(t, newEntry, server.heartbeatRegistry[chatID])
+	server.heartbeatMu.Unlock()
+
+	server.unregisterHeartbeat(oldEntry)
+
+	server.heartbeatMu.Lock()
+	require.Same(t, newEntry, server.heartbeatRegistry[chatID])
+	server.heartbeatMu.Unlock()
+
+	server.unregisterHeartbeat(newEntry)
+
+	server.heartbeatMu.Lock()
+	_, exists := server.heartbeatRegistry[chatID]
+	server.heartbeatMu.Unlock()
+	require.False(t, exists)
 }
 
 // TestProcessChat_IgnoresStaleStatusNotification verifies that

@@ -3145,21 +3145,35 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 func (p *Server) registerHeartbeat(entry *heartbeatEntry) {
 	p.heartbeatMu.Lock()
 	defer p.heartbeatMu.Unlock()
-	if _, exists := p.heartbeatRegistry[entry.chatID]; exists {
-		p.logger.Warn(context.Background(),
-			"duplicate heartbeat registration, skipping",
-			slog.F("chat_id", entry.chatID))
-		return
+
+	if existing, exists := p.heartbeatRegistry[entry.chatID]; exists {
+		if entry.runGeneration <= existing.runGeneration {
+			p.logger.Warn(context.Background(),
+				"duplicate heartbeat registration, skipping",
+				slog.F("chat_id", entry.chatID),
+				slog.F("existing_run_generation", existing.runGeneration),
+				slog.F("incoming_run_generation", entry.runGeneration))
+			return
+		}
+
+		// A newer generation for the same chat can start before the old
+		// processChat goroutine finishes unwinding its defers. Replace the
+		// stale entry now so the new run keeps heartbeat coverage and local
+		// worker-scoped control handling.
+		existing.cancelWithCause(chatloop.ErrInterrupted)
 	}
+
 	p.heartbeatRegistry[entry.chatID] = entry
 }
 
 // unregisterHeartbeat removes a chat from the centralized
 // heartbeat loop when chat processing finishes.
-func (p *Server) unregisterHeartbeat(chatID uuid.UUID) {
+func (p *Server) unregisterHeartbeat(entry *heartbeatEntry) {
 	p.heartbeatMu.Lock()
 	defer p.heartbeatMu.Unlock()
-	delete(p.heartbeatRegistry, chatID)
+	if p.heartbeatRegistry[entry.chatID] == entry {
+		delete(p.heartbeatRegistry, entry.chatID)
+	}
 }
 
 // heartbeatLoop runs in a single goroutine, issuing one batch
@@ -4173,14 +4187,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// running a per-chat goroutine. The loop issues a single batch
 	// UPDATE for all chats on this worker and detects stolen chats
 	// via set-difference.
-	p.registerHeartbeat(&heartbeatEntry{
+	heartbeat := &heartbeatEntry{
 		cancelWithCause: cancel,
 		chatID:          chat.ID,
 		runGeneration:   chat.RunGeneration,
 		workspaceID:     chat.WorkspaceID,
 		logger:          logger,
-	})
-	defer p.unregisterHeartbeat(chat.ID)
+	}
+	p.registerHeartbeat(heartbeat)
+	defer p.unregisterHeartbeat(heartbeat)
 
 	// Re-check ownership after registration so a mutation that won the
 	// race against AcquireChats cannot start work simply because its
