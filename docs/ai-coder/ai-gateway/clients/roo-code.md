@@ -41,10 +41,10 @@ Roo Code allows you to configure providers via the UI.
 
 1. Open Roo Code in VS Code.
 1. Go to **Settings**.
-1. **Provider**: Select **OpenAI**.
+1. **Provider**: Select **OpenAI Compatible**.
 1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
 1. **API Key**: Enter your personal OpenAI API key.
-1. **Model ID**: Enter the model you wish to use (e.g., `gpt-5.2-codex`).
+1. **Model ID**: Enter the model you wish to use (e.g., `gpt-4o`).
 1. **Custom Headers**: Add `X-Coder-AI-Governance-Token` with your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 </div>
