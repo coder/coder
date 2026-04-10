@@ -1,6 +1,7 @@
 package taskname
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,8 +11,10 @@ import (
 
 	"github.com/charmbracelet/anthropic-sdk-go"
 	anthropicoption "github.com/charmbracelet/anthropic-sdk-go/option"
+	"github.com/charmbracelet/anthropic-sdk-go/packages/ssestream"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -177,6 +180,91 @@ func TestExtractJSON(t *testing.T) {
 	}
 }
 
+func TestMessagesToAnthropic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		messages       []aisdk.Message
+		expectError    string
+		expectMsgCount int
+		expectSysCount int
+		expectRole     anthropic.MessageParamRole
+	}{
+		{
+			name: "SystemAndUser",
+			messages: []aisdk.Message{
+				{Role: "system", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: "You are helpful."}}},
+				{Role: "user", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: "Hello"}}},
+			},
+			expectMsgCount: 1,
+			expectSysCount: 1,
+			expectRole:     anthropic.MessageParamRoleUser,
+		},
+		{
+			name: "AssistantRole",
+			messages: []aisdk.Message{
+				{Role: "assistant", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: "I can help."}}},
+				{Role: "user", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: "Thanks"}}},
+			},
+			expectMsgCount: 2,
+			expectSysCount: 0,
+			expectRole:     anthropic.MessageParamRoleAssistant,
+		},
+		{
+			name: "UnsupportedRole",
+			messages: []aisdk.Message{
+				{Role: "tool", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: "result"}}},
+			},
+			expectError: "unsupported message role: tool",
+		},
+		{
+			name: "EmptyAfterFiltering",
+			messages: []aisdk.Message{
+				{Role: "user", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: ""}}},
+			},
+			expectError: "no non-system messages to send",
+		},
+		{
+			name: "SystemOnly",
+			messages: []aisdk.Message{
+				{Role: "system", Parts: []aisdk.Part{{Type: aisdk.PartTypeText, Text: "System prompt"}}},
+			},
+			expectError: "no non-system messages to send",
+		},
+		{
+			name: "FiltersEmptyText",
+			messages: []aisdk.Message{
+				{Role: "user", Parts: []aisdk.Part{
+					{Type: aisdk.PartTypeText, Text: ""},
+					{Type: aisdk.PartTypeText, Text: "actual content"},
+				}},
+			},
+			expectMsgCount: 1,
+			expectSysCount: 0,
+			expectRole:     anthropic.MessageParamRoleUser,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			msgs, sys, err := messagesToAnthropic(tc.messages)
+
+			if tc.expectError != "" {
+				require.ErrorContains(t, err, tc.expectError)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, msgs, tc.expectMsgCount)
+			require.Len(t, sys, tc.expectSysCount)
+			require.Equal(t, tc.expectRole, msgs[0].Role)
+		})
+	}
+}
+
 // fakeAnthropicSSE builds a minimal Anthropic Messages SSE stream
 // whose sole text content is the provided string.
 func fakeAnthropicSSE(t *testing.T, text string) string {
@@ -206,6 +294,197 @@ data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":
 event: message_stop
 data: {"type":"message_stop"}
 `, escaped)
+}
+
+func buildSSE(events ...string) string {
+	return strings.Join(events, "\n\n") + "\n\n"
+}
+
+const (
+	sseMessageStart = `event: message_start
+data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","model":"claude-haiku-4-5-20241022","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}`
+
+	sseContentBlockStart = `event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`
+
+	sseContentBlockStop = `event: content_block_stop
+data: {"type":"content_block_stop","index":0}`
+
+	sseMessageStop = `event: message_stop
+data: {"type":"message_stop"}`
+)
+
+func sseTextDelta(text string) string {
+	escaped, _ := json.Marshal(text)
+	return fmt.Sprintf(`event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":%s}}`, string(escaped))
+}
+
+func sseMessageDelta(stopReason string, outputTokens int) string {
+	return fmt.Sprintf(`event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"%s","stop_sequence":null},"usage":{"output_tokens":%d}}`, stopReason, outputTokens)
+}
+
+func streamFromSSE(t *testing.T, sse string) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sse))
+	}))
+	t.Cleanup(srv.Close)
+
+	client := anthropic.NewClient(
+		anthropicoption.WithAPIKey("fake-key"),
+		anthropicoption.WithBaseURL(srv.URL),
+	)
+	return client.Messages.NewStreaming(context.Background(), anthropic.MessageNewParams{
+		Model:     anthropic.ModelClaudeHaiku4_5,
+		MaxTokens: 100,
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.ContentBlockParamUnion{
+				OfText: &anthropic.TextBlockParam{Text: "test"},
+			}),
+		},
+	})
+}
+
+func collectParts(t *testing.T, ds aisdk.DataStream) []aisdk.DataStreamPart {
+	t.Helper()
+	var parts []aisdk.DataStreamPart
+	for part, err := range ds {
+		require.NoError(t, err)
+		parts = append(parts, part)
+	}
+	return parts
+}
+
+func TestAnthropicToDataStream(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TextHappyPath", func(t *testing.T) {
+		t.Parallel()
+		sse := buildSSE(
+			sseMessageStart,
+			sseContentBlockStart,
+			sseTextDelta("hello world"),
+			sseContentBlockStop,
+			sseMessageDelta("end_turn", 20),
+			sseMessageStop,
+		)
+		stream := streamFromSSE(t, sse)
+		parts := collectParts(t, anthropicToDataStream(stream))
+
+		// Expect: StartStep, Text, FinishStep, FinishMessage
+		require.GreaterOrEqual(t, len(parts), 4)
+
+		_, ok := parts[0].(aisdk.StartStepStreamPart)
+		require.True(t, ok, "first part should be StartStepStreamPart")
+
+		textPart, ok := parts[1].(aisdk.TextStreamPart)
+		require.True(t, ok, "second part should be TextStreamPart")
+		require.Equal(t, "hello world", textPart.Content)
+
+		finishStep, ok := parts[2].(aisdk.FinishStepStreamPart)
+		require.True(t, ok, "third part should be FinishStepStreamPart")
+		require.Equal(t, aisdk.FinishReasonStop, finishStep.FinishReason)
+
+		finishMsg, ok := parts[3].(aisdk.FinishMessageStreamPart)
+		require.True(t, ok, "fourth part should be FinishMessageStreamPart")
+		require.Equal(t, aisdk.FinishReasonStop, finishMsg.FinishReason)
+	})
+
+	t.Run("MaxTokensStopReason", func(t *testing.T) {
+		t.Parallel()
+		sse := buildSSE(
+			sseMessageStart,
+			sseContentBlockStart,
+			sseTextDelta("truncated"),
+			sseContentBlockStop,
+			sseMessageDelta("max_tokens", 100),
+			sseMessageStop,
+		)
+		stream := streamFromSSE(t, sse)
+		parts := collectParts(t, anthropicToDataStream(stream))
+
+		// Find the FinishStepStreamPart
+		var found bool
+		for _, p := range parts {
+			if fs, ok := p.(aisdk.FinishStepStreamPart); ok {
+				require.Equal(t, aisdk.FinishReasonLength, fs.FinishReason)
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "expected FinishStepStreamPart with FinishReasonLength")
+	})
+
+	t.Run("StopSequenceStopReason", func(t *testing.T) {
+		t.Parallel()
+		sse := buildSSE(
+			sseMessageStart,
+			sseContentBlockStart,
+			sseTextDelta("stopped"),
+			sseContentBlockStop,
+			sseMessageDelta("stop_sequence", 15),
+			sseMessageStop,
+		)
+		stream := streamFromSSE(t, sse)
+		parts := collectParts(t, anthropicToDataStream(stream))
+
+		var found bool
+		for _, p := range parts {
+			if fs, ok := p.(aisdk.FinishStepStreamPart); ok {
+				require.Equal(t, aisdk.FinishReasonStop, fs.FinishReason)
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "expected FinishStepStreamPart with FinishReasonStop")
+	})
+
+	t.Run("UsageTracking", func(t *testing.T) {
+		t.Parallel()
+		sse := buildSSE(
+			sseMessageStart,
+			sseContentBlockStart,
+			sseTextDelta("test"),
+			sseContentBlockStop,
+			sseMessageDelta("end_turn", 42),
+			sseMessageStop,
+		)
+		stream := streamFromSSE(t, sse)
+		parts := collectParts(t, anthropicToDataStream(stream))
+
+		var found bool
+		for _, p := range parts {
+			if fm, ok := p.(aisdk.FinishMessageStreamPart); ok {
+				require.NotNil(t, fm.Usage.CompletionTokens)
+				require.Equal(t, int64(42), *fm.Usage.CompletionTokens)
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "expected FinishMessageStreamPart with usage")
+	})
+
+	t.Run("AbruptTermination", func(t *testing.T) {
+		t.Parallel()
+		// Stream ends after content_block_delta — no message_stop.
+		sse := buildSSE(
+			sseMessageStart,
+			sseContentBlockStart,
+			sseTextDelta("partial"),
+		)
+		stream := streamFromSSE(t, sse)
+		parts := collectParts(t, anthropicToDataStream(stream))
+
+		// Last part should be FinishMessageStreamPart with FinishReasonError.
+		require.NotEmpty(t, parts)
+		lastPart := parts[len(parts)-1]
+		fm, ok := lastPart.(aisdk.FinishMessageStreamPart)
+		require.True(t, ok, "last part should be FinishMessageStreamPart")
+		require.Equal(t, aisdk.FinishReasonError, fm.FinishReason)
+	})
 }
 
 func TestGenerateFromAnthropicMock(t *testing.T) {

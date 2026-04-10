@@ -403,18 +403,16 @@ func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []
 }
 
 // anthropicToDataStream converts an Anthropic SSE stream into
-// an aisdk DataStream. This is a local port of the aisdk-go
-// bridge function using charmbracelet/anthropic-sdk-go types
-// (which resolve to coder/anthropic-sdk-go via go.mod replace).
+// an aisdk DataStream for text-only completions. It handles
+// text deltas, stop reasons, usage tracking, and stream
+// termination. Tool-call and thinking events are not supported
+// since taskname only performs simple text completions.
+
 func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) aisdk.DataStream {
 	return func(yield func(aisdk.DataStreamPart, error) bool) {
 		var lastChunk *anthropic.MessageStreamEventUnion
 		var finalReason aisdk.FinishReason = aisdk.FinishReasonUnknown
 		var finalUsage aisdk.Usage
-		var currentToolCall struct {
-			ID   string
-			Args string
-		}
 
 		for stream.Next() {
 			chunk := stream.Current()
@@ -430,34 +428,8 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 				}
 
 			case anthropic.ContentBlockDeltaEvent:
-				switch delta := event.Delta.AsAny().(type) {
-				case anthropic.TextDelta:
+				if delta, ok := event.Delta.AsAny().(anthropic.TextDelta); ok {
 					if !yield(aisdk.TextStreamPart{Content: delta.Text}, nil) {
-						return
-					}
-				case anthropic.InputJSONDelta:
-					currentToolCall.Args += delta.PartialJSON
-					if !yield(aisdk.ToolCallDeltaStreamPart{
-						ToolCallID:    currentToolCall.ID,
-						ArgsTextDelta: delta.PartialJSON,
-					}, nil) {
-						return
-					}
-				case anthropic.ThinkingDelta:
-					if !yield(aisdk.ReasoningStreamPart{Content: delta.Thinking}, nil) {
-						return
-					}
-				}
-
-			case anthropic.ContentBlockStartEvent:
-				if block, ok := event.ContentBlock.AsAny().(anthropic.ToolUseBlock); ok {
-					currentToolCall.ID = block.ID
-					currentToolCall.Args = ""
-
-					if !yield(aisdk.ToolCallStartStreamPart{
-						ToolCallID: block.ID,
-						ToolName:   block.Name,
-					}, nil) {
 						return
 					}
 				}
@@ -469,12 +441,6 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 				}
 
 				switch event.Delta.StopReason {
-				case "tool_use":
-					finalReason = aisdk.FinishReasonToolCalls
-					currentToolCall = struct {
-						ID   string
-						Args string
-					}{}
 				case "end_turn", "stop_sequence":
 					finalReason = aisdk.FinishReasonStop
 				case "max_tokens":
