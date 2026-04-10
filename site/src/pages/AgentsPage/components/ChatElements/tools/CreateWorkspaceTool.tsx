@@ -55,9 +55,11 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const label = isRunning
 		? "Creating workspace…"
-		: wsName
-			? `Created ${wsName}`
-			: "Created workspace";
+		: isError
+			? `Failed to create ${wsName || "workspace"}`
+			: wsName
+				? `Created ${wsName}`
+				: "Created workspace";
 
 	const hasBuildLogs = isRunning || Boolean(buildId);
 

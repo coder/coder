@@ -100,12 +100,12 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
 				if err := waitForBuild(ctx, options.DB, build.ID); err != nil {
-					return fantasy.NewTextErrorResponse(
+					return toolResponse(newBuildError(
 						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
-					), nil
+						build.ID,
+					)), nil
 				}
 				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
-
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
@@ -135,14 +135,31 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			if err := waitForBuild(ctx, options.DB, startBuild.ID); err != nil {
-				return fantasy.NewTextErrorResponse(
+				return toolResponse(newBuildError(
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
-				), nil
+					startBuild.ID,
+				)), nil
 			}
 
 			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
-		},
-	)
+		})
+}
+
+// buildErrorResult is a structured error response that preserves
+// the build ID alongside the error message. This lets the frontend
+// keep showing build logs when a build fails instead of losing
+// them on the error transition.
+type buildErrorResult struct {
+	Error   string `json:"error"`
+	BuildID string `json:"build_id,omitempty"`
+}
+
+func newBuildError(msg string, buildID uuid.UUID) buildErrorResult {
+	r := buildErrorResult{Error: msg}
+	if buildID != uuid.Nil {
+		r.BuildID = buildID.String()
+	}
+	return r
 }
 
 // setBuildID adds the build_id field to a tool response map when

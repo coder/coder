@@ -233,9 +233,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			buildID := workspace.LatestBuild.ID
 			if options.DB != nil && buildID != uuid.Nil {
 				if err := waitForBuild(ctx, options.DB, buildID); err != nil {
-					return fantasy.NewTextErrorResponse(
+					return toolResponse(newBuildError(
 						xerrors.Errorf("workspace build failed: %w", err).Error(),
-					), nil
+						buildID,
+					)), nil
 				}
 			}
 			result := map[string]any{

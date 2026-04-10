@@ -29,9 +29,11 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 
 	const label = isRunning
 		? "Starting workspace…"
-		: workspaceName
-			? `Started ${workspaceName}`
-			: "Started workspace";
+		: isError
+			? `Failed to start ${workspaceName || "workspace"}`
+			: workspaceName
+				? `Started ${workspaceName}`
+				: "Started workspace";
 
 	const header = (
 		<>

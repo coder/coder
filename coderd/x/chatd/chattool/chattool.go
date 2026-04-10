@@ -10,7 +10,7 @@ import (
 
 // toolResponse builds a fantasy.ToolResponse from a JSON-serializable
 // result payload.
-func toolResponse(result map[string]any) fantasy.ToolResponse {
+func toolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextResponse("{}")

@@ -1510,6 +1510,33 @@ export const StartWorkspaceError: Story = {
 	},
 };
 
+export const StartWorkspaceBuildFailed: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error: "workspace start build failed: terraform apply failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to start workspace")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // create_workspace stories
 // ---------------------------------------------------------------------------
@@ -1597,5 +1624,32 @@ export const CreateWorkspaceError: Story = {
 		result: {
 			error: "template not found",
 		},
+	},
+};
+
+export const CreateWorkspaceBuildFailed: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error: "workspace build failed: terraform apply failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
 	},
 };

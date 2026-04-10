@@ -317,13 +317,14 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
+	const hasErrorInResult = Boolean(rec?.error);
 
 	return (
 		<CreateWorkspaceTool
 			workspaceName={wsName}
 			resultJson={resultJson}
 			status={status}
-			isError={isError}
+			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 		/>
@@ -715,13 +716,14 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const rec = asRecord(result);
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const buildId = rec ? asString(rec.build_id) : undefined;
+	const hasErrorInResult = Boolean(rec?.error);
 
 	return (
 		<StartWorkspaceTool
 			status={status}
 			buildId={buildId}
 			workspaceName={wsName}
-			isError={isError}
+			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 		/>
 	);
