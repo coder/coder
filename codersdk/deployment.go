@@ -645,6 +645,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	ObjectStore                             ObjectStoreConfig                    `json:"object_store,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1046,6 +1047,31 @@ type HealthcheckConfig struct {
 }
 
 // RetentionConfig contains configuration for data retention policies.
+// ObjectStoreConfig configures the object storage backend used for
+// binary data such as chat files and transcripts.
+type ObjectStoreConfig struct {
+	// Backend selects the storage backend: "local" (default), "s3", or "gcs".
+	Backend serpent.String `json:"backend" typescript:",notnull"`
+	// LocalDir is the root directory for the local filesystem backend.
+	// Only used when Backend is "local". Defaults to <config-dir>/objectstore/.
+	LocalDir serpent.String `json:"local_dir" typescript:",notnull"`
+	// S3Bucket is the S3 bucket name. Required when Backend is "s3".
+	S3Bucket serpent.String `json:"s3_bucket" typescript:",notnull"`
+	// S3Region is the AWS region for the S3 bucket.
+	S3Region serpent.String `json:"s3_region" typescript:",notnull"`
+	// S3Prefix is an optional key prefix within the S3 bucket.
+	S3Prefix serpent.String `json:"s3_prefix" typescript:",notnull"`
+	// S3Endpoint is a custom S3-compatible endpoint URL (for MinIO, R2, etc.).
+	S3Endpoint serpent.String `json:"s3_endpoint" typescript:",notnull"`
+	// GCSBucket is the GCS bucket name. Required when Backend is "gcs".
+	GCSBucket serpent.String `json:"gcs_bucket" typescript:",notnull"`
+	// GCSPrefix is an optional key prefix within the GCS bucket.
+	GCSPrefix serpent.String `json:"gcs_prefix" typescript:",notnull"`
+	// GCSCredentialsFile is an optional path to a GCS service account
+	// key file. If empty, Application Default Credentials are used.
+	GCSCredentialsFile serpent.String `json:"gcs_credentials_file" typescript:",notnull"`
+}
+
 // These settings control how long various types of data are retained in the database
 // before being automatically purged. Setting a value to 0 disables retention for that
 // data type (data is kept indefinitely).
@@ -1461,6 +1487,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupObjectStore = serpent.Group{
+			Name:        "Object Store",
+			Description: "Configure the object storage backend for binary data (chat files, transcripts, etc.). Defaults to local filesystem storage.",
+			YAML:        "objectStore",
 		}
 	)
 
@@ -4027,6 +4058,97 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupRetention,
 			YAML:        "workspace_agent_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		// Object Store options
+		{
+			Name:        "Object Store Backend",
+			Description: "The storage backend for binary data such as chat files. Valid values: local, s3, gcs.",
+			Flag:        "objectstore-backend",
+			Env:         "CODER_OBJECTSTORE_BACKEND",
+			Value:       &c.ObjectStore.Backend,
+			Default:     "local",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "backend",
+		},
+		{
+			Name:        "Object Store Local Directory",
+			Description: "Root directory for the local filesystem object store backend. Only used when the backend is \"local\".",
+			Flag:        "objectstore-local-dir",
+			Env:         "CODER_OBJECTSTORE_LOCAL_DIR",
+			Value:       &c.ObjectStore.LocalDir,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "local_dir",
+		},
+		{
+			Name:        "Object Store S3 Bucket",
+			Description: "S3 bucket name. Required when the backend is \"s3\".",
+			Flag:        "objectstore-s3-bucket",
+			Env:         "CODER_OBJECTSTORE_S3_BUCKET",
+			Value:       &c.ObjectStore.S3Bucket,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "s3_bucket",
+		},
+		{
+			Name:        "Object Store S3 Region",
+			Description: "AWS region for the S3 bucket.",
+			Flag:        "objectstore-s3-region",
+			Env:         "CODER_OBJECTSTORE_S3_REGION",
+			Value:       &c.ObjectStore.S3Region,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "s3_region",
+		},
+		{
+			Name:        "Object Store S3 Prefix",
+			Description: "Optional key prefix within the S3 bucket.",
+			Flag:        "objectstore-s3-prefix",
+			Env:         "CODER_OBJECTSTORE_S3_PREFIX",
+			Value:       &c.ObjectStore.S3Prefix,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "s3_prefix",
+		},
+		{
+			Name:        "Object Store S3 Endpoint",
+			Description: "Custom S3-compatible endpoint URL (e.g. for MinIO, R2, Cloudflare). Leave empty for standard AWS S3.",
+			Flag:        "objectstore-s3-endpoint",
+			Env:         "CODER_OBJECTSTORE_S3_ENDPOINT",
+			Value:       &c.ObjectStore.S3Endpoint,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "s3_endpoint",
+		},
+		{
+			Name:        "Object Store GCS Bucket",
+			Description: "GCS bucket name. Required when the backend is \"gcs\".",
+			Flag:        "objectstore-gcs-bucket",
+			Env:         "CODER_OBJECTSTORE_GCS_BUCKET",
+			Value:       &c.ObjectStore.GCSBucket,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "gcs_bucket",
+		},
+		{
+			Name:        "Object Store GCS Prefix",
+			Description: "Optional key prefix within the GCS bucket.",
+			Flag:        "objectstore-gcs-prefix",
+			Env:         "CODER_OBJECTSTORE_GCS_PREFIX",
+			Value:       &c.ObjectStore.GCSPrefix,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "gcs_prefix",
+		},
+		{
+			Name:        "Object Store GCS Credentials File",
+			Description: "Path to a GCS service account key file. If empty, Application Default Credentials are used.",
+			Flag:        "objectstore-gcs-credentials-file",
+			Env:         "CODER_OBJECTSTORE_GCS_CREDENTIALS_FILE",
+			Value:       &c.ObjectStore.GCSCredentialsFile,
+			Default:     "",
+			Group:       &deploymentGroupObjectStore,
+			YAML:        "gcs_credentials_file",
 		},
 		{
 			Name: "Enable Authorization Recordings",

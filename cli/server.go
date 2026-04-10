@@ -79,6 +79,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/oauthpki"
+	"github.com/coder/coder/v2/coderd/objstore"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
@@ -638,12 +639,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					vals.WorkspaceHostnameSuffix.String())
 			}
 
+			objStore, err := objstore.FromConfig(ctx, vals.ObjectStore, r.globalConfig)
+			if err != nil {
+				return xerrors.Errorf("initialize object store: %w", err)
+			}
+			defer objStore.Close()
+
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
 				Database:                    nil,
+				ObjectStore:                 objStore,
 				BaseDERPMap:                 derpMap,
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,

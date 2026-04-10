@@ -3,6 +3,7 @@ package objstore
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -14,6 +15,8 @@ import (
 	"gocloud.dev/gcp"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Backend enumerates the supported storage backends.
@@ -151,4 +154,37 @@ func newPrefixed(bucket *blob.Bucket, prefix string) Store {
 		bucket = blob.PrefixedBucket(bucket, prefix+"/")
 	}
 	return New(bucket)
+}
+
+// FromConfig creates a Store from deployment configuration. The
+// configDir is the Coder config directory (e.g. ~/.config/coderv2)
+// and is used as the default root when the local backend is selected
+// without an explicit directory.
+func FromConfig(ctx context.Context, cfg codersdk.ObjectStoreConfig, configDir string) (Store, error) {
+	switch Backend(cfg.Backend.String()) {
+	case BackendLocal, "":
+		dir := cfg.LocalDir.String()
+		if dir == "" {
+			dir = filepath.Join(configDir, "objectstore")
+		}
+		return NewLocal(LocalConfig{Dir: dir})
+
+	case BackendS3:
+		return NewS3(ctx, S3Config{
+			Bucket:   cfg.S3Bucket.String(),
+			Region:   cfg.S3Region.String(),
+			Prefix:   cfg.S3Prefix.String(),
+			Endpoint: cfg.S3Endpoint.String(),
+		})
+
+	case BackendGCS:
+		return NewGCS(ctx, GCSConfig{
+			Bucket:          cfg.GCSBucket.String(),
+			Prefix:          cfg.GCSPrefix.String(),
+			CredentialsFile: cfg.GCSCredentialsFile.String(),
+		})
+
+	default:
+		return nil, xerrors.Errorf("unknown object store backend: %q", cfg.Backend.String())
+	}
 }
