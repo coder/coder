@@ -468,37 +468,37 @@ export const AgentRow: FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			{hasStartupFeatures && (
-				<section className="border-0 border-t border-solid border-border">
-					<div className="px-4 py-2 relative">
-						<Button
-							variant="subtle"
-							onClick={() => setShowLogs((v) => !v)}
-							className="after:content-[''] after:absolute after:inset-0"
-						>
-							<ChevronDownIcon open={showLogs} />
-							<span>Logs</span>
-							{healthIssues.length > 0 && (
-								<Badge variant="warning" size="xs" className="ml-1.5">
-									<TriangleAlertIcon />
-									<span>{healthIssues.length}</span>
-								</Badge>
-							)}
-						</Button>
-					</div>
-					<Collapse in={showLogs}>
-						<div className="px-4 pb-4">
-							{healthIssues.length > 0 && (
-								<div className="mb-4 flex flex-col gap-3">
-									{healthIssues.map((issue) => (
-										<AgentAlert
-											key={`${issue.title}-${issue.detail}`}
-											{...issue}
-											troubleshootingURL={agent.troubleshooting_url}
-										/>
-									))}
-								</div>
-							)}
+			<section className="border-0 border-t border-solid border-border">
+				<div className="px-4 py-2 relative">
+					<Button
+						variant="subtle"
+						onClick={() => setShowLogs((v) => !v)}
+						className="after:content-[''] after:absolute after:inset-0"
+					>
+						<ChevronDownIcon open={showLogs} />
+						<span>Logs</span>
+						{healthIssues.length > 0 && (
+							<Badge variant="warning" size="xs" className="ml-1.5">
+								<TriangleAlertIcon />
+								<span>{healthIssues.length}</span>
+							</Badge>
+						)}
+					</Button>
+				</div>
+				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
+					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
+						{healthIssues.length > 0 && (
+							<div className="mb-4 flex flex-col gap-3">
+								{healthIssues.map((issue) => (
+									<AgentAlert
+										key={`${issue.title}-${issue.detail}`}
+										{...issue}
+										troubleshootingURL={agent.troubleshooting_url}
+									/>
+								))}
+							</div>
+						)}
+						{hasStartupFeatures && hasAnyLogs && (
 							<div className="border border-solid rounded-md overflow-clip">
 								<Tabs
 									className="-mx-px -mt-px"
@@ -611,10 +611,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 									</TabsContent>
 								</Tabs>
 							</div>
-						</div>
-					</Collapse>
-				</section>
-			)}
+						)}
+					</div>
+				</Collapse>
+			</section>
 		</div>
 	);
 };
