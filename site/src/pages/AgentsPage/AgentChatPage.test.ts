@@ -380,6 +380,40 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("deletes queued edits when a completed send turns inactive after chat switch", async () => {
+		const onSend = vi
+			.fn()
+			.mockRejectedValue(
+				new InactiveChatMutationError({ completedMutation: true }),
+			);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+
+		const { result, unmount } = renderHook(() =>
+			useConversationEditingState({
+				chatID,
+				onSend,
+				onDeleteQueuedMessage,
+				chatInputRef,
+				inputValueRef,
+			}),
+		);
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued draft", []);
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput("hello"),
+			).rejects.toBeInstanceOf(InactiveChatMutationError);
+		});
+
+		expect(onDeleteQueuedMessage).toHaveBeenCalledWith(9);
+		unmount();
+	});
+
 	it("does not write a draft key when chatID is undefined", () => {
 		const { result, unmount } = renderEditing(undefined);
 

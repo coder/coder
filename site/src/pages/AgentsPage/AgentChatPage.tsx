@@ -87,9 +87,12 @@ export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
 /** @internal Exported for testing. */
 export class InactiveChatMutationError extends Error {
-	constructor() {
+	readonly completedMutation: boolean;
+
+	constructor(options?: { completedMutation?: boolean }) {
 		super("Chat mutation was canceled after navigating to another chat.");
 		this.name = "InactiveChatMutationError";
+		this.completedMutation = options?.completedMutation ?? false;
 	}
 }
 
@@ -278,7 +281,21 @@ export function useConversationEditingState(deps: {
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
 
-		await onSend(message, fileIds, editedMessageID);
+		try {
+			await onSend(message, fileIds, editedMessageID);
+		} catch (error) {
+			if (
+				error instanceof InactiveChatMutationError &&
+				error.completedMutation &&
+				queueEditID !== null
+			) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+				setEditingFileBlocks([]);
+				void onDeleteQueuedMessage(queueEditID);
+			}
+			throw error;
+		}
 		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
@@ -907,7 +924,9 @@ const AgentChatPage: FC = () => {
 					req: request,
 				});
 				if (!isActiveAgent(operationAgentID)) {
-					return Promise.reject(new InactiveChatMutationError());
+					return Promise.reject(
+						new InactiveChatMutationError({ completedMutation: true }),
+					);
 				}
 				store.clearStreamState();
 				store.setChatStatus("running");
@@ -950,7 +969,9 @@ const AgentChatPage: FC = () => {
 			throw error;
 		}
 		if (!isActiveAgent(operationAgentID)) {
-			return Promise.reject(new InactiveChatMutationError());
+			return Promise.reject(
+				new InactiveChatMutationError({ completedMutation: true }),
+			);
 		}
 		// When the server accepts the message immediately (not
 		// queued), clear the stream and insert the user's message
