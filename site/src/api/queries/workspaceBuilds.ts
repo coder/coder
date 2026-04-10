@@ -78,7 +78,7 @@ export function workspaceBuildLogs(workspaceBuildId: string) {
 		queryKey: workspaceBuildLogsKey(workspaceBuildId),
 		queryFn: () => API.getWorkspaceBuildLogs(workspaceBuildId),
 		staleTime: Number.POSITIVE_INFINITY,
-		gcTime: 10 * 60 * 1000, // 10 minutes — don't hold logs forever.
+		gcTime: 10 * 60 * 1000, // 10 minutes. Avoids holding logs in cache forever.
 		refetchOnMount: false,
 		refetchOnReconnect: false,
 		refetchOnWindowFocus: false,

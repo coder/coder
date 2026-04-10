@@ -18,7 +18,7 @@ interface WorkspaceBuildLogSectionProps {
 
 // How long to wait for the first log entry before showing a
 // warning. Builds can stay queued or run slow Terraform init for
-// longer than this — the message is intentionally soft.
+// longer than this. The message is intentionally soft.
 const LOG_LOAD_TIMEOUT_MS = 30_000;
 
 /**
