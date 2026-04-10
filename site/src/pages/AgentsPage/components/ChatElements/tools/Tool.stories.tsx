@@ -1627,9 +1627,7 @@ export const CreateWorkspaceError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Failed to create workspace"),
-		).toBeInTheDocument();
+		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
 	},
 };
 
