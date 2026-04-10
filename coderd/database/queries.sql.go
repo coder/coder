@@ -3477,7 +3477,7 @@ func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebu
 	return i, err
 }
 
-const deleteOldChatFiles = `-- name: DeleteOldChatFiles :execrows
+const deleteOldChatFiles = `-- name: DeleteOldChatFiles :many
 WITH kept_file_ids AS (
     -- NOTE: This uses updated_at as a proxy for archive time
     -- because there is no archived_at column. Correctness
@@ -3501,11 +3501,17 @@ deletable AS (
 DELETE FROM chat_files
 USING deletable
 WHERE chat_files.id = deletable.id
+RETURNING chat_files.id, chat_files.object_store_key
 `
 
 type DeleteOldChatFilesParams struct {
 	BeforeTime time.Time `db:"before_time" json:"before_time"`
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+type DeleteOldChatFilesRow struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	ObjectStoreKey sql.NullString `db:"object_store_key" json:"object_store_key"`
 }
 
 // TODO(cian): Add indexes on chats(archived, updated_at) and
@@ -3517,16 +3523,34 @@ type DeleteOldChatFilesParams struct {
 //  1. Orphaned files not linked to any chat.
 //  2. Files whose every referencing chat has been archived for longer
 //     than the retention period.
-func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
+//
+// Returns the deleted rows so callers can clean up associated object
+// store entries.
+func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) ([]DeleteOldChatFilesRow, error) {
+	rows, err := q.db.QueryContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected()
+	defer rows.Close()
+	var items []DeleteOldChatFilesRow
+	for rows.Next() {
+		var i DeleteOldChatFilesRow
+		if err := rows.Scan(&i.ID, &i.ObjectStoreKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatFileByID = `-- name: GetChatFileByID :one
-SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = $1::uuid
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data, object_store_key FROM chat_files WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error) {
@@ -3540,6 +3564,7 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 		&i.Name,
 		&i.Mimetype,
 		&i.Data,
+		&i.ObjectStoreKey,
 	)
 	return i, err
 }
@@ -3595,7 +3620,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 }
 
 const getChatFilesByIDs = `-- name: GetChatFilesByIDs :many
-SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = ANY($1::uuid[])
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data, object_store_key FROM chat_files WHERE id = ANY($1::uuid[])
 `
 
 func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error) {
@@ -3615,6 +3640,7 @@ func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			&i.Name,
 			&i.Mimetype,
 			&i.Data,
+			&i.ObjectStoreKey,
 		); err != nil {
 			return nil, err
 		}
@@ -3630,8 +3656,8 @@ func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 }
 
 const insertChatFile = `-- name: InsertChatFile :one
-INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::bytea)
+INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data, object_store_key)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::bytea, $6::text)
 RETURNING id, owner_id, organization_id, created_at, name, mimetype
 `
 
@@ -3641,6 +3667,7 @@ type InsertChatFileParams struct {
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
 	Data           []byte    `db:"data" json:"data"`
+	ObjectStoreKey string    `db:"object_store_key" json:"object_store_key"`
 }
 
 type InsertChatFileRow struct {
@@ -3659,6 +3686,7 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 		arg.Name,
 		arg.Mimetype,
 		arg.Data,
+		arg.ObjectStoreKey,
 	)
 	var i InsertChatFileRow
 	err := row.Scan(

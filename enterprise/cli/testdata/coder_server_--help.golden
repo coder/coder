@@ -781,6 +781,41 @@ OIDC OPTIONS:
           requirement, and can lead to an insecure OIDC configuration. It is not
           recommended to use this flag.
 
+OBJECT STORE OPTIONS: 
+Configure the object storage backend for binary data (chat files, transcripts,
+etc.). Defaults to local filesystem storage.
+
+      --objectstore-backend string, $CODER_OBJECTSTORE_BACKEND (default: local)
+          The storage backend for binary data such as chat files. Valid values:
+          local, s3, gcs.
+
+      --objectstore-gcs-bucket string, $CODER_OBJECTSTORE_GCS_BUCKET
+          GCS bucket name. Required when the backend is "gcs".
+
+      --objectstore-gcs-credentials-file string, $CODER_OBJECTSTORE_GCS_CREDENTIALS_FILE
+          Path to a GCS service account key file. If empty, Application Default
+          Credentials are used.
+
+      --objectstore-gcs-prefix string, $CODER_OBJECTSTORE_GCS_PREFIX
+          Optional key prefix within the GCS bucket.
+
+      --objectstore-local-dir string, $CODER_OBJECTSTORE_LOCAL_DIR
+          Root directory for the local filesystem object store backend. Only
+          used when the backend is "local".
+
+      --objectstore-s3-bucket string, $CODER_OBJECTSTORE_S3_BUCKET
+          S3 bucket name. Required when the backend is "s3".
+
+      --objectstore-s3-endpoint string, $CODER_OBJECTSTORE_S3_ENDPOINT
+          Custom S3-compatible endpoint URL (e.g. for MinIO, R2, Cloudflare).
+          Leave empty for standard AWS S3.
+
+      --objectstore-s3-prefix string, $CODER_OBJECTSTORE_S3_PREFIX
+          Optional key prefix within the S3 bucket.
+
+      --objectstore-s3-region string, $CODER_OBJECTSTORE_S3_REGION
+          AWS region for the S3 bucket.
+
 PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.

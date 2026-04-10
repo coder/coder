@@ -405,6 +405,17 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enterprise_base_url": "string"
       }
     },
+    "object_store": {
+      "backend": "string",
+      "gcs_bucket": "string",
+      "gcs_credentials_file": "string",
+      "gcs_prefix": "string",
+      "local_dir": "string",
+      "s3_bucket": "string",
+      "s3_endpoint": "string",
+      "s3_prefix": "string",
+      "s3_region": "string"
+    },
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},

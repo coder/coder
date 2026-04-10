@@ -1331,7 +1331,8 @@ CREATE TABLE chat_files (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     name text DEFAULT ''::text NOT NULL,
     mimetype text NOT NULL,
-    data bytea NOT NULL
+    data bytea,
+    object_store_key text
 );
 
 CREATE TABLE chat_messages (

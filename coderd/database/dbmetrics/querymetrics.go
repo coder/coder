@@ -616,7 +616,7 @@ func (m queryMetricsStore) DeleteOldAuditLogs(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
+func (m queryMetricsStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) ([]database.DeleteOldChatFilesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldChatFiles(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldChatFiles").Observe(time.Since(start).Seconds())

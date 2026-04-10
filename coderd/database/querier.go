@@ -140,7 +140,9 @@ type sqlcQuerier interface {
 	// 1. Orphaned files not linked to any chat.
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
-	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
+	// Returns the deleted rows so callers can clean up associated object
+	// store entries.
+	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) ([]DeleteOldChatFilesRow, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// Related chat_messages, chat_diff_statuses, and

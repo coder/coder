@@ -3460,6 +3460,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enterprise_base_url": "string"
       }
     },
+    "object_store": {
+      "backend": "string",
+      "gcs_bucket": "string",
+      "gcs_credentials_file": "string",
+      "gcs_prefix": "string",
+      "local_dir": "string",
+      "s3_bucket": "string",
+      "s3_endpoint": "string",
+      "s3_prefix": "string",
+      "s3_region": "string"
+    },
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
@@ -4039,6 +4050,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enterprise_base_url": "string"
     }
   },
+  "object_store": {
+    "backend": "string",
+    "gcs_bucket": "string",
+    "gcs_credentials_file": "string",
+    "gcs_prefix": "string",
+    "local_dir": "string",
+    "s3_bucket": "string",
+    "s3_endpoint": "string",
+    "s3_prefix": "string",
+    "s3_region": "string"
+  },
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
@@ -4296,6 +4318,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `metrics_cache_refresh_interval`               | integer                                                                                              | false    |              |                                                                    |
 | `notifications`                                | [codersdk.NotificationsConfig](#codersdknotificationsconfig)                                         | false    |              |                                                                    |
 | `oauth2`                                       | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
+| `object_store`                                 | [codersdk.ObjectStoreConfig](#codersdkobjectstoreconfig)                                             | false    |              |                                                                    |
 | `oidc`                                         | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                                      | string                                                                                               | false    |              |                                                                    |
 | `pg_conn_max_idle`                             | string                                                                                               | false    |              |                                                                    |
@@ -6448,6 +6471,36 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `user_role_mapping`                  | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `user_roles_default`                 | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `username_field`                     | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+
+## codersdk.ObjectStoreConfig
+
+```json
+{
+  "backend": "string",
+  "gcs_bucket": "string",
+  "gcs_credentials_file": "string",
+  "gcs_prefix": "string",
+  "local_dir": "string",
+  "s3_bucket": "string",
+  "s3_endpoint": "string",
+  "s3_prefix": "string",
+  "s3_region": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description                                                                                                                                 |
+|------------------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `backend`              | string | false    |              | Backend selects the storage backend: "local" (default), "s3", or "gcs".                                                                     |
+| `gcs_bucket`           | string | false    |              | Gcs bucket is the GCS bucket name. Required when Backend is "gcs".                                                                          |
+| `gcs_credentials_file` | string | false    |              | Gcs credentials file is an optional path to a GCS service account key file. If empty, Application Default Credentials are used.             |
+| `gcs_prefix`           | string | false    |              | Gcs prefix is an optional key prefix within the GCS bucket.                                                                                 |
+| `local_dir`            | string | false    |              | Local dir is the root directory for the local filesystem backend. Only used when Backend is "local". Defaults to <config-dir>/objectstore/. |
+| `s3_bucket`            | string | false    |              | S3 bucket is the S3 bucket name. Required when Backend is "s3".                                                                             |
+| `s3_endpoint`          | string | false    |              | S3 endpoint is a custom S3-compatible endpoint URL (for MinIO, R2, etc.).                                                                   |
+| `s3_prefix`            | string | false    |              | S3 prefix is an optional key prefix within the S3 bucket.                                                                                   |
+| `s3_region`            | string | false    |              | S3 region is the AWS region for the S3 bucket.                                                                                              |
 
 ## codersdk.OptionType
 

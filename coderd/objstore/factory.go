@@ -66,7 +66,14 @@ func NewLocal(cfg LocalConfig) (Store, error) {
 		return nil, xerrors.Errorf("create object store directory %q: %w", cfg.Dir, err)
 	}
 
-	bucket, err := fileblob.OpenBucket(cfg.Dir, nil)
+	bucket, err := fileblob.OpenBucket(cfg.Dir, &fileblob.Options{
+		// Place temp files next to the target files instead of
+		// os.TempDir. This avoids EXDEV (cross-device link) errors
+		// when the storage directory is on a different filesystem.
+		NoTempDir: true,
+		// We handle metadata in the database, not in sidecar files.
+		Metadata: fileblob.MetadataDontWrite,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("open local bucket at %q: %w", cfg.Dir, err)
 	}

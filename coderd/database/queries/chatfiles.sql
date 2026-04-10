@@ -1,6 +1,6 @@
 -- name: InsertChatFile :one
-INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data)
-VALUES (@owner_id::uuid, @organization_id::uuid, @name::text, @mimetype::text, @data::bytea)
+INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data, object_store_key)
+VALUES (@owner_id::uuid, @organization_id::uuid, @name::text, @mimetype::text, @data::bytea, @object_store_key::text)
 RETURNING id, owner_id, organization_id, created_at, name, mimetype;
 
 -- name: GetChatFileByID :one
@@ -22,13 +22,15 @@ ORDER BY cf.created_at ASC;
 -- TODO(cian): Add indexes on chats(archived, updated_at) and
 -- chat_files(created_at) for purge query performance.
 -- See: https://github.com/coder/internal/issues/1438
--- name: DeleteOldChatFiles :execrows
+-- name: DeleteOldChatFiles :many
 -- Deletes chat files that are older than the given threshold and are
 -- not referenced by any chat that is still active or was archived
 -- within the same threshold window. This covers two cases:
 -- 1. Orphaned files not linked to any chat.
 -- 2. Files whose every referencing chat has been archived for longer
 --    than the retention period.
+-- Returns the deleted rows so callers can clean up associated object
+-- store entries.
 WITH kept_file_ids AS (
     -- NOTE: This uses updated_at as a proxy for archive time
     -- because there is no archived_at column. Correctness
@@ -51,4 +53,5 @@ deletable AS (
 )
 DELETE FROM chat_files
 USING deletable
-WHERE chat_files.id = deletable.id;
+WHERE chat_files.id = deletable.id
+RETURNING chat_files.id, chat_files.object_store_key;

@@ -163,34 +163,24 @@ func (p *Server) stopAndStoreRecording(
 		}
 	}
 
-	// Second pass: store the collected data in the database.
+	// Second pass: store the collected data.
 	if videoData != nil {
-		//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
-		row, err := p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
-			OwnerID:        ownerID,
-			OrganizationID: ws.OrganizationID,
-			Name:           fmt.Sprintf("recording-%s.mp4", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
-			Mimetype:       "video/mp4",
-			Data:           videoData,
-		})
+		row, err := p.storeChatFile(ctx, ownerID, ws.OrganizationID,
+			fmt.Sprintf("recording-%s.mp4", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
+			"video/mp4", videoData)
 		if err != nil {
-			p.logger.Warn(ctx, "failed to store recording in database",
+			p.logger.Warn(ctx, "failed to store recording",
 				slog.Error(err))
 		} else {
 			result.recordingFileID = row.ID.String()
 		}
 	}
 	if thumbnailData != nil && result.recordingFileID != "" {
-		//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
-		row, err := p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
-			OwnerID:        ownerID,
-			OrganizationID: ws.OrganizationID,
-			Name:           fmt.Sprintf("thumbnail-%s.jpg", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
-			Mimetype:       "image/jpeg",
-			Data:           thumbnailData,
-		})
+		row, err := p.storeChatFile(ctx, ownerID, ws.OrganizationID,
+			fmt.Sprintf("thumbnail-%s.jpg", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
+			"image/jpeg", thumbnailData)
 		if err != nil {
-			p.logger.Warn(ctx, "failed to store thumbnail in database",
+			p.logger.Warn(ctx, "failed to store thumbnail",
 				slog.Error(err))
 		} else {
 			result.thumbnailFileID = row.ID.String()
@@ -198,4 +188,29 @@ func (p *Server) stopAndStoreRecording(
 	}
 
 	return result
+}
+
+// storeChatFile writes file data to the object store (when
+// configured) and inserts a metadata row into chat_files. Falls back
+// to storing the data directly in the database BYTEA column when no
+// object store is available.
+func (p *Server) storeChatFile(
+	ctx context.Context,
+	ownerID, orgID uuid.UUID,
+	name, mimetype string,
+	data []byte,
+) (database.InsertChatFileRow, error) {
+	key := uuid.New().String()
+	if err := p.objStore.Write(ctx, chatFilesNamespace, key, data); err != nil {
+		return database.InsertChatFileRow{}, fmt.Errorf("write to object store: %w", err)
+	}
+
+	//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
+	return p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+		Name:           name,
+		Mimetype:       mimetype,
+		ObjectStoreKey: key,
+	})
 }

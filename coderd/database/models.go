@@ -4314,13 +4314,14 @@ type ChatDiffStatus struct {
 }
 
 type ChatFile struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	Name           string    `db:"name" json:"name"`
-	Mimetype       string    `db:"mimetype" json:"mimetype"`
-	Data           []byte    `db:"data" json:"data"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	Name           string         `db:"name" json:"name"`
+	Mimetype       string         `db:"mimetype" json:"mimetype"`
+	Data           []byte         `db:"data" json:"data"`
+	ObjectStoreKey sql.NullString `db:"object_store_key" json:"object_store_key"`
 }
 
 type ChatFileLink struct {

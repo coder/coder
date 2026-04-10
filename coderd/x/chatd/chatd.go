@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/objstore"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xjson"
@@ -146,6 +148,7 @@ type Server struct {
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 	recordingSem chan struct{}
+	objStore     objstore.Store
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
@@ -2697,6 +2700,9 @@ type Config struct {
 	WebpushDispatcher              webpush.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
+	// ObjectStore is optional. When set, chat file data is stored
+	// in the object store instead of the database BYTEA column.
+	ObjectStore objstore.Store
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -2762,6 +2768,7 @@ func New(cfg Config) *Server {
 		usageTracker:                   cfg.UsageTracker,
 		clock:                          clk,
 		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
+		objStore:                       cfg.ObjectStore,
 		wakeCh:                         make(chan struct{}, 1),
 		heartbeatRegistry:              make(map[uuid.UUID]*heartbeatEntry),
 	}
@@ -3914,7 +3921,9 @@ func (p *Server) subscribeChatControl(
 }
 
 // chatFileResolver returns a FileResolver that fetches chat file
-// content from the database by ID.
+// content. When an object store is configured and the file has an
+// object_store_key, data is read from the store. Otherwise it falls
+// back to the database BYTEA column.
 func (p *Server) chatFileResolver() chatprompt.FileResolver {
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
@@ -3923,14 +3932,36 @@ func (p *Server) chatFileResolver() chatprompt.FileResolver {
 		}
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
+			data, err := p.readChatFileData(ctx, f)
+			if err != nil {
+				return nil, xerrors.Errorf("read chat file %s: %w", f.ID, err)
+			}
 			result[f.ID] = chatprompt.FileData{
 				Name:      f.Name,
-				Data:      f.Data,
+				Data:      data,
 				MediaType: f.Mimetype,
 			}
 		}
 		return result, nil
 	}
+}
+
+// chatFilesNamespace is the object store namespace for chat files.
+const chatFilesNamespace = "chatfiles"
+
+// readChatFileData returns the binary content for a chat file. It
+// reads from the object store, falling back to the database BYTEA
+// column for files that predate the migration.
+func (p *Server) readChatFileData(ctx context.Context, f database.ChatFile) ([]byte, error) {
+	if f.ObjectStoreKey.Valid && f.ObjectStoreKey.String != "" {
+		rc, _, err := p.objStore.Read(ctx, chatFilesNamespace, f.ObjectStoreKey.String)
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+		return io.ReadAll(rc)
+	}
+	return f.Data, nil
 }
 
 // tryAutoPromoteQueuedMessage pops the next queued message and converts it

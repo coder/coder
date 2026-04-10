@@ -912,3 +912,37 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+# Configure the object storage backend for binary data (chat files, transcripts,
+# etc.). Defaults to local filesystem storage.
+objectStore:
+  # The storage backend for binary data such as chat files. Valid values: local, s3,
+  # gcs.
+  # (default: local, type: string)
+  backend: local
+  # Root directory for the local filesystem object store backend. Only used when the
+  # backend is "local".
+  # (default: <unset>, type: string)
+  local_dir: ""
+  # S3 bucket name. Required when the backend is "s3".
+  # (default: <unset>, type: string)
+  s3_bucket: ""
+  # AWS region for the S3 bucket.
+  # (default: <unset>, type: string)
+  s3_region: ""
+  # Optional key prefix within the S3 bucket.
+  # (default: <unset>, type: string)
+  s3_prefix: ""
+  # Custom S3-compatible endpoint URL (e.g. for MinIO, R2, Cloudflare). Leave empty
+  # for standard AWS S3.
+  # (default: <unset>, type: string)
+  s3_endpoint: ""
+  # GCS bucket name. Required when the backend is "gcs".
+  # (default: <unset>, type: string)
+  gcs_bucket: ""
+  # Optional key prefix within the GCS bucket.
+  # (default: <unset>, type: string)
+  gcs_prefix: ""
+  # Path to a GCS service account key file. If empty, Application Default
+  # Credentials are used.
+  # (default: <unset>, type: string)
+  gcs_credentials_file: ""

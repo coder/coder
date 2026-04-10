@@ -3,6 +3,7 @@ package dbpurge
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/objstore"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -41,11 +43,15 @@ const (
 	chatFilesBatchSize = 1000
 )
 
+// chatFilesNamespace is the object store namespace under which chat
+// files are stored.
+const chatFilesNamespace = "chatfiles"
+
 // New creates a new periodically purging database instance.
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer, objStore objstore.Store) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -69,6 +75,22 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
+	objStoreInflight := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "dbpurge",
+		Name:      "objstore_delete_inflight",
+		Help:      "Number of object store files currently enqueued for deletion.",
+	})
+	reg.MustRegister(objStoreInflight)
+
+	objStoreDeleted := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "dbpurge",
+		Name:      "objstore_files_deleted_total",
+		Help:      "Total number of object store files successfully deleted.",
+	})
+	reg.MustRegister(objStoreDeleted)
+
 	inst := &instance{
 		cancel:            cancelFunc,
 		closed:            closed,
@@ -77,6 +99,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		clk:               clk,
 		iterationDuration: iterationDuration,
 		recordsPurged:     recordsPurged,
+		objStore:          objStore,
+		objStoreInflight:  objStoreInflight,
+		objStoreDeleted:   objStoreDeleted,
 	}
 
 	// Start the ticker with the initial delay.
@@ -250,13 +275,20 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 				return xerrors.Errorf("failed to delete old chats: %w", err)
 			}
 
-			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+			deletedFiles, err := tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
 				BeforeTime: deleteChatsBefore,
 				LimitCount: chatFilesBatchSize,
 			})
 			if err != nil {
 				return xerrors.Errorf("failed to delete old chat files: %w", err)
 			}
+			purgedChatFiles = int64(len(deletedFiles))
+
+			// Collect object store keys from the deleted rows
+			// and delete them in a background goroutine so
+			// slow object store I/O does not hold the
+			// advisory lock or block the next tick.
+			i.deleteObjStoreKeys(ctx, deletedFiles)
 		}
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
@@ -295,10 +327,76 @@ type instance struct {
 	clk               quartz.Clock
 	iterationDuration *prometheus.HistogramVec
 	recordsPurged     *prometheus.CounterVec
+	objStore          objstore.Store
+	objStoreInflight  prometheus.Gauge
+	objStoreDeleted   prometheus.Counter
+
+	// objDeleteMu serializes background object store delete batches
+	// so at most one goroutine is deleting at a time.
+	objDeleteMu sync.Mutex
 }
 
 func (i *instance) Close() error {
 	i.cancel()
 	<-i.closed
 	return nil
+}
+
+// deleteObjStoreKeys removes object store entries for the given
+// deleted chat file rows. The work runs in a background goroutine
+// guarded by a mutex so that slow object store I/O never blocks
+// the purge transaction or the next tick. At most one delete batch
+// runs at a time; if a batch is already in flight the new keys are
+// silently dropped (they will be orphan-collected on a future tick
+// if needed).
+func (i *instance) deleteObjStoreKeys(ctx context.Context, rows []database.DeleteOldChatFilesRow) {
+	// Collect non-empty object store keys.
+	var keys []string
+	for _, r := range rows {
+		if r.ObjectStoreKey.Valid && r.ObjectStoreKey.String != "" {
+			keys = append(keys, r.ObjectStoreKey.String)
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+
+	// Try to acquire the mutex without blocking. If another
+	// delete batch is already running, skip this one.
+	if !i.objDeleteMu.TryLock() {
+		i.logger.Debug(ctx, "object store delete already in progress, skipping batch",
+			slog.F("skipped_keys", len(keys)))
+		return
+	}
+
+	i.objStoreInflight.Add(float64(len(keys)))
+
+	go func() {
+		defer i.objDeleteMu.Unlock()
+
+		var deleted int
+		for _, key := range keys {
+			if ctx.Err() != nil {
+				remaining := len(keys) - deleted
+				i.objStoreInflight.Sub(float64(remaining))
+				i.logger.Debug(ctx, "context canceled during object store cleanup",
+					slog.F("deleted", deleted),
+					slog.F("remaining", remaining))
+				return
+			}
+			if err := i.objStore.Delete(ctx, chatFilesNamespace, key); err != nil {
+				i.logger.Warn(ctx, "failed to delete chat file from object store",
+					slog.F("key", key),
+					slog.Error(err))
+			} else {
+				deleted++
+			}
+			i.objStoreInflight.Dec()
+		}
+
+		i.objStoreDeleted.Add(float64(deleted))
+		i.logger.Debug(ctx, "deleted chat files from object store",
+			slog.F("deleted", deleted),
+			slog.F("failed", len(keys)-deleted))
+	}()
 }

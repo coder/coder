@@ -14395,6 +14395,9 @@
 				"oauth2": {
 					"$ref": "#/definitions/codersdk.OAuth2Config"
 				},
+				"object_store": {
+					"$ref": "#/definitions/codersdk.ObjectStoreConfig"
+				},
 				"oidc": {
 					"$ref": "#/definitions/codersdk.OIDCConfig"
 				},
@@ -16333,6 +16336,47 @@
 					}
 				},
 				"username_field": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ObjectStoreConfig": {
+			"type": "object",
+			"properties": {
+				"backend": {
+					"description": "Backend selects the storage backend: \"local\" (default), \"s3\", or \"gcs\".",
+					"type": "string"
+				},
+				"gcs_bucket": {
+					"description": "GCSBucket is the GCS bucket name. Required when Backend is \"gcs\".",
+					"type": "string"
+				},
+				"gcs_credentials_file": {
+					"description": "GCSCredentialsFile is an optional path to a GCS service account\nkey file. If empty, Application Default Credentials are used.",
+					"type": "string"
+				},
+				"gcs_prefix": {
+					"description": "GCSPrefix is an optional key prefix within the GCS bucket.",
+					"type": "string"
+				},
+				"local_dir": {
+					"description": "LocalDir is the root directory for the local filesystem backend.\nOnly used when Backend is \"local\". Defaults to \u003cconfig-dir\u003e/objectstore/.",
+					"type": "string"
+				},
+				"s3_bucket": {
+					"description": "S3Bucket is the S3 bucket name. Required when Backend is \"s3\".",
+					"type": "string"
+				},
+				"s3_endpoint": {
+					"description": "S3Endpoint is a custom S3-compatible endpoint URL (for MinIO, R2, etc.).",
+					"type": "string"
+				},
+				"s3_prefix": {
+					"description": "S3Prefix is an optional key prefix within the S3 bucket.",
+					"type": "string"
+				},
+				"s3_region": {
+					"description": "S3Region is the AWS region for the S3 bucket.",
 					"type": "string"
 				}
 			}

@@ -2064,9 +2064,9 @@ func (q *querier) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOld
 	return q.db.DeleteOldAuditLogs(ctx, arg)
 }
 
-func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
+func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) ([]database.DeleteOldChatFilesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return 0, err
+		return nil, err
 	}
 	return q.db.DeleteOldChatFiles(ctx, arg)
 }

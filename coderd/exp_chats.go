@@ -3042,6 +3042,8 @@ const (
 	maxChatFileSize = 10 << 20
 	// maxChatFileName is the maximum length of an uploaded file name.
 	maxChatFileName = 255
+	// chatFilesNamespace is the object store namespace for chat files.
+	chatFilesNamespace = "chatfiles"
 )
 
 // allowedChatFileMIMETypes lists the content types accepted for chat
@@ -3838,12 +3840,21 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	key := uuid.New().String()
+	if err := api.ObjectStore.Write(ctx, chatFilesNamespace, key, data); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to save chat file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	chatFile, err := api.Database.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        apiKey.UserID,
 		OrganizationID: orgID,
 		Name:           filename,
 		Mimetype:       detected,
-		Data:           data,
+		ObjectStoreKey: key,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3890,6 +3901,27 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Disposition", "inline")
 	}
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+
+	// Serve from object store, falling back to the database BYTEA
+	// column for files that predate the migration.
+	if chatFile.ObjectStoreKey.Valid && chatFile.ObjectStoreKey.String != "" {
+		rc, info, err := api.ObjectStore.Read(ctx, chatFilesNamespace, chatFile.ObjectStoreKey.String)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to read chat file from storage.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer rc.Close()
+		rw.Header().Set("Content-Length", strconv.FormatInt(info.Size, 10))
+		rw.WriteHeader(http.StatusOK)
+		if _, err := io.Copy(rw, rc); err != nil {
+			api.Logger.Debug(ctx, "failed to stream chat file response", slog.Error(err))
+		}
+		return
+	}
+
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(chatFile.Data); err != nil {

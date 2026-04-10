@@ -1029,10 +1029,10 @@ func (mr *MockStoreMockRecorder) DeleteOldAuditLogs(ctx, arg any) *gomock.Call {
 }
 
 // DeleteOldChatFiles mocks base method.
-func (m *MockStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
+func (m *MockStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) ([]database.DeleteOldChatFilesRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldChatFiles", ctx, arg)
-	ret0, _ := ret[0].(int64)
+	ret0, _ := ret[0].([]database.DeleteOldChatFilesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

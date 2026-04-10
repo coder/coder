@@ -3380,6 +3380,7 @@ export interface DeploymentValues {
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
+	readonly object_store?: ObjectStoreConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -5119,6 +5120,53 @@ export interface OIDCConfig {
 	readonly redirect_url: string;
 }
 
+// From codersdk/deployment.go
+/**
+ * RetentionConfig contains configuration for data retention policies.
+ * ObjectStoreConfig configures the object storage backend used for
+ * binary data such as chat files and transcripts.
+ */
+export interface ObjectStoreConfig {
+	/**
+	 * Backend selects the storage backend: "local" (default), "s3", or "gcs".
+	 */
+	readonly backend: string;
+	/**
+	 * LocalDir is the root directory for the local filesystem backend.
+	 * Only used when Backend is "local". Defaults to <config-dir>/objectstore/.
+	 */
+	readonly local_dir: string;
+	/**
+	 * S3Bucket is the S3 bucket name. Required when Backend is "s3".
+	 */
+	readonly s3_bucket: string;
+	/**
+	 * S3Region is the AWS region for the S3 bucket.
+	 */
+	readonly s3_region: string;
+	/**
+	 * S3Prefix is an optional key prefix within the S3 bucket.
+	 */
+	readonly s3_prefix: string;
+	/**
+	 * S3Endpoint is a custom S3-compatible endpoint URL (for MinIO, R2, etc.).
+	 */
+	readonly s3_endpoint: string;
+	/**
+	 * GCSBucket is the GCS bucket name. Required when Backend is "gcs".
+	 */
+	readonly gcs_bucket: string;
+	/**
+	 * GCSPrefix is an optional key prefix within the GCS bucket.
+	 */
+	readonly gcs_prefix: string;
+	/**
+	 * GCSCredentialsFile is an optional path to a GCS service account
+	 * key file. If empty, Application Default Credentials are used.
+	 */
+	readonly gcs_credentials_file: string;
+}
+
 // From codersdk/parameters.go
 export type OptionType = "bool" | "list(string)" | "number" | "string";
 
@@ -6233,7 +6281,6 @@ export interface ResumeTaskResponse {
 
 // From codersdk/deployment.go
 /**
- * RetentionConfig contains configuration for data retention policies.
  * These settings control how long various types of data are retained in the database
  * before being automatically purged. Setting a value to 0 disables retention for that
  * data type (data is kept indefinitely).
