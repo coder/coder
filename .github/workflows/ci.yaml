@@ -191,7 +191,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@631208b7aac2daa8b707f55e7331f9112b0e062d # v1.44.0
+        uses: crate-ci/typos@02ea592e44b3a53c302f697cddca7641cd051c3d # v1.45.0
         with:
           config: .github/workflows/typos.toml
 
@@ -870,7 +870,7 @@ jobs:
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
         if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@f191a0224b10e1a38b2091cefb7b7a2337009116 # v16.0.0
+        uses: chromaui/action@688adae582d884d6b739d58b347e8f48829339a9 # v16.2.0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -902,7 +902,7 @@ jobs:
       # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@f191a0224b10e1a38b2091cefb7b7a2337009116 # v16.0.0
+        uses: chromaui/action@688adae582d884d6b739d58b347e8f48829339a9 # v16.2.0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -1108,7 +1108,7 @@ jobs:
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
