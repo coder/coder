@@ -158,6 +158,7 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "ran initialization")
 
 	logResourceSample(ctx, s.logger, "init", e)
+	observeResourceMetrics(e.resourceMetrics, "init", e.lastResourceSample)
 
 	return &proto.InitComplete{
 		Timings:         e.timings.aggregate(),
@@ -216,10 +217,12 @@ func (s *server) Plan(
 	endStage(err)
 	if err != nil {
 		logResourceSample(ctx, s.logger, "plan", e)
+		observeResourceMetrics(e.resourceMetrics, "plan", e.lastResourceSample)
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
 	logResourceSample(ctx, s.logger, "plan", e)
+	observeResourceMetrics(e.resourceMetrics, "plan", e.lastResourceSample)
 
 	resp.Timings = e.timings.aggregate()
 	return resp
@@ -266,10 +269,12 @@ func (s *server) Graph(
 	endStage(err)
 	if err != nil {
 		logResourceSample(ctx, s.logger, "graph", e)
+		observeResourceMetrics(e.resourceMetrics, "graph", e.lastResourceSample)
 		return provisionersdk.GraphError("generate graph: %s", err)
 	}
 
 	logResourceSample(ctx, s.logger, "graph", e)
+	observeResourceMetrics(e.resourceMetrics, "graph", e.lastResourceSample)
 
 	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
@@ -331,6 +336,7 @@ func (s *server) Apply(
 	endStage(err)
 	if err != nil {
 		logResourceSample(ctx, s.logger, "apply", e)
+		observeResourceMetrics(e.resourceMetrics, "apply", e.lastResourceSample)
 
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
@@ -344,6 +350,7 @@ func (s *server) Apply(
 	}
 
 	logResourceSample(ctx, s.logger, "apply", e)
+	observeResourceMetrics(e.resourceMetrics, "apply", e.lastResourceSample)
 
 	resp.Timings = e.timings.aggregate()
 	return resp
@@ -532,5 +539,20 @@ func logResourceSample(ctx context.Context, logger slog.Logger, stage string, e 
 			slog.F("peak_rss_bytes", usage.PeakRSSBytes),
 			slog.F("cpu_time_seconds", usage.CPUTimeSeconds),
 		)
+	}
+}
+
+// observeResourceMetrics pushes the last sampled provider resource
+// usage into Prometheus gauges. Each provider x stage combination
+// gets its own label set. This is safe to call with a nil sample
+// (e.g. on non-Linux platforms where the sampler is a no-op).
+func observeResourceMetrics(metrics *resourceMetrics, stage string, sample *ProcessSample) {
+	if metrics == nil || sample == nil || len(sample.Providers) == 0 {
+		return
+	}
+
+	for providerName, usage := range sample.Providers {
+		metrics.providerMemoryPeakBytes.WithLabelValues(providerName, stage).Set(float64(usage.PeakRSSBytes))
+		metrics.providerCPUSeconds.WithLabelValues(providerName, stage).Set(usage.CPUTimeSeconds)
 	}
 }

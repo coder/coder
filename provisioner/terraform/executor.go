@@ -17,6 +17,8 @@ import (
 
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
@@ -36,6 +38,33 @@ var (
 // balances resolution against overhead for multi-minute builds.
 const resourceSamplingInterval = 5 * time.Second
 
+// resourceMetrics holds Prometheus gauges for Terraform provider
+// resource consumption. A single instance is shared across all
+// executors created by one server.
+type resourceMetrics struct {
+	providerMemoryPeakBytes *prometheus.GaugeVec
+	providerCPUSeconds      *prometheus.GaugeVec
+}
+
+// newResourceMetrics registers provider resource gauges with reg.
+func newResourceMetrics(reg prometheus.Registerer) *resourceMetrics {
+	auto := promauto.With(reg)
+	return &resourceMetrics{
+		providerMemoryPeakBytes: auto.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "coderd",
+			Subsystem: "provisionerd",
+			Name:      "provider_memory_peak_bytes",
+			Help:      "Peak RSS in bytes of a Terraform provider during a provisioning stage.",
+		}, []string{"provider", "stage"}),
+		providerCPUSeconds: auto.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "coderd",
+			Subsystem: "provisionerd",
+			Name:      "provider_cpu_seconds",
+			Help:      "Cumulative CPU time in seconds consumed by a Terraform provider during a provisioning stage.",
+		}, []string{"provider", "stage"}),
+	}
+}
+
 type executor struct {
 	logger     slog.Logger
 	server     *server
@@ -51,6 +80,7 @@ type executor struct {
 	// most recent command execution. The executor mutex ensures
 	// single-writer access, mirroring the pattern used by timings.
 	lastResourceSample *ProcessSample
+	resourceMetrics    *resourceMetrics
 }
 
 func (e *executor) basicEnv() []string {

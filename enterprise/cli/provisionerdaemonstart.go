@@ -179,6 +179,15 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				_ = terraformServer.Close()
 			}()
 
+			// Create the registry before starting the Terraform
+			// server goroutine so provider resource metrics are
+			// registered on the same registry that Prometheus
+			// will scrape.
+			var prometheusRegistry *prometheus.Registry
+			if prometheusEnable {
+				prometheusRegistry = prometheus.NewRegistry()
+			}
+
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()
@@ -190,7 +199,8 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 						WorkDirectory: tempDir,
 						Experiments:   coderd.ReadExperiments(logger, experiments),
 					},
-					CachePath: cacheDir,
+					CachePath:  cacheDir,
+					Registerer: prometheusRegistry,
 				})
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {
@@ -204,7 +214,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			if prometheusEnable {
 				logger.Info(ctx, "starting Prometheus endpoint", slog.F("address", prometheusAddress))
 
-				prometheusRegistry := prometheus.NewRegistry()
 				prometheusRegistry.MustRegister(collectors.NewGoCollector())
 				prometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 

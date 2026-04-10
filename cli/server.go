@@ -1524,8 +1524,9 @@ func newProvisionerDaemon(
 						WorkDirectory: workDir,
 						Experiments:   coderAPI.Experiments,
 					},
-					CachePath: tfDir,
-					Tracer:    tracer,
+					CachePath:  tfDir,
+					Tracer:     tracer,
+					Registerer: coderAPI.PrometheusRegistry,
 				})
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {

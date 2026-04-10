@@ -9,6 +9,7 @@ import (
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
+	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -43,6 +44,11 @@ type ServeOptions struct {
 	// be kept less than the value that Coder uses to mark hung jobs as failed,
 	// which is 5 minutes (see jobreaper package).
 	ExitTimeout time.Duration
+
+	// Registerer is the Prometheus registerer used to expose provider
+	// resource usage metrics. When nil, a throwaway registry is
+	// created so metrics are collected but never scraped.
+	Registerer prometheus.Registerer
 }
 
 type systemBinaryDetails struct {
@@ -133,25 +139,33 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.ExitTimeout == 0 {
 		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
+	if options.Registerer == nil {
+		// Use a throwaway registry so metric constructors never
+		// see nil. Metrics are registered but never scraped.
+		options.Registerer = prometheus.NewRegistry()
+	}
+	resMetrics := newResourceMetrics(options.Registerer)
 	return provisionersdk.Serve(ctx, &server{
-		execMut:       &sync.Mutex{},
-		binaryPath:    options.BinaryPath,
-		cachePath:     options.CachePath,
-		cliConfigPath: options.CliConfigPath,
-		logger:        options.Logger,
-		tracer:        options.Tracer,
-		exitTimeout:   options.ExitTimeout,
+		execMut:         &sync.Mutex{},
+		binaryPath:      options.BinaryPath,
+		cachePath:       options.CachePath,
+		cliConfigPath:   options.CliConfigPath,
+		logger:          options.Logger,
+		tracer:          options.Tracer,
+		exitTimeout:     options.ExitTimeout,
+		resourceMetrics: resMetrics,
 	}, options.ServeOptions)
 }
 
 type server struct {
-	execMut       *sync.Mutex
-	binaryPath    string
-	cachePath     string
-	cliConfigPath string
-	logger        slog.Logger
-	tracer        trace.Tracer
-	exitTimeout   time.Duration
+	execMut         *sync.Mutex
+	binaryPath      string
+	cachePath       string
+	cliConfigPath   string
+	logger          slog.Logger
+	tracer          trace.Tracer
+	exitTimeout     time.Duration
+	resourceMetrics *resourceMetrics
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
@@ -162,13 +176,14 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 
 func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
-		server:        s,
-		mut:           s.execMut,
-		binaryPath:    s.binaryPath,
-		cachePath:     s.cachePath,
-		cliConfigPath: s.cliConfigPath,
-		files:         files,
-		logger:        s.logger.Named("executor"),
-		timings:       newTimingAggregator(stage),
+		server:          s,
+		mut:             s.execMut,
+		binaryPath:      s.binaryPath,
+		cachePath:       s.cachePath,
+		cliConfigPath:   s.cliConfigPath,
+		files:           files,
+		logger:          s.logger.Named("executor"),
+		timings:         newTimingAggregator(stage),
+		resourceMetrics: s.resourceMetrics,
 	}
 }
