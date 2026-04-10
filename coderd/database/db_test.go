@@ -12,7 +12,6 @@ import (
 	"golang.org/x/xerrors"
 
 	slog "cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -136,9 +135,9 @@ func TestNestedInTxStricterIsolationDefaultParent(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
+		return e.Level == slog.LevelWarn
 	})
-	require.Len(t, entries, 1, "expected exactly one Critical log entry")
+	require.Len(t, entries, 1, "expected exactly one Warn log entry")
 	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
 
 	var parentVal, requestedVal string
@@ -167,7 +166,7 @@ func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
 	db := database.New(sqlDB, database.WithLogger(logger))
 
 	// Outer uses RepeatableRead, inner requests Serializable.
-	// Both are explicit and the inner is stricter, so a Critical
+	// Both are explicit and the inner is stricter, so a Warn
 	// log should fire.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
@@ -177,9 +176,9 @@ func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
+		return e.Level == slog.LevelWarn
 	})
-	require.Len(t, entries, 1, "expected exactly one Critical log entry")
+	require.Len(t, entries, 1, "expected exactly one Warn log entry")
 	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
 
 	var parentVal, requestedVal string
@@ -217,7 +216,7 @@ func TestNestedInTxSameIsolationNoLog(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
+		return e.Level == slog.LevelWarn
 	})
 	require.Empty(t, entries, "should not log when isolation levels match")
 }
@@ -244,7 +243,7 @@ func TestNestedInTxWeakerIsolationNoLog(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
+		return e.Level == slog.LevelWarn
 	})
 	require.Empty(t, entries, "should not log when inner isolation is weaker than outer")
 }
