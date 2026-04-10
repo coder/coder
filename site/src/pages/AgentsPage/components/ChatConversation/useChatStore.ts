@@ -260,6 +260,7 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useLayoutEffect(() => {
+		activeChatIDRef.current = chatID ?? null;
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
@@ -435,7 +436,7 @@ export const useChatStore = (
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
-			if (disposed) {
+			if (disposed || activeChatIDRef.current !== activeChatID) {
 				return;
 			}
 			if (payload.parseError || !payload.parsedMessage) {

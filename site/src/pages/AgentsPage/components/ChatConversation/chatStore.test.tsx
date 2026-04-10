@@ -3180,6 +3180,80 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("pending");
 		});
 	});
+
+	it("ignores stale socket status events from the previous chat after a switch", async () => {
+		immediateAnimationFrame();
+
+		const chatA = "chat-socket-race-a";
+		const chatB = "chat-socket-race-b";
+		const msgA = makeMessage(chatA, 1, "user", "hello from a");
+		const msgB = makeMessage(chatB, 2, "user", "hello from b");
+		const socketA = createMockSocket();
+		const socketB = createMockSocket();
+		vi.mocked(watchChat).mockImplementation((chatID) =>
+			chatID === chatA ? socketA : socketB,
+		);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result, rerender } = renderHook(
+			(props: {
+				chatID: string;
+				chatRecord: TypesGen.Chat;
+				chatMessages: TypesGen.ChatMessage[];
+			}) => {
+				const { store } = useChatStore({
+					chatID: props.chatID,
+					chatMessages: props.chatMessages,
+					chatRecord: props.chatRecord,
+					chatMessagesData: {
+						messages: props.chatMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{
+				wrapper,
+				initialProps: {
+					chatID: chatA,
+					chatRecord: { ...makeChat(chatA), status: "running" },
+					chatMessages: [msgA],
+				},
+			},
+		);
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		act(() => {
+			rerender({
+				chatID: chatB,
+				chatRecord: { ...makeChat(chatB), status: "pending" },
+				chatMessages: [msgB],
+			});
+			// Simulate a late old-socket status payload that arrives in the
+			// chat-switch window before passive effect cleanup disconnects A.
+			socketA.emitData({
+				type: "status",
+				status: { status: "error" },
+			} as TypesGen.ChatStreamEvent);
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("pending");
+		});
+	});
 });
 
 describe("thinking indicator event ordering", () => {
