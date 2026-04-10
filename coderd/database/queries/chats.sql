@@ -1293,3 +1293,26 @@ GROUP BY cm.chat_id;
 SELECT id, provider, model, context_limit, enabled, is_default
 FROM chat_model_configs
 WHERE deleted = false;
+-- name: GetActiveChatsByAgentID :many
+SELECT *
+FROM chats
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    -- Active statuses only: waiting, pending, running, paused,
+    -- requires_action.
+    -- Excludes completed and error (terminal states).
+    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
+ORDER BY updated_at DESC;
+
+-- name: ClearChatMessageProviderResponseIDsByChatID :exec
+UPDATE chat_messages
+SET provider_response_id = NULL
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND provider_response_id IS NOT NULL;
+
+-- name: SoftDeleteContextFileMessages :exec
+UPDATE chat_messages SET deleted = true
+WHERE chat_id = @chat_id::uuid
+    AND deleted = false
+    AND content::jsonb @> '[{"type": "context-file"}]';

@@ -1114,17 +1114,6 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		type watchEvent struct {
-			Type codersdk.ServerSentEventType `json:"type"`
-			Data json.RawMessage              `json:"data,omitempty"`
-		}
-
-		var event watchEvent
-		err = wsjson.Read(ctx, conn, &event)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
-		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
-
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
@@ -1136,25 +1125,16 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 
 		for {
-			var update watchEvent
-			err = wsjson.Read(ctx, conn, &update)
+			var payload codersdk.ChatWatchEvent
+			err = wsjson.Read(ctx, conn, &payload)
 			require.NoError(t, err)
 
-			if update.Type == codersdk.ServerSentEventTypePing {
-				continue
-			}
-			require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
-
-			var payload coderdpubsub.ChatEvent
-			err = json.Unmarshal(update.Data, &payload)
-			require.NoError(t, err)
-			if payload.Kind == coderdpubsub.ChatEventKindCreated &&
+			if payload.Kind == codersdk.ChatWatchEventKindCreated &&
 				payload.Chat.ID == createdChat.ID {
 				break
 			}
 		}
 	})
-
 	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
 		t.Parallel()
 
@@ -1174,18 +1154,6 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		type watchEvent struct {
-			Type codersdk.ServerSentEventType `json:"type"`
-			Data json.RawMessage              `json:"data,omitempty"`
-		}
-
-		// Skip the initial ping.
-		var event watchEvent
-		err = wsjson.Read(ctx, conn, &event)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
-		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
-
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
@@ -1198,18 +1166,11 @@ func TestWatchChats(t *testing.T) {
 
 		var got codersdk.Chat
 		testutil.Eventually(ctx, t, func(_ context.Context) bool {
-			var update watchEvent
-			if readErr := wsjson.Read(ctx, conn, &update); readErr != nil {
+			var payload codersdk.ChatWatchEvent
+			if readErr := wsjson.Read(ctx, conn, &payload); readErr != nil {
 				return false
 			}
-			if update.Type != codersdk.ServerSentEventTypeData {
-				return false
-			}
-			var payload coderdpubsub.ChatEvent
-			if unmarshalErr := json.Unmarshal(update.Data, &payload); unmarshalErr != nil {
-				return false
-			}
-			if payload.Kind == coderdpubsub.ChatEventKindCreated &&
+			if payload.Kind == codersdk.ChatWatchEventKindCreated &&
 				payload.Chat.ID == createdChat.ID {
 				got = payload.Chat
 				return true
@@ -1282,25 +1243,14 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		type watchEvent struct {
-			Type codersdk.ServerSentEventType `json:"type"`
-			Data json.RawMessage              `json:"data,omitempty"`
-		}
-
-		// Read the initial ping.
-		var ping watchEvent
-		err = wsjson.Read(ctx, conn, &ping)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ServerSentEventTypePing, ping.Type)
-
 		// Publish a diff_status_change event via pubsub,
 		// mimicking what PublishDiffStatusChange does after
 		// it reads the diff status from the DB.
 		dbStatus, err := db.GetChatDiffStatusByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		sdkDiffStatus := db2sdk.ChatDiffStatus(chat.ID, &dbStatus)
-		event := coderdpubsub.ChatEvent{
-			Kind: coderdpubsub.ChatEventKindDiffStatusChange,
+		event := codersdk.ChatWatchEvent{
+			Kind: codersdk.ChatWatchEventKindDiffStatusChange,
 			Chat: codersdk.Chat{
 				ID:         chat.ID,
 				OwnerID:    chat.OwnerID,
@@ -1313,25 +1263,15 @@ func TestWatchChats(t *testing.T) {
 		}
 		payload, err := json.Marshal(event)
 		require.NoError(t, err)
-		err = api.Pubsub.Publish(coderdpubsub.ChatEventChannel(user.UserID), payload)
+		err = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
 		require.NoError(t, err)
 
-		// Read events until we find the diff_status_change.
 		for {
-			var update watchEvent
-			err = wsjson.Read(ctx, conn, &update)
+			var received codersdk.ChatWatchEvent
+			err = wsjson.Read(ctx, conn, &received)
 			require.NoError(t, err)
 
-			if update.Type == codersdk.ServerSentEventTypePing {
-				continue
-			}
-			require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
-
-			var received coderdpubsub.ChatEvent
-			err = json.Unmarshal(update.Data, &received)
-			require.NoError(t, err)
-
-			if received.Kind != coderdpubsub.ChatEventKindDiffStatusChange ||
+			if received.Kind != codersdk.ChatWatchEventKindDiffStatusChange ||
 				received.Chat.ID != chat.ID {
 				continue
 			}
@@ -1350,7 +1290,6 @@ func TestWatchChats(t *testing.T) {
 			break
 		}
 	})
-
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
 
@@ -1393,31 +1332,13 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		type watchEvent struct {
-			Type codersdk.ServerSentEventType `json:"type"`
-			Data json.RawMessage              `json:"data,omitempty"`
-		}
-
-		var ping watchEvent
-		err = wsjson.Read(ctx, conn, &ping)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ServerSentEventTypePing, ping.Type)
-
-		collectLifecycleEvents := func(expectedKind coderdpubsub.ChatEventKind) map[uuid.UUID]coderdpubsub.ChatEvent {
+		collectLifecycleEvents := func(expectedKind codersdk.ChatWatchEventKind) map[uuid.UUID]codersdk.ChatWatchEvent {
 			t.Helper()
 
-			events := make(map[uuid.UUID]coderdpubsub.ChatEvent, 3)
+			events := make(map[uuid.UUID]codersdk.ChatWatchEvent, 3)
 			for len(events) < 3 {
-				var update watchEvent
-				err = wsjson.Read(ctx, conn, &update)
-				require.NoError(t, err)
-				if update.Type == codersdk.ServerSentEventTypePing {
-					continue
-				}
-				require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
-
-				var payload coderdpubsub.ChatEvent
-				err = json.Unmarshal(update.Data, &payload)
+				var payload codersdk.ChatWatchEvent
+				err = wsjson.Read(ctx, conn, &payload)
 				require.NoError(t, err)
 				if payload.Kind != expectedKind {
 					continue
@@ -1427,7 +1348,7 @@ func TestWatchChats(t *testing.T) {
 			return events
 		}
 
-		assertLifecycleEvents := func(events map[uuid.UUID]coderdpubsub.ChatEvent, archived bool) {
+		assertLifecycleEvents := func(events map[uuid.UUID]codersdk.ChatWatchEvent, archived bool) {
 			t.Helper()
 
 			require.Len(t, events, 3)
@@ -1440,12 +1361,12 @@ func TestWatchChats(t *testing.T) {
 
 		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		require.NoError(t, err)
-		deletedEvents := collectLifecycleEvents(coderdpubsub.ChatEventKindDeleted)
+		deletedEvents := collectLifecycleEvents(codersdk.ChatWatchEventKindDeleted)
 		assertLifecycleEvents(deletedEvents, true)
 
 		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
 		require.NoError(t, err)
-		createdEvents := collectLifecycleEvents(coderdpubsub.ChatEventKindCreated)
+		createdEvents := collectLifecycleEvents(codersdk.ChatWatchEventKindCreated)
 		assertLifecycleEvents(createdEvents, false)
 	})
 

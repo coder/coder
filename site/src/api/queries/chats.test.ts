@@ -2,6 +2,7 @@ import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	archiveChat,
 	cancelChatListRefetches,
@@ -795,14 +796,44 @@ describe("mutation invalidation scope", () => {
 		content: [{ type: "text" as const, text: `msg ${id}` }],
 	});
 
+	const makeQueuedMessage = (
+		chatId: string,
+		id: number,
+	): TypesGen.ChatQueuedMessage => ({
+		id,
+		chat_id: chatId,
+		created_at: `2025-01-01T00:10:${String(id).padStart(2, "0")}Z`,
+		content: [{ type: "text" as const, text: `queued ${id}` }],
+	});
+
 	const editReq = {
 		content: [{ type: "text" as const, text: "edited" }],
 	};
 
-	it("editChatMessage optimistically removes truncated messages from cache", async () => {
+	const requireMessage = (
+		messages: readonly TypesGen.ChatMessage[],
+		messageId: number,
+	): TypesGen.ChatMessage => {
+		const message = messages.find((candidate) => candidate.id === messageId);
+		if (!message) {
+			throw new Error(`missing message ${messageId}`);
+		}
+		return message;
+	};
+
+	const buildOptimisticMessage = (message: TypesGen.ChatMessage) =>
+		buildOptimisticEditedMessage({
+			originalMessage: message,
+			requestContent: editReq.content,
+		});
+
+	it("editChatMessage writes the optimistic replacement into cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
@@ -812,18 +843,58 @@ describe("mutation invalidation scope", () => {
 		const mutation = editChatMessage(queryClient, chatId);
 		const context = await mutation.onMutate({
 			messageId: 3,
+			optimisticMessage,
 			req: editReq,
 		});
 
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
-		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([2, 1]);
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			3, 2, 1,
+		]);
+		expect(data?.pages[0]?.messages[0]?.content).toEqual(
+			optimisticMessage.content,
+		);
 		expect(context?.previousData?.pages[0]?.messages).toHaveLength(5);
+	});
+
+	it("editChatMessage clears queued messages in cache during optimistic history edit", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
+		const queuedMessages = [makeQueuedMessage(chatId, 11)];
+
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+			pages: [
+				{
+					messages,
+					queued_messages: queuedMessages,
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		await mutation.onMutate({
+			messageId: 3,
+			optimisticMessage,
+			req: editReq,
+		});
+
+		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		expect(data?.pages[0]?.queued_messages).toEqual([]);
 	});
 
 	it("editChatMessage restores cache on error", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
@@ -833,22 +904,85 @@ describe("mutation invalidation scope", () => {
 		const mutation = editChatMessage(queryClient, chatId);
 		const context = await mutation.onMutate({
 			messageId: 3,
+			optimisticMessage,
 			req: editReq,
 		});
 
 		expect(
 			queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId))?.pages[0]
 				?.messages,
-		).toHaveLength(2);
+		).toHaveLength(3);
 
 		mutation.onError(
 			new Error("network failure"),
-			{ messageId: 3, req: editReq },
+			{ messageId: 3, optimisticMessage, req: editReq },
 			context,
 		);
 
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
-		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([5, 4, 3, 2, 1]);
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			5, 4, 3, 2, 1,
+		]);
+	});
+
+	it("editChatMessage preserves websocket-upserted newer messages on success", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 3),
+		);
+		const responseMessage = {
+			...makeMsg(chatId, 9),
+			content: [{ type: "text" as const, text: "edited authoritative" }],
+		};
+		const websocketMessage = {
+			...makeMsg(chatId, 10),
+			content: [{ type: "text" as const, text: "assistant follow-up" }],
+			role: "assistant" as const,
+		};
+
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		await mutation.onMutate({
+			messageId: 3,
+			optimisticMessage,
+			req: editReq,
+		});
+		queryClient.setQueryData<InfMessages | undefined>(
+			chatMessagesKey(chatId),
+			(current) => {
+				if (!current) {
+					return current;
+				}
+				return {
+					...current,
+					pages: [
+						{
+							...current.pages[0],
+							messages: [websocketMessage, ...current.pages[0].messages],
+						},
+						...current.pages.slice(1),
+					],
+				};
+			},
+		);
+		mutation.onSuccess(
+			{ message: responseMessage },
+			{ messageId: 3, optimisticMessage, req: editReq },
+		);
+
+		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			10, 9, 2, 1,
+		]);
+		expect(data?.pages[0]?.messages[1]?.content).toEqual(
+			responseMessage.content,
+		);
 	});
 
 	it("editChatMessage onMutate is a no-op when cache is empty", async () => {
@@ -890,13 +1024,14 @@ describe("mutation invalidation scope", () => {
 		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([3, 2, 1]);
 	});
 
-	it("editChatMessage onMutate filters across multiple pages", async () => {
+	it("editChatMessage onMutate updates the first page and preserves older pages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
 		// Page 0 (newest): IDs 10–6. Page 1 (older): IDs 5–1.
 		const page0 = [10, 9, 8, 7, 6].map((id) => makeMsg(chatId, id));
 		const page1 = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(requireMessage(page0, 7));
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [
@@ -907,19 +1042,28 @@ describe("mutation invalidation scope", () => {
 		});
 
 		const mutation = editChatMessage(queryClient, chatId);
-		await mutation.onMutate({ messageId: 7, req: editReq });
+		await mutation.onMutate({
+			messageId: 7,
+			optimisticMessage,
+			req: editReq,
+		});
 
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
-		// Page 0: only ID 6 survives (< 7).
-		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([6]);
-		// Page 1: all survive (all < 7).
-		expect(data?.pages[1]?.messages.map((m) => m.id)).toEqual([5, 4, 3, 2, 1]);
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			7, 6,
+		]);
+		expect(data?.pages[1]?.messages.map((message) => message.id)).toEqual([
+			5, 4, 3, 2, 1,
+		]);
 	});
 
-	it("editChatMessage onMutate editing the first message empties all pages", async () => {
+	it("editChatMessage onMutate keeps the optimistic replacement when editing the first message", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 1),
+		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
@@ -927,20 +1071,25 @@ describe("mutation invalidation scope", () => {
 		});
 
 		const mutation = editChatMessage(queryClient, chatId);
-		await mutation.onMutate({ messageId: 1, req: editReq });
+		await mutation.onMutate({
+			messageId: 1,
+			optimisticMessage,
+			req: editReq,
+		});
 
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
-		// All messages have id >= 1, so the page is empty.
-		expect(data?.pages[0]?.messages).toHaveLength(0);
-		// Sibling fields survive the spread.
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([1]);
 		expect(data?.pages[0]?.queued_messages).toEqual([]);
 		expect(data?.pages[0]?.has_more).toBe(false);
 	});
 
-	it("editChatMessage onMutate editing the latest message keeps earlier ones", async () => {
+	it("editChatMessage onMutate keeps earlier messages when editing the latest message", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
+		const optimisticMessage = buildOptimisticMessage(
+			requireMessage(messages, 5),
+		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
@@ -948,10 +1097,19 @@ describe("mutation invalidation scope", () => {
 		});
 
 		const mutation = editChatMessage(queryClient, chatId);
-		await mutation.onMutate({ messageId: 5, req: editReq });
+		await mutation.onMutate({
+			messageId: 5,
+			optimisticMessage,
+			req: editReq,
+		});
 
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
-		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([4, 3, 2, 1]);
+		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			5, 4, 3, 2, 1,
+		]);
+		expect(data?.pages[0]?.messages[0]?.content).toEqual(
+			optimisticMessage.content,
+		);
 	});
 
 	it("interruptChat does not invalidate unrelated queries", async () => {

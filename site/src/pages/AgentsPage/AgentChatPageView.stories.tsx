@@ -113,7 +113,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
 		store: createChatStore(),
-		pendingEditMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -501,22 +500,6 @@ export const EditingMessage: Story = {
 				editingMessageId: 3,
 				editorInitialValue: "Now tell me a joke",
 			}}
-		/>
-	),
-};
-
-/** The saving state while an edit is in progress — shows the pending
- *  indicator on the message being saved. */
-export const EditingSaving: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a better joke",
-			}}
-			pendingEditMessageId={3}
-			isSubmissionPending
 		/>
 	),
 };

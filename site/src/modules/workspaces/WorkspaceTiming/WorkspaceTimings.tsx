@@ -100,22 +100,24 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 	return (
 		<div className="rounded-lg border-solid bg-surface-primary">
-			<Button
-				disabled={isLoading}
-				variant="subtle"
-				className="w-full flex items-center"
-				onClick={() => setIsOpen((o) => !o)}
-			>
-				<ChevronDownIcon open={isOpen} className="size-4 mr-4" />
-				<span>Build timeline</span>
-				<span className="ml-auto text-content-secondary">
+			<div className="flex items-center justify-between px-4 py-1.5 relative">
+				<Button
+					disabled={isLoading}
+					variant="subtle"
+					onClick={() => setIsOpen((o) => !o)}
+					className="after:content-[''] after:absolute after:inset-0"
+				>
+					<ChevronDownIcon open={isOpen} />
+					<span>Build timeline</span>
+				</Button>
+				<span className="ml-auto text-sm text-content-secondary pr-2">
 					{isLoading ? (
 						<Skeleton variant="text" width={40} height={16} />
 					) : (
 						displayProvisioningTime()
 					)}
 				</span>
-			</Button>
+			</div>
 			{!isLoading && (
 				<Collapse in={isOpen}>
 					<div

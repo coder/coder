@@ -23,18 +23,144 @@ func filterParts(parts []codersdk.ChatMessagePart, t codersdk.ChatMessagePartTyp
 	return out
 }
 
-func TestConfig(t *testing.T) {
-	t.Run("Defaults", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
+func writeSkillMetaFileInRoot(t *testing.T, skillsRoot, name, description string) string {
+	t.Helper()
 
-		// Clear all env vars so defaults are used.
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
+	skillDir := filepath.Join(skillsRoot, name)
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(skillDir, "SKILL.md"),
+		[]byte("---\nname: "+name+"\ndescription: "+description+"\n---\nSkill body"),
+		0o600,
+	))
+
+	return skillDir
+}
+
+func writeSkillMetaFile(t *testing.T, dir, name, description string) string {
+	t.Helper()
+	return writeSkillMetaFileInRoot(t, filepath.Join(dir, ".agents", "skills"), name, description)
+}
+
+func TestContextPartsFromDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsInstructionFilePart", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		instructionPath := filepath.Join(dir, "AGENTS.md")
+		require.NoError(t, os.WriteFile(instructionPath, []byte("project instructions"), 0o600))
+
+		parts := agentcontextconfig.ContextPartsFromDir(dir)
+		contextParts := filterParts(parts, codersdk.ChatMessagePartTypeContextFile)
+		skillParts := filterParts(parts, codersdk.ChatMessagePartTypeSkill)
+
+		require.Len(t, parts, 1)
+		require.Len(t, contextParts, 1)
+		require.Empty(t, skillParts)
+		require.Equal(t, instructionPath, contextParts[0].ContextFilePath)
+		require.Equal(t, "project instructions", contextParts[0].ContextFileContent)
+		require.False(t, contextParts[0].ContextFileTruncated)
+	})
+
+	t.Run("ReturnsSkillParts", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		skillDir := writeSkillMetaFile(t, dir, "my-skill", "A test skill")
+
+		parts := agentcontextconfig.ContextPartsFromDir(dir)
+		contextParts := filterParts(parts, codersdk.ChatMessagePartTypeContextFile)
+		skillParts := filterParts(parts, codersdk.ChatMessagePartTypeSkill)
+
+		require.Len(t, parts, 1)
+		require.Empty(t, contextParts)
+		require.Len(t, skillParts, 1)
+		require.Equal(t, "my-skill", skillParts[0].SkillName)
+		require.Equal(t, "A test skill", skillParts[0].SkillDescription)
+		require.Equal(t, skillDir, skillParts[0].SkillDir)
+		require.Equal(t, "SKILL.md", skillParts[0].ContextFileSkillMetaFile)
+	})
+
+	t.Run("ReturnsSkillPartsFromSkillsDir", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		skillDir := writeSkillMetaFileInRoot(
+			t,
+			filepath.Join(dir, "skills"),
+			"my-skill",
+			"A test skill",
+		)
+
+		parts := agentcontextconfig.ContextPartsFromDir(dir)
+		contextParts := filterParts(parts, codersdk.ChatMessagePartTypeContextFile)
+		skillParts := filterParts(parts, codersdk.ChatMessagePartTypeSkill)
+
+		require.Len(t, parts, 1)
+		require.Empty(t, contextParts)
+		require.Len(t, skillParts, 1)
+		require.Equal(t, "my-skill", skillParts[0].SkillName)
+		require.Equal(t, "A test skill", skillParts[0].SkillDescription)
+		require.Equal(t, skillDir, skillParts[0].SkillDir)
+		require.Equal(t, "SKILL.md", skillParts[0].ContextFileSkillMetaFile)
+	})
+
+	t.Run("ReturnsEmptyForEmptyDir", func(t *testing.T) {
+		t.Parallel()
+
+		parts := agentcontextconfig.ContextPartsFromDir(t.TempDir())
+
+		require.NotNil(t, parts)
+		require.Empty(t, parts)
+	})
+
+	t.Run("ReturnsCombinedResults", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		instructionPath := filepath.Join(dir, "AGENTS.md")
+		require.NoError(t, os.WriteFile(instructionPath, []byte("combined instructions"), 0o600))
+		skillDir := writeSkillMetaFile(t, dir, "combined-skill", "Combined test skill")
+
+		parts := agentcontextconfig.ContextPartsFromDir(dir)
+		contextParts := filterParts(parts, codersdk.ChatMessagePartTypeContextFile)
+		skillParts := filterParts(parts, codersdk.ChatMessagePartTypeSkill)
+
+		require.Len(t, parts, 2)
+		require.Len(t, contextParts, 1)
+		require.Len(t, skillParts, 1)
+		require.Equal(t, instructionPath, contextParts[0].ContextFilePath)
+		require.Equal(t, "combined instructions", contextParts[0].ContextFileContent)
+		require.Equal(t, "combined-skill", skillParts[0].SkillName)
+		require.Equal(t, skillDir, skillParts[0].SkillDir)
+	})
+}
+
+func setupConfigTestEnv(t *testing.T, overrides map[string]string) string {
+	t.Helper()
+
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	t.Setenv("USERPROFILE", fakeHome)
+	t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
+	t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
+	t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
+	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
+	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
+
+	for key, value := range overrides {
+		t.Setenv(key, value)
+	}
+
+	return fakeHome
+}
+
+func TestConfig(t *testing.T) {
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("Defaults", func(t *testing.T) {
+		setupConfigTestEnv(t, nil)
 
 		workDir := platformAbsPath("work")
 		cfg, mcpFiles := agentcontextconfig.Config(workDir)
@@ -46,20 +172,18 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, []string{filepath.Join(workDir, ".mcp.json")}, mcpFiles)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("CustomEnvVars", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-
 		optInstructions := t.TempDir()
 		optSkills := t.TempDir()
 		optMCP := platformAbsPath("opt", "mcp.json")
-
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, optInstructions)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "CUSTOM.md")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, optSkills)
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "META.yaml")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, optMCP)
+		setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvInstructionsDirs: optInstructions,
+			agentcontextconfig.EnvInstructionsFile: "CUSTOM.md",
+			agentcontextconfig.EnvSkillsDirs:       optSkills,
+			agentcontextconfig.EnvSkillMetaFile:    "META.yaml",
+			agentcontextconfig.EnvMCPConfigFiles:   optMCP,
+		})
 
 		// Create files matching the custom names so we can
 		// verify the env vars actually change lookup behavior.
@@ -85,15 +209,12 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "META.yaml", skillParts[0].ContextFileSkillMetaFile)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("WhitespaceInFileNames", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
+		fakeHome := setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvInstructionsFile: "  CLAUDE.md  ",
+		})
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "  CLAUDE.md  ")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
 		workDir := t.TempDir()
 		// Create a file matching the trimmed name.
@@ -106,19 +227,13 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "hello", ctxFiles[0].ContextFileContent)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("CommaSeparatedDirs", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-
 		a := t.TempDir()
 		b := t.TempDir()
-
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, a+","+b)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
+		setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvInstructionsDirs: a + "," + b,
+		})
 
 		// Put instruction files in both dirs.
 		require.NoError(t, os.WriteFile(filepath.Join(a, "AGENTS.md"), []byte("from a"), 0o600))
@@ -133,17 +248,10 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "from b", ctxFiles[1].ContextFileContent)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("ReadsInstructionFiles", func(t *testing.T) {
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
-
 		workDir := t.TempDir()
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
+		fakeHome := setupConfigTestEnv(t, nil)
 
 		// Create ~/.coder/AGENTS.md
 		coderDir := filepath.Join(fakeHome, ".coder")
@@ -164,16 +272,9 @@ func TestConfig(t *testing.T) {
 		require.False(t, ctxFiles[0].ContextFileTruncated)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("ReadsWorkingDirInstructionFile", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
-
+		setupConfigTestEnv(t, nil)
 		workDir := t.TempDir()
 
 		// Create AGENTS.md in the working directory.
@@ -193,16 +294,9 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, filepath.Join(workDir, "AGENTS.md"), ctxFiles[0].ContextFilePath)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("TruncatesLargeInstructionFile", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
-
+		setupConfigTestEnv(t, nil)
 		workDir := t.TempDir()
 		largeContent := strings.Repeat("a", 64*1024+100)
 		require.NoError(t, os.WriteFile(filepath.Join(workDir, "AGENTS.md"), []byte(largeContent), 0o600))
@@ -215,79 +309,47 @@ func TestConfig(t *testing.T) {
 		require.Len(t, ctxFiles[0].ContextFileContent, 64*1024)
 	})
 
-	t.Run("SanitizesHTMLComments", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
+	sanitizationTests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "SanitizesHTMLComments",
+			input:    "visible\n<!-- hidden -->content",
+			expected: "visible\ncontent",
+		},
+		{
+			name:     "SanitizesInvisibleUnicode",
+			input:    "before\u200bafter",
+			expected: "beforeafter",
+		},
+		{
+			name:     "NormalizesCRLF",
+			input:    "line1\r\nline2\rline3",
+			expected: "line1\nline2\nline3",
+		},
+	}
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	for _, tt := range sanitizationTests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupConfigTestEnv(t, nil)
+			workDir := t.TempDir()
+			require.NoError(t, os.WriteFile(
+				filepath.Join(workDir, "AGENTS.md"),
+				[]byte(tt.input),
+				0o600,
+			))
 
-		workDir := t.TempDir()
-		require.NoError(t, os.WriteFile(
-			filepath.Join(workDir, "AGENTS.md"),
-			[]byte("visible\n<!-- hidden -->content"),
-			0o600,
-		))
+			cfg, _ := agentcontextconfig.Config(workDir)
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+			ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+			require.Len(t, ctxFiles, 1)
+			require.Equal(t, tt.expected, ctxFiles[0].ContextFileContent)
+		})
+	}
 
-		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
-		require.Len(t, ctxFiles, 1)
-		require.Equal(t, "visible\ncontent", ctxFiles[0].ContextFileContent)
-	})
-
-	t.Run("SanitizesInvisibleUnicode", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
-
-		workDir := t.TempDir()
-		// U+200B (zero-width space) should be stripped.
-		require.NoError(t, os.WriteFile(
-			filepath.Join(workDir, "AGENTS.md"),
-			[]byte("before\u200bafter"),
-			0o600,
-		))
-
-		cfg, _ := agentcontextconfig.Config(workDir)
-
-		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
-		require.Len(t, ctxFiles, 1)
-		require.Equal(t, "beforeafter", ctxFiles[0].ContextFileContent)
-	})
-
-	t.Run("NormalizesCRLF", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
-
-		workDir := t.TempDir()
-		require.NoError(t, os.WriteFile(
-			filepath.Join(workDir, "AGENTS.md"),
-			[]byte("line1\r\nline2\rline3"),
-			0o600,
-		))
-
-		cfg, _ := agentcontextconfig.Config(workDir)
-
-		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
-		require.Len(t, ctxFiles, 1)
-		require.Equal(t, "line1\nline2\nline3", ctxFiles[0].ContextFileContent)
-	})
-
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("DiscoversSkills", func(t *testing.T) {
 		fakeHome := t.TempDir()
 		t.Setenv("HOME", fakeHome)
@@ -320,17 +382,13 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "SKILL.md", skillParts[0].ContextFileSkillMetaFile)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("SkipsMissingDirs", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-
 		nonExistent := filepath.Join(t.TempDir(), "does-not-exist")
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, nonExistent)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, nonExistent)
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
+		setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvInstructionsDirs: nonExistent,
+			agentcontextconfig.EnvSkillsDirs:       nonExistent,
+		})
 
 		workDir := t.TempDir()
 		cfg, _ := agentcontextconfig.Config(workDir)
@@ -340,17 +398,13 @@ func TestConfig(t *testing.T) {
 		require.Empty(t, cfg.Parts)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("MCPConfigFilesResolvedSeparately", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-
 		optMCP := platformAbsPath("opt", "custom.json")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, optMCP)
+		fakeHome := setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvMCPConfigFiles: optMCP,
+		})
+		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
 
 		workDir := t.TempDir()
 		_, mcpFiles := agentcontextconfig.Config(workDir)
@@ -358,14 +412,10 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, []string{optMCP}, mcpFiles)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("SkillNameMustMatchDir", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
+		fakeHome := setupConfigTestEnv(t, nil)
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
 		workDir := t.TempDir()
 		skillsDir := filepath.Join(workDir, "skills")
@@ -385,14 +435,10 @@ func TestConfig(t *testing.T) {
 		require.Empty(t, skillParts)
 	})
 
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("DuplicateSkillsFirstWins", func(t *testing.T) {
-		fakeHome := t.TempDir()
-		t.Setenv("HOME", fakeHome)
-		t.Setenv("USERPROFILE", fakeHome)
+		fakeHome := setupConfigTestEnv(t, nil)
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
-		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
 		workDir := t.TempDir()
 		skillsDir1 := filepath.Join(workDir, "skills1")

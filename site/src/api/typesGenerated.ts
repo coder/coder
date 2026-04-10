@@ -193,6 +193,8 @@ export interface AIBridgeThread {
 	readonly prompt?: string;
 	readonly model: string;
 	readonly provider: string;
+	readonly credential_kind: string;
+	readonly credential_hint: string;
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;

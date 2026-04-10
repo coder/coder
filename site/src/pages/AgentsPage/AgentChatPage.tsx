@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
+import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatDesktopEnabled,
@@ -51,11 +52,14 @@ import {
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
 import {
+	type ChatStore,
+	type ChatStoreState,
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
+import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -102,11 +106,46 @@ export function getPersistedDraftInputValue(
 }
 
 /** @internal Exported for testing. */
+export const restoreOptimisticRequestSnapshot = (
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "setChatStatus"
+		| "setQueuedMessages"
+		| "setStreamError"
+		| "setStreamState"
+	>,
+	snapshot: Pick<
+		ChatStoreState,
+		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
+	>,
+): void => {
+	store.batch(() => {
+		store.setQueuedMessages(snapshot.queuedMessages);
+		store.setChatStatus(snapshot.chatStatus);
+		store.setStreamState(snapshot.streamState);
+		store.setStreamError(snapshot.streamError);
+	});
+};
+
+const buildAttachmentMediaTypes = (
+	attachments?: readonly PendingAttachment[],
+): ReadonlyMap<string, string> | undefined => {
+	if (!attachments?.length) {
+		return undefined;
+	}
+
+	return new Map(
+		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
+	);
+};
+
+/** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (
 		message: string,
-		fileIds?: string[],
+		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -129,6 +168,9 @@ export function useConversationEditingState(deps: {
 				initialEditorState: draft.editorState,
 			};
 		},
+	);
+	const serializedEditorStateRef = useRef<string | undefined>(
+		initialEditorState,
 	);
 
 	// Monotonic counter to force LexicalComposer remount.
@@ -176,6 +218,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
@@ -188,6 +231,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingMessageId(null);
@@ -221,6 +265,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks);
@@ -233,6 +278,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingQueuedMessageID(null);
@@ -240,25 +286,48 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Wraps the parent onSend to clear local input/editing state
-	// and handle queue-edit deletion.
-	const handleSendFromInput = async (message: string, fileIds?: string[]) => {
-		const editedMessageID =
-			editingMessageId !== null ? editingMessageId : undefined;
-		const queueEditID = editingQueuedMessageID;
+	// Clears the composer for an in-flight history edit and
+	// returns a rollback function that restores the editing draft
+	// if the send fails.
+	const clearInputForHistoryEdit = (message: string) => {
+		const snapshot = {
+			editorState: serializedEditorStateRef.current,
+			fileBlocks: editingFileBlocks,
+			messageId: editingMessageId,
+		};
 
-		await onSend(message, fileIds, editedMessageID);
-		// Clear input and editing state on success.
+		chatInputRef.current?.clear();
+		inputValueRef.current = "";
+		setEditingMessageId(null);
+
+		return () => {
+			setDraftState({
+				editorInitialValue: message,
+				initialEditorState: snapshot.editorState,
+			});
+			serializedEditorStateRef.current = snapshot.editorState;
+			setRemountKey((k) => k + 1);
+			inputValueRef.current = message;
+			setEditingMessageId(snapshot.messageId);
+			setEditingFileBlocks(snapshot.fileBlocks);
+		};
+	};
+
+	// Clears all input and editing state after a successful send.
+	const finalizeSuccessfulSend = (
+		editedMessageID: number | undefined,
+		queueEditID: number | null,
+	) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
 		}
 		inputValueRef.current = "";
+		serializedEditorStateRef.current = undefined;
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
-		if (editingMessageId !== null) {
-			setEditingMessageId(null);
+		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
@@ -270,12 +339,41 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
+	// Wraps the parent onSend to clear local input/editing state
+	// and handle queue-edit deletion.
+	const handleSendFromInput = async (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => {
+		const editedMessageID =
+			editingMessageId !== null ? editingMessageId : undefined;
+		const queueEditID = editingQueuedMessageID;
+		const sendPromise = onSend(message, attachments, editedMessageID);
+
+		// For history edits, clear input immediately and prepare
+		// a rollback in case the send fails.
+		const rollback =
+			editedMessageID !== undefined
+				? clearInputForHistoryEdit(message)
+				: undefined;
+
+		try {
+			await sendPromise;
+		} catch (error) {
+			rollback?.();
+			throw error;
+		}
+
+		finalizeSuccessfulSend(editedMessageID, queueEditID);
+	};
+
 	const handleContentChange = (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
+		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
 		// history or queued message — the original draft (possibly
@@ -430,9 +528,6 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [pendingEditMessageId, setPendingEditMessageId] = useState<
-		number | null
-	>(null);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -775,7 +870,7 @@ const AgentChatPage: FC = () => {
 
 	const handleSend = async (
 		message: string,
-		fileIds?: string[],
+		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => {
 		const chatInputHandle = (
@@ -790,7 +885,9 @@ const AgentChatPage: FC = () => {
 			(p) => p.type === "file-reference",
 		);
 		const hasContent =
-			message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
+			message.trim() ||
+			(attachments && attachments.length > 0) ||
+			hasFileReferences;
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
@@ -818,28 +915,41 @@ const AgentChatPage: FC = () => {
 			}
 		}
 
-		// Add pre-uploaded file references.
-		if (fileIds && fileIds.length > 0) {
-			for (const fileId of fileIds) {
+		// Add pre-uploaded file attachments.
+		if (attachments && attachments.length > 0) {
+			for (const { fileId } of attachments) {
 				content.push({ type: "file", file_id: fileId });
 			}
 		}
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
+			const originalEditedMessage = chatMessagesList?.find(
+				(existingMessage) => existingMessage.id === editedMessageID,
+			);
+			const optimisticMessage = originalEditedMessage
+				? buildOptimisticEditedMessage({
+						requestContent: request.content,
+						originalMessage: originalEditedMessage,
+						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+					})
+				: undefined;
+			const previousSnapshot = store.getSnapshot();
 			clearChatErrorReason(agentId);
 			clearStreamError();
-			setPendingEditMessageId(editedMessageID);
+			store.batch(() => {
+				store.setQueuedMessages([]);
+				store.setChatStatus("running");
+				store.clearStreamState();
+			});
 			scrollToBottomRef.current?.();
 			try {
 				await editMessage({
 					messageId: editedMessageID,
+					optimisticMessage,
 					req: request,
 				});
-				store.clearStreamState();
-				store.setChatStatus("running");
-				setPendingEditMessageId(null);
 			} catch (error) {
-				setPendingEditMessageId(null);
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
 				handleUsageLimitError(error);
 				throw error;
 			}
@@ -918,10 +1028,8 @@ const AgentChatPage: FC = () => {
 
 	const handlePromoteQueuedMessage = async (id: number) => {
 		const previousSnapshot = store.getSnapshot();
-		const previousQueuedMessages = previousSnapshot.queuedMessages;
-		const previousChatStatus = previousSnapshot.chatStatus;
 		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
+			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
 		);
 		store.clearStreamState();
 		if (agentId) {
@@ -937,8 +1045,7 @@ const AgentChatPage: FC = () => {
 			store.upsertDurableMessage(promotedMessage);
 			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			store.setChatStatus(previousChatStatus);
+			restoreOptimisticRequestSnapshot(store, previousSnapshot);
 			handleUsageLimitError(error);
 			throw error;
 		}
@@ -1133,7 +1240,6 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			store={store}
 			editing={editing}
-			pendingEditMessageId={pendingEditMessageId}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}

@@ -127,6 +127,8 @@ type AIBridgeThread struct {
 	Prompt         *string                          `json:"prompt,omitempty"`
 	Model          string                           `json:"model"`
 	Provider       string                           `json:"provider"`
+	CredentialKind string                           `json:"credential_kind"`
+	CredentialHint string                           `json:"credential_hint"`
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`

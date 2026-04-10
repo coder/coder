@@ -36,6 +36,7 @@ import {
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
@@ -69,7 +70,10 @@ interface EditingState {
 		fileBlocks: readonly ChatMessagePart[],
 	) => void;
 	handleCancelQueueEdit: () => void;
-	handleSendFromInput: (message: string, fileIds?: string[]) => void;
+	handleSendFromInput: (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => void;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,
@@ -92,7 +96,6 @@ interface AgentChatPageViewProps {
 
 	// Editing state.
 	editing: EditingState;
-	pendingEditMessageId: number | null;
 
 	// Model/input configuration.
 	effectiveSelectedModel: string;
@@ -179,7 +182,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspace,
 	store,
 	editing,
-	pendingEditMessageId,
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
@@ -387,7 +389,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								persistedError={persistedError}
 								onEditUserMessage={editing.handleEditUserMessage}
 								editingMessageId={editing.editingMessageId}
-								savingMessageId={pendingEditMessageId}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 							/>
