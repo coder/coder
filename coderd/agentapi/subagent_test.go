@@ -1267,17 +1267,53 @@ func TestSubAgentAPI(t *testing.T) {
 					agentID, err := uuid.FromBytes(resp.Agent.Id)
 					require.NoError(t, err)
 
-					// And: The database agent's other fields are unchanged.
+					// And: The database agent's name, architecture, and OS are unchanged.
 					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
 					require.Equal(t, baseChildAgent.Name, updatedAgent.Name)
-					require.Equal(t, baseChildAgent.Directory, updatedAgent.Directory)
+					require.Equal(t, "/different/path", updatedAgent.Directory)
 					require.Equal(t, baseChildAgent.Architecture, updatedAgent.Architecture)
 					require.Equal(t, baseChildAgent.OperatingSystem, updatedAgent.OperatingSystem)
 
 					// But display apps should be updated.
 					require.Len(t, updatedAgent.DisplayApps, 1)
 					require.Equal(t, database.DisplayAppWebTerminal, updatedAgent.DisplayApps[0])
+				},
+			},
+			{
+				name: "OK_DirectoryUpdated",
+				setup: func(t *testing.T, db database.Store, agent database.WorkspaceAgent) *proto.CreateSubAgentRequest {
+					// Given: An existing child agent with a stale host-side
+					// directory (as set by the provisioner at build time).
+					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+						ResourceID:      agent.ResourceID,
+						Name:            baseChildAgent.Name,
+						Directory:       "/home/coder/project",
+						Architecture:    baseChildAgent.Architecture,
+						OperatingSystem: baseChildAgent.OperatingSystem,
+						DisplayApps:     baseChildAgent.DisplayApps,
+					})
+
+					// When: Agent injection sends the correct
+					// container-internal path.
+					return &proto.CreateSubAgentRequest{
+						Id:        childAgent.ID[:],
+						Directory: "/workspaces/project",
+						DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+							proto.CreateSubAgentRequest_WEB_TERMINAL,
+						},
+					}
+				},
+				check: func(t *testing.T, ctx context.Context, db database.Store, resp *proto.CreateSubAgentResponse, agent database.WorkspaceAgent) {
+					agentID, err := uuid.FromBytes(resp.Agent.Id)
+					require.NoError(t, err)
+
+					// Then: Directory is updated to the container-internal
+					// path.
+					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+					require.NoError(t, err)
+					require.Equal(t, "/workspaces/project", updatedAgent.Directory)
 				},
 			},
 			{
