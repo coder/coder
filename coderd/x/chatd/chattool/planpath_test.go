@@ -182,3 +182,92 @@ func TestIsLegacySharedPlanPath(t *testing.T) {
 		})
 	}
 }
+
+func TestLooksLikeHomePlanFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		requested string
+		home      string
+		want      bool
+	}{
+		{
+			name:      "UppercaseHomeRootPlan",
+			requested: "/home/coder/PLAN.md",
+			home:      "/home/coder",
+			want:      true,
+		},
+		{
+			name:      "LowercaseHomeRootPlan",
+			requested: "/home/coder/plan.md",
+			home:      "/home/coder",
+			want:      true,
+		},
+		{
+			name:      "MixedCaseHomeRootPlan",
+			requested: "/home/coder/Plan.md",
+			home:      "/home/coder",
+			want:      true,
+		},
+		{
+			name:      "UppercaseExtension",
+			requested: "/home/coder/PLAN.MD",
+			home:      "/home/coder",
+			want:      true,
+		},
+		{
+			name:      "CustomHomeRootPlan",
+			requested: "/Users/dev/plan.md",
+			home:      "/Users/dev",
+			want:      true,
+		},
+		{
+			name:      "NestedPlanUnderHome",
+			requested: "/home/coder/myproject/plan.md",
+			home:      "/home/coder",
+			want:      false,
+		},
+		{
+			name:      "PerChatPlanPath",
+			requested: "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md",
+			home:      "/home/coder",
+			want:      false,
+		},
+		{
+			name:      "DifferentFilename",
+			requested: "/home/coder/README.md",
+			home:      "/home/coder",
+			want:      false,
+		},
+		{
+			name:      "DifferentExtension",
+			requested: "/home/coder/plan.txt",
+			home:      "/home/coder",
+			want:      false,
+		},
+		{
+			name:      "EmptyPath",
+			requested: "",
+			home:      "/home/coder",
+			want:      false,
+		},
+		{
+			name:      "DifferentHomeMismatch",
+			requested: "/home/coder/plan.md",
+			home:      "/Users/dev",
+			want:      false,
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := chattool.LooksLikeHomePlanFile(testCase.requested, testCase.home)
+
+			require.Equal(t, testCase.want, got)
+		})
+	}
+}

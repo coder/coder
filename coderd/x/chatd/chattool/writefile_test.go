@@ -20,31 +20,61 @@ import (
 func TestWriteFile(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RejectsSharedPlanPathWhenPlanPathIsConfigured", func(t *testing.T) {
+	t.Run("RejectsHomeRootPlanVariantsWhenPlanPathIsConfigured", func(t *testing.T) {
 		t.Parallel()
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		tool := chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
-			},
-			PlanPath: func(context.Context) (string, error) {
-				return "/home/coder/.coder/plans/PLAN-chat.md", nil
-			},
-		})
 
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "write_file",
-			Input: `{"path":"` + chattool.LegacySharedPlanPath + `","content":"# Plan"}`,
-		})
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Equal(
-			t,
-			sharedPlanPathResolvedMessage("/home/coder/.coder/plans/PLAN-chat.md"),
-			resp.Content,
-		)
+		tests := []struct {
+			name      string
+			requested string
+			home      string
+		}{
+			{
+				name:      "ExactLegacyPath",
+				requested: chattool.LegacySharedPlanPath,
+				home:      "/home/coder",
+			},
+			{
+				name:      "LowercasePlanAtHomeRoot",
+				requested: "/home/coder/plan.md",
+				home:      "/home/coder",
+			},
+			{
+				name:      "MixedCasePlanAtHomeRoot",
+				requested: "/home/coder/Plan.md",
+				home:      "/home/coder",
+			},
+		}
+
+		for _, testCase := range tests {
+			testCase := testCase
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				tool := chattool.WriteFile(chattool.WriteFileOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+					PlanPath: func(context.Context) (string, string, error) {
+						return "/home/coder/.coder/plans/PLAN-chat.md", testCase.home, nil
+					},
+				})
+
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "write_file",
+					Input: `{"path":"` + testCase.requested + `","content":"# Plan"}`,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Equal(
+					t,
+					sharedPlanPathResolvedMessage("/home/coder/.coder/plans/PLAN-chat.md"),
+					resp.Content,
+				)
+			})
+		}
 	})
 
 	t.Run("AllowsNonSharedPath", func(t *testing.T) {
@@ -66,9 +96,9 @@ func TestWriteFile(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return mockConn, nil
 			},
-			PlanPath: func(context.Context) (string, error) {
+			PlanPath: func(context.Context) (string, string, error) {
 				planPathCalled = true
-				return "", xerrors.New("should not be called")
+				return "", "", xerrors.New("should not be called")
 			},
 		})
 

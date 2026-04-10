@@ -1,7 +1,6 @@
 package chattool
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -9,22 +8,27 @@ import (
 )
 
 func rejectSharedPlanPath(
-	ctx context.Context,
 	requestedPath string,
-	resolvePlanPath func(context.Context) (string, error),
+	home string,
+	planPath string,
+	planPathErr error,
 ) (fantasy.ToolResponse, bool) {
-	if resolvePlanPath == nil || !IsLegacySharedPlanPath(requestedPath) {
+	if !looksLikeLegacyHomePlanPath(requestedPath, home) {
 		return fantasy.ToolResponse{}, false
 	}
 
-	return fantasy.NewTextErrorResponse(sharedPlanPathMessage(ctx, resolvePlanPath)), true
+	return fantasy.NewTextErrorResponse(sharedPlanPathMessage(planPath, planPathErr)), true
 }
 
-func sharedPlanPathMessage(
-	ctx context.Context,
-	resolvePlanPath func(context.Context) (string, error),
-) string {
-	planPath, err := resolvePlanPath(ctx)
+func looksLikeLegacyHomePlanPath(requestedPath, home string) bool {
+	if strings.TrimSpace(home) == "" {
+		return IsLegacySharedPlanPath(requestedPath)
+	}
+
+	return LooksLikeHomePlanFile(requestedPath, home)
+}
+
+func sharedPlanPathMessage(planPath string, err error) string {
 	if err == nil && strings.TrimSpace(planPath) != "" {
 		return fmt.Sprintf(
 			"the shared plan path %s is no longer supported; use the chat-specific plan path: %s",

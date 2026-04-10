@@ -140,9 +140,9 @@ func TestProposePlan(t *testing.T) {
 			t,
 			mockConn,
 			storeFile,
-			func(context.Context) (string, error) {
+			func(context.Context) (string, string, error) {
 				planPathCalled = true
-				return "", xerrors.New("should not be called")
+				return "", "", xerrors.New("should not be called")
 			},
 		)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -152,7 +152,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
-		assert.False(t, planPathCalled)
+		assert.True(t, planPathCalled)
 
 		result := decodeProposePlanResponse(t, resp)
 		assert.True(t, result.OK)
@@ -164,6 +164,40 @@ func TestProposePlan(t *testing.T) {
 		assert.NotContains(t, resp.Content, "content")
 	})
 
+	t.Run("NestedPlanPathUnderHomeIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), "/home/coder/myproject/plan.md", int64(0), int64(32*1024+1)).
+			Return(io.NopCloser(strings.NewReader("# Nested Plan")), "text/markdown", nil)
+
+		storeFile, stored := fakeStoreFile(t)
+		planPathCalled := false
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			storeFile,
+			func(context.Context) (string, string, error) {
+				planPathCalled = true
+				return "/home/coder/.coder/plans/PLAN-chat.md", "/home/coder", nil
+			},
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/myproject/plan.md"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.True(t, planPathCalled)
+
+		result := decodeProposePlanResponse(t, resp)
+		assert.True(t, result.OK)
+		assert.Equal(t, "/home/coder/myproject/plan.md", result.Path)
+		assert.Equal(t, []byte("# Nested Plan"), *stored)
+	})
 	t.Run("FileNotFound", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -238,8 +272,8 @@ func TestProposePlan(t *testing.T) {
 			t,
 			mockConn,
 			storeFile,
-			func(context.Context) (string, error) {
-				return "/home/coder/.coder/plans/PLAN-chat.md", nil
+			func(context.Context) (string, string, error) {
+				return "/home/coder/.coder/plans/PLAN-chat.md", "/home/coder", nil
 			},
 		)
 
@@ -267,8 +301,8 @@ func TestProposePlan(t *testing.T) {
 			t,
 			mockConn,
 			storeFile,
-			func(context.Context) (string, error) {
-				return "", xerrors.New("workspace unavailable")
+			func(context.Context) (string, string, error) {
+				return "", "", xerrors.New("workspace unavailable")
 			},
 		)
 
@@ -351,7 +385,7 @@ func newProposePlanToolWithPlanPath(
 	t *testing.T,
 	mockConn *agentconnmock.MockAgentConn,
 	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
-	planPath func(context.Context) (string, error),
+	planPath func(context.Context) (string, string, error),
 ) fantasy.AgentTool {
 	t.Helper()
 	return chattool.ProposePlan(chattool.ProposePlanOptions{

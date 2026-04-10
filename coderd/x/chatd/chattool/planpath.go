@@ -53,6 +53,22 @@ func PlanPathForChat(home string, chatID uuid.UUID) string {
 	)
 }
 
+func looksLikePlanFileName(requestedPath string) bool {
+	cleaned := path.Clean(requestedPath)
+	return strings.EqualFold(path.Base(cleaned), "plan.md")
+}
+
+// LooksLikeHomePlanFile reports whether requestedPath is a plan.md
+// variant (case-insensitive) sitting directly in the workspace home
+// directory.
+func LooksLikeHomePlanFile(requestedPath, home string) bool {
+	cleaned := path.Clean(requestedPath)
+	cleanedHome := path.Clean(home)
+
+	return looksLikePlanFileName(cleaned) &&
+		path.Dir(cleaned) == cleanedHome
+}
+
 // IsLegacySharedPlanPath reports whether requested is the exact legacy
 // shared plan file path.
 func IsLegacySharedPlanPath(requested string) bool {

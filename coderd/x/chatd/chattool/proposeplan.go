@@ -17,7 +17,7 @@ const maxProposePlanSize = 32 * 1024 // 32 KiB
 // ProposePlanOptions configures the propose_plan tool.
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	PlanPath         func(context.Context) (string, error)
+	PlanPath         func(context.Context) (chatPath string, home string, err error)
 	StoreFile        func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error)
 }
 
@@ -33,7 +33,8 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 		"propose_plan",
 		"Present a Markdown plan file from the workspace for user review. "+
 			"The file must already exist with a .md extension. Use write_file to create it or edit_files to refine it before calling this tool. "+
-			"Pass the absolute file path to the plan. Use the chat-specific plan path provided in your instructions. The tool reads the content from the workspace.",
+			"Pass the absolute file path to the plan. Important: use the chat-specific plan path from your runtime instructions, not a generic path like PLAN.md in the home directory. "+
+			"The tool reads the content from the workspace.",
 		func(ctx context.Context, args ProposePlanArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -54,7 +55,7 @@ func executeProposePlanTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ProposePlanArgs,
-	resolvePlanPath func(context.Context) (string, error),
+	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
 ) (fantasy.ToolResponse, error) {
 	path := strings.TrimSpace(args.Path)
@@ -65,8 +66,11 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
 	}
 
-	if resp, rejected := rejectSharedPlanPath(ctx, path, resolvePlanPath); rejected {
-		return resp, nil
+	if resolvePlanPath != nil && looksLikePlanFileName(path) {
+		chatPath, home, err := resolvePlanPath(ctx)
+		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, err); rejected {
+			return resp, nil
+		}
 	}
 
 	rc, _, err := conn.ReadFile(ctx, path, 0, maxProposePlanSize+1)

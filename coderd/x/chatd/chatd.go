@@ -4471,16 +4471,16 @@ func (p *Server) runChat(
 	}
 	defer workspaceCtx.close()
 
-	planPathFn := func(ctx context.Context) (string, error) {
+	planPathFn := func(ctx context.Context) (string, string, error) {
 		conn, err := workspaceCtx.getWorkspaceConn(ctx)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		home, err := chattool.ResolveWorkspaceHome(ctx, conn)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		return chattool.PlanPathForChat(home, chat.ID), nil
+		return chattool.PlanPathForChat(home, chat.ID), home, nil
 	}
 	resolvePlanPathInstruction := func(resolveCtx context.Context) string {
 		if chat.ParentChatID.Valid {
@@ -4494,7 +4494,7 @@ func (p *Server) runChat(
 			return ""
 		}
 
-		planPath, err := planPathFn(planCtx)
+		planPath, _, err := planPathFn(planCtx)
 		if err != nil {
 			return ""
 		}

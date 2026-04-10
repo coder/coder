@@ -18,7 +18,7 @@ import (
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RejectsSharedPlanPathWhenPlanPathIsConfigured", func(t *testing.T) {
+	t.Run("RejectsHomeRootPlanPathsWhenPlanPathIsConfigured", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -26,21 +26,21 @@ func TestEditFiles(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return mockConn, nil
 			},
-			PlanPath: func(context.Context) (string, error) {
-				return "/home/coder/.coder/plans/PLAN-chat.md", nil
+			PlanPath: func(context.Context) (string, string, error) {
+				return "/Users/dev/.coder/plans/PLAN-chat.md", "/Users/dev", nil
 			},
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chattool.LegacySharedPlanPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.Equal(
 			t,
-			sharedPlanPathResolvedMessage("/home/coder/.coder/plans/PLAN-chat.md"),
+			sharedPlanPathResolvedMessage("/Users/dev/.coder/plans/PLAN-chat.md"),
 			resp.Content,
 		)
 	})
@@ -63,9 +63,9 @@ func TestEditFiles(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return mockConn, nil
 			},
-			PlanPath: func(context.Context) (string, error) {
+			PlanPath: func(context.Context) (string, string, error) {
 				planPathCalled = true
-				return "", xerrors.New("should not be called")
+				return "", "", xerrors.New("should not be called")
 			},
 		})
 

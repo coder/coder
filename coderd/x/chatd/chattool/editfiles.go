@@ -10,7 +10,7 @@ import (
 
 type EditFilesOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	PlanPath         func(context.Context) (string, error)
+	PlanPath         func(context.Context) (chatPath string, home string, err error)
 }
 
 type EditFilesArgs struct {
@@ -39,14 +39,27 @@ func executeEditFilesTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args EditFilesArgs,
-	resolvePlanPath func(context.Context) (string, error),
+	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 ) (fantasy.ToolResponse, error) {
 	if len(args.Files) == 0 {
 		return fantasy.NewTextErrorResponse("files is required"), nil
 	}
 
+	var (
+		chatPath       string
+		home           string
+		planPathErr    error
+		planPathLoaded bool
+	)
 	for _, file := range args.Files {
-		if resp, rejected := rejectSharedPlanPath(ctx, file.Path, resolvePlanPath); rejected {
+		if resolvePlanPath == nil || !looksLikePlanFileName(file.Path) {
+			continue
+		}
+		if !planPathLoaded {
+			chatPath, home, planPathErr = resolvePlanPath(ctx)
+			planPathLoaded = true
+		}
+		if resp, rejected := rejectSharedPlanPath(file.Path, home, chatPath, planPathErr); rejected {
 			return resp, nil
 		}
 	}
