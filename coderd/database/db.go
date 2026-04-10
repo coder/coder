@@ -208,6 +208,14 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 			// the parent, but it will be silently ignored because we
 			// reuse the parent transaction. Log this so callers can
 			// detect the mismatch.
+			//
+			// NOTE: this comparison relies on sql.IsolationLevel's iota
+			// ordering matching strictness for the standard SQL levels
+			// (ReadUncommitted < ReadCommitted < RepeatableRead <
+			// Serializable). Non-standard levels like WriteCommitted,
+			// Snapshot, and Linearizable also exist in the enum but are
+			// never used by this codebase. If that changes, this numeric
+			// comparison may need revisiting.
 			q.logger.Warn(context.Background(), "nested transaction requested stricter isolation level than the outer transaction provides",
 				slog.F("parent_isolation", q.txIsolationLevel.String()),
 				slog.F("requested_isolation", txOpts.Isolation.String()),
