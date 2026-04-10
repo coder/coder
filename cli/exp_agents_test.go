@@ -977,6 +977,85 @@ func TestExpAgents(t *testing.T) {
 			require.Contains(t, view, "second error")
 			require.NotContains(t, view, "first error")
 		})
+		t.Run("StreamAccumulatorFinalToolCallUpsertsExistingPart", func(t *testing.T) {
+			t.Parallel()
+			newToolCallDelta := func(toolCallID, toolName, argsDelta string) codersdk.ChatStreamMessagePart {
+				return codersdk.ChatStreamMessagePart{
+					Role: codersdk.ChatMessageRoleAssistant,
+					Part: codersdk.ChatMessagePart{
+						Type:       codersdk.ChatMessagePartTypeToolCall,
+						ToolCallID: toolCallID,
+						ToolName:   toolName,
+						ArgsDelta:  argsDelta,
+					},
+				}
+			}
+			newFinalToolCall := func(toolCallID, toolName, args string) codersdk.ChatStreamMessagePart {
+				return codersdk.ChatStreamMessagePart{
+					Role: codersdk.ChatMessageRoleAssistant,
+					Part: codersdk.ChatMessagePart{
+						Type:       codersdk.ChatMessagePartTypeToolCall,
+						ToolCallID: toolCallID,
+						ToolName:   toolName,
+						Args:       json.RawMessage(args),
+					},
+				}
+			}
+			cases := []struct {
+				name  string
+				seed  []codersdk.ChatStreamMessagePart
+				final codersdk.ChatStreamMessagePart
+				want  []codersdk.ChatMessagePart
+			}{
+				{
+					name: "ReplaceExistingToolCall",
+					seed: []codersdk.ChatStreamMessagePart{
+						newToolCallDelta("tc-1", "search", `{"q":"hel`),
+					},
+					final: newFinalToolCall("tc-1", "search", `{"q":"hello"}`),
+					want: []codersdk.ChatMessagePart{{
+						Type:       codersdk.ChatMessagePartTypeToolCall,
+						ToolCallID: "tc-1",
+						ToolName:   "search",
+						Args:       json.RawMessage(`{"q":"hello"}`),
+					}},
+				},
+				{
+					name: "AppendNewToolCallID",
+					seed: []codersdk.ChatStreamMessagePart{
+						newToolCallDelta("tc-1", "search", `{"q":"hel`),
+					},
+					final: newFinalToolCall("tc-2", "lookup", `{"id":"42"}`),
+					want: []codersdk.ChatMessagePart{
+						{
+							Type:       codersdk.ChatMessagePartTypeToolCall,
+							ToolCallID: "tc-1",
+							ToolName:   "search",
+							Args:       json.RawMessage(`{"q":"hel`),
+						},
+						{
+							Type:       codersdk.ChatMessagePartTypeToolCall,
+							ToolCallID: "tc-2",
+							ToolName:   "lookup",
+							Args:       json.RawMessage(`{"id":"42"}`),
+						},
+					},
+				},
+			}
+			for _, tt := range cases {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					var accumulator streamAccumulator
+					for _, delta := range tt.seed {
+						accumulator.applyDelta(delta)
+					}
+					accumulator.applyDelta(tt.final)
+					require.True(t, accumulator.pending)
+					require.Equal(t, codersdk.ChatMessageRoleAssistant, accumulator.role)
+					require.Equal(t, tt.want, accumulator.parts)
+				})
+			}
+		})
 		t.Run("MessageDeduplication", func(t *testing.T) {
 			t.Parallel()
 			toolRoundTripParts := []codersdk.ChatMessagePart{

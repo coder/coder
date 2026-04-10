@@ -88,7 +88,17 @@ func (a *streamAccumulator) applyDelta(mp codersdk.ChatStreamMessagePart) {
 				a.parts = append(a.parts, newPart)
 			}
 		} else {
-			a.parts = append(a.parts, part)
+			found := false
+			for i, p := range a.parts {
+				if p.Type == codersdk.ChatMessagePartTypeToolCall && p.ToolCallID == part.ToolCallID {
+					a.parts[i] = part
+					found = true
+					break
+				}
+			}
+			if !found {
+				a.parts = append(a.parts, part)
+			}
 		}
 	default:
 		a.parts = append(a.parts, part)
