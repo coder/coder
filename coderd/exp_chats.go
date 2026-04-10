@@ -2931,7 +2931,7 @@ func (api *API) validateCreateChatWorkspaceSelection(
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
 	if err != nil {
-		if httpapi.Is404Error(err) {
+		if httpapi.Is404Error(err) || dbauthz.IsNotAuthorizedError(err) {
 			return selection, http.StatusBadRequest, &codersdk.Response{
 				Message: "Workspace not found or you do not have access to this resource",
 			}

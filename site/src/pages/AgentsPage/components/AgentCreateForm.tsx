@@ -379,6 +379,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									}
 									resetAttachments();
 								}
+								if (orgChanged) {
+									handleWorkspaceChange(null);
+								}
 								setSelectedOrg(newOrg);
 							}}
 						/>
