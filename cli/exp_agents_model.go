@@ -351,11 +351,11 @@ func (m expChatsTUIModel) View() string {
 	case overlayDiffDrawer:
 		switch {
 		case m.chat.diffErr != nil:
-			base += "\n" + renderDiffDrawerError(m.styles, m.chat.diffErr, m.width, m.height)
+			base += "\n" + renderOverlayFrame(m.styles, m.width, m.styles.title.Render("Diff"), m.styles.errorText.Render(wrapPreservingNewlines(m.chat.diffErr.Error(), contentWidth(m.width, 6))), m.styles.helpText.Render("Esc to close"))
 		case m.chat.diffContents != nil:
 			base += "\n" + renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.gitChanges, m.width, m.height)
 		default:
-			base += "\n" + renderDiffDrawerLoading(m.styles, m.width, m.height)
+			base += "\n" + renderOverlayFrame(m.styles, m.width, m.styles.title.Render("Diff"), m.styles.dimmedText.Render("Loading diff…"), m.styles.helpText.Render("Esc to close"))
 		}
 	}
 

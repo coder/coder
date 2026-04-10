@@ -254,7 +254,13 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				var output string
-				require.NotPanics(t, func() { output = plainText(renderToolCall(styles, tt.part, tt.width)) })
+				require.NotPanics(t, func() {
+					output = plainText(renderToolCallBlock(styles, chatBlock{
+						kind:     blockToolCall,
+						toolName: tt.part.ToolName,
+						args:     compactTranscriptJSON(tt.part.Args),
+					}, tt.width))
+				})
 				tt.assert(t, output)
 			})
 		}
@@ -290,7 +296,15 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				var rawOutput string
-				require.NotPanics(t, func() { rawOutput = renderToolResult(styles, tt.part, tt.width) })
+				require.NotPanics(t, func() {
+					rawOutput = renderToolResultBlock(styles, chatBlock{
+						kind:     blockToolResult,
+						toolName: tt.part.ToolName,
+						args:     compactTranscriptJSON(tt.part.Args),
+						result:   compactTranscriptJSON(tt.part.Result),
+						isError:  tt.part.IsError,
+					}, tt.width)
+				})
 				tt.assert(t, rawOutput, plainText(rawOutput))
 			})
 		}

@@ -237,14 +237,6 @@ func renderExpandedToolBlock(styles tuiStyles, labelStyle lipgloss.Style, icon, 
 	return strings.Join(lines, "\n")
 }
 
-func renderToolCall(styles tuiStyles, part codersdk.ChatMessagePart, width int) string {
-	return renderToolCallBlock(styles, chatBlock{
-		kind:     blockToolCall,
-		toolName: part.ToolName,
-		args:     compactTranscriptJSON(part.Args),
-	}, width)
-}
-
 func renderToolCallBlock(styles tuiStyles, block chatBlock, width int) string {
 	if block.toolName == contextCompactionToolName {
 		return renderCompaction(styles, width)
@@ -258,16 +250,6 @@ func renderToolCallBlock(styles tuiStyles, block chatBlock, width int) string {
 		toolArgsSummary(block.toolName, block.args),
 		width,
 	)
-}
-
-func renderToolResult(styles tuiStyles, part codersdk.ChatMessagePart, width int) string {
-	return renderToolResultBlock(styles, chatBlock{
-		kind:     blockToolResult,
-		toolName: part.ToolName,
-		args:     compactTranscriptJSON(part.Args),
-		result:   compactTranscriptJSON(part.Result),
-		isError:  part.IsError,
-	}, width)
 }
 
 func renderToolResultBlock(styles tuiStyles, block chatBlock, width int) string {
@@ -317,26 +299,19 @@ func renderOverlayFrame(styles tuiStyles, width int, sections ...string) string 
 	return styles.overlayBorder.Width(contentWidth(width, 6)).Render(strings.Join(sections, "\n\n"))
 }
 
-func renderDiffDrawerLoading(styles tuiStyles, width, _ int) string {
-	return renderOverlayFrame(styles, width, styles.title.Render("Diff"), styles.dimmedText.Render("Loading diff…"), styles.helpText.Render("Esc to close"))
-}
-
-func renderDiffDrawerError(styles tuiStyles, err error, width, _ int) string {
-	message := styles.errorText.Render("Failed to load diff.")
-	if err != nil {
-		message = styles.errorText.Render(wrapPreservingNewlines(err.Error(), contentWidth(width, 6)))
-	}
-	return renderOverlayFrame(styles, width, styles.title.Render("Diff"), message, styles.helpText.Render("Esc to close"))
-}
-
-func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
-	lines := make([]string, 0, len(changes)+4)
+func diffMetadataLines(diff codersdk.ChatDiffContents) []string {
+	var lines []string
 	if diff.Branch != nil && *diff.Branch != "" {
 		lines = append(lines, fmt.Sprintf("Branch: %s", *diff.Branch))
 	}
 	if diff.PullRequestURL != nil && *diff.PullRequestURL != "" {
 		lines = append(lines, fmt.Sprintf("PR: %s", *diff.PullRequestURL))
 	}
+	return lines
+}
+
+func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
+	lines := diffMetadataLines(diff)
 	if len(changes) == 0 {
 		if len(lines) > 0 {
 			lines = append(lines, "")
@@ -361,14 +336,7 @@ func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.Ch
 func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
 	innerWidth := contentWidth(width, 6)
 	headerBits := []string{styles.title.Render("Diff")}
-	var meta []string
-	if diff.Branch != nil && *diff.Branch != "" {
-		meta = append(meta, fmt.Sprintf("Branch: %s", *diff.Branch))
-	}
-	if diff.PullRequestURL != nil && *diff.PullRequestURL != "" {
-		meta = append(meta, fmt.Sprintf("PR: %s", *diff.PullRequestURL))
-	}
-	if len(meta) > 0 {
+	if meta := diffMetadataLines(diff); len(meta) > 0 {
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
 	summary := renderChatDiffSummary(diff, changes)
