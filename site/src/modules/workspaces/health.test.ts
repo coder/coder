@@ -81,7 +81,7 @@ describe("getAgentHealthIssues", () => {
 			expect.objectContaining({
 				title: "Startup script failed",
 				severity: "warning",
-				prominent: true,
+				prominent: false,
 			}),
 		);
 		expect(
