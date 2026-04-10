@@ -19,6 +19,8 @@ var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 func TestExpAgentsRender(t *testing.T) {
 	t.Parallel()
 
+	styles := newTUIStyles()
+
 	t.Run("MessagesToBlocks", func(t *testing.T) {
 		t.Parallel()
 
@@ -105,12 +107,6 @@ func TestExpAgentsRender(t *testing.T) {
 		result := func(name, id, body string) chatBlock {
 			return chatBlock{kind: blockToolResult, role: tool, toolName: name, toolID: id, result: body}
 		}
-		merged := func(name, id, args, body string) chatBlock {
-			return chatBlock{kind: blockToolResult, role: tool, toolName: name, toolID: id, args: args, result: body}
-		}
-		text := func(body string) chatBlock {
-			return chatBlock{kind: blockText, role: assistant, text: body}
-		}
 
 		for _, tt := range []struct {
 			name string
@@ -120,12 +116,12 @@ func TestExpAgentsRender(t *testing.T) {
 			{
 				name: "MergesAdjacentEmptyToolIDCallAndResult",
 				in:   []chatBlock{call("read_file", "", `{"path":"main.go"}`), result("read_file", "", `{"content":"hello"}`)},
-				want: []chatBlock{merged("read_file", "", `{"path":"main.go"}`, `{"content":"hello"}`)},
+				want: []chatBlock{{kind: blockToolResult, role: tool, toolName: "read_file", toolID: "", args: `{"path":"main.go"}`, result: `{"content":"hello"}`}},
 			},
 			{
 				name: "ExistingToolIDMergeStillWorks",
 				in:   []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), result("read_file", "call-1", `{"content":"hello"}`)},
-				want: []chatBlock{merged("read_file", "call-1", `{"path":"main.go"}`, `{"content":"hello"}`)},
+				want: []chatBlock{{kind: blockToolResult, role: tool, toolName: "read_file", toolID: "call-1", args: `{"path":"main.go"}`, result: `{"content":"hello"}`}},
 			},
 			{
 				name: "MultiplePairs",
@@ -136,8 +132,8 @@ func TestExpAgentsRender(t *testing.T) {
 					result("list_dir", "call-2", `{"entries":[]}`),
 				},
 				want: []chatBlock{
-					merged("read_file", "call-1", `{"path":"one.txt"}`, `{"ok":true}`),
-					merged("list_dir", "call-2", `{"path":"/tmp"}`, `{"entries":[]}`),
+					{kind: blockToolResult, role: tool, toolName: "read_file", toolID: "call-1", args: `{"path":"one.txt"}`, result: `{"ok":true}`},
+					{kind: blockToolResult, role: tool, toolName: "list_dir", toolID: "call-2", args: `{"path":"/tmp"}`, result: `{"entries":[]}`},
 				},
 			},
 		} {
@@ -145,7 +141,6 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				got := mergeConsecutiveToolBlocks(tt.in)
-				require.Len(t, got, len(tt.want))
 				require.Equal(t, tt.want, got)
 			})
 		}
@@ -165,13 +160,13 @@ func TestExpAgentsRender(t *testing.T) {
 				},
 				{
 					name: "NonAdjacentEmptyToolID",
-					in:   []chatBlock{call("read_file", "", `{"path":"main.go"}`), text("still thinking"), result("read_file", "", `{"content":"hello"}`)},
-					want: []chatBlock{call("read_file", "", `{"path":"main.go"}`), text("still thinking"), result("read_file", "", `{"content":"hello"}`)},
+					in:   []chatBlock{call("read_file", "", `{"path":"main.go"}`), {kind: blockText, role: assistant, text: "still thinking"}, result("read_file", "", `{"content":"hello"}`)},
+					want: []chatBlock{call("read_file", "", `{"path":"main.go"}`), {kind: blockText, role: assistant, text: "still thinking"}, result("read_file", "", `{"content":"hello"}`)},
 				},
 				{
 					name: "NonAdjacentMatchingToolID",
-					in:   []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), text("still thinking"), result("read_file", "call-1", `{"content":"hello"}`)},
-					want: []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), text("still thinking"), result("read_file", "call-1", `{"content":"hello"}`)},
+					in:   []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), {kind: blockText, role: assistant, text: "still thinking"}, result("read_file", "call-1", `{"content":"hello"}`)},
+					want: []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), {kind: blockText, role: assistant, text: "still thinking"}, result("read_file", "call-1", `{"content":"hello"}`)},
 				},
 				{
 					name: "OrphanedCall",
@@ -188,7 +183,6 @@ func TestExpAgentsRender(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					got := mergeConsecutiveToolBlocks(tt.in)
-					require.Len(t, got, len(tt.want))
 					require.Equal(t, tt.want, got)
 				})
 			}
@@ -220,16 +214,11 @@ func TestExpAgentsRender(t *testing.T) {
 				tt.assert(t, toolArgsSummary(tt.toolName, tt.args))
 			})
 		}
-	})
-
-	t.Run("ToolResultSummary", func(t *testing.T) {
-		t.Parallel()
 		require.Equal(t, "(created-ws)", toolResultSummary("coder_create_workspace", "", `{"workspace_name":"created-ws"}`))
 	})
 	t.Run("RenderToolCall", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		for _, tt := range []struct {
 			name   string
 			part   codersdk.ChatMessagePart
@@ -268,7 +257,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderToolResult", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		for _, tt := range []struct {
 			name   string
 			part   codersdk.ChatMessagePart
@@ -312,38 +300,31 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderCompaction", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		output := plainText(renderCompaction(styles, 20))
 		require.Contains(t, output, "🗜️  Context compacted")
 	})
 	t.Run("RenderStatusBar", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		u := func(total, limit int64) *codersdk.ChatMessageUsage {
 			return &codersdk.ChatMessageUsage{TotalTokens: int64Ptr(total), ContextLimit: int64Ptr(limit)}
 		}
 
 		for _, tt := range []struct {
-			name         string
-			status       codersdk.ChatStatus
-			usage        *codersdk.ChatMessageUsage
-			queue        int
-			interrupting bool
-			reconnecting bool
-			width        int
-			want         []string
-			avoid        []string
-			maxWidth     int
+			name                       string
+			status                     codersdk.ChatStatus
+			usage                      *codersdk.ChatMessageUsage
+			queue                      int
+			interrupting, reconnecting bool
+			width, maxWidth            int
+			wantRaw                    string
+			wantPlain, avoidPlain      []string
 		}{
-			{name: "ShowsStatusWithColor", status: codersdk.ChatStatusRunning, width: 80, want: []string{styles.statusColor(codersdk.ChatStatusRunning).Render(string(codersdk.ChatStatusRunning))}},
-			{name: "ShowsTokenUsageWhenPresent", status: codersdk.ChatStatusRunning, usage: u(50, 100), width: 80, want: []string{"tokens: 50/100"}},
-			{name: "WarnsWhenUsageExceedsEightyPercent", status: codersdk.ChatStatusRunning, usage: u(81, 100), width: 80, want: []string{styles.warningText.Render("tokens: 81/100")}},
-			{name: "CriticalWhenUsageExceedsNinetyFivePercent", status: codersdk.ChatStatusRunning, usage: u(96, 100), width: 80, want: []string{styles.criticalText.Render("tokens: 96/100")}},
-			{name: "ShowsQueueCount", status: codersdk.ChatStatusPending, queue: 2, width: 80, want: []string{"queued: 2"}},
-			{name: "ShowsInterrupting", status: codersdk.ChatStatusRunning, interrupting: true, width: 80, want: []string{"interrupting…"}},
-			{name: "ShowsReconnecting", status: codersdk.ChatStatusRunning, reconnecting: true, width: 80, want: []string{"reconnecting…"}},
-			{name: "OmitsUsageWhenNil", status: codersdk.ChatStatusRunning, width: 80, avoid: []string{"tokens:"}},
+			{name: "RunningOmitsUsageWhenNil", status: codersdk.ChatStatusRunning, width: 80, avoidPlain: []string{"tokens:"}},
+			{name: "RunningShowsTokenUsage", status: codersdk.ChatStatusRunning, usage: u(50, 100), width: 80, wantPlain: []string{"tokens: 50/100"}},
+			{name: "RunningWarnsAndShowsTransientStates", status: codersdk.ChatStatusRunning, usage: u(81, 100), interrupting: true, reconnecting: true, width: 80, wantRaw: styles.warningText.Render("tokens: 81/100"), wantPlain: []string{"interrupting…", "reconnecting…"}},
+			{name: "RunningShowsCriticalUsage", status: codersdk.ChatStatusRunning, usage: u(96, 100), width: 80, wantRaw: styles.criticalText.Render("tokens: 96/100")},
+			{name: "PendingShowsQueue", status: codersdk.ChatStatusPending, queue: 2, width: 80, wantPlain: []string{"queued: 2"}},
 			{name: "NarrowWidthFits", status: codersdk.ChatStatusRunning, usage: u(96, 100), queue: 2, interrupting: true, reconnecting: true, width: 20, maxWidth: 20},
 		} {
 			tt := tt
@@ -355,10 +336,14 @@ func TestExpAgentsRender(t *testing.T) {
 					output = renderStatusBar(styles, nil, tt.status, tt.usage, tt.queue, tt.interrupting, tt.reconnecting, tt.width)
 				})
 				plain := plainText(output)
-				for _, want := range tt.want {
-					require.Contains(t, output, want)
+				require.Contains(t, output, styles.statusColor(tt.status).Render(string(tt.status)))
+				if tt.wantRaw != "" {
+					require.Contains(t, output, tt.wantRaw)
 				}
-				for _, avoid := range tt.avoid {
+				for _, want := range tt.wantPlain {
+					require.Contains(t, plain, want)
+				}
+				for _, avoid := range tt.avoidPlain {
 					require.NotContains(t, plain, avoid)
 				}
 				if tt.maxWidth > 0 {
@@ -372,7 +357,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderBlock", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		renderOutput := func(block chatBlock, expanded, plain bool, width int) string {
 			output := renderBlock(styles, block, expanded, width)
 			if plain {
@@ -388,31 +372,29 @@ func TestExpAgentsRender(t *testing.T) {
 			for _, s := range avoid {
 				require.NotContains(t, output, s)
 			}
-			if lines == 0 {
-				return
-			}
-			split := strings.Split(output, "\n")
-			require.Len(t, split, lines)
-			if lastLine != "" {
-				require.Equal(t, lastLine, strings.TrimRight(split[len(split)-1], " "))
+			if lines > 0 {
+				split := strings.Split(output, "\n")
+				require.Len(t, split, lines)
+				if lastLine != "" {
+					require.Equal(t, lastLine, strings.TrimRight(split[len(split)-1], " "))
+				}
 			}
 		}
 
 		for _, tt := range []struct {
 			name  string
 			block chatBlock
-			plain bool
 			want  []string
 			avoid []string
 		}{
-			{name: "UserIncludesYouPrefix", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}, plain: true, want: []string{"You: hello"}},
-			{name: "AssistantRendersMarkdown", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "- first\n- second"}, plain: true, want: []string{"• first", "• second"}, avoid: []string{"- first"}},
+			{name: "UserIncludesYouPrefix", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}, want: []string{"You: hello"}},
+			{name: "AssistantRendersMarkdown", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "- first\n- second"}, want: []string{"• first", "• second"}, avoid: []string{"- first"}},
 			{name: "ToolRendersDimmed", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleTool, text: "tool output"}, want: []string{styles.dimmedText.Render("tool output")}},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				assertOutput(t, renderOutput(tt.block, false, tt.plain, 40), tt.want, tt.avoid, 0, "")
+				assertOutput(t, renderOutput(tt.block, false, tt.block.role != codersdk.ChatMessageRoleTool, 40), tt.want, tt.avoid, 0, "")
 			})
 		}
 
@@ -492,8 +474,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderChatBlocks", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
-
 		t.Run("MixedMessagesRenderInOrder", func(t *testing.T) {
 			t.Parallel()
 
@@ -547,7 +527,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderDiffDrawer", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		branch := "feature/chat-ui"
 		prURL := "https://example.com/pulls/123"
 		for _, tt := range []struct {
@@ -578,7 +557,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderDiffDrawerSanitizesUntrustedContent", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		rawOutput := renderDiffDrawer(
 			styles,
 			codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+safe\x1b]52;c;clipboard\x07line"},
@@ -600,7 +578,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderModelPicker", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		catalog := codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
 			Provider:  "OpenAI",
 			Available: true,
@@ -644,7 +621,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("KeepsCursorVisibleWithinWindow", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		models := make([]codersdk.ChatModel, 0, 6)
 		for i := 1; i <= 6; i++ {
 			models = append(models, codersdk.ChatModel{
@@ -668,7 +644,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderAssistantMarkdown", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		output := plainText(renderAssistantMarkdown(styles, "- first\n- second", 60, nil))
 		require.Contains(t, output, "• first")
 		require.Contains(t, output, "• second")
@@ -689,7 +664,6 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("RenderToolDetailStripsTerminalEscapes", func(t *testing.T) {
 		t.Parallel()
 
-		styles := newTUIStyles()
 		rawOutput := renderToolDetail(styles, "result", "ok\x1b]52;c;clipboard\x07\n\tstill here", 60)
 		output := plainText(rawOutput)
 		require.Contains(t, output, "result: ok")
