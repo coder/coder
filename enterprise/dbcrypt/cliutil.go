@@ -14,7 +14,7 @@ import (
 // Rotate rotates the database encryption keys by re-encrypting all user tokens
 // with the first cipher and revoking all other ciphers.
 func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Cipher) error {
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, database.WithLogger(log.Named("database")))
 	cryptDB, err := New(ctx, db, ciphers...)
 	if err != nil {
 		return xerrors.Errorf("create cryptdb: %w", err)
@@ -176,7 +176,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 
 // Decrypt decrypts all user tokens and revokes all ciphers.
 func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Cipher) error {
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, database.WithLogger(log.Named("database")))
 	cdb, err := New(ctx, db, ciphers...)
 	if err != nil {
 		return xerrors.Errorf("create cryptdb: %w", err)
@@ -362,7 +362,7 @@ COMMIT;
 // as a last resort, for example, if the database encryption key has been
 // lost.
 func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
-	store := database.New(sqlDB)
+	store := database.New(sqlDB, database.WithLogger(log.Named("database")))
 	_, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
 	if err != nil {
 		return xerrors.Errorf("delete encrypted tokens and chat provider keys: %w", err)

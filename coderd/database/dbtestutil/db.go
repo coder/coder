@@ -133,7 +133,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
 	}
 	// Unit tests should not retry serial transaction failures.
-	db = database.New(sqlDB, database.WithSerialRetryCount(1))
+	db = database.New(sqlDB, database.WithSerialRetryCount(1), database.WithLogger(o.logger.Named("database")))
 
 	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
 	require.NoError(t, err)

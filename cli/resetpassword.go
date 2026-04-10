@@ -51,7 +51,7 @@ func (*RootCmd) resetPassword() *serpent.Command {
 			}
 			defer sqlDB.Close()
 
-			db := database.New(sqlDB)
+			db := database.New(sqlDB, database.WithLogger(logger.Named("database")))
 
 			user, err := db.GetUserByEmailOrUsername(inv.Context(), database.GetUserByEmailOrUsernameParams{
 				Username: username,

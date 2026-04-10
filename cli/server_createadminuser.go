@@ -79,7 +79,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			defer func() {
 				_ = sqlDB.Close()
 			}()
-			db := database.New(sqlDB)
+			db := database.New(sqlDB, database.WithLogger(logger.Named("database")))
 
 			validateInputs := func(username, email, password string) error {
 				// Use the validator tags so we match the API's validation.

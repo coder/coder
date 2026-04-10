@@ -66,7 +66,7 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 			defer func() {
 				_ = sqlDB.Close()
 			}()
-			db := database.New(sqlDB)
+			db := database.New(sqlDB, database.WithLogger(logger.Named("database")))
 
 			// Confirm that the user really wants to regenerate the VAPID keypair.
 			cliui.Infof(inv.Stdout, "Regenerating VAPID keypair...")
