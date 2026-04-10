@@ -140,10 +140,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to open chat watch stream.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to open chat watch stream.", err)
 		return
 	}
 	defer func() {
@@ -256,10 +253,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chats by workspace.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chats by workspace.", err)
 		return
 	}
 
@@ -313,10 +307,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 		labelsJSON, err := json.Marshal(labelMap)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to marshal label filter.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to marshal label filter.", err)
 			return
 		}
 		labelFilter = pqtype.NullRawMessage{
@@ -338,10 +329,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	chatRows, err := api.Database.GetChats(ctx, params)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chats.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list chats.", err)
 		return
 	}
 
@@ -353,10 +341,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, dbChats)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chats.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list chats.", err)
 		return
 	}
 
@@ -450,10 +435,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		//nolint:gocritic // Need to validate MCP server IDs exist.
 		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate MCP server IDs.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to validate MCP server IDs.", err)
 			return
 		}
 		if len(existingConfigs) != len(req.MCPServerIDs) {
@@ -528,10 +510,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		var err error
 		dynamicToolsJSON, err = json.Marshal(req.UnsafeDynamicTools)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to marshal dynamic tools.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to marshal dynamic tools.", err)
 			return
 		}
 	}
@@ -566,10 +545,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to create chat.", err)
 		return
 	}
 
@@ -582,10 +558,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// database state (file links are deduped in the join table).
 	chat, err = api.Database.GetChatByID(ctx, chat.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to read back chat after creation.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to read back chat after creation.", err)
 		return
 	}
 
@@ -621,41 +594,27 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		systemCtx,
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load chat model configuration.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to load chat model configuration.", err)
 		return
 	}
 	enabledModels, err := api.Database.GetEnabledChatModelConfigs(
 		systemCtx,
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load chat model configuration.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to load chat model configuration.", err)
 		return
 	}
 
 	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
-	attachmentsByModel := map[uuid.UUID][]codersdk.ChatModelProviderAttachment{}
-	if len(enabledModels) > 0 {
-		modelIDs := make([]uuid.UUID, 0, len(enabledModels))
-		for _, model := range enabledModels {
-			modelIDs = append(modelIDs, model.ID)
-		}
-
-		attachmentRows, attachmentErr := api.Database.GetModelProviderConfigsByModelIDs(systemCtx, modelIDs)
-		if attachmentErr != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to load provider config attachments.",
-				Detail:  attachmentErr.Error(),
-			})
-			return
-		}
-		providersByID := chatProvidersByID(enabledProviders)
-		attachmentsByModel = convertProviderConfigAttachmentsBatch(attachmentRows, providersByID, deploymentKeys)
+	attachmentsByModel, attachmentErr := api.loadChatModelProviderAttachmentsByModelID(
+		ctx,
+		api.Database,
+		enabledProviders,
+		enabledModels,
+	)
+	if attachmentErr != nil {
+		writeInternalError(ctx, rw, "Failed to load provider config attachments.", attachmentErr)
+		return
 	}
 
 	visibleModels := enabledModels
@@ -741,10 +700,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 
 	userKeyRows, err := api.Database.GetUserChatProviderKeys(ctx, apiKey.UserID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load user chat provider keys.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to load user chat provider keys.", err)
 		return
 	}
 	userKeys := make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
@@ -1068,37 +1024,25 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 
 	config, configErr := api.Database.GetChatUsageLimitConfig(ctx)
 	if configErr != nil && !errors.Is(configErr, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat usage limit config.",
-			Detail:  configErr.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat usage limit config.", configErr)
 		return
 	}
 
 	overrideRows, err := api.Database.ListChatUsageLimitOverrides(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat usage limit overrides.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list chat usage limit overrides.", err)
 		return
 	}
 
 	groupOverrides, err := api.Database.ListChatUsageLimitGroupOverrides(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list group usage limit overrides.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list group usage limit overrides.", err)
 		return
 	}
 
 	unpricedModelCount, err := api.Database.CountEnabledModelsWithoutPricing(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to count unpriced chat models.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to count unpriced chat models.", err)
 		return
 	}
 
@@ -1197,10 +1141,7 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 
 	config, err := api.Database.UpsertChatUsageLimitConfig(ctx, params)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat usage limit config.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to update chat usage limit config.", err)
 		return
 	}
 
@@ -1229,10 +1170,7 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, time.Now())
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat usage limit status.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat usage limit status.", err)
 		return
 	}
 	if status == nil {
@@ -1278,10 +1216,7 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up chat usage limit user.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to look up chat usage limit user.", err)
 		return
 	}
 
@@ -1290,10 +1225,7 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upsert chat usage limit override.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to upsert chat usage limit override.", err)
 		return
 	}
 
@@ -1326,10 +1258,7 @@ func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 			writeChatUsageLimitUserNotFound(ctx, rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up chat usage limit user.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to look up chat usage limit user.", err)
 		return
 	}
 	if _, err := api.Database.GetChatUsageLimitUserOverride(ctx, userID); err != nil {
@@ -1337,17 +1266,11 @@ func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 			writeChatUsageLimitOverrideNotFound(ctx, rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up chat usage limit override.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to look up chat usage limit override.", err)
 		return
 	}
 	if err := api.Database.DeleteChatUsageLimitUserOverride(ctx, userID); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat usage limit override.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to delete chat usage limit override.", err)
 		return
 	}
 
@@ -1395,10 +1318,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up group details.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to look up group details.", err)
 		return
 	}
 
@@ -1407,10 +1327,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upsert group usage limit override.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to upsert group usage limit override.", err)
 		return
 	}
 
@@ -1423,10 +1340,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 			writeChatUsageLimitGroupNotFound(ctx, rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch group member count.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to fetch group member count.", err)
 		return
 	}
 
@@ -1465,10 +1379,7 @@ func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 			writeChatUsageLimitGroupNotFound(ctx, rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up group details.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to look up group details.", err)
 		return
 	}
 	if _, err := api.Database.GetChatUsageLimitGroupOverride(ctx, groupID); err != nil {
@@ -1476,17 +1387,11 @@ func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 			writeChatUsageLimitGroupOverrideNotFound(ctx, rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up group usage limit override.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to look up group usage limit override.", err)
 		return
 	}
 	if err := api.Database.DeleteChatUsageLimitGroupOverride(ctx, groupID); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete group usage limit override.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to delete group usage limit override.", err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -1555,10 +1460,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		LimitVal: limit + 1,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat messages.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat messages.", err)
 		return
 	}
 
@@ -1572,10 +1474,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if beforeID == 0 {
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get queued messages.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to get queued messages.", err)
 			return
 		}
 	}
@@ -1606,10 +1505,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 
 	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agents.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error fetching workspace agents.", err)
 		return
 	}
 	if len(agents) == 0 {
@@ -1630,10 +1526,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error reading workspace agent.", err)
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
@@ -1648,20 +1541,14 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error dialing workspace agent.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error dialing workspace agent.", err)
 		return
 	}
 	defer release()
 
 	agentStream, err := agentConn.WatchGit(ctx, logger, chat.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error watching agent's git state.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error watching agent's git state.", err)
 		return
 	}
 	defer agentStream.Close(websocket.StatusGoingAway)
@@ -1767,10 +1654,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 
 	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agents.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error fetching workspace agents.", err)
 		return
 	}
 	if len(agents) == 0 {
@@ -1791,10 +1675,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error reading workspace agent.", err)
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
@@ -1809,20 +1690,14 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to dial workspace agent.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to dial workspace agent.", err)
 		return
 	}
 	defer release()
 
 	desktopConn, err := agentConn.ConnectDesktopVNC(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to connect to agent desktop.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to connect to agent desktop.", err)
 		return
 	}
 	defer desktopConn.Close()
@@ -1871,10 +1746,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		labelsJSON, err := json.Marshal(*req.Labels)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to marshal labels.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to marshal labels.", err)
 			return
 		}
 		updatedChat, err := api.Database.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
@@ -1886,10 +1758,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat labels.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to update chat labels.", err)
 			return
 		}
 		chat = updatedChat
@@ -2023,10 +1892,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		//nolint:gocritic // Need to validate MCP server IDs exist.
 		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate MCP server IDs.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to validate MCP server IDs.", err)
 			return
 		}
 		if len(existingConfigs) != len(*req.MCPServerIDs) {
@@ -2084,10 +1950,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat message.",
-			Detail:  sendErr.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to create chat message.", sendErr)
 		return
 	}
 
@@ -2174,10 +2037,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 				Message: "Only user messages can be edited.",
 			})
 		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to edit chat message.",
-				Detail:  editErr.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to edit chat message.", editErr)
 		}
 		return
 	}
@@ -2223,10 +2083,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete queued message.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to delete queued message.", err)
 		return
 	}
 
@@ -2268,10 +2125,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		if maybeWriteLimitErr(ctx, rw, txErr) {
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to promote queued message.",
-			Detail:  txErr.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to promote queued message.", txErr)
 		return
 	}
 
@@ -2340,10 +2194,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to open chat stream.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to open chat stream.", err)
 		return
 	}
 	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
@@ -2463,10 +2314,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		if updateErr != nil {
 			api.Logger.Error(ctx, "failed to mark chat as waiting",
 				slog.F("chat_id", chatID), slog.Error(updateErr))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to interrupt chat.",
-				Detail:  updateErr.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to interrupt chat.", updateErr)
 			return
 		}
 		chat = updatedChat
@@ -2509,10 +2357,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to regenerate chat title.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to regenerate chat title.", err)
 		return
 	}
 
@@ -2528,10 +2373,7 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 
 	diff, err := api.resolveChatDiffContents(ctx, chat)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat diff.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat diff.", err)
 		return
 	}
 
@@ -3184,10 +3026,7 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	}
 	config, err := api.Database.GetChatSystemPromptConfig(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching chat system prompt configuration.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error fetching chat system prompt configuration.", err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
@@ -3235,10 +3074,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating chat system prompt configuration.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error updating chat system prompt configuration.", err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -3251,10 +3087,7 @@ func (api *API) getChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	enabled, err := api.Database.GetChatDesktopEnabled(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching desktop setting.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error fetching desktop setting.", err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDesktopEnabledResponse{
@@ -3278,10 +3111,7 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating desktop setting.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error updating desktop setting.", err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -3298,20 +3128,14 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace TTL setting.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error fetching workspace TTL setting.", err)
 		return
 	}
 	// Validate/default the stored value so callers always receive a
 	// well-formed duration string.
 	d, err := codersdk.ParseChatWorkspaceTTL(raw)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Stored workspace TTL is invalid.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Stored workspace TTL is invalid.", err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWorkspaceTTLResponse{
@@ -3363,10 +3187,7 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating workspace TTL setting.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error updating workspace TTL setting.", err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -3386,10 +3207,7 @@ func (api *API) getChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	retentionDays, err := api.Database.GetChatRetentionDays(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat retention days.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat retention days.", err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatRetentionDaysResponse{
@@ -3427,10 +3245,7 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := api.Database.UpsertChatRetentionDays(ctx, req.RetentionDays); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat retention days.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to update chat retention days.", err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -3447,18 +3262,12 @@ func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 	}
 	raw, err := api.Database.GetChatTemplateAllowlist(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching chat template allowlist.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error fetching chat template allowlist.", err)
 		return
 	}
 	parsed, parseErr := xjson.ParseUUIDList(raw)
 	if parseErr != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Stored template allowlist is corrupt.",
-			Detail:  parseErr.Error(),
-		})
+		writeInternalError(ctx, rw, "Stored template allowlist is corrupt.", parseErr)
 		return
 	}
 	ids := make([]string, len(parsed))
@@ -3514,10 +3323,7 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 
 	raw, err := json.Marshal(deduped)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error encoding template allowlist.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error encoding template allowlist.", err)
 		return
 	}
 
@@ -3561,10 +3367,7 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating chat template allowlist.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Internal error updating chat template allowlist.", err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -3582,10 +3385,7 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	customPrompt, err := api.Database.GetUserChatCustomPrompt(ctx, apiKey.UserID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user chat custom prompt.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Error reading user chat custom prompt.", err)
 			return
 		}
 
@@ -3627,10 +3427,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		ChatCustomPrompt: sanitizedPrompt,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error updating user chat custom prompt.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Error updating user chat custom prompt.", err)
 		return
 	}
 
@@ -3654,10 +3451,7 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 
 	rows, err := api.Database.ListUserChatCompactionThresholds(ctx, apiKey.UserID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error listing user chat compaction thresholds.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Error listing user chat compaction thresholds.", err)
 		return
 	}
 
@@ -3745,10 +3539,7 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat model config.", err)
 		return
 	}
 	if !modelConfig.Enabled {
@@ -3764,10 +3555,7 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 		ThresholdPercent: req.ThresholdPercent,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error updating user chat compaction threshold.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Error updating user chat compaction threshold.", err)
 		return
 	}
 
@@ -3795,10 +3583,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 		UserID: apiKey.UserID,
 		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	}); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error deleting user chat compaction threshold.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Error deleting user chat compaction threshold.", err)
 		return
 	}
 
@@ -3938,10 +3723,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		Data:           data,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to save chat file.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to save chat file.", err)
 		return
 	}
 
@@ -3968,10 +3750,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat file.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat file.", err)
 		return
 	}
 
@@ -4282,10 +4061,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 
 	providers, err := api.Database.GetChatProviders(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat providers.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list chat providers.", err)
 		return
 	}
 
@@ -4310,10 +4086,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 
 	effectiveKeys, err := api.effectiveChatProviderAPIKeys(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to resolve provider API keys.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to resolve provider API keys.", err)
 		return
 	}
 
@@ -4465,10 +4238,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to create chat provider.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to create chat provider.", err)
 			return
 		}
 	}
@@ -4519,10 +4289,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat provider.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat provider.", err)
 		return
 	}
 
@@ -4610,10 +4377,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		ID:                         existing.ID,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat provider.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to update chat provider.", err)
 		return
 	}
 
@@ -4667,18 +4431,9 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get model configs: %w", err)
 		}
 		if len(modelConfigs) > 0 {
-			modelIDs := make([]uuid.UUID, 0, len(modelConfigs))
-			for _, modelConfig := range modelConfigs {
-				modelIDs = append(modelIDs, modelConfig.ID)
-			}
-
-			attachmentRows, err := tx.GetModelProviderConfigsByModelIDs(systemCtx, modelIDs)
+			attachmentsByModel, err := getModelProviderConfigAttachmentsByModelID(systemCtx, tx, modelConfigs)
 			if err != nil {
 				return xerrors.Errorf("get model provider config attachments: %w", err)
-			}
-			attachmentsByModel := make(map[uuid.UUID][]database.GetModelProviderConfigsByModelIDsRow, len(modelConfigs))
-			for _, row := range attachmentRows {
-				attachmentsByModel[row.ModelConfigID] = append(attachmentsByModel[row.ModelConfigID], row)
 			}
 
 			for _, modelConfig := range modelConfigs {
@@ -4731,10 +4486,7 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat provider.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to delete chat provider.", err)
 		return
 	}
 
@@ -4752,19 +4504,13 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 	chatdCtx := dbauthz.AsChatd(ctx)
 	providers, err := api.Database.GetChatProviders(chatdCtx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat providers.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list chat providers.", err)
 		return
 	}
 
 	userKeys, err := api.Database.GetUserChatProviderKeys(ctx, apiKey.UserID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list user chat provider keys.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to list user chat provider keys.", err)
 		return
 	}
 
@@ -4813,10 +4559,7 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat provider.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat provider.", err)
 		return
 	}
 	if !provider.Enabled {
@@ -4858,10 +4601,7 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 		APIKey:         trimmedAPIKey,
 		ApiKeyKeyID:    sql.NullString{},
 	}); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to save user chat provider key.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to save user chat provider key.", err)
 		return
 	}
 
@@ -4895,10 +4635,7 @@ func (api *API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 		UserID:         apiKey.UserID,
 		ChatProviderID: providerID,
 	}); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete user chat provider key.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to delete user chat provider key.", err)
 		return
 	}
 
@@ -4925,40 +4662,31 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		configs, err = api.Database.GetEnabledChatModelConfigs(systemCtx)
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list chat model configs.", Detail: err.Error()})
+		writeInternalError(ctx, rw, "Failed to list chat model configs.", err)
 		return
 	}
 
 	allProviders, err := api.Database.GetChatProviders(systemCtx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to load providers.", Detail: err.Error()})
+		writeInternalError(ctx, rw, "Failed to load providers.", err)
 		return
 	}
 	enabledProviders, err := api.Database.GetEnabledChatProviders(systemCtx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to load enabled providers.", Detail: err.Error()})
+		writeInternalError(ctx, rw, "Failed to load enabled providers.", err)
 		return
 	}
 
 	deploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
-	providersByID := chatProvidersByID(allProviders)
-
-	attachmentsByModel := map[uuid.UUID][]codersdk.ChatModelProviderAttachment{}
-	if len(configs) > 0 {
-		modelIDs := make([]uuid.UUID, 0, len(configs))
-		for _, config := range configs {
-			modelIDs = append(modelIDs, config.ID)
-		}
-
-		attachmentRows, attachmentErr := api.Database.GetModelProviderConfigsByModelIDs(systemCtx, modelIDs)
-		if attachmentErr != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to load provider config attachments.",
-				Detail:  attachmentErr.Error(),
-			})
-			return
-		}
-		attachmentsByModel = convertProviderConfigAttachmentsBatch(attachmentRows, providersByID, deploymentKeys)
+	attachmentsByModel, attachmentErr := api.loadChatModelProviderAttachmentsByModelID(
+		ctx,
+		api.Database,
+		allProviders,
+		configs,
+	)
+	if attachmentErr != nil {
+		writeInternalError(ctx, rw, "Failed to load provider config attachments.", attachmentErr)
+		return
 	}
 
 	if !isAdmin {
@@ -5052,12 +4780,130 @@ func insertModelProviderConfigs(
 	return nil
 }
 
+func writeInternalError(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	message string,
+	err error,
+) {
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: message,
+		Detail:  err.Error(),
+	})
+}
+
 func chatProvidersByID(providers []database.ChatProvider) map[uuid.UUID]database.ChatProvider {
 	m := make(map[uuid.UUID]database.ChatProvider, len(providers))
 	for _, p := range providers {
 		m[p.ID] = p
 	}
 	return m
+}
+
+func chatModelConfigIDs(configs []database.ChatModelConfig) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(configs))
+	for _, config := range configs {
+		ids = append(ids, config.ID)
+	}
+	return ids
+}
+
+func getModelProviderConfigAttachmentsByModelID(
+	ctx context.Context,
+	store database.Store,
+	configs []database.ChatModelConfig,
+) (map[uuid.UUID][]database.GetModelProviderConfigsByModelIDsRow, error) {
+	modelIDs := chatModelConfigIDs(configs)
+	if len(modelIDs) == 0 {
+		return map[uuid.UUID][]database.GetModelProviderConfigsByModelIDsRow{}, nil
+	}
+
+	rows, err := store.GetModelProviderConfigsByModelIDs(ctx, modelIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	attachmentsByModel := make(map[uuid.UUID][]database.GetModelProviderConfigsByModelIDsRow, len(configs))
+	for _, row := range rows {
+		attachmentsByModel[row.ModelConfigID] = append(attachmentsByModel[row.ModelConfigID], row)
+	}
+	return attachmentsByModel, nil
+}
+
+func (api *API) loadChatModelProviderAttachmentsByModelID(
+	ctx context.Context,
+	store database.Store,
+	providers []database.ChatProvider,
+	configs []database.ChatModelConfig,
+) (map[uuid.UUID][]codersdk.ChatModelProviderAttachment, error) {
+	//nolint:gocritic // System context is required to read provider config attachments.
+	attachmentsByModelID, err := getModelProviderConfigAttachmentsByModelID(
+		dbauthz.AsSystemRestricted(ctx),
+		store,
+		configs,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertProviderConfigAttachmentsByModelID(
+		attachmentsByModelID,
+		chatProvidersByID(providers),
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+	), nil
+}
+
+func (api *API) loadChatModelProviderAttachments(
+	ctx context.Context,
+	modelConfigID uuid.UUID,
+) ([]codersdk.ChatModelProviderAttachment, error) {
+	//nolint:gocritic // System context is required to read provider config attachments.
+	attachmentCtx := dbauthz.AsSystemRestricted(ctx)
+	attachmentRows, err := api.Database.GetModelProviderConfigs(attachmentCtx, modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+
+	providers, err := api.Database.GetChatProviders(attachmentCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertProviderConfigAttachments(
+		attachmentRows,
+		chatProvidersByID(providers),
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+	), nil
+}
+
+func convertProviderConfigAttachment(
+	id uuid.UUID,
+	providerConfigID uuid.UUID,
+	provider string,
+	priority int32,
+	providerDisplayName string,
+	providerEnabled bool,
+	providersByID map[uuid.UUID]database.ChatProvider,
+	fallbackKeys chatprovider.ProviderAPIKeys,
+) codersdk.ChatModelProviderAttachment {
+	displayName := providerDisplayName
+	hasAPIKey := false
+	if configuredProvider, ok := providersByID[providerConfigID]; ok {
+		hasAPIKey = effectiveChatProviderConfigHasAPIKey(configuredProvider, fallbackKeys)
+		if configuredProvider.DisplayName != "" {
+			displayName = configuredProvider.DisplayName
+		}
+	}
+
+	return codersdk.ChatModelProviderAttachment{
+		ID:               id,
+		ProviderConfigID: providerConfigID,
+		Provider:         provider,
+		Priority:         priority,
+		DisplayName:      displayName,
+		Enabled:          providerEnabled,
+		HasAPIKey:        hasAPIKey,
+	}
 }
 
 func convertProviderConfigAttachments(
@@ -5067,58 +4913,43 @@ func convertProviderConfigAttachments(
 ) []codersdk.ChatModelProviderAttachment {
 	attachments := make([]codersdk.ChatModelProviderAttachment, 0, len(rows))
 	for _, row := range rows {
-		displayName := row.ProviderDisplayName
-		hasAPIKey := false
-		if provider, ok := providersByID[row.ProviderConfigID]; ok {
-			hasAPIKey = effectiveChatProviderConfigHasAPIKey(provider, fallbackKeys)
-			if provider.DisplayName != "" {
-				displayName = provider.DisplayName
-			}
-		}
-		attachments = append(attachments, codersdk.ChatModelProviderAttachment{
-			ID:               row.ID,
-			ProviderConfigID: row.ProviderConfigID,
-			Provider:         row.Provider,
-			Priority:         row.Priority,
-			DisplayName:      displayName,
-			Enabled:          row.ProviderEnabled,
-			HasAPIKey:        hasAPIKey,
-		})
+		attachments = append(attachments, convertProviderConfigAttachment(
+			row.ID,
+			row.ProviderConfigID,
+			row.Provider,
+			row.Priority,
+			row.ProviderDisplayName,
+			row.ProviderEnabled,
+			providersByID,
+			fallbackKeys,
+		))
 	}
 	return attachments
 }
 
-func convertProviderConfigAttachmentsBatch(
-	rows []database.GetModelProviderConfigsByModelIDsRow,
+func convertProviderConfigAttachmentsByModelID(
+	rowsByModelID map[uuid.UUID][]database.GetModelProviderConfigsByModelIDsRow,
 	providersByID map[uuid.UUID]database.ChatProvider,
 	fallbackKeys chatprovider.ProviderAPIKeys,
 ) map[uuid.UUID][]codersdk.ChatModelProviderAttachment {
-	attachmentsByModel := make(map[uuid.UUID][]codersdk.ChatModelProviderAttachment)
-	for _, row := range rows {
-		attachments := attachmentsByModel[row.ModelConfigID]
-		if attachments == nil {
-			attachments = []codersdk.ChatModelProviderAttachment{}
+	attachmentsByModelID := make(map[uuid.UUID][]codersdk.ChatModelProviderAttachment, len(rowsByModelID))
+	for modelID, rows := range rowsByModelID {
+		attachments := make([]codersdk.ChatModelProviderAttachment, 0, len(rows))
+		for _, row := range rows {
+			attachments = append(attachments, convertProviderConfigAttachment(
+				row.ID,
+				row.ProviderConfigID,
+				row.Provider,
+				row.Priority,
+				row.ProviderDisplayName,
+				row.ProviderEnabled,
+				providersByID,
+				fallbackKeys,
+			))
 		}
-		displayName := row.ProviderDisplayName
-		hasAPIKey := false
-		if provider, ok := providersByID[row.ProviderConfigID]; ok {
-			hasAPIKey = effectiveChatProviderConfigHasAPIKey(provider, fallbackKeys)
-			if provider.DisplayName != "" {
-				displayName = provider.DisplayName
-			}
-		}
-		attachments = append(attachments, codersdk.ChatModelProviderAttachment{
-			ID:               row.ID,
-			ProviderConfigID: row.ProviderConfigID,
-			Provider:         row.Provider,
-			Priority:         row.Priority,
-			DisplayName:      displayName,
-			Enabled:          row.ProviderEnabled,
-			HasAPIKey:        hasAPIKey,
-		})
-		attachmentsByModel[row.ModelConfigID] = attachments
+		attachmentsByModelID[modelID] = attachments
 	}
-	return attachmentsByModel
+	return attachmentsByModelID
 }
 
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -5290,39 +5121,20 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to create chat model config.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to create chat model config.", err)
 			return
 		}
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	//nolint:gocritic // Model config responses need system access to load provider config attachments after commit.
-	attachmentCtx := dbauthz.AsSystemRestricted(ctx)
-	attachmentRows, err := api.Database.GetModelProviderConfigs(attachmentCtx, inserted.ID)
+	attachments, err := api.loadChatModelProviderAttachments(ctx, inserted.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load provider config attachments.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to load provider config attachments.", err)
 		return
 	}
 
-	createProviders, err := api.Database.GetChatProviders(attachmentCtx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load providers.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	createDeploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
-	createProvidersByID := chatProvidersByID(createProviders)
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, convertProviderConfigAttachments(attachmentRows, createProvidersByID, createDeploymentKeys)))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, attachments))
 }
 
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -5344,10 +5156,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat model config.", err)
 		return
 	}
 
@@ -5554,39 +5363,20 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat model config.",
-				Detail:  err.Error(),
-			})
+			writeInternalError(ctx, rw, "Failed to update chat model config.", err)
 			return
 		}
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	//nolint:gocritic // Model config responses need system access to load provider config attachments after commit.
-	attachmentCtx := dbauthz.AsSystemRestricted(ctx)
-	attachmentRows, err := api.Database.GetModelProviderConfigs(attachmentCtx, existing.ID)
+	attachments, err := api.loadChatModelProviderAttachments(ctx, updated.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load provider config attachments.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to load provider config attachments.", err)
 		return
 	}
 
-	updateProviders, err := api.Database.GetChatProviders(attachmentCtx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load providers.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	updateDeploymentKeys := chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
-	updateProvidersByID := chatProvidersByID(updateProviders)
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, convertProviderConfigAttachments(attachmentRows, updateProvidersByID, updateDeploymentKeys)))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, attachments))
 }
 
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -5606,10 +5396,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to get chat model config.", err)
 		return
 	}
 
@@ -5619,10 +5406,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		return ensureDefaultChatModelConfig(ctx, tx)
 	}, nil); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat model config.",
-			Detail:  err.Error(),
-		})
+		writeInternalError(ctx, rw, "Failed to delete chat model config.", err)
 		return
 	}
 

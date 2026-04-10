@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"strings"
 
@@ -146,30 +147,11 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 
 // MergeProviderAPIKeys overlays configured provider keys over fallback keys.
 func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
-	merged := ProviderAPIKeys{
-		OpenAI:            strings.TrimSpace(fallback.OpenAI),
-		Anthropic:         strings.TrimSpace(fallback.Anthropic),
-		ByProvider:        map[string]string{},
-		BaseURLByProvider: map[string]string{},
-	}
-	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-	}
-	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-	}
+	merged := cloneFallbackProviderAPIKeys(fallback)
+	merged.OpenAI = strings.TrimSpace(merged.OpenAI)
+	merged.Anthropic = strings.TrimSpace(merged.Anthropic)
+	merged.ByProvider = normalizeProviderValueMap(merged.ByProvider)
+	merged.BaseURLByProvider = normalizeProviderValueMap(merged.BaseURLByProvider)
 
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
@@ -215,30 +197,11 @@ func ResolveUserProviderKeys(
 	providers []ConfiguredProvider,
 	userKeys []UserProviderKey,
 ) (ProviderAPIKeys, map[string]ProviderAvailability) {
-	merged := ProviderAPIKeys{
-		OpenAI:            strings.TrimSpace(fallback.OpenAI),
-		Anthropic:         strings.TrimSpace(fallback.Anthropic),
-		ByProvider:        map[string]string{},
-		BaseURLByProvider: map[string]string{},
-	}
-	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-	}
-	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-	}
+	merged := cloneFallbackProviderAPIKeys(fallback)
+	merged.OpenAI = strings.TrimSpace(merged.OpenAI)
+	merged.Anthropic = strings.TrimSpace(merged.Anthropic)
+	merged.ByProvider = normalizeProviderValueMap(merged.ByProvider)
+	merged.BaseURLByProvider = normalizeProviderValueMap(merged.BaseURLByProvider)
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
 	}
@@ -527,26 +490,7 @@ func ProviderKeysFromConfig(
 	dbAPIKey string,
 	dbBaseURL string,
 ) ProviderAPIKeys {
-	keys := ProviderAPIKeys{
-		OpenAI:    fallback.OpenAI,
-		Anthropic: fallback.Anthropic,
-	}
-	if fallback.ByProvider != nil {
-		keys.ByProvider = make(map[string]string, len(fallback.ByProvider))
-		for key, value := range fallback.ByProvider {
-			keys.ByProvider[key] = value
-		}
-	} else {
-		keys.ByProvider = make(map[string]string)
-	}
-	if fallback.BaseURLByProvider != nil {
-		keys.BaseURLByProvider = make(map[string]string, len(fallback.BaseURLByProvider))
-		for key, value := range fallback.BaseURLByProvider {
-			keys.BaseURLByProvider[key] = value
-		}
-	} else {
-		keys.BaseURLByProvider = make(map[string]string)
-	}
+	keys := cloneFallbackProviderAPIKeys(fallback)
 
 	normalizedProvider := NormalizeProvider(provider)
 	if normalizedProvider == "" {
@@ -568,6 +512,36 @@ func ProviderKeysFromConfig(
 	keys.BaseURLByProvider[normalizedProvider] = strings.TrimSpace(dbBaseURL)
 
 	return keys
+}
+
+func cloneFallbackProviderAPIKeys(fallback ProviderAPIKeys) ProviderAPIKeys {
+	return ProviderAPIKeys{
+		OpenAI:            fallback.OpenAI,
+		Anthropic:         fallback.Anthropic,
+		ByProvider:        cloneProviderValueMap(fallback.ByProvider),
+		BaseURLByProvider: cloneProviderValueMap(fallback.BaseURLByProvider),
+	}
+}
+
+func cloneProviderValueMap(values map[string]string) map[string]string {
+	if values == nil {
+		return map[string]string{}
+	}
+	return maps.Clone(values)
+}
+
+func normalizeProviderValueMap(values map[string]string) map[string]string {
+	normalized := make(map[string]string, len(values))
+	for provider, value := range values {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if trimmedValue := strings.TrimSpace(value); trimmedValue != "" {
+			normalized[normalizedProvider] = trimmedValue
+		}
+	}
+	return normalized
 }
 
 // NormalizeProvider canonicalizes a provider name.
