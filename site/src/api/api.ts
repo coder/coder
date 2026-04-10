@@ -145,7 +145,7 @@ export const watchWorkspace = (
 export const watchChat = (
 	chatId: string,
 	afterMessageId?: number,
-): OneWayWebSocketApi<TypesGen.ServerSentEvent> => {
+): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
@@ -161,7 +161,7 @@ export const watchChat = (
 	});
 };
 
-export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+export const watchChats = (): OneWayWebSocket<TypesGen.ChatWatchEvent> => {
 	const searchParams: Record<string, string> = {};
 	const token = API.getSessionToken();
 	if (token) {
