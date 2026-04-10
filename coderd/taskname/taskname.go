@@ -250,7 +250,7 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 	stream = stream.WithAccumulator(&acc)
 
 	if err := stream.Pipe(io.Discard); err != nil {
-		return TaskName{}, xerrors.Errorf("pipe data stream")
+		return TaskName{}, xerrors.Errorf("pipe data stream: %w", err)
 	}
 
 	if len(acc.Messages()) == 0 {
