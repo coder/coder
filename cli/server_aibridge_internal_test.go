@@ -46,10 +46,8 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 			"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-us",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-us",
 			"CODER_AIBRIDGE_PROVIDER_1_TYPE=anthropic",
 			"CODER_AIBRIDGE_PROVIDER_1_NAME=anthropic-eu",
-			"CODER_AIBRIDGE_PROVIDER_1_KEY=sk-ant-eu",
 			"CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://eu.api.anthropic.com/",
 		})
 		require.NoError(t, err)
@@ -63,7 +61,6 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-xxx",
 		})
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
@@ -75,9 +72,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 			"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-main",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant",
 			"CODER_AIBRIDGE_PROVIDER_1_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_1_KEY=sk-oai",
 			"CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot",
 			"CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-custom",
 			"CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://custom.copilot.com",
@@ -116,10 +111,8 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_1_TYPE=anthropic",
-			"CODER_AIBRIDGE_PROVIDER_1_KEY=sk-ant",
 			"CODER_AIBRIDGE_PROVIDER_1_NAME=second",
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-oai",
 			"CODER_AIBRIDGE_PROVIDER_0_NAME=first",
 		})
 		require.NoError(t, err)
@@ -193,10 +186,8 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		_, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 			"CODER_AIBRIDGE_PROVIDER_0_NAME=my-provider",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-1",
 			"CODER_AIBRIDGE_PROVIDER_1_TYPE=openai",
 			"CODER_AIBRIDGE_PROVIDER_1_NAME=my-provider",
-			"CODER_AIBRIDGE_PROVIDER_1_KEY=sk-2",
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "duplicate NAME")
@@ -206,9 +197,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		_, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-1",
 			"CODER_AIBRIDGE_PROVIDER_1_TYPE=anthropic",
-			"CODER_AIBRIDGE_PROVIDER_1_KEY=sk-2",
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "duplicate NAME")
@@ -218,7 +207,6 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		_, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-xxx",
 			"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-west-2",
 		})
 		require.Error(t, err)
@@ -246,12 +234,10 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		sink := testutil.NewFakeSink(t)
 		providers, err := ReadAIBridgeProvidersFromEnv(sink.Logger(), []string{
 			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-xxx",
 			"CODER_AIBRIDGE_PROVIDER_0_TPYE=openai",
 		})
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
-		assert.Equal(t, "sk-xxx", providers[0].Key)
 
 		warnings := sink.Entries(func(e slog.SinkEntry) bool {
 			return e.Message == "ignoring unknown aibridge provider field (check for typos)"
