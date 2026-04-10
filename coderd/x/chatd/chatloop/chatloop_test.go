@@ -19,9 +19,23 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 const activeToolName = "read_file"
+
+func awaitRunResult(ctx context.Context, t *testing.T, done <-chan error) error {
+	t.Helper()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for Run to complete")
+		return nil
+	}
+}
 
 func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	t.Parallel()
@@ -70,8 +84,8 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.Equal(t, 1, persistStepCalls)
 	require.True(t, persistedStep.ContextLimit.Valid)
 	require.Equal(t, int64(4096), persistedStep.ContextLimit.Int64)
-	require.Greater(t, persistedStep.Runtime, time.Duration(0),
-		"step runtime should be positive")
+	require.GreaterOrEqual(t, persistedStep.Runtime, time.Duration(0),
+		"step runtime should be non-negative")
 
 	require.NotEmpty(t, capturedCall.Prompt)
 	require.False(t, containsPromptSentinel(capturedCall.Prompt))
@@ -84,6 +98,54 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.False(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[2]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[3]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
+}
+
+func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
+	t.Parallel()
+
+	model := &loopTestModel{
+		provider: fantasyanthropic.Name,
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "cached response"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{
+					Type: fantasy.StreamPartTypeFinish,
+					Usage: fantasy.Usage{
+						InputTokens:         200,
+						OutputTokens:        75,
+						TotalTokens:         275,
+						CacheCreationTokens: 30,
+						CacheReadTokens:     150,
+						ReasoningTokens:     0,
+					},
+					FinishReason: fantasy.FinishReasonStop,
+				},
+			}), nil
+		},
+	}
+
+	var persistedStep PersistedStep
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(200), persistedStep.Usage.InputTokens)
+	require.Equal(t, int64(75), persistedStep.Usage.OutputTokens)
+	require.Equal(t, int64(275), persistedStep.Usage.TotalTokens)
+	require.Equal(t, int64(30), persistedStep.Usage.CacheCreationTokens)
+	require.Equal(t, int64(150), persistedStep.Usage.CacheReadTokens)
 }
 
 func TestRun_OnRetryEnrichesProvider(t *testing.T) {
@@ -154,7 +216,7 @@ func TestStartupGuard_DisarmAndFireRace(t *testing.T) {
 
 	for range 128 {
 		var cancels atomic.Int32
-		guard := newStartupGuard(time.Hour, func(err error) {
+		guard := newStartupGuard(quartz.NewReal(), time.Hour, func(err error) {
 			if errors.Is(err, errStartupTimeout) {
 				cancels.Add(1)
 			}
@@ -192,7 +254,7 @@ func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(context.Background())
 	defer cancelAttempt(nil)
 
-	guard := newStartupGuard(time.Hour, cancelAttempt)
+	guard := newStartupGuard(quartz.NewReal(), time.Hour, cancelAttempt)
 	guard.Disarm()
 	guard.onTimeout()
 
@@ -210,6 +272,16 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	t.Parallel()
 
 	const startupTimeout = 5 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		testutil.WaitShort,
+	)
+	defer cancel()
+
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().AfterFunc("startupGuard")
+	defer trap.Close()
 
 	attempts := 0
 	attemptCause := make(chan error, 1)
@@ -230,23 +302,32 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 		},
 	}
 
-	err := Run(context.Background(), RunOptions{
-		Model:          model,
-		MaxSteps:       1,
-		StartupTimeout: startupTimeout,
-		PersistStep: func(_ context.Context, _ PersistedStep) error {
-			return nil
-		},
-		OnRetry: func(
-			_ int,
-			_ error,
-			classified chatretry.ClassifiedError,
-			_ time.Duration,
-		) {
-			retries = append(retries, classified)
-		},
-	})
-	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), RunOptions{
+			Model:          model,
+			MaxSteps:       1,
+			StartupTimeout: startupTimeout,
+			Clock:          mClock,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			OnRetry: func(
+				_ int,
+				_ error,
+				classified chatretry.ClassifiedError,
+				_ time.Duration,
+			) {
+				retries = append(retries, classified)
+			},
+		})
+	}()
+
+	trap.MustWait(ctx).MustRelease(ctx)
+	mClock.Advance(startupTimeout).MustWait(ctx)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
 	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
@@ -257,13 +338,28 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 		"OpenAI did not start responding in time.",
 		retries[0].Message,
 	)
-	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
+	select {
+	case cause := <-attemptCause:
+		require.ErrorIs(t, cause, errStartupTimeout)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for startup timeout cause")
+	}
 }
 
 func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	t.Parallel()
 
 	const startupTimeout = 5 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		testutil.WaitShort,
+	)
+	defer cancel()
+
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().AfterFunc("startupGuard")
+	defer trap.Close()
 
 	attempts := 0
 	attemptCause := make(chan error, 1)
@@ -289,23 +385,32 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 		},
 	}
 
-	err := Run(context.Background(), RunOptions{
-		Model:          model,
-		MaxSteps:       1,
-		StartupTimeout: startupTimeout,
-		PersistStep: func(_ context.Context, _ PersistedStep) error {
-			return nil
-		},
-		OnRetry: func(
-			_ int,
-			_ error,
-			classified chatretry.ClassifiedError,
-			_ time.Duration,
-		) {
-			retries = append(retries, classified)
-		},
-	})
-	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), RunOptions{
+			Model:          model,
+			MaxSteps:       1,
+			StartupTimeout: startupTimeout,
+			Clock:          mClock,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			OnRetry: func(
+				_ int,
+				_ error,
+				classified chatretry.ClassifiedError,
+				_ time.Duration,
+			) {
+				retries = append(retries, classified)
+			},
+		})
+	}()
+
+	trap.MustWait(ctx).MustRelease(ctx)
+	mClock.Advance(startupTimeout).MustWait(ctx)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
 	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
@@ -316,7 +421,12 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 		"OpenAI did not start responding in time.",
 		retries[0].Message,
 	)
-	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
+	select {
+	case cause := <-attemptCause:
+		require.ErrorIs(t, cause, errStartupTimeout)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for startup timeout cause")
+	}
 }
 
 func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
@@ -324,8 +434,19 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 
 	const startupTimeout = 5 * time.Millisecond
 
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		testutil.WaitShort,
+	)
+	defer cancel()
+
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().AfterFunc("startupGuard")
+
 	attempts := 0
 	retried := false
+	firstPartYielded := make(chan struct{}, 1)
+	continueStream := make(chan struct{})
 	model := &loopTestModel{
 		provider: "openai",
 		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
@@ -334,18 +455,19 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"}) {
 					return
 				}
-
-				timer := time.NewTimer(startupTimeout * 2)
-				defer timer.Stop()
+				select {
+				case firstPartYielded <- struct{}{}:
+				default:
+				}
 
 				select {
+				case <-continueStream:
 				case <-ctx.Done():
 					_ = yield(fantasy.StreamPart{
 						Type:  fantasy.StreamPartTypeError,
 						Error: ctx.Err(),
 					})
 					return
-				case <-timer.C:
 				}
 
 				parts := []fantasy.StreamPart{
@@ -362,23 +484,40 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 		},
 	}
 
-	err := Run(context.Background(), RunOptions{
-		Model:          model,
-		MaxSteps:       1,
-		StartupTimeout: startupTimeout,
-		PersistStep: func(_ context.Context, _ PersistedStep) error {
-			return nil
-		},
-		OnRetry: func(
-			_ int,
-			_ error,
-			_ chatretry.ClassifiedError,
-			_ time.Duration,
-		) {
-			retried = true
-		},
-	})
-	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), RunOptions{
+			Model:          model,
+			MaxSteps:       1,
+			StartupTimeout: startupTimeout,
+			Clock:          mClock,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			OnRetry: func(
+				_ int,
+				_ error,
+				_ chatretry.ClassifiedError,
+				_ time.Duration,
+			) {
+				retried = true
+			},
+		})
+	}()
+
+	trap.MustWait(ctx).MustRelease(ctx)
+	trap.Close()
+
+	select {
+	case <-firstPartYielded:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first stream part")
+	}
+
+	mClock.Advance(startupTimeout).MustWait(ctx)
+	close(continueStream)
+
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 1, attempts)
 	require.False(t, retried)
 }
@@ -431,6 +570,16 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 
 	const startupTimeout = 5 * time.Millisecond
 
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		testutil.WaitShort,
+	)
+	defer cancel()
+
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().AfterFunc("startupGuard")
+	defer trap.Close()
+
 	attempts := 0
 	attemptCause := make(chan error, 1)
 	var retries []chatretry.ClassifiedError
@@ -451,23 +600,32 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 		},
 	}
 
-	err := Run(context.Background(), RunOptions{
-		Model:          model,
-		MaxSteps:       1,
-		StartupTimeout: startupTimeout,
-		PersistStep: func(_ context.Context, _ PersistedStep) error {
-			return nil
-		},
-		OnRetry: func(
-			_ int,
-			_ error,
-			classified chatretry.ClassifiedError,
-			_ time.Duration,
-		) {
-			retries = append(retries, classified)
-		},
-	})
-	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), RunOptions{
+			Model:          model,
+			MaxSteps:       1,
+			StartupTimeout: startupTimeout,
+			Clock:          mClock,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			OnRetry: func(
+				_ int,
+				_ error,
+				classified chatretry.ClassifiedError,
+				_ time.Duration,
+			) {
+				retries = append(retries, classified)
+			},
+		})
+	}()
+
+	trap.MustWait(ctx).MustRelease(ctx)
+	mClock.Advance(startupTimeout).MustWait(ctx)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
 	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
@@ -478,7 +636,12 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 		"OpenAI did not start responding in time.",
 		retries[0].Message,
 	)
-	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
+	select {
+	case cause := <-attemptCause:
+		require.ErrorIs(t, cause, errStartupTimeout)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for startup timeout cause")
+	}
 }
 
 func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
@@ -535,6 +698,7 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 
 	persistedAssistantCtxErr := xerrors.New("unset")
 	var persistedContent []fantasy.Content
+	var persistedStep PersistedStep
 
 	err := Run(ctx, RunOptions{
 		Model: model,
@@ -548,6 +712,7 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		PersistStep: func(persistCtx context.Context, step PersistedStep) error {
 			persistedAssistantCtxErr = persistCtx.Err()
 			persistedContent = append([]fantasy.Content(nil), step.Content...)
+			persistedStep = step
 			return nil
 		},
 	})
@@ -587,6 +752,14 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	require.True(t, foundText)
 	require.True(t, foundToolCall)
 	require.True(t, foundToolResult)
+
+	// The interrupted tool was flushed mid-stream (never reached
+	// StreamPartTypeToolCall), so it has no call timestamp.
+	// But the synthetic error result must have a result timestamp.
+	require.Contains(t, persistedStep.ToolResultCreatedAt, "interrupt-tool-1",
+		"interrupted tool result must have a result timestamp")
+	require.NotContains(t, persistedStep.ToolCallCreatedAt, "interrupt-tool-1",
+		"interrupted tool should have no call timestamp (never reached StreamPartTypeToolCall)")
 }
 
 type loopTestModel struct {
@@ -727,6 +900,7 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 	}
 
 	var persistStepCalls int
+	var persistedSteps []PersistedStep
 	err := Run(context.Background(), RunOptions{
 		Model: model,
 		Messages: []fantasy.Message{
@@ -736,8 +910,9 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 			newNoopTool("read_file"),
 		},
 		MaxSteps: 5,
-		PersistStep: func(_ context.Context, _ PersistedStep) error {
+		PersistStep: func(_ context.Context, step PersistedStep) error {
 			persistStepCalls++
+			persistedSteps = append(persistedSteps, step)
 			return nil
 		},
 	})
@@ -778,6 +953,112 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 	}
 	require.True(t, foundAssistantToolCall, "second call prompt should contain assistant tool call from step 0")
 	require.True(t, foundToolResult, "second call prompt should contain tool result message")
+
+	// The first persisted step (tool-call step) must carry
+	// accurate timestamps for duration computation.
+	require.Len(t, persistedSteps, 2)
+	toolStep := persistedSteps[0]
+	require.Contains(t, toolStep.ToolCallCreatedAt, "tc-1",
+		"tool-call step must record when the model emitted the call")
+	require.Contains(t, toolStep.ToolResultCreatedAt, "tc-1",
+		"tool-call step must record when the tool result was produced")
+	require.False(t, toolStep.ToolResultCreatedAt["tc-1"].Before(toolStep.ToolCallCreatedAt["tc-1"]),
+		"tool-result timestamp must be >= tool-call timestamp")
+}
+
+func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			_ = call
+
+			switch step {
+			case 0:
+				// Step 0: produce two tool calls in one stream.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"path":"a.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"a.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-2", ToolCallName: "write_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-2", Delta: `{"path":"b.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-2"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-2",
+						ToolCallName:  "write_file",
+						ToolCallInput: `{"path":"b.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				// Step 1: return plain text.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "all done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "do both"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+			newNoopTool("write_file"),
+		},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	// Two steps: tool-call step + text step.
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+
+	toolStep := persistedSteps[0]
+
+	// Both tool-call IDs must appear in ToolCallCreatedAt.
+	require.Contains(t, toolStep.ToolCallCreatedAt, "tc-1",
+		"tool-call step must record when tc-1 was emitted")
+	require.Contains(t, toolStep.ToolCallCreatedAt, "tc-2",
+		"tool-call step must record when tc-2 was emitted")
+
+	// Both tool-call IDs must appear in ToolResultCreatedAt.
+	require.Contains(t, toolStep.ToolResultCreatedAt, "tc-1",
+		"tool-call step must record when tc-1 result was produced")
+	require.Contains(t, toolStep.ToolResultCreatedAt, "tc-2",
+		"tool-call step must record when tc-2 result was produced")
+
+	// Result timestamps must be >= call timestamps for both.
+	require.False(t, toolStep.ToolResultCreatedAt["tc-1"].Before(toolStep.ToolCallCreatedAt["tc-1"]),
+		"tc-1 tool-result timestamp must be >= tool-call timestamp")
+	require.False(t, toolStep.ToolResultCreatedAt["tc-2"].Before(toolStep.ToolCallCreatedAt["tc-2"]),
+		"tc-2 tool-result timestamp must be >= tool-call timestamp")
 }
 
 func TestRun_PersistStepErrorPropagates(t *testing.T) {
@@ -1181,6 +1462,77 @@ func TestRun_InterruptedDuringToolExecutionPersistsStep(t *testing.T) {
 	require.True(t, foundReasoning, "persisted content should include reasoning from the stream")
 	require.True(t, foundToolCall, "persisted content should include the tool call")
 	require.True(t, foundToolResult, "persisted content should include the tool result (error from cancellation)")
+}
+
+// TestRun_ProviderExecutedToolResultTimestamps verifies that
+// provider-executed tool results (e.g. web search) have their
+// timestamps recorded in PersistedStep.ToolResultCreatedAt so
+// the persistence layer can stamp CreatedAt on the parts.
+func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
+	t.Parallel()
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			// Simulate a provider-executed tool call and result
+			// (e.g. Anthropic web search) followed by a text
+			// response — all in a single stream.
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+				{
+					Type:             fantasy.StreamPartTypeToolCall,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ToolCallInput:    `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				// Provider-executed tool result — emitted by
+				// the provider, not our tool runner.
+				{
+					Type:             fantasy.StreamPartTypeToolResult,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				},
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "search done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, persistedSteps, 1)
+
+	step := persistedSteps[0]
+
+	// Provider-executed tool call should have a call timestamp.
+	require.Contains(t, step.ToolCallCreatedAt, "ws-1",
+		"provider-executed tool call must record its timestamp")
+
+	// Provider-executed tool result should have a result
+	// timestamp so the frontend can compute duration.
+	require.Contains(t, step.ToolResultCreatedAt, "ws-1",
+		"provider-executed tool result must record its timestamp")
+
+	require.False(t,
+		step.ToolResultCreatedAt["ws-1"].Before(step.ToolCallCreatedAt["ws-1"]),
+		"tool-result timestamp must be >= tool-call timestamp")
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal

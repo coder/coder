@@ -11,6 +11,7 @@ import { API } from "#/api/api";
 import type {
 	UpdateTemplateMeta,
 	WorkspaceBuildParameter,
+	WorkspaceStatus,
 } from "#/api/typesGenerated";
 import { TarWriter } from "#/utils/tar";
 import {
@@ -423,7 +424,8 @@ export const startWorkspaceWithEphemeralParameters = async (
 	await page.getByTestId("workspace-parameters").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: "Update and restart" }).click();
+
+	await page.getByRole("button", { name: /update and start/i }).click();
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1177,6 +1179,7 @@ export const updateTemplateSettings = async (
 export const updateWorkspace = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1194,12 +1197,19 @@ export const updateWorkspace = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await page.getByRole("button", { name: /update and restart/i }).click();
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 };
 
 export const updateWorkspaceParameters = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1209,7 +1219,14 @@ export const updateWorkspaceParameters = async (
 	});
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: /update and restart/i }).click();
+
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",

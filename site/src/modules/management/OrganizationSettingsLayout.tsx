@@ -1,4 +1,3 @@
-import NotFoundPage from "pages/404Page/404Page";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
@@ -19,6 +18,7 @@ import {
 	canViewOrganization,
 	type OrganizationPermissions,
 } from "#/modules/permissions/organizations";
+import NotFoundPage from "#/pages/404Page/404Page";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined

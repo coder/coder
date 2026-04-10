@@ -1,5 +1,4 @@
 import type { Dayjs } from "dayjs";
-import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
 	MutationOptions,
 	QueryClient,
@@ -25,6 +24,7 @@ import type {
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "#/api/typesGenerated";
+import type { ConnectionStatus } from "#/modules/terminal/types";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
@@ -211,7 +211,7 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-function workspacesKey(req: WorkspacesRequest = {}) {
+export function workspacesKey(req: WorkspacesRequest = {}) {
 	return ["workspaces", req] as const;
 }
 

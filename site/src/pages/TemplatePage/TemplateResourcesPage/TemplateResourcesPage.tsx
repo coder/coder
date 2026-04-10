@@ -1,7 +1,7 @@
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 import { TemplateResourcesPageView } from "./TemplateResourcesPageView";
 

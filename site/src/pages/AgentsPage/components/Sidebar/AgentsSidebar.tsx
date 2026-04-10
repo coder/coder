@@ -16,12 +16,10 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
-	BarChart3Icon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
@@ -41,11 +39,11 @@ import {
 	PinIcon,
 	PinOffIcon,
 	SettingsIcon,
-	ShieldAlertIcon,
 	ShieldIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
+	WalletIcon,
 	WandSparklesIcon,
 } from "lucide-react";
 import {
@@ -53,10 +51,13 @@ import {
 	type FC,
 	useContext,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router";
+import { userChatProviderConfigs } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -65,8 +66,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-import type { ModelSelectorOption } from "#/components/ai-elements";
-import { asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -85,12 +84,15 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import type { ModelSelectorOption } from "../ChatElements";
+import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =
@@ -129,8 +131,7 @@ interface AgentsSidebarProps {
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
-	isRegeneratingTitle?: boolean;
-	regeneratingTitleChatId?: string | null;
+	regeneratingTitleChatIds: readonly string[];
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -148,6 +149,7 @@ const statusConfig = {
 	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	paused: { icon: PauseIcon, className: "text-content-warning" },
+	requires_action: { icon: PauseIcon, className: "text-content-warning" },
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
@@ -372,8 +374,7 @@ interface ChatTreeContextValue {
 	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
-	readonly isRegeneratingTitle: boolean;
-	readonly regeneratingTitleChatId: string | null;
+	readonly regeneratingTitleChatIds: readonly string[];
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
@@ -414,8 +415,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		activeChatId,
 		isArchiving,
 		archivingChatId,
-		isRegeneratingTitle,
-		regeneratingTitleChatId,
+		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -461,8 +461,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-	const isRegeneratingThisChat =
-		isRegeneratingTitle && regeneratingTitleChatId === chat.id;
+	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	return (
@@ -528,7 +527,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
-											chat.has_unread && !isActiveChat && "font-semibold",
 											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
 											isRegeneratingThisChat && "animate-pulse",
 										)}
@@ -601,7 +599,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
 									{!chat.archived && !isChildNode && (
 										<DropdownMenuItem
 											onSelect={() =>
@@ -634,7 +635,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
-												disabled={isRegeneratingTitle}
+												disabled={isRegeneratingThisChat}
 												onSelect={() => onRegenerateTitle(chat.id)}
 											>
 												<WandSparklesIcon className="h-3.5 w-3.5" />
@@ -745,8 +746,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
-		isRegeneratingTitle = false,
-		regeneratingTitleChatId = null,
+		regeneratingTitleChatIds,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -767,6 +767,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
+	const providerConfigsQuery = useQuery({
+		...userChatProviderConfigs(),
+		enabled: sidebarView.panel === "settings" && !isAdmin,
+	});
+	const isApiKeysSection =
+		sidebarView.panel === "settings" && sidebarView.section === "api-keys";
+	const showApiKeysItem =
+		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
@@ -857,9 +865,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	// The filter dropdown attaches to the first visible section
-	// header. When pinned chats exist, that's the Pinned header;
-	// otherwise it falls through to the first non-empty time group.
+	// Attach the archived filter to the first visible section header.
+	// When the list is empty, fall back to contextual empty-state links
+	// instead of a floating standalone icon.
 	const showFilterOnPinned = pinnedChats.length > 0;
 	const firstNonEmptyGroup = showFilterOnPinned
 		? undefined
@@ -888,7 +896,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<FilterIcon />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
+			<DropdownMenuContent
+				align="end"
+				className="[&_[role=menuitem]]:text-[13px]"
+			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
 					{archivedFilter === "active" && (
@@ -954,8 +965,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		activeChatId,
 		isArchiving,
 		archivingChatId,
-		isRegeneratingTitle,
-		regeneratingTitleChatId,
+		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -1069,15 +1079,19 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													? "No archived agents"
 													: "No agents yet"}
 										</p>
-										{archivedFilter === "archived" && (
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() => onArchivedFilterChange?.("active")}
-											>
-												← Back to active
-											</button>
-										)}
+										<button
+											type="button"
+											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+											onClick={() =>
+												onArchivedFilterChange?.(
+													archivedFilter === "archived" ? "active" : "archived",
+												)
+											}
+										>
+											{archivedFilter === "archived"
+												? "← Back to active"
+												: "View archived →"}
+										</button>
 									</div>
 								) : (
 									<div>
@@ -1217,7 +1231,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							asChild
 							variant="subtle"
 							size="icon"
-							aria-label="Back to chats"
+							aria-label="Back to Agents"
 							className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
 						>
 							<Link
@@ -1252,6 +1266,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							to="/agents/settings/behavior"
 							state={location.state}
 						/>
+						{showApiKeysItem && (
+							<SettingsNavItem
+								icon={KeyRoundIcon}
+								label="API Keys"
+								active={sidebarView.section === "api-keys"}
+								to="/agents/settings/api-keys"
+								state={location.state}
+							/>
+						)}
 						{isAdmin && (
 							<>
 								<SettingsNavItem
@@ -1279,24 +1302,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									adminOnly
 								/>
 								<SettingsNavItem
-									icon={ShieldAlertIcon}
-									label="Limits"
-									active={sidebarView.section === "limits"}
-									to="/agents/settings/limits"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={BarChart3Icon}
-									label="Usage"
-									active={sidebarView.section === "usage"}
-									to="/agents/settings/usage"
+									icon={WalletIcon}
+									label="Spend"
+									active={sidebarView.section === "spend"}
+									to="/agents/settings/spend"
 									state={location.state}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={WandSparklesIcon}
-									label="Analytics"
+									label="Insights"
 									active={sidebarView.section === "insights"}
 									to="/agents/settings/insights"
 									state={location.state}
@@ -1396,14 +1411,9 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreRef = useRef(onLoadMore);
-
-	// Keep the callback ref in sync so the observer closure
-	// always calls the latest onLoadMore without needing to
-	// tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
+	const onLoadMoreEvent = useEffectEvent(() => {
+		onLoadMore?.();
+	});
 
 	useEffect(() => {
 		// Don't observe while a fetch is in progress. When the
@@ -1419,8 +1429,8 @@ const LoadMoreSentinel: FC<{
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting && onLoadMoreRef.current) {
-					onLoadMoreRef.current();
+				if (entries[0]?.isIntersecting) {
+					onLoadMoreEvent();
 				}
 			},
 			{ threshold: 0 },

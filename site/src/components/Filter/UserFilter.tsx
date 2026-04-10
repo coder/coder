@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { API } from "#/api/api";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -7,6 +6,7 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
 export const DEFAULT_USER_FILTER_WIDTH = 175;

@@ -1,10 +1,8 @@
 import {
-	AlertTriangleIcon,
 	ArrowUpIcon,
 	Check,
 	CheckIcon,
 	ChevronRightIcon,
-	ClipboardPasteIcon,
 	ImageIcon,
 	MicIcon,
 	MonitorIcon,
@@ -22,18 +20,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "#/components/ai-elements";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "#/components/ChatMessageInput/ChatMessageInput";
 import {
 	Command,
 	CommandEmpty,
@@ -62,34 +53,26 @@ import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import {
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../utils/fetchTextAttachment";
 import { formatProviderLabel } from "../utils/modelOptions";
+import type { UploadState } from "./AttachmentPreview";
+import { AttachmentPreview } from "./AttachmentPreview";
+import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "./ChatMessageInput/ChatMessageInput";
+import type { AgentContextUsage } from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
-export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
-
-export type UploadState = {
-	status: "uploading" | "uploaded" | "error";
-	fileId?: string;
-	error?: string;
-};
-
-export interface AgentContextUsage {
-	readonly usedTokens?: number;
-	readonly contextLimitTokens?: number;
-	readonly inputTokens?: number;
-	readonly outputTokens?: number;
-	readonly cacheReadTokens?: number;
-	readonly cacheCreationTokens?: number;
-	readonly reasoningTokens?: number;
-	// Percentage (0–100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
-}
+export {
+	ImageThumbnail,
+	type UploadState,
+} from "./AttachmentPreview";
+export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
+export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
@@ -98,10 +81,19 @@ interface AgentChatInputProps {
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
-	// Initial text to seed the editor with.
+	// Initial text to seed the editor on first mount only.
 	initialValue?: string;
-	// Called on every text change inside the editor.
-	onContentChange?: (content: string) => void;
+	// Serialized Lexical editor state for restoring drafts with
+	// file-reference chips. Takes precedence over initialValue.
+	initialEditorState?: string;
+	// Monotonic counter to force editor remount.
+	remountKey?: number;
+	// Called on every content change inside the editor.
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	// Model selector.
 	selectedModel: string;
 	onModelChange: (value: string) => void;
@@ -155,311 +147,18 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	attachedWorkspace?: AttachedWorkspaceInfo;
 }
-const hasFiniteTokenValue = (value: number | undefined): value is number =>
-	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
-const formatTokenCount = (value: number | undefined): string =>
-	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
-
-const formatTokenCountCompact = (value: number | undefined): string => {
-	if (!hasFiniteTokenValue(value)) {
-		return "--";
-	}
-	if (value >= 1_000_000) {
-		const m = value / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
-	}
-	if (value >= 1_000) {
-		const k = value / 1_000;
-		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
-	}
-	return String(value);
-};
-
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
-	if (percentUsed === null) {
-		return "text-content-secondary/60";
-	}
-	if (percentUsed >= 95) {
-		return "text-content-destructive";
-	}
-	if (percentUsed >= 85) {
-		return "text-content-warning";
-	}
-	return "text-content-secondary/60";
-};
-
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
-	usage,
-}) => {
-	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
-		? usage.usedTokens
-		: undefined;
-	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
-		? usage.contextLimitTokens
-		: undefined;
-	const percentUsed =
-		usedTokens !== undefined &&
-		contextLimitTokens !== undefined &&
-		contextLimitTokens > 0
-			? (usedTokens / contextLimitTokens) * 100
-			: null;
-	const hasPercent = percentUsed !== null;
-	const percentLabel =
-		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-	const clampedPercent = hasPercent
-		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
-	const dashOffset =
-		RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
-		: "Context usage";
-
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					aria-label={ariaLabel}
-					className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
-				>
-					<svg
-						className={cn("size-icon-sm -rotate-90", toneClassName)}
-						viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-						aria-hidden
-					>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							className="stroke-content-secondary/25"
-						/>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							strokeLinecap="round"
-							className="stroke-current transition-all duration-300 ease-out"
-							style={{
-								strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-								strokeDashoffset: dashOffset,
-							}}
-						/>
-					</svg>
-				</button>
-			</TooltipTrigger>
-			<TooltipContent side="top">
-				<div className="text-xs text-content-primary">
-					{hasPercent
-						? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-						: "Context usage unavailable"}
-					{hasPercent &&
-						usage?.compressionThreshold !== undefined &&
-						usage.compressionThreshold > 0 && (
-							<div className="mt-1 text-content-secondary">
-								Compacts at {usage.compressionThreshold}%
-							</div>
-						)}
-				</div>
-			</TooltipContent>
-		</Tooltip>
-	);
-};
-
-/** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail: FC<{
-	previewUrl: string;
+export interface AttachedWorkspaceInfo {
 	name: string;
-	className?: string;
-}> = ({ previewUrl, name, className }) => (
-	<img
-		src={previewUrl}
-		alt={name}
-		className={cn(
-			"h-16 w-16 rounded-md border border-border-default object-cover",
-			className,
-		)}
-	/>
-);
-
-/** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview: FC<{
-	attachments: readonly File[];
-	onRemove: (attachment: number | File) => void;
-	uploadStates?: Map<File, UploadState>;
-	previewUrls?: Map<File, string>;
-	onPreview?: (url: string) => void;
-	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
-	onInlineText?: (file: File, content?: string) => void;
-}> = ({
-	attachments,
-	onRemove,
-	uploadStates,
-	previewUrls,
-	onPreview,
-	textContents,
-	onTextPreview,
-	onInlineText,
-}) => {
-	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => textAttachmentLoadControllerRef.current?.abort();
-	}, []);
-
-	if (attachments.length === 0) return null;
-
-	const loadTextAttachmentContent = async (
-		content: string | undefined,
-		fileId: string | undefined,
-	): Promise<string | undefined> => {
-		textAttachmentLoadControllerRef.current?.abort();
-		if (content !== undefined || !fileId) {
-			textAttachmentLoadControllerRef.current = null;
-			return content;
-		}
-		const controller = new AbortController();
-		textAttachmentLoadControllerRef.current = controller;
-		try {
-			const fetchedContent = await fetchTextAttachmentContent(
-				fileId,
-				controller.signal,
-			);
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			return fetchedContent;
-		} catch (err) {
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			if (err instanceof Error && err.name === "AbortError") {
-				return undefined;
-			}
-			console.error("Failed to load text attachment:", err);
-			return undefined;
-		}
-	};
-
-	return (
-		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
-			{attachments.map((file, index) => {
-				const uploadState = uploadStates?.get(file);
-				const previewUrl = previewUrls?.get(file) ?? "";
-				const textContent = textContents?.get(file);
-				const textFileId =
-					uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
-				const hasTextAttachment =
-					file.type === "text/plain" &&
-					(textContent !== undefined || textFileId !== undefined);
-				return (
-					<div
-						// Key combines file metadata with index as a fallback for
-						// duplicate names. Acceptable for a small, append-only list.
-						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-						className="group relative"
-					>
-						{file.type.startsWith("image/") && previewUrl ? (
-							<button
-								type="button"
-								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-								onClick={() => onPreview?.(previewUrl)}
-							>
-								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
-							</button>
-						) : hasTextAttachment ? (
-							<button
-								type="button"
-								aria-label="View text attachment"
-								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									if (nextContent !== undefined) {
-										onTextPreview?.(nextContent, file.name);
-									}
-								}}
-							>
-								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{formatTextAttachmentPreview(textContent ?? "")}
-								</span>
-							</button>
-						) : (
-							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
-								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
-							</div>
-						)}
-						{hasTextAttachment && (
-							<button
-								type="button"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									onInlineText?.(file, nextContent);
-								}}
-								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label="Paste inline"
-							>
-								<ClipboardPasteIcon className="h-3.5 w-3.5" />
-							</button>
-						)}
-						{uploadState?.status === "uploading" && (
-							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-								<Spinner className="h-5 w-5 text-white" loading />
-							</div>
-						)}
-						{uploadState?.status === "error" && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div
-										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
-										role="img"
-										aria-label="Upload error"
-									>
-										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
-									</div>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									<p className="max-w-xs text-xs">
-										{uploadState.error ?? "Upload failed"}
-									</p>
-								</TooltipContent>
-							</Tooltip>
-						)}
-						<button
-							type="button"
-							onClick={() => onRemove(file)}
-							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-							aria-label={`Remove ${file.name}`}
-						>
-							<XIcon className="h-3.5 w-3.5" />
-						</button>
-					</div>
-				);
-			})}
-		</div>
-	);
-};
-
+	route: string;
+	statusIcon: React.ReactNode;
+	statusLabel: string;
+}
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
+	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
 const ToolBadge: FC<{
@@ -472,6 +171,28 @@ const ToolBadge: FC<{
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
+
+	if (badge.kind === "attached-workspace") {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Link
+						to={badge.route}
+						target="_blank"
+						rel="noreferrer"
+						className={cn(
+							badgeCls,
+							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						)}
+					>
+						{badge.statusIcon}
+						{badge.name}
+					</Link>
+				</TooltipTrigger>
+				<TooltipContent>{badge.statusLabel}</TooltipContent>
+			</Tooltip>
+		);
+	}
 
 	if (badge.kind === "workspace") {
 		return (
@@ -526,6 +247,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	isLoading,
 	inputRef,
 	initialValue,
+	initialEditorState,
+	remountKey,
 	onContentChange,
 	selectedModel,
 	onModelChange,
@@ -561,6 +284,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	attachedWorkspace,
 }) => {
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -669,6 +393,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
+	if (attachedWorkspace) {
+		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
+	}
 	if (selectedWorkspace && onWorkspaceChange) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
@@ -753,11 +480,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		countInvisibleCharacters(initialValue ?? ""),
 	);
 
-	const handleContentChange = (content: string, hasRefs: boolean) => {
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasRefs: boolean,
+	) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content);
+		onContentChange?.(content, serializedEditorState, hasRefs);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -973,6 +704,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
+					initialEditorState={initialEditorState}
+					remountKey={remountKey}
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
@@ -991,9 +724,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{invisibleCharCount > 0 && (
 					<div className="px-3 pb-1">
 						<Alert severity="warning">
-							This message contains {invisibleCharCount} invisible Unicode
-							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
-							content. Review carefully before sending.
+							<AlertDescription>
+								This message contains {invisibleCharCount} invisible Unicode
+								character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+								content. Review carefully before sending.
+							</AlertDescription>
 						</Alert>
 					</div>
 				)}
@@ -1038,7 +773,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}}
 										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 									>
-										<ImageIcon className="h-3.5 w-3.5 shrink-0" />
+										<ImageIcon className="size-3.5 shrink-0" />
 										Attach image
 									</button>
 								)}
@@ -1053,7 +788,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												disabled={isDisabled || isWorkspaceLoading}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="h-3.5 w-3.5 shrink-0" />
+												<MonitorIcon className="size-3.5 shrink-0" />
 												<span>Attach workspace</span>
 												<ChevronRightIcon
 													className={cn(
@@ -1116,18 +851,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											return (
 												<div
 													key={server.id}
-													className="flex items-center gap-2 px-2 py-1.5"
+													className="flex items-center gap-1.5 px-1 py-1.5"
 												>
 													{server.icon_url ? (
 														<ExternalImage
 															src={server.icon_url}
 															alt=""
-															className="size-4 shrink-0 rounded-sm"
+															className="size-3.5 shrink-0 rounded-sm"
 														/>
 													) : (
-														<ServerIcon className="size-4 shrink-0 text-content-secondary" />
+														<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
 													)}
-													<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
+													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 														{server.display_name}
 													</span>
 													{needsAuth ? (
@@ -1145,6 +880,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														</Button>
 													) : (
 														<Switch
+															size="sm"
 															checked={isSelected}
 															onCheckedChange={(checked) =>
 																handleMcpToggle(server.id, checked)
@@ -1188,7 +924,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (
 									<ToolBadge
-										key={badge.kind === "workspace" ? "ws" : badge.server.id}
+										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
 										badge={badge}
 										onRemoveWorkspace={handleRemoveWorkspace}
 										onRemoveMcp={handleRemoveMcp}
@@ -1225,9 +961,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									{overflowBadges.map((badge) => (
 										<ToolBadge
 											key={
-												badge.kind === "workspace"
-													? "ws-overflow"
-													: badge.server.id
+												badge.kind === "mcp"
+													? badge.server.id
+													: `${badge.kind}-overflow`
 											}
 											badge={badge}
 											onRemoveWorkspace={handleRemoveWorkspace}

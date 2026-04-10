@@ -1,6 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
-import { asNumber, asString } from "#/components/ai-elements/runtimeTypeUtils";
+import type { ModelSelectorOption } from "../components/ChatElements";
+import {
+	asNumber,
+	asString,
+} from "../components/ChatElements/runtimeTypeUtils";
 
 type RuntimeModelRef = {
 	readonly provider?: unknown;
@@ -77,6 +80,17 @@ export const hasConfiguredModelsInCatalog = (
 	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
+};
+
+export const hasUserFixableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	if (!catalog?.providers) {
+		return false;
+	}
+	return catalog.providers.some(
+		(provider) => provider.unavailable_reason === "user_api_key_required",
+	);
 };
 
 const getAvailableProviders = (
@@ -202,6 +216,7 @@ export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
 	hasConfiguredModels: boolean,
+	catalog?: TypesGen.ChatModelsResponse | null,
 ): string => {
 	if (modelOptions.length > 0) {
 		return "Select model";
@@ -210,7 +225,9 @@ export const getModelSelectorPlaceholder = (
 		return "Loading models...";
 	}
 	if (hasConfiguredModels) {
-		return "No Models Available";
+		return hasUserFixableProviders(catalog)
+			? "Configure API Keys"
+			: "No Models Available";
 	}
 	return "No Models Configured";
 };

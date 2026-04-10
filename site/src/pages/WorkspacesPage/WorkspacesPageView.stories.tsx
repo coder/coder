@@ -195,6 +195,13 @@ export const AllStates: Story = {
 	},
 };
 
+export const Loading: Story = {
+	args: {
+		workspaces: undefined,
+		count: undefined,
+	},
+};
+
 export const AllStatesWithFavorites: Story = {
 	args: {
 		workspaces: allWorkspaces.map((workspace, i) => ({

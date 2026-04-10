@@ -1,17 +1,17 @@
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { TableCell, TableRow } from "components/Table/Table";
+import { ChevronRightIcon } from "lucide-react";
+import type { FC } from "react";
+import type { AIBridgeSession } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ChevronRightIcon } from "lucide-react";
-import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
-import type { FC } from "react";
-import type { AIBridgeSession } from "#/api/typesGenerated";
+} from "#/components/Tooltip/Tooltip";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
+import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName, getProviderIconName } from "../utils";
@@ -33,14 +33,15 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				onClick?.();
 			}}
 		>
-			<TableCell className="max-w-32 flex-1 overflow-auto">
+			<TableCell className="max-w-32 flex-1 overflow-auto font-normal">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<p className="truncate">{session.last_prompt}</p>
 						</TooltipTrigger>
-						<TooltipContent className="max-w-64">
-							{session.last_prompt}
+						<TooltipContent className="max-w-64" side="top" align="start">
+							<div className="font-bold">Last prompt</div>
+							<div>{session.last_prompt}</div>
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
@@ -54,7 +55,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 							size="lg"
 							className="flex-shrink-0"
 						/>
-						<div className="font-medium truncate min-w-0 flex-1 overflow-hidden">
+						<div className="font-normal truncate min-w-0 flex-1 overflow-hidden">
 							{session.initiator.name ?? session.initiator.username}
 						</div>
 					</div>
@@ -103,7 +104,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 					{session.threads}
 				</Badge>
 			</TableCell>
-			<TableCell className="w-48 whitespace-nowrap">
+			<TableCell className="w-48 whitespace-nowrap font-normal">
 				<div className="flex items-center justify-between">
 					<span>
 						{formatDateTime(

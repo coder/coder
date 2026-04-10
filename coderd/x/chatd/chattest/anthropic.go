@@ -53,8 +53,10 @@ type AnthropicMessage struct {
 
 // AnthropicUsage represents usage information in an Anthropic response.
 type AnthropicUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 }
 
 // AnthropicChunk represents a streaming chunk from Anthropic.
@@ -67,14 +69,16 @@ type AnthropicChunk struct {
 	StopReason   string                `json:"stop_reason,omitempty"`
 	StopSequence *string               `json:"stop_sequence,omitempty"`
 	Usage        AnthropicUsage        `json:"usage,omitempty"`
+	UsageMap     map[string]int        `json:"-"`
 }
 
 // AnthropicChunkMessage represents message metadata in a chunk.
 type AnthropicChunkMessage struct {
-	ID    string `json:"id"`
-	Type  string `json:"type"`
-	Role  string `json:"role"`
-	Model string `json:"model"`
+	ID    string         `json:"id"`
+	Type  string         `json:"type"`
+	Role  string         `json:"role"`
+	Model string         `json:"model"`
+	Usage map[string]int `json:"usage,omitempty"`
 }
 
 // AnthropicContentBlock represents a content block in a chunk.
@@ -206,7 +210,11 @@ func (s *anthropicServer) writeStreamingResponse(w http.ResponseWriter, chunks <
 				"stop_reason":   chunk.StopReason,
 				"stop_sequence": chunk.StopSequence,
 			}
-			chunkData["usage"] = chunk.Usage
+			if chunk.UsageMap != nil {
+				chunkData["usage"] = chunk.UsageMap
+			} else {
+				chunkData["usage"] = chunk.Usage
+			}
 		case "message_stop":
 			// No additional fields
 		}
@@ -332,6 +340,80 @@ func AnthropicTextChunks(deltas ...string) []AnthropicChunk {
 			Usage: AnthropicUsage{
 				InputTokens:  10,
 				OutputTokens: 5,
+			},
+		},
+		AnthropicChunk{
+			Type: "message_stop",
+		},
+	)
+
+	return chunks
+}
+
+// AnthropicTextChunksWithCacheUsage creates a streaming response with text
+// deltas and explicit cache token usage. The message_start event carries
+// the initial input and cache token counts, and the final message_delta
+// carries the output token count.
+func AnthropicTextChunksWithCacheUsage(usage AnthropicUsage, deltas ...string) []AnthropicChunk {
+	if len(deltas) == 0 {
+		return nil
+	}
+
+	messageID := fmt.Sprintf("msg-%s", uuid.New().String()[:8])
+	model := "claude-3-opus-20240229"
+
+	messageUsage := map[string]int{
+		"input_tokens": usage.InputTokens,
+	}
+	if usage.CacheCreationInputTokens != 0 {
+		messageUsage["cache_creation_input_tokens"] = usage.CacheCreationInputTokens
+	}
+	if usage.CacheReadInputTokens != 0 {
+		messageUsage["cache_read_input_tokens"] = usage.CacheReadInputTokens
+	}
+
+	chunks := []AnthropicChunk{
+		{
+			Type: "message_start",
+			Message: AnthropicChunkMessage{
+				ID:    messageID,
+				Type:  "message",
+				Role:  "assistant",
+				Model: model,
+				Usage: messageUsage,
+			},
+		},
+		{
+			Type:  "content_block_start",
+			Index: 0,
+			ContentBlock: AnthropicContentBlock{
+				Type: "text",
+				Text: "",
+			},
+		},
+	}
+
+	for _, delta := range deltas {
+		chunks = append(chunks, AnthropicChunk{
+			Type:  "content_block_delta",
+			Index: 0,
+			Delta: AnthropicDeltaBlock{
+				Type: "text_delta",
+				Text: delta,
+			},
+		})
+	}
+
+	chunks = append(chunks,
+		AnthropicChunk{
+			Type:  "content_block_stop",
+			Index: 0,
+		},
+		AnthropicChunk{
+			Type:       "message_delta",
+			StopReason: "end_turn",
+			UsageMap: map[string]int{
+				"output_tokens": usage.OutputTokens,
 			},
 		},
 		AnthropicChunk{

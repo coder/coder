@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import {
 	createContext,
 	type FC,
@@ -14,7 +13,8 @@ import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
-import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
 	type WorkspacePermissions,
@@ -92,7 +92,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				me.id,
 			),
 		}),
-		enabled: !!data,
+		enabled: Boolean(data),
 	});
 
 	const location = useLocation();
@@ -135,9 +135,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				}}
 			/>
 
-			<Tabs active={activeTab} className="mb-10 -mt-3">
+			<LinkTabs active={activeTab} className="mb-10 -mt-3">
 				<Margins>
-					<TabsList>
+					<LinkTabsList>
 						<TabLink to="docs" value="docs">
 							Docs
 						</TabLink>
@@ -166,9 +166,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 									Prebuilds
 								</TabLink>
 							)}
-					</TabsList>
+					</LinkTabsList>
 				</Margins>
-			</Tabs>
+			</LinkTabs>
 
 			<Margins>
 				<TemplateLayoutContext.Provider value={data}>

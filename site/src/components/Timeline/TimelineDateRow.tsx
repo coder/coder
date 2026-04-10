@@ -1,4 +1,3 @@
-import { css, useTheme } from "@emotion/react";
 import type { FC } from "react";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { formatDate } from "#/utils/time";
@@ -9,25 +8,10 @@ export interface TimelineDateRow {
 }
 
 export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
-	const theme = useTheme();
-
 	return (
-		<TableRow
-			css={css`
-				&:not(:first-of-type) td {
-					border-top: 1px solid ${theme.palette.divider};
-				}
-			`}
-		>
+		<TableRow className="[&:not(:first-of-type)_td]:border-t [&:not(:first-of-type)_td]:border-border">
 			<TableCell
-				css={{
-					padding: "8px 32px !important",
-					background: `${theme.palette.background.paper} !important`,
-					fontSize: 12,
-					position: "relative",
-					color: theme.palette.text.secondary,
-					textTransform: "capitalize",
-				}}
+				className="!py-2 !px-8 !bg-surface-primary text-xs relative text-content-secondary capitalize"
 				title={formatDate(date)}
 			>
 				{createDisplayDate(date)}

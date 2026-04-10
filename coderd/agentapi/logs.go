@@ -77,8 +77,9 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
-		output = append(output, logEntry.Output)
-		outputLength += len(logEntry.Output)
+		sanitizedOutput := agentsdk.SanitizeLogOutput(logEntry.Output)
+		output = append(output, sanitizedOutput)
+		outputLength += len(sanitizedOutput)
 
 		var dbLevel database.LogLevel
 		switch logEntry.Level {

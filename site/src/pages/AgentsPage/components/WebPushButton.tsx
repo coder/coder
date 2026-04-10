@@ -1,4 +1,3 @@
-import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import type { FC } from "react";
 import { toast } from "sonner";
@@ -10,6 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 
 export const WebPushButton: FC = () => {
 	const webPush = useWebpushNotifications();

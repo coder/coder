@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -12,11 +11,12 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
-	cancelChatListQueries,
+	cancelChatListRefetches,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
+	chatsByWorkspaceKeyPrefix,
 	infiniteChats,
 	invalidateChatListQueries,
 	pinChat,
@@ -30,18 +30,21 @@ import {
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
-import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import {
+	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
+import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 import {
 	type ChatDetailError,
@@ -152,6 +155,43 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const [chatErrorReasons, setChatErrorReasons] = useState<
+		Record<string, ChatDetailError>
+	>({});
+	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
+		const trimmedMessage = reason.message.trim();
+		if (!chatId || !trimmedMessage) {
+			return;
+		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
+		setChatErrorReasons((current) => {
+			const existing = current[chatId];
+			if (chatDetailErrorsEqual(existing, nextReason)) {
+				return current;
+			}
+			return {
+				...current,
+				[chatId]: nextReason,
+			};
+		});
+	};
+	const clearChatErrorReason = (chatId: string) => {
+		if (!chatId) {
+			return;
+		}
+		setChatErrorReasons((current) => {
+			if (!(chatId in current)) {
+				return current;
+			}
+			const next = { ...current };
+			delete next[chatId];
+			return next;
+		});
+	};
+
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
@@ -164,17 +204,19 @@ const AgentsPage: FC = () => {
 		},
 	});
 	const archiveAndDeleteMutation = useMutation({
-		mutationFn: async ({
+		mutationFn: ({
 			chatId,
 			workspaceId,
 		}: {
 			chatId: string;
 			workspaceId: string;
-		}) => {
-			await API.experimental.updateChat(chatId, { archived: true });
-			await API.deleteWorkspace(workspaceId);
-			return { chatId, workspaceId };
-		},
+		}) =>
+			archiveChatAndDeleteWorkspace(
+				chatId,
+				workspaceId,
+				(id) => API.experimental.updateChat(id, { archived: true }),
+				(id) => API.deleteWorkspace(id),
+			),
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
 			await invalidateChatListQueries(queryClient);
@@ -182,11 +224,19 @@ const AgentsPage: FC = () => {
 				queryKey: chatKey(chatId),
 				exact: true,
 			});
+			await queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
+			});
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
+			toast.error(
+				getErrorMessage(error, "Failed to archive and delete workspace."),
+			);
 		},
 	});
+	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
+		string | null
+	>(null);
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
 		chatId: string;
 		workspaceId: string;
@@ -227,47 +277,15 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
+	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
+		readonly string[]
+	>([]);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, ChatDetailError>
-	>({});
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
-		if (!chatId || !trimmedMessage) {
-			return;
-		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
-		setChatErrorReasons((current) => {
-			const existing = current[chatId];
-			if (chatDetailErrorsEqual(existing, nextReason)) {
-				return current;
-			}
-			return {
-				...current,
-				[chatId]: nextReason,
-			};
-		});
-	};
-	const clearChatErrorReason = (chatId: string) => {
-		if (!chatId) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (!(chatId in current)) {
-				return current;
-			}
-			const next = { ...current };
-			delete next[chatId];
-			return next;
-		});
-	};
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -278,11 +296,57 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
+	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
+		chat?.status === "pending" || chat?.status === "running";
 	const requestArchiveAgent = (chatId: string) => {
-		if (!isArchiving) {
-			archiveAgentMutation.mutate(chatId);
+		if (isArchiving) {
+			return;
+		}
+		const chat =
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
+			chatList.find((candidate) => candidate.id === chatId);
+		if (chat === undefined || isActiveChat(chat)) {
+			setPendingArchiveChatId(chatId);
+			return;
+		}
+		archiveAgentMutation.mutate(chatId);
+	};
+	const handleConfirmArchiveAgent = () => {
+		if (!pendingArchiveChatId || isArchiving) {
+			return;
+		}
+		archiveAgentMutation.mutate(pendingArchiveChatId, {
+			onSettled: () => {
+				setPendingArchiveChatId(null);
+			},
+		});
+	};
+
+	// Track the active chat ID in a ref so the watchChats
+	// WebSocket handler can read it without re-subscribing
+	// on every navigation.
+	const activeChatIDRef = useRef(agentId);
+	const navigateAfterArchive = (archivedChatId: string) => {
+		const activeChatId = activeChatIDRef.current;
+		if (
+			shouldNavigateAfterArchive(
+				activeChatId,
+				archivedChatId,
+				// Read root_chat_id from the per-chat cache, which
+				// survives WebSocket eviction of sub-agents (only the
+				// parent's chatKey is removed). This must be read at
+				// callback time so it reflects the user's current
+				// location.
+				activeChatId
+					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+							?.root_chat_id
+					: undefined,
+			)
+		) {
+			navigate("/agents");
 		}
 	};
+
 	const requestArchiveAndDeleteWorkspace = async (
 		chatId: string,
 		workspaceId: string,
@@ -302,33 +366,32 @@ const AgentsPage: FC = () => {
 					{ chatId, workspaceId },
 					{
 						onSettled: () => {
-							const activeChatId = activeChatIDRef.current;
-							if (
-								shouldNavigateAfterArchive(
-									activeChatId,
-									chatId,
-									// Read root_chat_id from the per-chat
-									// cache, which survives WebSocket eviction
-									// of sub-agents (only the parent's chatKey
-									// is removed). Must be read at settle time
-									// so it reflects the user's current location.
-									activeChatId
-										? queryClient.getQueryData<TypesGen.Chat>(
-												chatKey(activeChatId),
-											)?.root_chat_id
-										: undefined,
-								)
-							) {
-								navigate("/agents");
-							}
+							navigateAfterArchive(chatId);
 						},
 					},
 				);
+			} else if (action === "archive-only") {
+				// The workspace is already gone (404), so we skip the
+				// running-agent confirmation dialog. That dialog warns
+				// about interrupting a live workspace, which is moot
+				// when the workspace no longer exists.
+				archiveAgentMutation.mutate(chatId, {
+					// Navigate only on success. The proceed/confirm paths
+					// use onSettled because their pre-existing behavior
+					// navigates regardless of delete outcome. This path
+					// has no delete step, so a failed archive should not
+					// redirect the user.
+					onSuccess: () => {
+						navigateAfterArchive(chatId);
+					},
+				});
 			} else {
 				setPendingArchiveAndDelete({ chatId, workspaceId });
 			}
-		} catch {
-			toast.error("Failed to look up workspace for deletion.");
+		} catch (error) {
+			toast.error(
+				getErrorMessage(error, "Failed to look up workspace for deletion."),
+			);
 		}
 	};
 	const handleConfirmArchiveAndDelete = () => {
@@ -337,19 +400,7 @@ const AgentsPage: FC = () => {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
-					const activeChatId = activeChatIDRef.current;
-					if (
-						shouldNavigateAfterArchive(
-							activeChatId,
-							archivedChatId,
-							activeChatId
-								? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
-										?.root_chat_id
-								: undefined,
-						)
-					) {
-						navigate("/agents");
-					}
+					navigateAfterArchive(archivedChatId);
 				},
 			});
 		}
@@ -366,11 +417,37 @@ const AgentsPage: FC = () => {
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		if (regenerateTitleMutation.isPending) {
+	const addRegeneratingTitleChatId = (chatId: string) => {
+		if (!chatId || regeneratingTitleChatIdsRef.current.has(chatId)) {
+			return false;
+		}
+		const next = new Set(regeneratingTitleChatIdsRef.current);
+		next.add(chatId);
+		regeneratingTitleChatIdsRef.current = next;
+		setRegeneratingTitleChatIds(Array.from(next));
+		return true;
+	};
+	const removeRegeneratingTitleChatId = (chatId: string) => {
+		if (!regeneratingTitleChatIdsRef.current.has(chatId)) {
 			return;
 		}
-		regenerateTitleMutation.mutate(chatId);
+		const next = new Set(regeneratingTitleChatIdsRef.current);
+		next.delete(chatId);
+		regeneratingTitleChatIdsRef.current = next;
+		setRegeneratingTitleChatIds(Array.from(next));
+	};
+	const requestRegenerateTitle = (chatId: string) => {
+		if (!addRegeneratingTitleChatId(chatId)) {
+			return;
+		}
+		void regenerateTitleMutation
+			.mutateAsync(chatId)
+			.catch(() => {
+				// The shared mutation onError already reports the failure.
+			})
+			.finally(() => {
+				removeRegeneratingTitleChatId(chatId);
+			});
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -385,10 +462,6 @@ const AgentsPage: FC = () => {
 		navigate("/agents");
 	};
 
-	// Track the active chat ID in a ref so the watchChats
-	// WebSocket handler can read it without re-subscribing on
-	// every navigation.
-	const activeChatIDRef = useRef(agentId);
 	useEffect(() => {
 		activeChatIDRef.current = agentId;
 	});
@@ -489,11 +562,11 @@ const AgentsPage: FC = () => {
 					// the refetch may have been issued before the async
 					// title generation finished, so its response carries
 					// the fallback title.
-					void cancelChatListQueries(queryClient);
+					void cancelChatListRefetches(queryClient);
 					// Only cancel a per-chat refetch when the cache
 					// already has data. Cancelling a first-time fetch
 					// reverts the query to pending/idle with no data
-					// and no retry, which AgentDetail shows as
+					// and no retry, which AgentChatPage shows as
 					// "Chat not found".
 					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
 						void queryClient.cancelQueries({
@@ -568,7 +641,7 @@ const AgentsPage: FC = () => {
 							// Only create a new object if a field actually
 							// changed. Returning the same reference prevents
 							// react-query from notifying subscribers, avoiding
-							// unnecessary re-renders of AgentDetail during
+							// unnecessary re-renders of AgentChatPage during
 							// streaming when repeated status_change events
 							// carry the same "running" status.
 							const nextStatus = isStatusEvent
@@ -660,8 +733,7 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
-				isRegeneratingTitle={regenerateTitleMutation.isPending}
-				regeneratingTitleChatId={regenerateTitleMutation.variables ?? null}
+				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
@@ -669,6 +741,16 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
+			/>
+			<ConfirmDialog
+				open={pendingArchiveChatId !== null}
+				onClose={() => setPendingArchiveChatId(null)}
+				onConfirm={handleConfirmArchiveAgent}
+				type="delete"
+				confirmText="Archive"
+				confirmLoading={archiveAgentMutation.isPending}
+				title="Archive agent?"
+				description="This agent is currently running. Archiving it will interrupt the current run."
 			/>
 			<DeleteDialog
 				key={pendingWorkspaceName}

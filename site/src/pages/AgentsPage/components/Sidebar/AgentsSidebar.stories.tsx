@@ -1,14 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import type { ModelSelectorOption } from "../ChatElements";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -62,6 +63,15 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+const settingsRouting = [
+	{ path: "/agents/settings/:section", useStoryElement: true },
+	{ path: "/agents/settings", useStoryElement: true },
+	...agentsRouting,
+] satisfies [
+	{ path: string; useStoryElement: boolean },
+	...{ path: string; useStoryElement: boolean }[],
+];
+
 const meta: Meta<typeof AgentsSidebar> = {
 	title: "pages/AgentsPage/AgentsSidebar",
 	component: AgentsSidebar,
@@ -78,8 +88,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onRegenerateTitle: fn(),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
-		isRegeneratingTitle: false,
-		regeneratingTitleChatId: null,
+		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 	},
@@ -324,6 +333,64 @@ export const ActiveChatAncestryExpanded: Story = {
 // Use a fixed offset so the value always falls in the "Today" bucket
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
+
+export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "regenerating-chat",
+				title: "Regenerating agent",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-chat",
+				title: "Idle agent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		regeneratingTitleChatIds: ["regenerating-chat"],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
+			"aria-busy",
+			"true",
+		);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Regenerating agent",
+			}),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Generate new title" }),
+		).toHaveAttribute("data-disabled");
+
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitem", { name: "Generate new title" }),
+			).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Idle agent",
+			}),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Generate new title" }),
+		).not.toHaveAttribute("data-disabled");
+	},
+};
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {
@@ -978,5 +1045,53 @@ export const FilterOnTimeGroupNoPins: Story = {
 			expect(canvas.getByText("Today")).toBeInTheDocument();
 			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 		});
+	},
+};
+
+export const SettingsAPIKeysAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/api-keys" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("API Keys")).toBeInTheDocument();
+	},
+};
+
+export const SettingsAPIKeysNonAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [
+					{
+						provider_id: "prov-1",
+						provider: "openai",
+						display_name: "OpenAI",
+						has_user_api_key: false,
+						has_central_api_key_fallback: false,
+					},
+				],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/api-keys" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("API Keys")).toBeInTheDocument();
 	},
 };

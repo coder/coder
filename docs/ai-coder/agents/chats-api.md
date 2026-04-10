@@ -39,13 +39,22 @@ The response is the newly created `Chat` object:
   "id": "a1b2c3d4-...",
   "owner_id": "...",
   "workspace_id": null,
+  "build_id": null,
+  "agent_id": null,
+  "parent_chat_id": null,
+  "root_chat_id": null,
   "last_model_config_id": "...",
   "title": "hello world",
   "status": "waiting",
   "last_error": null,
+  "diff_status": null,
   "created_at": "2025-07-17T00:00:00Z",
   "updated_at": "2025-07-17T00:00:00Z",
-  "archived": false
+  "archived": false,
+  "pin_order": 0,
+  "mcp_server_ids": [],
+  "labels": {},
+  "has_unread": false
 }
 ```
 
@@ -70,11 +79,13 @@ A typical integration follows three steps:
 
 `POST /api/experimental/chats`
 
-| Field             | Type              | Required | Description                                     |
-|-------------------|-------------------|----------|-------------------------------------------------|
-| `content`         | `ChatInputPart[]` | yes      | The user's prompt as one or more content parts. |
-| `workspace_id`    | `uuid`            | no       | Pin the chat to a specific workspace.           |
-| `model_config_id` | `uuid`            | no       | Override the default model configuration.       |
+| Field             | Type                | Required | Description                                     |
+|-------------------|---------------------|----------|-------------------------------------------------|
+| `content`         | `ChatInputPart[]`   | yes      | The user's prompt as one or more content parts. |
+| `workspace_id`    | `uuid`              | no       | Pin the chat to a specific workspace.           |
+| `model_config_id` | `uuid`              | no       | Override the default model configuration.       |
+| `mcp_server_ids`  | `uuid[]`            | no       | Attach MCP servers to this chat.                |
+| `labels`          | `map[string]string` | no       | Key-value labels for the chat (max 50).         |
 
 Each `ChatInputPart` has a `type` field. The simplest form is a text part:
 
@@ -92,10 +103,11 @@ range).
 
 `POST /api/experimental/chats/{chat}/messages`
 
-| Field             | Type              | Required | Description                       |
-|-------------------|-------------------|----------|-----------------------------------|
-| `content`         | `ChatInputPart[]` | yes      | The follow-up message content.    |
-| `model_config_id` | `uuid`            | no       | Override the model for this turn. |
+| Field             | Type              | Required | Description                         |
+|-------------------|-------------------|----------|-------------------------------------|
+| `content`         | `ChatInputPart[]` | yes      | The follow-up message content.      |
+| `model_config_id` | `uuid`            | no       | Override the model for this turn.   |
+| `mcp_server_ids`  | `uuid[]`          | no       | Override MCP servers for this turn. |
 
 If the agent is currently processing, the message is queued automatically.
 The response indicates whether the message was delivered immediately or
@@ -110,6 +122,23 @@ queued:
 
 When `queued` is `true`, `message` is absent and `queued_message` is
 returned instead.
+
+### Edit a message
+
+`PATCH /api/experimental/chats/{chat}/messages/{message}`
+
+Edits a previously sent user message. The agent re-processes from the
+edited message onward, truncating any messages that followed it.
+
+| Field     | Type              | Required | Description                      |
+|-----------|-------------------|----------|----------------------------------|
+| `content` | `ChatInputPart[]` | yes      | The replacement message content. |
+
+The response is an `EditChatMessageResponse` with the edited `message`
+and an optional `warnings` array. When file references in the edited
+content cannot be linked (e.g. the per-chat file cap is reached), the
+edit still succeeds and the `warnings` array describes which files
+were not linked.
 
 ### Stream updates
 
@@ -141,6 +170,10 @@ connect the server sends an initial snapshot of the chat state before
 switching to live events. Use `after_id` when reconnecting to skip
 messages the client already has.
 
+Connecting to the stream also updates the caller's read cursor for
+unread tracking. On disconnect the cursor is advanced to the latest
+message.
+
 Event types inside each batch:
 
 | Type           | Description                                                  |
@@ -152,17 +185,52 @@ Event types inside each batch:
 | `retry`        | The server is retrying a failed LLM call (includes backoff). |
 | `queue_update` | The queued message list changed.                             |
 
+### Watch all chats
+
+`GET /api/experimental/chats/watch`
+
+Opens a **one-way WebSocket** that pushes events for all chats owned by
+the authenticated user. Use this to drive a sidebar or notification
+indicator without polling.
+
+Each event is a JSON object with `kind` and `chat` fields:
+
+| Kind                 | Description                      |
+|----------------------|----------------------------------|
+| `created`            | A new chat was created.          |
+| `status_change`      | A chat's status changed.         |
+| `title_change`       | A chat's title was updated.      |
+| `diff_status_change` | A chat's diff/PR status changed. |
+| `deleted`            | A chat was deleted.              |
+
 ### List chats
 
 `GET /api/experimental/chats`
 
-Returns all chats owned by the authenticated user.
+Returns all chats owned by the authenticated user. The `files` field is
+populated on `POST /chats` and `GET /chats/{id}`. Other endpoints that
+return a `Chat` object omit it.
+
+| Query parameter | Type     | Required | Description                                                      |
+|-----------------|----------|----------|------------------------------------------------------------------|
+| `q`             | `string` | no       | Search query string.                                             |
+| `label`         | `string` | no       | Filter by label as `key:value`. Repeat for multiple (AND logic). |
 
 ### Get a chat
 
 `GET /api/experimental/chats/{chat}`
 
-Returns the `Chat` object (metadata only, no messages).
+Returns the `Chat` object (metadata only, no messages). The response
+includes a `files` field (`ChatFileMetadata[]`) containing metadata for
+files that have been successfully linked to the chat. File linking is
+best-effort; if linking fails, the file remains in message content but
+will be absent from this field.
+
+When file linking is skipped (e.g. the per-chat file cap is reached),
+`POST /chats` includes a `warnings` array on the `Chat` response and
+`POST /chats/{chat}/messages` includes a `warnings` array on the
+`CreateChatMessageResponse`. The `warnings` field is `omitempty` and
+absent when all files are linked successfully.
 
 ### Get chat messages
 
@@ -177,12 +245,28 @@ Returns the messages and queued messages for a chat.
 Returns available models. Use this to discover valid values for
 `model_config_id`.
 
-### Archive / unarchive
+### Update a chat
 
-`POST /api/experimental/chats/{chat}/archive`
-`POST /api/experimental/chats/{chat}/unarchive`
+`PATCH /api/experimental/chats/{chat}`
 
-Archive hides a chat from the default list without deleting it.
+Updates chat metadata. All fields are optional; omitted fields are left
+unchanged.
+
+| Field       | Type                | Description                                                                         |
+|-------------|---------------------|-------------------------------------------------------------------------------------|
+| `title`     | `string`            | Set a new title.                                                                    |
+| `archived`  | `bool`              | `true` to archive, `false` to unarchive. Archiving clears `pin_order`.              |
+| `pin_order` | `int32`             | `0` to unpin; `>0` on an unpinned chat to pin it; `>0` on a pinned chat to reorder. |
+| `labels`    | `map[string]string` | Replace all labels. Use `null`/omit to leave unchanged, `{}` to clear.              |
+
+**Response**: `204 No Content`.
+
+### Regenerate title
+
+`POST /api/experimental/chats/{chat}/title/regenerate`
+
+Regenerates the chat title using conversation context. Returns the
+updated `Chat` object.
 
 ### Interrupt
 
@@ -190,6 +274,26 @@ Archive hides a chat from the default list without deleting it.
 
 Stops the agent's current processing loop and returns the chat to
 `waiting` status.
+
+### Manage queued messages
+
+When a message is queued because the agent is busy, you can manage the
+queue:
+
+`DELETE /api/experimental/chats/{chat}/queue/{queuedMessage}`
+
+Removes a queued message before it is processed.
+
+`POST /api/experimental/chats/{chat}/queue/{queuedMessage}/promote`
+
+Promotes a queued message to be processed next.
+
+### Get diff contents
+
+`GET /api/experimental/chats/{chat}/diff`
+
+Returns the current diff/PR status for a chat, including additions,
+deletions, changed files, and pull request metadata when available.
 
 ## File uploads
 
@@ -209,11 +313,17 @@ file, use `GET /api/experimental/chats/files/{file}`.
 Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
 validates actual file content regardless of the declared `Content-Type`.
 
+Files referenced in messages are automatically linked to the chat and
+appear in the `files` field on subsequent
+`GET /api/experimental/chats/{chat}` responses.
+
 ## Chat statuses
 
-| Status    | Meaning                                                      |
-|-----------|--------------------------------------------------------------|
-| `waiting` | Idle — newly created, finished successfully, or interrupted. |
-| `pending` | Queued for processing.                                       |
-| `running` | Agent is actively working.                                   |
-| `error`   | Agent encountered an error.                                  |
+| Status      | Meaning                                                      |
+|-------------|--------------------------------------------------------------|
+| `waiting`   | Idle — newly created, finished successfully, or interrupted. |
+| `pending`   | Queued for processing.                                       |
+| `running`   | Agent is actively working.                                   |
+| `paused`    | Agent is paused (e.g. waiting for user input).               |
+| `completed` | Agent finished and the task is complete.                     |
+| `error`     | Agent encountered an error.                                  |

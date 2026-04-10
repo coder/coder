@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import {
 	EditIcon,
 	EllipsisIcon,
@@ -35,6 +34,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { cn } from "#/utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";

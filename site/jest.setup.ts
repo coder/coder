@@ -2,15 +2,15 @@ import "@testing-library/jest-dom";
 import "jest-location-mock";
 import crypto from "node:crypto";
 import { cleanup } from "@testing-library/react";
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { useMemo } from "react";
 import type { Region } from "#/api/typesGenerated";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import { server } from "#/testHelpers/server";
 
 // useProxyLatency does some http requests to determine latency.
 // This would fail unit testing, or at least make it very slow with
 // actual network requests. So just globally mock this hook.
-jest.mock("contexts/useProxyLatency", () => ({
+jest.mock("#/contexts/useProxyLatency", () => ({
 	useProxyLatency: (proxies?: Region[]) => {
 		// Must use `useMemo` here to avoid infinite loop.
 		// Mocking the hook with a hook.

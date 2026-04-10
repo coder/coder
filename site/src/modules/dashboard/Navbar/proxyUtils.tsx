@@ -1,4 +1,4 @@
-import type { Proxies, ProxyLatencies } from "contexts/ProxyContext";
+import type { Proxies, ProxyLatencies } from "#/contexts/ProxyContext";
 
 export function sortProxiesByLatency(
 	proxies: Proxies,

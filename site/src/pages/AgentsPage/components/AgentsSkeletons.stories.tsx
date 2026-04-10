@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AgentDetailSkeleton, AgentsPageSkeleton } from "./AgentsSkeletons";
+import { AgentChatPageSkeleton, AgentsPageSkeleton } from "./AgentsSkeletons";
 
 const meta: Meta<typeof AgentsPageSkeleton> = {
 	title: "pages/AgentsPage/AgentsSkeletons",
@@ -20,7 +20,7 @@ export const Page: Story = {};
 export const Detail: Story = {
 	render: () => (
 		<div style={{ height: 600, width: "100%" }}>
-			<AgentDetailSkeleton />
+			<AgentChatPageSkeleton />
 		</div>
 	),
 };

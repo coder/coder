@@ -416,6 +416,8 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const userChatProviderConfigsPath =
+	"/api/experimental/chats/user-provider-configs";
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
@@ -3013,8 +3015,28 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeSessionThreads = async (
+		sessionId: string,
+		options?: { after_id?: string; before_id?: string; limit?: number },
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/aibridge/sessions/${sessionId}`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
+		return response.data;
+	};
+
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getAIBridgeClients = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
@@ -3148,14 +3170,13 @@ class ExperimentalApiMethods {
 		chatId: string,
 		messageId: number,
 		req: TypesGen.EditChatMessageRequest,
-	): Promise<TypesGen.ChatMessage> => {
-		const response = await this.axios.patch<TypesGen.ChatMessage>(
+	): Promise<TypesGen.EditChatMessageResponse> => {
+		const response = await this.axios.patch<TypesGen.EditChatMessageResponse>(
 			`/api/experimental/chats/${chatId}/messages/${messageId}`,
 			req,
 		);
 		return response.data;
 	};
-
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}/interrupt`,
@@ -3256,6 +3277,20 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
+	getChatRetentionDays =
+		async (): Promise<TypesGen.ChatRetentionDaysResponse> => {
+			const response = await this.axios.get<TypesGen.ChatRetentionDaysResponse>(
+				"/api/experimental/chats/config/retention-days",
+			);
+			return response.data;
+		};
+
+	updateChatRetentionDays = async (
+		req: TypesGen.UpdateChatRetentionDaysRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/retention-days", req);
 	};
 
 	updateChatTemplateAllowlist = async (
@@ -3376,6 +3411,34 @@ class ExperimentalApiMethods {
 	deleteChatModelConfig = async (modelConfigId: string): Promise<void> => {
 		await this.axios.delete(
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+		);
+	};
+
+	getUserChatProviderConfigs = async (): Promise<
+		TypesGen.UserChatProviderConfig[]
+	> => {
+		const response = await this.axios.get<TypesGen.UserChatProviderConfig[]>(
+			userChatProviderConfigsPath,
+		);
+		return response.data;
+	};
+
+	upsertUserChatProviderKey = async (
+		providerConfigId: string,
+		req: TypesGen.CreateUserChatProviderKeyRequest,
+	): Promise<TypesGen.UserChatProviderConfig> => {
+		const response = await this.axios.put<TypesGen.UserChatProviderConfig>(
+			`${userChatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteUserChatProviderKey = async (
+		providerConfigId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`${userChatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
 		);
 	};
 

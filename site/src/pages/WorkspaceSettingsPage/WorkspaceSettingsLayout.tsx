@@ -37,7 +37,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 			<title>{pageTitle(workspaceName, "Settings")}</title>
 
 			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
+				<Stack className="py-12" direction="row" spacing={10}>
 					{error ? (
 						<ErrorAlert error={error} />
 					) : (

@@ -33,7 +33,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>General Settings</PageHeaderTitle>
 			</PageHeader>
 

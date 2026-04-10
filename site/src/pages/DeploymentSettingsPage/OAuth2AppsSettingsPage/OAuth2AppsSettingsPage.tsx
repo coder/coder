@@ -1,7 +1,7 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { getApps } from "#/api/queries/oauth2";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 

@@ -1,35 +1,34 @@
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
+import { InfoIcon } from "lucide-react";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
+import type { AIBridgeSession } from "#/api/typesGenerated";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
-import type { AIBridgeSession } from "#/api/typesGenerated";
-import { docs } from "#/utils/docs";
+} from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 import { ListSessionsRow } from "./ListSessionsRow";
 
 interface ListSessionsPageViewProps {
 	isLoading: boolean;
+	isFetching: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -44,11 +43,13 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 			<TooltipTrigger asChild>
 				<div className="flex-shrink-0 flex items-center">{children}</div>
 			</TooltipTrigger>
-			<TooltipContent side="top" align="end" className="max-w-xs">
-				<p className="text-sm">
-					A thread is a multi-part interaction between human and agent involving
-					an initial human prompt and a subsequent agentic loop.
-				</p>
+			<TooltipContent
+				side="top"
+				align="end"
+				className="max-w-xs text-sm font-normal"
+			>
+				A thread is a multi-part interaction between human and agent involving
+				an initial human prompt and a subsequent agentic loop.
 			</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
@@ -56,6 +57,7 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 
 export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	isLoading,
+	isFetching,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -68,21 +70,7 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	}
 
 	if (!isAISessionsEnabled) {
-		return (
-			<Alert className="mb-12" severity="warning" prominent>
-				<AlertTitle>
-					AI Bridge is included in your license, but not set up yet.
-				</AlertTitle>
-				<AlertDescription>
-					You have access to AI Governance, but it still needs to be setup.
-					Check out the{" "}
-					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
-						AI Bridge
-					</Link>{" "}
-					documentation to get started.
-				</AlertDescription>
-			</Alert>
-		);
+		return <AIBridgeSetupAlert />;
 	}
 
 	const utcOffset = formatDateTime(new Date(), DATE_FORMAT.UTC_OFFSET);
@@ -92,9 +80,9 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 			<ListSessionsFilter {...filterProps} />
 
 			<PaginationContainer query={sessionsQuery} paginationUnitLabel="sessions">
-				<Table className="text-sm">
+				<Table className="text-sm font-normal">
 					<TableHeader>
-						<TableRow className="text-xs">
+						<TableRow>
 							<TableHead>Last Prompt</TableHead>
 							<TableHead>User</TableHead>
 							<TableHead>Provider</TableHead>
@@ -110,7 +98,7 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading ? (
+						{isLoading || isFetching ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />

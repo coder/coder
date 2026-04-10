@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/resources"
+
+# Resolve paths before cd so they're absolute.
+scriptdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+cd "$scriptdir/resources"
+canonical_lock="$(pwd)/.terraform.lock.hcl"
 
 # These environment variables influence the coder provider.
 for v in $(env | grep -E '^CODER_' | cut -d= -f1); do
@@ -12,7 +17,11 @@ generate() {
 	local name="$1"
 
 	echo "=== BEGIN: $name"
-	terraform init -upgrade &&
+	if ((upgrade)); then
+		terraform init -upgrade
+	else
+		terraform init
+	fi &&
 		terraform plan -out terraform.tfplan &&
 		terraform show -json ./terraform.tfplan | jq >"$name".tfplan.json &&
 		terraform graph -type=plan >"$name".tfplan.dot &&
@@ -105,7 +114,7 @@ run() {
 }
 
 if [[ " $* " == *" --help "* || " $* " == *" -h "* ]]; then
-	echo "Usage: $0 [module1 module2 ...]"
+	echo "Usage: $0 [--upgrade] [--check] [--no-minimize] [module1 module2 ...]"
 	exit 0
 fi
 
@@ -114,9 +123,40 @@ if [[ " $* " == *" --no-minimize "* ]]; then
 	minimize=0
 fi
 
+upgrade=0
+if [[ " $* " == *" --upgrade "* ]]; then
+	upgrade=1
+fi
+
+# Verify that the canonical lockfile matches provider-version.txt.
+if [[ " $* " == *" --check "* ]]; then
+	expected="$(<"$scriptdir/provider-version.txt")"
+	actual="$(sed -n '/coder\/coder/,/^}/{ /version[[:space:]]*=/{ s/.*"\(.*\)"/\1/; p; q; } }' "$canonical_lock")"
+	if [[ "$expected" == "$actual" ]]; then
+		exit 0
+	else
+		echo "ERROR: provider-version.txt ($expected) does not match lockfile ($actual)"
+		exit 1
+	fi
+fi
+
+# Filter flags from positional args to get directory names.
+declare -a dirs=()
+for arg in "$@"; do
+	case "$arg" in
+	--upgrade | --no-minimize | --check | --help | -h) ;;
+	*) dirs+=("$arg") ;;
+	esac
+done
+
+# Seed each resource subdirectory with the canonical lockfile.
+for d in */; do
+	cp "$canonical_lock" "$d/.terraform.lock.hcl"
+done
+
 declare -a jobs=()
-if [[ $# -gt 0 ]]; then
-	for d in "$@"; do
+if [[ ${#dirs[@]} -gt 0 ]]; then
+	for d in "${dirs[@]}"; do
 		run "$d" &
 		jobs+=($!)
 	done
@@ -136,6 +176,29 @@ done
 if [[ $err -ne 0 ]]; then
 	echo "ERROR: Failed to generate test data for $err modules"
 	exit 1
+fi
+
+# After upgrade, promote the lockfile from a representative directory
+# back to the canonical location and record the provider version.
+if ((upgrade)); then
+	# Prefer rich-parameters since it uses all providers (coder, null, docker).
+	src=""
+	if [[ -f "rich-parameters/.terraform.lock.hcl" ]]; then
+		src="rich-parameters/.terraform.lock.hcl"
+	else
+		for d in */; do
+			if [[ -f "$d/.terraform.lock.hcl" ]]; then
+				src="$d/.terraform.lock.hcl"
+				break
+			fi
+		done
+	fi
+	if [[ -n "$src" ]]; then
+		cp "$src" "$canonical_lock"
+		version="$(sed -n '/coder\/coder/,/^}/{ /version[[:space:]]*=/{ s/.*"\(.*\)"/\1/; p; q; } }' "$canonical_lock")"
+		echo "$version" >"$scriptdir/provider-version.txt"
+		echo "== Updated canonical lockfile and provider-version.txt (coder provider $version)"
+	fi
 fi
 
 terraform version -json | jq -r '.terraform_version' >../version.txt

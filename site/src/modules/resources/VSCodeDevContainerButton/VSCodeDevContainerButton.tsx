@@ -82,21 +82,21 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				}}
 			>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={() => {
 						selectVariant("vscode");
 					}}
 				>
-					<VSCodeIcon css={{ width: 12, height: 12 }} />
+					<VSCodeIcon className="w-3 h-3" />
 					{DisplayAppNameMap.vscode}
 				</MenuItem>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={() => {
 						selectVariant("vscode-insiders");
 					}}
 				>
-					<VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
+					<VSCodeInsidersIcon className="w-3 h-3" />
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>

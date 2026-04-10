@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
+import { fn } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
+} from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
-} from "components/PaginationWidget/PaginationContainer.mocks";
-import type { ComponentProps } from "react";
-import { fn } from "storybook/test";
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
@@ -23,6 +23,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	menus: {
 		user: MockMenu,
 		provider: MockMenu,
+		client: MockMenu,
 		model: MockMenu,
 	},
 });
@@ -32,6 +33,7 @@ const meta: Meta<typeof ListSessionsPageView> = {
 	component: ListSessionsPageView,
 	args: {
 		isLoading: false,
+		isFetching: false,
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
 		filterProps: defaultFilterProps,
@@ -77,6 +79,13 @@ export const Loaded: Story = {
 	},
 };
 
+export const Fetching: Story = {
+	args: {
+		isFetching: true,
+		sessions: [MockSession],
+	},
+};
+
 export const MultipleSessions: Story = {
 	args: {
 		sessions: Array.from({ length: 5 }, (_, i) => ({
@@ -93,6 +102,8 @@ export const MultipleSessions: Story = {
 			token_usage_summary: {
 				input_tokens: 1000 * (i + 1),
 				output_tokens: 300 * (i + 1),
+				cache_read_input_tokens: 800 * (i + 1),
+				cache_write_input_tokens: 50 * (i + 1),
 			},
 		})),
 	},

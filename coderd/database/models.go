@@ -1290,12 +1290,13 @@ func AllChatModeValues() []ChatMode {
 type ChatStatus string
 
 const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
+	ChatStatusWaiting        ChatStatus = "waiting"
+	ChatStatusPending        ChatStatus = "pending"
+	ChatStatusRunning        ChatStatus = "running"
+	ChatStatusPaused         ChatStatus = "paused"
+	ChatStatusCompleted      ChatStatus = "completed"
+	ChatStatusError          ChatStatus = "error"
+	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1340,7 +1341,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusPaused,
 		ChatStatusCompleted,
-		ChatStatusError:
+		ChatStatusError,
+		ChatStatusRequiresAction:
 		return true
 	}
 	return false
@@ -1354,6 +1356,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusPaused,
 		ChatStatusCompleted,
 		ChatStatusError,
+		ChatStatusRequiresAction,
 	}
 }
 
@@ -1540,6 +1543,64 @@ func AllCorsBehaviorValues() []CorsBehavior {
 	return []CorsBehavior{
 		CorsBehaviorSimple,
 		CorsBehaviorPassthru,
+	}
+}
+
+type CredentialKind string
+
+const (
+	CredentialKindCentralized CredentialKind = "centralized"
+	CredentialKindByok        CredentialKind = "byok"
+)
+
+func (e *CredentialKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CredentialKind(s)
+	case string:
+		*e = CredentialKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CredentialKind: %T", src)
+	}
+	return nil
+}
+
+type NullCredentialKind struct {
+	CredentialKind CredentialKind `json:"credential_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if CredentialKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCredentialKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.CredentialKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CredentialKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCredentialKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CredentialKind), nil
+}
+
+func (e CredentialKind) Valid() bool {
+	switch e {
+	case CredentialKindCentralized,
+		CredentialKindByok:
+		return true
+	}
+	return false
+}
+
+func AllCredentialKindValues() []CredentialKind {
+	return []CredentialKind{
+		CredentialKindCentralized,
+		CredentialKindByok,
 	}
 }
 
@@ -4038,6 +4099,12 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 	// Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception's own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.
 	SessionID string `db:"session_id" json:"session_id"`
+	// The provider instance name which may differ from provider when multiple instances of the same provider type exist.
+	ProviderName string `db:"provider_name" json:"provider_name"`
+	// How the request was authenticated: centralized or byok.
+	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
+	// Masked credential identifier for audit (e.g. sk-a***efgh).
+	CredentialHint string `db:"credential_hint" json:"credential_hint"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4053,11 +4120,13 @@ type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
 	// The ID for the response in which the tokens were used, produced by the provider.
-	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
-	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
-	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
-	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+	ProviderResponseID    string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens           int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata              pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt             time.Time             `db:"created_at" json:"created_at"`
+	CacheReadInputTokens  int64                 `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64                 `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -4153,28 +4222,30 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
-	Title             string         `db:"title" json:"title"`
-	Status            ChatStatus     `db:"status" json:"status"`
-	WorkerID          uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt         sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt       sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived          bool           `db:"archived" json:"archived"`
-	LastError         sql.NullString `db:"last_error" json:"last_error"`
-	Mode              NullChatMode   `db:"mode" json:"mode"`
-	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels            StringMap      `db:"labels" json:"labels"`
-	BuildID           uuid.NullUUID  `db:"build_id" json:"build_id"`
-	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
-	PinOrder          int32          `db:"pin_order" json:"pin_order"`
-	LastReadMessageID sql.NullInt64  `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title               string                `db:"title" json:"title"`
+	Status              ChatStatus            `db:"status" json:"status"`
+	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived            bool                  `db:"archived" json:"archived"`
+	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	Mode                NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels              StringMap             `db:"labels" json:"labels"`
+	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 }
 
 type ChatDiffStatus struct {
@@ -4211,6 +4282,11 @@ type ChatFile struct {
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
 	Data           []byte    `db:"data" json:"data"`
+}
+
+type ChatFileLink struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	FileID uuid.UUID `db:"file_id" json:"file_id"`
 }
 
 type ChatMessage struct {
@@ -4261,12 +4337,15 @@ type ChatProvider struct {
 	DisplayName string    `db:"display_name" json:"display_name"`
 	APIKey      string    `db:"api_key" json:"api_key"`
 	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
-	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled                    bool           `db:"enabled" json:"enabled"`
+	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time      `db:"updated_at" json:"updated_at"`
+	BaseUrl                    string         `db:"base_url" json:"base_url"`
+	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
+	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
+	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
 }
 
 type ChatQueuedMessage struct {
@@ -5219,6 +5298,16 @@ type User struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
+type UserChatProviderKey struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
+	APIKey         string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type UserConfig struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	Key    string    `db:"key" json:"key"`
@@ -5248,15 +5337,16 @@ type UserLink struct {
 }
 
 type UserSecret struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Value       string    `db:"value" json:"value"`
-	EnvName     string    `db:"env_name" json:"env_name"`
-	FilePath    string    `db:"file_path" json:"file_path"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Name        string         `db:"name" json:"name"`
+	Description string         `db:"description" json:"description"`
+	Value       string         `db:"value" json:"value"`
+	EnvName     string         `db:"env_name" json:"env_name"`
+	FilePath    string         `db:"file_path" json:"file_path"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
 // Tracks the history of user status changes

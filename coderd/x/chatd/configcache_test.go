@@ -278,7 +278,7 @@ func TestConfigCache_UserPrompt_ExpiredEntryRefetches(t *testing.T) {
 		return fmt.Sprintf("prompt-%d", call), nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
-	cache.userPrompts.Set(userID, "stale", 0)
+	cache.userPrompts.Set(userID, "stale", -time.Second)
 
 	first, err := cache.UserPrompt(ctx, userID)
 	require.NoError(t, err)

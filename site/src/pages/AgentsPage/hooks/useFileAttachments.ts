@@ -331,7 +331,7 @@ export function useFileAttachments(
 		handleRemoveAttachment,
 		startUpload,
 		resetAttachments,
-		// Raw setters exposed for AgentDetailContent to pre-populate
+		// Raw setters exposed for ChatPageContent to pre-populate
 		// attachments from existing chat messages. These bypass
 		// localStorage persistence. Only use when persist is false.
 		setAttachments,

@@ -3,12 +3,12 @@ import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
+import { action } from "storybook/actions";
 import {
 	defaultSchedule,
 	emptySchedule,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
-import { action } from "storybook/actions";
+} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { emptyTTL } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { MockTemplate, mockApiError } from "#/testHelpers/entities";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 

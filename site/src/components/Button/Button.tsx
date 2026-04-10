@@ -2,8 +2,8 @@
  * Copied from shadc/ui on 11/06/2024
  * @see {@link https://ui.shadcn.com/docs/components/button}
  */
-import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Slot } from "radix-ui";
 import { cn } from "#/utils/cn";
 
 // Be careful when changing the child styles from the button such as images
@@ -69,7 +69,7 @@ export const Button: React.FC<ButtonProps> = ({
 	asChild = false,
 	...props
 }) => {
-	const Comp = asChild ? Slot : "button";
+	const Comp = asChild ? Slot.Root : "button";
 
 	// We want `type` to default to `"button"` when the component is not being
 	// used as a `Slot`. The default behavior of any given `<button>` element is

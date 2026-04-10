@@ -1,4 +1,3 @@
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
 import {
 	type DeploymentConfig,
@@ -7,6 +6,7 @@ import {
 } from "#/api/api";
 import type { FieldError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 import type { FileTree } from "#/utils/filetree";
@@ -3119,6 +3119,7 @@ export const MockPermissions: Permissions = {
 	editOAuth2App: true,
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
+	createChat: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3152,6 +3153,7 @@ export const MockNoPermissions: Permissions = {
 	editOAuth2App: false,
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
+	createChat: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -5221,6 +5223,7 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 		avatar_url: "https://example.com/avatar.png",
 	},
 	provider: "openai",
+	provider_name: "openai",
 	model: "gpt-4o",
 	started_at: "2022-05-17T17:39:01.382927298Z",
 	ended_at: "2022-05-17T17:39:01.382927298Z",
@@ -5231,6 +5234,8 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 			provider_response_id: "res_1234567890",
 			input_tokens: 5,
 			output_tokens: 1,
+			cache_read_input_tokens: 3,
+			cache_write_input_tokens: 1,
 			metadata: {},
 			created_at: "2022-05-17T17:39:01.382927298Z",
 		},
@@ -5307,6 +5312,8 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	token_usage_summary: {
 		input_tokens: 1234,
 		output_tokens: 4321,
+		cache_read_input_tokens: 980,
+		cache_write_input_tokens: 120,
 	},
 	last_prompt: "But *can* I really fix it?",
 };

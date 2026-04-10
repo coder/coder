@@ -101,15 +101,13 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 		return {};
 	}
 
-	const pairs = filterQuery.split(" ");
 	const result: FilterValues = {};
+	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
 
-	for (const pair of pairs) {
-		const [key, value] = pair.split(":") as [
-			keyof FilterValues,
-			string | undefined,
-		];
-		if (value) {
+	for (const match of filterQuery.matchAll(keyValuePair)) {
+		const key = match[1] ?? match[3];
+		const value = match[2] ?? match[4];
+		if (key && value) {
 			result[key] = value;
 		}
 	}
@@ -123,7 +121,8 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			result += `${key}:${value} `;
+			const needsQuotes = value.includes(" ");
+			result += needsQuotes ? `${key}:"${value}" ` : `${key}:${value} `;
 		}
 	}
 
@@ -147,7 +146,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 };
 
 export const MenuSkeleton: FC = () => {
-	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
 type FilterProps = {
@@ -307,7 +306,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 				{(learnMoreLink || learnMoreLink2) && <DropdownMenuSeparator />}
 				{learnMoreLink && (
 					<DropdownMenuItem asChild>
-						<a href={learnMoreLink} target="_blank">
+						<a href={learnMoreLink} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							View advanced filtering
 						</a>
@@ -315,7 +314,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
 					<DropdownMenuItem asChild>
-						<a href={learnMoreLink2} target="_blank">
+						<a href={learnMoreLink2} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							{learnMoreLabel2}
 						</a>

@@ -188,18 +188,20 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		t.Parallel()
 		agentID := uuid.New()
 		part := codersdk.ChatMessagePart{
-			Type:                 codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:      "/home/coder/AGENTS.md",
-			ContextFileContent:   "large content",
-			ContextFileAgentID:   uuid.NullUUID{UUID: agentID, Valid: true},
-			ContextFileOS:        "linux",
-			ContextFileDirectory: "/home/coder/project",
+			Type:                     codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:          "/home/coder/AGENTS.md",
+			ContextFileContent:       "large content",
+			ContextFileAgentID:       uuid.NullUUID{UUID: agentID, Valid: true},
+			ContextFileOS:            "linux",
+			ContextFileDirectory:     "/home/coder/project",
+			ContextFileSkillMetaFile: "CUSTOM.md",
 		}
 		part.StripInternal()
 		// Internal fields stripped.
 		assert.Empty(t, part.ContextFileContent)
 		assert.Empty(t, part.ContextFileOS)
 		assert.Empty(t, part.ContextFileDirectory)
+		assert.Empty(t, part.ContextFileSkillMetaFile)
 		// Public fields preserved.
 		assert.Equal(t, "/home/coder/AGENTS.md", part.ContextFilePath)
 		assert.Equal(t, agentID, part.ContextFileAgentID.UUID)
@@ -231,13 +233,15 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// If you add a new field to ChatMessagePart, either add a
 	// variants tag or add it here with a comment explaining why.
 	excludedFields := map[string]string{
-		"type":                   "discriminant, added automatically by codegen",
-		"signature":              "added in #22290, never populated by any code path",
-		"result_delta":           "added in #22290, never populated by any code path",
-		"provider_metadata":      "internal only, stripped by db2sdk before API responses",
-		"context_file_content":   "internal only, stripped before API responses (typescript:\"-\")",
-		"context_file_os":        "internal only, used during prompt expansion (typescript:\"-\")",
-		"context_file_directory": "internal only, used during prompt expansion (typescript:\"-\")",
+		"type":                         "discriminant, added automatically by codegen",
+		"signature":                    "added in #22290, never populated by any code path",
+		"result_delta":                 "added in #22290, never populated by any code path",
+		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
+		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
+		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
+		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
+		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
+		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
@@ -322,6 +326,42 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 					f.Name)
 			}
 		}
+	})
+}
+
+func TestChatMessagePart_CreatedAt_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RoundTrips", func(t *testing.T) {
+		t.Parallel()
+		ts := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+			CreatedAt:  &ts,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.True(t, ts.Equal(*decoded.CreatedAt))
+	})
+
+	t.Run("OmittedWhenNil", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "tc-1",
+			ToolName:   "execute",
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"created_at"`)
 	})
 }
 
@@ -463,6 +503,68 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, original, decoded)
+}
+
+func TestNewDynamicTool(t *testing.T) {
+	t.Parallel()
+
+	type testArgs struct {
+		Query string `json:"query"`
+	}
+
+	t.Run("CorrectSchema", func(t *testing.T) {
+		t.Parallel()
+
+		tool := codersdk.NewDynamicTool(
+			"search", "search things",
+			func(_ context.Context, args testArgs, _ codersdk.DynamicToolCall) (codersdk.DynamicToolResponse, error) {
+				return codersdk.DynamicToolResponse{Content: args.Query}, nil
+			},
+		)
+
+		require.Equal(t, "search", tool.Name)
+		require.Equal(t, "search things", tool.Description)
+		require.Contains(t, string(tool.InputSchema), `"query"`)
+		require.Contains(t, string(tool.InputSchema), `"string"`)
+	})
+
+	t.Run("HandlerReceivesArgs", func(t *testing.T) {
+		t.Parallel()
+
+		var received testArgs
+		tool := codersdk.NewDynamicTool(
+			"search", "search things",
+			func(_ context.Context, args testArgs, _ codersdk.DynamicToolCall) (codersdk.DynamicToolResponse, error) {
+				received = args
+				return codersdk.DynamicToolResponse{Content: "ok"}, nil
+			},
+		)
+
+		resp, err := tool.Handler(context.Background(), codersdk.DynamicToolCall{
+			Args: `{"query":"hello"}`,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "ok", resp.Content)
+		require.Equal(t, "hello", received.Query)
+	})
+
+	t.Run("InvalidJSONArgs", func(t *testing.T) {
+		t.Parallel()
+
+		tool := codersdk.NewDynamicTool(
+			"search", "search things",
+			func(_ context.Context, args testArgs, _ codersdk.DynamicToolCall) (codersdk.DynamicToolResponse, error) {
+				return codersdk.DynamicToolResponse{Content: "should not reach"}, nil
+			},
+		)
+
+		resp, err := tool.Handler(context.Background(), codersdk.DynamicToolCall{
+			Args: "not-json",
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "invalid parameters")
+	})
 }
 
 //nolint:tparallel,paralleltest

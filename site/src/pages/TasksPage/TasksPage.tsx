@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
@@ -32,6 +31,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import {
 	isTaskNotification,

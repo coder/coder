@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { organizationMembersKey } from "api/queries/organizations";
+import { organizationMembersKey } from "#/api/queries/organizations";
 import { MockOrganizationMember } from "#/testHelpers/entities";
 import { MultiMemberSelect } from "./MultiUserSelect";
 

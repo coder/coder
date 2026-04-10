@@ -2,9 +2,9 @@ import {
 	type KeyboardEventHandler,
 	type MouseEventHandler,
 	type RefObject,
+	useEffectEvent,
 	useRef,
 } from "react";
-import { useEffectEvent } from "./hookPolyfills";
 
 // Literally any object (ideally an HTMLElement) that has a .click method
 type ClickableElement = {
@@ -44,11 +44,11 @@ export const useClickable = <
 	role?: TRole,
 ): UseClickableResult<TElement, TRole> => {
 	const ref = useRef<TElement>(null);
-	const stableOnClick = useEffectEvent(onClick);
+	const onClickEvent = useEffectEvent(onClick);
 
 	return {
 		ref,
-		onClick: stableOnClick,
+		onClick: onClickEvent,
 		tabIndex: 0,
 		role: (role ?? "button") as TRole,
 

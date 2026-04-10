@@ -900,7 +900,7 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 function selectAgent(workspace: Workspace) {
 	const agents = workspace.latest_build.resources
 		.flatMap((r) => r.agents)
-		.filter((a) => !!a);
+		.filter(Boolean);
 
 	return agents.at(0);
 }

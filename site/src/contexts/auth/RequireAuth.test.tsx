@@ -1,8 +1,8 @@
 import { renderHook, screen } from "@testing-library/react";
-import { useAuthenticated } from "hooks";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { MockPermissions, MockUserOwner } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,

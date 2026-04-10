@@ -1,10 +1,10 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import { postApp } from "#/api/queries/oauth2";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 

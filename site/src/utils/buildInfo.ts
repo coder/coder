@@ -35,3 +35,15 @@ export const isDevBuild = (input: BuildInfoResponse): boolean => {
 	// Check for dev version pattern (contains "-devel") or no version (v0.0.0)
 	return version.includes("-devel") || version === "v0.0.0";
 };
+
+// Check if the current build is a release candidate. Release
+// candidates have versions containing "-rc." (e.g. v2.32.0-rc.0,
+// v2.32.0-rc.1+abc123, v2.33.0-rc.1-devel+727ec00f7).
+export const isRcBuild = (input: BuildInfoResponse): boolean => {
+	const version = input.version;
+	if (!version) {
+		return false;
+	}
+
+	return version.includes("-rc.");
+};

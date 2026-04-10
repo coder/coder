@@ -19,7 +19,7 @@ import TemplateVariablesPage from "./TemplateVariablesPage";
 // a real `delay(1000)` call. Without this mock the 1 s wall-clock wait races
 // against the default `waitFor` timeout (also 1 s), making the "submit"
 // assertion flaky in CI.
-jest.mock("utils/delay", () => ({
+jest.mock("#/utils/delay", () => ({
 	delay: () => Promise.resolve(),
 }));
 

@@ -83,13 +83,25 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
+// Open `about:blank` first to detect a popup blocker. If it opens, we
+// null out `opener` (durable on the opened window); and navigate `popup`
+// to the target URL. The Coder UI keeps access to `popup`s handle
 export const openAppInNewWindow = (href: string) => {
-	const popup = window.open(href, "_blank", "width=900,height=600");
+	const popup = window.open("about:blank", "_blank", "width=900,height=600");
 	if (!popup) {
 		toast.error("Failed to open app in new window.", {
 			description: "Popup blocked. Allow popups to open this app.",
 		});
+		return;
 	}
+	try {
+		// Setting the opener to null persists in the `popup` window over refresh
+		// and navigation. The opening window retains its connection to `popup`
+		popup.opener = null;
+	} catch {
+		// Electron can throw
+	}
+	popup.location.href = href;
 };
 
 type GetAppHrefParams = {

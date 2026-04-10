@@ -1,4 +1,3 @@
-import { useProxy } from "contexts/ProxyContext";
 import {
 	Building2Icon,
 	CircleAlertIcon,
@@ -18,6 +17,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useProxy } from "#/contexts/ProxyContext";
 import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { docs } from "#/utils/docs";

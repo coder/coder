@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
 import {
 	expect,
 	fireEvent,
@@ -11,6 +10,7 @@ import {
 } from "storybook/test";
 import { API } from "#/api/api";
 import { getTemplatesQueryKey } from "#/api/queries/templates";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,

@@ -275,12 +275,7 @@ const ScheduleSettingsLink: React.FC<LinkProps> = ({ ...props }) => {
 		<Link
 			component={RouterLink}
 			to="settings/schedule"
-			css={{
-				color: "inherit",
-				"&:first-letter": {
-					textTransform: "uppercase",
-				},
-			}}
+			className="text-inherit [&::first-letter]:uppercase"
 			{...props}
 		/>
 	);

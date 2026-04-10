@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -8,6 +7,7 @@ import {
 	updateAppearance,
 } from "#/api/queries/appearance";
 import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";

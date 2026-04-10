@@ -11,11 +11,12 @@ This means:
 - **All agent configuration is admin-level.** Providers, models, system prompts,
   and tool permissions are set by platform teams from the control plane. These
   are not user preferences — they are deployment-wide policies.
-- **Developers never need to configure anything.** A developer just describes
-  the work they want done. They do not need to pick a provider, enter an API
-  key, or write a system prompt — the platform team has already set all of
-  that up. The goal is not to restrict developers, but to make configuration
-  unnecessary for a great experience.
+- **Developers never need to configure anything by default.** A developer just
+  describes the work they want done. They do not need to pick a provider or
+  write a system prompt — the platform team has already set all of that up.
+  When a platform team enables user API keys for a provider, developers may
+  optionally supply their own key — but this is an opt-in policy decision, not
+  a requirement.
 - **Enforcement, not defaults.** Settings configured by administrators are
   enforced server-side. Developers cannot override them. This is a deliberate
   distinction — a setting that a user can change is a preference, not a policy.
@@ -36,8 +37,12 @@ self-hosted models), and per-model parameters like context limits, thinking
 budgets, and reasoning effort.
 
 Developers select from the set of models an administrator has enabled. They
-cannot add their own providers, supply their own API keys, or access models that
-have not been explicitly configured.
+cannot add their own providers or access models that have not been explicitly
+configured.
+
+When an administrator enables user API keys on a provider, developers can
+supply their own key from the Agents settings page. See
+[User API keys (BYOK)](../models.md#user-api-keys-byok) for details.
 
 See [Models](../models.md) for setup instructions.
 
@@ -61,28 +66,77 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
+Administrators can also restrict which templates are available to agents using
+the template allowlist in **Agents** > **Settings** > **Templates**. When the
+allowlist is configured, the agent can only see and provision workspaces from
+the selected templates. When the allowlist is empty, all templates are
+available. This is separate from what developers see when manually creating
+workspaces, so you can apply stricter policies to agent-created workspaces
+without affecting the manual workspace experience.
+
 See [Template Optimization](./template-optimization.md) for best practices on writing
-discoverable descriptions, configuring network boundaries, scoping credentials,
-and designing template parameters for agent use.
+discoverable descriptions, restricting template visibility, configuring network
+boundaries, scoping credentials, and designing template parameters for agent
+use.
+
+### MCP servers
+
+Administrators can register external MCP (Model Context Protocol) servers that
+provide additional tools for agent chat sessions. This includes configuring
+authentication, controlling which tools are exposed via allow/deny lists, and
+setting availability policies that determine whether a server is mandatory,
+opt-out, or opt-in for each chat.
+
+See [MCP Servers](./mcp-servers.md) for configuration details.
+
+### Virtual desktop
+
+Administrators can enable a virtual desktop within agent workspaces.
+When enabled, agents can use `spawn_computer_use_agent` to interact with a
+desktop environment using screenshots, mouse, and keyboard input.
+
+This setting is available under **Agents** > **Settings** > **Behavior**.
+It requires:
+
+- The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
+  module to be installed in the workspace template.
+- An Anthropic provider to be configured (computer use is an Anthropic
+  capability).
+
+### Workspace autostop fallback
+
+Administrators can set a default autostop timer for agent-created workspaces
+that do not define one in their template. Template-defined autostop rules always
+take precedence. Active conversations extend the stop time automatically.
+
+This setting is available under **Agents** > **Settings** > **Behavior**.
+The maximum configurable value is 30 days. When disabled, workspaces follow
+their template's autostop rules (or none, if the template does not define any).
+
+### Spend management
+
+Administrators can set spend limits to cap LLM usage per user within a rolling
+time period, with per-user and per-group overrides. The cost tracking dashboard
+provides visibility into per-user spending, token consumption, and per-model
+breakdowns.
+
+See [Spend Management](./usage-insights.md) for details.
+
+### Data retention
+
+Administrators can configure a retention period for archived conversations.
+When enabled, archived conversations and orphaned files older than the
+retention period are automatically purged. The default is 30 days.
+
+This setting is available under **Agents** > **Settings** > **Behavior**.
+See [Data Retention](./chat-retention.md) for details.
 
 ## Where we are headed
 
-Coder Agents is in its early stages. The controls above — providers, models,
-and system prompt — are what is available today. We are actively building
-toward a broader set of platform controls based on what we are hearing from
-customers deploying agents in regulated and enterprise environments.
-
-The areas we are investing in include:
-
-### Usage controls and analytics
-
-We plan to give platform teams visibility into how agents are being used across
-the organization: token consumption per user, cost per PR, merge rates by model,
-and average time from prompt to merged pull request.
-
-The goal is to let platform teams make data-driven decisions — like switching
-the default model when analytics show one model produces higher merge rates —
-rather than relying on anecdotal feedback from individual developers.
+The controls above cover providers, models, system prompts, templates, MCP
+servers, usage limits, and data retention. We are continuing to invest in platform controls
+based on what we hear from customers deploying agents in regulated and
+enterprise environments.
 
 ### Infrastructure-level enforcement
 
@@ -97,18 +151,6 @@ Examples of what this looks like:
   from the control plane, agent workspaces do not need outbound access to LLM
   providers. You can create templates that only permit access to your git
   provider and nothing else.
-- **Template scoping for agents.** We intend to let administrators restrict
-  which templates are available in the agentic interface, separate from what
-  developers see when manually creating workspaces. This lets you apply stricter
-  policies to agent-created workspaces without affecting the developer
-  experience for manually-created ones.
-
-### Tool customization
-
-The agent ships with a standard set of tools (file read/write, shell execution,
-sub-agents). We intend to let platform teams customize the available tool set —
-adding organization-specific tools or restricting default ones — without
-modifying agent source code.
 
 ## Why we take this approach
 

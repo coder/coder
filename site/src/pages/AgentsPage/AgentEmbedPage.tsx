@@ -1,13 +1,13 @@
-import { useAuthContext } from "contexts/auth/AuthProvider";
-import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import { permissionChecks } from "modules/permissions";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthContext } from "#/contexts/auth/AuthProvider";
+import { ProxyProvider } from "#/contexts/ProxyContext";
+import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
+import { permissionChecks } from "#/modules/permissions";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
@@ -92,10 +92,7 @@ const AgentEmbedPage: FC = () => {
 	const embedSessionMutation = useMutation(
 		bootstrapChatEmbedSession({ checks: permissionChecks }, queryClient),
 	);
-	const latestEmbedSessionMutationRef = useRef(embedSessionMutation);
-	useEffect(() => {
-		latestEmbedSessionMutationRef.current = embedSessionMutation;
-	});
+
 	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
 
 	const [chatErrorReasons, setChatErrorReasons] = useState<
@@ -190,7 +187,7 @@ const AgentEmbedPage: FC = () => {
 	}, [searchParams]);
 
 	// Shared ref for the chat scroll container. Passed through the
-	// outlet context so AgentDetail attaches it to the DOM element
+	// outlet context so AgentChatPage attaches it to the DOM element
 	// instead of creating its own.
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -225,8 +222,7 @@ const AgentEmbedPage: FC = () => {
 		requestUnpinAgent: () => {},
 		requestArchiveAndDeleteWorkspace,
 		// Title regeneration is not supported in embed mode.
-		isRegeneratingTitle: false,
-		regeneratingTitleChatId: null,
+		regeneratingTitleChatIds: [],
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
@@ -258,7 +254,7 @@ const AgentEmbedPage: FC = () => {
 				return;
 			}
 
-			const bootstrapPromise = latestEmbedSessionMutationRef.current
+			const bootstrapPromise = embedSessionMutation
 				.mutateAsync(token)
 				.catch(() => undefined)
 				.finally(() => {
@@ -277,7 +273,7 @@ const AgentEmbedPage: FC = () => {
 		return () => {
 			window.removeEventListener("message", handleMessage);
 		};
-	}, [agentId, isAwaitingBootstrapMessage]);
+	}, [agentId, isAwaitingBootstrapMessage, embedSessionMutation]);
 
 	const handleBootstrapRetry = () => {
 		inFlightBootstrapRef.current = null;

@@ -18,15 +18,15 @@ import {
 	useState,
 } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import {
-	DIFFS_FONT_STYLE,
-	getDiffViewerOptions,
-} from "#/components/ai-elements/tool/utils";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { changeColor, changeLabel } from "../../utils/diffColors";
+import {
+	DIFFS_FONT_STYLE,
+	getDiffViewerOptions,
+} from "../ChatElements/tools/utils";
 
 // -------------------------------------------------------------------
 // Public interface
@@ -540,7 +540,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// When the parent provides per-file callbacks (e.g. line click
 	// handlers for comment inputs), build options per file. Otherwise
 	// share a single stable object to avoid unnecessary re-highlights.
-	const hasPerFileCallbacks = !!(onLineNumberClick || onLineSelected);
+	const hasPerFileCallbacks = Boolean(onLineNumberClick || onLineSelected);
 
 	const getOptionsForFile = (fileName: string) => ({
 		...diffOptions,
