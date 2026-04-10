@@ -465,6 +465,10 @@ const AgentChatPage: FC = () => {
 				).text
 			: "",
 	);
+	const activeAgentIDRef = useRef(agentId);
+	useLayoutEffect(() => {
+		activeAgentIDRef.current = agentId;
+	}, [agentId]);
 
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
@@ -781,8 +785,15 @@ const AgentChatPage: FC = () => {
 		isSendPending || isEditPending || isInterruptPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
-	const handleUsageLimitError = (error: unknown): void => {
-		if (!agentId) {
+	const isActiveAgent = (chatID: string | undefined): chatID is string => {
+		return Boolean(chatID) && activeAgentIDRef.current === chatID;
+	};
+
+	const handleUsageLimitError = (
+		chatID: string | undefined,
+		error: unknown,
+	): void => {
+		if (!isActiveAgent(chatID)) {
 			return;
 		}
 		if (
@@ -795,14 +806,14 @@ const AgentChatPage: FC = () => {
 				message: formatUsageLimitMessage(error.response.data),
 			};
 			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
+			setChatErrorReason(chatID, reason);
 		} else if (isApiError(error)) {
 			const reason: ChatDetailError = {
 				kind: "generic",
 				message: error.message || "An unexpected error occurred.",
 			};
 			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
+			setChatErrorReason(chatID, reason);
 		}
 	};
 
@@ -827,6 +838,7 @@ const AgentChatPage: FC = () => {
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
+		const operationAgentID = agentId;
 
 		const content: TypesGen.ChatInputPart[] = [];
 
@@ -859,7 +871,7 @@ const AgentChatPage: FC = () => {
 		}
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
-			clearChatErrorReason(agentId);
+			clearChatErrorReason(operationAgentID);
 			clearStreamError();
 			setPendingEditMessageId(editedMessageID);
 			scrollToBottomRef.current?.();
@@ -868,12 +880,18 @@ const AgentChatPage: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
+				if (!isActiveAgent(operationAgentID)) {
+					return;
+				}
 				store.clearStreamState();
 				store.setChatStatus("running");
 				setPendingEditMessageId(null);
 			} catch (error) {
+				if (!isActiveAgent(operationAgentID)) {
+					return;
+				}
 				setPendingEditMessageId(null);
-				handleUsageLimitError(error);
+				handleUsageLimitError(operationAgentID, error);
 				throw error;
 			}
 			return;
@@ -887,7 +905,7 @@ const AgentChatPage: FC = () => {
 					? [...effectiveMCPServerIds]
 					: undefined,
 		};
-		clearChatErrorReason(agentId);
+		clearChatErrorReason(operationAgentID);
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
@@ -899,8 +917,14 @@ const AgentChatPage: FC = () => {
 		try {
 			response = await sendMessage(request);
 		} catch (error) {
-			handleUsageLimitError(error);
+			if (!isActiveAgent(operationAgentID)) {
+				return;
+			}
+			handleUsageLimitError(operationAgentID, error);
 			throw error;
+		}
+		if (!isActiveAgent(operationAgentID)) {
+			return;
 		}
 		// When the server accepts the message immediately (not
 		// queued), clear the stream and insert the user's message
@@ -937,6 +961,7 @@ const AgentChatPage: FC = () => {
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
+		const operationAgentID = agentId;
 		const previousQueuedMessages = store.getSnapshot().queuedMessages;
 		store.setQueuedMessages(
 			previousQueuedMessages.filter((message) => message.id !== id),
@@ -944,12 +969,16 @@ const AgentChatPage: FC = () => {
 		try {
 			await deleteQueuedMessage(id);
 		} catch (error) {
+			if (!isActiveAgent(operationAgentID)) {
+				return;
+			}
 			store.setQueuedMessages(previousQueuedMessages);
 			throw error;
 		}
 	};
 
 	const handlePromoteQueuedMessage = async (id: number) => {
+		const operationAgentID = agentId;
 		const previousSnapshot = store.getSnapshot();
 		const previousQueuedMessages = previousSnapshot.queuedMessages;
 		const previousChatStatus = previousSnapshot.chatStatus;
@@ -957,22 +986,28 @@ const AgentChatPage: FC = () => {
 			previousQueuedMessages.filter((message) => message.id !== id),
 		);
 		store.clearStreamState();
-		if (agentId) {
-			clearChatErrorReason(agentId);
+		if (operationAgentID) {
+			clearChatErrorReason(operationAgentID);
 		}
 		store.clearStreamError();
 		store.setChatStatus("pending");
 		try {
 			const promotedMessage = await promoteQueuedMessage(id);
+			if (!isActiveAgent(operationAgentID)) {
+				return;
+			}
 			// Insert the promoted message into the store and cache
 			// immediately so it appears in the timeline without
 			// waiting for the WebSocket to deliver it.
 			store.upsertDurableMessage(promotedMessage);
 			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
+			if (!isActiveAgent(operationAgentID)) {
+				return;
+			}
 			store.setQueuedMessages(previousQueuedMessages);
 			store.setChatStatus(previousChatStatus);
-			handleUsageLimitError(error);
+			handleUsageLimitError(operationAgentID, error);
 			throw error;
 		}
 	};

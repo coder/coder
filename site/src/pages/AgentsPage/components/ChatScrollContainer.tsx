@@ -95,6 +95,8 @@ interface StickToBottomInstance {
 	suppressNextResize: () => void;
 	/** Capture scrollHeight for prepend restoration. */
 	capturePrependSnapshot: () => void;
+	/** Clear any pending prepend restoration snapshot. */
+	resetPrependSnapshot: () => void;
 }
 
 function useStickToBottom(): StickToBottomInstance {
@@ -166,6 +168,10 @@ function useStickToBottom(): StickToBottomInstance {
 				scrollHeight: s.scrollElement.scrollHeight,
 			};
 		}
+	};
+
+	const resetPrependSnapshot = () => {
+		stateRef.current.pendingPrepend = null;
 	};
 
 	// -----------------------------------------------------------------------
@@ -556,6 +562,7 @@ function useStickToBottom(): StickToBottomInstance {
 		isAtBottom: isAtBottom || nearBottom,
 		suppressNextResize,
 		capturePrependSnapshot,
+		resetPrependSnapshot,
 	};
 }
 
@@ -594,6 +601,7 @@ const ChatScrollContainer: FC<{
 		scrollToBottom,
 		isAtBottom,
 		capturePrependSnapshot,
+		resetPrependSnapshot,
 	} = useStickToBottom();
 
 	// Merge our callback ref with the external RefObject so both
@@ -620,6 +628,9 @@ const ChatScrollContainer: FC<{
 			return;
 		}
 		hasFetchedRef.current = false;
+		// A prepend snapshot from the previous chat must not be applied
+		// to the next chat's resize cycle.
+		resetPrependSnapshot();
 		// Keep the fetch guard aligned with the incoming chat state so
 		// the sentinel cannot trigger a duplicate fetch on chat switch.
 		isFetchingRef.current = isFetchingMoreMessages;
@@ -627,7 +638,7 @@ const ChatScrollContainer: FC<{
 		// for the new chat and capture prepend state when needed.
 		wasFetchingRef.current = false;
 		scrollToBottom("instant");
-	}, [resetKey, isFetchingMoreMessages, scrollToBottom]);
+	}, [resetKey, isFetchingMoreMessages, scrollToBottom, resetPrependSnapshot]);
 
 	useLayoutEffect(() => {
 		const wasFetching = wasFetchingRef.current;
