@@ -33,7 +33,7 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 		"propose_plan",
 		"Present a Markdown plan file from the workspace for user review. "+
 			"The file must already exist with a .md extension. Use write_file to create it or edit_files to refine it before calling this tool. "+
-			"Pass the absolute chat-specific plan file path from your instructions. The tool reads the content from the workspace.",
+			"Pass the absolute file path to the plan. Use the chat-specific plan path provided in your instructions. The tool reads the content from the workspace.",
 		func(ctx context.Context, args ProposePlanArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -59,7 +59,7 @@ func executeProposePlanTool(
 ) (fantasy.ToolResponse, error) {
 	path := strings.TrimSpace(args.Path)
 	if path == "" {
-		return fantasy.NewTextErrorResponse("path is required (use the absolute chat-specific plan file path from your instructions)"), nil
+		return fantasy.NewTextErrorResponse("path is required (use the chat-specific plan path from your instructions)"), nil
 	}
 	if !strings.HasSuffix(path, ".md") {
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
