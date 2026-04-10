@@ -4998,12 +4998,12 @@ func (p *Server) runChat(
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
 		// Workspace provisioning tools.
-		onChatUpdated := func(chat database.Chat) {
-			workspaceCtx.selectWorkspace(chat)
+		onChatUpdated := func(updatedChat database.Chat) {
+			workspaceCtx.selectWorkspace(updatedChat)
 			// Notify the frontend immediately so it can
 			// start streaming build logs before the tool
 			// completes.
-			p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindStatusChange, nil)
+			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 		}
 		tools = append(tools,
 			chattool.ListTemplates(chattool.ListTemplatesOptions{

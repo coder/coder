@@ -10,7 +10,7 @@ import (
 
 // toolResponse builds a fantasy.ToolResponse from a JSON-serializable
 // result map. The map constraint ensures all tool results serialize
-// to JSON objects, which the frontend parses via asRecord().
+// to JSON objects so the frontend can safely parse them.
 func toolResponse(result map[string]any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -43,6 +43,31 @@ func truncateRunes(value string, maxLen int) string {
 		maxLen = len(runes)
 	}
 	return string(runes[:maxLen])
+}
+
+// buildErrorResult is a structured error response that preserves
+// the build ID alongside the error message. This lets the frontend
+// keep showing build logs when a build fails instead of losing
+// them on the error transition.
+type buildErrorResult struct {
+	Error   string `json:"error"`
+	BuildID string `json:"build_id,omitempty"`
+}
+
+func newBuildError(msg string, buildID uuid.UUID) buildErrorResult {
+	r := buildErrorResult{Error: msg}
+	if buildID != uuid.Nil {
+		r.BuildID = buildID.String()
+	}
+	return r
+}
+
+// setBuildID adds the build_id field to a tool response map when
+// the build ID is known (non-nil).
+func setBuildID(result map[string]any, buildID uuid.UUID) {
+	if buildID != uuid.Nil {
+		result["build_id"] = buildID.String()
+	}
 }
 
 // isTemplateAllowed checks whether a template ID is permitted by the

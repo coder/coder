@@ -594,6 +594,7 @@ const AgentsPage: FC = () => {
 									nextTitle === c.title &&
 									diffStatusEqual(nextDiffStatus, c.diff_status) &&
 									nextWorkspaceId === c.workspace_id &&
+									nextBuildId === c.build_id &&
 									nextHasUnread === c.has_unread
 								) {
 									return c;
@@ -646,7 +647,8 @@ const AgentsPage: FC = () => {
 								nextStatus === previousChat.status &&
 								nextTitle === previousChat.title &&
 								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-								nextWorkspaceId === previousChat.workspace_id
+								nextWorkspaceId === previousChat.workspace_id &&
+								nextBuildId === previousChat.build_id
 							) {
 								return previousChat;
 							}
@@ -656,6 +658,7 @@ const AgentsPage: FC = () => {
 								title: nextTitle,
 								diff_status: nextDiffStatus,
 								workspace_id: nextWorkspaceId,
+								build_id: nextBuildId,
 								updated_at: nextUpdatedAt,
 							};
 						},

@@ -199,30 +199,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 		})
 }
 
-// buildErrorResult is a structured error response that preserves
-// the build ID alongside the error message. This lets the frontend
-// keep showing build logs when a build fails instead of losing
-// them on the error transition.
-type buildErrorResult struct {
-	Error   string `json:"error"`
-	BuildID string `json:"build_id,omitempty"`
-}
 
-func newBuildError(msg string, buildID uuid.UUID) buildErrorResult {
-	r := buildErrorResult{Error: msg}
-	if buildID != uuid.Nil {
-		r.BuildID = buildID.String()
-	}
-	return r
-}
-
-// setBuildID adds the build_id field to a tool response map when
-// the build ID is known (non-nil).
-func setBuildID(result map[string]any, buildID uuid.UUID) {
-	if buildID != uuid.Nil {
-		result["build_id"] = buildID.String()
-	}
-}
 
 // waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
