@@ -415,27 +415,20 @@ func TestStartWorkspace(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Complete the build in the background so waitForBuild
-		// can pick it up.
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			now := time.Now().UTC()
-			err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID:          wsResp.Build.JobID,
-				UpdatedAt:   now,
-				CompletedAt: sql.NullTime{Time: now, Valid: true},
-			})
-			if err != nil {
-				t.Logf("failed to complete job: %v", err)
-			}
-		}()
+		// Wrap the DB so we know exactly when the tool reads
+		// the job status. The interceptor signals AFTER the
+		// first GetProvisionerJobByID read completes, so the
+		// main goroutine can safely complete the build knowing
+		// the tool already observed Running.
+		jobRead := make(chan struct{}, 1)
+		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
 
 		agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return nil, func() {}, nil
 		}
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+			DB:          wrappedDB,
 			OwnerID:     user.ID,
 			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
@@ -446,8 +439,33 @@ func TestStartWorkspace(t *testing.T) {
 			WorkspaceMu: &sync.Mutex{},
 		})
 
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
-		require.NoError(t, err)
+		// Run tool.Run in a goroutine — it will see the job as
+		// Running and enter waitForBuild which polls every 2s.
+		type toolResult struct {
+			resp fantasy.ToolResponse
+			err  error
+		}
+		done := make(chan toolResult, 1)
+		go func() {
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+			done <- toolResult{resp, err}
+		}()
+
+		// Wait for the tool to read the job status (Running).
+		testutil.TryReceive(ctx, t, jobRead)
+
+		// Now complete the build. The next poll in waitForBuild
+		// will see Succeeded and return the build ID.
+		now := time.Now().UTC()
+		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:          wsResp.Build.JobID,
+			UpdatedAt:   now,
+			CompletedAt: sql.NullTime{Time: now, Valid: true},
+		}))
+
+		res := testutil.TryReceive(ctx, t, done)
+		require.NoError(t, res.err)
+		resp := res.resp
 
 		var result map[string]any
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
@@ -539,4 +557,22 @@ func seedModelConfig(
 	})
 	require.NoError(t, err)
 	return model
+}
+
+// jobInterceptStore wraps a database.Store and signals a
+// channel after the first GetProvisionerJobByID read completes.
+// This lets the test synchronize: the tool observes the Running
+// job status before the main goroutine completes the build.
+type jobInterceptStore struct {
+	database.Store
+	jobRead chan struct{}
+}
+
+func (s *jobInterceptStore) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	result, err := s.Store.GetProvisionerJobByID(ctx, id)
+	select {
+	case s.jobRead <- struct{}{}:
+	default:
+	}
+	return result, err
 }

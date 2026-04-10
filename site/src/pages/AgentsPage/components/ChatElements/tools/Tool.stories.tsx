@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
@@ -1427,6 +1428,27 @@ export const StartWorkspaceRunning: Story = {
 		name: "start_workspace",
 		status: "running",
 	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext.Provider value="test-workspace-id">
+				<Story />
+			</ChatWorkspaceContext.Provider>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "starting",
+					},
+				},
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Starting workspace…")).toBeInTheDocument();
@@ -1481,6 +1503,27 @@ export const CreateWorkspaceRunning: Story = {
 	args: {
 		name: "create_workspace",
 		status: "running",
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext.Provider value="test-workspace-id">
+				<Story />
+			</ChatWorkspaceContext.Provider>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "starting",
+					},
+				},
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

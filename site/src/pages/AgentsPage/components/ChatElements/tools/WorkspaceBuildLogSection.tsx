@@ -118,6 +118,19 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		);
 	}
 
+	// Query succeeded but the build produced no log output.
+	if (
+		!isRunning &&
+		completedLogsQuery.isSuccess &&
+		(!logs || logs.length === 0)
+	) {
+		return (
+			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
+				<span>No build logs available.</span>
+			</div>
+		);
+	}
+
 	if (!logs || logs.length === 0) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
