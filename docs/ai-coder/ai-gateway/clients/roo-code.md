@@ -33,6 +33,11 @@ Roo Code allows you to configure providers via the UI.
 
 </div>
 
+### Notes
+
+* If you encounter issues with the **OpenAI** provider type, use **OpenAI Compatible** to ensure correct endpoint routing.
+* Ensure your Coder deployment URL is reachable from your VS Code environment.
+
 ## BYOK (Personal API Key)
 
 <div class="tabs">
@@ -50,10 +55,5 @@ Roo Code allows you to configure providers via the UI.
 ![Roo Code BYOK OpenAI Settings](../../../images/aibridge/clients/roo-code-byok-openai.png)
 
 </div>
-
-### Notes
-
-* If you encounter issues with the **OpenAI** provider type, use **OpenAI Compatible** to ensure correct endpoint routing.
-* Ensure your Coder deployment URL is reachable from your VS Code environment.
 
 **References:** [Roo Code Configuration Profiles](https://docs.roocode.com/features/api-configuration-profiles#creating-and-managing-profiles)
