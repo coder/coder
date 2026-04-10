@@ -4214,6 +4214,96 @@ describe("store/cache desync protection", () => {
 			expect(result.current.orderedMessageIDs).toEqual([1]);
 		});
 	});
+
+	it("reflects optimistic and authoritative history-edit cache updates through the normal sync effect", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-local-edit-sync";
+		const msg1 = makeMessage(chatID, 1, "user", "first");
+		const msg2 = makeMessage(chatID, 2, "assistant", "second");
+		const msg3 = makeMessage(chatID, 3, "user", "third");
+		const optimisticReplacement = {
+			...msg3,
+			content: [{ type: "text" as const, text: "edited draft" }],
+		};
+		const authoritativeReplacement = makeMessage(chatID, 9, "user", "edited");
+
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper: FC<PropsWithChildren> = ({ children }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const initialOptions = {
+			chatID,
+			chatMessages: [msg1, msg2, msg3],
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: [msg1, msg2, msg3],
+				queued_messages: [],
+				has_more: false,
+			},
+			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					store,
+					messagesByID: useChatSelector(store, selectMessagesByID),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
+		rerender({
+			...initialOptions,
+			chatMessages: [msg1, msg2, optimisticReplacement],
+			chatMessagesData: {
+				messages: [msg1, msg2, optimisticReplacement],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messagesByID.get(3)?.content).toEqual(
+				optimisticReplacement.content,
+			);
+		});
+
+		rerender({
+			...initialOptions,
+			chatMessages: [msg1, msg2, authoritativeReplacement],
+			chatMessagesData: {
+				messages: [msg1, msg2, authoritativeReplacement],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
+			expect(result.current.messagesByID.has(3)).toBe(false);
+			expect(result.current.messagesByID.get(9)?.content).toEqual(
+				authoritativeReplacement.content,
+			);
+		});
+	});
 });
 
 describe("parse errors", () => {

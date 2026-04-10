@@ -10424,11 +10424,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(1), summary.TotalPrsCreated)
 		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10458,11 +10457,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(1), summary.TotalPrsMerged)
 
 		// RecentPRs ordered by created_at DESC: chatB is newer.
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10508,11 +10506,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(1), summary.TotalPrsCreated)
 		assert.Equal(t, int64(1), summary.TotalPrsMerged)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10550,11 +10547,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(9_000_000), summary.TotalCostMicros)
 
 		// RecentPRs should return 1 row with the full tree cost.
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10592,11 +10588,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(2), summary.TotalPrsCreated)
 		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10638,11 +10633,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(2), summary.TotalPrsCreated)
 		assert.Equal(t, int64(17_000_000), summary.TotalCostMicros)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10675,11 +10669,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(2), summary.TotalPrsCreated)
 		assert.Equal(t, int64(10_000_000), summary.TotalCostMicros)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 2)
@@ -10712,11 +10705,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(1), summary.TotalPrsCreated)
 		assert.Equal(t, int64(15_000_000), summary.TotalCostMicros)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10741,11 +10733,10 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(1), summary.TotalPrsCreated)
 		assert.Equal(t, int64(0), summary.TotalCostMicros)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10784,11 +10775,10 @@ func TestGetPRInsights(t *testing.T) {
 		require.Len(t, byModel, 1)
 		assert.Equal(t, modelName, byModel[0].DisplayName)
 
-		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   noOwner,
-			LimitVal:  20,
 		})
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
@@ -10819,6 +10809,30 @@ func TestGetPRInsights(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
 		assert.Equal(t, int64(5_000_000), summary.MergedCostMicros)
+	})
+
+	t.Run("AllPRsReturnedWithSafetyCap", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Create 25 distinct PRs — more than the old LIMIT 20 — and
+		// verify all are returned.
+		const prCount = 25
+		for i := range prCount {
+			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
+			linkPR(t, store, chat.ID,
+				fmt.Sprintf("https://github.com/org/repo/pull/%d", 100+i),
+				"merged", fmt.Sprintf("fix: pr-%d", i), 10, 2, 1)
+		}
+
+		recent, err := store.GetPRInsightsPullRequests(context.Background(), database.GetPRInsightsPullRequestsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Len(t, recent, prCount, "all PRs within the date range should be returned")
 	})
 }
 

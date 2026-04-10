@@ -418,11 +418,12 @@ type sqlcQuerier interface {
 	// per PR for state/additions/deletions/model (model comes from the
 	// most recent chat).
 	GetPRInsightsPerModel(ctx context.Context, arg GetPRInsightsPerModelParams) ([]GetPRInsightsPerModelRow, error)
-	// Returns individual PR rows with cost for the recent PRs table.
+	// Returns all individual PR rows with cost for the selected time range.
 	// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
 	// direct children (that lack their own PR), and deduped picks one row
-	// per PR for metadata.
-	GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error)
+	// per PR for metadata. A safety-cap LIMIT guards against unexpectedly
+	// large result sets from direct API callers.
+	GetPRInsightsPullRequests(ctx context.Context, arg GetPRInsightsPullRequestsParams) ([]GetPRInsightsPullRequestsRow, error)
 	// PR Insights queries for the /agents analytics dashboard.
 	// These aggregate data from chat_diff_statuses (PR metadata) joined
 	// with chats and chat_messages (cost) to power the PR Insights view.
@@ -1011,6 +1012,7 @@ type sqlcQuerier interface {
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
+	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error
 	UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentLogOverflowByIDParams) error

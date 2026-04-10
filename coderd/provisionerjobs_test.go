@@ -97,13 +97,14 @@ func TestProvisionerJobs(t *testing.T) {
 
 					// Verify that job metadata is correct.
 					assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
-						TemplateVersionName: version.Name,
-						TemplateID:          template.ID,
-						TemplateName:        template.Name,
-						TemplateDisplayName: template.DisplayName,
-						TemplateIcon:        template.Icon,
-						WorkspaceID:         &w.ID,
-						WorkspaceName:       w.Name,
+						TemplateVersionName:      version.Name,
+						TemplateID:               template.ID,
+						TemplateName:             template.Name,
+						TemplateDisplayName:      template.DisplayName,
+						TemplateIcon:             template.Icon,
+						WorkspaceID:              &w.ID,
+						WorkspaceName:            w.Name,
+						WorkspaceBuildTransition: codersdk.WorkspaceTransitionStart,
 					})
 				})
 			})

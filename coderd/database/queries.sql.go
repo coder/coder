@@ -3218,7 +3218,7 @@ func (q *sqlQuerier) GetPRInsightsPerModel(ctx context.Context, arg GetPRInsight
 	return items, nil
 }
 
-const getPRInsightsRecentPRs = `-- name: GetPRInsightsRecentPRs :many
+const getPRInsightsPullRequests = `-- name: GetPRInsightsPullRequests :many
 WITH pr_costs AS (
     SELECT
         prc.pr_key,
@@ -3238,9 +3238,9 @@ WITH pr_costs AS (
                     AND cds2.pull_request_state IS NOT NULL
               ))
         WHERE cds.pull_request_state IS NOT NULL
-          AND c.created_at >= $2::timestamptz
-          AND c.created_at < $3::timestamptz
-          AND ($4::uuid IS NULL OR c.owner_id = $4::uuid)
+          AND c.created_at >= $1::timestamptz
+          AND c.created_at < $2::timestamptz
+          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ) prc
     LEFT JOIN LATERAL (
         SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
@@ -3275,9 +3275,9 @@ deduped AS (
     JOIN chats c ON c.id = cds.chat_id
     LEFT JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
     WHERE cds.pull_request_state IS NOT NULL
-      AND c.created_at >= $2::timestamptz
-      AND c.created_at < $3::timestamptz
-      AND ($4::uuid IS NULL OR c.owner_id = $4::uuid)
+      AND c.created_at >= $1::timestamptz
+      AND c.created_at < $2::timestamptz
+      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
 )
 SELECT chat_id, pr_title, pr_url, pr_number, state, draft, additions, deletions, changed_files, commits, approved, changes_requested, reviewer_count, author_login, author_avatar_url, base_branch, model_display_name, cost_micros, created_at FROM (
@@ -3305,17 +3305,16 @@ SELECT chat_id, pr_title, pr_url, pr_number, state, draft, additions, deletions,
     JOIN pr_costs pc ON pc.pr_key = d.pr_key
 ) sub
 ORDER BY sub.created_at DESC
-LIMIT $1::int
+LIMIT 500
 `
 
-type GetPRInsightsRecentPRsParams struct {
-	LimitVal  int32         `db:"limit_val" json:"limit_val"`
+type GetPRInsightsPullRequestsParams struct {
 	StartDate time.Time     `db:"start_date" json:"start_date"`
 	EndDate   time.Time     `db:"end_date" json:"end_date"`
 	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
-type GetPRInsightsRecentPRsRow struct {
+type GetPRInsightsPullRequestsRow struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
 	PrTitle          string         `db:"pr_title" json:"pr_title"`
 	PrUrl            sql.NullString `db:"pr_url" json:"pr_url"`
@@ -3337,24 +3336,20 @@ type GetPRInsightsRecentPRsRow struct {
 	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
 }
 
-// Returns individual PR rows with cost for the recent PRs table.
+// Returns all individual PR rows with cost for the selected time range.
 // Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
 // direct children (that lack their own PR), and deduped picks one row
-// per PR for metadata.
-func (q *sqlQuerier) GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPRInsightsRecentPRs,
-		arg.LimitVal,
-		arg.StartDate,
-		arg.EndDate,
-		arg.OwnerID,
-	)
+// per PR for metadata. A safety-cap LIMIT guards against unexpectedly
+// large result sets from direct API callers.
+func (q *sqlQuerier) GetPRInsightsPullRequests(ctx context.Context, arg GetPRInsightsPullRequestsParams) ([]GetPRInsightsPullRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPRInsightsPullRequests, arg.StartDate, arg.EndDate, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetPRInsightsRecentPRsRow
+	var items []GetPRInsightsPullRequestsRow
 	for rows.Next() {
-		var i GetPRInsightsRecentPRsRow
+		var i GetPRInsightsPullRequestsRow
 		if err := rows.Scan(
 			&i.ChatID,
 			&i.PrTitle,
@@ -17548,7 +17543,8 @@ SELECT
 	w.id AS workspace_id,
 	COALESCE(w.name, '') AS workspace_name,
 	-- Include the name of the provisioner_daemon associated to the job
-	COALESCE(pd.name, '') AS worker_name
+	COALESCE(pd.name, '') AS worker_name,
+	wb.transition as workspace_build_transition
 FROM
 	provisioner_jobs pj
 LEFT JOIN
@@ -17593,7 +17589,8 @@ GROUP BY
 	t.icon,
 	w.id,
 	w.name,
-	pd.name
+	pd.name,
+	wb.transition
 ORDER BY
 	pj.created_at DESC
 LIMIT
@@ -17610,18 +17607,19 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 }
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow struct {
-	ProvisionerJob      ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
-	QueuePosition       int64          `db:"queue_position" json:"queue_position"`
-	QueueSize           int64          `db:"queue_size" json:"queue_size"`
-	AvailableWorkers    []uuid.UUID    `db:"available_workers" json:"available_workers"`
-	TemplateVersionName string         `db:"template_version_name" json:"template_version_name"`
-	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
-	TemplateName        string         `db:"template_name" json:"template_name"`
-	TemplateDisplayName string         `db:"template_display_name" json:"template_display_name"`
-	TemplateIcon        string         `db:"template_icon" json:"template_icon"`
-	WorkspaceID         uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
-	WorkerName          string         `db:"worker_name" json:"worker_name"`
+	ProvisionerJob           ProvisionerJob          `db:"provisioner_job" json:"provisioner_job"`
+	QueuePosition            int64                   `db:"queue_position" json:"queue_position"`
+	QueueSize                int64                   `db:"queue_size" json:"queue_size"`
+	AvailableWorkers         []uuid.UUID             `db:"available_workers" json:"available_workers"`
+	TemplateVersionName      string                  `db:"template_version_name" json:"template_version_name"`
+	TemplateID               uuid.NullUUID           `db:"template_id" json:"template_id"`
+	TemplateName             string                  `db:"template_name" json:"template_name"`
+	TemplateDisplayName      string                  `db:"template_display_name" json:"template_display_name"`
+	TemplateIcon             string                  `db:"template_icon" json:"template_icon"`
+	WorkspaceID              uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName            string                  `db:"workspace_name" json:"workspace_name"`
+	WorkerName               string                  `db:"worker_name" json:"worker_name"`
+	WorkspaceBuildTransition NullWorkspaceTransition `db:"workspace_build_transition" json:"workspace_build_transition"`
 }
 
 func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
@@ -17673,6 +17671,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 			&i.WorkspaceID,
 			&i.WorkspaceName,
 			&i.WorkerName,
+			&i.WorkspaceBuildTransition,
 		); err != nil {
 			return nil, err
 		}
@@ -26842,6 +26841,26 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 		arg.DisconnectedAt,
 		arg.UpdatedAt,
 	)
+	return err
+}
+
+const updateWorkspaceAgentDirectoryByID = `-- name: UpdateWorkspaceAgentDirectoryByID :exec
+UPDATE
+	workspace_agents
+SET
+	directory = $2, updated_at = $3
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentDirectoryByIDParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Directory string    `db:"directory" json:"directory"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentDirectoryByID, arg.ID, arg.Directory, arg.UpdatedAt)
 	return err
 }
 
