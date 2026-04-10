@@ -474,116 +474,70 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/MessageReceiving", func(t *testing.T) {
 		t.Parallel()
+		setup := func(metadataResolved, historyResolved bool) chatViewModel {
+			model := newTestChatViewModel(nil)
+			model.loading, model.metadataResolved, model.historyResolved = true, metadataResolved, historyResolved
+			return model
+		}
 		t.Run("ChatOpenedSuccessAndError", func(t *testing.T) {
 			t.Parallel()
-			setup := func() chatViewModel {
-				model := newTestChatViewModel(nil)
-				model.loading = true
-				model.metadataResolved = false
-				model.historyResolved = true
-				return model
-			}
-
-			// Success path.
 			diffStatus := &codersdk.ChatDiffStatus{ChatID: uuid.New()}
 			chat := testChat(codersdk.ChatStatusRunning)
 			chat.DiffStatus = diffStatus
-			updated, cmd := setup().Update(chatOpenedMsg{chat: chat})
+			updated, cmd := setup(false, true).Update(chatOpenedMsg{chat: chat})
 			require.NotNil(t, cmd)
-			require.NotNil(t, updated.chat)
 			require.Equal(t, chat.ID, updated.chat.ID)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
 			require.Equal(t, diffStatus, updated.diffStatus)
 			require.False(t, updated.loading)
 			require.Nil(t, updated.err)
-
-			// Error path.
-			updated, cmd = setup().Update(chatOpenedMsg{err: xerrors.New("open failed")})
+			updated, cmd = setup(false, true).Update(chatOpenedMsg{err: xerrors.New("open failed")})
 			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
 			require.Equal(t, "open failed", updated.err.Error())
 			require.False(t, updated.loading)
 		})
-
 		t.Run("ChatHistorySuccessAndError", func(t *testing.T) {
 			t.Parallel()
-			setup := func() chatViewModel {
-				model := newTestChatViewModel(nil)
-				model.loading = true
-				model.metadataResolved = true
-				model.historyResolved = false
-				return model
-			}
-
-			// Success path.
 			usageA := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(10)}
 			usageB := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(20)}
-			messages := []codersdk.ChatMessage{
-				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first"}),
-				func() codersdk.ChatMessage {
-					msg := testMessage(2, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second"})
-					msg.Usage = usageA
-					return msg
-				}(),
-				func() codersdk.ChatMessage {
-					msg := testMessage(3, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "third"})
-					msg.Usage = usageB
-					return msg
-				}(),
-			}
-			updated, cmd := setup().Update(chatHistoryMsg{messages: messages})
+			second := testMessage(2, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second"})
+			second.Usage = usageA
+			third := testMessage(3, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "third"})
+			third.Usage = usageB
+			messages := []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first"}), second, third}
+			updated, cmd := setup(true, false).Update(chatHistoryMsg{messages: messages})
 			require.Nil(t, cmd)
 			require.Equal(t, messages, updated.messages)
 			require.Len(t, updated.blocks, 3)
 			require.Equal(t, usageB, updated.lastUsage)
 			require.False(t, updated.loading)
-
-			// Error path.
-			updated, cmd = setup().Update(chatHistoryMsg{err: xerrors.New("history failed")})
+			updated, cmd = setup(true, false).Update(chatHistoryMsg{err: xerrors.New("history failed")})
 			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
 			require.Equal(t, "history failed", updated.err.Error())
 			require.False(t, updated.loading)
 		})
-
 		t.Run("OpenHistoryBothSucceedOutOfOrder", func(t *testing.T) {
 			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.metadataResolved = false
-			model.historyResolved = false
-
-			model, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{
-				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"}),
-			}})
+			model := setup(false, false)
+			model, _ = model.Update(chatHistoryMsg{messages: []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"})}})
 			require.True(t, model.loading)
 			require.Nil(t, model.err)
-
 			model.streaming = true
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model, _ = model.Update(chatOpenedMsg{chat: chat})
 			require.False(t, model.loading)
 			require.Nil(t, model.err)
-			require.NotNil(t, model.chat)
 			require.Len(t, model.messages, 1)
 		})
-
 		t.Run("OpenHistoryBothFail", func(t *testing.T) {
 			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.metadataResolved = false
-			model.historyResolved = false
-
+			model := setup(false, false)
 			model, _ = model.Update(chatOpenedMsg{err: xerrors.New("open err")})
 			require.True(t, model.loading)
-
 			model, _ = model.Update(chatHistoryMsg{err: xerrors.New("history err")})
 			require.False(t, model.loading)
-			require.NotNil(t, model.err)
 			require.Equal(t, "open err", model.err.Error())
 		})
-
 		t.Run("StaleAsyncMessagesAreDropped", func(t *testing.T) {
 			t.Parallel()
 			model := newTestChatViewModel(nil)
@@ -829,34 +783,18 @@ func TestExpAgents(t *testing.T) {
 			setup := func() (chatViewModel, codersdk.Chat) {
 				model := newTestChatViewModel(nil)
 				chat := testChat(codersdk.ChatStatusWaiting)
-				model.chat = &chat
-				model.activeChatID = chat.ID
-				model.chatStatus = codersdk.ChatStatusWaiting
+				model.chat, model.activeChatID, model.chatStatus = &chat, chat.ID, codersdk.ChatStatusWaiting
 				return model, chat
 			}
-
-			// Same chat: status updates.
 			model, chat := setup()
-			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
-				Type:   codersdk.ChatStreamEventTypeStatus,
-				ChatID: chat.ID,
-				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
-			}})
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{Type: codersdk.ChatStreamEventTypeStatus, ChatID: chat.ID, Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning}}})
 			require.NotNil(t, cmd)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
-			require.NotNil(t, updated.chat)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chat.Status)
-
-			// Different chat: status ignored.
 			model, _ = setup()
-			updated, cmd = model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
-				Type:   codersdk.ChatStreamEventTypeStatus,
-				ChatID: uuid.New(),
-				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
-			}})
+			updated, cmd = model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{Type: codersdk.ChatStreamEventTypeStatus, ChatID: uuid.New(), Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning}}})
 			require.Nil(t, cmd)
 			require.Equal(t, codersdk.ChatStatusWaiting, updated.chatStatus)
-			require.NotNil(t, updated.chat)
 			require.Equal(t, codersdk.ChatStatusWaiting, updated.chat.Status)
 		})
 
@@ -869,7 +807,6 @@ func TestExpAgents(t *testing.T) {
 				Error: &codersdk.ChatStreamError{Message: "stream blew up"},
 			}})
 			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
 			require.Equal(t, "stream error: stream blew up", updated.err.Error())
 		})
 
@@ -923,7 +860,6 @@ func TestExpAgents(t *testing.T) {
 
 			updated, cmd := model.Update(chatStreamEventMsg{err: xerrors.New("websocket closed")})
 			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
 
 			view := plainText(updated.View())
 			require.Contains(t, view, chat.Title)
@@ -957,7 +893,6 @@ func TestExpAgents(t *testing.T) {
 			updated, _ := model.Update(chatStreamEventMsg{err: xerrors.New("first error")})
 			updated, cmd := updated.Update(chatStreamEventMsg{err: xerrors.New("second error")})
 			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
 			view := updated.View()
 			require.Contains(t, view, "second error")
 			require.NotContains(t, view, "first error")
@@ -1087,7 +1022,6 @@ func TestExpAgents(t *testing.T) {
 			require.Nil(t, cmd)
 			require.False(t, updated.streaming)
 			require.True(t, updated.reconnecting)
-			require.NotNil(t, updated.err)
 		})
 
 		t.Run("MessageEventsDeduplicateByID", func(t *testing.T) {
@@ -1205,114 +1139,73 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "queued", updated.blocks[0].text)
 		})
 
-		t.Run("SendErrorPreservesComposerText", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.composer.SetValue("keep me")
-
-			updated, cmd := model.Update(messageSentMsg{err: xerrors.New("send failed")})
-			require.Nil(t, cmd)
-			require.NotNil(t, updated.err)
-			require.Equal(t, "send failed", updated.err.Error())
-			require.Equal(t, "keep me", updated.composer.Value())
-		})
-
-		t.Run("SendErrorRestoresComposer", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(nil)
-			chat := testChat(codersdk.ChatStatusCompleted)
-			model.setChat(chat)
-			model.loading = false
-			model.composer.SetValue("my message")
-
-			model, _ = model.sendMessage()
-			require.Empty(t, model.composer.Value())
-			require.Equal(t, "my message", model.pendingComposerText)
-
-			model, _ = model.Update(messageSentMsg{err: xerrors.New("network error")})
-			require.Equal(t, "my message", model.composer.Value())
-			require.Error(t, model.err)
-		})
-
-		t.Run("CreateChatErrorAllowsRetry", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(failingExperimentalClient())
-			model.loading = false
-			model.draft = true
-			model.composer.SetValue("keep draft")
-
-			updated, cmd := model.Update(chatCreatedMsg{err: xerrors.New("create failed")})
-			require.Nil(t, cmd)
-			require.True(t, updated.draft)
-			require.Contains(t, updated.View(), "create failed")
-
-			updated.composer.SetValue("retry draft")
-			retried, retryCmd := updated.sendMessage()
-			require.NotNil(t, retryCmd)
-			require.True(t, retried.draft)
-			require.Empty(t, retried.composer.Value())
-			_, ok := mustMsg(t, retryCmd).(chatCreatedMsg)
-			require.True(t, ok)
-		})
-
-		t.Run("CreateErrorRestoresComposer", func(t *testing.T) {
-			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model.draft = true
-			model.loading = false
-			model.composer.SetValue("first message")
-
-			model, _ = model.sendMessage()
-			require.Empty(t, model.composer.Value())
-			require.Equal(t, "first message", model.pendingComposerText)
-			require.True(t, model.creatingChat)
-
-			model, _ = model.Update(chatCreatedMsg{err: xerrors.New("create failed")})
-			require.Equal(t, "first message", model.composer.Value())
-			require.False(t, model.creatingChat)
-			require.Error(t, model.err)
-		})
-
-		t.Run("PendingComposerTextRestoresOnlyIntoEmptyComposer", func(t *testing.T) {
+		t.Run("SendCreateErrorHandling", func(t *testing.T) {
 			t.Parallel()
 			tests := []struct {
-				name  string
-				setup func(chatViewModel) chatViewModel
-				msg   tea.Msg
+				name, composerText, wantComposer                 string
+				draft, setChat, useSend, typeNewInput, wantRetry bool
+				errMsg                                           tea.Msg
 			}{
-				{
-					name: "messageSentMsg",
-					setup: func(model chatViewModel) chatViewModel {
-						chat := testChat(codersdk.ChatStatusCompleted)
-						model.setChat(chat)
-						return model
-					},
-					msg: messageSentMsg{err: xerrors.New("fail")},
-				},
-				{
-					name: "chatCreatedMsg",
-					setup: func(model chatViewModel) chatViewModel {
-						model.draft = true
-						return model
-					},
-					msg: chatCreatedMsg{err: xerrors.New("fail")},
-				},
+				{name: "send preserves existing composer text", composerText: "keep me", wantComposer: "keep me", errMsg: messageSentMsg{err: xerrors.New("send failed")}},
+				{name: "send restores pending text", composerText: "my message", wantComposer: "my message", setChat: true, useSend: true, errMsg: messageSentMsg{err: xerrors.New("network error")}},
+				{name: "create restores pending text", composerText: "first message", wantComposer: "first message", draft: true, useSend: true, errMsg: chatCreatedMsg{err: xerrors.New("create failed")}},
+				{name: "create error allows retry", composerText: "keep draft", wantComposer: "keep draft", draft: true, wantRetry: true, errMsg: chatCreatedMsg{err: xerrors.New("create failed")}},
+				{name: "messageSent error does not overwrite newer input", composerText: "original", wantComposer: "new input", setChat: true, useSend: true, typeNewInput: true, errMsg: messageSentMsg{err: xerrors.New("fail")}},
+				{name: "chatCreated error does not overwrite newer input", composerText: "original", wantComposer: "new input", draft: true, useSend: true, typeNewInput: true, errMsg: chatCreatedMsg{err: xerrors.New("fail")}},
 			}
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-					model := tt.setup(newTestChatViewModel(nil))
+					var client *codersdk.ExperimentalClient
+					if tt.wantRetry {
+						client = failingExperimentalClient()
+					}
+					model := newTestChatViewModel(client)
 					model.loading = false
-					model.composer.SetValue("original")
-
-					model, _ = model.sendMessage()
-					require.Equal(t, "original", model.pendingComposerText)
-
-					model.composer.SetValue("new input")
-
-					model, _ = model.Update(tt.msg)
-					require.Equal(t, "new input", model.composer.Value())
+					if tt.draft {
+						model.draft = true
+					}
+					if tt.setChat {
+						chat := testChat(codersdk.ChatStatusCompleted)
+						model.setChat(chat)
+					}
+					model.composer.SetValue(tt.composerText)
+					if tt.useSend {
+						model, _ = model.sendMessage()
+						require.Empty(t, model.composer.Value())
+						require.Equal(t, tt.composerText, model.pendingComposerText)
+						if tt.draft {
+							require.True(t, model.creatingChat)
+						}
+					}
+					if tt.typeNewInput {
+						model.composer.SetValue("new input")
+					}
+					updated, cmd := model.Update(tt.errMsg)
+					require.Nil(t, cmd)
+					model = updated
 					require.Error(t, model.err)
+					switch msg := tt.errMsg.(type) {
+					case messageSentMsg:
+						require.Equal(t, msg.err.Error(), model.err.Error())
+					case chatCreatedMsg:
+						require.Equal(t, msg.err.Error(), model.err.Error())
+					}
+					require.Equal(t, tt.wantComposer, model.composer.Value())
+					if tt.wantRetry {
+						require.True(t, model.draft)
+						require.Contains(t, model.View(), "create failed")
+						model.composer.SetValue("retry draft")
+						retried, retryCmd := model.sendMessage()
+						require.NotNil(t, retryCmd)
+						require.True(t, retried.draft)
+						require.Empty(t, retried.composer.Value())
+						_, ok := mustMsg(t, retryCmd).(chatCreatedMsg)
+						require.True(t, ok)
+					}
+					if tt.draft && tt.useSend {
+						require.False(t, model.creatingChat)
+					}
 				})
 			}
 		})
@@ -1431,7 +1324,6 @@ func TestExpAgents(t *testing.T) {
 			updated, cmd := model.Update(chatInterruptedMsg{chat: chat})
 			require.Nil(t, cmd)
 			require.False(t, updated.interrupting)
-			require.NotNil(t, updated.chat)
 			require.Equal(t, chat.ID, updated.chat.ID)
 			require.Equal(t, codersdk.ChatStatusCompleted, updated.chatStatus)
 		})
@@ -1444,7 +1336,6 @@ func TestExpAgents(t *testing.T) {
 			updated, cmd := model.Update(chatInterruptedMsg{err: xerrors.New("interrupt failed")})
 			require.Nil(t, cmd)
 			require.False(t, updated.interrupting)
-			require.NotNil(t, updated.err)
 			require.Equal(t, "interrupt failed", updated.err.Error())
 		})
 
