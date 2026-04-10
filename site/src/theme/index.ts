@@ -40,4 +40,4 @@ export type ThemeName = keyof typeof theme;
 export const DEFAULT_THEME: ThemeName = "dark";
 
 export const isValidThemeName = (name: string | undefined): name is ThemeName =>
-	name === "light" || name === "dark";
+	name !== undefined && name in theme;

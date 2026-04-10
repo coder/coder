@@ -25,6 +25,12 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes, { isValidThemeName, type Theme, type ThemeName } from "#/theme";
 
 /**
+ * We use theme names as classnames on the html root. Get the string values
+ * here.
+ */
+const THEME_NAMES = Object.keys(themes);
+
+/**
  * Returns the user's selected theme in their settings. If the user has "auto"
  * selected, or we cannot determine the theme for whatever reason, returns
  * undefined
@@ -95,17 +101,14 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (root.dataset.embedTheme) {
 			return;
 		}
-
-		const themeNames = Object.keys(themes);
-
-		root.classList.remove(...themeNames);
+		root.classList.remove(...THEME_NAMES);
 		root.classList.add(themePreference);
 
 		return () => {
 			if (root.dataset.embedTheme) {
 				return;
 			}
-			root.classList.remove(...themeNames);
+			root.classList.remove(...THEME_NAMES);
 		};
 	}, [themePreference]);
 
