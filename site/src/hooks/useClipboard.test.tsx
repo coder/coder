@@ -147,7 +147,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 
-		// Can't use jest.spyOn here because there's no guarantee that the mock
+		// Can't use vi.spyOn here because there's no guarantee that the mock
 		// browser environment actually implements execCommand. Trying to spy on an
 		// undefined value will throw an error
 		global.document.execCommand = mockExecCommand;
