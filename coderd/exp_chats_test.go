@@ -900,7 +900,7 @@ func TestListChats(t *testing.T) {
 		// normally be pushed off the first page (default limit 50).
 		const fillerCount = 51
 		fillerChats := make([]codersdk.Chat, 0, fillerCount)
-		for i := 0; i < fillerCount; i++ {
+		for i := range fillerCount {
 			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
@@ -920,7 +920,7 @@ func TestListChats(t *testing.T) {
 		for _, c := range allCreated {
 			pending[c.ID] = struct{}{}
 		}
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
 			all, listErr := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Pagination: codersdk.Pagination{Limit: fillerCount + 10},
 			})
@@ -933,7 +933,7 @@ func TestListChats(t *testing.T) {
 				}
 			}
 			return len(pending) == 0
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		// Pin the earliest chat.
 		err = client.UpdateChat(ctx, pinnedChat.ID, codersdk.UpdateChatRequest{
@@ -971,7 +971,7 @@ func TestListChats(t *testing.T) {
 		// Create 5 chats: 2 will be pinned, 3 unpinned.
 		const totalChats = 5
 		createdChats := make([]codersdk.Chat, 0, totalChats)
-		for i := 0; i < totalChats; i++ {
+		for i := range totalChats {
 			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
@@ -983,20 +983,19 @@ func TestListChats(t *testing.T) {
 		}
 
 		// Wait for all chats to reach terminal status.
-		for _, c := range createdChats {
-			require.Eventually(t, func() bool {
-				all, listErr := client.ListChats(ctx, nil)
-				if listErr != nil {
+		// Check each chat by ID rather than fetching the full list.
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			for _, c := range createdChats {
+				ch, getErr := client.GetChat(ctx, c.ID)
+				if getErr != nil {
 					return false
 				}
-				for _, ch := range all {
-					if ch.ID == c.ID {
-						return ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning
-					}
+				if ch.Status == codersdk.ChatStatusPending || ch.Status == codersdk.ChatStatusRunning {
+					return false
 				}
-				return false
-			}, testutil.WaitShort, testutil.IntervalFast)
-		}
+			}
+			return true
+		}, testutil.IntervalFast)
 
 		// Pin the first two chats (oldest updated_at).
 		err := client.UpdateChat(ctx, createdChats[0].ID, codersdk.UpdateChatRequest{
@@ -1013,7 +1012,7 @@ func TestListChats(t *testing.T) {
 		maxPages := totalChats/pageSize + 2
 		var allPaginated []codersdk.Chat
 		var afterID uuid.UUID
-		for i := 0; i < maxPages; i++ {
+		for range maxPages {
 			opts := &codersdk.ListChatsOptions{
 				Pagination: codersdk.Pagination{Limit: pageSize},
 			}
