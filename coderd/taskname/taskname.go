@@ -469,6 +469,7 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 			if !yield(nil, xerrors.Errorf("anthropic stream error: %w", err)) {
 				return
 			}
+			return
 		}
 
 		if !sawMessageStop {
