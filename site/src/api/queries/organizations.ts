@@ -161,7 +161,7 @@ export const updateOrganizationMemberRoles = (
 	};
 };
 
-export const organizationsKey = ["organizations"] as const;
+const organizationsKey = ["organizations"] as const;
 
 const notAvailable = { available: false, value: undefined } as const;
 

@@ -49,7 +49,7 @@ export const WithValue: Story = {
 	},
 };
 
-export const SingleOrg: Story = {
+export const OneOrg: Story = {
 	args: {
 		value: MockOrganization,
 		options: [MockOrganization],
