@@ -1,0 +1,182 @@
+//go:build linux
+
+package terraform
+
+import (
+	"context"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/prometheus/procfs"
+)
+
+// linuxCommMaxLen is the kernel's limit for the comm field in
+// /proc/<pid>/stat. Names longer than this are silently truncated,
+// which affects provider identification.
+const linuxCommMaxLen = 15
+
+const providerPrefix = "terraform-provider-"
+
+// ProviderResourceUsage holds peak memory and cumulative CPU for a
+// single Terraform provider process (or group of processes with the
+// same provider name).
+type ProviderResourceUsage struct {
+	PeakRSSBytes   uint64
+	CPUTimeSeconds float64 // user + system
+}
+
+// ProcessSample is the final summary returned when the sampler stops.
+type ProcessSample struct {
+	Providers map[string]ProviderResourceUsage
+}
+
+// procSampler periodically reads /proc to collect resource usage for
+// all processes in a given process group. This lets us attribute
+// memory and CPU to individual Terraform providers without modifying
+// the Terraform binary itself.
+type procSampler struct {
+	pgid     int
+	interval time.Duration
+	fs       procfs.FS
+
+	mu      sync.Mutex
+	current map[string]ProviderResourceUsage
+
+	done chan struct{}
+}
+
+func newProcSampler(pgid int, interval time.Duration) *procSampler {
+	// Default to the real /proc mount. Tests can override s.fs after
+	// construction if needed, but in practice we always read the
+	// host procfs.
+	fs, err := procfs.NewDefaultFS()
+	if err != nil {
+		// This should never fail on Linux where /proc is always
+		// mounted. Fall back to the standard path.
+		fs, _ = procfs.NewFS("/proc")
+	}
+	return &procSampler{
+		pgid:     pgid,
+		interval: interval,
+		fs:       fs,
+		current:  make(map[string]ProviderResourceUsage),
+		done:     make(chan struct{}),
+	}
+}
+
+// Start begins periodic sampling in a background goroutine. The
+// goroutine exits when ctx is canceled or Stop is called.
+func (s *procSampler) Start(ctx context.Context) {
+	go func() {
+		defer close(s.done)
+		ticker := time.NewTicker(s.interval)
+		defer ticker.Stop()
+
+		// Take an immediate first sample so callers that stop
+		// quickly still get data.
+		s.sample()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.sample()
+			}
+		}
+	}()
+}
+
+// Stop cancels sampling and returns the final accumulated summary.
+// It is safe to call Stop without calling Start; it returns an
+// empty summary.
+func (s *procSampler) Stop() ProcessSample {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result := ProcessSample{
+		Providers: make(map[string]ProviderResourceUsage, len(s.current)),
+	}
+	for k, v := range s.current {
+		result.Providers[k] = v
+	}
+	return result
+}
+
+// sample performs a single pass over all processes, filtering to our
+// process group and updating peak RSS / CPU time per provider.
+func (s *procSampler) sample() {
+	procs, err := s.fs.AllProcs()
+	if err != nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, proc := range procs {
+		stat, err := proc.NewStat()
+		if err != nil {
+			// Process vanished between listing and stat; this is
+			// normal during Terraform runs.
+			continue
+		}
+
+		if stat.PGRP != s.pgid {
+			continue
+		}
+
+		name := resolveProviderName(proc, stat.Comm)
+
+		rssBytes := uint64(stat.ResidentMemory()) // #nosec G115 -- RSS is non-negative.
+		cpuTime := stat.CPUTime()
+
+		existing := s.current[name]
+		if rssBytes > existing.PeakRSSBytes {
+			existing.PeakRSSBytes = rssBytes
+		}
+		// CPU time only increases, so the latest reading is the
+		// cumulative total.
+		existing.CPUTimeSeconds = cpuTime
+		s.current[name] = existing
+	}
+}
+
+// resolveProviderName determines the short provider name from a
+// process. It first tries the comm field from /proc/<pid>/stat,
+// but falls back to /proc/<pid>/cmdline when comm is truncated
+// to the kernel's 15-character limit.
+func resolveProviderName(proc procfs.Proc, comm string) string {
+	if len(comm) >= linuxCommMaxLen {
+		// The comm field is likely truncated. Read the full
+		// command line to get the real binary name.
+		if cmdline, err := proc.CmdLine(); err == nil && len(cmdline) > 0 {
+			return extractProviderName(cmdline[0])
+		}
+	}
+	return extractProviderName(comm)
+}
+
+// extractProviderName derives a short provider name from a binary
+// name or path. It handles the full form
+// ("terraform-provider-aws_v5.0.0_x5"), truncated comm values, and
+// bare "terraform".
+func extractProviderName(comm string) string {
+	// Handle paths: use only the base name.
+	if idx := strings.LastIndex(comm, "/"); idx >= 0 {
+		comm = comm[idx+1:]
+	}
+
+	after, found := strings.CutPrefix(comm, providerPrefix)
+	if !found {
+		return comm
+	}
+
+	// Strip version suffix (everything from "_v" onward).
+	if idx := strings.Index(after, "_v"); idx >= 0 {
+		after = after[:idx]
+	}
+
+	return after
+}
