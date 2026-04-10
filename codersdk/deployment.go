@@ -3624,6 +3624,29 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "acquireBatchSize",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		{
+			Name:        "Chat: Pubsub Flush Interval",
+			Description: "The maximum time accepted chatd pubsub publishes wait before the batching loop schedules a flush.",
+			Flag:        "chat-pubsub-flush-interval",
+			Env:         "CODER_CHAT_PUBSUB_FLUSH_INTERVAL",
+			Value:       &c.AI.Chat.PubsubFlushInterval,
+			Default:     "50ms",
+			Group:       &deploymentGroupChat,
+			YAML:        "pubsubFlushInterval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
+		},
+		{
+			Name:        "Chat: Pubsub Queue Size",
+			Description: "How many chatd pubsub publishes can wait in memory for the dedicated sender path when PostgreSQL falls behind.",
+			Flag:        "chat-pubsub-queue-size",
+			Env:         "CODER_CHAT_PUBSUB_QUEUE_SIZE",
+			Value:       &c.AI.Chat.PubsubQueueSize,
+			Default:     "8192",
+			Group:       &deploymentGroupChat,
+			YAML:        "pubsubQueueSize",
+			Hidden:      true,
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4090,7 +4113,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	PubsubFlushInterval serpent.Duration `json:"pubsub_flush_interval" typescript:",notnull"`
+	PubsubQueueSize     serpent.Int64    `json:"pubsub_queue_size" typescript:",notnull"`
 }
 
 type AIConfig struct {

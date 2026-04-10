@@ -82,6 +82,24 @@ coder_derp_server_unknown_frames_total 0
 # HELP coder_derp_server_watchers Current watchers.
 # TYPE coder_derp_server_watchers gauge
 coder_derp_server_watchers 0
+# HELP coder_pubsub_batch_delegate_fallbacks_total The number of chatd publishes that fell back to the shared pubsub pool by channel class, reason, and flush stage.
+# TYPE coder_pubsub_batch_delegate_fallbacks_total counter
+coder_pubsub_batch_delegate_fallbacks_total{channel_class="",reason="",stage=""} 0
+# HELP coder_pubsub_batch_flush_duration_seconds The time spent flushing one chatd batch to PostgreSQL.
+# TYPE coder_pubsub_batch_flush_duration_seconds histogram
+coder_pubsub_batch_flush_duration_seconds{reason=""} 0
+# HELP coder_pubsub_batch_queue_depth The number of chatd notifications waiting in the batching queue.
+# TYPE coder_pubsub_batch_queue_depth gauge
+coder_pubsub_batch_queue_depth 0
+# HELP coder_pubsub_batch_sender_reset_failures_total The number of batched pubsub sender reset attempts that failed.
+# TYPE coder_pubsub_batch_sender_reset_failures_total counter
+coder_pubsub_batch_sender_reset_failures_total 0
+# HELP coder_pubsub_batch_sender_resets_total The number of successful batched pubsub sender resets after flush failures.
+# TYPE coder_pubsub_batch_sender_resets_total counter
+coder_pubsub_batch_sender_resets_total 0
+# HELP coder_pubsub_batch_size The number of logical notifications sent in each chatd batch flush.
+# TYPE coder_pubsub_batch_size histogram
+coder_pubsub_batch_size 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0
