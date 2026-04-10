@@ -1292,122 +1292,69 @@ const providerFormSetup = (provider: string, displayName: string) => ({
 	},
 });
 
-export const ModelFormOpenAI: Story = {
-	...providerFormSetup("openai", "OpenAI"),
+const createModelFormStory = (
+	provider: string,
+	displayName: string,
+	expectedLabels: ReadonlyArray<RegExp>,
+): Story => ({
+	...providerFormSetup(provider, displayName),
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "OpenAI");
+		await openAddModelForm(body, displayName);
 		await expandSection(body, "Provider Configuration");
-		await expect(
-			await body.findByLabelText(/Reasoning Effort/i),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByLabelText(/Parallel Tool Calls/i),
-		).toBeInTheDocument();
+		for (const label of expectedLabels) {
+			await expect(await body.findByLabelText(label)).toBeInTheDocument();
+		}
 	},
-};
+});
 
-export const ModelFormAnthropic: Story = {
-	...providerFormSetup("anthropic", "Anthropic"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "Anthropic");
-		await expandSection(body, "Provider Configuration");
-		await expect(
-			await body.findByLabelText(/Send Reasoning/i),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByLabelText(/Thinking Budget Tokens/i),
-		).toBeInTheDocument();
-	},
-};
+export const ModelFormOpenAI: Story = createModelFormStory("openai", "OpenAI", [
+	/Reasoning Effort/i,
+	/Parallel Tool Calls/i,
+]);
 
-export const ModelFormGoogle: Story = {
-	...providerFormSetup("google", "Google"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "Google");
-		await expandSection(body, "Provider Configuration");
-		await expect(
-			await body.findByLabelText(/Thinking Config Thinking Budget/i),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByLabelText(/Thinking Config Include Thoughts/i),
-		).toBeInTheDocument();
-	},
-};
+export const ModelFormAnthropic: Story = createModelFormStory(
+	"anthropic",
+	"Anthropic",
+	[/Send Reasoning/i, /Thinking Budget Tokens/i],
+);
 
-export const ModelFormOpenAICompat: Story = {
-	...providerFormSetup("openaicompat", "OpenAI-compatible"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "OpenAI-compatible");
-		await expandSection(body, "Provider Configuration");
-		await expect(
-			await body.findByLabelText(/Reasoning Effort/i),
-		).toBeInTheDocument();
-	},
-};
+export const ModelFormGoogle: Story = createModelFormStory("google", "Google", [
+	/Thinking Config Thinking Budget/i,
+	/Thinking Config Include Thoughts/i,
+]);
 
-export const ModelFormOpenRouter: Story = {
-	...providerFormSetup("openrouter", "OpenRouter"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "OpenRouter");
-		await expandSection(body, "Provider Configuration");
-		await expect(
-			await body.findByLabelText(/Reasoning Enabled/i),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByLabelText(/Reasoning Max Tokens/i),
-		).toBeInTheDocument();
-	},
-};
+export const ModelFormOpenAICompat: Story = createModelFormStory(
+	"openaicompat",
+	"OpenAI-compatible",
+	[/Reasoning Effort/i],
+);
 
-export const ModelFormVercel: Story = {
-	...providerFormSetup("vercel", "Vercel AI Gateway"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "Vercel AI Gateway");
-		await expandSection(body, "Provider Configuration");
-		await expect(
-			await body.findByLabelText(/Reasoning Enabled/i),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByLabelText(/Parallel Tool Calls/i),
-		).toBeInTheDocument();
-	},
-};
+export const ModelFormOpenRouter: Story = createModelFormStory(
+	"openrouter",
+	"OpenRouter",
+	[/Reasoning Enabled/i, /Reasoning Max Tokens/i],
+);
 
-export const ModelFormAzure: Story = {
-	...providerFormSetup("azure", "Azure OpenAI"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "Azure OpenAI");
-		await expandSection(body, "Provider Configuration");
-		// Azure aliases to OpenAI fields.
-		await expect(
-			await body.findByLabelText(/Reasoning Effort/i),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByLabelText(/Service Tier/i),
-		).toBeInTheDocument();
-	},
-};
+export const ModelFormVercel: Story = createModelFormStory(
+	"vercel",
+	"Vercel AI Gateway",
+	[/Reasoning Enabled/i, /Parallel Tool Calls/i],
+);
 
-export const ModelFormBedrock: Story = {
-	...providerFormSetup("bedrock", "AWS Bedrock"),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await openAddModelForm(body, "AWS Bedrock");
-		await expandSection(body, "Provider Configuration");
-		// Bedrock aliases to Anthropic fields.
-		await expect(
-			await body.findByLabelText(/Send Reasoning/i),
-		).toBeInTheDocument();
-		await expect(await body.findByLabelText(/Effort/i)).toBeInTheDocument();
-	},
-};
+// Azure aliases to OpenAI fields.
+export const ModelFormAzure: Story = createModelFormStory(
+	"azure",
+	"Azure OpenAI",
+	[/Reasoning Effort/i, /Service Tier/i],
+);
+
+// Bedrock aliases to Anthropic fields.
+export const ModelFormBedrock: Story = createModelFormStory(
+	"bedrock",
+	"AWS Bedrock",
+	[/Send Reasoning/i, /Effort/i],
+);
 
 export const ModelPricingWarningInList: Story = {
 	args: {
@@ -1428,16 +1375,23 @@ export const ModelPricingWarningInList: Story = {
 	},
 };
 
+const modelDeleteArgs = {
+	section: "models" as ChatModelAdminSection,
+	providerConfigsData: [defaultOpenAIProviderConfig],
+	modelConfigsData: [
+		createOpenAIModelConfig("model-1", "gpt-4o", {
+			display_name: "GPT-4o",
+		}),
+	],
+};
+
+const providerDeleteArgs = {
+	section: "providers" as ChatModelAdminSection,
+	providerConfigsData: [defaultOpenAIProviderConfig],
+};
+
 export const ModelDeleteConfirmation: Story = {
-	args: {
-		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [defaultOpenAIProviderConfig],
-		modelConfigsData: [
-			createOpenAIModelConfig("model-1", "gpt-4o", {
-				display_name: "GPT-4o",
-			}),
-		],
-	},
+	args: modelDeleteArgs,
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -1467,15 +1421,7 @@ export const ModelDeleteConfirmation: Story = {
 };
 
 export const ModelDeleteCancelled: Story = {
-	args: {
-		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [defaultOpenAIProviderConfig],
-		modelConfigsData: [
-			createOpenAIModelConfig("model-1", "gpt-4o", {
-				display_name: "GPT-4o",
-			}),
-		],
-	},
+	args: modelDeleteArgs,
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -1497,15 +1443,7 @@ export const ModelDeleteCancelled: Story = {
 };
 
 export const ModelDeleteConfirmed: Story = {
-	args: {
-		section: "models" as ChatModelAdminSection,
-		providerConfigsData: [defaultOpenAIProviderConfig],
-		modelConfigsData: [
-			createOpenAIModelConfig("model-1", "gpt-4o", {
-				display_name: "GPT-4o",
-			}),
-		],
-	},
+	args: modelDeleteArgs,
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -1525,10 +1463,7 @@ export const ModelDeleteConfirmed: Story = {
 };
 
 export const ProviderDeleteConfirmation: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [defaultOpenAIProviderConfig],
-	},
+	args: providerDeleteArgs,
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -1555,10 +1490,7 @@ export const ProviderDeleteConfirmation: Story = {
 };
 
 export const ProviderDeleteCancelled: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [defaultOpenAIProviderConfig],
-	},
+	args: providerDeleteArgs,
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -1582,10 +1514,7 @@ export const ProviderDeleteCancelled: Story = {
 };
 
 export const ProviderDeleteConfirmed: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [defaultOpenAIProviderConfig],
-	},
+	args: providerDeleteArgs,
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
