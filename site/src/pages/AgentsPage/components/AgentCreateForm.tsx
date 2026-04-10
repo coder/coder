@@ -7,13 +7,7 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -196,10 +190,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
-	const [selectedOrganizationId, setSelectedOrganizationId] = useState<
-		string | null
-	>(organizations[0]?.id ?? null);
-	const organizationId = selectedOrganizationId ?? organizations[0]?.id ?? "";
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		organizations[0] ?? null,
+	);
+	const organizationId = selectedOrg?.id ?? organizations[0]?.id ?? "";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
@@ -364,24 +358,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				{showOrganizations && (
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="organization">Organization</Label>
-						{/* TODO: Replace with controlled OrganizationAutocomplete
-							   once it supports a value prop.
-							   See: https://github.com/coder/internal/issues/1440 */}
-						<Select
-							value={organizationId}
-							onValueChange={setSelectedOrganizationId}
-						>
-							<SelectTrigger id="organization">
-								<SelectValue placeholder="Select an organization…" />
-							</SelectTrigger>
-							<SelectContent>
-								{organizations.map((org) => (
-									<SelectItem key={org.id} value={org.id}>
-										{org.display_name || org.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<OrganizationAutocomplete
+							id="organization"
+							required
+							value={selectedOrg}
+							options={[...organizations]}
+							onChange={setSelectedOrg}
+						/>
 					</div>
 				)}
 				<AgentChatInput
