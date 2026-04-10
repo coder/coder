@@ -121,6 +121,82 @@ describe("LoginPage", () => {
 		await screen.findByText("Setup");
 	});
 
+	it("performs a hard reload after successful password login", async () => {
+		// Given - user is NOT signed in
+		let loggedIn = false;
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				if (!loggedIn) {
+					return HttpResponse.json(
+						{ message: "no user here" },
+						{ status: 401 },
+					);
+				}
+				return HttpResponse.json(MockUserOwner);
+			}),
+			http.post("/api/v2/users/login", () => {
+				loggedIn = true;
+				return HttpResponse.json({
+					session_token: "test-session-token",
+				});
+			}),
+		);
+
+		// Spy on window.location.href
+		const originalLocation = window.location;
+		const locationHrefSpy = vi.fn();
+
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: {
+				...originalLocation,
+				origin: originalLocation.origin,
+				set href(url: string) {
+					locationHrefSpy(url);
+				},
+				get href() {
+					return originalLocation.href;
+				},
+			},
+		});
+
+		// When
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+				],
+				{ initialEntries: ["/login"] },
+			),
+		);
+
+		await waitForLoaderToBeRemoved();
+
+		const email = screen.getByLabelText(/Email/);
+		const password = screen.getByLabelText(/Password/);
+
+		await userEvent.type(email, "test@coder.com");
+		await userEvent.type(password, "password");
+
+		const signInButton = await screen.findByText("Sign In");
+		fireEvent.click(signInButton);
+
+		// Then - it should hard reload to "/" so the server re-renders
+		// HTML with fresh metadata (userAppearance, etc.).
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledWith("/");
+		});
+
+		// Cleanup
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: originalLocation,
+		});
+	});
+
 	it("redirects to /oauth2/authorize via server-side redirect when signed in", async () => {
 		// Given - user is signed in
 		server.use(

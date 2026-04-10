@@ -1,6 +1,6 @@
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
-import { Navigate, useLocation, useNavigate } from "react-router";
+import { Navigate, useLocation } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
 import { authMethods } from "#/api/queries/users";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
@@ -24,7 +24,6 @@ const LoginPage: FC = () => {
 	const authMethodsQuery = useQuery(authMethods());
 	const redirectTo = retrieveRedirect(location.search);
 	const applicationName = getApplicationName();
-	const navigate = useNavigate();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	let redirectError: Error | null = null;
@@ -87,7 +86,13 @@ const LoginPage: FC = () => {
 				isSigningIn={isSigningIn}
 				onSignIn={async ({ email, password }) => {
 					await signIn(email, password);
-					navigate("/");
+					// Use a hard reload instead of React Router navigation
+					// so the server re-renders the HTML with all metadata
+					// tags populated (userAppearance, user, permissions,
+					// etc.) using the new session cookie.
+					window.location.href = redirectUrl
+						? redirectUrl.pathname
+						: redirectTo;
 				}}
 				redirectTo={redirectTo}
 			/>
