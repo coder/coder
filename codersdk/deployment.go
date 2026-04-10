@@ -3624,18 +3624,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "acquireBatchSize",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
-		{
-			Name:        "Chat: Pubsub Batch Enabled",
-			Description: "Whether chatd should route PostgreSQL pubsub publishes through a dedicated sender connection. The default keeps batching enabled so chatd avoids shared-pool starvation without changing global pubsub wiring.",
-			Flag:        "chat-pubsub-batch-enabled",
-			Env:         "CODER_CHAT_PUBSUB_BATCH_ENABLED",
-			Value:       &c.AI.Chat.PubsubBatchEnabled,
-			Default:     "true",
-			Group:       &deploymentGroupChat,
-			YAML:        "pubsubBatchEnabled",
-			Hidden:      true,
-		},
-
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4102,8 +4090,7 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize   serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	PubsubBatchEnabled serpent.Bool  `json:"pubsub_batch_enabled" typescript:",notnull"`
+	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
 }
 
 type AIConfig struct {

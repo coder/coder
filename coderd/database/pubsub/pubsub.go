@@ -487,14 +487,12 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 	return conn, nil
 }
 
-func newConnector(ctx context.Context, logger slog.Logger, db *sql.DB, connectURL string) (driver.Connector, error) {
-	if db == nil {
-		return nil, xerrors.New("database is nil")
-	}
-
+func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
+	p.connected.Set(0)
+	// Creates a new listener using pq.
 	var (
 		dialer = logDialer{
-			logger: logger,
+			logger: p.logger,
 			// pq.defaultDialer uses a zero net.Dialer as well.
 			d: net.Dialer{},
 		}
@@ -503,36 +501,26 @@ func newConnector(ctx context.Context, logger slog.Logger, db *sql.DB, connectUR
 	)
 
 	// Create a custom connector if the database driver supports it.
-	connectorCreator, ok := db.Driver().(database.ConnectorCreator)
+	connectorCreator, ok := p.db.Driver().(database.ConnectorCreator)
 	if ok {
 		connector, err = connectorCreator.Connector(connectURL)
 		if err != nil {
-			return nil, xerrors.Errorf("create custom connector: %w", err)
+			return xerrors.Errorf("create custom connector: %w", err)
 		}
 	} else {
-		// Use the default pq connector otherwise.
+		// use the default pq connector otherwise
 		connector, err = pq.NewConnector(connectURL)
 		if err != nil {
-			return nil, xerrors.Errorf("create pq connector: %w", err)
+			return xerrors.Errorf("create pq connector: %w", err)
 		}
 	}
 
 	// Set the dialer if the connector supports it.
 	dc, ok := connector.(database.DialerConnector)
 	if !ok {
-		logger.Critical(ctx, "connector does not support setting log dialer, database connection debug logs will be missing")
+		p.logger.Critical(ctx, "connector does not support setting log dialer, database connection debug logs will be missing")
 	} else {
 		dc.Dialer(dialer)
-	}
-
-	return connector, nil
-}
-
-func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
-	p.connected.Set(0)
-	connector, err := newConnector(ctx, p.logger, p.db, connectURL)
-	if err != nil {
-		return err
 	}
 
 	var (

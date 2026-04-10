@@ -1234,7 +1234,6 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
-	readonly pubsub_batch_enabled: boolean;
 }
 
 // From codersdk/chats.go
@@ -1257,6 +1256,11 @@ export interface ChatContextFilePart {
 	 * re-persisted with fresh content.
 	 */
 	readonly context_file_agent_id?: string;
+}
+
+// From codersdk/deployment.go
+export interface ChatConfig {
+	readonly acquire_batch_size: number;
 }
 
 // From codersdk/chats.go

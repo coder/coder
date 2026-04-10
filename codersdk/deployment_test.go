@@ -149,40 +149,6 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	}
 }
 
-func TestDeploymentValues_ChatPubsubBatchDefaults(t *testing.T) {
-	t.Parallel()
-
-	set := (&codersdk.DeploymentValues{}).Options()
-	want := map[string]string{
-		"chat-pubsub-batch-enabled": "true",
-	}
-	removed := []string{
-		"chat-pubsub-flush-interval",
-		"chat-pubsub-batch-size",
-		"chat-pubsub-queue-size",
-	}
-
-	for flag, defaultValue := range want {
-		found := false
-		for _, opt := range set {
-			if opt.Flag != flag {
-				continue
-			}
-			found = true
-			require.Truef(t, opt.Hidden, "%s should stay hidden", flag)
-			require.Equalf(t, defaultValue, opt.Default, "%s default mismatch", flag)
-			break
-		}
-		require.Truef(t, found, "%s option not found", flag)
-	}
-
-	for _, flag := range removed {
-		for _, opt := range set {
-			require.NotEqualf(t, flag, opt.Flag, "%s should have been removed", flag)
-		}
-	}
-}
-
 func TestSSHConfig_ParseOptions(t *testing.T) {
 	t.Parallel()
 

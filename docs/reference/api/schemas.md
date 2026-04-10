@@ -1234,11 +1234,7 @@
     "structured_logging": true
   },
   "chat": {
-    "acquire_batch_size": 0,
-    "pubsub_batch_enabled": true,
-    "pubsub_batch_size": 0,
-    "pubsub_flush_interval": 0,
-    "pubsub_queue_size": 0
+    "acquire_batch_size": 0
   }
 }
 ```
@@ -2019,23 +2015,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "acquire_batch_size": 0,
-  "pubsub_batch_enabled": true,
-  "pubsub_batch_size": 0,
-  "pubsub_flush_interval": 0,
-  "pubsub_queue_size": 0
+  "acquire_batch_size": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer | false    |              |             |
-| `pubsub_batch_enabled`  | boolean | false    |              |             |
-| `pubsub_batch_size`     | integer | false    |              |             |
-| `pubsub_flush_interval` | integer | false    |              |             |
-| `pubsub_queue_size`     | integer | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `acquire_batch_size` | integer | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -3231,11 +3219,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "structured_logging": true
       },
       "chat": {
-        "acquire_batch_size": 0,
-        "pubsub_batch_enabled": true,
-        "pubsub_batch_size": 0,
-        "pubsub_flush_interval": 0,
-        "pubsub_queue_size": 0
+        "acquire_batch_size": 0
       }
     },
     "allow_workspace_renames": true,
@@ -3813,11 +3797,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "structured_logging": true
     },
     "chat": {
-      "acquire_batch_size": 0,
-      "pubsub_batch_enabled": true,
-      "pubsub_batch_size": 0,
-      "pubsub_flush_interval": 0,
-      "pubsub_queue_size": 0
+      "acquire_batch_size": 0
     }
   },
   "allow_workspace_renames": true,
