@@ -104,6 +104,28 @@ const providerAttachment = (
 	has_api_key: overrides.has_api_key ?? true,
 });
 
+const attachments = (
+	...configs: readonly (readonly [
+		provider_config_id: string,
+		priority: number,
+	])[]
+): TypesGen.ChatModelProviderAttachment[] =>
+	configs.map(([provider_config_id, priority]) =>
+		providerAttachment({ provider_config_id, priority }),
+	);
+
+const expectProviderConfigIds = (
+	provider_configs: readonly TypesGen.ChatModelProviderAttachment[] | undefined,
+	expected: string[],
+): void => {
+	expect(
+		buildInitialModelFormValues({
+			...baseChatModelConfig,
+			provider_configs,
+		}).providerConfigIds,
+	).toEqual(expected);
+};
+
 // ── buildInitialModelFormValues ────────────────────────────────
 
 describe("buildInitialModelFormValues", () => {
@@ -121,89 +143,29 @@ describe("buildInitialModelFormValues", () => {
 	});
 
 	it("returns a single providerConfigId when editing a model with one attachment", () => {
-		const result = buildInitialModelFormValues({
-			...baseChatModelConfig,
-			provider_configs: [
-				providerAttachment({
-					provider_config_id: "config-a",
-					priority: 0,
-				}),
-			],
-		});
-
-		expect(result.providerConfigIds).toEqual(["config-a"]);
+		expectProviderConfigIds(attachments(["config-a", 0]), ["config-a"]);
 	});
 
-	it("sorts providerConfigIds by ascending attachment priority", () => {
-		const result = buildInitialModelFormValues({
-			...baseChatModelConfig,
-			provider_configs: [
-				providerAttachment({
-					id: "attachment-c",
-					provider_config_id: "config-c",
-					priority: 2,
-				}),
-				providerAttachment({
-					id: "attachment-a",
-					provider_config_id: "config-a",
-					priority: 0,
-				}),
-				providerAttachment({
-					id: "attachment-b",
-					provider_config_id: "config-b",
-					priority: 1,
-				}),
-			],
-		});
-
-		expect(result.providerConfigIds).toEqual([
-			"config-a",
-			"config-b",
-			"config-c",
-		]);
+	it.each([
+		[
+			"sorts providerConfigIds by ascending attachment priority",
+			attachments(["config-c", 2], ["config-a", 0], ["config-b", 1]),
+			["config-a", "config-b", "config-c"],
+		],
+		[
+			"preserves source order for attachments with equal priorities",
+			attachments(["config-b", 1], ["config-a", 1], ["config-c", 2]),
+			["config-b", "config-a", "config-c"],
+		],
+	])("%s", (_description, provider_configs, expected) => {
+		expectProviderConfigIds(provider_configs, expected);
 	});
 
-	it("preserves source order for attachments with equal priorities", () => {
-		const result = buildInitialModelFormValues({
-			...baseChatModelConfig,
-			provider_configs: [
-				providerAttachment({
-					id: "attachment-b",
-					provider_config_id: "config-b",
-					priority: 1,
-				}),
-				providerAttachment({
-					id: "attachment-a",
-					provider_config_id: "config-a",
-					priority: 1,
-				}),
-				providerAttachment({
-					id: "attachment-c",
-					provider_config_id: "config-c",
-					priority: 2,
-				}),
-			],
-		});
-
-		expect(result.providerConfigIds).toEqual([
-			"config-b",
-			"config-a",
-			"config-c",
-		]);
-	});
-
-	it("returns empty providerConfigIds when provider_configs is undefined or empty", () => {
-		const undefinedProviderConfigs = buildInitialModelFormValues({
-			...baseChatModelConfig,
-			provider_configs: undefined,
-		});
-		const emptyProviderConfigs = buildInitialModelFormValues({
-			...baseChatModelConfig,
-			provider_configs: [],
-		});
-
-		expect(undefinedProviderConfigs.providerConfigIds).toEqual([]);
-		expect(emptyProviderConfigs.providerConfigIds).toEqual([]);
+	it.each([
+		undefined,
+		[],
+	] as const)("returns empty providerConfigIds when provider_configs is %o", (provider_configs) => {
+		expectProviderConfigIds(provider_configs, []);
 	});
 
 	it("preserves ordered providerConfigIds alongside other populated fields", () => {
@@ -219,23 +181,11 @@ describe("buildInitialModelFormValues", () => {
 				max_output_tokens: 4096,
 				temperature: 0.7,
 			},
-			provider_configs: [
-				providerAttachment({
-					id: "attachment-c",
-					provider_config_id: "config-c",
-					priority: 2,
-				}),
-				providerAttachment({
-					id: "attachment-a",
-					provider_config_id: "config-a",
-					priority: 0,
-				}),
-				providerAttachment({
-					id: "attachment-b",
-					provider_config_id: "config-b",
-					priority: 1,
-				}),
-			],
+			provider_configs: attachments(
+				["config-c", 2],
+				["config-a", 0],
+				["config-b", 1],
+			),
 		});
 
 		expect(result).toMatchObject({

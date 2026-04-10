@@ -25,6 +25,7 @@ import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
+import { formatProviderConfigLabel } from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 import { hasCustomPricing } from "./pricingFields";
 
@@ -236,14 +237,12 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			return null;
 		}
 
-		const primaryLabel =
-			sortedAttachments[0].display_name ||
-			sortedAttachments[0].provider_config_id.slice(0, 8);
-		const extraAttachments = sortedAttachments.length - 1;
-
-		return extraAttachments > 0
-			? `${primaryLabel} (+${extraAttachments} more)`
-			: primaryLabel;
+		return formatProviderConfigLabel(
+			sortedAttachments[0],
+			sortedAttachments.length > 1
+				? ` (+${sortedAttachments.length - 1} more)`
+				: "",
+		);
 	};
 
 	return (

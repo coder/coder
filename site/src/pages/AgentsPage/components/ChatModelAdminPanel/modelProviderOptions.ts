@@ -12,6 +12,17 @@ export interface ModelProviderOption {
 
 const nilProviderConfigId = "00000000-0000-0000-0000-000000000000";
 
+export const formatProviderConfigLabel = (
+	config: {
+		display_name?: string | null;
+		base_url?: string | null;
+		id?: string;
+		provider_config_id?: string;
+	},
+	suffix = "",
+): string =>
+	`${config.display_name || config.base_url || (config.id ?? config.provider_config_id ?? "").slice(0, 8)}${suffix}`;
+
 export const buildModelProviderOptions = (
 	providerStates: readonly ProviderState[],
 ): ModelProviderOption[] => {
@@ -35,17 +46,13 @@ export const buildModelProviderOptions = (
 		}
 
 		for (const [index, config] of qualifyingConfigs.entries()) {
-			const baseLabel =
-				config.display_name || config.base_url || config.id.slice(0, 8);
-			const label =
-				qualifyingConfigs.length === 1
-					? baseLabel
-					: `${baseLabel} (${index + 1})`;
-
 			options.push({
 				key: `${state.provider}:${config.id}`,
 				provider: state.provider,
-				label,
+				label: formatProviderConfigLabel(
+					config,
+					qualifyingConfigs.length > 1 ? ` (${index + 1})` : "",
+				),
 				configId: config.id,
 				iconProvider: state.provider,
 				isEnvFallback: false,

@@ -53,6 +53,7 @@ import {
 } from "./modelConfigFormLogic";
 import {
 	buildModelProviderOptions,
+	formatProviderConfigLabel,
 	type ModelProviderOption,
 	resolveDefaultOption,
 } from "./modelProviderOptions";
@@ -258,7 +259,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	>();
 	for (const c of selectedProviderConfigs) {
 		configLookup.set(c.id, {
-			displayName: c.display_name || c.base_url || c.id.slice(0, 8),
+			displayName: formatProviderConfigLabel(c),
 			enabled: c.enabled,
 			hasApiKey: c.has_api_key,
 		});
@@ -267,7 +268,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 		for (const pc of editingModel.provider_configs) {
 			if (!configLookup.has(pc.provider_config_id)) {
 				configLookup.set(pc.provider_config_id, {
-					displayName: pc.display_name || pc.provider_config_id.slice(0, 8),
+					displayName: formatProviderConfigLabel(pc),
 					enabled: pc.enabled,
 					hasApiKey: pc.has_api_key,
 				});
