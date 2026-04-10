@@ -186,17 +186,19 @@
 
 ```json
 {
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "reason": "prebuild_claimed",
-  "workspaceID": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                               | Required | Restrictions | Description |
-|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
-| `workspaceID` | string                                                             | false    |              |             |
+| Name           | Type                                                               | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `owner_id`     | string                                                             | false    |              |             |
+| `reason`       | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspace_id` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
 
@@ -348,6 +350,8 @@
     }
   ],
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -498,9 +502,12 @@
   },
   "model": "string",
   "provider": "string",
+  "provider_name": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usages": [
     {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "input_tokens": 0,
@@ -559,6 +566,7 @@
 | » `[any property]` | any                                                                 | false    |              |             |
 | `model`            | string                                                              | false    |              |             |
 | `provider`         | string                                                              | false    |              |             |
+| `provider_name`    | string                                                              | false    |              |             |
 | `started_at`       | string                                                              | false    |              |             |
 | `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
 | `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
@@ -587,9 +595,12 @@
       },
       "model": "string",
       "provider": "string",
+      "provider_name": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usages": [
         {
+          "cache_read_input_tokens": 0,
+          "cache_write_input_tokens": 0,
           "created_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "input_tokens": 0,
@@ -674,6 +685,8 @@
       "started_at": "2019-08-24T14:15:22Z",
       "threads": 0,
       "token_usage_summary": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "output_tokens": 0
       }
@@ -782,6 +795,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": 0,
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "output_tokens": 0
   }
@@ -842,6 +857,8 @@
             }
           ],
           "token_usage": {
+            "cache_read_input_tokens": 0,
+            "cache_write_input_tokens": 0,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -867,6 +884,8 @@
           ]
         }
       ],
+      "credential_hint": "string",
+      "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
@@ -874,6 +893,8 @@
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -884,6 +905,8 @@
     }
   ],
   "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -916,6 +939,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -927,17 +952,21 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `input_tokens`     | integer | false    |              |             |
-| `metadata`         | object  | false    |              |             |
-| » `[any property]` | any     | false    |              |             |
-| `output_tokens`    | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "input_tokens": 0,
   "output_tokens": 0
 }
@@ -945,10 +974,12 @@
 
 ### Properties
 
-| Name            | Type    | Required | Restrictions | Description |
-|-----------------|---------|----------|--------------|-------------|
-| `input_tokens`  | integer | false    |              |             |
-| `output_tokens` | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
 
 ## codersdk.AIBridgeThread
 
@@ -963,6 +994,8 @@
         }
       ],
       "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -988,6 +1021,8 @@
       ]
     }
   ],
+  "credential_hint": "string",
+  "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
@@ -995,6 +1030,8 @@
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -1010,6 +1047,8 @@
 | Name              | Type                                                                                   | Required | Restrictions | Description |
 |-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
+| `credential_hint` | string                                                                                 | false    |              |             |
+| `credential_kind` | string                                                                                 | false    |              |             |
 | `ended_at`        | string                                                                                 | false    |              |             |
 | `id`              | string                                                                                 | false    |              |             |
 | `model`           | string                                                                                 | false    |              |             |
@@ -1022,6 +1061,8 @@
 
 ```json
 {
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "input_tokens": 0,
@@ -1037,16 +1078,18 @@
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `input_tokens`         | integer | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `output_tokens`        | integer | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `created_at`               | string  | false    |              |             |
+| `id`                       | string  | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `interception_id`          | string  | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `provider_response_id`     | string  | false    |              |             |
 
 ## codersdk.AIBridgeToolCall
 
@@ -1703,7 +1746,8 @@
       "user_agent": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -1713,6 +1757,7 @@
 |--------------|-------------------------------------------------|----------|--------------|-------------|
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
+| `count_cap`  | integer                                         | false    |              |             |
 
 ## codersdk.AuthMethod
 
@@ -1986,6 +2031,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size` | integer | false    |              |             |
 
+## codersdk.ChatRetentionDaysResponse
+
+```json
+{
+  "retention_days": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `retention_days` | integer | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -2136,7 +2195,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "workspace_owner_username": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -2146,6 +2206,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|-----------------------------------------------------------|----------|--------------|-------------|
 | `connection_logs` | array of [codersdk.ConnectionLog](#codersdkconnectionlog) | false    |              |             |
 | `count`           | integer                                                   | false    |              |             |
+| `count_cap`       | integer                                                   | false    |              |             |
 
 ## codersdk.ConnectionLogSSHInfo
 
@@ -2241,12 +2302,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateFirstUserOnboardingInfo
+
+```json
+{
+  "newsletter_marketing": true,
+  "newsletter_releases": true
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `newsletter_marketing` | boolean | false    |              |             |
+| `newsletter_releases`  | boolean | false    |              |             |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "newsletter_marketing": true,
+    "newsletter_releases": true
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -2264,14 +2345,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                   | Required | Restrictions | Description |
-|--------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`      | string                                                                 | true     |              |             |
-| `name`       | string                                                                 | false    |              |             |
-| `password`   | string                                                                 | true     |              |             |
-| `trial`      | boolean                                                                | false    |              |             |
-| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
-| `username`   | string                                                                 | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `email`           | string                                                                           | true     |              |             |
+| `name`            | string                                                                           | false    |              |             |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
+| `password`        | string                                                                           | true     |              |             |
+| `trial`           | boolean                                                                          | false    |              |             |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
+| `username`        | string                                                                           | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -2623,6 +2705,28 @@ This is required on creation to enable a user-flow of validating a template work
 | `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
+
+## codersdk.CreateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `value`       | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceBuildReason
 
@@ -10237,6 +10341,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
+## codersdk.UpdateChatRetentionDaysRequest
+
+```json
+{
+  "retention_days": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `retention_days` | integer | false    |              |             |
+
 ## codersdk.UpdateCheckResponse
 
 ```json
@@ -10491,6 +10609,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`schedule`|string|true||Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template schedule.
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
+
+## codersdk.UpdateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `value`       | string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceACL
 
@@ -11049,6 +11187,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
 | `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
+
+## codersdk.UserSecret
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
 
 ## codersdk.UserStatus
 

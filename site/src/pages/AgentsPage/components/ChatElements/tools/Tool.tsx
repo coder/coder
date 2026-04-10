@@ -23,6 +23,7 @@ import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
+import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
 import { ToolCollapsible } from "./ToolCollapsible";
@@ -56,6 +57,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	args?: unknown;
 	result?: unknown;
 	isError?: boolean;
+	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from spawn tool results. */
 	subagentTitles?: Map<string, string>;
 	/** Set of chat IDs spawned by `spawn_computer_use_agent`. */
@@ -81,6 +83,7 @@ type ToolRendererProps = {
 	args: unknown;
 	result: unknown;
 	isError: boolean;
+	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
@@ -99,6 +102,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	killedBySignal,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
@@ -128,6 +132,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			output={output}
 			status={status}
 			isError={isError}
+			killedBySignal={killedBySignal}
 		/>
 	);
 };
@@ -136,6 +141,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
+	killedBySignal,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
@@ -151,6 +157,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}
+			killedBySignal={killedBySignal}
 		/>
 	);
 };
@@ -197,6 +204,55 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 		<ReadFileTool
 			path={path || "file"}
 			content={content}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ReadSkillRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
+	const rec = asRecord(result);
+	const body = rec ? asString(rec.body) : "";
+
+	return (
+		<ReadSkillTool
+			label={skillName ? `skill ${skillName}` : "skill"}
+			body={body}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
+	const filePath = parsedArgs ? asString(parsedArgs.path) : "";
+	const label =
+		skillName && filePath
+			? `${skillName}/${filePath}`
+			: skillName || filePath || "skill file";
+	const rec = asRecord(result);
+	const content = rec ? asString(rec.content) : "";
+
+	return (
+		<ReadSkillTool
+			label={label}
+			body={content}
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
@@ -299,6 +355,8 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		? asNumber(rec.duration_ms, { parseString: true })
 		: undefined;
 	const report = rec ? asString(rec.report) : "";
+	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
+	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
 	const title =
@@ -327,6 +385,18 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(resultStr.toLowerCase().includes("timed out") ||
 			errorStr.toLowerCase().includes("timed out"));
 
+	// Postpone rendering wait_agent / message_agent until the
+	// chat_id has been parsed from the streaming args. Without it
+	// we can't determine variant or title, which causes a brief
+	// flash of the generic "Waiting for Sub-agent" text.
+	if (
+		!chatId &&
+		status === "running" &&
+		(name === "wait_agent" || name === "message_agent")
+	) {
+		return null;
+	}
+
 	const variant =
 		name === "spawn_computer_use_agent" || computerUseSubagentIds?.has(chatId)
 			? "computer-use"
@@ -348,6 +418,8 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 				showDesktopPreviews && computerUseSubagentIds?.has(chatId)
 			}
 			variant={variant}
+			recordingFileId={recordingFileId || undefined}
+			thumbnailFileId={thumbnailFileId || undefined}
 		/>
 	);
 };
@@ -615,12 +687,31 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
+// process_signal — thin wrapper that promotes soft failures (success=false
+// in the result body, isError=false at protocol level) so the generic
+// renderer shows the error indicator and tooltip.
+// ---------------------------------------------------------------------------
+
+const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
+	const rec = asRecord(props.result);
+	const isSoftFailure =
+		!props.isError &&
+		props.status !== "running" &&
+		rec !== null &&
+		!rec.success;
+	return (
+		<GenericToolRenderer {...props} isError={props.isError || isSoftFailure} />
+	);
+};
+
+// ---------------------------------------------------------------------------
 // Renderer lookup map — maps tool names to their specialized renderers.
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
+	process_signal: ProcessSignalRenderer,
 	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
@@ -628,6 +719,8 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	create_workspace: CreateWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
 	read_template: ReadTemplateRenderer,
+	read_skill: ReadSkillRenderer,
+	read_skill_file: ReadSkillFileRenderer,
 	spawn_agent: SubagentRenderer,
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,
@@ -650,6 +743,7 @@ export const Tool = memo(
 		args,
 		result,
 		isError = false,
+		killedBySignal,
 		subagentTitles,
 		computerUseSubagentIds,
 		showDesktopPreviews,
@@ -681,6 +775,7 @@ export const Tool = memo(
 					args={args}
 					result={result}
 					isError={isError}
+					killedBySignal={killedBySignal}
 					subagentTitles={subagentTitles}
 					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={showDesktopPreviews}

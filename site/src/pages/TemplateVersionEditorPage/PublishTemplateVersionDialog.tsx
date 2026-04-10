@@ -4,32 +4,23 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
+import { EnterpriseBadge } from "#/components/Badges/Badges";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields } from "#/components/Form/Form";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Stack } from "#/components/Stack/Stack";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip";
-import { docs } from "../../utils/docs";
-
-export const Language = {
-	versionNameLabel: "Version name",
-	messagePlaceholder: "Write a short message about the changes you made...",
-	defaultCheckboxLabel: "Promote to active version",
-	activeVersionHelpTitle: "Active versions",
-	activeVersionHelpText:
-		"Templates can enforce that the active version be used for all workspaces (enterprise-only)",
-	activeVersionHelpBody: "Review the documentation",
-};
 
 type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;
@@ -88,7 +79,7 @@ export const PublishTemplateVersionDialog: FC<
 						<FormFields>
 							<TextField
 								{...getFieldHelpers("name")}
-								label={Language.versionNameLabel}
+								label="Version name"
 								autoFocus
 								disabled={isPublishing}
 							/>
@@ -96,7 +87,7 @@ export const PublishTemplateVersionDialog: FC<
 							<TextField
 								{...getFieldHelpers("message")}
 								label="Message"
-								placeholder={Language.messagePlaceholder}
+								placeholder="Write a short message about the changes you made..."
 								disabled={isPublishing}
 								multiline
 								rows={5}
@@ -104,7 +95,7 @@ export const PublishTemplateVersionDialog: FC<
 
 							<Stack direction="row">
 								<FormControlLabel
-									label={Language.defaultCheckboxLabel}
+									label="Promote to active version"
 									control={
 										<Checkbox
 											size="small"
@@ -120,31 +111,30 @@ export const PublishTemplateVersionDialog: FC<
 									}
 								/>
 
-								<HelpTooltip>
-									<HelpTooltipIconTrigger />
+								<HelpPopover>
+									<HelpPopoverIconTrigger />
 
 									{/**
 									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
 									 * this prop may not need to be set when we switch away from MuiDialog
 									 */}
-									<HelpTooltipContent disablePortal>
-										<HelpTooltipTitle>
-											{Language.activeVersionHelpTitle}
-										</HelpTooltipTitle>
-										<HelpTooltipText>
-											{Language.activeVersionHelpText}
-										</HelpTooltipText>
-										<HelpTooltipLinksGroup>
-											<HelpTooltipLink
+									<HelpPopoverContent disablePortal>
+										<HelpPopoverTitle>Active versions</HelpPopoverTitle>
+										<HelpPopoverText>
+											Templates can enforce that the active version be used for
+											all workspaces <EnterpriseBadge />
+										</HelpPopoverText>
+										<HelpPopoverLinksGroup>
+											<HelpPopoverLink
 												href={docs(
 													"/admin/templates/managing-templates#template-update-policies",
 												)}
 											>
-												{Language.activeVersionHelpBody}
-											</HelpTooltipLink>
-										</HelpTooltipLinksGroup>
-									</HelpTooltipContent>
-								</HelpTooltip>
+												Review the documentation
+											</HelpPopoverLink>
+										</HelpPopoverLinksGroup>
+									</HelpPopoverContent>
+								</HelpPopover>
 							</Stack>
 						</FormFields>
 					</Stack>

@@ -13,8 +13,10 @@ import { Link } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
 import { Response } from "../Response";
+import { Shimmer } from "../Shimmer";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
+import { RecordingPreview } from "./RecordingPreview";
 import {
 	isSubagentSuccessStatus,
 	shortDurationMs,
@@ -58,6 +60,53 @@ const SUBAGENT_VERBS: Record<
 };
 
 /**
+ * Returns the label JSX for a sub-agent tool row. Extracted to keep
+ * the rendering logic for the three label variants readable.
+ */
+function getSubagentLabel(
+	showDesktopPreview: boolean | undefined,
+	toolStatus: ToolStatus,
+	variant: "default" | "computer-use",
+	toolName: string,
+	title: string,
+	isTimeout: boolean,
+): React.ReactNode {
+	if (showDesktopPreview && toolStatus === "running") {
+		return (
+			<Shimmer as="span" className="text-sm">
+				Using the computer...
+			</Shimmer>
+		);
+	}
+	if (
+		variant === "computer-use" &&
+		toolName === "wait_agent" &&
+		toolStatus === "completed"
+	) {
+		return (
+			<>
+				Used the computer{" "}
+				<span className="text-content-secondary opacity-60">{title}</span>
+			</>
+		);
+	}
+	return (
+		<>
+			{SUBAGENT_VERBS[toolName]?.[
+				isTimeout
+					? "timeout"
+					: toolStatus === "completed"
+						? "completed"
+						: toolStatus === "error"
+							? "error"
+							: "running"
+			] ?? ""}
+			<span className="text-content-secondary opacity-60">{title}</span>
+		</>
+	);
+}
+
+/**
  * Resolves a sub-agent status string and tool-level status into a
  * display icon. The sub-agent status in the tool result is a
  * snapshot from when the tool returned and may be stale (e.g. a
@@ -70,12 +119,14 @@ const SubagentStatusIcon: React.FC<{
 	isError: boolean;
 	isTimeout: boolean;
 	variant?: "default" | "computer-use";
+	showDesktopPreview?: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
 	isError,
 	isTimeout,
 	variant = "default",
+	showDesktopPreview = false,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = variant === "computer-use" ? MonitorIcon : BotIcon;
@@ -86,6 +137,11 @@ const SubagentStatusIcon: React.FC<{
 		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
 	if (toolStatus === "running") {
+		if (showDesktopPreview) {
+			return (
+				<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+			);
+		}
 		return (
 			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
@@ -114,6 +170,10 @@ export const SubagentTool: React.FC<{
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
 	showDesktopPreview?: boolean;
 	variant?: "default" | "computer-use";
+	/** File ID for a completed recording (shown after tool completes). */
+	recordingFileId?: string;
+	/** File ID for the JPEG thumbnail of a completed recording. */
+	thumbnailFileId?: string;
 }> = ({
 	toolName,
 	title,
@@ -128,6 +188,8 @@ export const SubagentTool: React.FC<{
 	isTimeout = false,
 	showDesktopPreview,
 	variant = "default",
+	recordingFileId,
+	thumbnailFileId,
 }) => {
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
@@ -155,18 +217,17 @@ export const SubagentTool: React.FC<{
 					isError={isError}
 					isTimeout={isTimeout}
 					variant={variant}
-				/>
+					showDesktopPreview={showDesktopPreview}
+				/>{" "}
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-					{SUBAGENT_VERBS[toolName]?.[
-						isTimeout
-							? "timeout"
-							: toolStatus === "completed"
-								? "completed"
-								: toolStatus === "error"
-									? "error"
-									: "running"
-					] ?? ""}
-					<span className="text-content-secondary opacity-60">{title}</span>
+					{getSubagentLabel(
+						showDesktopPreview,
+						toolStatus,
+						variant,
+						toolName,
+						title,
+						isTimeout,
+					)}
 					{chatId && (
 						<Link
 							to={`/agents/${chatId}`}
@@ -193,8 +254,8 @@ export const SubagentTool: React.FC<{
 				)}
 			</button>
 
-			{showDesktopPreview && desktopChatId && (
-				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
+			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
+				<div className="mt-1.5 w-fit overflow-hidden rounded-lg border border-solid border-border-default">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}
@@ -202,6 +263,14 @@ export const SubagentTool: React.FC<{
 				</div>
 			)}
 
+			{recordingFileId && toolStatus === "completed" && (
+				<div className="mt-1.5 w-fit">
+					<RecordingPreview
+						recordingFileId={recordingFileId}
+						thumbnailFileId={thumbnailFileId}
+					/>
+				</div>
+			)}
 			{expanded && hasPrompt && (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default"

@@ -28,6 +28,11 @@ export function setChimeEnabled(enabled: boolean): void {
  */
 let chimeAudio: HTMLAudioElement | null = null;
 
+/** @internal Reset cached Audio state between tests. */
+export function _resetForTesting(): void {
+	chimeAudio = null;
+}
+
 function playChimeAudio(): void {
 	try {
 		if (!chimeAudio) {
@@ -105,14 +110,16 @@ function playChime(chatID: string): void {
 
 /**
  * Check whether a chat status transition should trigger a chime
- * and play it if so. A chime fires when a chat reaches a
- * terminal state ("waiting" or "error") from a non-terminal
- * state, meaning the agent just finished work. The previous
- * status may be "running" (seen via the per-chat WebSocket) or
- * "pending" (when only the watchChats WebSocket is active and
- * the intermediate "running" status was never pushed to the
- * chat list). The chime is suppressed when the chat is
- * currently visible to the user.
+ * and play it if so. The chime fires on these transitions:
+ *
+ *   running → waiting   (normal completion via per-chat WS)
+ *   running → pending   (normal completion via per-chat WS)
+ *   pending → waiting   (watchChats WS skipped "running")
+ *
+ * Note that "pending" appears as both a source and a target:
+ * it is an active state when the agent is queued, and a resting
+ * state after the agent finishes. The chime is suppressed when
+ * the chat is currently visible to the user.
  */
 export function maybePlayChime(
 	prevStatus: string | undefined,

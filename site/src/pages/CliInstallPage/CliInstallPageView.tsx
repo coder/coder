@@ -15,16 +15,16 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 
 			<p css={styles.instructions}>
 				Copy the command below and{" "}
-				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+				<strong className="block">paste it in your terminal.</strong>
 			</p>
 
 			<CodeExample
-				css={{ maxWidth: "100%" }}
+				className="max-w-full"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
 			/>
 
-			<div css={{ paddingTop: 16 }}>
+			<div className="pt-4">
 				<RouterLink to="/workspaces" css={styles.backLink}>
 					Go to workspaces
 				</RouterLink>

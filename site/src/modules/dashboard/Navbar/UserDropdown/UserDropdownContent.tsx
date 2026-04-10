@@ -21,12 +21,6 @@ import {
 import { useClipboard } from "#/hooks/useClipboard";
 import { SupportIcon } from "../SupportIcon";
 
-export const Language = {
-	accountLabel: "Account",
-	signOutLabel: "Sign Out",
-	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
-};
-
 interface UserDropdownContentProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
@@ -126,7 +120,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 			)}
 			<DropdownMenuItem className="text-xs" disabled>
-				<span>{Language.copyrightText}</span>
+				<span>&copy; {new Date().getFullYear()} Coder Technologies, Inc.</span>
 			</DropdownMenuItem>
 		</>
 	);

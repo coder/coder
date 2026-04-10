@@ -79,7 +79,7 @@ export const DashboardLayout: FC = () => {
 						}),
 					}}
 					message={
-						<div css={{ display: "flex", gap: 16 }}>
+						<div className="flex gap-4">
 							<InfoIcon
 								className="size-icon-xs"
 								css={(theme) => ({
@@ -114,16 +114,7 @@ export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
 	...attrs
 }) => {
 	return (
-		<div
-			{...attrs}
-			css={{
-				flex: 1,
-				display: "flex",
-				flexDirection: "column",
-				flexBasis: 0,
-				minHeight: "100%",
-			}}
-		>
+		<div {...attrs} className="flex-1 flex flex-col basis-0 min-h-full">
 			{children}
 		</div>
 	);

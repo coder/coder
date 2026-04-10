@@ -26,7 +26,19 @@ const buildOrderedMessageIDs = (
 ): readonly number[] => {
 	const sorted = [...messages];
 	sorted.sort(byMessageCreatedAt);
-	return sorted.map((message) => message.id);
+	// Deduplicate by ID. The input can contain duplicate IDs when
+	// cross-page duplication occurs in the React Query cache (e.g.
+	// upsertCacheMessages writes to page 0 while the same message
+	// still exists in a later page). The Map-based messagesByID
+	// already deduplicates, but orderedMessageIDs must match.
+	const seen = new Set<number>();
+	return sorted
+		.map((message) => message.id)
+		.filter((id) => {
+			if (seen.has(id)) return false;
+			seen.add(id);
+			return true;
+		});
 };
 
 const mapsEqualByRef = <K, V>(left: Map<K, V>, right: Map<K, V>): boolean => {
@@ -64,7 +76,7 @@ const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
 	}
 };
 
-const chatMessagesEqualByValue = (
+export const chatMessagesEqualByValue = (
 	left: TypesGen.ChatMessage,
 	right: TypesGen.ChatMessage,
 ): boolean =>
@@ -551,11 +563,26 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
-	return (
-		state.streamState === null &&
-		isActiveChatStatus(state.chatStatus) &&
-		latestMessageNeedsAssistantResponse
-	);
+	// Show the "Thinking..." indicator when the store has no stream
+	// data yet and the conversation is waiting for an assistant
+	// response. For "running" status we use the existing broad
+	// check (any non-assistant latest message). For "pending" we
+	// restrict to the case where the latest message is explicitly
+	// a user message — this covers the fresh-send flow (user just
+	// submitted and the server hasn't started streaming yet) while
+	// avoiding a spurious indicator during multi-turn tool-call
+	// cycles, where the latest durable message is a tool result
+	// and the assistant response is still being assembled.
+	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
+		return false;
+	}
+	if (state.chatStatus === "running") {
+		return true;
+	}
+	if (state.chatStatus === "pending" && latestMessage?.role === "user") {
+		return true;
+	}
+	return false;
 };
 
 export const useChatSelector = <T>(

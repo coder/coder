@@ -13,7 +13,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -95,7 +94,7 @@ export const OrganizationSettingsPageView: FC<
 			</SettingsHeader>
 
 			{Boolean(error) && !isApiValidationError(error) && (
-				<div css={{ marginBottom: 32 }}>
+				<div className="mb-8">
 					<ErrorAlert error={error} />
 				</div>
 			)}
@@ -110,7 +109,7 @@ export const OrganizationSettingsPageView: FC<
 				>
 					<fieldset
 						disabled={form.isSubmitting}
-						css={{ border: "unset", padding: 0, margin: 0, width: "100%" }}
+						className="border-0 p-0 m-0 w-full"
 					>
 						<FormFields>
 							<TextField
@@ -153,12 +152,7 @@ export const OrganizationSettingsPageView: FC<
 			{onChangeShareableOwners && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title={
-							<div className="flex items-center gap-2">
-								Workspace Sharing
-								<FeatureStageBadge contentType="beta" size="sm" />
-							</div>
-						}
+						title="Workspace Sharing"
 						description="Control whether workspace owners can share their workspaces."
 					>
 						<div className="flex flex-col gap-2">

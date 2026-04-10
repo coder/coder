@@ -1244,9 +1244,9 @@ export const WaitAgentComputerUseRunning: Story = {
 	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Waiting for/)).toBeInTheDocument();
-		// Running state shows the spinner icon.
-		expect(canvasElement.querySelector(".lucide-loader")).not.toBeNull();
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		// Running state shows the monitor icon instead of a spinner.
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
 		// is expected — we only verify the container renders).
@@ -1255,6 +1255,60 @@ export const WaitAgentComputerUseRunning: Story = {
 				canvas.getByRole("button", { name: "Open desktop tab" }),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const WaitAgentComputerUseCompletedNoRecording: Story = {
+	args: {
+		name: "wait_agent",
+		status: "completed",
+		args: { chat_id: "desktop-child-1" },
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Set up environment",
+			status: "waiting",
+			report: "Configured the dev environment.",
+		},
+		computerUseSubagentIds: new Set(["desktop-child-1"]),
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "desktop-child-1",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: "View recording" })).toBeNull();
+		expect(
+			canvas.queryByRole("button", { name: "Open desktop tab" }),
+		).toBeNull();
+	},
+};
+
+export const WaitAgentComputerUseTimedOutNoRecording: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "desktop-child-1" },
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Set up environment",
+			status: "pending",
+			error: "timed out waiting for agent",
+		},
+		computerUseSubagentIds: new Set(["desktop-child-1"]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: "View recording" })).toBeNull();
 	},
 };
 
@@ -1288,6 +1342,12 @@ export const ReadSkillCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Read skill deep-review/)).toBeInTheDocument();
+		// Expand the collapsible to verify markdown body renders.
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(canvas.getByText("Deep Review Skill")).toBeInTheDocument();
+		});
 	},
 };
 
@@ -1339,6 +1399,12 @@ export const ReadSkillFileCompleted: Story = {
 		expect(
 			canvas.getByText(/Read deep-review\/roles\/security-reviewer\.md/),
 		).toBeInTheDocument();
+		// Expand the collapsible to verify markdown content renders.
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(canvas.getByText("Security Reviewer Role")).toBeInTheDocument();
+		});
 	},
 };
 

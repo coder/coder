@@ -1,10 +1,15 @@
-import { ChevronDownIcon, LoaderIcon } from "lucide-react";
+import { ChevronDownIcon, LoaderIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { COLLAPSED_OUTPUT_HEIGHT } from "./utils";
+import { COLLAPSED_OUTPUT_HEIGHT, signalTooltipLabel } from "./utils";
 
 /**
  * Specialized rendering for `process_output` tool calls. Shows
@@ -16,7 +21,8 @@ export const ProcessOutputTool: React.FC<{
 	isRunning: boolean;
 	exitCode: number | null;
 	isError: boolean;
-}> = ({ output, isRunning, exitCode, isError }) => {
+	killedBySignal?: "kill" | "terminate";
+}> = ({ output, isRunning, exitCode, isError, killedBySignal }) => {
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
@@ -62,6 +68,16 @@ export const ProcessOutputTool: React.FC<{
 							{isRunning && (
 								<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 							)}
+							{killedBySignal && !isRunning && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+									</TooltipTrigger>
+									<TooltipContent>
+										{signalTooltipLabel(killedBySignal)}
+									</TooltipContent>
+								</Tooltip>
+							)}
 							{showExitCode && (
 								<span className="rounded px-1.5 py-0.5 font-mono text-2xs leading-none bg-surface-red text-content-destructive">
 									exit {exitCode}
@@ -93,6 +109,16 @@ export const ProcessOutputTool: React.FC<{
 				<div className="flex items-center gap-1 px-3 py-1.5">
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+					{killedBySignal && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{signalTooltipLabel(killedBySignal)}
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{showExitCode && (
 						<span className="rounded px-1.5 py-0.5 font-mono text-2xs leading-none bg-surface-red text-content-destructive">

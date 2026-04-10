@@ -10,7 +10,7 @@ import type {
 	Workspace,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
-import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
 import { getAgentHealthIssue } from "#/modules/workspaces/health";
@@ -208,7 +208,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 					This workspace build job is waiting for a provisioner to become
 					available. If you have been waiting for an extended period of time,
 					please contact your administrator for assistance.
-					<span css={{ display: "block", marginTop: 12 }}>
+					<span className="block mt-3">
 						Position in queue:{" "}
 						<strong>{workspace.latest_build.job.queue_position}</strong>
 					</span>

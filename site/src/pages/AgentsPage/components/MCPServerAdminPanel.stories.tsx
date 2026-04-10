@@ -492,7 +492,9 @@ export const DeleteServerConfirmed: Story = {
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure you want to delete this MCP server/i);
-		await userEvent.click(body.getByRole("button", { name: /Delete server/i }));
+		await userEvent.click(
+			body.getByRole("button", { name: /Delete MCP server/i }),
+		);
 
 		await waitFor(() => {
 			expect(args.onDeleteServer).toHaveBeenCalledTimes(1);

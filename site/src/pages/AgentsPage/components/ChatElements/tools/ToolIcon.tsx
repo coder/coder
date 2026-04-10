@@ -70,6 +70,8 @@ export const ToolIcon: React.FC<{
 	switch (name) {
 		case "execute":
 		case "process_output":
+		case "process_list":
+		case "process_signal":
 			return <TerminalIcon className={base} />;
 		case "read_file":
 		case "list_templates":

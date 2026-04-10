@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -49,10 +50,11 @@ const connectTimeout = 10 * time.Second
 const toolCallTimeout = 60 * time.Second
 
 // ConnectAll connects to all configured MCP servers, discovers
-// their tools, and returns them as fantasy.AgentTool values. It
-// skips servers that fail to connect and logs warnings. The
-// returned cleanup function must be called to close all
-// connections.
+// their tools, and returns them as fantasy.AgentTool values.
+// Tools are sorted by their prefixed name so callers
+// receive a deterministic order. It skips servers that fail to
+// connect and logs warnings. The returned cleanup function
+// must be called to close all connections.
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
@@ -108,7 +110,9 @@ func ConnectAll(
 			}
 
 			mu.Lock()
-			clients = append(clients, mcpClient)
+			if mcpClient != nil {
+				clients = append(clients, mcpClient)
+			}
 			tools = append(tools, serverTools...)
 			mu.Unlock()
 			return nil
@@ -118,6 +122,31 @@ func ConnectAll(
 	// All goroutines return nil; error is intentionally
 	// discarded.
 	_ = eg.Wait()
+
+	// Sort tools by prefixed name for deterministic ordering
+	// regardless of goroutine completion order. Ties, possible
+	// when the __ separator produces ambiguous prefixed names,
+	// are broken by config ID. Stable prompt construction
+	// depends on consistent tool ordering.
+	slices.SortFunc(tools, func(a, b fantasy.AgentTool) int {
+		// All tools in this slice are mcpToolWrapper values
+		// created by connectOne above, so these checked
+		// assertions should always succeed. The config ID
+		// tiebreaker resolves the __ separator ambiguity
+		// documented at the top of this file.
+		aTool, ok := a.(MCPToolIdentifier)
+		if !ok {
+			panic(fmt.Sprintf("unexpected tool type %T", a))
+		}
+		bTool, ok := b.(MCPToolIdentifier)
+		if !ok {
+			panic(fmt.Sprintf("unexpected tool type %T", b))
+		}
+		return cmp.Or(
+			cmp.Compare(a.Info().Name, b.Info().Name),
+			cmp.Compare(aTool.MCPServerConfigID().String(), bTool.MCPServerConfigID().String()),
+		)
+	})
 
 	return tools, cleanup
 }

@@ -27,7 +27,7 @@ const AgentSettingsTemplatesPage: FC = () => {
 				templatesData={templatesQuery.data}
 				allowlistData={allowlistQuery.data}
 				isLoading={isLoading}
-				hasError={!!(templatesQuery.error || allowlistQuery.error)}
+				hasError={Boolean(templatesQuery.error || allowlistQuery.error)}
 				onRetry={() => {
 					void templatesQuery.refetch();
 					void allowlistQuery.refetch();

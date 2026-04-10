@@ -75,7 +75,7 @@ export const CreateOrganizationPageView: FC<
 			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
 				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
-						<div css={{ marginBottom: 32 }}>
+						<div className="mb-8">
 							<ErrorAlert error={error} />
 						</div>
 					)}

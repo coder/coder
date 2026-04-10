@@ -7,9 +7,7 @@ import { formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName, getProviderIconName } from "../utils";
 
-const Separator = () => (
-	<div className="border-0 border-t border-solid border-border-content-secondary my-1" />
-);
+const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
 interface SessionSummaryTableProps {
 	sessionId: string;
@@ -39,105 +37,135 @@ export const SessionSummaryTable = ({
 	tokenUsageMetadata,
 }: SessionSummaryTableProps) => {
 	const durationInMs =
-		endTime != null
+		endTime !== undefined
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
 			: undefined;
 
 	return (
-		<div className="text-sm text-content-secondary flex flex-col gap-2">
+		<dl className="text-sm text-content-secondary m-0 flex flex-col gap-y-2">
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Session ID</span>
-				<span
-					className="text-content-primary font-mono truncate"
+				<dt className="shrink-0 font-normal whitespace-nowrap">Session ID</dt>
+				<dd
+					className="ml-4 min-w-0 truncate text-content-primary text-xs font-mono"
 					title={sessionId}
 				>
 					{sessionId}
-				</span>
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Start time</span>
-				<span
-					className="text-content-primary font-mono truncate"
+				<dt className="shrink-0 font-normal whitespace-nowrap">Start time</dt>
+				<dd
+					className="ml-4 min-w-0 truncate text-content-primary text-xs font-mono"
 					title={formatDateTime(startTime)}
 				>
 					{formatDateTime(startTime)}
-				</span>
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">End time</span>
-				<span className="text-content-primary font-mono truncate">
+				<dt className="shrink-0 font-normal whitespace-nowrap">End time</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary text-xs font-mono">
 					{endTime ? formatDateTime(endTime) : "—"}
-				</span>
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Duration</span>
-				<span
-					className="text-content-primary font-mono truncate"
-					title={durationInMs != null ? `${durationInMs} ms` : undefined}
+				<dt className="shrink-0 font-normal whitespace-nowrap">Duration</dt>
+				<dd
+					className="ml-4 min-w-0 truncate text-content-primary text-xs font-mono"
+					title={durationInMs !== undefined ? `${durationInMs} ms` : undefined}
 				>
-					{durationInMs != null ? `${Math.round(durationInMs / 1000)} s` : "—"}
-				</span>
+					{durationInMs !== undefined
+						? `${Math.round(durationInMs / 1000)} s`
+						: "—"}
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Initiator</span>
-				<div className="flex items-center gap-2">
+				<dt className="shrink-0 font-normal whitespace-nowrap">Initiator</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary flex items-center gap-2">
 					<Avatar
 						size="sm"
 						src={initiator.avatar_url}
 						fallback={initiator.name}
 					/>
-					<span className="truncate" title={initiator.name}>
+					<span className="truncate min-w-0" title={initiator.name}>
 						{initiator.name}
 					</span>
-				</div>
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Client</span>
-				<Badge className="gap-1.5 max-w-full">
-					<div className="flex-shrink-0 flex items-center">
-						<AIBridgeClientIcon client={client} className="size-icon-xs" />
-					</div>
-					<span className="truncate min-w-0" title={client ?? "Unknown"}>
-						{client ?? "Unknown"}
-					</span>
-				</Badge>
+				<dt className="shrink-0 font-normal whitespace-nowrap">Client</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<Badge className="gap-1.5 max-w-full min-w-0 overflow-hidden">
+						<div className="flex-shrink-0 flex items-center">
+							<AIBridgeClientIcon client={client} className="size-icon-xs" />
+						</div>
+						<span
+							className="truncate min-w-0 flex-1"
+							title={client ?? "Unknown"}
+						>
+							{client ?? "Unknown"}
+						</span>
+					</Badge>
+				</dd>
 			</div>
+
 			<div className="flex items-start justify-between">
-				<span className="pr-4 whitespace-nowrap">Provider</span>
-				<div className="flex flex-col items-end gap-1">
+				<dt className="shrink-0 font-normal whitespace-nowrap mt-1">
+					Provider
+				</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary flex flex-wrap gap-1">
 					{providers.map((p) => (
-						<Badge key={p} className="gap-1.5 max-w-full">
+						<Badge
+							key={p}
+							className="gap-1.5 max-w-full min-w-0 overflow-hidden"
+						>
 							<AIBridgeProviderIcon
 								provider={getProviderIconName(p)}
 								className="size-icon-xs"
 							/>
 							<span
-								className="truncate min-w-0"
+								className="truncate min-w-0 flex-1"
 								title={getProviderDisplayName(p)}
 							>
 								{getProviderDisplayName(p)}
 							</span>
 						</Badge>
 					))}
-				</div>
+				</dd>
 			</div>
+
 			<Separator />
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">In / out tokens</span>
-				<TokenBadges
-					inputTokens={inputTokens}
-					outputTokens={outputTokens}
-					tokenUsageMetadata={tokenUsageMetadata}
-				/>
+				<dt className="shrink-0 font-normal whitespace-nowrap">
+					In / out tokens
+				</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<TokenBadges
+						inputTokens={inputTokens}
+						outputTokens={outputTokens}
+						tokenUsageMetadata={tokenUsageMetadata}
+					/>
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Threads</span>
-				<Badge>{threadCount}</Badge>
+				<dt className="shrink-0 font-normal whitespace-nowrap">Threads</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<Badge>{threadCount}</Badge>
+				</dd>
 			</div>
+
 			<div className="flex items-center justify-between">
-				<span className="pr-4 whitespace-nowrap">Tool calls</span>
-				<Badge>{toolCallCount}</Badge>
+				<dt className="shrink-0 font-normal whitespace-nowrap">Tool calls</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<Badge>{toolCallCount}</Badge>
+				</dd>
 			</div>
-		</div>
+		</dl>
 	);
 };

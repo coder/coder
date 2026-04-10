@@ -24,7 +24,6 @@ import {
 import { server } from "#/testHelpers/server";
 import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
-import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {
 	findEntrypointFile,
 	getActivePath,
@@ -188,7 +187,7 @@ test("Do not mark as active if promote is not checked", async () => {
 	await user.clear(nameField);
 	await user.type(nameField, "v1.0");
 	await user.click(
-		within(publishDialog).getByLabelText(Language.defaultCheckboxLabel),
+		within(publishDialog).getByLabelText("Promote to active version"),
 	);
 	await user.click(
 		within(publishDialog).getByRole("button", { name: "Publish" }),
@@ -331,52 +330,49 @@ describe.each([
 		],
 		askForVariables: true,
 	},
-])(
-	"Missing template variables",
-	({
-		testName,
-		initialVariables,
-		loadedVariables,
-		templateVersion,
-		askForVariables,
-	}) => {
-		it(testName, async () => {
-			vi.resetAllMocks();
-			const queryClient = new QueryClient();
-			queryClient.setQueryData(
-				templateVersionVariablesKey(MockTemplateVersion.id),
-				initialVariables,
-			);
+])("Missing template variables", ({
+	testName,
+	initialVariables,
+	loadedVariables,
+	templateVersion,
+	askForVariables,
+}) => {
+	it(testName, async () => {
+		vi.resetAllMocks();
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(
+			templateVersionVariablesKey(MockTemplateVersion.id),
+			initialVariables,
+		);
 
+		server.use(
+			http.get(
+				"/api/v2/organizations/:org/templates/:template/versions/:version",
+				() => {
+					return HttpResponse.json(templateVersion);
+				},
+			),
+		);
+
+		if (loadedVariables) {
 			server.use(
-				http.get(
-					"/api/v2/organizations/:org/templates/:template/versions/:version",
-					() => {
-						return HttpResponse.json(templateVersion);
-					},
-				),
+				http.get("/api/v2/templateversions/:version/variables", () => {
+					return HttpResponse.json(loadedVariables);
+				}),
 			);
+		}
 
-			if (loadedVariables) {
-				server.use(
-					http.get("/api/v2/templateversions/:version/variables", () => {
-						return HttpResponse.json(loadedVariables);
-					}),
-				);
-			}
+		renderEditorPage(queryClient);
+		await waitForLoaderToBeRemoved();
 
-			renderEditorPage(queryClient);
-			await waitForLoaderToBeRemoved();
-
-			const dialogSelector = /template variables/i;
-			if (askForVariables) {
-				await screen.findByText(dialogSelector);
-			} else {
-				expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
-			}
-		});
-	},
-);
+		const dialogSelector = /template variables/i;
+		if (askForVariables) {
+			await screen.findByText(dialogSelector);
+		} else {
+			expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
+		}
+	});
+});
 
 test("display pending badge and update it to running when status changes", async () => {
 	const MockPendingTemplateVersion = {

@@ -211,7 +211,7 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 		require.NoError(t, err)
 		stderr, err := sess.StderrPipe()
 		require.NoError(t, err)
-		require.NoError(t, sess.Shell())
+		require.NoError(t, sess.Start("sh"))
 
 		// The SSH server lazily starts the session. We need to write a command
 		// and read back to ensure the X11 forwarding is started.

@@ -60,19 +60,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 				}
 			>
 				<Stack direction="row" spacing={3} alignItems="center">
-					<div
-						css={{
-							height: 48,
-							width: 48,
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-
-							"& img": {
-								width: "100%",
-							},
-						}}
-					>
+					<div className="h-12 w-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
 					<div>
@@ -92,13 +80,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 				}}
 				id="readme"
 			>
-				<div
-					css={{
-						padding: "40px 40px 64px",
-						maxWidth: 800,
-						margin: "auto",
-					}}
-				>
+				<div className="px-10 pt-10 pb-16 max-w-[800px] mx-auto">
 					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
 				</div>
 			</div>

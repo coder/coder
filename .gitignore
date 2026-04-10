@@ -54,6 +54,7 @@ site/stats/
 *.tfstate.backup
 *.tfplan
 *.lock.hcl
+!provisioner/terraform/testdata/resources/.terraform.lock.hcl
 .terraform/
 !coderd/testdata/parameters/modules/.terraform/
 !provisioner/terraform/testdata/modules-source-caching/.terraform/
@@ -102,3 +103,6 @@ PLAN.md
 
 # Ignore any dev licenses
 license.txt
+-e 
+# Agent planning documents (local working files).
+docs/plans/

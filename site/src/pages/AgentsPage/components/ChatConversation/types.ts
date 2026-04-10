@@ -26,6 +26,8 @@ export type MergedTool = {
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
+	/** Set when a process_signal killed/terminated this process. */
+	killedBySignal?: "kill" | "terminate";
 };
 
 export type RenderBlock =

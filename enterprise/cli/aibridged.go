@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/config"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -37,19 +38,38 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	// Setup supported providers with circuit breaker config.
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			Name:             aibridge.ProviderOpenAI,
 			BaseURL:          cfg.OpenAI.BaseURL.String(),
 			Key:              cfg.OpenAI.Key.String(),
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}),
 		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+			Name:             aibridge.ProviderAnthropic,
 			BaseURL:          cfg.Anthropic.BaseURL.String(),
 			Key:              cfg.Anthropic.Key.String(),
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}, getBedrockConfig(cfg.Bedrock)),
 		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			Name:           aibridge.ProviderCopilot,
 			CircuitBreaker: cbConfig,
+		}),
+		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			Name:           agplaibridge.ProviderCopilotBusiness,
+			BaseURL:        "https://" + agplaibridge.HostCopilotBusiness,
+			CircuitBreaker: cbConfig,
+		}),
+		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			Name:           agplaibridge.ProviderCopilotEnterprise,
+			BaseURL:        "https://" + agplaibridge.HostCopilotEnterprise,
+			CircuitBreaker: cbConfig,
+		}),
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			Name:             agplaibridge.ProviderChatGPT,
+			BaseURL:          agplaibridge.BaseURLChatGPT,
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}),
 	}
 

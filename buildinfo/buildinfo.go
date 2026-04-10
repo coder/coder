@@ -87,6 +87,12 @@ func IsDevVersion(v string) bool {
 	return strings.Contains(v, "-"+develPreRelease)
 }
 
+// IsRCVersion returns true if the version has a release candidate
+// pre-release tag, e.g. "v2.31.0-rc.0".
+func IsRCVersion(v string) bool {
+	return strings.Contains(v, "-rc.")
+}
+
 // IsDev returns true if this is a development build.
 // CI builds are also considered development builds.
 func IsDev() bool {

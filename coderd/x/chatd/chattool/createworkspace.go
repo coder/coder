@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -166,10 +167,9 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
-			// Persist the workspace binding immediately so that
-			// workspace-dependent tools can discover the workspace
-			// and wait for the build via getWorkspaceConn.
-			if options.DB != nil && options.ChatID != uuid.Nil {
+				// Persist the workspace binding immediately so that
+				// workspace-dependent tools can discover the workspace
+				// and wait for the build via getWorkspaceConn.			if options.DB != nil && options.ChatID != uuid.Nil {
 				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
@@ -194,16 +194,15 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				}
 			}
 
-			// Return immediately — workspace tools will
-			// transparently wait for the build to complete via
-			// getWorkspaceConn when they are actually invoked.
-			return toolResponse(map[string]any{
-				"created":        true,
-				"workspace_name": workspace.FullName(),
-				"status":         "building",
-				"message":        "Workspace build started. Workspace tools will wait for it automatically.",
-			}), nil
-		})
+				// Return immediately — workspace tools will
+				// transparently wait for the build to complete via
+				// getWorkspaceConn when they are actually invoked.
+				return toolResponse(map[string]any{
+					"created":        true,
+					"workspace_name": workspace.FullName(),
+					"status":         "building",
+					"message":        "Workspace build started. Workspace tools will wait for it automatically.",
+				}), nil		})
 }
 
 // checkExistingWorkspace checks whether the configured chat already has
@@ -260,11 +259,10 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		// wait for the build via getWorkspaceConn.
 		return map[string]any{
 			"created":        false,
-			"workspace_name": ws.OwnerUsername + "/" + ws.Name,
-			"status":         "building",
-			"message":        "Workspace is currently building. Workspace tools will wait for it automatically.",
-		}, true, nil
-
+				"workspace_name": ws.OwnerUsername + "/" + ws.Name,
+				"status":         "building",
+				"message":        "Workspace is currently building. Workspace tools will wait for it automatically.",
+			}, true, nil
 	case database.ProvisionerJobStatusSucceeded:
 		// If the workspace was stopped, tell the model to use
 		// start_workspace instead of creating a new one.
@@ -282,7 +280,15 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		// still usable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {
-			status := agents[0].Status(agentInactiveDisconnectTimeout)
+			selected, selectErr := agentselect.FindChatAgent(agents)
+			if selectErr != nil {
+				o.Logger.Debug(ctx, "agent selection failed, falling back to first agent for status check",
+					slog.F("workspace_id", ws.ID),
+					slog.Error(selectErr),
+				)
+				selected = agents[0]
+			}
+			status := selected.Status(agentInactiveDisconnectTimeout)
 			result := map[string]any{
 				"created":        false,
 				"workspace_name": ws.Name,
@@ -292,19 +298,17 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			switch status.Status {
 			case database.WorkspaceAgentStatusConnected:
 				result["message"] = "workspace is already running and recently connected"
-				for k, v := range WaitForAgentReady(ctx, db, agents[0].ID, nil) {
-					result[k] = v
+					for k, v := range WaitForAgentReady(ctx, db, selected.ID, nil) {					result[k] = v
 				}
 				return result, true, nil
 			case database.WorkspaceAgentStatusConnecting:
 				result["message"] = "workspace exists and the agent is still connecting"
-				for k, v := range WaitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
-					result[k] = v
+					for k, v := range WaitForAgentReady(ctx, db, selected.ID, agentConnFn) {					result[k] = v
 				}
 				return result, true, nil
 			case database.WorkspaceAgentStatusDisconnected,
 				database.WorkspaceAgentStatusTimeout:
-				// Agent is offline or never became ready — allow
+				// Agent is offline or never became ready - allow
 				// creation.
 			}
 		}

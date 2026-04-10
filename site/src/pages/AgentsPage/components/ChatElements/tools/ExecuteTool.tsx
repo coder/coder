@@ -5,6 +5,7 @@ import {
 	ExternalLinkIcon,
 	LayersIcon,
 	LoaderIcon,
+	OctagonXIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
@@ -21,6 +22,7 @@ import { cn } from "#/utils/cn";
 import {
 	BORDER_BG_STYLE,
 	COLLAPSED_OUTPUT_HEIGHT,
+	signalTooltipLabel,
 	type ToolStatus,
 } from "./utils";
 
@@ -35,7 +37,8 @@ export const ExecuteTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	isBackgrounded?: boolean;
-}> = ({ command, output, status, isBackgrounded = false }) => {
+	killedBySignal?: "kill" | "terminate";
+}> = ({ command, output, status, isBackgrounded = false, killedBySignal }) => {
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
@@ -130,6 +133,16 @@ export const ExecuteTool: React.FC<{
 								<LayersIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>Running in background</TooltipContent>
+						</Tooltip>
+					)}
+					{killedBySignal && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{signalTooltipLabel(killedBySignal)}
+							</TooltipContent>
 						</Tooltip>
 					)}
 					<CopyButton

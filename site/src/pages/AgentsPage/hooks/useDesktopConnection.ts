@@ -6,6 +6,8 @@ import { useClipboard } from "#/hooks/useClipboard";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
+	/** When false the hook stays dormant — no WebSocket, no RFB. */
+	activated: boolean;
 }
 
 type DesktopConnectionStatus =
@@ -79,6 +81,7 @@ const isMacCutShortcut = (event: KeyboardEvent): boolean => {
 
 export function useDesktopConnection({
 	chatId,
+	activated,
 }: UseDesktopConnectionOptions): UseDesktopConnectionResult {
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
 	const [hasConnected, setHasConnected] = useState(false);
@@ -485,7 +488,9 @@ export function useDesktopConnection({
 			doConnect();
 		};
 
-		doConnect();
+		if (activated) {
+			doConnect();
+		}
 
 		return () => {
 			restartRef.current = null;
@@ -493,7 +498,7 @@ export function useDesktopConnection({
 			setStatus("idle");
 			setHasConnected(false);
 		};
-	}, [chatId, syncRemoteClipboardToLocal]);
+	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
 	return {
 		status,

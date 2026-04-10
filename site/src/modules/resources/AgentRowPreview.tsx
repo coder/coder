@@ -101,7 +101,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               apps that are included in agent.display_apps */}
 							{agent.display_apps.includes("web_terminal") && (
 								<AppPreview>
-									<TerminalIcon sx={{ width: 12, height: 12 }} />
+									<TerminalIcon className="size-3" />
 									{DisplayAppNameMap.web_terminal}
 								</AppPreview>
 							)}
@@ -116,13 +116,13 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
 							{agent.display_apps.includes("vscode") ? (
 								<AppPreview>
-									<VSCodeIcon sx={{ width: 12, height: 12 }} />
+									<VSCodeIcon className="size-3" />
 									{DisplayAppNameMap.vscode}
 								</AppPreview>
 							) : (
 								agent.display_apps.includes("vscode_insiders") && (
 									<AppPreview>
-										<VSCodeIcon sx={{ width: 12, height: 12 }} />
+										<VSCodeIcon className="size-3" />
 										{DisplayAppNameMap.vscode_insiders}
 									</AppPreview>
 								)

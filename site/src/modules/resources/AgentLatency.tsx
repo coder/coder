@@ -1,12 +1,12 @@
 import type { FC } from "react";
 import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 
@@ -41,8 +41,8 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 	}
 
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
 				<span
 					role="presentation"
 					aria-label="latency"
@@ -50,13 +50,13 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				>
 					{Math.round(latency.latency_ms)}ms
 				</span>
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Latency</HelpTooltipTitle>
-				<HelpTooltipText>
+			</HelpPopoverTrigger>
+			<HelpPopoverContent>
+				<HelpPopoverTitle>Latency</HelpPopoverTitle>
+				<HelpPopoverText>
 					This is the latency overhead on non peer to peer connections. The
 					first row is the preferred relay.
-				</HelpTooltipText>
+				</HelpPopoverText>
 				<div className="flex-col gap-1 mt-4">
 					{Object.entries(agent.latency)
 						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
@@ -73,7 +73,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 							</div>
 						))}
 				</div>
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
