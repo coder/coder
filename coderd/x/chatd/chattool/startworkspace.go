@@ -104,25 +104,23 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				database.ProvisionerJobStatusRunning:
 				// Publish the build ID to the frontend so it
 				// can start streaming logs immediately.
-				if options.DB != nil && options.ChatID != uuid.Nil {
-					updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-						ID:          options.ChatID,
-						WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
-						BuildID: uuid.NullUUID{
-							UUID:  build.ID,
-							Valid: build.ID != uuid.Nil,
-						},
-						AgentID: uuid.NullUUID{},
-					})
-					if bindErr != nil {
-						options.Logger.Error(ctx, "failed to persist build ID on chat binding",
-							slog.F("chat_id", options.ChatID),
-							slog.F("build_id", build.ID),
-							slog.Error(bindErr),
-						)
-					} else if options.OnChatUpdated != nil {
-						options.OnChatUpdated(updatedChat)
-					}
+				updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID:          options.ChatID,
+					WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+					BuildID: uuid.NullUUID{
+						UUID:  build.ID,
+						Valid: build.ID != uuid.Nil,
+					},
+					AgentID: uuid.NullUUID{},
+				})
+				if bindErr != nil {
+					options.Logger.Error(ctx, "failed to persist build ID on chat binding",
+						slog.F("chat_id", options.ChatID),
+						slog.F("build_id", build.ID),
+						slog.Error(bindErr),
+					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
 				}
 				if err := waitForBuild(ctx, options.DB, build.ID); err != nil {
 					// newBuildError returns via toolResponse (IsError: false)
@@ -167,27 +165,24 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 
 			// Persist the build ID on the chat binding so the
 			// frontend can stream logs without polling.
-			if options.DB != nil && options.ChatID != uuid.Nil {
-				updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-					ID:          options.ChatID,
-					WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
-					BuildID: uuid.NullUUID{
-						UUID:  startBuild.ID,
-						Valid: startBuild.ID != uuid.Nil,
-					},
-					AgentID: uuid.NullUUID{},
-				})
-				if bindErr != nil {
-					options.Logger.Error(ctx, "failed to persist build ID on chat binding",
-						slog.F("chat_id", options.ChatID),
-						slog.F("build_id", startBuild.ID),
-						slog.Error(bindErr),
-					)
-				} else if options.OnChatUpdated != nil {
-					options.OnChatUpdated(updatedChat)
-				}
+			updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          options.ChatID,
+				WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+				BuildID: uuid.NullUUID{
+					UUID:  startBuild.ID,
+					Valid: startBuild.ID != uuid.Nil,
+				},
+				AgentID: uuid.NullUUID{},
+			})
+			if bindErr != nil {
+				options.Logger.Error(ctx, "failed to persist build ID on chat binding",
+					slog.F("chat_id", options.ChatID),
+					slog.F("build_id", startBuild.ID),
+					slog.Error(bindErr),
+				)
+			} else if options.OnChatUpdated != nil {
+				options.OnChatUpdated(updatedChat)
 			}
-
 			if err := waitForBuild(ctx, options.DB, startBuild.ID); err != nil {
 				return buildToolResponse(newBuildError(
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
@@ -204,7 +199,8 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 // success response. When buildID is non-nil, it is included in the
 // response so the frontend can fetch historical build logs. Pass
 // uuid.Nil when no build was triggered (e.g. workspace already
-// running).
+// running); the response will include no_build: true so the
+// frontend can suppress the build-log section.
 func waitForAgentAndRespond(
 	ctx context.Context,
 	db database.Store,
@@ -222,6 +218,7 @@ func waitForAgentAndRespond(
 			"agent_status":   "no_agent",
 		}
 		setBuildID(result, buildID)
+		setNoBuild(result, buildID)
 		return toolResponse(result), nil
 	}
 
@@ -234,6 +231,7 @@ func waitForAgentAndRespond(
 			"agent_error":    err.Error(),
 		}
 		setBuildID(result, buildID)
+		setNoBuild(result, buildID)
 		return toolResponse(result), nil
 	}
 
@@ -242,6 +240,7 @@ func waitForAgentAndRespond(
 		"workspace_name": ws.Name,
 	}
 	setBuildID(result, buildID)
+	setNoBuild(result, buildID)
 	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 		result[k] = v
 	}

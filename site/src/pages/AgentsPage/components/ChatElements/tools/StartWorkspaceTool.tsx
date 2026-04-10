@@ -15,6 +15,7 @@ interface StartWorkspaceToolProps {
 	workspaceName: string;
 	isError: boolean;
 	errorMessage?: string;
+	noBuild?: boolean;
 }
 
 export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
@@ -23,6 +24,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	workspaceName,
 	isError,
 	errorMessage,
+	noBuild,
 }) => {
 	const isRunning = status === "running";
 
@@ -55,7 +57,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	);
 
 	// Show collapsible with build logs when there's a build to show.
-	const hasBuildLogs = isRunning || Boolean(buildId);
+	const hasBuildLogs = (isRunning || Boolean(buildId)) && !noBuild;
 
 	return (
 		<div className="w-full">

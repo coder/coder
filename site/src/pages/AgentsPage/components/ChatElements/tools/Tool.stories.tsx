@@ -1625,6 +1625,12 @@ export const CreateWorkspaceError: Story = {
 			error: "template not found",
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Failed to create workspace"),
+		).toBeInTheDocument();
+	},
 };
 
 export const CreateWorkspaceBuildFailed: Story = {

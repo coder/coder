@@ -717,6 +717,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const hasErrorInResult = Boolean(rec?.error);
+	const noBuild = Boolean(rec?.no_build);
 
 	return (
 		<StartWorkspaceTool
@@ -725,6 +726,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 			workspaceName={wsName}
 			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			noBuild={noBuild}
 		/>
 	);
 };

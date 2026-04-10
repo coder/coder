@@ -70,6 +70,15 @@ func setBuildID(result map[string]any, buildID uuid.UUID) {
 	}
 }
 
+// setNoBuild marks the response with no_build: true when no build
+// was triggered. The frontend uses this flag to suppress the
+// build-log section for already-running workspaces.
+func setNoBuild(result map[string]any, buildID uuid.UUID) {
+	if buildID == uuid.Nil {
+		result["no_build"] = true
+	}
+}
+
 // isTemplateAllowed checks whether a template ID is permitted by the
 // configured allowlist. A nil function or an empty allowlist means
 // all templates are allowed.

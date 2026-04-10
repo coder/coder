@@ -294,11 +294,12 @@ type existingWorkspaceResult struct {
 	Err error
 }
 
-// checkExistingWorkspace checks whether the configured chat already has
-// a usable workspace. Returns the result map and true if the caller
-// should return early (workspace exists and is alive or building).
-// Returns false if the caller should proceed with creation (workspace
-// is dead or missing).
+// checkExistingWorkspace checks whether the configured chat
+// already has a usable workspace. Returns an
+// existingWorkspaceResult with Done set when the caller should
+// return early (workspace exists and is alive or building).
+// Returns Done unset if the caller should proceed with creation
+// (workspace is dead or missing).
 func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
 ) existingWorkspaceResult {
@@ -343,8 +344,28 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	switch job.JobStatus {
 	case database.ProvisionerJobStatusPending,
 		database.ProvisionerJobStatusRunning:
-		// Build is in progress — wait for it instead of
-		// creating a new workspace.
+		// Build is in progress -- publish the build ID so the
+		// frontend can start streaming logs, then wait.
+		if o.ChatID != uuid.Nil {
+			updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          o.ChatID,
+				WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+				BuildID: uuid.NullUUID{
+					UUID:  build.ID,
+					Valid: build.ID != uuid.Nil,
+				},
+				AgentID: uuid.NullUUID{},
+			})
+			if bindErr != nil {
+				o.Logger.Error(ctx, "failed to persist build ID on chat binding",
+					slog.F("chat_id", o.ChatID),
+					slog.F("build_id", build.ID),
+					slog.Error(bindErr),
+				)
+			} else if o.OnChatUpdated != nil {
+				o.OnChatUpdated(updatedChat)
+			}
+		}
 		if err := waitForBuild(ctx, db, build.ID); err != nil {
 			return existingWorkspaceResult{
 				FailedBuildID: build.ID,
