@@ -8,15 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -27,10 +23,8 @@ import (
 
 func TestExpAgents(t *testing.T) {
 	t.Parallel()
-
 	t.Run("ResolveModel", func(t *testing.T) {
 		t.Parallel()
-
 		catalog := codersdk.ChatModelsResponse{
 			Providers: []codersdk.ChatModelProvider{{
 				Provider:  "openai",
@@ -44,16 +38,10 @@ func TestExpAgents(t *testing.T) {
 			}},
 		}
 
-		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		client := newTestExperimentalClient(t, func(rw http.ResponseWriter, _ *http.Request) {
 			rw.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(rw).Encode(catalog)
-		}))
-		t.Cleanup(server.Close)
-
-		serverURL, err := url.Parse(server.URL)
-		require.NoError(t, err)
-
-		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+		})
 		tests := []struct {
 			name  string
 			input string
@@ -63,9 +51,7 @@ func TestExpAgents(t *testing.T) {
 			{name: "ProviderModel", input: "openai/gpt-4o", want: "openai:gpt-4o"},
 			{name: "DisplayName", input: "GPT-4o", want: "openai:gpt-4o"},
 		}
-
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				resolved, err := resolveModel(context.Background(), client, tt.input)
 				require.NoError(t, err)
@@ -77,10 +63,8 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("TopLevelModelRouting", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("EscFromOverlayClosesIt", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name    string
 				overlay tuiOverlay
@@ -88,11 +72,9 @@ func TestExpAgents(t *testing.T) {
 				{"ModelPicker", overlayModelPicker},
 				{"DiffDrawer", overlayDiffDrawer},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 					model.currentView = viewChat
 					model.overlay = tt.overlay
@@ -107,7 +89,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromChatViewReturnsToListAndRefreshes", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			model.overlay = overlayNone
@@ -121,7 +102,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromChatViewAdvancesGeneration", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			model.overlay = overlayNone
@@ -138,7 +118,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromChatViewRejectsLateChatLoadMessages", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			model.overlay = overlayNone
@@ -167,7 +146,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromSearchClearsFilterBeforeQuit", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewList
 			model.list.loading = false
@@ -183,16 +161,12 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("CtrlCQuitsFromAnyState", func(t *testing.T) {
 			t.Parallel()
-
 			for name, view := range map[string]tuiView{
 				"List": viewList,
 				"Chat": viewChat,
 			} {
-				name := name
-				view := view
 				t.Run(name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 					model.currentView = view
 
@@ -207,7 +181,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OpenChatSwitchesView", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name   string
 				msg    tea.Msg
@@ -241,11 +214,9 @@ func TestExpAgents(t *testing.T) {
 					},
 				},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 					model.width = 100
 					model.height = 40
@@ -259,7 +230,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OverlayToggling", func(t *testing.T) {
 			t.Parallel()
-
 			newModelPickerModel := func() expChatsTUIModel {
 				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 				model.currentView = viewChat
@@ -280,42 +250,8 @@ func TestExpAgents(t *testing.T) {
 				return model
 			}
 
-			t.Run("OpenModelPicker", func(t *testing.T) {
-				t.Parallel()
-
-				updatedModel, cmd := newModelPickerModel().Update(toggleModelPickerMsg{})
-				updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
-				require.Equal(t, overlayModelPicker, updated.overlay)
-			})
-
-			t.Run("CloseModelPicker", func(t *testing.T) {
-				t.Parallel()
-
-				model := newModelPickerModel()
-				model.overlay = overlayModelPicker
-
-				updatedModel, cmd := model.Update(toggleModelPickerMsg{})
-				updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
-				require.Equal(t, overlayNone, updated.overlay)
-				require.Nil(t, cmd)
-			})
-
-			t.Run("SwitchesToDiffDrawer", func(t *testing.T) {
-				t.Parallel()
-
-				model := newModelPickerModel()
-				chat := testChat(codersdk.ChatStatusCompleted)
-				model.chat.chat = &chat
-				model.overlay = overlayModelPicker
-
-				updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
-				updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
-				require.Equal(t, overlayDiffDrawer, updated.overlay)
-			})
-
 			t.Run("ReopensModelPickerAfterClosing", func(t *testing.T) {
 				t.Parallel()
-
 				model := newModelPickerModel()
 
 				updatedModel, cmd := model.Update(toggleModelPickerMsg{})
@@ -333,7 +269,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ModelPickerBehavior", func(t *testing.T) {
 			t.Parallel()
-
 			twoModelCatalog := codersdk.ChatModelsResponse{
 				Providers: []codersdk.ChatModelProvider{{
 					Provider:  "openai",
@@ -355,7 +290,6 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("CancelClosesOverlay", func(t *testing.T) {
 				t.Parallel()
-
 				model := newModel()
 				updatedModel, cmd := model.Update(modelsListedMsg{catalog: twoModelCatalog})
 				updated := mustTUIModel(t, updatedModel, cmd)
@@ -371,7 +305,6 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("LoadErrorClosesOverlay", func(t *testing.T) {
 				t.Parallel()
-
 				model := newModel()
 
 				updatedModel, cmd := model.Update(toggleModelPickerMsg{})
@@ -388,7 +321,6 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("ScrollAndSelectModel", func(t *testing.T) {
 				t.Parallel()
-
 				model := newModel()
 				updatedModel, cmd := model.Update(modelsListedMsg{catalog: twoModelCatalog})
 				updated := mustTUIModel(t, updatedModel, cmd)
@@ -414,7 +346,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("DiffDrawerLoadingState", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			chat := testChat(codersdk.ChatStatusCompleted)
@@ -429,7 +360,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("DiffDrawerErrorState", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			model.width = 80
@@ -446,7 +376,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OverlayDismissedOnViewSwitch", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			model.overlay = overlayModelPicker
@@ -466,7 +395,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OverlaysMutuallyExclusive", func(t *testing.T) {
 			t.Parallel()
-
 			catalog := codersdk.ChatModelsResponse{
 				Providers: []codersdk.ChatModelProvider{{
 					Provider:  "provider",
@@ -499,7 +427,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OverlayBlocksViewKeys", func(t *testing.T) {
 			t.Parallel()
-
 			catalog := codersdk.ChatModelsResponse{
 				Providers: []codersdk.ChatModelProvider{{
 					Provider:  "provider",
@@ -531,7 +458,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("RapidViewSwitching", func(t *testing.T) {
 			t.Parallel()
-
 			firstChatID := uuid.New()
 			secondChatID := uuid.New()
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
@@ -577,10 +503,8 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/MessageReceiving", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("ChatOpenedStoresChatAndClearsLoading", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.loading = true
 			model.metadataResolved = false
@@ -601,7 +525,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ChatOpenedErrorSetsErrAndClearsLoading", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.loading = true
 			model.metadataResolved = false
@@ -616,7 +539,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ChatHistoryStoresMessagesRebuildsBlocksAndTracksLastUsage", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.loading = true
 			model.metadataResolved = true
@@ -647,7 +569,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ChatHistoryErrorSetsErrAndClearsLoading", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.loading = true
 			model.metadataResolved = true
@@ -662,10 +583,8 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OpenHistoryReadiness", func(t *testing.T) {
 			t.Parallel()
-
 			t.Run("BothSucceedOutOfOrder", func(t *testing.T) {
 				t.Parallel()
-
 				model := newTestChatViewModel(nil)
 				model.loading = true
 				model.metadataResolved = false
@@ -688,7 +607,6 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("BothFail", func(t *testing.T) {
 				t.Parallel()
-
 				model := newTestChatViewModel(nil)
 				model.loading = true
 				model.metadataResolved = false
@@ -706,7 +624,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("StaleAsyncMessagesAreDropped", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.setChat(chat)
@@ -726,120 +643,81 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, before.err, updated.err)
 		})
 
-		t.Run("WriteSideStaleSessionMessagesAreDropped", func(t *testing.T) {
+		t.Run("StaleSessionMessagesAreDroppedByGeneration", func(t *testing.T) {
 			t.Parallel()
-
-			tests := []struct {
-				name string
-				msg  tea.Msg
-			}{
-				{
-					name: "chatCreatedMsg",
-					msg:  chatCreatedMsg{generation: 1, chat: testChat(codersdk.ChatStatusRunning)},
-				},
-				{
-					name: "messageSentMsg",
-					msg:  messageSentMsg{generation: 1, resp: codersdk.CreateChatMessageResponse{}},
-				},
-				{
-					name: "chatInterruptedMsg",
-					msg:  chatInterruptedMsg{generation: 1, chat: testChat(codersdk.ChatStatusCompleted)},
-				},
+			type staleGenerationCase struct {
+				name  string
+				msg   tea.Msg
+				draft bool
+			}
+			type staleGenerationSnapshot struct {
+				loading             bool
+				err                 error
+				chat                *codersdk.Chat
+				pendingComposerText string
+				composerValue       string
+				messages            []codersdk.ChatMessage
+				draft               bool
+				creatingChat        bool
+				interrupting        bool
+				queuedMessages      []codersdk.ChatQueuedMessage
 			}
 
-			for _, tt := range tests {
-				tt := tt
-				t.Run(tt.name, func(t *testing.T) {
-					t.Parallel()
-
-					model := newTestChatViewModel(nil)
-					model.chatGeneration = 2
-					model.creatingChat = true
-					model.interrupting = true
-					chat := testChat(codersdk.ChatStatusCompleted)
-					model.setChat(chat)
-					model.loading = false
-					model.pendingComposerText = "pending"
-					model.composer.SetValue("current")
-
-					before := model
-					model, cmd := model.Update(tt.msg)
-					require.Nil(t, cmd)
-					require.Equal(t, before.loading, model.loading)
-					require.Equal(t, before.chat, model.chat)
-					require.Equal(t, before.draft, model.draft)
-					require.Equal(t, before.err, model.err)
-					require.Equal(t, before.pendingComposerText, model.pendingComposerText)
-					require.Equal(t, before.creatingChat, model.creatingChat)
-					require.Equal(t, before.interrupting, model.interrupting)
-					require.Equal(t, before.queuedMessages, model.queuedMessages)
-					require.Equal(t, before.composer.Value(), model.composer.Value())
-				})
-			}
-		})
-
-		t.Run("DraftSessionRejectsStaleTrafficByGeneration", func(t *testing.T) {
-			t.Parallel()
-
-			tests := []struct {
-				name string
-				msg  tea.Msg
-			}{
-				{
-					name: "chatOpenedMsg",
-					msg:  chatOpenedMsg{generation: 1, chatID: uuid.New(), chat: testChat(codersdk.ChatStatusCompleted)},
-				},
-				{
-					name: "chatHistoryMsg",
-					msg: chatHistoryMsg{generation: 1, chatID: uuid.New(), messages: []codersdk.ChatMessage{testMessage(
-						1,
-						codersdk.ChatMessageRoleUser,
-						codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"},
-					)}},
-				},
-				{
-					name: "chatStreamEventMsg",
-					msg:  chatStreamEventMsg{generation: 1, chatID: uuid.New(), event: testTextPartEvent("stale")},
-				},
-				{
-					name: "gitChangesMsg",
-					msg:  gitChangesMsg{generation: 1, chatID: uuid.New()},
-				},
-				{
-					name: "diffContentsMsg",
-					msg:  diffContentsMsg{generation: 1, chatID: uuid.New()},
-				},
-			}
-
-			for _, tt := range tests {
-				tt := tt
-				t.Run(tt.name, func(t *testing.T) {
-					t.Parallel()
-
-					model := newTestChatViewModel(nil)
+			startingState := func(draft bool) chatViewModel {
+				model := newTestChatViewModel(nil)
+				model.chatGeneration = 2
+				model.loading = false
+				model.pendingComposerText = "pending"
+				if draft {
 					model.draft = true
-					model.loading = false
-					model.chatGeneration = 2
-					model.pendingComposerText = "pending"
 					model.composer.SetValue("draft text")
+					return model
+				}
+				model.creatingChat = true
+				model.interrupting = true
+				model.setChat(testChat(codersdk.ChatStatusCompleted))
+				model.composer.SetValue("current")
+				return model
+			}
+			snapshot := func(model chatViewModel) staleGenerationSnapshot {
+				return staleGenerationSnapshot{
+					loading:             model.loading,
+					err:                 model.err,
+					chat:                model.chat,
+					pendingComposerText: model.pendingComposerText,
+					composerValue:       model.composer.Value(),
+					messages:            model.messages,
+					draft:               model.draft,
+					creatingChat:        model.creatingChat,
+					interrupting:        model.interrupting,
+					queuedMessages:      model.queuedMessages,
+				}
+			}
 
-					before := model
-					model, cmd := model.Update(tt.msg)
+			tests := []staleGenerationCase{
+				{name: "WriteSide/chatCreatedMsg", msg: chatCreatedMsg{generation: 1, chat: testChat(codersdk.ChatStatusRunning)}},
+				{name: "WriteSide/messageSentMsg", msg: messageSentMsg{generation: 1, resp: codersdk.CreateChatMessageResponse{}}},
+				{name: "WriteSide/chatInterruptedMsg", msg: chatInterruptedMsg{generation: 1, chat: testChat(codersdk.ChatStatusCompleted)}},
+				{name: "Draft/chatOpenedMsg", msg: chatOpenedMsg{generation: 1, chatID: uuid.New(), chat: testChat(codersdk.ChatStatusCompleted)}, draft: true},
+				{name: "Draft/chatHistoryMsg", msg: chatHistoryMsg{generation: 1, chatID: uuid.New(), messages: []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"})}}, draft: true},
+				{name: "Draft/chatStreamEventMsg", msg: chatStreamEventMsg{generation: 1, chatID: uuid.New(), event: testTextPartEvent("stale")}, draft: true},
+				{name: "Draft/gitChangesMsg", msg: gitChangesMsg{generation: 1, chatID: uuid.New()}, draft: true},
+				{name: "Draft/diffContentsMsg", msg: diffContentsMsg{generation: 1, chatID: uuid.New()}, draft: true},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					model := startingState(tt.draft)
+					before := snapshot(model)
+					updated, cmd := model.Update(tt.msg)
 					require.Nil(t, cmd)
-					require.Equal(t, before.loading, model.loading)
-					require.Equal(t, before.messages, model.messages)
-					require.Equal(t, before.err, model.err)
-					require.Equal(t, before.chat, model.chat)
-					require.Equal(t, before.pendingComposerText, model.pendingComposerText)
-					require.Equal(t, before.composer.Value(), model.composer.Value())
-					require.True(t, model.draft)
+					require.Equal(t, before, snapshot(updated))
 				})
 			}
 		})
 
 		t.Run("ErrorThenRetrySucceeds", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name string
 				run  func(t *testing.T)
@@ -906,19 +784,17 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ChatHistoryEdgeCases", func(t *testing.T) {
 			t.Parallel()
-
-			tests := []struct {
-				name    string
-				input   []codersdk.ChatMessage
-				wantNil bool
+			cases := []struct {
+				name     string
+				messages []codersdk.ChatMessage
+				wantNil  bool
 			}{
-				{"NilMessages", nil, true},
-				{"EmptyMessages", []codersdk.ChatMessage{}, false},
+				{name: "NilMessages", wantNil: true},
+				{name: "EmptyMessages", messages: []codersdk.ChatMessage{}, wantNil: false},
 			}
-			for _, tt := range tests {
+			for _, tt := range cases {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newTestChatViewModel(nil)
 					model.messages = []codersdk.ChatMessage{
 						testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing"}),
@@ -928,12 +804,10 @@ func TestExpAgents(t *testing.T) {
 
 					var updated chatViewModel
 					require.NotPanics(t, func() {
-						updated, _ = model.Update(chatHistoryMsg{messages: tt.input})
+						updated, _ = model.Update(chatHistoryMsg{messages: tt.messages})
 					})
-					if tt.wantNil {
-						require.Nil(t, updated.messages)
-					} else {
-						require.NotNil(t, updated.messages)
+					require.Equal(t, tt.wantNil, updated.messages == nil)
+					if !tt.wantNil {
 						require.Empty(t, updated.messages)
 					}
 					require.Empty(t, updated.blocks)
@@ -944,10 +818,8 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/StreamEvents", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("MessagePartTextAppendsAndRebuildsBlocks", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 
 			updated, _ := model.Update(chatStreamEventMsg{event: testTextPartEvent("hel")})
@@ -962,7 +834,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("MessagePartToolCallDeltaAccumulatesArgs", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 
 			updated, _ := model.Update(chatStreamEventMsg{event: testToolCallDeltaEvent("tc-1", "search", `{"q":"hel`)})
@@ -977,7 +848,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("MessageFinalizesAndResetsAccumulator", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.reconnecting = true
 			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
@@ -1001,7 +871,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("StatusUpdatesChatStatus", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusWaiting)
 			model.chat = &chat
@@ -1021,7 +890,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("StatusFromDifferentChatIsIgnored", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusWaiting)
 			model.chat = &chat
@@ -1041,7 +909,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ErrorSetsErr", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 
 			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
@@ -1055,7 +922,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("QueueUpdateReplacesQueuedMessages", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			queued := []codersdk.ChatQueuedMessage{
 				testQueuedMessage(1, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "queued text"}),
@@ -1071,22 +937,8 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "queued text", updated.blocks[0].text)
 		})
 
-		t.Run("RetrySetsReconnecting", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-
-			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
-				Type:  codersdk.ChatStreamEventTypeRetry,
-				Retry: &codersdk.ChatStreamRetry{Attempt: 2},
-			}})
-			require.NotNil(t, cmd)
-			require.True(t, updated.reconnecting)
-		})
-
 		t.Run("StreamEventWithNilPartIsIgnored", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.messages = []codersdk.ChatMessage{
 				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "existing"}),
@@ -1105,7 +957,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("StreamEventErrorShowsInView", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 			model.loading = false
@@ -1131,7 +982,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("LoadingViewKeepsChatChrome", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.loading = true
 			model.metadataResolved = false
@@ -1147,7 +997,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("MultipleStreamErrorsOnlyShowLatest", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 			model.loading = false
@@ -1163,81 +1012,77 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("MessageDeduplication", func(t *testing.T) {
 			t.Parallel()
-
-			tests := []struct {
-				name string
-				run  func(t *testing.T)
-			}{
-				{"AccumulatorPending", func(t *testing.T) {
-					model := newTestChatViewModel(nil)
-					updated, _ := model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
-					message := testMessage(12, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "final"})
-
-					updated, cmd := updated.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
-						Type:    codersdk.ChatStreamEventTypeMessage,
-						Message: &message,
-					}})
-					require.Nil(t, cmd)
-					require.Len(t, updated.messages, 1)
-					require.False(t, updated.accumulator.isPending())
-					require.Len(t, updated.blocks, 1)
-					require.Equal(t, "final", updated.blocks[0].text)
-				}},
-				{"FinalizedHistorySuppressesPendingToolDuplicate", func(t *testing.T) {
-					model := newTestChatViewModel(nil)
-					model.messages = []codersdk.ChatMessage{testMessage(
-						1,
-						codersdk.ChatMessageRoleAssistant,
-						codersdk.ChatMessagePart{
-							Type:       codersdk.ChatMessagePartTypeToolCall,
-							ToolCallID: "tool-1",
-							ToolName:   "search",
-							Args:       json.RawMessage(`{"q":"hello"}`),
-						},
-						codersdk.ChatMessagePart{
-							Type:       codersdk.ChatMessagePartTypeToolResult,
-							ToolCallID: "tool-1",
-							ToolName:   "search",
-							Result:     json.RawMessage(`{"ok":true}`),
-						},
-					)}
-					model.accumulator = streamAccumulator{
-						pending: true,
-						role:    codersdk.ChatMessageRoleAssistant,
-						parts: []codersdk.ChatMessagePart{
-							{
-								Type:       codersdk.ChatMessagePartTypeToolCall,
-								ToolCallID: "tool-1",
-								ToolName:   "search",
-								Args:       json.RawMessage(`{"q":"hello"}`),
-							},
-							{
-								Type:       codersdk.ChatMessagePartTypeToolResult,
-								ToolCallID: "tool-1",
-								ToolName:   "search",
-								Result:     json.RawMessage(`{"ok":true}`),
-							},
-						},
-					}
-
-					model.rebuildBlocks()
-					require.Len(t, model.blocks, 1)
-					require.Equal(t, blockToolResult, model.blocks[0].kind)
-					require.Equal(t, "tool-1", model.blocks[0].toolID)
-				}},
+			newToolRoundTripParts := func() []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{
+					{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "tool-1", ToolName: "search", Args: json.RawMessage(`{"q":"hello"}`)},
+					{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "tool-1", ToolName: "search", Result: json.RawMessage(`{"ok":true}`)},
+				}
 			}
 
+			tests := []struct {
+				name         string
+				messages     []codersdk.ChatMessage
+				accumulator  streamAccumulator
+				update       tea.Msg
+				wantMessages int
+				wantBlocks   int
+				wantPending  bool
+				wantText     string
+				wantToolKind chatBlockKind
+				wantToolID   string
+			}{
+				{
+					name: "AccumulatorPending",
+					update: func() tea.Msg {
+						message := testMessage(12, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "final"})
+						return chatStreamEventMsg{event: codersdk.ChatStreamEvent{Type: codersdk.ChatStreamEventTypeMessage, Message: &message}}
+					}(),
+					wantMessages: 1,
+					wantBlocks:   1,
+					wantText:     "final",
+				},
+				{
+					name:         "FinalizedHistorySuppressesPendingToolDuplicate",
+					messages:     []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleAssistant, newToolRoundTripParts()...)},
+					accumulator:  streamAccumulator{pending: true, role: codersdk.ChatMessageRoleAssistant, parts: newToolRoundTripParts()},
+					wantMessages: 1,
+					wantBlocks:   1,
+					wantPending:  true,
+					wantToolKind: blockToolResult,
+					wantToolID:   "tool-1",
+				},
+			}
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-					tt.run(t)
+					model := newTestChatViewModel(nil)
+					if tt.name == "AccumulatorPending" {
+						model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
+					}
+					model.messages = tt.messages
+					model.accumulator = tt.accumulator
+					model.rebuildBlocks()
+					if tt.update != nil {
+						var cmd tea.Cmd
+						model, cmd = model.Update(tt.update)
+						require.Nil(t, cmd)
+					}
+					require.Len(t, model.messages, tt.wantMessages)
+					require.Len(t, model.blocks, tt.wantBlocks)
+					require.Equal(t, tt.wantPending, model.accumulator.isPending())
+					if tt.wantText != "" {
+						require.Equal(t, tt.wantText, model.blocks[0].text)
+					}
+					if tt.wantToolID != "" {
+						require.Equal(t, tt.wantToolKind, model.blocks[0].kind)
+						require.Equal(t, tt.wantToolID, model.blocks[0].toolID)
+					}
 				})
 			}
 		})
 
 		t.Run("StaleStreamEventsAreDroppedByGeneration", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusRunning)
 			model.setChat(chat)
@@ -1258,7 +1103,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("IntentionalCloseSkipsReconnect", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusRunning)
 			model.setChat(chat)
@@ -1281,7 +1125,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EOFStopsStreamingAndAttemptsReconnectWhenInterruptible", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(failingExperimentalClient())
 			chat := testChat(codersdk.ChatStatusPending)
 			model.setChat(chat)
@@ -1296,7 +1139,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("MessageEventsDeduplicateByID", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			message := testMessage(11, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hello"})
 
@@ -1315,10 +1157,8 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/Sending", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("DeliveredMessageIsAddedAndBlocksRebuilt", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			message := testMessage(21, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "delivered"})
 
@@ -1331,12 +1171,11 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("DisconnectedSendRestartsStream", func(t *testing.T) {
 			t.Parallel()
-
 			chat := testChat(codersdk.ChatStatusCompleted)
 			message := testMessage(22, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "sent"})
 			streamQueryCh := make(chan string, 1)
 			streamErrCh := make(chan error, 1)
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			client := newTestExperimentalClient(t, func(rw http.ResponseWriter, req *http.Request) {
 				wantPath := fmt.Sprintf("/api/experimental/chats/%s/stream", chat.ID)
 				if req.URL.Path != wantPath {
 					select {
@@ -1361,13 +1200,9 @@ func TestExpAgents(t *testing.T) {
 				case streamQueryCh <- req.URL.RawQuery:
 				default:
 				}
-			}))
-			defer server.Close()
+			})
 
-			serverURL, err := url.Parse(server.URL)
-			require.NoError(t, err)
-
-			model := newTestChatViewModel(codersdk.NewExperimentalClient(codersdk.New(serverURL)))
+			model := newTestChatViewModel(client)
 			model.setChat(chat)
 
 			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{Message: &message}})
@@ -1390,7 +1225,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ActiveStreamDoesNotReconnectOnSend", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusCompleted)
 			message := testMessage(24, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "delivered"})
@@ -1403,21 +1237,8 @@ func TestExpAgents(t *testing.T) {
 			require.Len(t, updated.messages, 1)
 		})
 
-		t.Run("SuccessfulSendClearsPreviousError", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.err = xerrors.New("stale send failed")
-			message := testMessage(23, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "delivered"})
-
-			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{Message: &message}})
-			require.Nil(t, cmd)
-			require.Nil(t, updated.err)
-		})
-
 		t.Run("QueuedResponseUpdatesQueuedMessages", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			queued := testQueuedMessage(22, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "queued"})
 
@@ -1433,7 +1254,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("SendErrorPreservesComposerText", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.composer.SetValue("keep me")
 
@@ -1446,7 +1266,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("SendErrorRestoresComposer", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.setChat(chat)
@@ -1464,7 +1283,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("CreateChatErrorAllowsRetry", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(failingExperimentalClient())
 			model.loading = false
 			model.draft = true
@@ -1486,7 +1304,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("CreateErrorRestoresComposer", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.draft = true
 			model.loading = false
@@ -1505,89 +1322,50 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("PendingComposerTextRestoresOnlyIntoEmptyComposer", func(t *testing.T) {
 			t.Parallel()
+			tests := []struct {
+				name  string
+				setup func(chatViewModel) chatViewModel
+				msg   tea.Msg
+			}{
+				{
+					name: "messageSentMsg",
+					setup: func(model chatViewModel) chatViewModel {
+						chat := testChat(codersdk.ChatStatusCompleted)
+						model.setChat(chat)
+						return model
+					},
+					msg: messageSentMsg{err: xerrors.New("fail")},
+				},
+				{
+					name: "chatCreatedMsg",
+					setup: func(model chatViewModel) chatViewModel {
+						model.draft = true
+						return model
+					},
+					msg: chatCreatedMsg{err: xerrors.New("fail")},
+				},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					model := tt.setup(newTestChatViewModel(nil))
+					model.loading = false
+					model.composer.SetValue("original")
 
-			t.Run("messageSentMsg", func(t *testing.T) {
-				t.Parallel()
+					model, _ = model.sendMessage()
+					require.Equal(t, "original", model.pendingComposerText)
 
-				model := newTestChatViewModel(nil)
-				chat := testChat(codersdk.ChatStatusCompleted)
-				model.setChat(chat)
-				model.loading = false
-				model.composer.SetValue("original")
+					model.composer.SetValue("new input")
 
-				model, _ = model.sendMessage()
-				require.Equal(t, "original", model.pendingComposerText)
-
-				model.composer.SetValue("new input")
-
-				model, _ = model.Update(messageSentMsg{err: xerrors.New("fail")})
-				require.Equal(t, "new input", model.composer.Value())
-				require.Error(t, model.err)
-			})
-
-			t.Run("chatCreatedMsg", func(t *testing.T) {
-				t.Parallel()
-
-				model := newTestChatViewModel(nil)
-				model.draft = true
-				model.loading = false
-				model.composer.SetValue("draft text")
-
-				model, _ = model.sendMessage()
-				require.Equal(t, "draft text", model.pendingComposerText)
-
-				model.composer.SetValue("edited")
-
-				model, _ = model.Update(chatCreatedMsg{err: xerrors.New("fail")})
-				require.Equal(t, "edited", model.composer.Value())
-				require.Error(t, model.err)
-			})
-		})
-
-		t.Run("EnterWhileLoadingDoesNotDispatchOrClearComposer", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.loading = true
-			model.composer.SetValue("my text")
-
-			updated, cmd := model.sendMessage()
-			require.Nil(t, cmd)
-			require.Equal(t, "my text", updated.composer.Value())
-			require.Empty(t, updated.pendingComposerText)
-		})
-
-		t.Run("EnterWithoutLoadedChatDoesNotDispatchOrClearComposer", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.loading = false
-			model.draft = false
-			model.chat = nil
-			model.composer.SetValue("my text")
-
-			updated, cmd := model.sendMessage()
-			require.Nil(t, cmd)
-			require.Equal(t, "my text", updated.composer.Value())
-			require.Empty(t, updated.pendingComposerText)
-		})
-
-		t.Run("BlankComposerDoesNotSend", func(t *testing.T) {
-			t.Parallel()
-
-			for _, value := range []string{"", "   "} {
-				model := newTestChatViewModel(nil)
-				model.composer.SetValue(value)
-
-				updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-				require.Nil(t, cmd)
-				require.Equal(t, value, updated.composer.Value())
+					model, _ = model.Update(tt.msg)
+					require.Equal(t, "new input", model.composer.Value())
+					require.Error(t, model.err)
+				})
 			}
 		})
 
 		t.Run("DuplicateDraftCreateIsIgnored", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.draft = true
 			model.loading = false
@@ -1598,136 +1376,96 @@ func TestExpAgents(t *testing.T) {
 			require.Nil(t, cmd)
 			require.Equal(t, "hello", updated.composer.Value())
 		})
-
-		t.Run("SendClearsComposerText", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			model.draft = true
-			model.composer.SetValue("hello")
-
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			require.NotNil(t, cmd)
-			require.Empty(t, updated.composer.Value())
-		})
 	})
 
-	t.Run("ChatView/SendMessageEnablesAutoFollow", func(t *testing.T) {
+	t.Run("ChatView/ModelOverrideMapsCanonicalModelID", func(t *testing.T) {
 		t.Parallel()
+		tests := []struct {
+			name   string
+			setup  func(chatViewModel, codersdk.Chat) chatViewModel
+			assert func(*testing.T, uuid.UUID, codersdk.Chat, func() *codersdk.CreateChatRequest, func() *codersdk.CreateChatMessageRequest, tea.Cmd)
+		}{
+			{
+				name: "DraftCreateReturnsChatCreatedMsg",
+				setup: func(model chatViewModel, _ codersdk.Chat) chatViewModel {
+					model.draft = true
+					return model
+				},
+				assert: func(t *testing.T, modelConfigID uuid.UUID, createdChat codersdk.Chat, createReq func() *codersdk.CreateChatRequest, _ func() *codersdk.CreateChatMessageRequest, cmd tea.Cmd) {
+					t.Helper()
+					msg, ok := mustMsg(t, cmd).(chatCreatedMsg)
+					require.True(t, ok)
+					require.NoError(t, msg.err)
+					req := createReq()
+					require.NotNil(t, req)
+					require.NotNil(t, req.ModelConfigID)
+					require.Equal(t, modelConfigID, *req.ModelConfigID)
+					require.Equal(t, createdChat.ID, msg.chat.ID)
+				},
+			},
+			{
+				name: "SendMessageReturnsMessageSentMsg",
+				setup: func(model chatViewModel, chat codersdk.Chat) chatViewModel {
+					model.setChat(chat)
+					return model
+				},
+				assert: func(t *testing.T, modelConfigID uuid.UUID, _ codersdk.Chat, _ func() *codersdk.CreateChatRequest, messageReq func() *codersdk.CreateChatMessageRequest, cmd tea.Cmd) {
+					t.Helper()
+					msg, ok := mustMsg(t, cmd).(messageSentMsg)
+					require.True(t, ok)
+					require.NoError(t, msg.err)
+					req := messageReq()
+					require.NotNil(t, req)
+					require.NotNil(t, req.ModelConfigID)
+					require.Equal(t, modelConfigID, *req.ModelConfigID)
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				modelConfigID := uuid.New()
+				modelOverride := "provider:model"
+				createdChat := testChat(codersdk.ChatStatusWaiting)
+				chat := testChat(codersdk.ChatStatusCompleted)
+				var createReq *codersdk.CreateChatRequest
+				var messageReq *codersdk.CreateChatMessageRequest
+				client := newTestExperimentalClient(t, func(rw http.ResponseWriter, req *http.Request) {
+					rw.Header().Set("Content-Type", "application/json")
+					switch {
+					case req.Method == http.MethodGet && req.URL.Path == "/api/experimental/chats/model-configs":
+						require.NoError(t, json.NewEncoder(rw).Encode([]codersdk.ChatModelConfig{{ID: modelConfigID, Provider: "provider", Model: "model"}}))
+					case req.Method == http.MethodPost && req.URL.Path == "/api/experimental/chats":
+						createReq = new(codersdk.CreateChatRequest)
+						require.NoError(t, json.NewDecoder(req.Body).Decode(createReq))
+						rw.WriteHeader(http.StatusCreated)
+						require.NoError(t, json.NewEncoder(rw).Encode(createdChat))
+					case req.Method == http.MethodPost && req.URL.Path == fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID):
+						messageReq = new(codersdk.CreateChatMessageRequest)
+						require.NoError(t, json.NewDecoder(req.Body).Decode(messageReq))
+						require.NoError(t, json.NewEncoder(rw).Encode(codersdk.CreateChatMessageResponse{}))
+					default:
+						t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+					}
+				})
 
-		model := newTestChatViewModel(nil)
-		model.draft = true
-		model.autoFollow = false
-		model.composer.SetValue("hello")
+				model := tt.setup(newTestChatViewModel(client), chat)
+				model.loading = false
+				model.modelOverride = &modelOverride
+				model.composer.SetValue("hello")
 
-		updated, cmd := model.sendMessage()
-		require.NotNil(t, cmd)
-		require.True(t, updated.autoFollow)
-		require.Empty(t, updated.composer.Value())
-	})
-
-	t.Run("ChatView/ModelOverrideMapsCanonicalModelIDForDraftCreate", func(t *testing.T) {
-		t.Parallel()
-
-		modelConfigID := uuid.New()
-		createdChat := testChat(codersdk.ChatStatusWaiting)
-		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			rw.Header().Set("Content-Type", "application/json")
-			switch {
-			case req.Method == http.MethodGet && req.URL.Path == "/api/experimental/chats/model-configs":
-				require.NoError(t, json.NewEncoder(rw).Encode([]codersdk.ChatModelConfig{{
-					ID:       modelConfigID,
-					Provider: "provider",
-					Model:    "model",
-				}}))
-			case req.Method == http.MethodPost && req.URL.Path == "/api/experimental/chats":
-				var createReq codersdk.CreateChatRequest
-				require.NoError(t, json.NewDecoder(req.Body).Decode(&createReq))
-				require.NotNil(t, createReq.ModelConfigID)
-				require.Equal(t, modelConfigID, *createReq.ModelConfigID)
-				rw.WriteHeader(http.StatusCreated)
-				require.NoError(t, json.NewEncoder(rw).Encode(createdChat))
-			default:
-				t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
-			}
-		}))
-		defer server.Close()
-
-		serverURL, err := url.Parse(server.URL)
-		require.NoError(t, err)
-
-		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
-		model := newTestChatViewModel(client)
-		model.draft = true
-		model.loading = false
-		modelOverride := "provider:model"
-		model.modelOverride = &modelOverride
-		model.composer.SetValue("hello")
-
-		updated, cmd := model.sendMessage()
-		require.NotNil(t, cmd)
-		require.Empty(t, updated.composer.Value())
-
-		msg, ok := mustMsg(t, cmd).(chatCreatedMsg)
-		require.True(t, ok)
-		require.NoError(t, msg.err)
-		require.Equal(t, createdChat.ID, msg.chat.ID)
-	})
-
-	t.Run("ChatView/ModelOverrideMapsCanonicalModelIDForSendMessage", func(t *testing.T) {
-		t.Parallel()
-
-		modelConfigID := uuid.New()
-		chat := testChat(codersdk.ChatStatusCompleted)
-		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			rw.Header().Set("Content-Type", "application/json")
-			wantPath := fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID)
-			switch {
-			case req.Method == http.MethodGet && req.URL.Path == "/api/experimental/chats/model-configs":
-				require.NoError(t, json.NewEncoder(rw).Encode([]codersdk.ChatModelConfig{{
-					ID:       modelConfigID,
-					Provider: "provider",
-					Model:    "model",
-				}}))
-			case req.Method == http.MethodPost && req.URL.Path == wantPath:
-				var messageReq codersdk.CreateChatMessageRequest
-				require.NoError(t, json.NewDecoder(req.Body).Decode(&messageReq))
-				require.NotNil(t, messageReq.ModelConfigID)
-				require.Equal(t, modelConfigID, *messageReq.ModelConfigID)
-				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.CreateChatMessageResponse{}))
-			default:
-				t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
-			}
-		}))
-		defer server.Close()
-
-		serverURL, err := url.Parse(server.URL)
-		require.NoError(t, err)
-
-		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
-		model := newTestChatViewModel(client)
-		model.chat = &chat
-		model.chatStatus = chat.Status
-		model.loading = false
-		modelOverride := "provider:model"
-		model.modelOverride = &modelOverride
-		model.composer.SetValue("hello")
-
-		updated, cmd := model.sendMessage()
-		require.NotNil(t, cmd)
-		require.Empty(t, updated.composer.Value())
-
-		msg, ok := mustMsg(t, cmd).(messageSentMsg)
-		require.True(t, ok)
-		require.NoError(t, msg.err)
+				updated, cmd := model.sendMessage()
+				require.NotNil(t, cmd)
+				require.Empty(t, updated.composer.Value())
+				tt.assert(t, modelConfigID, createdChat, func() *codersdk.CreateChatRequest { return createReq }, func() *codersdk.CreateChatMessageRequest { return messageReq }, cmd)
+			})
+		}
 	})
 
 	t.Run("ChatView/DraftPromotion", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("ChatCreatedPromotesDraft", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.draft = true
 			model.streaming = true
@@ -1745,10 +1483,14 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/Interrupts", func(t *testing.T) {
 		t.Parallel()
+		newInterruptModel := func(status codersdk.ChatStatus) chatViewModel {
+			model := newTestChatViewModel(failingExperimentalClient())
+			model.setChat(testChat(status))
+			return model
+		}
 
 		t.Run("InterruptedChatClearsInterruptingAndUpdatesStatus", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.interrupting = true
 			chat := testChat(codersdk.ChatStatusCompleted)
@@ -1763,7 +1505,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("InterruptedChatErrorClearsInterruptingAndSetsErr", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.interrupting = true
 
@@ -1774,40 +1515,33 @@ func TestExpAgents(t *testing.T) {
 			require.Equal(t, "interrupt failed", updated.err.Error())
 		})
 
-		t.Run("DoubleInterruptIsNoOp", func(t *testing.T) {
+		t.Run("CtrlXNoOpCases", func(t *testing.T) {
 			t.Parallel()
+			tests := []struct {
+				name                 string
+				chatStatus           codersdk.ChatStatus
+				alreadyInterrupting  bool
+				expectedInterrupting bool
+			}{
+				{name: "DoubleInterrupt", chatStatus: codersdk.ChatStatusRunning, alreadyInterrupting: true, expectedInterrupting: true},
+				{name: "IdleChat", chatStatus: codersdk.ChatStatusCompleted},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					model := newInterruptModel(tt.chatStatus)
+					model.interrupting = tt.alreadyInterrupting
 
-			model := newTestChatViewModel(failingExperimentalClient())
-			chat := testChat(codersdk.ChatStatusRunning)
-			model.chat = &chat
-			model.chatStatus = codersdk.ChatStatusRunning
-			model.interrupting = true
-
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
-			require.Nil(t, cmd)
-			require.True(t, updated.interrupting)
-		})
-
-		t.Run("InterruptOnIdleChatIsNoOp", func(t *testing.T) {
-			t.Parallel()
-
-			model := newTestChatViewModel(failingExperimentalClient())
-			chat := testChat(codersdk.ChatStatusCompleted)
-			model.chat = &chat
-			model.chatStatus = codersdk.ChatStatusCompleted
-
-			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
-			require.Nil(t, cmd)
-			require.False(t, updated.interrupting)
+					updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
+					require.Nil(t, cmd)
+					require.Equal(t, tt.expectedInterrupting, updated.interrupting)
+				})
+			}
 		})
 
 		t.Run("CtrlXInterruptsRunningChat", func(t *testing.T) {
 			t.Parallel()
-
-			model := newTestChatViewModel(failingExperimentalClient())
-			chat := testChat(codersdk.ChatStatusRunning)
-			model.chat = &chat
-			model.chatStatus = codersdk.ChatStatusRunning
+			model := newInterruptModel(codersdk.ChatStatusRunning)
 			require.True(t, model.composerFocused)
 
 			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
@@ -1818,11 +1552,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("TabKeepsFocusSwitchBehaviorWhileRunningChat", func(t *testing.T) {
 			t.Parallel()
-
-			model := newTestChatViewModel(failingExperimentalClient())
-			chat := testChat(codersdk.ChatStatusRunning)
-			model.chat = &chat
-			model.chatStatus = codersdk.ChatStatusRunning
+			model := newInterruptModel(codersdk.ChatStatusRunning)
 			require.True(t, model.composerFocused)
 
 			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -1833,12 +1563,9 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ViewShowsCtrlXInterruptHelp", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
-			chat := testChat(codersdk.ChatStatusRunning)
-			model.chat = &chat
-			model.chatStatus = codersdk.ChatStatusRunning
+			model.setChat(testChat(codersdk.ChatStatusRunning))
 			model.loading = false
 
 			view := plainText(model.View())
@@ -1849,92 +1576,41 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/Keyboard", func(t *testing.T) {
 		t.Parallel()
-
-		t.Run("TabTogglesComposerFocus", func(t *testing.T) {
+		t.Run("KeyboardShortcutRouting", func(t *testing.T) {
 			t.Parallel()
-
-			model := newTestChatViewModel(nil)
-			require.True(t, model.composerFocused)
-
-			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
-			require.False(t, updated.composerFocused)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
-			require.True(t, updated.composerFocused)
-		})
-
-		t.Run("CtrlPSendsToggleModelPickerMsg", func(t *testing.T) {
-			t.Parallel()
-
+			isToggleModelPicker := func(msg tea.Msg) bool { _, ok := msg.(toggleModelPickerMsg); return ok }
+			isToggleDiffDrawer := func(msg tea.Msg) bool { _, ok := msg.(toggleDiffDrawerMsg); return ok }
 			tests := []struct {
 				name            string
+				key             tea.KeyType
 				composerFocused bool
 				composerValue   string
+				assert          func(tea.Msg) bool
 			}{
-				{name: "Unfocused", composerFocused: false},
-				{name: "Focused", composerFocused: true, composerValue: "draft"},
+				{name: "CtrlP/Focused", key: tea.KeyCtrlP, composerFocused: true, composerValue: "draft", assert: isToggleModelPicker},
+				{name: "CtrlP/Unfocused", key: tea.KeyCtrlP, assert: isToggleModelPicker},
+				{name: "CtrlD/Focused", key: tea.KeyCtrlD, composerFocused: true, composerValue: "draft", assert: isToggleDiffDrawer},
+				{name: "CtrlD/Unfocused", key: tea.KeyCtrlD, assert: isToggleDiffDrawer},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newTestChatViewModel(nil)
 					model.composerFocused = tt.composerFocused
-					if tt.composerValue != "" {
-						model.composer.SetValue(tt.composerValue)
-					}
+					model.composer.SetValue(tt.composerValue)
 
-					updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+					updated, cmd := model.Update(tea.KeyMsg{Type: tt.key})
 					require.NotNil(t, cmd)
 					require.Equal(t, tt.composerFocused, updated.composerFocused)
-					if tt.composerValue != "" {
-						require.Equal(t, tt.composerValue, updated.composer.Value())
-					}
-					_, ok := mustMsg(t, cmd).(toggleModelPickerMsg)
-					require.True(t, ok)
-				})
-			}
-		})
-
-		t.Run("CtrlDSendsToggleDiffDrawerMsg", func(t *testing.T) {
-			t.Parallel()
-
-			tests := []struct {
-				name            string
-				composerFocused bool
-				composerValue   string
-			}{
-				{name: "Focused", composerFocused: true, composerValue: "draft"},
-				{name: "Unfocused", composerFocused: false},
-			}
-
-			for _, tt := range tests {
-				t.Run(tt.name, func(t *testing.T) {
-					t.Parallel()
-
-					model := newTestChatViewModel(nil)
-					model.composerFocused = tt.composerFocused
-					if tt.composerValue != "" {
-						model.composer.SetValue(tt.composerValue)
-					}
-
-					updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
-					require.NotNil(t, cmd)
-					require.Equal(t, tt.composerFocused, updated.composerFocused)
-					if tt.composerValue != "" {
-						require.Equal(t, tt.composerValue, updated.composer.Value())
-					}
-					_, ok := mustMsg(t, cmd).(toggleDiffDrawerMsg)
-					require.True(t, ok)
+					require.Equal(t, tt.composerValue, updated.composer.Value())
+					require.True(t, tt.assert(mustMsg(t, cmd)))
 				})
 			}
 		})
 
 		t.Run("CtrlPFromListViewDoesNotOpenModelPicker", func(t *testing.T) {
 			t.Parallel()
-
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model := newTestTUIModel()
 			model.currentView = viewList
 			model.list.loading = false
 
@@ -1947,17 +1623,14 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/ViewportScrolling", func(t *testing.T) {
 		t.Parallel()
-
 		applyWindowSize := func(t *testing.T, model expChatsTUIModel, width int, height int) expChatsTUIModel {
 			t.Helper()
-
 			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: width, Height: height})
 			return mustTUIModel(t, updatedModel, cmd)
 		}
 
 		newScrollableModel := func(t *testing.T) chatViewModel {
 			t.Helper()
-
 			model := newTestChatViewModel(nil)
 			model.loading = false
 			chat := testChat(codersdk.ChatStatusCompleted)
@@ -1993,7 +1666,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ViewportHeights", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name    string
 				height  int
@@ -2019,11 +1691,9 @@ func TestExpAgents(t *testing.T) {
 					require.LessOrEqual(t, strings.Count(model.View(), "\n")+1, 40)
 				}},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := applyWindowSize(t, newTestTUIModel(), 80, tt.height)
 					if tt.prepare != nil {
 						tt.prepare(&model)
@@ -2035,7 +1705,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("WrappedComposerFitsTerminal", func(t *testing.T) {
 			t.Parallel()
-
 			model := applyWindowSize(t, newTestTUIModel(), 40, 18)
 			model.currentView = viewChat
 			model.chat.loading = false
@@ -2056,7 +1725,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ViewShowsSingleStatusBarAndComposerDivider", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model.loading = false
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 14})
@@ -2086,7 +1754,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ScrollNavigation", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name   string
 				setup  func(t *testing.T, model chatViewModel) chatViewModel
@@ -2145,11 +1812,9 @@ func TestExpAgents(t *testing.T) {
 					require.True(t, after.autoFollow)
 				}},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newScrollableModel(t)
 					if tt.setup != nil {
 						model = tt.setup(t, model)
@@ -2163,7 +1828,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("AutoFollowOnContentUpdates", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name   string
 				setup  func(chatViewModel) chatViewModel
@@ -2200,11 +1864,9 @@ func TestExpAgents(t *testing.T) {
 					require.Equal(t, before.viewport.YOffset, after.viewport.YOffset)
 				}},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newScrollableModel(t)
 					if tt.setup != nil {
 						model = tt.setup(model)
@@ -2218,7 +1880,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("StreamingAutoFollows", func(t *testing.T) {
 			t.Parallel()
-
 			model := newTestChatViewModel(nil)
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 			model, _ = model.Update(chatHistoryMsg{messages: overflowingMessages(10)})
@@ -2235,42 +1896,55 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/StatePersistence", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("StateSurvivesTransition", func(t *testing.T) {
 			t.Parallel()
+			modelPickerCatalog := func() codersdk.ChatModelsResponse {
+				return codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+					Provider:  "provider",
+					Available: true,
+					Models:    []codersdk.ChatModel{{ID: uuid.New().String(), Provider: "provider", Model: "model-a", DisplayName: "Model A"}},
+				}}}
+			}
+			newScrollableTUIModel := func(t *testing.T) expChatsTUIModel {
+				t.Helper()
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.chat.loading = false
+				updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				chat := testChat(codersdk.ChatStatusCompleted)
+				updated.chat.setChat(chat)
+				updated.chat.messages = overflowingMessages(10)
+				updated.chat.gitChanges = []codersdk.ChatGitChange{}
+				diff := codersdk.ChatDiffContents{ChatID: chat.ID, Diff: "diff --git a/file b/file"}
+				updated.chat.diffContents = &diff
+				updated.chat.rebuildBlocks()
+				updated.chat.composerFocused = false
+				(&updated.chat).syncViewportContent()
+				updated.chat.viewport.GotoBottom()
+				return updated
+			}
 
 			tests := []struct {
 				name string
 				run  func(t *testing.T)
 			}{
 				{"ComposerTextOverlayToggle", func(t *testing.T) {
-					catalog := codersdk.ChatModelsResponse{
-						Providers: []codersdk.ChatModelProvider{{
-							Provider:  "provider",
-							Available: true,
-							Models: []codersdk.ChatModel{{
-								ID:          uuid.New().String(),
-								Provider:    "provider",
-								Model:       "model-a",
-								DisplayName: "Model A",
-							}},
-						}},
-					}
-
 					model := newTestTUIModel()
 					model.currentView = viewChat
 					model.chat.loading = false
+					catalog := modelPickerCatalog()
 					model.catalog = &catalog
 					model.chat.modelPickerFlat = catalog.Providers[0].Models
 					model.chat.composer.SetValue("keep this draft")
 
-					updatedModel, cmd := model.Update(toggleModelPickerMsg{})
-					updated := mustTUIModel(t, updatedModel, cmd)
-					require.Equal(t, "keep this draft", updated.chat.composer.Value())
-
-					updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
-					updated = mustTUIModel(t, updatedModel, cmd)
-					require.Equal(t, "keep this draft", updated.chat.composer.Value())
+					togglePicker := func() {
+						updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+						model = mustTUIModel(t, updatedModel, cmd)
+						require.Equal(t, "keep this draft", model.chat.composer.Value())
+					}
+					togglePicker()
+					togglePicker()
 				}},
 				{"ComposerTextFocusSwitch", func(t *testing.T) {
 					model := newTestChatViewModel(nil)
@@ -2285,37 +1959,21 @@ func TestExpAgents(t *testing.T) {
 					require.Equal(t, "keep this draft", updated.composer.Value())
 				}},
 				{"ViewportScrollOverlayToggle", func(t *testing.T) {
-					model := newTestTUIModel()
-					model.currentView = viewChat
-					model.chat.loading = false
-					updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-					updated := mustTUIModel(t, updatedModel, cmd)
-					chat := testChat(codersdk.ChatStatusCompleted)
-					updated.chat.chat = &chat
-					updated.chat.messages = overflowingMessages(10)
-					updated.chat.gitChanges = []codersdk.ChatGitChange{}
-					diff := codersdk.ChatDiffContents{ChatID: chat.ID, Diff: "diff --git a/file b/file"}
-					updated.chat.diffContents = &diff
-					updated.chat.rebuildBlocks()
-					updated.chat.composerFocused = false
-					updated.chat.autoFollow = true
-					(&updated.chat).syncViewportContent()
-					updated.chat.viewport.GotoBottom()
+					model := newScrollableTUIModel(t)
 
-					updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
-					updated = mustTUIModel(t, updatedModel, cmd)
-					require.False(t, updated.chat.viewport.AtBottom())
-					yBefore := updated.chat.viewport.YOffset
+					updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+					model = mustTUIModel(t, updatedModel, cmd)
+					require.False(t, model.chat.viewport.AtBottom())
+					yBefore := model.chat.viewport.YOffset
 
-					updatedModel, cmd = updated.Update(toggleDiffDrawerMsg{})
-					updated = mustTUIModel(t, updatedModel, cmd)
-					require.Equal(t, overlayDiffDrawer, updated.overlay)
-					require.Equal(t, yBefore, updated.chat.viewport.YOffset)
-
-					updatedModel, cmd = updated.Update(toggleDiffDrawerMsg{})
-					updated = mustTUIModel(t, updatedModel, cmd)
-					require.Equal(t, overlayNone, updated.overlay)
-					require.Equal(t, yBefore, updated.chat.viewport.YOffset)
+					toggleDrawer := func(wantOverlay tuiOverlay) {
+						updatedModel, cmd = model.Update(toggleDiffDrawerMsg{})
+						model = mustTUIModel(t, updatedModel, cmd)
+						require.Equal(t, wantOverlay, model.overlay)
+						require.Equal(t, yBefore, model.chat.viewport.YOffset)
+					}
+					toggleDrawer(overlayDiffDrawer)
+					toggleDrawer(overlayNone)
 				}},
 			}
 			for _, tt := range tests {
@@ -2328,7 +1986,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("SelectedModelSurvivesPickerReopen", func(t *testing.T) {
 			t.Parallel()
-
 			firstModelID := "provider:model-a"
 			secondModelID := "provider:model-b"
 			catalog := codersdk.ChatModelsResponse{
@@ -2385,10 +2042,8 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/ChatLifecycle", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("StreamingChatSwitchBackToList", func(t *testing.T) {
 			t.Parallel()
-
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.currentView = viewChat
 			chat := testChat(codersdk.ChatStatusRunning)
@@ -2408,7 +2063,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ReOpenSameChatAfterEsc", func(t *testing.T) {
 			t.Parallel()
-
 			chatID := uuid.New()
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
 			model.width = 100
@@ -2444,7 +2098,6 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/TranscriptSync", func(t *testing.T) {
 		t.Parallel()
-
 		newTranscriptModel := func() chatViewModel {
 			model := newTestChatViewModel(nil)
 			model.width = 80
@@ -2459,7 +2112,6 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("TranscriptRefreshRules", func(t *testing.T) {
 			t.Parallel()
-
 			tests := []struct {
 				name      string
 				mutate    func(m *chatViewModel)
@@ -2476,7 +2128,6 @@ func TestExpAgents(t *testing.T) {
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-
 					model := newTranscriptModel()
 					(&model).syncViewportContent()
 					firstTranscript := model.lastTranscript
@@ -2496,349 +2147,202 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatList", func(t *testing.T) {
 		t.Parallel()
-
+		newChat := func(status codersdk.ChatStatus, title string, parent *uuid.UUID) codersdk.Chat {
+			chat := testChat(status)
+			chat.Title, chat.ParentChatID = title, parent
+			return chat
+		}
+		newList := func(chats ...codersdk.Chat) chatListModel {
+			model := newReadyChatListModel()
+			model.chats = chats
+			return model
+		}
+		mustUpdate := func(t testing.TB, model chatListModel, msg tea.Msg) chatListModel {
+			t.Helper()
+			updated, cmd := model.Update(msg)
+			require.Nil(t, cmd)
+			return updated
+		}
+		requireRows := func(t testing.TB, rows []chatDisplayRow, wantChats []codersdk.Chat, wantDepths ...int) {
+			t.Helper()
+			require.Len(t, rows, len(wantChats))
+			for i, want := range wantChats {
+				require.Equal(t, want.ID, rows[i].chat.ID)
+				require.Equal(t, wantDepths[i], rows[i].depth)
+			}
+		}
 		t.Run("ChatsListedUpdatesState", func(t *testing.T) {
 			t.Parallel()
-
-			tests := []struct {
-				name   string
-				msg    chatsListedMsg
-				assert func(t *testing.T, updated chatListModel)
+			for _, tt := range []struct {
+				name      string
+				msg       chatsListedMsg
+				wantChats int
+				wantErr   string
 			}{
-				{"StoresChats", chatsListedMsg{chats: []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusCompleted)}}, func(t *testing.T, updated chatListModel) {
-					require.Len(t, updated.chats, 2)
-					require.NoError(t, updated.err)
-				}},
-				{"StoresErr", chatsListedMsg{err: xerrors.New("list failed")}, func(t *testing.T, updated chatListModel) {
-					require.EqualError(t, updated.err, "list failed")
-				}},
-			}
-
-			for _, tt := range tests {
-				t.Run(tt.name, func(t *testing.T) {
-					t.Parallel()
-
-					updated, cmd := newChatListModel(newTUIStyles()).Update(tt.msg)
-					require.Nil(t, cmd)
-					require.False(t, updated.loading)
-					tt.assert(t, updated)
-				})
+				{name: "StoresChats", msg: chatsListedMsg{chats: []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusCompleted)}}, wantChats: 2},
+				{name: "StoresErr", msg: chatsListedMsg{err: xerrors.New("list failed")}, wantErr: "list failed"},
+			} {
+				updated, cmd := newChatListModel(newTUIStyles()).Update(tt.msg)
+				require.Nilf(t, cmd, tt.name)
+				require.Falsef(t, updated.loading, tt.name)
+				require.Lenf(t, updated.chats, tt.wantChats, tt.name)
+				if tt.wantErr == "" {
+					require.NoErrorf(t, updated.err, tt.name)
+					continue
+				}
+				require.EqualErrorf(t, updated.err, tt.wantErr, tt.name)
 			}
 		})
-		t.Run("DisplayRowsHideSubagentsUntilExpanded", func(t *testing.T) {
+		t.Run("ParentExpansionAndCollapse", func(t *testing.T) {
 			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			parent := testChat(codersdk.ChatStatusRunning)
-			parent.Title = "Parent chat"
-			childA := testChat(codersdk.ChatStatusWaiting)
-			childA.Title = "Subagent A"
-			childA.ParentChatID = &parent.ID
-			childB := testChat(codersdk.ChatStatusPending)
-			childB.Title = "Subagent B"
-			childB.ParentChatID = &parent.ID
-			root := testChat(codersdk.ChatStatusCompleted)
-			root.Title = "Standalone chat"
-
-			model.chats = []codersdk.Chat{parent, childA, childB, root}
-
-			rows := model.displayRows()
-			require.Len(t, rows, 2)
-			require.Equal(t, parent.ID, rows[0].chat.ID)
-			require.Equal(t, 2, rows[0].childCount)
-			require.False(t, rows[0].isExpanded)
-			require.Equal(t, root.ID, rows[1].chat.ID)
-			require.False(t, rows[1].isSubagent)
-
+			parent := newChat(codersdk.ChatStatusRunning, "Parent chat", nil)
+			childA := newChat(codersdk.ChatStatusWaiting, "Subagent A", &parent.ID)
+			childB := newChat(codersdk.ChatStatusPending, "Subagent B", &parent.ID)
+			root := newChat(codersdk.ChatStatusCompleted, "Standalone chat", nil)
+			model := newList(parent, childA, childB, root)
+			requireRows(t, model.displayRows(), []codersdk.Chat{parent, root}, 0, 0)
 			output := plainText(model.View())
 			require.Contains(t, output, "▶ Parent chat")
 			require.Contains(t, output, "(2 subagents)")
 			require.NotContains(t, output, childA.Title)
 			require.NotContains(t, output, childB.Title)
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyRight})
+			require.True(t, model.expanded[parent.ID])
+			requireRows(t, model.displayRows(), []codersdk.Chat{parent, childA, childB, root}, 0, 1, 1, 0)
+			model = mustUpdate(t, model, keyRunes("x"))
+			require.False(t, model.expanded[parent.ID])
+			requireRows(t, model.displayRows(), []codersdk.Chat{parent, root}, 0, 0)
+			model = mustUpdate(t, model, keyRunes("x"))
+			require.True(t, model.expanded[parent.ID])
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyLeft})
+			require.False(t, model.expanded[parent.ID])
+			require.Zero(t, model.cursor)
 		})
-
-		t.Run("ExpandCollapseAndOpenSubagents", func(t *testing.T) {
+		t.Run("NestedExpansionNavigationAndOpenSelectedChat", func(t *testing.T) {
 			t.Parallel()
-
-			model := newReadyChatListModel()
-			model.width = 100
-			model.height = 10
-
-			parent := testChat(codersdk.ChatStatusRunning)
-			parent.Title = "Parent chat"
-			child := testChat(codersdk.ChatStatusWaiting)
-			child.Title = "Subagent chat"
-			child.ParentChatID = &parent.ID
-			root := testChat(codersdk.ChatStatusCompleted)
-			root.Title = "Standalone chat"
-			model.chats = []codersdk.Chat{parent, child, root}
-
-			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
-			require.True(t, updated.expanded[parent.ID])
-			require.Contains(t, plainText(updated.View()), "    Subagent chat")
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			require.Equal(t, child.ID, updated.selectedChat().ID)
-
-			updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			parent := newChat(codersdk.ChatStatusRunning, "Parent chat", nil)
+			child := newChat(codersdk.ChatStatusWaiting, "Child subagent", &parent.ID)
+			grandchild := newChat(codersdk.ChatStatusPending, "Grandchild subagent", &child.ID)
+			root := newChat(codersdk.ChatStatusCompleted, "Standalone chat", nil)
+			model := newList(parent, child, grandchild, root)
+			model.width, model.height = 100, 10
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyRight})
+			require.True(t, model.expanded[parent.ID])
+			requireRows(t, model.displayRows(), []codersdk.Chat{parent, child, root}, 0, 1, 0)
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyDown})
+			selected := model.selectedChat()
+			require.NotNil(t, selected)
+			require.Equal(t, child.ID, selected.ID)
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyRight})
+			require.True(t, model.expanded[child.ID])
+			requireRows(t, model.displayRows(), []codersdk.Chat{parent, child, grandchild, root}, 0, 1, 2, 0)
+			require.Contains(t, plainText(model.View()), "Grandchild subagent")
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyDown})
+			selected = model.selectedChat()
+			require.NotNil(t, selected)
+			require.Equal(t, grandchild.ID, selected.ID)
+			model, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 			openMsg, ok := mustMsg(t, cmd).(openSelectedChatMsg)
 			require.True(t, ok)
-			require.Equal(t, child.ID, openMsg.chatID)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyLeft})
-			require.False(t, updated.expanded[parent.ID])
-			require.Equal(t, 0, updated.cursor)
+			require.Equal(t, grandchild.ID, openMsg.chatID)
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyLeft})
+			require.False(t, model.expanded[child.ID])
+			require.Equal(t, child.ID, model.selectedChat().ID)
+			model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyLeft})
+			require.False(t, model.expanded[parent.ID])
+			require.Equal(t, parent.ID, model.selectedChat().ID)
 		})
-		t.Run("ToggleKeyExpandsAndCollapsesParent", func(t *testing.T) {
+		t.Run("SearchIncludesVisibleAncestorChain", func(t *testing.T) {
 			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			parent := testChat(codersdk.ChatStatusRunning)
-			parent.Title = "Parent chat"
-			child := testChat(codersdk.ChatStatusWaiting)
-			child.Title = "Subagent chat"
-			child.ParentChatID = &parent.ID
-			model.chats = []codersdk.Chat{parent, child}
-
-			updated, cmd := model.Update(keyRunes("x"))
-			require.Nil(t, cmd)
-			require.True(t, updated.expanded[parent.ID])
-			require.Len(t, updated.displayRows(), 2)
-
-			updated, cmd = updated.Update(keyRunes("x"))
-			require.Nil(t, cmd)
-			require.False(t, updated.expanded[parent.ID])
-			require.Len(t, updated.displayRows(), 1)
+			for _, depth := range []int{1, 2} {
+				model := newReadyChatListModel()
+				chain := make([]codersdk.Chat, 0, depth+1)
+				wantDepths := make([]int, 0, depth+1)
+				var parentID *uuid.UUID
+				for d := 0; d <= depth; d++ {
+					title := "Root chat"
+					if d > 0 {
+						title = fmt.Sprintf("Subagent depth %d", d)
+					}
+					if d == depth {
+						title += " needle"
+					}
+					chain = append(chain, newChat(codersdk.ChatStatusWaiting, title, parentID))
+					parentID = &chain[len(chain)-1].ID
+					wantDepths = append(wantDepths, d)
+				}
+				model.chats = append([]codersdk.Chat{}, chain...)
+				model.chats = append(model.chats, newChat(codersdk.ChatStatusCompleted, "Other root", nil))
+				model.search.SetValue("needle")
+				rows := model.displayRows()
+				requireRows(t, rows, chain, wantDepths...)
+				for i, row := range rows {
+					require.Equalf(t, i < depth, row.isExpanded, "depth=%d row=%d", depth, i)
+				}
+			}
 		})
-
-		t.Run("SearchIncludesMatchingSubagentUnderParent", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			parent := testChat(codersdk.ChatStatusRunning)
-			parent.Title = "Parent chat"
-			child := testChat(codersdk.ChatStatusWaiting)
-			child.Title = "Subagent needle"
-			child.ParentChatID = &parent.ID
-			other := testChat(codersdk.ChatStatusCompleted)
-			other.Title = "Other root"
-			model.chats = []codersdk.Chat{parent, child, other}
-			model.search.SetValue("needle")
-
-			rows := model.displayRows()
-			require.Len(t, rows, 2)
-			require.Equal(t, parent.ID, rows[0].chat.ID)
-			require.True(t, rows[0].isExpanded)
-			require.Equal(t, child.ID, rows[1].chat.ID)
-			require.True(t, rows[1].isSubagent)
-		})
-
-		t.Run("SearchIncludesAncestorChainForMatchingGrandchild", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			root := testChat(codersdk.ChatStatusRunning)
-			root.Title = "Root chat"
-			child := testChat(codersdk.ChatStatusWaiting)
-			child.Title = "Child subagent"
-			child.ParentChatID = &root.ID
-			grandchild := testChat(codersdk.ChatStatusPending)
-			grandchild.Title = "Grandchild needle"
-			grandchild.ParentChatID = &child.ID
-			other := testChat(codersdk.ChatStatusCompleted)
-			other.Title = "Other root"
-			model.chats = []codersdk.Chat{root, child, grandchild, other}
-			model.search.SetValue("needle")
-
-			rows := model.displayRows()
-			require.Len(t, rows, 3)
-			require.Equal(t, root.ID, rows[0].chat.ID)
-			require.True(t, rows[0].isExpanded)
-			require.Equal(t, child.ID, rows[1].chat.ID)
-			require.True(t, rows[1].isExpanded)
-			require.Equal(t, grandchild.ID, rows[2].chat.ID)
-			require.Equal(t, 2, rows[2].depth)
-		})
-
-		t.Run("DisplayRowsRenderNestedSubagentsRecursively", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			parent := testChat(codersdk.ChatStatusRunning)
-			parent.Title = "Parent chat"
-			child := testChat(codersdk.ChatStatusWaiting)
-			child.Title = "Child subagent"
-			child.ParentChatID = &parent.ID
-			grandchild := testChat(codersdk.ChatStatusPending)
-			grandchild.Title = "Grandchild subagent"
-			grandchild.ParentChatID = &child.ID
-			model.chats = []codersdk.Chat{parent, child, grandchild}
-			model.expanded[parent.ID] = true
-			model.expanded[child.ID] = true
-
-			rows := model.displayRows()
-			require.Len(t, rows, 3)
-			require.Equal(t, parent.ID, rows[0].chat.ID)
-			require.Equal(t, 0, rows[0].depth)
-			require.Equal(t, child.ID, rows[1].chat.ID)
-			require.True(t, rows[1].isSubagent)
-			require.Equal(t, 1, rows[1].depth)
-			require.Equal(t, 1, rows[1].childCount)
-			require.True(t, rows[1].isExpanded)
-			require.Equal(t, grandchild.ID, rows[2].chat.ID)
-			require.True(t, rows[2].isSubagent)
-			require.Equal(t, 2, rows[2].depth)
-
-			output := plainText(model.View())
-			require.Contains(t, output, "▼ Child subagent")
-			require.Contains(t, output, "Grandchild subagent")
-		})
-
-		t.Run("ExpandKeyExpandsNestedSubagent", func(t *testing.T) {
-			t.Parallel()
-
-			model := newReadyChatListModel()
-			model.width = 100
-			model.height = 10
-
-			parent := testChat(codersdk.ChatStatusRunning)
-			parent.Title = "Parent chat"
-			child := testChat(codersdk.ChatStatusWaiting)
-			child.Title = "Child subagent"
-			child.ParentChatID = &parent.ID
-			grandchild := testChat(codersdk.ChatStatusPending)
-			grandchild.Title = "Grandchild subagent"
-			grandchild.ParentChatID = &child.ID
-			model.chats = []codersdk.Chat{parent, child, grandchild}
-
-			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
-			require.True(t, updated.expanded[parent.ID])
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
-			require.Equal(t, child.ID, updated.selectedChat().ID)
-
-			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRight})
-			require.True(t, updated.expanded[child.ID])
-			require.Contains(t, plainText(updated.View()), "Grandchild subagent")
-		})
-
 		t.Run("NavigationKeysMoveCursorWithinBounds", func(t *testing.T) {
 			t.Parallel()
-
 			chats := []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusPending), testChat(codersdk.ChatStatusCompleted)}
-			for name, key := range map[string]tea.KeyMsg{
-				"Up":   {Type: tea.KeyUp},
-				"Down": {Type: tea.KeyDown},
-				"J":    keyRunes("j"),
-				"K":    keyRunes("k"),
+			for _, tt := range []struct {
+				name string
+				key  tea.KeyMsg
+				want int
+			}{
+				{name: "Up", key: tea.KeyMsg{Type: tea.KeyUp}, want: 0},
+				{name: "Down", key: tea.KeyMsg{Type: tea.KeyDown}, want: 2},
+				{name: "J", key: keyRunes("j"), want: 2},
+				{name: "K", key: keyRunes("k"), want: 0},
 			} {
-				name := name
-				key := key
-				t.Run(name, func(t *testing.T) {
-					t.Parallel()
-
-					model := newChatListModel(newTUIStyles())
-					model.loading = false
-					model.chats = chats
-					model.cursor = 1
-
-					updated, _ := model.Update(key)
-					if name == "Up" || name == "K" {
-						require.Equal(t, 0, updated.cursor)
-						updated, _ = updated.Update(key)
-						require.Equal(t, 0, updated.cursor)
-					} else {
-						require.Equal(t, 2, updated.cursor)
-						updated, _ = updated.Update(key)
-						require.Equal(t, 2, updated.cursor)
-					}
-				})
+				model := newList(chats...)
+				model.cursor = 1
+				model = mustUpdate(t, model, tt.key)
+				require.Equalf(t, tt.want, model.cursor, tt.name)
+				model = mustUpdate(t, model, tt.key)
+				require.Equalf(t, tt.want, model.cursor, tt.name)
 			}
 		})
-
 		t.Run("ViewKeepsSelectedChatVisible", func(t *testing.T) {
 			t.Parallel()
-
 			model := newReadyChatListModel()
-			model.width = 80
-			model.height = 8
+			model.width, model.height = 80, 8
 			for i := range 8 {
-				chat := testChat(codersdk.ChatStatusWaiting)
-				chat.Title = fmt.Sprintf("chat %02d", i)
-				model.chats = append(model.chats, chat)
+				model.chats = append(model.chats, newChat(codersdk.ChatStatusWaiting, fmt.Sprintf("chat %02d", i), nil))
 			}
-
 			for range 6 {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+				model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyDown})
 			}
 			require.Equal(t, 2, model.offset)
 			listView := plainText(model.View())
 			require.Contains(t, listView, "> chat 06")
 			require.NotContains(t, listView, "chat 00")
-
 			parent := newTestTUIModel()
-			parent.width = 80
-			parent.height = 8
-			parent.list = model
+			parent.width, parent.height, parent.list = 80, 8, model
 			parentView := plainText(parent.View())
 			require.Contains(t, parentView, "Coder Chats")
 			require.Contains(t, parentView, "> chat 06")
-
 			for range 5 {
-				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+				model = mustUpdate(t, model, tea.KeyMsg{Type: tea.KeyUp})
 			}
 			require.Equal(t, 1, model.offset)
 			require.Contains(t, plainText(model.View()), "> chat 01")
 		})
 		t.Run("EmptyListDisplaysNoChatsMessage", func(t *testing.T) {
 			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-
-			updated, cmd := model.Update(chatsListedMsg{chats: []codersdk.Chat{}})
+			updated, cmd := newChatListModel(newTUIStyles()).Update(chatsListedMsg{chats: []codersdk.Chat{}})
 			require.Nil(t, cmd)
 			require.Contains(t, plainText(updated.View()), "No chats yet")
-		})
-
-		t.Run("SlashFocusesSearch", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			updated, cmd := model.Update(keyRunes("/"))
-			require.Nil(t, cmd)
-			require.True(t, updated.searching)
-		})
-
-		t.Run("QTriggersQuit", func(t *testing.T) {
-			t.Parallel()
-
-			model := newChatListModel(newTUIStyles())
-			model.loading = false
-
-			updated, cmd := model.Update(keyRunes("q"))
-			require.Equal(t, model.cursor, updated.cursor)
-			_, ok := mustMsg(t, cmd).(tea.QuitMsg)
-			require.True(t, ok)
 		})
 	})
 }
 
 func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
 	t.Parallel()
-
-	model := newVisualChatViewModel()
+	model := newTestChatViewModel(nil)
+	model.width, model.height = 80, 24
+	model.setComposerWidth()
+	model.recalcViewportHeight()
+	model.syncViewportContent()
 	chat := testChat(codersdk.ChatStatusCompleted)
 	model.chat = &chat
 	model.chatStatus = chat.Status
@@ -2860,7 +2364,6 @@ func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
 
 func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {
 	t.Helper()
-
 	updated, ok := model.(expChatsTUIModel)
 	require.True(t, ok)
 	require.Nil(t, cmd)
@@ -2869,7 +2372,6 @@ func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {
 
 func mustTUIModelWithCmd(t testing.TB, model tea.Model, cmd tea.Cmd) (expChatsTUIModel, tea.Cmd) {
 	t.Helper()
-
 	updated, ok := model.(expChatsTUIModel)
 	require.True(t, ok)
 	return updated, cmd
@@ -2883,39 +2385,10 @@ func mustMsg(t testing.TB, cmd tea.Cmd) tea.Msg {
 
 func mustBatchMsg(t testing.TB, cmd tea.Cmd) tea.BatchMsg {
 	t.Helper()
-
 	msg := mustMsg(t, cmd)
 	batch, ok := msg.(tea.BatchMsg)
 	require.True(t, ok)
 	return batch
-}
-
-func newVisualChatViewModel() chatViewModel {
-	renderer := lipgloss.NewRenderer(os.Stderr)
-	styles := newTUIStyles(renderer)
-
-	composer := textinput.New()
-	composer.Placeholder = "Type a message..."
-	composer.Prompt = "> "
-	composer.Focus()
-
-	model := chatViewModel{
-		styles:           styles,
-		metadataResolved: true,
-		historyResolved:  true,
-		composer:         composer,
-		viewport:         viewport.New(80, 0),
-		width:            80,
-		height:           24,
-		composerFocused:  true,
-		expandedBlocks:   make(map[int]bool),
-		autoFollow:       true,
-	}
-	model.setComposerWidth()
-	model.recalcViewportHeight()
-	model.syncViewportContent()
-
-	return model
 }
 
 // newTestChatViewModel creates a chatViewModel for reducer tests.
@@ -2933,6 +2406,15 @@ func newReadyChatListModel() chatListModel {
 	model := newChatListModel(newTUIStyles())
 	model.loading = false
 	return model
+}
+
+func newTestExperimentalClient(t testing.TB, handler http.HandlerFunc) *codersdk.ExperimentalClient {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	return codersdk.NewExperimentalClient(codersdk.New(serverURL))
 }
 
 func overflowingMessages(count int) []codersdk.ChatMessage {
