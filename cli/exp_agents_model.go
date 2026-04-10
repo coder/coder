@@ -141,10 +141,6 @@ func (m *expChatsTUIModel) toggleOverlay(overlay tuiOverlay) bool {
 }
 
 func (m *expChatsTUIModel) handleEsc(msg tea.KeyMsg) tea.Cmd {
-	if m.overlay != overlayNone {
-		m.overlay = overlayNone
-		return nil
-	}
 	if m.currentView == viewList && m.list.searching {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
@@ -291,14 +287,24 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
-		if msg.String() == "esc" {
-			return m, m.handleEsc(msg)
-		}
+		// Handle overlays first so their keys do not leak to the underlying
+		// view.
 		if m.overlay == overlayModelPicker {
+			if msg.Type == tea.KeyEsc || msg.String() == "esc" {
+				m.overlay = overlayNone
+				return m, nil
+			}
 			return m, m.handleModelPickerKey(msg)
 		}
 		if m.overlay == overlayDiffDrawer {
+			if msg.Type == tea.KeyEsc || msg.String() == "esc" {
+				m.overlay = overlayNone
+				return m, nil
+			}
 			return m, nil
+		}
+		if msg.String() == "esc" {
+			return m, m.handleEsc(msg)
 		}
 	case openSelectedChatMsg:
 		return m, m.openChatCmd(&msg.chatID)
