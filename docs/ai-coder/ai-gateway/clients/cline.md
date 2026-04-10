@@ -49,6 +49,8 @@ To configure Cline to use AI Gateway, follow these steps:
 1. **Model ID** (Optional): Enter the model you wish to use (e.g., `gpt-5.2-codex`).
 1. **Custom Headers**: Add `X-Coder-AI-Governance-Token` with your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
+![Cline BYOK OpenAI Settings](../../../images/aibridge/clients/cline-byok-openai.png)
+
 </div>
 
 **References:** [Cline Configuration](https://github.com/cline/cline)
