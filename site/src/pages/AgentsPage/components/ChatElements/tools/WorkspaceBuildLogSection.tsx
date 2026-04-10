@@ -56,8 +56,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	// Only use the polled build if it's actually in progress.
 	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
 	const polledActiveBuildId =
-		latestBuildStatus === "pending" ||
-		latestBuildStatus === "starting"
+		latestBuildStatus === "pending" || latestBuildStatus === "starting"
 			? liveBuildId
 			: undefined;
 
