@@ -51,7 +51,6 @@ import {
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-// Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
 // fields, ignoring refreshed_at/stale_at which change on every poll.
 function diffStatusEqual(
@@ -72,19 +71,6 @@ function diffStatusEqual(
 		a.pr_number === b.pr_number &&
 		a.approved === b.approved &&
 		a.commits === b.commits
-	);
-}
-
-function isChatListSSEEvent(
-	data: unknown,
-): data is { kind: string; chat: TypesGen.Chat } {
-	if (typeof data !== "object" || data === null) return false;
-	const obj = data as Record<string, unknown>;
-	return (
-		typeof obj.kind === "string" &&
-		typeof obj.chat === "object" &&
-		obj.chat !== null &&
-		"id" in obj.chat
 	);
 }
 
@@ -495,14 +481,7 @@ const AgentsPage: FC = () => {
 						console.warn("Failed to parse chat watch event:", event.parseError);
 						return;
 					}
-					const sse = event.parsedMessage;
-					if (sse?.type !== "data" || !sse.data) {
-						return;
-					}
-					if (!isChatListSSEEvent(sse.data)) {
-						return;
-					}
-					const chatEvent = sse.data;
+					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// Read the previous status from the infinite chat list
 					// cache before we write the update below. The per-chat
