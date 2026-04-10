@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { chromatic } from "#/testHelpers/chromatic";
@@ -56,6 +56,13 @@ export const HasError: Story = {
 			error: "unable to inject devcontainer with agent",
 			agent: undefined,
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const moreActionsButton = canvas.getByRole("button", {
+			name: "Dev Container actions",
+		});
+		expect(moreActionsButton).toBeVisible();
 	},
 };
 
@@ -122,6 +129,13 @@ export const NoContainerOrSubAgent: Story = {
 			agent: undefined,
 		},
 		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const moreActionsButton = canvas.getByRole("button", {
+			name: "Dev Container actions",
+		});
+		expect(moreActionsButton).toBeVisible();
 	},
 };
 
