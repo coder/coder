@@ -1,9 +1,4 @@
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	LoaderIcon,
-} from "lucide-react";
+import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
 	AIBridgeAgenticAction,
@@ -25,7 +20,6 @@ import {
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
-import { TokenBadges } from "../../TokenBadges";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
@@ -118,11 +112,13 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 		className="border-none bg-transparent text-content-secondary flex items-center"
 		size="sm"
 	>
-		{isOpen ? (
-			<ChevronDownIcon className="size-3.5 flex-shrink-0" />
-		) : (
-			<ChevronRightIcon className="size-3.5 flex-shrink-0" />
-		)}
+		<ChevronRightIcon
+			className={cn(
+				"mr-4 transition-transform size-3.5",
+				isOpen && "rotate-90",
+			)}
+		/>
+		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
 	</Button>
 );
@@ -232,44 +228,6 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						</span>
 					</pre>
 				</>
-			)}
-		</BracketConnector>
-	);
-};
-
-interface AgenticLoopCompletedBlockProps {
-	inputTokens: number;
-	outputTokens: number;
-	expandedByDefault?: boolean;
-}
-
-const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
-	inputTokens,
-	outputTokens,
-	expandedByDefault = false,
-}) => {
-	const [isOpen, setIsOpen] = useState(expandedByDefault);
-
-	return (
-		<BracketConnector
-			contentClassName="mt-3 border border-solid rounded-md mb-4 mr-4"
-			hideBottomLine
-		>
-			<div className="flex items-center">
-				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
-					<span className="text-sm font-normal">Agentic loop completed</span>
-				</CollapseButton>
-			</div>
-			{isOpen && (
-				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-sm text-content-secondary">
-					<div className="flex items-center justify-between">
-						<span className="font-normal">In / out tokens</span>
-						<TokenBadges
-							inputTokens={inputTokens}
-							outputTokens={outputTokens}
-						/>
-					</div>
-				</div>
 			)}
 		</BracketConnector>
 	);
@@ -426,11 +384,15 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 								<AgenticActionItem key={`${thread.id}-${i}`} action={action} />
 							))}
 
-							{/* Agentic loop completed block */}
-							<AgenticLoopCompletedBlock
-								inputTokens={thread.token_usage.input_tokens}
-								outputTokens={thread.token_usage.output_tokens}
-							/>
+							{/* Agentic loop completed */}
+							<BracketConnector contentClassName="py-4 -my-px" hideBottomLine>
+								<div className="flex flex-row items-center ml-2">
+									<StatusIndicatorDot variant="success" />
+									<span className="text-content-success font-normal ml-2 text-sm py-1">
+										Agentic loop completed
+									</span>
+								</div>
+							</BracketConnector>
 						</>
 					)}
 				</BracketConnector>
@@ -600,7 +562,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* vertical line */}
 				</div>
 
-				{/* row 8: session start */}
+				{/* row 8: session completed */}
 				<div className="row-start-8 col-start-2 relative">
 					<StatusIndicatorDot
 						variant="success"

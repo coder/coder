@@ -84,6 +84,7 @@ jobs:
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_URL: ${{ github.event.pull_request.html_url }}
       MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+      SENDER: ${{ github.event.sender.login }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -139,6 +140,7 @@ jobs:
 
           Original PR: #${PR_NUMBER} — ${PR_TITLE}
           Merge commit: ${MERGE_SHA}
+          Requested by: @${SENDER}
           EOF
           )
 
@@ -171,4 +173,6 @@ jobs:
             --base "$RELEASE_VERSION" \
             --head "$BACKPORT_BRANCH" \
             --title "$TITLE" \
-            --body "$BODY"
+            --body "$BODY" \
+            --assignee "$SENDER" \
+            --reviewer "$SENDER"

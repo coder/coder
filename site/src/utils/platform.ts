@@ -2,7 +2,7 @@
  * Returns true if the current platform is macOS.
  */
 function isMac(): boolean {
-	return !!navigator.platform.match("Mac");
+	return Boolean(navigator.platform.match("Mac"));
 }
 
 /**

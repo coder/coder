@@ -1,9 +1,10 @@
 import dayjs from "dayjs";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -13,6 +14,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
 
@@ -52,6 +58,13 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	loadingLabel,
 	emptyMessage,
 }) => {
+	// Page state is intentionally not reset when summary data changes.
+	// The clamped derivation below guarantees the displayed page is
+	// always valid, and preserving the raw state lets the user return
+	// to their previous page if they widen the date range back.
+	const [modelPage, setModelPage] = useState(1);
+	const [chatPage, setChatPage] = useState(1);
+
 	if (isLoading) {
 		return (
 			<div
@@ -80,6 +93,27 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	if (!summary) {
 		return null;
 	}
+
+	const modelPageSize = 10;
+	const modelMaxPage = Math.max(
+		1,
+		Math.ceil(summary.by_model.length / modelPageSize),
+	);
+	const clampedModelPage = Math.min(modelPage, modelMaxPage);
+	const pagedModels = summary.by_model.slice(
+		(clampedModelPage - 1) * modelPageSize,
+		clampedModelPage * modelPageSize,
+	);
+	const chatPageSize = 10;
+	const chatMaxPage = Math.max(
+		1,
+		Math.ceil(summary.by_chat.length / chatPageSize),
+	);
+	const clampedChatPage = Math.min(chatPage, chatMaxPage);
+	const pagedChats = summary.by_chat.slice(
+		(clampedChatPage - 1) * chatPageSize,
+		clampedChatPage * chatPageSize,
+	);
 
 	const usageLimit = summary.usage_limit;
 	const showUsageLimitCard = usageLimit?.is_limited === true;
@@ -249,119 +283,133 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</p>
 			) : (
 				<>
-					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm" aria-label="Cost breakdown by model">
+					<div>
+						<Table aria-label="Cost breakdown by model">
 							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Model</TableHead>
-									<TableHead className="px-4 py-3">Provider</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
+								<TableRow>
+									<TableHead>Model</TableHead>
+									<TableHead>Provider</TableHead>
+									<TableHead className="text-right">Cost</TableHead>
+									<TableHead className="text-right">Messages</TableHead>
+									<TableHead className="text-right">Input</TableHead>
+									<TableHead className="text-right">Output</TableHead>
+									<TableHead className="text-right">Cache Read</TableHead>
+									<TableHead className="text-right">Cache Write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{summary.by_model.map((model) => (
-									<TableRow
-										key={model.model_config_id}
-										className="border-t border-border-default"
-									>
-										<TableCell className="px-4 py-3">
-											{model.display_name || model.model}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-content-secondary">
+								{pagedModels.map((model) => (
+									<TableRow key={model.model_config_id}>
+										<TableCell>{model.display_name || model.model}</TableCell>
+										<TableCell className="text-content-secondary">
 											{model.provider}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatCostMicros(model.total_cost_micros)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{model.message_count.toLocaleString()}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(model.total_input_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(model.total_output_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(model.total_cache_read_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(model.total_cache_creation_tokens)}
 										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
 						</Table>
+						{summary.by_model.length > modelPageSize && (
+							<div className="pt-4">
+								<PaginationWidgetBase
+									totalRecords={summary.by_model.length}
+									currentPage={clampedModelPage}
+									pageSize={modelPageSize}
+									onPageChange={setModelPage}
+									hasPreviousPage={clampedModelPage > 1}
+									hasNextPage={
+										clampedModelPage * modelPageSize < summary.by_model.length
+									}
+								/>
+							</div>
+						)}
 					</div>
 
-					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table
-							className="text-sm"
-							aria-label="Cost breakdown by conversation"
-						>
+					<div>
+						<Table aria-label="Cost breakdown by agent">
 							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Conversation</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
+								<TableRow>
+									<TableHead>Agent</TableHead>
+									<TableHead className="text-right">Cost</TableHead>
+									<TableHead className="text-right">Messages</TableHead>
+									<TableHead className="text-right">Input</TableHead>
+									<TableHead className="text-right">Output</TableHead>
+									<TableHead className="text-right">Cache Read</TableHead>
+									<TableHead className="text-right">Cache Write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{summary.by_chat.map((chat) => (
-									<TableRow
-										key={chat.root_chat_id}
-										className="border-t border-border-default"
-									>
-										<TableCell className="px-4 py-3">
-											{chat.chat_title || (
-												<span className="italic text-content-secondary">
-													Untitled conversation
+								{pagedChats.map((chat) => (
+									<TableRow key={chat.root_chat_id}>
+										<TableCell className="max-w-[200px]">
+											{chat.chat_title ? (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="block truncate">
+															{chat.chat_title}
+														</span>
+													</TooltipTrigger>
+													<TooltipContent>{chat.chat_title}</TooltipContent>
+												</Tooltip>
+											) : (
+												<span className="text-content-secondary">
+													Untitled agent
 												</span>
 											)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatCostMicros(chat.total_cost_micros)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{chat.message_count.toLocaleString()}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(chat.total_input_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(chat.total_output_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(chat.total_cache_read_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell className="text-right tabular-nums">
 											{formatTokenCount(chat.total_cache_creation_tokens)}
 										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
 						</Table>
+						{summary.by_chat.length > chatPageSize && (
+							<div className="pt-4">
+								<PaginationWidgetBase
+									totalRecords={summary.by_chat.length}
+									currentPage={clampedChatPage}
+									pageSize={chatPageSize}
+									onPageChange={setChatPage}
+									hasPreviousPage={clampedChatPage > 1}
+									hasNextPage={
+										clampedChatPage * chatPageSize < summary.by_chat.length
+									}
+								/>
+							</div>
+						)}
 					</div>
 				</>
 			)}

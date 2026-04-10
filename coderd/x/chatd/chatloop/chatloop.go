@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -100,6 +101,10 @@ type RunOptions struct {
 	// first stream part before the attempt is canceled and
 	// retried. Zero uses the production default.
 	StartupTimeout time.Duration
+	// Clock creates startup guard timers. In production use a
+	// real clock; tests can inject quartz.NewMock(t) to make
+	// startup timeout behavior deterministic.
+	Clock quartz.Clock
 
 	ActiveTools          []string
 	ContextLimitFallback int64
@@ -289,6 +294,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.StartupTimeout <= 0 {
 		opts.StartupTimeout = defaultStartupTimeout
 	}
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -364,6 +372,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					opts.Model.Provider(),
+					opts.Clock,
 					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
@@ -660,17 +669,18 @@ type guardedAttempt struct {
 // stream startup. Exactly one outcome wins: the timer cancels
 // the attempt, or the first-part path disarms the timer.
 type startupGuard struct {
-	timer  *time.Timer
+	timer  *quartz.Timer
 	cancel context.CancelCauseFunc
 	once   sync.Once
 }
 
 func newStartupGuard(
+	clock quartz.Clock,
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
 ) *startupGuard {
 	guard := &startupGuard{cancel: cancel}
-	guard.timer = time.AfterFunc(timeout, guard.onTimeout)
+	guard.timer = clock.AfterFunc(timeout, guard.onTimeout, "startupGuard")
 	return guard
 }
 
@@ -707,11 +717,12 @@ func classifyStartupTimeout(
 func guardedStream(
 	parent context.Context,
 	provider string,
+	clock quartz.Clock,
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
-	guard := newStartupGuard(timeout, cancelAttempt)
+	guard := newStartupGuard(clock, timeout, cancelAttempt)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {

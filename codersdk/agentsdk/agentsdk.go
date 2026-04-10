@@ -892,3 +892,66 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 		return &reinitEvent, nil
 	}
 }
+
+// AddChatContextRequest is the request body for adding chat context.
+type AddChatContextRequest struct {
+	// ChatID optionally identifies the chat to add context to.
+	// If empty, auto-detection is used (CODER_CHAT_ID env, the
+	// only active chat, or the only top-level active chat for this
+	// agent).
+	ChatID uuid.UUID `json:"chat_id,omitempty"`
+	// Parts are the context-file and skill parts to add.
+	Parts []codersdk.ChatMessagePart `json:"parts"`
+}
+
+// AddChatContextResponse is the response for adding chat context.
+type AddChatContextResponse struct {
+	ChatID uuid.UUID `json:"chat_id"`
+	Count  int       `json:"count"`
+}
+
+// ClearChatContextRequest is the request body for clearing chat context.
+type ClearChatContextRequest struct {
+	// ChatID optionally identifies the chat to clear context from.
+	// If empty, auto-detection is used (CODER_CHAT_ID env, the
+	// only active chat, or the only top-level active chat for this
+	// agent).
+	ChatID uuid.UUID `json:"chat_id,omitempty"`
+}
+
+// ClearChatContextResponse is the response for clearing chat context.
+type ClearChatContextResponse struct {
+	ChatID uuid.UUID `json:"chat_id"`
+}
+
+// AddChatContext adds context-file and skill parts to an active chat.
+func (c *Client) AddChatContext(ctx context.Context, req AddChatContextRequest) (AddChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context", req)
+	if err != nil {
+		return AddChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AddChatContextResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp AddChatContextResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ClearChatContext soft-deletes context-file and skill messages from an active chat.
+func (c *Client) ClearChatContext(ctx context.Context, req ClearChatContextRequest) (ClearChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodDelete, "/api/v2/workspaceagents/me/experimental/chat-context", req)
+	if err != nil {
+		return ClearChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ClearChatContextResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp ClearChatContextResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

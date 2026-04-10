@@ -25,11 +25,11 @@ const GroupsPage: FC = () => {
 	const { organization, showOrganizations } = useGroupsSettings();
 	const groupsQuery = useQuery({
 		...groupsByOrganization(organization?.name ?? ""),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 	const permissionsQuery = useQuery({
 		...organizationsPermissions([organization?.id ?? ""]),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 
 	useEffect(() => {

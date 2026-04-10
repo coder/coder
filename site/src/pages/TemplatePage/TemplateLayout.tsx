@@ -92,7 +92,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				me.id,
 			),
 		}),
-		enabled: !!data,
+		enabled: Boolean(data),
 	});
 
 	const location = useLocation();

@@ -95,7 +95,7 @@ type AgentConn interface {
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
-	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (io.ReadCloser, error)
+	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -610,10 +610,24 @@ type StopDesktopRecordingRequest struct {
 	RecordingID string `json:"recording_id"`
 }
 
+// StopDesktopRecordingResponse wraps the response from stopping a
+// desktop recording. Body contains the recording data as a
+// multipart/mixed stream. ContentType holds the Content-Type
+// header (including boundary) so callers can parse the body.
+type StopDesktopRecordingResponse struct {
+	Body        io.ReadCloser
+	ContentType string
+}
+
 // MaxRecordingSize is the largest desktop recording (in bytes)
 // that will be accepted. Used by both the agent-side stop handler
 // and the server-side storage pipeline.
 const MaxRecordingSize = 100 << 20 // 100 MB
+
+// MaxThumbnailSize is the largest thumbnail (in bytes) that will
+// be accepted. Applied both agent-side (before streaming) and
+// server-side (when parsing multipart parts).
+const MaxThumbnailSize = 10 << 20 // 10 MB
 
 // ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
 // agent's desktop.
@@ -681,22 +695,27 @@ func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopR
 }
 
 // StopDesktopRecording stops a desktop recording session on the
-// agent and returns the MP4 data as an io.ReadCloser. The caller
-// is responsible for closing the returned reader. Idempotent —
-// safe to call on an already-stopped recording.
-func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (io.ReadCloser, error) {
+// agent and returns the recording as a StopDesktopRecordingResponse.
+// The response body is a multipart/mixed stream containing the
+// video (and optionally a JPEG thumbnail). The caller is
+// responsible for closing the returned Body. Idempotent — safe
+// to call on an already-stopped recording.
+func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
 	if err != nil {
-		return nil, xerrors.Errorf("stop recording request: %w", err)
+		return StopDesktopRecordingResponse{}, xerrors.Errorf("stop recording request: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
 		defer res.Body.Close()
-		return nil, codersdk.ReadBodyAsError(res)
+		return StopDesktopRecordingResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	// Caller is responsible for closing res.Body.
-	return res.Body, nil
+	return StopDesktopRecordingResponse{
+		Body:        res.Body,
+		ContentType: res.Header.Get("Content-Type"),
+	}, nil
 }
 
 // DeleteDevcontainer deletes the provided devcontainer.

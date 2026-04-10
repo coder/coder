@@ -6,6 +6,7 @@ import {
 	Outlet,
 	Route,
 	ScrollRestoration,
+	useLocation,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
@@ -371,11 +372,8 @@ const AgentSettingsModelsPage = lazy(
 const AgentSettingsMCPServersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
-const AgentSettingsLimitsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLimitsPage"),
-);
-const AgentSettingsUsagePage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsUsagePage"),
+const AgentSettingsSpendPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
 );
 const AgentSettingsInsightsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsInsightsPage"),
@@ -469,6 +467,12 @@ const groupsRouter = () => {
 			</Route>
 		</Route>
 	);
+};
+
+/** Redirect that preserves the current query string. */
+const NavigateWithSearch = ({ to }: { to: string }) => {
+	const location = useLocation();
+	return <Navigate to={{ pathname: to, search: location.search }} replace />;
 };
 
 export const router = createBrowserRouter(
@@ -712,12 +716,13 @@ export const router = createBrowserRouter(
 							path="mcp-servers"
 							element={<AgentSettingsMCPServersPage />}
 						/>
-						<Route path="limits" element={<AgentSettingsLimitsPage />} />
-						<Route path="usage" element={<AgentSettingsUsagePage />} />
+						<Route path="spend" element={<AgentSettingsSpendPage />} />
+						<Route path="limits" element={<Navigate to="spend" replace />} />
+						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
 						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>
-					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}
+					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route
 						path=":agentId"
 						element={

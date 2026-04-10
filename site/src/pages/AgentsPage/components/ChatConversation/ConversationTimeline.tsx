@@ -669,6 +669,13 @@ const ChatMessageItem = memo<{
 							)}
 						</div>
 					)}
+				{/* Spacer for assistant messages without an action bar
+				   (e.g. thinking-only) so they have consistent bottom
+				   padding before the next user bubble. */}
+				{!hideActions &&
+					!isUser &&
+					!hasCopyableContent &&
+					Boolean(parsed.reasoning) && <div className="min-h-6" />}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}

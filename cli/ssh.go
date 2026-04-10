@@ -69,14 +69,16 @@ var (
 // isRetryableError checks for transient connection errors worth
 // retrying: DNS failures, connection refused, and server 5xx.
 func isRetryableError(err error) bool {
-	if err == nil {
+	if err == nil || xerrors.Is(err, context.Canceled) {
 		return false
 	}
-	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
+	// Check connection errors before context.DeadlineExceeded because
+	// net.Dialer.Timeout produces *net.OpError that matches both.
 	if codersdk.IsConnectionError(err) {
 		return true
+	}
+	if xerrors.Is(err, context.DeadlineExceeded) {
+		return false
 	}
 	var sdkErr *codersdk.Error
 	if xerrors.As(err, &sdkErr) {

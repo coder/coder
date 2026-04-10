@@ -137,7 +137,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					onChange={handleTTLChange}
 					label="Autostop Fallback"
 					disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
-					error={!!fieldError}
+					error={Boolean(fieldError)}
 					helperText={fieldError}
 				/>
 			)}
@@ -146,7 +146,9 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					<Button
 						size="sm"
 						type="submit"
-						disabled={isSavingWorkspaceTTL || !form.dirty || !!fieldError}
+						disabled={
+							isSavingWorkspaceTTL || !form.dirty || Boolean(fieldError)
+						}
 					>
 						Save
 					</Button>

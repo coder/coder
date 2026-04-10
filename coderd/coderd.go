@@ -1608,6 +1608,15 @@ func New(options *Options) *API {
 
 						r.Get("/gitsshkey", api.gitSSHKey)
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
+						r.Route("/secrets", func(r chi.Router) {
+							r.Post("/", api.postUserSecret)
+							r.Get("/", api.getUserSecrets)
+							r.Route("/{name}", func(r chi.Router) {
+								r.Get("/", api.getUserSecret)
+								r.Patch("/", api.patchUserSecret)
+								r.Delete("/", api.deleteUserSecret)
+							})
+						})
 						r.Route("/notifications", func(r chi.Router) {
 							r.Route("/preferences", func(r chi.Router) {
 								r.Get("/", api.userNotificationPreferences)
@@ -1653,6 +1662,10 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
+				r.Route("/experimental", func(r chi.Router) {
+					r.Post("/chat-context", api.workspaceAgentAddChatContext)
+					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
 				})

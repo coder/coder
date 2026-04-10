@@ -580,10 +580,10 @@ func (mr *MockAgentConnMockRecorder) StartProcess(ctx, req any) *gomock.Call {
 }
 
 // StopDesktopRecording mocks base method.
-func (m *MockAgentConn) StopDesktopRecording(ctx context.Context, req workspacesdk.StopDesktopRecordingRequest) (io.ReadCloser, error) {
+func (m *MockAgentConn) StopDesktopRecording(ctx context.Context, req workspacesdk.StopDesktopRecordingRequest) (workspacesdk.StopDesktopRecordingResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StopDesktopRecording", ctx, req)
-	ret0, _ := ret[0].(io.ReadCloser)
+	ret0, _ := ret[0].(workspacesdk.StopDesktopRecordingResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

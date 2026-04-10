@@ -141,7 +141,7 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 							disabled={
 								isSavingRetentionDays ||
 								!form.dirty ||
-								!!form.errors.retention_days
+								Boolean(form.errors.retention_days)
 							}
 						>
 							Save

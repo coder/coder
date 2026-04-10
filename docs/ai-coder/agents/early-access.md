@@ -65,12 +65,9 @@ Once the server restarts with the experiment enabled:
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Admin** settings and configure at least one LLM provider and model.
    See [Models](./models.md) for detailed setup instructions.
-1. Grant the **Coder Agents User** role to existing users who need to create
-   chats. New users receive the role automatically. For existing users, go to
-   **Admin** > **Users**, click the roles icon next to each user, and enable
-   **Coder Agents User**. See
-   [Grant Coder Agents User](./getting-started.md#step-3-grant-coder-agents-user)
-   for a bulk CLI option.
+1. Grant the **Coder Agents User** role to users who need to create chats.
+   Go to **Admin** > **Users**, click the roles icon next to each user,
+   and enable **Coder Agents User**.
 1. Developers can then start a new chat from the Agents page.
 
 ## Licensing and availability

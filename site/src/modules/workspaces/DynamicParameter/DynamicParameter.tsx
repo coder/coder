@@ -141,7 +141,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="warning" border="none">
+										<Badge size="sm" variant="warning">
 											<TriangleAlert />
 											Immutable
 										</Badge>
@@ -159,7 +159,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="green" border="none">
+										<Badge size="sm" variant="green">
 											<Hourglass />
 											Ephemeral
 										</Badge>
@@ -211,7 +211,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="destructive" border="none">
+										<Badge size="sm" variant="destructive">
 											Required
 										</Badge>
 									</span>

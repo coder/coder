@@ -18,7 +18,7 @@ export const useExternalAuth = (versionId: string | undefined) => {
 		error,
 	} = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
-		enabled: !!versionId,
+		enabled: Boolean(versionId),
 		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
 	});
 

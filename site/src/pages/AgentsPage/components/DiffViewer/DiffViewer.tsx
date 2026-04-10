@@ -540,7 +540,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// When the parent provides per-file callbacks (e.g. line click
 	// handlers for comment inputs), build options per file. Otherwise
 	// share a single stable object to avoid unnecessary re-highlights.
-	const hasPerFileCallbacks = !!(onLineNumberClick || onLineSelected);
+	const hasPerFileCallbacks = Boolean(onLineNumberClick || onLineSelected);
 
 	const getOptionsForFile = (fileName: string) => ({
 		...diffOptions,

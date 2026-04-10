@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260313130012-33e050fd4bd9
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260409064601-e956a950740b
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -76,18 +76,26 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202603091
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
-// Forked from coder/fantasy (cj/go1.25 branch) which adds:
+// Forked from coder/fantasy (coder_2_33) which adds:
 // 1) Anthropic computer use + thinking effort
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260325145725-112927d9b6d8
+// 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
+// See: https://github.com/coder/fantasy/commits/7aaf56df81f9
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
 
-// Forked from coder/anthropic-sdk-go (fantasy branch) which adds:
-// 1) All kylecarbs changes (fantasy branch merge).
-// 2) Explicit usage-field merging in Accumulate using JSON presence checks
-//    (preserves input and cache tokens from message_start when message_delta
-//    omits them).
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260408163834-8345653c189a
+// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
+// additional performance improvements.
+// See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
+
+// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
+// https://github.com/anthropics/anthropic-sdk-go/pull/262
+replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
+
+// SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
+// https://github.com/kylecarbs/openai-go/pull/2
+replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae
 
 require (
 	cdr.dev/slog/v3 v3.0.0
@@ -641,11 +649,3 @@ tool (
 	mvdan.cc/gofumpt
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
-
-// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
-// https://github.com/anthropics/anthropic-sdk-go/pull/262
-replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
-
-// SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
-// https://github.com/kylecarbs/openai-go/pull/2
-replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae
