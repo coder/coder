@@ -1241,7 +1241,7 @@ func buildAIBridgeThread(
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
 		thread.CredentialKind = string(rootIntc.CredentialKind)
-		thread.CredentialHint = rootIntc.CredentialHint
+		thread.CredentialHint = sanitizeCredentialHint(rootIntc.CredentialHint)
 		// Get first user prompt from root interception.
 		// A thread can only have one prompt, by definition, since we currently
 		// only store the last prompt observed in an interception.
@@ -1405,6 +1405,20 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 		})
 	}
 	return presets
+}
+
+// maxCredentialHintLength is the maximum safe length for a masked
+// credential hint. Matches the VARCHAR(15) DB constraint.
+const maxCredentialHintLength = 15
+
+// sanitizeCredentialHint ensures the hint looks masked before exposing
+// it in the API. If it doesn't contain "..." or exceeds the max
+// length, it's replaced with "..." to prevent leaking raw secrets.
+func sanitizeCredentialHint(hint string) string {
+	if len(hint) > maxCredentialHintLength || !strings.Contains(hint, "...") {
+		return "..."
+	}
+	return hint
 }
 
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
