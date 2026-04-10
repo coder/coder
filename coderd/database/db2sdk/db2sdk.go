@@ -1413,7 +1413,7 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 func sanitizeCredentialHint(hint string) string {
 	// Matches the VARCHAR(15) DB constraint.
 	const maxCredentialHintLength = 15
-	
+
 	if hint == "" {
 		return ""
 	}
