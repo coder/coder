@@ -342,7 +342,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 			JobID:       jobID,
 		}, nil)
 
-	// waitForBuild polls the provisioner job -- return Failed.
+	// waitForBuild polls the provisioner job. Return Failed.
 	db.EXPECT().
 		GetProvisionerJobByID(gomock.Any(), jobID).
 		Return(database.ProvisionerJob{

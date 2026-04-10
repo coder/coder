@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -111,6 +113,7 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, started)
 		require.Nil(t, result["build_id"], "build_id should not be present when workspace was already running")
+		require.Equal(t, true, result["no_build"], "no_build should be true when workspace was already running")
 	})
 
 	t.Run("AlreadyRunningPrefersChatSuffixAgent", func(t *testing.T) {
@@ -428,6 +431,7 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
+		var onChatUpdatedCalled atomic.Bool
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:          wrappedDB,
 			OwnerID:     user.ID,
@@ -437,7 +441,9 @@ func TestStartWorkspace(t *testing.T) {
 				t.Fatal("StartFn should not be called for an in-progress build")
 				return codersdk.WorkspaceBuild{}, nil
 			},
-			WorkspaceMu: &sync.Mutex{},
+			WorkspaceMu:   &sync.Mutex{},
+			Logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			OnChatUpdated: func(_ database.Chat) { onChatUpdatedCalled.Store(true) },
 		})
 
 		// Run tool.Run in a goroutine. It will see the job as
@@ -474,10 +480,12 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, started)
 		require.Equal(t, wsResp.Build.ID.String(), result["build_id"])
+		require.True(t, onChatUpdatedCalled.Load(), "OnChatUpdated should be called to notify frontend of build ID")
 	})
 
 	t.Run("FailedBuild", func(t *testing.T) {
 		t.Parallel()
+
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, _ := dbtestutil.NewDB(t)
 
@@ -521,6 +529,7 @@ func TestStartWorkspace(t *testing.T) {
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
+			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		})
 
 		type toolResult struct {
@@ -613,6 +622,7 @@ func TestStartWorkspace(t *testing.T) {
 				return nil, func() {}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
+			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		})
 
 		type toolResult struct {

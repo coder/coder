@@ -344,7 +344,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	switch job.JobStatus {
 	case database.ProvisionerJobStatusPending,
 		database.ProvisionerJobStatusRunning:
-		// Build is in progress -- publish the build ID so the
+		// Build is in progress. Publish the build ID so the
 		// frontend can start streaming logs, then wait.
 		if o.ChatID != uuid.Nil {
 			updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{

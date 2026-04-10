@@ -57,12 +57,12 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
 	const polledActiveBuildId =
 		latestBuildStatus === "pending" ||
-		latestBuildStatus === "starting" ||
-		latestBuildStatus === "running"
+		latestBuildStatus === "starting"
 			? liveBuildId
 			: undefined;
 
-	// Resolve: chat binding > polled workspace > tool result.
+	// While running: prefer chat binding, fall back to polled
+	// workspace. When completed: use build ID from tool result.
 	const effectiveBuildId = isRunning
 		? (chatBuildId ?? polledActiveBuildId)
 		: buildId;
