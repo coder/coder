@@ -3097,7 +3097,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("hydrates the new chat status after switching away from a WS-authoritative chat", async () => {
+	it("rehydrates status on chat switch even when REST statuses match", async () => {
 		immediateAnimationFrame();
 
 		const chatA = "chat-status-a";
@@ -3144,17 +3144,18 @@ describe("useChatStore", () => {
 				wrapper,
 				initialProps: {
 					chatID: chatA,
-					chatRecord: { ...makeChat(chatA), status: "running" },
+					chatRecord: { ...makeChat(chatA), status: "pending" },
 					chatMessages: [msgA],
 				},
 			},
 		);
 
 		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("running");
+			expect(result.current.chatStatus).toBe("pending");
 		});
 
 		// Make chat A WS-authoritative so wsStatusReceivedRef is true.
+		// This diverges from the shared REST status value below.
 		act(() => {
 			socketA.emitData({
 				type: "status",

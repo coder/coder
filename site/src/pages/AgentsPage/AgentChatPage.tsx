@@ -93,12 +93,6 @@ export class InactiveChatMutationError extends Error {
 	}
 }
 
-const isInactiveChatMutationError = (
-	error: unknown,
-): error is InactiveChatMutationError => {
-	return error instanceof InactiveChatMutationError;
-};
-
 /**
  * Read the persisted plain-text draft for a given chat ID.
  * Returns the text portion of the draft (stripping Lexical JSON
@@ -284,14 +278,7 @@ export function useConversationEditingState(deps: {
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
 
-		try {
-			await onSend(message, fileIds, editedMessageID);
-		} catch (error) {
-			if (isInactiveChatMutationError(error)) {
-				return;
-			}
-			throw error;
-		}
+		await onSend(message, fileIds, editedMessageID);
 		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {

@@ -119,6 +119,7 @@ export const useChatStore = (
 	// stale value like "pending", causing shouldApplyMessagePart()
 	// to drop all incoming parts.
 	const wsStatusReceivedRef = useRef(false);
+	const statusHydratedChatIDRef = useRef<string | undefined>(chatID);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -269,14 +270,20 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	useLayoutEffect(() => {
+		const chatSwitched = statusHydratedChatIDRef.current !== chatID;
+		if (chatSwitched) {
+			statusHydratedChatIDRef.current = chatID;
+		}
 		// Only hydrate from REST when the WebSocket hasn't delivered
 		// a status event yet. Once the WS is the authoritative
 		// source, a stale REST refetch must not overwrite the
-		// fresher WS-delivered value.
-		if (!wsStatusReceivedRef.current) {
+		// fresher WS-delivered value. On chat switch, force one
+		// hydration pass so equal REST status values across chats do
+		// not preserve the previous chat's live status.
+		if (chatSwitched || !wsStatusReceivedRef.current) {
 			store.setChatStatus(chatRecord?.status ?? null);
 		}
-	}, [chatRecord?.status, store]);
+	}, [chatID, chatRecord?.status, store]);
 
 	useEffect(() => {
 		if (!chatID || !chatMessagesData) {

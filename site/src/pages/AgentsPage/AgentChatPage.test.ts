@@ -345,7 +345,7 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("does not clear the active draft when send is canceled after chat switch", async () => {
+	it("propagates inactive-chat cancellation without clearing the active draft", async () => {
 		const onSend = vi.fn().mockRejectedValue(new InactiveChatMutationError());
 		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
@@ -367,7 +367,9 @@ describe("useConversationEditingState", () => {
 		result.current.chatInputRef.current = mockInput.handle;
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await expect(
+				result.current.handleSendFromInput("hello"),
+			).rejects.toBeInstanceOf(InactiveChatMutationError);
 		});
 
 		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
