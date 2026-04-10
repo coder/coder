@@ -25,25 +25,26 @@ const (
 	overlayDiffDrawer
 )
 
-type terminateTUIMsg struct{}
-
-type expChatsTUIModel struct {
-	ctx            context.Context
-	client         *codersdk.ExperimentalClient
-	styles         tuiStyles
-	currentView    tuiView
-	overlay        tuiOverlay
-	list           chatListModel
-	chat           chatViewModel
-	initialChatID  *uuid.UUID
-	workspaceID    *uuid.UUID
-	modelOverride  *string
-	chatGeneration uint64
-	catalog        *codersdk.ChatModelsResponse
-	quitting       bool
-	width          int
-	height         int
-}
+type (
+	terminateTUIMsg  struct{}
+	expChatsTUIModel struct {
+		ctx            context.Context
+		client         *codersdk.ExperimentalClient
+		styles         tuiStyles
+		currentView    tuiView
+		overlay        tuiOverlay
+		list           chatListModel
+		chat           chatViewModel
+		initialChatID  *uuid.UUID
+		workspaceID    *uuid.UUID
+		modelOverride  *string
+		chatGeneration uint64
+		catalog        *codersdk.ChatModelsResponse
+		quitting       bool
+		width          int
+		height         int
+	}
+)
 
 func newExpChatsTUIModel(
 	ctx context.Context,
@@ -57,7 +58,6 @@ func newExpChatsTUIModel(
 	if initialChatID != nil {
 		currentView = viewChat
 	}
-
 	chat := newChatViewModel(ctx, client, workspaceID, modelOverride, styles)
 	chatGeneration := uint64(0)
 	if initialChatID != nil {
@@ -68,7 +68,6 @@ func newExpChatsTUIModel(
 		chat.historyResolved = false
 		chatGeneration = 1
 	}
-
 	return expChatsTUIModel{
 		ctx:            ctx,
 		client:         client,
@@ -112,206 +111,132 @@ func (m *expChatsTUIModel) setRenderer(renderer *lipgloss.Renderer) {
 func (m expChatsTUIModel) Init() tea.Cmd {
 	if m.initialChatID != nil {
 		m.chat.activeChatID = *m.initialChatID
-		return tea.Batch(
-			m.chat.Init(),
-			apiCmd(func() (codersdk.Chat, error) { return m.client.GetChat(m.ctx, *m.initialChatID) }, func(chat codersdk.Chat, err error) tea.Msg {
-				return chatOpenedMsg{generation: m.chat.chatGeneration, chatID: *m.initialChatID, chat: chat, err: err}
-			}),
-			loadChatHistoryCmd(m.ctx, m.client, *m.initialChatID, m.chat.chatGeneration),
-		)
+		return tea.Batch(append([]tea.Cmd{m.chat.Init()}, m.loadChatCmd(*m.initialChatID, m.chat.chatGeneration)...)...)
 	}
-
-	return tea.Batch(
-		apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} }),
-		m.list.Init(),
-	)
+	return tea.Batch(m.loadChatsCmd(), m.list.Init())
 }
 
-func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		childMsg := msg
-		childMsg.Height = max(0, msg.Height-1)
-		m.list, _ = m.list.Update(childMsg)
-		m.chat, _ = m.chat.Update(childMsg)
-		return m, nil
+func (m expChatsTUIModel) loadChatsCmd() tea.Cmd {
+	return apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
+}
 
-	case terminateTUIMsg:
-		m.quitting = true
-		return m, tea.Quit
+func (m expChatsTUIModel) loadChatCmd(chatID uuid.UUID, generation uint64) []tea.Cmd {
+	return []tea.Cmd{apiCmd(func() (codersdk.Chat, error) { return m.client.GetChat(m.ctx, chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
+		return chatOpenedMsg{generation: generation, chatID: chatID, chat: chat, err: err}
+	}), loadChatHistoryCmd(m.ctx, m.client, chatID, generation)}
+}
 
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
-			m.quitting = true
-			return m, tea.Quit
-		}
+func (m expChatsTUIModel) childWindowSizeMsg() tea.WindowSizeMsg {
+	return tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
+}
 
-		if msg.String() == "esc" {
-			if m.overlay != overlayNone {
-				m.overlay = overlayNone
-				return m, nil
-			}
-			if m.currentView == viewList && m.list.searching {
-				var cmd tea.Cmd
-				m.list, cmd = m.list.Update(msg)
-				return m, cmd
-			}
-			if m.currentView == viewChat {
-				m.chatGeneration++
-				m.chat.chatGeneration = m.chatGeneration
-				m.chat.stopStream()
-				m.currentView = viewList
-				m.list.loading = true
-				return m, apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
-			}
-			m.quitting = true
-			return m, tea.Quit
-		}
+func (m *expChatsTUIModel) toggleOverlay(overlay tuiOverlay) bool {
+	if m.overlay == overlay {
+		m.overlay = overlayNone
+		return false
+	}
+	m.overlay = overlay
+	return true
+}
 
-		if m.overlay == overlayModelPicker {
-			switch msg.String() {
-			case "up", "k":
-				if m.chat.modelPickerCursor > 0 {
-					m.chat.modelPickerCursor--
-				}
-				return m, nil
-			case "down", "j":
-				if m.chat.modelPickerCursor < len(m.chat.modelPickerFlat)-1 {
-					m.chat.modelPickerCursor++
-				}
-				return m, nil
-			case "enter":
-				if len(m.chat.modelPickerFlat) > 0 && m.chat.modelPickerCursor < len(m.chat.modelPickerFlat) {
-					selected := m.chat.modelPickerFlat[m.chat.modelPickerCursor]
-					m.chat.modelOverride = &selected.ID
-					m.modelOverride = &selected.ID
-					m.overlay = overlayNone
-				}
-				return m, nil
-			}
-			return m, nil
-		}
-
-		if m.overlay == overlayDiffDrawer {
-			return m, nil
-		}
-
-	case openSelectedChatMsg:
-		m.currentView = viewChat
+func (m *expChatsTUIModel) handleEsc(msg tea.KeyMsg) tea.Cmd {
+	if m.overlay != overlayNone {
+		m.overlay = overlayNone
+		return nil
+	}
+	if m.currentView == viewList && m.list.searching {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return cmd
+	}
+	if m.currentView == viewChat {
+		m.chatGeneration++
+		m.chat.chatGeneration = m.chatGeneration
 		m.chat.stopStream()
-		m.resetChatSession()
-		m.chat.activeChatID = msg.chatID
-		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
-		m.chat, _ = m.chat.Update(childMsg)
-		return m, tea.Batch(
-			m.chat.Init(),
-			apiCmd(func() (codersdk.Chat, error) { return m.client.GetChat(m.ctx, msg.chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
-				return chatOpenedMsg{generation: m.chat.chatGeneration, chatID: msg.chatID, chat: chat, err: err}
-			}),
-			loadChatHistoryCmd(m.ctx, m.client, msg.chatID, m.chat.chatGeneration),
-		)
+		m.currentView = viewList
+		m.list.loading = true
+		return m.loadChatsCmd()
+	}
+	m.quitting = true
+	return tea.Quit
+}
 
-	case openDraftChatMsg:
-		m.currentView = viewChat
-		m.chat.stopStream()
-		m.resetChatSession()
+func (m *expChatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "up", "k":
+		if m.chat.modelPickerCursor > 0 {
+			m.chat.modelPickerCursor--
+		}
+	case "down", "j":
+		if m.chat.modelPickerCursor < len(m.chat.modelPickerFlat)-1 {
+			m.chat.modelPickerCursor++
+		}
+	case "enter":
+		if len(m.chat.modelPickerFlat) > 0 && m.chat.modelPickerCursor < len(m.chat.modelPickerFlat) {
+			selected := m.chat.modelPickerFlat[m.chat.modelPickerCursor]
+			m.chat.modelOverride = &selected.ID
+			m.modelOverride = &selected.ID
+			m.overlay = overlayNone
+		}
+	}
+	return nil
+}
+
+func (m *expChatsTUIModel) openChatCmd(chatID *uuid.UUID) tea.Cmd {
+	m.currentView = viewChat
+	m.chat.stopStream()
+	m.resetChatSession()
+	if chatID == nil {
 		m.chat.draft = true
 		m.chat.loading = false
 		m.chat.metadataResolved = true
 		m.chat.historyResolved = true
-		childMsg := tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
-		m.chat, _ = m.chat.Update(childMsg)
-		return m, nil
-
-	case refreshChatsMsg:
-		return m, apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
-
-	case toggleModelPickerMsg:
-		if m.overlay == overlayModelPicker {
-			m.overlay = overlayNone
-		} else {
-			m.overlay = overlayModelPicker
-			if m.catalog == nil {
-				ctx := m.ctx
-				client := m.client
-				return m, apiCmd(func() (codersdk.ChatModelsResponse, error) {
-					return client.ListChatModels(ctx)
-				}, func(catalog codersdk.ChatModelsResponse, err error) tea.Msg {
-					return modelsListedMsg{catalog: catalog, err: err}
-				})
-			}
-			if len(m.chat.modelPickerFlat) == 0 {
-				m.chat.modelPickerFlat = availableChatModels(*m.catalog)
-			}
-		}
-		return m, nil
-
-	case toggleDiffDrawerMsg:
-		if m.overlay == overlayDiffDrawer {
-			m.overlay = overlayNone
-		} else {
-			if m.chat.chat == nil {
-				return m, nil
-			}
-			m.overlay = overlayDiffDrawer
-			if m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil {
-				m.chat.diffErr = nil
-				chatID := m.chat.chat.ID
-				generation := m.chat.chatGeneration
-				ctx := m.ctx
-				client := m.client
-				return m, tea.Batch(
-					apiCmd(func() ([]codersdk.ChatGitChange, error) {
-						return client.GetChatGitChanges(ctx, chatID)
-					}, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
-						return gitChangesMsg{generation: generation, chatID: chatID, changes: changes, err: err}
-					}),
-					apiCmd(func() (codersdk.ChatDiffContents, error) {
-						return client.GetChatDiffContents(ctx, chatID)
-					}, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
-						return diffContentsMsg{generation: generation, chatID: chatID, diff: diff, err: err}
-					}),
-				)
-			}
-		}
-		return m, nil
-
-	case chatsListedMsg:
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
-
-	case chatOpenedMsg, chatHistoryMsg:
-		var cmd tea.Cmd
-		m.chat, cmd = m.chat.Update(msg)
-		return m, cmd
-
-	case chatStreamEventMsg, messageSentMsg, chatCreatedMsg, chatInterruptedMsg:
-		var cmd tea.Cmd
-		m.chat, cmd = m.chat.Update(msg)
-		return m, cmd
-
-	case modelsListedMsg:
-		if msg.err != nil {
-			m.overlay = overlayNone
-		} else {
-			catalog := msg.catalog
-			m.catalog = &catalog
-		}
-		var cmd tea.Cmd
-		m.chat, cmd = m.chat.Update(msg)
-		return m, cmd
-
-	case gitChangesMsg, diffContentsMsg:
-		var cmd tea.Cmd
-		m.chat, cmd = m.chat.Update(msg)
-		return m, cmd
+		m.chat, _ = m.chat.Update(m.childWindowSizeMsg())
+		return nil
 	}
+	m.chat.activeChatID = *chatID
+	m.chat, _ = m.chat.Update(m.childWindowSizeMsg())
+	return tea.Batch(append([]tea.Cmd{m.chat.Init()}, m.loadChatCmd(*chatID, m.chat.chatGeneration)...)...)
+}
 
+func (m *expChatsTUIModel) toggleModelPickerCmd() tea.Cmd {
+	if !m.toggleOverlay(overlayModelPicker) {
+		return nil
+	}
+	if m.catalog == nil {
+		return apiCmd(func() (codersdk.ChatModelsResponse, error) { return m.client.ListChatModels(m.ctx) }, func(catalog codersdk.ChatModelsResponse, err error) tea.Msg {
+			return modelsListedMsg{catalog: catalog, err: err}
+		})
+	}
+	if len(m.chat.modelPickerFlat) == 0 {
+		m.chat.modelPickerFlat = availableChatModels(*m.catalog)
+	}
+	return nil
+}
+
+func (m *expChatsTUIModel) toggleDiffDrawerCmd() tea.Cmd {
+	if m.chat.chat == nil {
+		return nil
+	}
+	if !m.toggleOverlay(overlayDiffDrawer) {
+		return nil
+	}
+	if m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil {
+		m.chat.diffErr = nil
+		chatID := m.chat.chat.ID
+		generation := m.chat.chatGeneration
+		return tea.Batch(apiCmd(func() ([]codersdk.ChatGitChange, error) { return m.client.GetChatGitChanges(m.ctx, chatID) }, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
+			return gitChangesMsg{generation: generation, chatID: chatID, changes: changes, err: err}
+		}), apiCmd(func() (codersdk.ChatDiffContents, error) { return m.client.GetChatDiffContents(m.ctx, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
+			return diffContentsMsg{generation: generation, chatID: chatID, diff: diff, err: err}
+		}))
+	}
+	return nil
+}
+
+func (m expChatsTUIModel) updateChild(msg tea.Msg, view tuiView) (expChatsTUIModel, tea.Cmd) {
 	var cmd tea.Cmd
-	if m.currentView == viewChat {
+	if view == viewChat {
 		m.chat, cmd = m.chat.Update(msg)
 	} else {
 		m.list, cmd = m.list.Update(msg)
@@ -319,28 +244,86 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m expChatsTUIModel) renderOverlay(title, body string) string {
+	return renderOverlayFrame(m.styles, m.width, m.styles.title.Render(title), body, m.styles.helpText.Render("Esc to close"))
+}
+
+func (m expChatsTUIModel) diffOverlayView() string {
+	switch {
+	case m.chat.diffErr != nil:
+		return m.renderOverlay("Diff", m.styles.errorText.Render(wrapPreservingNewlines(m.chat.diffErr.Error(), contentWidth(m.width, 6))))
+	case m.chat.diffContents != nil:
+		return renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.gitChanges, m.width, m.height)
+	default:
+		return m.renderOverlay("Diff", m.styles.dimmedText.Render("Loading diff…"))
+	}
+}
+
+func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		childMsg := m.childWindowSizeMsg()
+		m.list, _ = m.list.Update(childMsg)
+		m.chat, _ = m.chat.Update(childMsg)
+		return m, nil
+	case terminateTUIMsg:
+		m.quitting = true
+		return m, tea.Quit
+	case tea.KeyMsg:
+		if msg.Type == tea.KeyCtrlC {
+			m.quitting = true
+			return m, tea.Quit
+		}
+		if msg.String() == "esc" {
+			return m, m.handleEsc(msg)
+		}
+		if m.overlay == overlayModelPicker {
+			return m, m.handleModelPickerKey(msg)
+		}
+		if m.overlay == overlayDiffDrawer {
+			return m, nil
+		}
+	case openSelectedChatMsg:
+		return m, m.openChatCmd(&msg.chatID)
+	case openDraftChatMsg:
+		return m, m.openChatCmd(nil)
+	case refreshChatsMsg:
+		return m, m.loadChatsCmd()
+	case toggleModelPickerMsg:
+		return m, m.toggleModelPickerCmd()
+	case toggleDiffDrawerMsg:
+		return m, m.toggleDiffDrawerCmd()
+	case chatsListedMsg:
+		return m.updateChild(msg, viewList)
+	case chatOpenedMsg, chatHistoryMsg, chatStreamEventMsg, messageSentMsg, chatCreatedMsg, chatInterruptedMsg, gitChangesMsg, diffContentsMsg:
+		return m.updateChild(msg, viewChat)
+	case modelsListedMsg:
+		if msg.err != nil {
+			m.overlay = overlayNone
+		} else {
+			catalog := msg.catalog
+			m.catalog = &catalog
+		}
+		return m.updateChild(msg, viewChat)
+	}
+	return m.updateChild(msg, m.currentView)
+}
+
 func (m expChatsTUIModel) View() string {
 	if m.quitting {
 		return ""
 	}
-
 	body := m.list.View()
 	if m.currentView == viewChat {
 		body = m.chat.View()
 	}
-
 	base := m.styles.title.Render("Coder Chats") + "\n" + body
-
 	switch m.overlay {
 	case overlayModelPicker:
 		if m.catalog == nil {
-			base += "\n" + renderOverlayFrame(
-				m.styles,
-				m.width,
-				m.styles.title.Render("Select Model"),
-				m.styles.dimmedText.Render("Loading models..."),
-				m.styles.helpText.Render("Esc to close"),
-			)
+			base += "\n" + m.renderOverlay("Select Model", m.styles.dimmedText.Render("Loading models..."))
 			break
 		}
 		selectedID := ""
@@ -349,15 +332,7 @@ func (m expChatsTUIModel) View() string {
 		}
 		base += "\n" + renderModelPicker(m.styles, *m.catalog, selectedID, m.chat.modelPickerCursor, m.width, m.height)
 	case overlayDiffDrawer:
-		switch {
-		case m.chat.diffErr != nil:
-			base += "\n" + renderOverlayFrame(m.styles, m.width, m.styles.title.Render("Diff"), m.styles.errorText.Render(wrapPreservingNewlines(m.chat.diffErr.Error(), contentWidth(m.width, 6))), m.styles.helpText.Render("Esc to close"))
-		case m.chat.diffContents != nil:
-			base += "\n" + renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.gitChanges, m.width, m.height)
-		default:
-			base += "\n" + renderOverlayFrame(m.styles, m.width, m.styles.title.Render("Diff"), m.styles.dimmedText.Render("Loading diff…"), m.styles.helpText.Render("Esc to close"))
-		}
+		base += "\n" + m.diffOverlayView()
 	}
-
 	return base
 }
