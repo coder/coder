@@ -392,14 +392,36 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 			ModelConfigID: modelConfigID,
 		}
 		m.creatingChat = true
-		return m, createChatCmd(m.ctx, m.client, req, m.modelOverride, m.chatGeneration)
+		return m, apiCmd(func() (codersdk.Chat, error) {
+			if req.ModelConfigID == nil && m.modelOverride != nil {
+				modelConfigID, err := resolveModelConfigID(m.ctx, m.client, m.modelOverride)
+				if err != nil {
+					return codersdk.Chat{}, err
+				}
+				req.ModelConfigID = modelConfigID
+			}
+			return m.client.CreateChat(m.ctx, req)
+		}, func(chat codersdk.Chat, err error) tea.Msg {
+			return chatCreatedMsg{generation: m.chatGeneration, chatID: chat.ID, chat: chat, err: err}
+		})
 	}
 
 	req := codersdk.CreateChatMessageRequest{
 		Content:       content,
 		ModelConfigID: modelConfigID,
 	}
-	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req, m.modelOverride, m.chatGeneration)
+	return m, apiCmd(func() (codersdk.CreateChatMessageResponse, error) {
+		if req.ModelConfigID == nil && m.modelOverride != nil {
+			modelConfigID, err := resolveModelConfigID(m.ctx, m.client, m.modelOverride)
+			if err != nil {
+				return codersdk.CreateChatMessageResponse{}, err
+			}
+			req.ModelConfigID = modelConfigID
+		}
+		return m.client.CreateChatMessage(m.ctx, m.chat.ID, req)
+	}, func(resp codersdk.CreateChatMessageResponse, err error) tea.Msg {
+		return messageSentMsg{generation: m.chatGeneration, chatID: m.chat.ID, resp: resp, err: err}
+	})
 }
 
 // startStream opens a streaming connection from the latest known message ID.

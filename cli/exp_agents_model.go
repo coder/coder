@@ -114,13 +114,15 @@ func (m expChatsTUIModel) Init() tea.Cmd {
 		m.chat.activeChatID = *m.initialChatID
 		return tea.Batch(
 			m.chat.Init(),
-			openChatCmd(m.ctx, m.client, *m.initialChatID, m.chat.chatGeneration),
+			apiCmd(func() (codersdk.Chat, error) { return m.client.GetChat(m.ctx, *m.initialChatID) }, func(chat codersdk.Chat, err error) tea.Msg {
+				return chatOpenedMsg{generation: m.chat.chatGeneration, chatID: *m.initialChatID, chat: chat, err: err}
+			}),
 			loadChatHistoryCmd(m.ctx, m.client, *m.initialChatID, m.chat.chatGeneration),
 		)
 	}
 
 	return tea.Batch(
-		listChatsCmd(m.ctx, m.client),
+		apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} }),
 		m.list.Init(),
 	)
 }
@@ -162,7 +164,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.chat.stopStream()
 				m.currentView = viewList
 				m.list.loading = true
-				return m, listChatsCmd(m.ctx, m.client)
+				return m, apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
 			}
 			m.quitting = true
 			return m, tea.Quit
@@ -205,7 +207,9 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chat, _ = m.chat.Update(childMsg)
 		return m, tea.Batch(
 			m.chat.Init(),
-			openChatCmd(m.ctx, m.client, msg.chatID, m.chat.chatGeneration),
+			apiCmd(func() (codersdk.Chat, error) { return m.client.GetChat(m.ctx, msg.chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
+				return chatOpenedMsg{generation: m.chat.chatGeneration, chatID: msg.chatID, chat: chat, err: err}
+			}),
 			loadChatHistoryCmd(m.ctx, m.client, msg.chatID, m.chat.chatGeneration),
 		)
 
@@ -222,7 +226,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case refreshChatsMsg:
-		return m, listChatsCmd(m.ctx, m.client)
+		return m, apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
 
 	case toggleModelPickerMsg:
 		if m.overlay == overlayModelPicker {

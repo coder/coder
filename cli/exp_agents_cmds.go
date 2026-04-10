@@ -79,16 +79,6 @@ func apiCmd[T any](fn func() (T, error), wrap func(T, error) tea.Msg) tea.Cmd {
 	}
 }
 
-func listChatsCmd(ctx context.Context, client *codersdk.ExperimentalClient) tea.Cmd {
-	return apiCmd(func() ([]codersdk.Chat, error) { return client.ListChats(ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
-}
-
-func openChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.Chat, error) { return client.GetChat(ctx, chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
-		return chatOpenedMsg{generation: generation, chatID: chatID, chat: chat, err: err}
-	})
-}
-
 func loadChatHistoryCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, generation uint64) tea.Cmd {
 	return apiCmd(func() ([]codersdk.ChatMessage, error) {
 		var (
@@ -130,36 +120,6 @@ func loadChatHistoryCmd(ctx context.Context, client *codersdk.ExperimentalClient
 		return allMessages, nil
 	}, func(messages []codersdk.ChatMessage, err error) tea.Msg {
 		return chatHistoryMsg{generation: generation, chatID: chatID, messages: messages, err: err}
-	})
-}
-
-func createChatCmd(ctx context.Context, client *codersdk.ExperimentalClient, req codersdk.CreateChatRequest, modelOverride *string, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.Chat, error) {
-		if req.ModelConfigID == nil && modelOverride != nil {
-			modelConfigID, err := resolveModelConfigID(ctx, client, modelOverride)
-			if err != nil {
-				return codersdk.Chat{}, err
-			}
-			req.ModelConfigID = modelConfigID
-		}
-		return client.CreateChat(ctx, req)
-	}, func(chat codersdk.Chat, err error) tea.Msg {
-		return chatCreatedMsg{generation: generation, chatID: chat.ID, chat: chat, err: err}
-	})
-}
-
-func sendMessageCmd(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID, req codersdk.CreateChatMessageRequest, modelOverride *string, generation uint64) tea.Cmd {
-	return apiCmd(func() (codersdk.CreateChatMessageResponse, error) {
-		if req.ModelConfigID == nil && modelOverride != nil {
-			modelConfigID, err := resolveModelConfigID(ctx, client, modelOverride)
-			if err != nil {
-				return codersdk.CreateChatMessageResponse{}, err
-			}
-			req.ModelConfigID = modelConfigID
-		}
-		return client.CreateChatMessage(ctx, chatID, req)
-	}, func(resp codersdk.CreateChatMessageResponse, err error) tea.Msg {
-		return messageSentMsg{generation: generation, chatID: chatID, resp: resp, err: err}
 	})
 }
 
