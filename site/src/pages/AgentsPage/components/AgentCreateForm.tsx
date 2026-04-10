@@ -383,7 +383,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							</SelectContent>
 						</Select>
 					</div>
-				)}{" "}
+				)}
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."

@@ -460,8 +460,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
-			OrganizationID: parent.OrganizationID,
-			OwnerID:        parent.OwnerID, WorkspaceID: parent.WorkspaceID,
+			OrganizationID:    parent.OrganizationID,
+			OwnerID:           parent.OwnerID,
+			WorkspaceID:       parent.WorkspaceID,
 			BuildID:           parent.BuildID,
 			AgentID:           parent.AgentID,
 			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},

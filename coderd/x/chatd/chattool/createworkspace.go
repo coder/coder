@@ -59,7 +59,6 @@ type AgentConnFunc func(
 ) (workspacesdk.AgentConn, func(), error)
 
 // CreateWorkspaceOptions configures the create_workspace tool.
-// CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
 	DB                             database.Store
 	OwnerID                        uuid.UUID
