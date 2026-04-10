@@ -668,6 +668,13 @@ func createWorkspace(
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
+	// TODO: This transaction uses the default isolation level, but
+	// builder.Build() calls ReadModifyUpdate internally which needs
+	// RepeatableRead to detect concurrent modifications and retry.
+	// Because InTx reuses the parent transaction, the RepeatableRead
+	// request is silently ignored and its retry loop is ineffective.
+	// This should be elevated to sql.LevelRepeatableRead to match
+	// what the lifecycle executor already does.
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
 			prebuildsClaimer = *api.PrebuildsClaimer.Load()
