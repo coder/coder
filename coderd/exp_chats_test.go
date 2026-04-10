@@ -986,10 +986,8 @@ func TestListChats(t *testing.T) {
 		// Check each chat by ID rather than fetching the full list.
 		testutil.Eventually(ctx, t, func(_ context.Context) bool {
 			for _, c := range createdChats {
-				ch, getErr := client.GetChat(ctx, c.ID)
-				if getErr != nil {
-					return false
-				}
+				ch, err := client.GetChat(ctx, c.ID)
+				require.NoError(t, err, "GetChat should succeed for just-created chat %s", c.ID)
 				if ch.Status == codersdk.ChatStatusPending || ch.Status == codersdk.ChatStatusRunning {
 					return false
 				}
