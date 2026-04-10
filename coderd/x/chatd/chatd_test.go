@@ -479,7 +479,7 @@ func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 	require.Equal(t, 1, userMessages, "expected queued message to stay queued after archive")
 }
 
-func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
+func TestUpdateChatHeartbeatsRequiresOwnershipAndGeneration(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -509,22 +509,65 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 
 	// Wrong worker_id should return no IDs.
 	ids, err := db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
-		IDs:      []uuid.UUID{chat.ID},
-		WorkerID: uuid.New(),
-		Now:      time.Now(),
+		IDs:            []uuid.UUID{chat.ID},
+		RunGenerations: []int64{chat.RunGeneration},
+		WorkerID:       uuid.New(),
+		Now:            time.Now(),
 	})
 	require.NoError(t, err)
 	require.Empty(t, ids)
 
-	// Correct worker_id should return the chat's ID.
+	// Wrong generation should also return no IDs.
 	ids, err = db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
-		IDs:      []uuid.UUID{chat.ID},
-		WorkerID: workerID,
-		Now:      time.Now(),
+		IDs:            []uuid.UUID{chat.ID},
+		RunGenerations: []int64{chat.RunGeneration + 1},
+		WorkerID:       workerID,
+		Now:            time.Now(),
+	})
+	require.NoError(t, err)
+	require.Empty(t, ids)
+
+	// Correct worker_id and generation should return the chat's ID.
+	ids, err = db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:            []uuid.UUID{chat.ID},
+		RunGenerations: []int64{chat.RunGeneration},
+		WorkerID:       workerID,
+		Now:            time.Now(),
 	})
 	require.NoError(t, err)
 	require.Len(t, ids, 1)
 	require.Equal(t, chat.ID, ids[0])
+}
+
+func TestAdvanceChatRunGenerationAndUpdateStatus(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "generation-advance",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, chat.RunGeneration)
+
+	updated, err := db.AdvanceChatRunGenerationAndUpdateStatus(ctx, database.AdvanceChatRunGenerationAndUpdateStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, chat.RunGeneration+1, updated.RunGeneration)
+	require.Equal(t, database.ChatStatusPending, updated.Status)
 }
 
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {

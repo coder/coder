@@ -52,6 +52,7 @@ type sqlcQuerier interface {
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
+	AdvanceChatRunGenerationAndUpdateStatus(ctx context.Context, arg AdvanceChatRunGenerationAndUpdateStatusParams) (Chat, error)
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
@@ -952,8 +953,9 @@ type sqlcQuerier interface {
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
-	// worker. Returns the IDs that were actually updated so the
-	// caller can detect stolen or completed chats via set-difference.
+	// worker and run generation. Returns the IDs that were actually
+	// updated so the caller can detect stolen, superseded, or
+	// completed chats via set-difference.
 	UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error)
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	// Updates the cached injected context parts (AGENTS.md +

@@ -1436,12 +1436,16 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
+	db, rawPS := dbtestutil.NewDB(t)
+	ps := chattest.NewDelayedStatusPubsub(rawPS)
 	workerID := uuid.New()
 	subscriberID := uuid.New()
 
-	// Gate: worker blocks after first streaming request until we
-	// release it. This gives the relay time to establish.
+	// Gate: the worker cannot emit the first streaming chunk until we
+	// release it. This lets the test deliver a stale pending
+	// notification after the run is already current but before the LLM
+	// stream starts.
+	allowStreamingStart := make(chan struct{})
 	firstChunkEmitted := make(chan struct{})
 	continueStreaming := make(chan struct{})
 
@@ -1449,8 +1453,16 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("mid-stream-relay")
 		}
-		// Signal that the first streaming request was received,
-		// then block until released.
+		select {
+		case <-allowStreamingStart:
+		case <-req.Context().Done():
+			return chattest.OpenAIErrorResponse(http.StatusRequestTimeout, "request_canceled", "request canceled before streaming")
+		}
+		select {
+		case <-req.Context().Done():
+			return chattest.OpenAIErrorResponse(http.StatusRequestTimeout, "request_canceled", "request canceled before first chunk")
+		default:
+		}
 		select {
 		case <-firstChunkEmitted:
 		default:
@@ -1512,6 +1524,8 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 
 	// Create the chat in waiting state.
 	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "mid-stream-relay")
+	chatChannel := coderdpubsub.ChatStreamNotifyChannel(chat.ID)
+	ps.DelayStatus(chatChannel, string(database.ChatStatusPending))
 
 	// Subscribe from the subscriber replica while the chat is idle.
 	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
@@ -1525,6 +1539,23 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
+
+	// Wait for the subscriber to receive the running status, which
+	// proves the worker has started the current run. Release the
+	// delayed pending notification only after that point so it is
+	// definitively stale.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeStatus &&
+				event.Status != nil &&
+				event.Status.Status == codersdk.ChatStatusRunning
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+	require.NoError(t, ps.ReleaseStatus(chatChannel, string(database.ChatStatusPending)))
+	close(allowStreamingStart)
 
 	// Wait for the worker to reach the LLM (first streaming
 	// request). Also poll the chat status so we fail fast with a
@@ -1553,20 +1584,6 @@ waitForStream:
 			t.Fatal("timed out waiting for worker to start streaming")
 		}
 	}
-
-	// Wait for the subscriber to receive the running status, which
-	// triggers the relay. Because the dialer is non-blocking, the
-	// relay establishes promptly.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeStatus &&
-				event.Status != nil &&
-				event.Status.Status == codersdk.ChatStatusRunning
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	// Now release the worker to continue streaming.
 	close(continueStreaming)

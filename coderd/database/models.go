@@ -4227,6 +4227,7 @@ type Chat struct {
 	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
 	Title               string                `db:"title" json:"title"`
 	Status              ChatStatus            `db:"status" json:"status"`
+	RunGeneration       int64                 `db:"run_generation" json:"run_generation"`
 	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
 	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
 	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -2580,26 +2581,165 @@ func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage
 	}
 }
 
-// TestProcessChat_IgnoresStaleControlNotification verifies that
-// processChat is not interrupted by a "pending" notification
-// published before processing begins. This is the race that caused
-// TestOpenAIReasoningWithWebSearchRoundTripStoreFalse to flake:
-// SendMessage publishes "pending" via PostgreSQL NOTIFY, and due
-// to async delivery the notification can arrive at the control
-// subscriber after it registers but before the processor publishes
-// "running".
-func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
+func TestShouldInterruptActiveRunFromControlMessage(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	entry := &heartbeatEntry{chatID: chatID, runGeneration: 7}
+
+	tests := []struct {
+		name  string
+		entry *heartbeatEntry
+		msg   coderdpubsub.ChatControlMessage
+		want  bool
+	}{
+		{
+			name:  "newer generation restarts",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 8,
+				Reason:        coderdpubsub.ChatControlReasonRestart,
+			},
+			want: true,
+		},
+		{
+			name:  "equal generation interrupt cancels",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 7,
+				Reason:        coderdpubsub.ChatControlReasonInterrupt,
+			},
+			want: true,
+		},
+		{
+			name:  "equal generation archive cancels",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 7,
+				Reason:        coderdpubsub.ChatControlReasonArchive,
+			},
+			want: true,
+		},
+		{
+			name:  "equal generation restart is ignored",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 7,
+				Reason:        coderdpubsub.ChatControlReasonRestart,
+			},
+			want: false,
+		},
+		{
+			name:  "older generation interrupt is ignored",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 6,
+				Reason:        coderdpubsub.ChatControlReasonInterrupt,
+			},
+			want: false,
+		},
+		{
+			name:  "different chat is ignored",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        uuid.New(),
+				RunGeneration: 8,
+				Reason:        coderdpubsub.ChatControlReasonRestart,
+			},
+			want: false,
+		},
+		{
+			name:  "missing entry is ignored",
+			entry: nil,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 8,
+				Reason:        coderdpubsub.ChatControlReasonRestart,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldInterruptActiveRunFromControlMessage(tt.entry, tt.msg))
+		})
+	}
+}
+
+func TestSubscribeWorkerControl_CancelsRegisteredRun(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := dbpubsub.NewInMemory()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	runGeneration := int64(7)
+
+	server := &Server{
+		logger:            logger,
+		pubsub:            ps,
+		workerID:          workerID,
+		heartbeatRegistry: make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	chatCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	server.registerHeartbeat(&heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chatID,
+		runGeneration:   runGeneration,
+		logger:          logger,
+	})
+	defer server.unregisterHeartbeat(chatID)
+
+	controlCancel := server.subscribeWorkerControl(ctx)
+	require.NotNil(t, controlCancel)
+	defer controlCancel()
+
+	payload, err := json.Marshal(coderdpubsub.ChatControlMessage{
+		ChatID:        chatID,
+		RunGeneration: runGeneration + 1,
+		Reason:        coderdpubsub.ChatControlReasonRestart,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ps.Publish(coderdpubsub.ChatControlChannel(workerID), payload))
+
+	require.Eventually(t, func() bool {
+		return errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted)
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+// TestProcessChat_IgnoresStaleStatusNotification verifies that
+// processChat is not interrupted by a stale "pending" status
+// fanout delivered after the worker has already published
+// "running". Worker control now lives on a separate per-worker
+// channel, so delayed status fanout is observational only.
+func TestProcessChat_IgnoresStaleStatusNotification(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	ps := dbpubsub.NewInMemory()
+	ps := chattest.NewDelayedStatusPubsub(dbpubsub.NewInMemory())
 	clock := quartz.NewMock(t)
 
 	chatID := uuid.New()
 	workerID := uuid.New()
+	runGeneration := int64(7)
+	chatChannel := coderdpubsub.ChatStreamNotifyChannel(chatID)
+	ps.DelayStatus(chatChannel, string(database.ChatStatusPending))
 
 	server := &Server{
 		db:                    db,
@@ -2612,42 +2752,52 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
-	// Publish a stale "pending" notification on the control channel
-	// BEFORE processChat subscribes. In production this is the
-	// notification from SendMessage that triggered the processing.
 	staleNotify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
 		Status: string(database.ChatStatusPending),
 	})
 	require.NoError(t, err)
-	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), staleNotify)
-	require.NoError(t, err)
+	require.NoError(t, ps.Publish(chatChannel, staleNotify))
 
-	// Track which status processChat writes during cleanup.
 	var finalStatus database.ChatStatus
 	cleanupDone := make(chan struct{})
+	allowModelResolution := make(chan struct{})
 
-	// The deferred cleanup in processChat runs a transaction.
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{
+			ID:            chatID,
+			Status:        database.ChatStatusRunning,
+			WorkerID:      uuid.NullUUID{UUID: workerID, Valid: true},
+			RunGeneration: runGeneration,
+		}, nil,
+	)
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
 		},
 	)
 	db.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(
-		database.Chat{ID: chatID, Status: database.ChatStatusRunning, WorkerID: uuid.NullUUID{UUID: workerID, Valid: true}}, nil,
+		database.Chat{
+			ID:            chatID,
+			Status:        database.ChatStatusRunning,
+			WorkerID:      uuid.NullUUID{UUID: workerID, Valid: true},
+			RunGeneration: runGeneration,
+		}, nil,
 	)
 	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
 			finalStatus = params.Status
 			close(cleanupDone)
-			return database.Chat{ID: chatID, Status: params.Status}, nil
+			return database.Chat{ID: chatID, Status: params.Status, RunGeneration: runGeneration}, nil
 		},
 	)
-
-	// resolveChatModel fails immediately — that's fine, we only
-	// need processChat to get past initialization without being
-	// interrupted by the stale notification.
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
-		database.ChatModelConfig{}, xerrors.New("no model configured"),
+	// resolveChatModel fails after the stale notification has been
+	// released. That ensures the test exercises delayed status fanout
+	// while the chat is already running.
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			<-allowModelResolution
+			return database.ChatModelConfig{}, xerrors.New("no model configured")
+		},
 	).AnyTimes()
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
@@ -2656,8 +2806,12 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
 
-	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
+	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New(), RunGeneration: runGeneration}
 	go server.processChat(ctx, chat)
+
+	require.NoError(t, ps.WaitForStatusPublish(ctx, chatChannel, string(database.ChatStatusRunning)))
+	require.NoError(t, ps.ReleaseStatus(chatChannel, string(database.ChatStatusPending)))
+	close(allowModelResolution)
 
 	select {
 	case <-cleanupDone:
@@ -2665,10 +2819,6 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		t.Fatal("processChat did not complete")
 	}
 
-	// If the stale notification interrupted us, status would be
-	// "waiting" (the ErrInterrupted path). Since the gate blocked
-	// it, processChat reached runChat, which failed on model
-	// resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
 }
@@ -2710,16 +2860,19 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 	server.registerHeartbeat(&heartbeatEntry{
 		cancelWithCause: cancel1,
 		chatID:          chat1,
+		runGeneration:   1,
 		logger:          logger,
 	})
 	server.registerHeartbeat(&heartbeatEntry{
 		cancelWithCause: cancel2,
 		chatID:          chat2,
+		runGeneration:   2,
 		logger:          logger,
 	})
 	server.registerHeartbeat(&heartbeatEntry{
 		cancelWithCause: cancel3,
 		chatID:          chat3,
+		runGeneration:   3,
 		logger:          logger,
 	})
 
@@ -2729,6 +2882,12 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 		func(_ context.Context, params database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
 			require.Equal(t, workerID, params.WorkerID)
 			require.Len(t, params.IDs, 3)
+			require.Len(t, params.RunGenerations, 3)
+			got := make(map[uuid.UUID]int64, len(params.IDs))
+			for i, id := range params.IDs {
+				got[id] = params.RunGenerations[i]
+			}
+			require.Equal(t, map[uuid.UUID]int64{chat1: 1, chat2: 2, chat3: 3}, got)
 			// Return only chat1 and chat2 as surviving.
 			return []uuid.UUID{chat1, chat2}, nil
 		},
@@ -2784,6 +2943,7 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 	server.registerHeartbeat(&heartbeatEntry{
 		cancelWithCause: cancel,
 		chatID:          chatID,
+		runGeneration:   11,
 		logger:          logger,
 	})
 

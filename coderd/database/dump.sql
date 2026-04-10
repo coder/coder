@@ -1451,6 +1451,7 @@ CREATE TABLE chats (
     workspace_id uuid,
     title text DEFAULT 'New Chat'::text NOT NULL,
     status chat_status DEFAULT 'waiting'::chat_status NOT NULL,
+    run_generation bigint DEFAULT 0 NOT NULL,
     worker_id uuid,
     started_at timestamp with time zone,
     heartbeat_at timestamp with time zone,

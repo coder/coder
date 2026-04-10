@@ -403,6 +403,7 @@ INSERT INTO chats (
     title,
     mode,
     status,
+    run_generation,
     mcp_server_ids,
     labels,
     dynamic_tools
@@ -418,6 +419,7 @@ INSERT INTO chats (
     @title::text,
     sqlc.narg('mode')::chat_mode,
     @status::chat_status,
+    @run_generation::bigint,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb
@@ -661,6 +663,22 @@ WHERE
 RETURNING
     *;
 
+-- name: AdvanceChatRunGenerationAndUpdateStatus :one
+UPDATE
+    chats
+SET
+    run_generation = run_generation + 1,
+    status = @status::chat_status,
+    worker_id = sqlc.narg('worker_id')::uuid,
+    started_at = sqlc.narg('started_at')::timestamptz,
+    heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
+    last_error = sqlc.narg('last_error')::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: UpdateChatStatusPreserveUpdatedAt :one
 UPDATE
     chats
@@ -694,17 +712,28 @@ WHERE
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
 -- provided they are still running and owned by the specified
--- worker. Returns the IDs that were actually updated so the
--- caller can detect stolen or completed chats via set-difference.
+-- worker and run generation. Returns the IDs that were actually
+-- updated so the caller can detect stolen, superseded, or
+-- completed chats via set-difference.
+WITH input AS (
+    SELECT
+        (@ids::uuid[])[i] AS id,
+        (@run_generations::bigint[])[i] AS run_generation
+    FROM
+        generate_subscripts(@ids::uuid[], 1) AS g(i)
+)
 UPDATE
     chats
 SET
     heartbeat_at = @now::timestamptz
+FROM
+    input
 WHERE
-    id = ANY(@ids::uuid[])
-    AND worker_id = @worker_id::uuid
-    AND status = 'running'::chat_status
-RETURNING id;
+    chats.id = input.id
+    AND chats.run_generation = input.run_generation
+    AND chats.worker_id = @worker_id::uuid
+    AND chats.status = 'running'::chat_status
+RETURNING chats.id;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT

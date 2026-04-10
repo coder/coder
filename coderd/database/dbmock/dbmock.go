@@ -132,6 +132,21 @@ func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), ctx, arg)
 }
 
+// AdvanceChatRunGenerationAndUpdateStatus mocks base method.
+func (m *MockStore) AdvanceChatRunGenerationAndUpdateStatus(ctx context.Context, arg database.AdvanceChatRunGenerationAndUpdateStatusParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdvanceChatRunGenerationAndUpdateStatus", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdvanceChatRunGenerationAndUpdateStatus indicates an expected call of AdvanceChatRunGenerationAndUpdateStatus.
+func (mr *MockStoreMockRecorder) AdvanceChatRunGenerationAndUpdateStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceChatRunGenerationAndUpdateStatus", reflect.TypeOf((*MockStore)(nil).AdvanceChatRunGenerationAndUpdateStatus), ctx, arg)
+}
+
 // AllUserIDs mocks base method.
 func (m *MockStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

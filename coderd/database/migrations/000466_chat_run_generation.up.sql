@@ -1,0 +1,2 @@
+ALTER TABLE chats
+    ADD COLUMN run_generation BIGINT NOT NULL DEFAULT 0;

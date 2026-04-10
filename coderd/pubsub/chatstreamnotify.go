@@ -17,7 +17,7 @@ func ChatStreamNotifyChannel(chatID uuid.UUID) string {
 
 // ChatStreamNotifyMessage is the payload published on the per-chat
 // stream notification channel. Durable message content is still read
-// from the database, while transient control events can be carried
+// from the database, while lightweight status and relay hints travel
 // inline for cross-replica delivery.
 type ChatStreamNotifyMessage struct {
 	// AfterMessageID tells subscribers to query messages after this

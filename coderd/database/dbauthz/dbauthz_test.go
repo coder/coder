@@ -962,9 +962,10 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpdateChatHeartbeats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		resultID := uuid.New()
 		arg := database.UpdateChatHeartbeatsParams{
-			IDs:      []uuid.UUID{resultID},
-			WorkerID: uuid.New(),
-			Now:      time.Now(),
+			IDs:            []uuid.UUID{resultID},
+			RunGenerations: []int64{1},
+			WorkerID:       uuid.New(),
+			Now:            time.Now(),
 		}
 		dbm.EXPECT().UpdateChatHeartbeats(gomock.Any(), arg).Return([]uuid.UUID{resultID}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]uuid.UUID{resultID})
@@ -1028,6 +1029,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatStatus(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("AdvanceChatRunGenerationAndUpdateStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.AdvanceChatRunGenerationAndUpdateStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusPending,
+		}
+		updated := testutil.Fake(s.T(), faker, database.Chat{ID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().AdvanceChatRunGenerationAndUpdateStatus(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updated)
 	}))
 	s.Run("UpdateChatBuildAgentBinding", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

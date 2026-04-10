@@ -152,6 +152,14 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) AdvanceChatRunGenerationAndUpdateStatus(ctx context.Context, arg database.AdvanceChatRunGenerationAndUpdateStatusParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.AdvanceChatRunGenerationAndUpdateStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("AdvanceChatRunGenerationAndUpdateStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AdvanceChatRunGenerationAndUpdateStatus").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
