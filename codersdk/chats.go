@@ -1130,11 +1130,6 @@ type ChatStreamEvent struct {
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }
 
-type chatStreamEnvelope struct {
-	Type ServerSentEventType `json:"type"`
-	Data json.RawMessage     `json:"data,omitempty"`
-}
-
 // ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
 type ChatCostSummaryOptions struct {
 	StartDate time.Time
@@ -1987,8 +1982,8 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 		}()
 
 		for {
-			var envelope chatStreamEnvelope
-			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+			var batch []ChatStreamEvent
+			if err := wsjson.Read(streamCtx, conn, &batch); err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -2005,61 +2000,10 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 				return
 			}
 
-			switch envelope.Type {
-			case ServerSentEventTypePing:
-				continue
-			case ServerSentEventTypeData:
-				var batch []ChatStreamEvent
-				decodeErr := json.Unmarshal(envelope.Data, &batch)
-				if decodeErr == nil {
-					for _, streamedEvent := range batch {
-						if !send(streamedEvent) {
-							return
-						}
-					}
-					continue
-				}
-
-				{
-					_ = send(ChatStreamEvent{
-						Type: ChatStreamEventTypeError,
-						Error: &ChatStreamError{
-							Message: fmt.Sprintf(
-								"decode chat stream event batch: %v",
-								decodeErr,
-							),
-						},
-					})
+			for _, event := range batch {
+				if !send(event) {
 					return
 				}
-			case ServerSentEventTypeError:
-				message := "chat stream returned an error"
-				if len(envelope.Data) > 0 {
-					var response Response
-					if err := json.Unmarshal(envelope.Data, &response); err == nil {
-						message = formatChatStreamResponseError(response)
-					} else {
-						trimmed := strings.TrimSpace(string(envelope.Data))
-						if trimmed != "" {
-							message = trimmed
-						}
-					}
-				}
-				_ = send(ChatStreamEvent{
-					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
-						Message: message,
-					},
-				})
-				return
-			default:
-				_ = send(ChatStreamEvent{
-					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
-						Message: fmt.Sprintf("unknown chat stream event type %q", envelope.Type),
-					},
-				})
-				return
 			}
 		}
 	}()
@@ -2098,8 +2042,8 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 		}()
 
 		for {
-			var envelope chatStreamEnvelope
-			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+			var event ChatWatchEvent
+			if err := wsjson.Read(streamCtx, conn, &event); err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -2110,23 +2054,10 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 				return
 			}
 
-			switch envelope.Type {
-			case ServerSentEventTypePing:
-				continue
-			case ServerSentEventTypeData:
-				var event ChatWatchEvent
-				if err := json.Unmarshal(envelope.Data, &event); err != nil {
-					return
-				}
-				select {
-				case <-streamCtx.Done():
-					return
-				case events <- event:
-				}
-			case ServerSentEventTypeError:
+			select {
+			case <-streamCtx.Done():
 				return
-			default:
-				return
+			case events <- event:
 			}
 		}
 	}()
@@ -2476,21 +2407,6 @@ func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceI
 	}
 	var result map[uuid.UUID]uuid.UUID
 	return result, json.NewDecoder(res.Body).Decode(&result)
-}
-
-func formatChatStreamResponseError(response Response) string {
-	message := strings.TrimSpace(response.Message)
-	detail := strings.TrimSpace(response.Detail)
-	switch {
-	case message == "" && detail == "":
-		return "chat stream returned an error"
-	case message == "":
-		return detail
-	case detail == "":
-		return message
-	default:
-		return fmt.Sprintf("%s: %s", message, detail)
-	}
 }
 
 // PRInsightsResponse is the response from the PR insights endpoint.

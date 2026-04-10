@@ -40,7 +40,7 @@ CODER_EXPERIMENTS=oauth2
 2. Click **Create Application**
 3. Fill in the application details:
    - **Name**: Your application name
-   - **Callback URL**: `https://yourapp.example.com/callback`
+   - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
    - **Icon**: Optional icon URL
 
 ### Method 2: Management API
@@ -251,16 +251,31 @@ Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
 
 Ensure the redirect URI in your request exactly matches the one registered for your application.
 
+### "Invalid Callback URL" on the consent page
+
+If you see this error when authorizing, the registered callback URL uses a
+blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
+application's callback URL to a valid scheme (see
+[Callback URL schemes](#callback-url-schemes)).
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
+
+## Callback URL schemes
+
+Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
+
+The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
 
 ## Security Considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit
 - **Implement PKCE**: PKCE is mandatory for all authorization code clients
   (public and confidential)
-- **Validate redirect URLs**: Only register trusted redirect URIs for your applications
+- **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
+  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
+  but custom URI schemes for native apps (`myapp://`) are permitted
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
 ## Limitations

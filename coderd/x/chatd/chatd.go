@@ -996,7 +996,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, txErr
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCreated, nil)
 	p.signalWake()
 	return chat, nil
 }
@@ -1158,7 +1158,7 @@ func (p *Server) SendMessage(
 
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 	return result, nil
 }
@@ -1301,7 +1301,7 @@ func (p *Server) EditMessage(
 		QueueUpdate: true,
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
@@ -1355,10 +1355,10 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 
 	if interrupted {
 		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
-		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(statusChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	p.publishChatPubsubEvents(archivedChats, coderdpubsub.ChatEventKindDeleted)
+	p.publishChatPubsubEvents(archivedChats, codersdk.ChatWatchEventKindDeleted)
 	return nil
 }
 
@@ -1373,7 +1373,7 @@ func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 		ctx,
 		chat.ID,
 		"unarchive",
-		coderdpubsub.ChatEventKindCreated,
+		codersdk.ChatWatchEventKindCreated,
 		p.db.UnarchiveChatByID,
 	)
 }
@@ -1382,7 +1382,7 @@ func (p *Server) applyChatLifecycleTransition(
 	ctx context.Context,
 	chatID uuid.UUID,
 	action string,
-	kind coderdpubsub.ChatEventKind,
+	kind codersdk.ChatWatchEventKind,
 	transition func(context.Context, uuid.UUID) ([]database.Chat, error),
 ) error {
 	updatedChats, err := transition(ctx, chatID)
@@ -1545,7 +1545,7 @@ func (p *Server) PromoteQueued(
 	})
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
@@ -2092,7 +2092,7 @@ func (p *Server) regenerateChatTitleWithStore(
 		return updatedChat, nil
 	}
 
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 	return updatedChat, nil
 }
 
@@ -2347,7 +2347,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		return database.Chat{}, err
 	}
 	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return updatedChat, nil
 }
 
@@ -3627,7 +3627,7 @@ func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.C
 }
 
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
-func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsub.ChatEventKind) {
+func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
 		p.publishChatPubsubEvent(chat, kind, nil)
 	}
@@ -3635,7 +3635,7 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsu
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind, diffStatus *codersdk.ChatDiffStatus) {
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
 	}
@@ -3647,7 +3647,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
-	event := coderdpubsub.ChatEvent{
+	event := codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: sdkChat,
 	}
@@ -3659,7 +3659,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.F("kind", kind),
@@ -3692,8 +3692,8 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 	toolCalls := pendingToStreamToolCalls(pending)
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 
-	event := coderdpubsub.ChatEvent{
-		Kind:      coderdpubsub.ChatEventKindActionRequired,
+	event := codersdk.ChatWatchEvent{
+		Kind:      codersdk.ChatWatchEventKindActionRequired,
 		Chat:      sdkChat,
 		ToolCalls: toolCalls,
 	}
@@ -3705,7 +3705,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat action_required pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
@@ -3733,7 +3733,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 	}
 
 	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange, &sdkStatus)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
 	return nil
 }
 
@@ -4215,7 +4215,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if title, ok := generatedTitle.Load(); ok {
 			updatedChat.Title = title
 		}
-		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 		// When the chat is parked in requires_action,
 		// publish the stream event and global pubsub event
