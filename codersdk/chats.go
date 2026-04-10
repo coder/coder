@@ -2495,10 +2495,10 @@ func formatChatStreamResponseError(response Response) string {
 
 // PRInsightsResponse is the response from the PR insights endpoint.
 type PRInsightsResponse struct {
-	Summary    PRInsightsSummary           `json:"summary"`
-	TimeSeries []PRInsightsTimeSeriesEntry `json:"time_series"`
-	ByModel    []PRInsightsModelBreakdown  `json:"by_model"`
-	RecentPRs  []PRInsightsPullRequest     `json:"recent_prs"`
+	Summary      PRInsightsSummary           `json:"summary"`
+	TimeSeries   []PRInsightsTimeSeriesEntry `json:"time_series"`
+	ByModel      []PRInsightsModelBreakdown  `json:"by_model"`
+	PullRequests []PRInsightsPullRequest     `json:"recent_prs"`
 }
 
 // PRInsightsSummary contains aggregate PR metrics for a time period,

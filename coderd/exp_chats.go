@@ -5793,10 +5793,10 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PRInsightsResponse{
-		Summary:    summary,
-		TimeSeries: tsEntries,
-		ByModel:    modelEntries,
-		RecentPRs:  prEntries,
+		Summary:      summary,
+		TimeSeries:   tsEntries,
+		ByModel:      modelEntries,
+		PullRequests: prEntries,
 	})
 }
 

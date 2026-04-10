@@ -10794,7 +10794,7 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(5_000_000), summary.MergedCostMicros)
 	})
 
-	t.Run("AllPRsReturnedWithoutLimit", func(t *testing.T) {
+	t.Run("AllPRsReturnedWithSafetyCap", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID := setupChatInfra(t)
 

@@ -10,7 +10,7 @@ export function paginateItems<T>(
 	hasNextPage: boolean;
 } {
 	const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-	const clampedPage = Math.min(currentPage, totalPages);
+	const clampedPage = Math.max(1, Math.min(currentPage, totalPages));
 	const pagedItems = items.slice(
 		(clampedPage - 1) * pageSize,
 		clampedPage * pageSize,
