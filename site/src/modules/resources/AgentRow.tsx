@@ -139,9 +139,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
+	const healthIssues = getAgentHealthIssues(agent);
+	const hasAgentIssues = healthIssues.length > 0;
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
+		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
+			hasAgentIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
@@ -150,8 +153,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
-		setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures);
-	}, [agent.lifecycle_state, hasStartupFeatures]);
+		setShowLogs(
+			(agent.lifecycle_state !== "ready" || hasAgentIssues) &&
+				hasStartupFeatures,
+		);
+	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
@@ -212,8 +218,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const healthIssues = getAgentHealthIssues(agent);
-
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
 	const sourceLogTabs = agent.log_sources
 		.filter((logSource) => {
