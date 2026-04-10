@@ -22,159 +22,44 @@ func TestExpAgentsRender(t *testing.T) {
 	t.Run("MessagesToBlocks", func(t *testing.T) {
 		t.Parallel()
 
+		user, assistant, tool := codersdk.ChatMessageRoleUser, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageRoleTool
+		msg := func(role codersdk.ChatMessageRole, parts ...codersdk.ChatMessagePart) codersdk.ChatMessage {
+			return codersdk.ChatMessage{Role: role, Content: parts}
+		}
+		text := func(body string) codersdk.ChatMessagePart {
+			return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: body}
+		}
+		reasoning := func(body string) codersdk.ChatMessagePart {
+			return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: body}
+		}
+		call := func(name, id, args string) codersdk.ChatMessagePart {
+			return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: name, ToolCallID: id, Args: rawJSON(args)}
+		}
+		result := func(name, id, body string, isError bool) codersdk.ChatMessagePart {
+			return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: name, ToolCallID: id, Result: rawJSON(body), IsError: isError}
+		}
+
 		tests := []struct {
-			name     string
-			messages []codersdk.ChatMessage
-			assert   func(t *testing.T, blocks []chatBlock)
+			name string
+			in   []codersdk.ChatMessage
+			want []chatBlock
 		}{
-			{
-				name:     "EmptyMessages",
-				messages: nil,
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Empty(t, blocks)
-				},
-			},
-			{
-				name: "UserText",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleUser,
-					Content: []codersdk.ChatMessagePart{{
-						Type: codersdk.ChatMessagePartTypeText,
-						Text: "hello",
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Equal(t, []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}}, blocks)
-				},
-			},
-			{
-				name: "AssistantText",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type: codersdk.ChatMessagePartTypeText,
-						Text: "hi there",
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Equal(t, []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "hi there"}}, blocks)
-				},
-			},
-			{
-				name: "ToolCallPart",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleAssistant,
-					Content: []codersdk.ChatMessagePart{{
-						Type:       codersdk.ChatMessagePartTypeToolCall,
-						ToolName:   "weather",
-						ToolCallID: "call-1",
-						Args: rawJSON(`{
-  "city": "SF"
-}`),
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Equal(t, []chatBlock{{
-						kind:     blockToolCall,
-						role:     codersdk.ChatMessageRoleAssistant,
-						toolName: "weather",
-						toolID:   "call-1",
-						args:     `{"city":"SF"}`,
-					}}, blocks)
-				},
-			},
-			{
-				name: "ToolResultPart",
-				messages: []codersdk.ChatMessage{{
-					Role: codersdk.ChatMessageRoleTool,
-					Content: []codersdk.ChatMessagePart{{
-						Type:       codersdk.ChatMessagePartTypeToolResult,
-						ToolName:   "weather",
-						ToolCallID: "call-1",
-						Result: rawJSON(`{
-  "temp": "68F"
-}`),
-						IsError: true,
-					}},
-				}},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Equal(t, []chatBlock{{
-						kind:     blockToolResult,
-						role:     codersdk.ChatMessageRoleTool,
-						toolName: "weather",
-						toolID:   "call-1",
-						result:   `{"temp":"68F"}`,
-						isError:  true,
-					}}, blocks)
-				},
-			},
-			{
-				name: "KeepsToolCallsAndLaterResultsSeparateByToolID",
-				messages: []codersdk.ChatMessage{
-					{
-						Role: codersdk.ChatMessageRoleAssistant,
-						Content: []codersdk.ChatMessagePart{
-							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "github__get_pull_request", ToolCallID: "call-1", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58036}`)},
-							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "github__get_pull_request", ToolCallID: "call-2", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58037}`)},
-							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "github__get_pull_request", ToolCallID: "call-3", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58038}`)},
-						},
-					},
-					{
-						Role: codersdk.ChatMessageRoleTool,
-						Content: []codersdk.ChatMessagePart{
-							{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: "github__get_pull_request", ToolCallID: "call-1", Result: rawJSON(`{"base":{"ref":"main"}}`)},
-							{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: "github__get_pull_request", ToolCallID: "call-2", Result: rawJSON(`{"base":{"ref":"main"}}`)},
-							{Type: codersdk.ChatMessagePartTypeToolResult, ToolName: "github__get_pull_request", ToolCallID: "call-3", Result: rawJSON(`{"base":{"ref":"main"}}`)},
-						},
-					},
-				},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Len(t, blocks, 6)
-					require.Equal(t, blockToolCall, blocks[0].kind)
-					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`, blocks[0].args)
-					require.Equal(t, blockToolCall, blocks[1].kind)
-					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58037}`, blocks[1].args)
-					require.Equal(t, blockToolCall, blocks[2].kind)
-					require.Equal(t, `{"owner":"openclaw","repo":"openclaw","pull_number":58038}`, blocks[2].args)
-					require.Equal(t, blockToolResult, blocks[3].kind)
-					require.Equal(t, `{"base":{"ref":"main"}}`, blocks[3].result)
-					require.Equal(t, blockToolResult, blocks[4].kind)
-					require.Equal(t, blockToolResult, blocks[5].kind)
-				},
-			},
+			{name: "EmptyMessages", want: []chatBlock{}},
+			{name: "UserText", in: []codersdk.ChatMessage{msg(user, text("hello"))}, want: []chatBlock{{kind: blockText, role: user, text: "hello"}}},
+			{name: "AssistantText", in: []codersdk.ChatMessage{msg(assistant, text("hi there"))}, want: []chatBlock{{kind: blockText, role: assistant, text: "hi there"}}},
+			{name: "ToolCallPart", in: []codersdk.ChatMessage{msg(assistant, call("weather", "call-1", `{"city":"SF"}`))}, want: []chatBlock{{kind: blockToolCall, role: assistant, toolName: "weather", toolID: "call-1", args: `{"city":"SF"}`}}},
+			{name: "ToolResultPart", in: []codersdk.ChatMessage{msg(tool, result("weather", "call-1", `{"temp":"68F"}`, true))}, want: []chatBlock{{kind: blockToolResult, role: tool, toolName: "weather", toolID: "call-1", result: `{"temp":"68F"}`, isError: true}}},
 			{
 				name: "MultipleMessagesInOrder",
-				messages: []codersdk.ChatMessage{
-					{
-						Role: codersdk.ChatMessageRoleUser,
-						Content: []codersdk.ChatMessagePart{{
-							Type: codersdk.ChatMessagePartTypeText,
-							Text: "question",
-						}},
-					},
-					{
-						Role: codersdk.ChatMessageRoleAssistant,
-						Content: []codersdk.ChatMessagePart{
-							{Type: codersdk.ChatMessagePartTypeReasoning, Text: "thinking"},
-							{Type: codersdk.ChatMessagePartTypeToolCall, ToolName: "search", ToolCallID: "call-3", Args: rawJSON(`{"q":"docs"}`)},
-							{Type: codersdk.ChatMessagePartTypeText, Text: "answer"},
-						},
-					},
+				in: []codersdk.ChatMessage{
+					msg(user, text("question")),
+					msg(assistant, reasoning("thinking"), call("search", "call-3", `{"q":"docs"}`), text("answer")),
 				},
-				assert: func(t *testing.T, blocks []chatBlock) {
-					t.Helper()
-					require.Equal(t, []chatBlock{
-						{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "question"},
-						{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "thinking"},
-						{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "search", toolID: "call-3", args: `{"q":"docs"}`},
-						{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "answer"},
-					}, blocks)
+				want: []chatBlock{
+					{kind: blockText, role: user, text: "question"},
+					{kind: blockReasoning, role: assistant, text: "thinking"},
+					{kind: blockToolCall, role: assistant, toolName: "search", toolID: "call-3", args: `{"q":"docs"}`},
+					{kind: blockText, role: assistant, text: "answer"},
 				},
 			},
 		}
@@ -183,139 +68,130 @@ func TestExpAgentsRender(t *testing.T) {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-
-				blocks := messagesToBlocks(tt.messages)
-				tt.assert(t, blocks)
+				require.Equal(t, tt.want, messagesToBlocks(tt.in))
 			})
 		}
+
+		t.Run("KeepsToolCallsAndLaterResultsSeparateByToolID", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := messagesToBlocks([]codersdk.ChatMessage{
+				msg(assistant,
+					call("github__get_pull_request", "call-1", `{"owner":"openclaw","repo":"openclaw","pull_number":58036}`),
+					call("github__get_pull_request", "call-2", `{"owner":"openclaw","repo":"openclaw","pull_number":58037}`),
+				),
+				msg(tool,
+					result("github__get_pull_request", "call-1", `{"base":{"ref":"main"}}`, false),
+					result("github__get_pull_request", "call-2", `{"base":{"ref":"main"}}`, false),
+				),
+			})
+
+			require.Len(t, blocks, 4)
+			require.Equal(t,
+				[]chatBlockKind{blockToolCall, blockToolCall, blockToolResult, blockToolResult},
+				[]chatBlockKind{blocks[0].kind, blocks[1].kind, blocks[2].kind, blocks[3].kind},
+			)
+			require.Equal(t, []string{"call-1", "call-2", "call-1", "call-2"}, []string{blocks[0].toolID, blocks[1].toolID, blocks[2].toolID, blocks[3].toolID})
+		})
 	})
 
 	t.Run("MergeConsecutiveToolBlocks", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("MergesAdjacentEmptyToolIDCallAndResult", func(t *testing.T) {
+		assistant, tool := codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageRoleTool
+		call := func(name, id, args string) chatBlock {
+			return chatBlock{kind: blockToolCall, role: assistant, toolName: name, toolID: id, args: args}
+		}
+		result := func(name, id, body string) chatBlock {
+			return chatBlock{kind: blockToolResult, role: tool, toolName: name, toolID: id, result: body}
+		}
+		merged := func(name, id, args, body string) chatBlock {
+			return chatBlock{kind: blockToolResult, role: tool, toolName: name, toolID: id, args: args, result: body}
+		}
+		text := func(body string) chatBlock {
+			return chatBlock{kind: blockText, role: assistant, text: body}
+		}
+
+		for _, tt := range []struct {
+			name string
+			in   []chatBlock
+			want []chatBlock
+		}{
+			{
+				name: "MergesAdjacentEmptyToolIDCallAndResult",
+				in:   []chatBlock{call("read_file", "", `{"path":"main.go"}`), result("read_file", "", `{"content":"hello"}`)},
+				want: []chatBlock{merged("read_file", "", `{"path":"main.go"}`, `{"content":"hello"}`)},
+			},
+			{
+				name: "ExistingToolIDMergeStillWorks",
+				in:   []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), result("read_file", "call-1", `{"content":"hello"}`)},
+				want: []chatBlock{merged("read_file", "call-1", `{"path":"main.go"}`, `{"content":"hello"}`)},
+			},
+			{
+				name: "MultiplePairs",
+				in: []chatBlock{
+					call("read_file", "call-1", `{"path":"one.txt"}`),
+					result("read_file", "call-1", `{"ok":true}`),
+					call("list_dir", "call-2", `{"path":"/tmp"}`),
+					result("list_dir", "call-2", `{"entries":[]}`),
+				},
+				want: []chatBlock{
+					merged("read_file", "call-1", `{"path":"one.txt"}`, `{"ok":true}`),
+					merged("list_dir", "call-2", `{"path":"/tmp"}`, `{"entries":[]}`),
+				},
+			},
+		} {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				got := mergeConsecutiveToolBlocks(tt.in)
+				require.Len(t, got, len(tt.want))
+				require.Equal(t, tt.want, got)
+			})
+		}
+
+		t.Run("NegativeMergeCases", func(t *testing.T) {
 			t.Parallel()
 
-			blocks := []chatBlock{
+			for _, tt := range []struct {
+				name string
+				in   []chatBlock
+				want []chatBlock
+			}{
 				{
-					kind:     blockToolCall,
-					role:     codersdk.ChatMessageRoleAssistant,
-					toolName: "read_file",
-					args:     `{"path":"main.go"}`,
+					name: "DifferentToolNames",
+					in:   []chatBlock{call("read_file", "", `{"path":"main.go"}`), result("list_dir", "", `{"entries":[]}`)},
+					want: []chatBlock{call("read_file", "", `{"path":"main.go"}`), result("list_dir", "", `{"entries":[]}`)},
 				},
 				{
-					kind:     blockToolResult,
-					role:     codersdk.ChatMessageRoleTool,
-					toolName: "read_file",
-					result:   `{"content":"hello"}`,
+					name: "NonAdjacentEmptyToolID",
+					in:   []chatBlock{call("read_file", "", `{"path":"main.go"}`), text("still thinking"), result("read_file", "", `{"content":"hello"}`)},
+					want: []chatBlock{call("read_file", "", `{"path":"main.go"}`), text("still thinking"), result("read_file", "", `{"content":"hello"}`)},
 				},
+				{
+					name: "NonAdjacentMatchingToolID",
+					in:   []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), text("still thinking"), result("read_file", "call-1", `{"content":"hello"}`)},
+					want: []chatBlock{call("read_file", "call-1", `{"path":"main.go"}`), text("still thinking"), result("read_file", "call-1", `{"content":"hello"}`)},
+				},
+				{
+					name: "OrphanedCall",
+					in:   []chatBlock{call("read_file", "call-orphan", `{"path":"solo.txt"}`)},
+					want: []chatBlock{call("read_file", "call-orphan", `{"path":"solo.txt"}`)},
+				},
+				{
+					name: "OrphanedResult",
+					in:   []chatBlock{result("read_file", "call-orphan", `{"content":"hello"}`)},
+					want: []chatBlock{result("read_file", "call-orphan", `{"content":"hello"}`)},
+				},
+			} {
+				tt := tt
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					got := mergeConsecutiveToolBlocks(tt.in)
+					require.Len(t, got, len(tt.want))
+					require.Equal(t, tt.want, got)
+				})
 			}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Len(t, merged, 1)
-			require.Equal(t, chatBlock{
-				kind:     blockToolResult,
-				role:     codersdk.ChatMessageRoleTool,
-				toolName: "read_file",
-				args:     `{"path":"main.go"}`,
-				result:   `{"content":"hello"}`,
-			}, merged[0])
-		})
-
-		t.Run("DoesNotMergeDifferentEmptyToolNames", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{
-				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", args: `{"path":"main.go"}`},
-				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "list_dir", result: `{"entries":[]}`},
-			}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Equal(t, blocks, merged)
-		})
-
-		t.Run("DoesNotMergeNonAdjacentEmptyToolID", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{
-				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", args: `{"path":"main.go"}`},
-				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "still thinking"},
-				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", result: `{"content":"hello"}`},
-			}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Equal(t, blocks, merged)
-		})
-
-		t.Run("DoesNotMergeNonAdjacentMatchingToolID", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{
-				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-1", args: `{"path":"main.go"}`},
-				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "still thinking"},
-				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-1", result: `{"content":"hello"}`},
-			}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Equal(t, blocks, merged)
-		})
-
-		t.Run("ExistingToolIDMergeStillWorks", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{
-				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-1", args: `{"path":"main.go"}`},
-				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-1", result: `{"content":"hello"}`},
-			}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Len(t, merged, 1)
-			require.Equal(t, chatBlock{
-				kind:     blockToolResult,
-				role:     codersdk.ChatMessageRoleTool,
-				toolName: "read_file",
-				toolID:   "call-1",
-				args:     `{"path":"main.go"}`,
-				result:   `{"content":"hello"}`,
-			}, merged[0])
-		})
-
-		t.Run("MultiplePairs", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{
-				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-1", args: `{"path":"one.txt"}`},
-				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-1", result: `{"ok":true}`},
-				{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "list_dir", toolID: "call-2", args: `{"path":"/tmp"}`},
-				{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "list_dir", toolID: "call-2", result: `{"entries":[]}`},
-			}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Len(t, merged, 2)
-			require.Equal(t, `{"path":"one.txt"}`, merged[0].args)
-			require.Equal(t, `{"ok":true}`, merged[0].result)
-			require.Equal(t, "call-1", merged[0].toolID)
-			require.Equal(t, `{"path":"/tmp"}`, merged[1].args)
-			require.Equal(t, `{"entries":[]}`, merged[1].result)
-			require.Equal(t, "call-2", merged[1].toolID)
-		})
-
-		t.Run("OrphanedCall", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{{kind: blockToolCall, role: codersdk.ChatMessageRoleAssistant, toolName: "read_file", toolID: "call-orphan", args: `{"path":"solo.txt"}`}}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Equal(t, blocks, merged)
-		})
-
-		t.Run("OrphanedResult", func(t *testing.T) {
-			t.Parallel()
-
-			blocks := []chatBlock{{kind: blockToolResult, role: codersdk.ChatMessageRoleTool, toolName: "read_file", toolID: "call-orphan", result: `{"content":"hello"}`}}
-
-			merged := mergeConsecutiveToolBlocks(blocks)
-			require.Equal(t, blocks, merged)
 		})
 	})
 
@@ -430,51 +306,50 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
-		usage := func(total, limit int64) *codersdk.ChatMessageUsage {
+		u := func(total, limit int64) *codersdk.ChatMessageUsage {
 			return &codersdk.ChatMessageUsage{TotalTokens: int64Ptr(total), ContextLimit: int64Ptr(limit)}
 		}
-		tests := []struct {
-			name                 string
-			status               codersdk.ChatStatus
-			usage                *codersdk.ChatMessageUsage
-			queueCount           int
-			interrupting         bool
-			reconnecting         bool
-			width                int
-			expectedSubstrings   []string
-			unexpectedSubstrings []string
-			maxPlainWidth        int
-		}{
-			{name: "ShowsStatusWithColor", status: codersdk.ChatStatusRunning, width: 80, expectedSubstrings: []string{styles.statusColor(codersdk.ChatStatusRunning).Render(string(codersdk.ChatStatusRunning))}},
-			{name: "ShowsTokenUsageWhenPresent", status: codersdk.ChatStatusRunning, usage: usage(50, 100), width: 80, expectedSubstrings: []string{"tokens: 50/100"}},
-			{name: "WarnsWhenUsageExceedsEightyPercent", status: codersdk.ChatStatusRunning, usage: usage(81, 100), width: 80, expectedSubstrings: []string{styles.warningText.Render("tokens: 81/100")}},
-			{name: "CriticalWhenUsageExceedsNinetyFivePercent", status: codersdk.ChatStatusRunning, usage: usage(96, 100), width: 80, expectedSubstrings: []string{styles.criticalText.Render("tokens: 96/100")}},
-			{name: "ShowsQueueCount", status: codersdk.ChatStatusPending, queueCount: 2, width: 80, expectedSubstrings: []string{"queued: 2"}},
-			{name: "ShowsInterrupting", status: codersdk.ChatStatusRunning, interrupting: true, width: 80, expectedSubstrings: []string{"interrupting…"}},
-			{name: "ShowsReconnecting", status: codersdk.ChatStatusRunning, reconnecting: true, width: 80, expectedSubstrings: []string{"reconnecting…"}},
-			{name: "OmitsUsageWhenNil", status: codersdk.ChatStatusRunning, width: 80, unexpectedSubstrings: []string{"tokens:"}},
-			{name: "NarrowWidthFits", status: codersdk.ChatStatusRunning, usage: usage(96, 100), queueCount: 2, interrupting: true, reconnecting: true, width: 20, maxPlainWidth: 20},
-		}
 
-		for _, tt := range tests {
+		for _, tt := range []struct {
+			name         string
+			status       codersdk.ChatStatus
+			usage        *codersdk.ChatMessageUsage
+			queue        int
+			interrupting bool
+			reconnecting bool
+			width        int
+			want         []string
+			avoid        []string
+			maxWidth     int
+		}{
+			{name: "ShowsStatusWithColor", status: codersdk.ChatStatusRunning, width: 80, want: []string{styles.statusColor(codersdk.ChatStatusRunning).Render(string(codersdk.ChatStatusRunning))}},
+			{name: "ShowsTokenUsageWhenPresent", status: codersdk.ChatStatusRunning, usage: u(50, 100), width: 80, want: []string{"tokens: 50/100"}},
+			{name: "WarnsWhenUsageExceedsEightyPercent", status: codersdk.ChatStatusRunning, usage: u(81, 100), width: 80, want: []string{styles.warningText.Render("tokens: 81/100")}},
+			{name: "CriticalWhenUsageExceedsNinetyFivePercent", status: codersdk.ChatStatusRunning, usage: u(96, 100), width: 80, want: []string{styles.criticalText.Render("tokens: 96/100")}},
+			{name: "ShowsQueueCount", status: codersdk.ChatStatusPending, queue: 2, width: 80, want: []string{"queued: 2"}},
+			{name: "ShowsInterrupting", status: codersdk.ChatStatusRunning, interrupting: true, width: 80, want: []string{"interrupting…"}},
+			{name: "ShowsReconnecting", status: codersdk.ChatStatusRunning, reconnecting: true, width: 80, want: []string{"reconnecting…"}},
+			{name: "OmitsUsageWhenNil", status: codersdk.ChatStatusRunning, width: 80, avoid: []string{"tokens:"}},
+			{name: "NarrowWidthFits", status: codersdk.ChatStatusRunning, usage: u(96, 100), queue: 2, interrupting: true, reconnecting: true, width: 20, maxWidth: 20},
+		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
 				var output string
 				require.NotPanics(t, func() {
-					output = renderStatusBar(styles, nil, tt.status, tt.usage, tt.queueCount, tt.interrupting, tt.reconnecting, tt.width)
+					output = renderStatusBar(styles, nil, tt.status, tt.usage, tt.queue, tt.interrupting, tt.reconnecting, tt.width)
 				})
 				plain := plainText(output)
-				for _, expected := range tt.expectedSubstrings {
-					require.Contains(t, output, expected)
+				for _, want := range tt.want {
+					require.Contains(t, output, want)
 				}
-				for _, unexpected := range tt.unexpectedSubstrings {
-					require.NotContains(t, plain, unexpected)
+				for _, avoid := range tt.avoid {
+					require.NotContains(t, plain, avoid)
 				}
-				if tt.maxPlainWidth > 0 {
+				if tt.maxWidth > 0 {
 					require.NotEmpty(t, plain)
-					require.LessOrEqual(t, lipgloss.Width(plain), tt.maxPlainWidth)
+					require.LessOrEqual(t, lipgloss.Width(plain), tt.maxWidth)
 					require.LessOrEqual(t, lipgloss.Width(output), tt.width)
 				}
 			})
@@ -484,110 +359,114 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
-
-		t.Run("TextUserIncludesYouPrefix", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}, false, 40))
-			require.Contains(t, output, "You: hello")
-		})
-
-		t.Run("TextAssistantRendersMarkdown", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "- first\n- second"}, false, 40))
-			require.Contains(t, output, "• first")
-			require.Contains(t, output, "• second")
-			require.NotContains(t, output, "- first")
-		})
-
-		t.Run("TextToolRendersDimmed", func(t *testing.T) {
-			t.Parallel()
-
-			output := renderBlock(styles, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleTool, text: "tool output"}, false, 40)
-			require.Contains(t, output, styles.dimmedText.Render("tool output"))
-		})
-
-		type renderBlockPairCase struct {
-			name            string
-			block           chatBlock
-			width           int
-			collapsedAssert func(t *testing.T, output string)
-			expandedAssert  func(t *testing.T, output string)
+		renderOutput := func(block chatBlock, expanded, plain bool, width int) string {
+			output := renderBlock(styles, block, expanded, width)
+			if plain {
+				return plainText(output)
+			}
+			return output
 		}
-		for _, tt := range []renderBlockPairCase{
+		assertOutput := func(t *testing.T, output string, want, avoid []string, lines int, lastLine string) {
+			t.Helper()
+			for _, s := range want {
+				require.Contains(t, output, s)
+			}
+			for _, s := range avoid {
+				require.NotContains(t, output, s)
+			}
+			if lines == 0 {
+				return
+			}
+			split := strings.Split(output, "\n")
+			require.Len(t, split, lines)
+			if lastLine != "" {
+				require.Equal(t, lastLine, strings.TrimRight(split[len(split)-1], " "))
+			}
+		}
+
+		for _, tt := range []struct {
+			name  string
+			block chatBlock
+			plain bool
+			want  []string
+			avoid []string
+		}{
+			{name: "UserIncludesYouPrefix", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}, plain: true, want: []string{"You: hello"}},
+			{name: "AssistantRendersMarkdown", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "- first\n- second"}, plain: true, want: []string{"• first", "• second"}, avoid: []string{"- first"}},
+			{name: "ToolRendersDimmed", block: chatBlock{kind: blockText, role: codersdk.ChatMessageRoleTool, text: "tool output"}, want: []string{styles.dimmedText.Render("tool output")}},
+		} {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				assertOutput(t, renderOutput(tt.block, false, tt.plain, 40), tt.want, tt.avoid, 0, "")
+			})
+		}
+
+		for _, tt := range []struct {
+			name              string
+			block             chatBlock
+			width             int
+			collapsedWant     []string
+			collapsedAvoid    []string
+			collapsedLines    int
+			collapsedLastLine string
+			expandedWant      []string
+			expandedAvoid     []string
+			expandedLines     int
+			expandedLastLine  string
+		}{
 			{
-				name:  "Reasoning",
-				block: chatBlock{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "line1\nline2\nline3\nline4"},
-				width: 40,
-				collapsedAssert: func(t *testing.T, output string) {
-					lines := strings.Split(output, "\n")
-					require.Len(t, lines, 3)
-					require.Contains(t, lines[0], "💭 line1")
-					require.Equal(t, "line3…", strings.TrimRight(lines[2], " "))
-				},
-				expandedAssert: func(t *testing.T, output string) {
-					lines := strings.Split(output, "\n")
-					require.Len(t, lines, 4)
-					require.Contains(t, output, "line4")
-					require.NotContains(t, output, "line4…")
-				},
+				name:              "Reasoning",
+				block:             chatBlock{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "line1\nline2\nline3\nline4"},
+				width:             40,
+				collapsedWant:     []string{"💭 line1"},
+				collapsedLines:    3,
+				collapsedLastLine: "line3…",
+				expandedWant:      []string{"line4"},
+				expandedAvoid:     []string{"line4…"},
+				expandedLines:     4,
 			},
 			{
-				name:  "ToolCall",
-				block: chatBlock{kind: blockToolCall, toolName: "read_file", args: `{"path":"very/long/path.txt","recursive":true}`},
-				width: 60,
-				collapsedAssert: func(t *testing.T, output string) {
-					require.Contains(t, output, "⏳ read file")
-					require.Contains(t, output, "(very/long/path.txt)")
-					require.NotContains(t, output, "\n")
-				},
-				expandedAssert: func(t *testing.T, output string) {
-					require.Contains(t, output, "⏳ read file")
-					require.Contains(t, output, "args:")
-					require.Contains(t, output, `{"path":"very/long/path.txt","recursive":true}`)
-					require.Contains(t, output, "\n")
-				},
+				name:           "ToolCall",
+				block:          chatBlock{kind: blockToolCall, toolName: "read_file", args: `{"path":"very/long/path.txt","recursive":true}`},
+				width:          60,
+				collapsedWant:  []string{"⏳ read file", "(very/long/path.txt)"},
+				collapsedAvoid: []string{"\n", "args:"},
+				expandedWant:   []string{"⏳ read file", "args:", `{"path":"very/long/path.txt","recursive":true}`, "\n"},
 			},
 			{
-				name:  "ToolResult",
-				block: chatBlock{kind: blockToolResult, toolName: "read_file", args: `{"path":"a.txt"}`, result: `{"path":"a.txt","contents":"hello"}`},
-				width: 60,
-				collapsedAssert: func(t *testing.T, output string) {
-					require.Contains(t, output, "✓ read file")
-					require.Contains(t, output, "(a.txt)")
-					require.NotContains(t, output, "\n")
-				},
-				expandedAssert: func(t *testing.T, output string) {
-					require.Contains(t, output, "✓ read file")
-					require.Contains(t, output, "args:")
-					require.Contains(t, output, "result:")
-					require.Contains(t, output, `{"path":"a.txt","contents":"hello"}`)
-					require.Contains(t, output, "\n")
-				},
+				name:           "ToolResult",
+				block:          chatBlock{kind: blockToolResult, toolName: "read_file", args: `{"path":"a.txt"}`, result: `{"path":"a.txt","contents":"hello"}`},
+				width:          60,
+				collapsedWant:  []string{"✓ read file", "(a.txt)"},
+				collapsedAvoid: []string{"\n", "result:"},
+				expandedWant:   []string{"✓ read file", "args:", "result:", `{"path":"a.txt","contents":"hello"}`, "\n"},
+			},
+			{
+				name:          "CollapsedToolCallShowsRunCount",
+				block:         chatBlock{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, collapsedCount: 3},
+				width:         80,
+				collapsedWant: []string{"⏳ get pull request..."},
+			},
+			{
+				name:          "CollapsedToolResultShowsRunCount",
+				block:         chatBlock{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, result: `{"ok":true}`, collapsedCount: 10},
+				width:         80,
+				collapsedWant: []string{"✓ get pull request (x10)"},
 			},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				tt.collapsedAssert(t, plainText(renderBlock(styles, tt.block, false, tt.width)))
-				tt.expandedAssert(t, plainText(renderBlock(styles, tt.block, true, tt.width)))
+				collapsed := renderOutput(tt.block, false, true, tt.width)
+				assertOutput(t, collapsed, tt.collapsedWant, tt.collapsedAvoid, tt.collapsedLines, tt.collapsedLastLine)
+				if len(tt.expandedWant)+len(tt.expandedAvoid)+tt.expandedLines > 0 || tt.expandedLastLine != "" {
+					expanded := renderOutput(tt.block, true, true, tt.width)
+					assertOutput(t, expanded, tt.expandedWant, tt.expandedAvoid, tt.expandedLines, tt.expandedLastLine)
+				}
 			})
 		}
 
-		t.Run("CollapsedToolCallShowsRunCount", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, collapsedCount: 3}, false, 80))
-			require.Contains(t, output, "⏳ get pull request...")
-		})
-
-		t.Run("CollapsedToolResultShowsRunCount", func(t *testing.T) {
-			t.Parallel()
-
-			output := plainText(renderBlock(styles, chatBlock{kind: blockToolResult, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, result: `{"ok":true}`, collapsedCount: 10}, false, 80))
-			require.Contains(t, output, "✓ get pull request (x10)")
-		})
 		t.Run("CompactionRendersBanner", func(t *testing.T) {
 			t.Parallel()
 
