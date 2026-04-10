@@ -693,15 +693,33 @@ const AgentChatPage: FC = () => {
 	// object (TanStack Query v5 recreates it every render via object
 	// spread). Keeping no intermediate variable prevents future code
 	// from accidentally closing over the unstable object.
-	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
-		createChatMessage(queryClient, agentId ?? ""),
-	);
-	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
-		editChatMessage(queryClient, agentId ?? ""),
-	);
-	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
-		interruptChat(queryClient, agentId ?? ""),
-	);
+	const {
+		isPending: isSendPending,
+		mutateAsync: sendMessage,
+		reset: resetSendMutation,
+	} = useMutation(createChatMessage(queryClient, agentId ?? ""));
+	const {
+		isPending: isEditPending,
+		mutateAsync: editMessage,
+		reset: resetEditMutation,
+	} = useMutation(editChatMessage(queryClient, agentId ?? ""));
+	const {
+		isPending: isInterruptPending,
+		mutateAsync: interrupt,
+		reset: resetInterruptMutation,
+	} = useMutation(interruptChat(queryClient, agentId ?? ""));
+
+	useLayoutEffect(() => {
+		if (!agentId) {
+			return;
+		}
+		// Without keyed remounts, mutation state persists across chats.
+		// Reset per-chat mutation observers so in-flight work from a
+		// previous chat cannot keep the new chat's composer disabled.
+		resetSendMutation();
+		resetEditMutation();
+		resetInterruptMutation();
+	}, [agentId, resetSendMutation, resetEditMutation, resetInterruptMutation]);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
