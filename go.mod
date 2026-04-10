@@ -531,9 +531,9 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
-	// Transitive dep via aisdk-go and aibridge. Not called at
-	// runtime — all Anthropic usage goes through
-	// charmbracelet/anthropic-sdk-go (coder/anthropic-sdk-go).
+	// Transitive dep via aisdk-go and aibridge. Used at runtime
+	// by aibridge. The appendCompact perf fix from PR #262 is
+	// in upstream v1.19.0, so no replace is needed.
 	github.com/anthropics/anthropic-sdk-go v1.19.0 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/iamgo v0.0.10 // indirect

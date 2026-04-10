@@ -1,7 +1,6 @@
 package taskname
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -261,6 +260,16 @@ func TestMessagesToAnthropic(t *testing.T) {
 			require.Len(t, msgs, tc.expectMsgCount)
 			require.Len(t, sys, tc.expectSysCount)
 			require.Equal(t, tc.expectRole, msgs[0].Role)
+
+			// Assert text content for cases that check fidelity.
+			switch tc.name {
+			case "SystemAndUser":
+				require.Equal(t, "You are helpful.", sys[0].Text)
+				require.Equal(t, "Hello", msgs[0].Content[0].OfText.Text)
+			case "FiltersEmptyText":
+				require.Len(t, msgs[0].Content, 1)
+				require.Equal(t, "actual content", msgs[0].Content[0].OfText.Text)
+			}
 		})
 	}
 }
@@ -314,8 +323,10 @@ data: {"type":"content_block_stop","index":0}`
 data: {"type":"message_stop"}`
 )
 
-func sseTextDelta(text string) string {
-	escaped, _ := json.Marshal(text)
+func sseTextDelta(t *testing.T, text string) string {
+	t.Helper()
+	escaped, err := json.Marshal(text)
+	require.NoError(t, err)
 	return fmt.Sprintf(`event: content_block_delta
 data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":%s}}`, string(escaped))
 }
@@ -337,7 +348,7 @@ func streamFromSSE(t *testing.T, sse string) *ssestream.Stream[anthropic.Message
 		anthropicoption.WithAPIKey("fake-key"),
 		anthropicoption.WithBaseURL(srv.URL),
 	)
-	return client.Messages.NewStreaming(context.Background(), anthropic.MessageNewParams{
+	return client.Messages.NewStreaming(t.Context(), anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5,
 		MaxTokens: 100,
 		Messages: []anthropic.MessageParam{
@@ -366,7 +377,7 @@ func TestAnthropicToDataStream(t *testing.T) {
 		sse := buildSSE(
 			sseMessageStart,
 			sseContentBlockStart,
-			sseTextDelta("hello world"),
+			sseTextDelta(t, "hello world"),
 			sseContentBlockStop,
 			sseMessageDelta("end_turn", 20),
 			sseMessageStop,
@@ -375,7 +386,7 @@ func TestAnthropicToDataStream(t *testing.T) {
 		parts := collectParts(t, anthropicToDataStream(stream))
 
 		// Expect: StartStep, Text, FinishStep, FinishMessage
-		require.GreaterOrEqual(t, len(parts), 4)
+		require.Len(t, parts, 4)
 
 		_, ok := parts[0].(aisdk.StartStepStreamPart)
 		require.True(t, ok, "first part should be StartStepStreamPart")
@@ -398,7 +409,7 @@ func TestAnthropicToDataStream(t *testing.T) {
 		sse := buildSSE(
 			sseMessageStart,
 			sseContentBlockStart,
-			sseTextDelta("truncated"),
+			sseTextDelta(t, "truncated"),
 			sseContentBlockStop,
 			sseMessageDelta("max_tokens", 100),
 			sseMessageStop,
@@ -423,7 +434,7 @@ func TestAnthropicToDataStream(t *testing.T) {
 		sse := buildSSE(
 			sseMessageStart,
 			sseContentBlockStart,
-			sseTextDelta("stopped"),
+			sseTextDelta(t, "stopped"),
 			sseContentBlockStop,
 			sseMessageDelta("stop_sequence", 15),
 			sseMessageStop,
@@ -447,7 +458,7 @@ func TestAnthropicToDataStream(t *testing.T) {
 		sse := buildSSE(
 			sseMessageStart,
 			sseContentBlockStart,
-			sseTextDelta("test"),
+			sseTextDelta(t, "test"),
 			sseContentBlockStop,
 			sseMessageDelta("end_turn", 42),
 			sseMessageStop,
@@ -469,11 +480,11 @@ func TestAnthropicToDataStream(t *testing.T) {
 
 	t.Run("AbruptTermination", func(t *testing.T) {
 		t.Parallel()
-		// Stream ends after content_block_delta — no message_stop.
+		// Stream ends after content_block_delta, no message_stop.
 		sse := buildSSE(
 			sseMessageStart,
 			sseContentBlockStart,
-			sseTextDelta("partial"),
+			sseTextDelta(t, "partial"),
 		)
 		stream := streamFromSSE(t, sse)
 		parts := collectParts(t, anthropicToDataStream(stream))
@@ -484,6 +495,44 @@ func TestAnthropicToDataStream(t *testing.T) {
 		fm, ok := lastPart.(aisdk.FinishMessageStreamPart)
 		require.True(t, ok, "last part should be FinishMessageStreamPart")
 		require.Equal(t, aisdk.FinishReasonError, fm.FinishReason)
+	})
+
+	t.Run("StreamError", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = w.Write([]byte(buildSSE(
+				sseMessageStart,
+				sseContentBlockStart,
+				`event: error
+data: {"type":"error","error":{"type":"server_error","message":"internal error"}}`,
+			)))
+		}))
+		t.Cleanup(srv.Close)
+
+		client := anthropic.NewClient(
+			anthropicoption.WithAPIKey("fake-key"),
+			anthropicoption.WithBaseURL(srv.URL),
+		)
+		stream := client.Messages.NewStreaming(t.Context(), anthropic.MessageNewParams{
+			Model:     anthropic.ModelClaudeHaiku4_5,
+			MaxTokens: 100,
+			Messages: []anthropic.MessageParam{
+				anthropic.NewUserMessage(anthropic.ContentBlockParamUnion{
+					OfText: &anthropic.TextBlockParam{Text: "test"},
+				}),
+			},
+		})
+
+		var streamErr error
+		for _, err := range anthropicToDataStream(stream) {
+			if err != nil {
+				streamErr = err
+				break
+			}
+		}
+		require.Error(t, streamErr)
+		require.ErrorContains(t, streamErr, "anthropic stream error")
 	})
 }
 

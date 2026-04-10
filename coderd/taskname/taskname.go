@@ -407,17 +407,14 @@ func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []
 // text deltas, stop reasons, usage tracking, and stream
 // termination. Tool-call and thinking events are not supported
 // since taskname only performs simple text completions.
-
 func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) aisdk.DataStream {
 	return func(yield func(aisdk.DataStreamPart, error) bool) {
-		var lastChunk *anthropic.MessageStreamEventUnion
 		var finalReason aisdk.FinishReason = aisdk.FinishReasonUnknown
 		var finalUsage aisdk.Usage
+		var sawMessageStop bool
 
 		for stream.Next() {
 			chunk := stream.Current()
-			lastChunk = &chunk
-
 			event := chunk.AsAny()
 			switch event := event.(type) {
 			case anthropic.MessageStartEvent:
@@ -441,13 +438,14 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 				}
 
 				switch event.Delta.StopReason {
-				case "end_turn", "stop_sequence":
+				case anthropic.StopReasonEndTurn, anthropic.StopReasonStopSequence:
 					finalReason = aisdk.FinishReasonStop
-				case "max_tokens":
+				case anthropic.StopReasonMaxTokens:
 					finalReason = aisdk.FinishReasonLength
 				}
 
 			case anthropic.MessageStopEvent:
+				sawMessageStop = true
 				if finalReason == aisdk.FinishReasonUnknown {
 					finalReason = aisdk.FinishReasonStop
 				}
@@ -474,7 +472,7 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 			return
 		}
 
-		if lastChunk == nil || lastChunk.Type != "message_stop" {
+		if !sawMessageStop {
 			if finalReason == aisdk.FinishReasonUnknown {
 				finalReason = aisdk.FinishReasonError
 			}
