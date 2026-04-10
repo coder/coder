@@ -355,8 +355,8 @@ func anthropicDataStream(ctx context.Context, client anthropic.Client, model ant
 
 // messagesToAnthropic converts internal message format to
 // Anthropic's API format. This is a simplified version that
-// only handles text parts since taskname only sends system
-// and user text messages.
+// only handles text parts for system, user, and assistant
+// messages.
 func messagesToAnthropic(messages []aisdk.Message) ([]anthropic.MessageParam, []anthropic.TextBlockParam, error) {
 	var anthropicMessages []anthropic.MessageParam
 	var systemBlocks []anthropic.TextBlockParam
@@ -468,8 +468,9 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 		}
 
 		if err := stream.Err(); err != nil {
-			yield(nil, xerrors.Errorf("anthropic stream error: %w", err))
-			return
+			if !yield(nil, xerrors.Errorf("anthropic stream error: %w", err)) {
+				return
+			}
 		}
 
 		if !sawMessageStop {
@@ -477,10 +478,12 @@ func anthropicToDataStream(stream *ssestream.Stream[anthropic.MessageStreamEvent
 				finalReason = aisdk.FinishReasonError
 			}
 
-			yield(aisdk.FinishMessageStreamPart{
+			if !yield(aisdk.FinishMessageStreamPart{
 				FinishReason: finalReason,
 				Usage:        finalUsage,
-			}, nil)
+			}, nil) {
+				return
+			}
 		}
 	}
 }
