@@ -353,20 +353,18 @@ WHERE
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
     AND CASE
-        -- This allows using the last element on a page as effectively a cursor.
-        -- This is an important option for scripts that need to paginate without
-        -- duplicating or missing data.
+        -- Cursor pagination: the last element on a page acts as the cursor.
+        -- The 4-tuple matches the ORDER BY below. All columns sort DESC
+        -- (pin_order is negated so lower values sort first in DESC order),
+        -- which lets us use a single tuple < comparison.
         WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            -- The pagination cursor is the last ID of the previous page.
-            -- The query is ordered by the updated_at field, so select all
-            -- rows before the cursor.
-            (updated_at, id) < (
+            (CASE WHEN pin_order > 0 THEN 1 ELSE 0 END, -pin_order, updated_at, id) < (
                 SELECT
-                    updated_at, id
+                    CASE WHEN c2.pin_order > 0 THEN 1 ELSE 0 END, -c2.pin_order, c2.updated_at, c2.id
                 FROM
-                    chats
+                    chats c2
                 WHERE
-                    id = @after_id
+                    c2.id = @after_id
             )
         )
         ELSE true
@@ -378,9 +376,15 @@ WHERE
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
-    -- Deterministic and consistent ordering of all rows, even if they share
-    -- a timestamp. This is to ensure consistent pagination.
-    (updated_at, id) DESC OFFSET @offset_opt
+    -- Pinned chats (pin_order > 0) sort before unpinned ones. Within
+    -- pinned chats, lower pin_order values come first. The negation
+    -- trick (-pin_order) keeps all sort columns DESC so the cursor
+    -- tuple < comparison works with uniform direction.
+    CASE WHEN pin_order > 0 THEN 1 ELSE 0 END DESC,
+    -pin_order DESC,
+    updated_at DESC,
+    id DESC
+OFFSET @offset_opt
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.

@@ -812,11 +812,17 @@ func TestPortableDesktop_IdleTimeout_StopsRecordings(t *testing.T) {
 	stopTrap := clk.Trap().NewTimer("agentdesktop", "stop_timeout")
 
 	// Advance past idle timeout to trigger the stop-all.
-	clk.Advance(idleTimeout)
+	clk.Advance(idleTimeout).MustWait(ctx)
 
 	// Wait for the stop timer to be created, then release it.
 	stopTrap.MustWait(ctx).MustRelease(ctx)
 	stopTrap.Close()
+
+	// Advance past the 15s stop timeout so the process is
+	// forcibly killed. Without this the test depends on the real
+	// shell handling SIGINT promptly, which is unreliable on
+	// macOS CI runners (the flake in #1461).
+	clk.Advance(15 * time.Second).MustWait(ctx)
 
 	// The recording process should now be stopped.
 	require.Eventually(t, func() bool {
@@ -939,11 +945,17 @@ func TestPortableDesktop_IdleTimeout_MultipleRecordings(t *testing.T) {
 	stopTrap := clk.Trap().NewTimer("agentdesktop", "stop_timeout")
 
 	// Advance past idle timeout.
-	clk.Advance(idleTimeout)
+	clk.Advance(idleTimeout).MustWait(ctx)
 
-	// Wait for both stop timers.
+	// Each idle monitor goroutine serializes on p.mu, so the
+	// second stop timer is only created after the first stop
+	// completes. Advance past the 15s stop timeout after each
+	// release so the process is forcibly killed instead of
+	// depending on SIGINT (unreliable on macOS — see #1461).
 	stopTrap.MustWait(ctx).MustRelease(ctx)
+	clk.Advance(15 * time.Second).MustWait(ctx)
 	stopTrap.MustWait(ctx).MustRelease(ctx)
+	clk.Advance(15 * time.Second).MustWait(ctx)
 	stopTrap.Close()
 
 	// Both recordings should be stopped.
