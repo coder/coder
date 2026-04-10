@@ -259,16 +259,6 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useLayoutEffect(() => {
-		// Only hydrate from REST when the WebSocket hasn't delivered
-		// a status event yet. Once the WS is the authoritative
-		// source, a stale REST refetch must not overwrite the
-		// fresher WS-delivered value.
-		if (!wsStatusReceivedRef.current) {
-			store.setChatStatus(chatRecord?.status ?? null);
-		}
-	}, [chatRecord?.status, store]);
-
-	useLayoutEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
@@ -277,6 +267,16 @@ export const useChatStore = (
 			return;
 		}
 	}, [chatID, store]);
+
+	useLayoutEffect(() => {
+		// Only hydrate from REST when the WebSocket hasn't delivered
+		// a status event yet. Once the WS is the authoritative
+		// source, a stale REST refetch must not overwrite the
+		// fresher WS-delivered value.
+		if (!wsStatusReceivedRef.current) {
+			store.setChatStatus(chatRecord?.status ?? null);
+		}
+	}, [chatRecord?.status, store]);
 
 	useEffect(() => {
 		if (!chatID || !chatMessagesData) {

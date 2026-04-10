@@ -3096,6 +3096,89 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 	});
+
+	it("hydrates the new chat status after switching away from a WS-authoritative chat", async () => {
+		immediateAnimationFrame();
+
+		const chatA = "chat-status-a";
+		const chatB = "chat-status-b";
+		const msgA = makeMessage(chatA, 1, "user", "hello from a");
+		const msgB = makeMessage(chatB, 2, "user", "hello from b");
+		const socketA = createMockSocket();
+		const socketB = createMockSocket();
+		mockWatchChatReturn(socketB);
+		vi.mocked(watchChat)
+			.mockReturnValueOnce(socketA)
+			.mockReturnValueOnce(socketA)
+			.mockReturnValueOnce(socketA);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result, rerender } = renderHook(
+			(props: {
+				chatID: string;
+				chatRecord: TypesGen.Chat;
+				chatMessages: TypesGen.ChatMessage[];
+			}) => {
+				const { store } = useChatStore({
+					chatID: props.chatID,
+					chatMessages: props.chatMessages,
+					chatRecord: props.chatRecord,
+					chatMessagesData: {
+						messages: props.chatMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{
+				wrapper,
+				initialProps: {
+					chatID: chatA,
+					chatRecord: { ...makeChat(chatA), status: "running" },
+					chatMessages: [msgA],
+				},
+			},
+		);
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		// Make chat A WS-authoritative so wsStatusReceivedRef is true.
+		act(() => {
+			socketA.emitData({
+				type: "status",
+				chat_id: chatA,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		rerender({
+			chatID: chatB,
+			chatRecord: { ...makeChat(chatB), status: "pending" },
+			chatMessages: [msgB],
+		});
+
+		// After switching chats, the new chat's REST status should hydrate
+		// immediately instead of leaking the previous WS-authoritative state.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("pending");
+		});
+	});
 });
 
 describe("thinking indicator event ordering", () => {
