@@ -5,6 +5,7 @@ import {
 	EllipsisIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import {
 	type FC,
@@ -25,6 +26,7 @@ import type {
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -472,6 +474,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 						>
 							<ChevronDownIcon open={showLogs} />
 							<span>Logs</span>
+							{healthIssues.length > 0 && (
+								<Badge variant="warning" size="xs" className="ml-1.5">
+									<TriangleAlertIcon />
+									<span>{healthIssues.length}</span>
+								</Badge>
+							)}
 						</Button>
 					</div>
 					<Collapse in={showLogs}>
