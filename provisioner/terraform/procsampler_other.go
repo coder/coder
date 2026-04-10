@@ -23,7 +23,7 @@ type ProcessSample struct {
 // only meaningful on Linux where procfs is available.
 type procSampler struct{}
 
-func newProcSampler(_ int, _ time.Duration) *procSampler {
+func newProcSampler(_ int, _ time.Duration) *procSampler { //nolint:revive // pid param unused on non-Linux.
 	return &procSampler{}
 }
 

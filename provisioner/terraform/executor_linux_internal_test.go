@@ -4,7 +4,6 @@ package terraform
 
 import (
 	"os/exec"
-	"syscall"
 	"testing"
 	"time"
 
@@ -18,16 +17,14 @@ func TestExecutorResourceSampling(t *testing.T) {
 	t.Parallel()
 
 	// Verify that the executor's sampling integration works
-	// end-to-end: start a real process with cmdSysProcAttr(),
-	// attach a sampler, and confirm we get back a non-nil
-	// ProcessSample with provider data after the process exits.
+	// end-to-end: start a real process, attach a sampler, and
+	// confirm we get back a non-nil ProcessSample with provider
+	// data after the process exits.
 	cmd := exec.Command("sleep", "0.5")
-	cmd.SysProcAttr = cmdSysProcAttr()
 	require.NoError(t, cmd.Start())
 
 	t.Cleanup(func() {
-		// Belt-and-suspenders in case the test fails early.
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 	})
 

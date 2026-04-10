@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -18,7 +19,6 @@ import (
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
@@ -47,22 +47,47 @@ type resourceMetrics struct {
 }
 
 // newResourceMetrics registers provider resource gauges with reg.
+// Safe to call multiple times with the same registry: when coderd
+// starts several provisioner daemons that share one Prometheus
+// registry, the second call reuses the already-registered
+// collectors instead of panicking.
 func newResourceMetrics(reg prometheus.Registerer) *resourceMetrics {
-	auto := promauto.With(reg)
 	return &resourceMetrics{
-		providerMemoryPeakBytes: auto.NewGaugeVec(prometheus.GaugeOpts{
+		providerMemoryPeakBytes: registerOrReuse(reg, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "provisionerd",
 			Name:      "provider_memory_peak_bytes",
 			Help:      "Peak RSS in bytes of a Terraform provider during a provisioning stage.",
-		}, []string{"provider", "stage"}),
-		providerCPUSeconds: auto.NewGaugeVec(prometheus.GaugeOpts{
+		}, []string{"provider", "stage"})),
+		providerCPUSeconds: registerOrReuse(reg, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "provisionerd",
 			Name:      "provider_cpu_seconds",
 			Help:      "Cumulative CPU time in seconds consumed by a Terraform provider during a provisioning stage.",
-		}, []string{"provider", "stage"}),
+		}, []string{"provider", "stage"})),
 	}
+}
+
+// registerOrReuse attempts to register a GaugeVec. If the metric
+// was already registered (by a prior Serve call sharing the same
+// prometheus registry), it extracts and returns the existing
+// collector.
+func registerOrReuse(reg prometheus.Registerer, g *prometheus.GaugeVec) *prometheus.GaugeVec {
+	err := reg.Register(g)
+	if err == nil {
+		return g
+	}
+	// If the error is AlreadyRegisteredError, the previously
+	// registered collector is returned inside the error.
+	var are prometheus.AlreadyRegisteredError
+	if errors.As(err, &are) {
+		if existing, ok := are.ExistingCollector.(*prometheus.GaugeVec); ok {
+			return existing
+		}
+	}
+	// Any other error is unexpected; fall back to the new
+	// (unregistered) gauge so metrics still work locally.
+	return g
 }
 
 type executor struct {

@@ -32,11 +32,11 @@ type ProcessSample struct {
 }
 
 // procSampler periodically reads /proc to collect resource usage for
-// all processes in a given process group. This lets us attribute
-// memory and CPU to individual Terraform providers without modifying
-// the Terraform binary itself.
+// a terraform process and its direct children (provider plugins).
+// Processes are identified by parent PID rather than process group,
+// so this works regardless of whether Setpgid is used.
 type procSampler struct {
-	pgid     int
+	pid      int
 	interval time.Duration
 	fs       procfs.FS
 
@@ -46,7 +46,7 @@ type procSampler struct {
 	done chan struct{}
 }
 
-func newProcSampler(pgid int, interval time.Duration) *procSampler {
+func newProcSampler(pid int, interval time.Duration) *procSampler {
 	// Default to the real /proc mount. Tests can override s.fs after
 	// construction if needed, but in practice we always read the
 	// host procfs.
@@ -57,7 +57,7 @@ func newProcSampler(pgid int, interval time.Duration) *procSampler {
 		fs, _ = procfs.NewFS("/proc")
 	}
 	return &procSampler{
-		pgid:     pgid,
+		pid:      pid,
 		interval: interval,
 		fs:       fs,
 		current:  make(map[string]ProviderResourceUsage),
@@ -104,8 +104,10 @@ func (s *procSampler) Stop() ProcessSample {
 	return result
 }
 
-// sample performs a single pass over all processes, filtering to our
-// process group and updating peak RSS / CPU time per provider.
+// sample performs a single pass over all processes, filtering to the
+// target PID and its direct children (PPID match). This captures the
+// terraform binary itself plus its provider plugin processes without
+// requiring process group isolation.
 func (s *procSampler) sample() {
 	procs, err := s.fs.AllProcs()
 	if err != nil {
@@ -123,7 +125,9 @@ func (s *procSampler) sample() {
 			continue
 		}
 
-		if stat.PGRP != s.pgid {
+		// Match the terraform process itself or any of its direct
+		// children (provider plugins).
+		if proc.PID != s.pid && stat.PPID != s.pid {
 			continue
 		}
 

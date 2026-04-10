@@ -4,7 +4,6 @@ package terraform
 
 import (
 	"os/exec"
-	"syscall"
 	"testing"
 	"time"
 
@@ -81,15 +80,13 @@ func TestExtractProviderName(t *testing.T) {
 func TestSamplerCollectsProcessStats(t *testing.T) {
 	t.Parallel()
 
-	// Start a long-lived process in its own process group so we
-	// can filter by PGID without picking up unrelated processes.
+	// Start a long-lived process. The sampler identifies children
+	// by PPID, so we don't need Setpgid here — just need the PID.
 	cmd := exec.Command("sleep", "60")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	require.NoError(t, cmd.Start())
 
 	t.Cleanup(func() {
-		// Kill the whole process group to avoid leaking.
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 	})
 
@@ -117,21 +114,20 @@ func TestSamplerHandlesVanishedProcesses(t *testing.T) {
 	// sample. This verifies the sampler doesn't panic or error
 	// when processes vanish between listing and stat.
 	cmd := exec.Command("echo", "hello")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	require.NoError(t, cmd.Start())
-	pgid := cmd.Process.Pid
+	pid := cmd.Process.Pid
 	require.NoError(t, cmd.Wait())
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	sampler := newProcSampler(pgid, 50*time.Millisecond)
+	sampler := newProcSampler(pid, 50*time.Millisecond)
 	sampler.Start(ctx)
 
 	time.Sleep(100 * time.Millisecond)
 
 	summary := sampler.Stop()
 
-	// The process group is gone, so we expect either empty results
+	// The process is gone, so we expect either empty results
 	// or at most a single entry that was caught before exit.
 	assert.NotNil(t, summary.Providers, "providers map should never be nil")
 }
@@ -142,13 +138,12 @@ func TestSamplerSummary(t *testing.T) {
 	// Start a CPU-intensive process so we can verify that both
 	// peak RSS and CPU time are captured.
 	cmd := exec.Command("yes")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Discard stdout to avoid filling pipe buffers.
 	cmd.Stdout = nil
 	require.NoError(t, cmd.Start())
 
 	t.Cleanup(func() {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 	})
 
