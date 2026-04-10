@@ -86,7 +86,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-6">
+			<div
+				data-testid="chat-timeline-wrapper"
+				className="mx-auto flex w-full max-w-3xl flex-col gap-2 py-6"
+			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
