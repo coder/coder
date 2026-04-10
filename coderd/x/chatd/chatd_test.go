@@ -222,10 +222,6 @@ func TestResolveChatModel(t *testing.T) {
 			wantErr:     []string{"no usable provider config"},
 		},
 		{
-			name:       "NoAttachments",
-			wantAnyErr: true,
-		},
-		{
 			name:       "NoAttachmentsReturnsError",
 			wantAnyErr: true,
 			wantErr: []string{
