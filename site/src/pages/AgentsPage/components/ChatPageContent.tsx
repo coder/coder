@@ -1,4 +1,11 @@
-import { type FC, Profiler, type ReactNode, useEffect, useState } from "react";
+import {
+	type FC,
+	Profiler,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -124,6 +131,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 };
 
 interface ChatPageInputProps {
+	chatID: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (message: string, fileIds?: string[]) => void;
@@ -178,6 +186,7 @@ interface ChatPageInputProps {
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
+	chatID,
 	store,
 	compressionThreshold,
 	onSend,
@@ -268,6 +277,18 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setPreviewUrls,
 		setUploadStates,
 	} = useFileAttachments(organizationId);
+	const previousChatIDRef = useRef(chatID);
+	useEffect(() => {
+		if (previousChatIDRef.current === chatID) {
+			return;
+		}
+		previousChatIDRef.current = chatID;
+		// Chat switches no longer remount the composer. Clear any
+		// unsent attachments so files selected in one chat cannot
+		// leak into another chat.
+		resetAttachments();
+	}, [chatID, resetAttachments]);
+
 	// Pre-populate attachments from existing file blocks when
 	// entering edit mode on a message with images.
 	useEffect(() => {

@@ -1,6 +1,7 @@
 import {
 	type Dispatch,
 	type SetStateAction,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -309,7 +310,7 @@ export function useFileAttachments(
 		});
 	};
 
-	const resetAttachments = () => {
+	const resetAttachments = useCallback(() => {
 		for (const [, url] of previewUrlsRef.current) {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
@@ -320,7 +321,7 @@ export function useFileAttachments(
 		if (persist) {
 			clearPersistedAttachments();
 		}
-	};
+	}, [persist]);
 
 	return {
 		attachments,

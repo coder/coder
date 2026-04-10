@@ -395,6 +395,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					</ChatScrollContainer>
 					<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 						<ChatPageInput
+							chatID={agentId}
 							store={store}
 							compressionThreshold={compressionThreshold}
 							onSend={editing.handleSendFromInput}
