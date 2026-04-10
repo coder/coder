@@ -51,7 +51,7 @@ export const agentConnectionMessages = {
 	},
 } as const;
 
-export interface AgentHealthIssue {
+interface AgentHealthIssue {
 	title: string;
 	detail: string;
 	severity: "info" | "warning";
