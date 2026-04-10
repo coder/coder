@@ -11,6 +11,7 @@ import (
 
 type WriteFileOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	PlanPath         func(context.Context) (string, error)
 }
 
 type WriteFileArgs struct {
@@ -30,7 +31,7 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeWriteFileTool(ctx, conn, args)
+			return executeWriteFileTool(ctx, conn, args, options.PlanPath)
 		},
 	)
 }
@@ -39,9 +40,14 @@ func executeWriteFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args WriteFileArgs,
+	resolvePlanPath func(context.Context) (string, error),
 ) (fantasy.ToolResponse, error) {
 	if args.Path == "" {
 		return fantasy.NewTextErrorResponse("path is required"), nil
+	}
+
+	if resp, rejected := rejectSharedPlanPath(ctx, args.Path, resolvePlanPath); rejected {
+		return resp, nil
 	}
 
 	if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {

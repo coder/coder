@@ -17,6 +17,7 @@ const maxProposePlanSize = 32 * 1024 // 32 KiB
 // ProposePlanOptions configures the propose_plan tool.
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	PlanPath         func(context.Context) (string, error)
 	StoreFile        func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error)
 }
 
@@ -31,8 +32,8 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"propose_plan",
 		"Present a Markdown plan file from the workspace for user review. "+
-			"The file must already exist with a .md extension — use write_file to create it or edit_files to refine it before calling this tool. "+
-			"Pass the absolute file path (e.g. /home/coder/PLAN.md). The tool reads the content from the workspace.",
+			"The file must already exist with a .md extension. Use write_file to create it or edit_files to refine it before calling this tool. "+
+			"Pass the absolute chat-specific plan file path from your instructions. The tool reads the content from the workspace.",
 		func(ctx context.Context, args ProposePlanArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -44,7 +45,7 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeProposePlanTool(ctx, conn, args, options.StoreFile)
+			return executeProposePlanTool(ctx, conn, args, options.PlanPath, options.StoreFile)
 		},
 	)
 }
@@ -53,14 +54,19 @@ func executeProposePlanTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ProposePlanArgs,
+	resolvePlanPath func(context.Context) (string, error),
 	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
 ) (fantasy.ToolResponse, error) {
 	path := strings.TrimSpace(args.Path)
 	if path == "" {
-		return fantasy.NewTextErrorResponse("path is required (use an absolute path, e.g. /home/coder/PLAN.md)"), nil
+		return fantasy.NewTextErrorResponse("path is required (use the absolute chat-specific plan file path from your instructions)"), nil
 	}
 	if !strings.HasSuffix(path, ".md") {
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
+	}
+
+	if resp, rejected := rejectSharedPlanPath(ctx, path, resolvePlanPath); rejected {
+		return resp, nil
 	}
 
 	rc, _, err := conn.ReadFile(ctx, path, 0, maxProposePlanSize+1)

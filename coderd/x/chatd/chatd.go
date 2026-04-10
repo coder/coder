@@ -56,6 +56,7 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
+	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
@@ -4470,6 +4471,37 @@ func (p *Server) runChat(
 	}
 	defer workspaceCtx.close()
 
+	planPathFn := func(ctx context.Context) (string, error) {
+		conn, err := workspaceCtx.getWorkspaceConn(ctx)
+		if err != nil {
+			return "", err
+		}
+		home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+		if err != nil {
+			return "", err
+		}
+		return chattool.PlanPathForChat(home, chat.ID), nil
+	}
+	resolvePlanPathInstruction := func(resolveCtx context.Context) string {
+		if chat.ParentChatID.Valid {
+			return ""
+		}
+
+		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
+		defer cancel()
+
+		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
+			return ""
+		}
+
+		planPath, err := planPathFn(planCtx)
+		if err != nil {
+			return ""
+		}
+
+		return formatPlanPathInstruction(planPath)
+	}
+
 	// Connect to MCP servers in parallel with instruction
 	// resolution. ConnectAll only depends on mcpConfigs and
 	// mcpTokens which are available after g.Wait() above.
@@ -4662,6 +4694,9 @@ func (p *Server) runChat(
 
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
+	if planPathInstruction := resolvePlanPathInstruction(ctx); planPathInstruction != "" {
+		prompt = chatprompt.InsertSystem(prompt, planPathInstruction)
 	}
 	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
@@ -4975,9 +5010,11 @@ func (p *Server) runChat(
 		}),
 		chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			PlanPath:         planPathFn,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			PlanPath:         planPathFn,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5033,6 +5070,7 @@ func (p *Server) runChat(
 		// Plan presentation tool.
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			PlanPath:         planPathFn,
 			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
 				workspaceCtx.chatStateMu.Lock()
 				chatSnapshot := *workspaceCtx.currentChat
@@ -5224,6 +5262,9 @@ func (p *Server) runChat(
 			}
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			if planPathInstruction := resolvePlanPathInstruction(reloadCtx); planPathInstruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, planPathInstruction)
 			}
 			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
@@ -5894,6 +5935,24 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 		return ""
 	}
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+}
+
+func formatPlanPathInstruction(planPath string) string {
+	planPath = strings.TrimSpace(planPath)
+	if planPath == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	_, _ = b.WriteString("<plan-file-path>\n")
+	_, _ = b.WriteString("Your plan file path for this chat is: ")
+	_, _ = b.WriteString(planPath)
+	_, _ = b.WriteString("\n")
+	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
+	_, _ = b.WriteString(chattool.LegacySharedPlanPath)
+	_, _ = b.WriteString(".\n")
+	_, _ = b.WriteString("</plan-file-path>")
+	return b.String()
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
