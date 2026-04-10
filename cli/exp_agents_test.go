@@ -338,6 +338,62 @@ func TestExpAgents(t *testing.T) {
 				require.Equal(t, overlayNone, updated.overlay)
 			})
 
+			t.Run("EscClosesPickerWithoutLeavingChat", func(t *testing.T) {
+				t.Parallel()
+				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+				model.currentView = viewChat
+				model.width = 80
+				model.height = 24
+				model.chat.draft = true
+				model.chat.composerFocused = true
+				model.chat.composer.SetValue("keep draft")
+				updatedModel, cmd := model.Update(modelsListedMsg{catalog: twoModelCatalog})
+				updated := mustTUIModel(t, updatedModel, cmd)
+
+				updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+				updated = mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayModelPicker, updated.overlay)
+
+				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+				updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+				require.Nil(t, cmd)
+				require.Equal(t, overlayNone, updated.overlay)
+				require.Equal(t, viewChat, updated.currentView)
+				require.Equal(t, "keep draft", updated.chat.composer.Value())
+			})
+
+			t.Run("EnterSelectsModelWithoutSendingDraft", func(t *testing.T) {
+				t.Parallel()
+				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+				model.currentView = viewChat
+				model.width = 80
+				model.height = 24
+				model.chat.draft = true
+				model.chat.composerFocused = true
+				model.chat.composer.SetValue("keep draft")
+				updatedModel, cmd := model.Update(modelsListedMsg{catalog: twoModelCatalog})
+				updated := mustTUIModel(t, updatedModel, cmd)
+
+				updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+				updated = mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayModelPicker, updated.overlay)
+
+				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+				updated = mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, 1, updated.chat.modelPickerCursor)
+
+				updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+				require.Nil(t, cmd)
+				require.Equal(t, overlayNone, updated.overlay)
+				require.NotNil(t, updated.chat.modelOverride)
+				require.NotNil(t, updated.modelOverride)
+				require.Equal(t, "openai:gpt-4.1", *updated.chat.modelOverride)
+				require.Equal(t, "openai:gpt-4.1", *updated.modelOverride)
+				require.Equal(t, "keep draft", updated.chat.composer.Value())
+				require.False(t, updated.chat.creatingChat)
+			})
+
 			t.Run("LoadErrorClosesOverlay", func(t *testing.T) {
 				t.Parallel()
 				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)

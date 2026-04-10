@@ -364,6 +364,9 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	hasModels := false
 	flatIndex := 0
 	for _, provider := range catalog.Providers {
+		if len(provider.Models) == 0 {
+			continue
+		}
 		lines = append(lines, styles.subtitle.Render(provider.Provider))
 		if !provider.Available {
 			reason := string(provider.UnavailableReason)
@@ -371,11 +374,6 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 				reason = "unavailable"
 			}
 			lines = append(lines, "  "+styles.dimmedText.Render(reason))
-			lines = append(lines, "")
-			continue
-		}
-		if len(provider.Models) == 0 {
-			lines = append(lines, "  "+styles.dimmedText.Render("No models available."))
 			lines = append(lines, "")
 			continue
 		}

@@ -622,6 +622,11 @@ func TestExpAgentsRender(t *testing.T) {
 				require.Contains(t, output, "> GPT-4.1")
 				require.Contains(t, output, "  GPT-4o")
 			}},
+			{name: "HidesProvidersWithoutModels", selectedModel: "gpt-4o", assert: func(t *testing.T, output string) {
+				require.Contains(t, output, "OpenAI")
+				require.NotContains(t, output, "Anthropic")
+				require.NotContains(t, output, "Local")
+			}},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
@@ -633,6 +638,25 @@ func TestExpAgentsRender(t *testing.T) {
 				tt.assert(t, output)
 			})
 		}
+
+		t.Run("ShowsGlobalEmptyStateWhenNoModelsSelectable", func(t *testing.T) {
+			t.Parallel()
+
+			emptyCatalog := codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:          "Anthropic",
+				Available:         false,
+				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
+			}, {
+				Provider:  "Local",
+				Available: true,
+				Models:    nil,
+			}}}
+
+			output := plainText(renderModelPicker(styles, emptyCatalog, "", 0, 90, 20))
+			require.NotContains(t, output, "Anthropic")
+			require.NotContains(t, output, "Local")
+			require.Equal(t, 1, strings.Count(output, "No models available."))
+		})
 	})
 	t.Run("KeepsCursorVisibleWithinWindow", func(t *testing.T) {
 		t.Parallel()
