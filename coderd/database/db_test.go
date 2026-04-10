@@ -11,10 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	slog "cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestSerializedRetry(t *testing.T) {
@@ -109,6 +112,100 @@ func TestInTx_CapturesRollbackError(t *testing.T) {
 		"rollback failure should be reported in the message, not wrapped in the error chain")
 
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNestedInTxStricterIsolation(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sink := testutil.NewFakeSink(t)
+	logger := slog.Make(sink).Leveled(slog.LevelDebug)
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB, database.WithLogger(logger))
+
+	// Outer uses default isolation, inner requests RepeatableRead.
+	// The inner level is stricter, so a Critical log should fire.
+	err := db.InTx(func(outer database.Store) error {
+		return outer.InTx(func(_ database.Store) error {
+			return nil
+		}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}, nil)
+	require.NoError(t, err)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelCritical
+	})
+	require.Len(t, entries, 1, "expected exactly one Critical log entry")
+	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
+
+	var parentVal, requestedVal string
+	for _, f := range entries[0].Fields {
+		switch f.Name {
+		case "parent_isolation":
+			parentVal, _ = f.Value.(string)
+		case "requested_isolation":
+			requestedVal, _ = f.Value.(string)
+		}
+	}
+	require.Equal(t, sql.LevelDefault.String(), parentVal)
+	require.Equal(t, sql.LevelRepeatableRead.String(), requestedVal)
+}
+
+func TestNestedInTxSameIsolationNoLog(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sink := testutil.NewFakeSink(t)
+	logger := slog.Make(sink).Leveled(slog.LevelDebug)
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB, database.WithLogger(logger))
+
+	// Both use the same isolation level. No log should fire.
+	opts := &database.TxOptions{Isolation: sql.LevelRepeatableRead}
+	err := db.InTx(func(outer database.Store) error {
+		return outer.InTx(func(_ database.Store) error {
+			return nil
+		}, opts)
+	}, opts)
+	require.NoError(t, err)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelCritical
+	})
+	require.Empty(t, entries, "should not log when isolation levels match")
+}
+
+func TestNestedInTxWeakerIsolationNoLog(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sink := testutil.NewFakeSink(t)
+	logger := slog.Make(sink).Leveled(slog.LevelDebug)
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB, database.WithLogger(logger))
+
+	// Outer uses Serializable, inner requests RepeatableRead (weaker).
+	// No log should fire because the inner gets more isolation than needed.
+	err := db.InTx(func(outer database.Store) error {
+		return outer.InTx(func(_ database.Store) error {
+			return nil
+		}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}, &database.TxOptions{Isolation: sql.LevelSerializable})
+	require.NoError(t, err)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelCritical
+	})
+	require.Empty(t, entries, "should not log when inner isolation is weaker than outer")
 }
 
 func testSQLDB(t testing.TB) *sql.DB {
