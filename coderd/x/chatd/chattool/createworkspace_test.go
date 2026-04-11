@@ -837,6 +837,111 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 	}
 }
 
+func TestWaitForBuild_CanceledJob(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	buildID := uuid.New()
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetChatWorkspaceTTL(gomock.Any()).
+		Return("0s", nil)
+
+	// waitForBuild fetches the build by ID.
+	db.EXPECT().
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+		}, nil)
+
+	// waitForBuild polls the provisioner job. Return Canceled.
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusCanceled,
+		}, nil)
+
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:        workspaceID,
+			Name:      req.Name,
+			OwnerName: "testuser",
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID: buildID,
+			},
+		}, nil
+	}
+
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:          db,
+		OwnerID:     ownerID,
+		ChatID:      uuid.Nil,
+		CreateFn:    createFn,
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-build-cancel"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Contains(t, result["error"], "build was canceled")
+	require.Equal(t, buildID.String(), result["build_id"])
+	require.False(t, resp.IsError,
+		"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
+}
+
+func TestCheckExistingWorkspace_StoppedWorkspace(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+
+	expectExistingWorkspaceLookup(
+		db,
+		chatID,
+		workspaceID,
+		jobID,
+		"stopped-workspace",
+		database.ProvisionerJobStatusSucceeded,
+		database.WorkspaceTransitionStop,
+	)
+
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	check := options.checkExistingWorkspace(context.Background())
+	require.True(t, check.Done)
+	require.NoError(t, check.Err)
+	require.Equal(t, "stopped", check.Result["status"])
+	require.Contains(t, check.Result["message"], "start_workspace")
+}
+
 func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
