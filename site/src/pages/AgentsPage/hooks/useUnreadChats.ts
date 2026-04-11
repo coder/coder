@@ -13,7 +13,9 @@ export function useUnreadChats(
 	chatList: readonly Chat[],
 ): UseUnreadChatsResult {
 	return useMemo(() => {
-		const unreadChats = chatList.filter((chat) => chat.has_unread);
+		const unreadChats = chatList.filter(
+			(chat) => chat.has_unread && !chat.parent_chat_id,
+		);
 		return {
 			unreadChats,
 			unreadCount: unreadChats.length,
