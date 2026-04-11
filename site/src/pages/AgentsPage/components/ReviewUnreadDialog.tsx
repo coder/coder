@@ -1,11 +1,22 @@
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	ExternalLinkIcon,
+	XIcon,
+} from "lucide-react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery } from "react-query";
+import { useNavigate } from "react-router";
 import { chatMessagesForInfiniteScroll } from "#/api/queries/chats";
 import type { Chat, ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { deriveChatSummary } from "../hooks/useChatSummary";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import {
@@ -28,20 +39,30 @@ export const ReviewUnreadDialog: FC<ReviewUnreadDialogProps> = ({
 	onChatReviewed,
 }) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
+	const navigate = useNavigate();
 
-	// Reset index when dialog opens or unread list changes
+	// Snapshot the unread chat list when the dialog opens so that
+	// marking chats as read doesn't shift indices mid-review.
+	const [snapshotChats, setSnapshotChats] = useState<Chat[]>([]);
+
+	// Capture a stable snapshot when the dialog opens and reset
+	// the index so every review session starts from the first
+	// chat. We intentionally omit unreadChats from the deps so
+	// the snapshot stays frozen for the duration of the session.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: snapshot only on open
 	useEffect(() => {
 		if (open) {
+			setSnapshotChats(unreadChats);
 			setCurrentIndex(0);
 		}
 	}, [open]);
 
-	const currentChat = unreadChats[currentIndex];
+	const currentChat = snapshotChats[currentIndex];
 
 	const handleNext = () => {
 		if (!currentChat) return;
 		onChatReviewed(currentChat.id);
-		if (currentIndex >= unreadChats.length - 1) {
+		if (currentIndex >= snapshotChats.length - 1) {
 			onOpenChange(false);
 		} else {
 			setCurrentIndex((prev) => prev + 1);
@@ -52,6 +73,12 @@ export const ReviewUnreadDialog: FC<ReviewUnreadDialogProps> = ({
 		if (currentIndex > 0) {
 			setCurrentIndex((prev) => prev - 1);
 		}
+	};
+
+	const handleOpenInChat = () => {
+		if (!currentChat) return;
+		onOpenChange(false);
+		navigate(`/agents/${currentChat.id}`);
 	};
 
 	if (!currentChat) {
@@ -69,31 +96,46 @@ export const ReviewUnreadDialog: FC<ReviewUnreadDialogProps> = ({
 					<DialogTitle className="truncate text-lg">
 						{currentChat.title || "Untitled chat"}
 					</DialogTitle>
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={() => onOpenChange(false)}
-						aria-label="Close"
-					>
-						<XIcon className="size-4" />
-					</Button>
+					<div className="flex items-center gap-1 shrink-0">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={handleOpenInChat}
+									aria-label="Open in chat"
+								>
+									<ExternalLinkIcon className="size-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Open in chat</TooltipContent>
+						</Tooltip>
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={() => onOpenChange(false)}
+							aria-label="Close"
+						>
+							<XIcon className="size-4" />
+						</Button>
+					</div>
 				</div>
 
 				{/* Review Banner */}
 				<ReviewBanner chat={currentChat} />
 
 				{/* Chat Content */}
-				<div className="flex-1 overflow-y-auto min-h-0">
+				<div className="flex-1 min-h-0">
 					<ReviewChatContent chatId={currentChat.id} />
 				</div>
 
 				{/* Navigation Bar */}
 				<ReviewNavigationBar
 					currentIndex={currentIndex}
-					totalCount={unreadChats.length}
+					totalCount={snapshotChats.length}
 					onPrevious={handlePrevious}
 					onNext={handleNext}
-					isLast={currentIndex >= unreadChats.length - 1}
+					isLast={currentIndex >= snapshotChats.length - 1}
 				/>
 			</DialogContent>
 		</Dialog>
@@ -143,6 +185,7 @@ interface ReviewChatContentProps {
 }
 
 const ReviewChatContent: FC<ReviewChatContentProps> = ({ chatId }) => {
+	const bottomRef = useRef<HTMLDivElement>(null);
 	const messagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(chatId),
 	});
@@ -153,6 +196,20 @@ const ReviewChatContent: FC<ReviewChatContentProps> = ({ chatId }) => {
 	const parsedMessages = parseMessagesWithMergedTools(allMessages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
 	const computerUseSubagentIds = buildComputerUseSubagentIds(parsedMessages);
+
+	// Scroll to the bottom once messages finish loading so the
+	// user sees the most recent activity first. A double-rAF
+	// ensures the browser has completed layout after React
+	// commits the DOM update.
+	useEffect(() => {
+		if (!messagesQuery.isLoading && allMessages.length > 0) {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					bottomRef.current?.scrollIntoView({ block: "end" });
+				});
+			});
+		}
+	}, [messagesQuery.isLoading, allMessages.length]);
 
 	if (messagesQuery.isLoading) {
 		return (
@@ -171,13 +228,16 @@ const ReviewChatContent: FC<ReviewChatContentProps> = ({ chatId }) => {
 	}
 
 	return (
-		<div className="mx-auto flex w-full max-w-3xl flex-col gap-2 py-6">
-			<ConversationTimeline
-				parsedMessages={parsedMessages}
-				subagentTitles={subagentTitles}
-				computerUseSubagentIds={computerUseSubagentIds}
-				showDesktopPreviews={false}
-			/>
+		<div className="h-full overflow-y-auto">
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-2 py-6">
+				<ConversationTimeline
+					parsedMessages={parsedMessages}
+					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={false}
+				/>
+				<div ref={bottomRef} />
+			</div>
 		</div>
 	);
 };

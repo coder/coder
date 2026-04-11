@@ -1035,10 +1035,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>
-					{onOpenReviewDialog && (
-						<ReviewUnreadButton chatList={chats} onClick={onOpenReviewDialog} />
-					)}
-				</div>
+						{onOpenReviewDialog && (
+							<div className="mt-1">
+								<ReviewUnreadButton chatList={chats} onClick={onOpenReviewDialog} />
+							</div>
+						)}				</div>
 				<ScrollArea
 					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-1.5"

@@ -737,7 +737,7 @@ const AgentsPage: FC = () => {
 				onArchivedFilterChange={setArchivedFilter}
 				reviewDialogOpen={reviewDialogOpen}
 				onOpenReviewDialog={() => setReviewDialogOpen(true)}
-				onCloseReviewDialog={() => setReviewDialogOpen(false)}
+				onReviewDialogOpenChange={setReviewDialogOpen}
 				onChatReviewed={markChatAsRead}
 			/>
 			<ConfirmDialog

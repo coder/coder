@@ -74,7 +74,7 @@ interface AgentsPageViewProps {
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
 	reviewDialogOpen: boolean;
 	onOpenReviewDialog: () => void;
-	onCloseReviewDialog: () => void;
+	onReviewDialogOpenChange: (open: boolean) => void;
 	onChatReviewed: (chatId: string) => void;
 }
 
@@ -114,7 +114,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onArchivedFilterChange,
 	reviewDialogOpen,
 	onOpenReviewDialog,
-	onCloseReviewDialog,
+	onReviewDialogOpenChange,
 	onChatReviewed,
 }) => {
 	const location = useLocation();
@@ -219,7 +219,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			</div>
 			<ReviewUnreadDialog
 				open={reviewDialogOpen}
-				onOpenChange={onCloseReviewDialog}
+				onOpenChange={onReviewDialogOpenChange}
 				unreadChats={unreadChats}
 				onChatReviewed={onChatReviewed}
 			/>

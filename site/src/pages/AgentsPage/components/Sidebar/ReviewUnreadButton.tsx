@@ -23,16 +23,16 @@ export const ReviewUnreadButton: FC<ReviewUnreadButtonProps> = ({
 		<button
 			type="button"
 			className={cn(
-				"relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2",
-				"text-left text-sm cursor-pointer transition-all",
-				"bg-surface-orange/30 text-content-warning",
+				"relative mt-1.5 flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2",
+				"text-left text-sm cursor-pointer transition-colors no-underline",
+				"bg-transparent text-content-secondary",
+				"hover:bg-surface-tertiary/50 hover:text-content-primary",
 				"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-				"hover:bg-surface-orange/50",
 			)}
 			onClick={onClick}
 		>
-			<ClipboardListIcon className="size-4 shrink-0" />
-			<span className="truncate font-medium">Review unread chats</span>
+			<ClipboardListIcon className="h-4 w-4 shrink-0" />
+			<span className="truncate">Review unread chats</span>
 			<span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-content-warning px-1 text-xs font-bold text-white">
 				{unreadCount}
 			</span>

@@ -252,7 +252,7 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	isFetchingNextPage: false,
 	reviewDialogOpen: false,
 	onOpenReviewDialog: fn(),
-	onCloseReviewDialog: fn(),
+	onReviewDialogOpenChange: fn(),
 	onChatReviewed: fn(),
 };
 
