@@ -1620,6 +1620,23 @@ export const CreateWorkspaceLegacy: Story = {
 	},
 };
 
+export const CreateWorkspaceAlreadyExists: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: false,
+			workspace_name: "my-project",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Workspace my-project already exists"),
+		).toBeInTheDocument();
+	},
+};
+
 export const CreateWorkspaceError: Story = {
 	args: {
 		name: "create_workspace",
