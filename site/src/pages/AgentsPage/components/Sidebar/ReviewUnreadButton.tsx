@@ -13,11 +13,8 @@ export const ReviewUnreadButton: FC<ReviewUnreadButtonProps> = ({
 	chatList,
 	onClick,
 }) => {
-	const { unreadCount, hasReviewThreshold } = useUnreadChats(chatList);
-
-	if (!hasReviewThreshold) {
-		return null;
-	}
+	const { unreadCount } = useUnreadChats(chatList);
+	const hasUnread = unreadCount > 0;
 
 	return (
 		<button
@@ -27,15 +24,17 @@ export const ReviewUnreadButton: FC<ReviewUnreadButtonProps> = ({
 				"text-left text-sm cursor-pointer transition-colors no-underline",
 				"bg-transparent text-content-secondary",
 				"hover:bg-surface-tertiary/50 hover:text-content-primary",
-				"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+				hasUnread && "shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 			)}
 			onClick={onClick}
 		>
 			<ClipboardListIcon className="h-4 w-4 shrink-0" />
 			<span className="truncate">Review unread chats</span>
-			<span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-content-warning px-1 text-xs font-bold text-white">
-				{unreadCount}
-			</span>
+			{hasUnread && (
+				<span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-content-warning px-1 text-xs font-bold text-white">
+					{unreadCount}
+				</span>
+			)}
 		</button>
 	);
 };

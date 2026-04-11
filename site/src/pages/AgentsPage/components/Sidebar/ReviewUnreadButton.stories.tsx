@@ -40,17 +40,16 @@ const meta: Meta<typeof ReviewUnreadButton> = {
 export default meta;
 type Story = StoryObj<typeof ReviewUnreadButton>;
 
-export const Hidden: Story = {
+export const NoUnread: Story = {
 	args: {
 		chatList: [
-			buildChat({ has_unread: true }),
-			buildChat({ has_unread: true }),
+			buildChat({ has_unread: false }),
 			buildChat({ has_unread: false }),
 		],
 	},
 };
 
-export const Visible: Story = {
+export const WithUnread: Story = {
 	args: {
 		chatList: [
 			buildChat({ has_unread: true }),

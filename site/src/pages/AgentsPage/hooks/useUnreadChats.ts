@@ -1,12 +1,9 @@
 import { useMemo } from "react";
 import type { Chat } from "#/api/typesGenerated";
 
-const REVIEW_THRESHOLD = 3;
-
 interface UseUnreadChatsResult {
 	unreadChats: Chat[];
 	unreadCount: number;
-	hasReviewThreshold: boolean;
 }
 
 export function useUnreadChats(
@@ -19,7 +16,6 @@ export function useUnreadChats(
 		return {
 			unreadChats,
 			unreadCount: unreadChats.length,
-			hasReviewThreshold: unreadChats.length >= REVIEW_THRESHOLD,
 		};
 	}, [chatList]);
 }

@@ -81,62 +81,81 @@ export const ReviewUnreadDialog: FC<ReviewUnreadDialogProps> = ({
 		navigate(`/agents/${currentChat.id}`);
 	};
 
-	if (!currentChat) {
-		return null;
-	}
-
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				className="flex max-w-5xl flex-col gap-0 overflow-hidden p-0 h-[85vh]"
 				aria-describedby={undefined}
 			>
-				{/* Header */}
-				<div className="flex items-center justify-between border-b border-border-default px-6 py-4">
-					<DialogTitle className="truncate text-lg">
-						{currentChat.title || "Untitled chat"}
-					</DialogTitle>
-					<div className="flex items-center gap-1 shrink-0">
-						<Tooltip>
-							<TooltipTrigger asChild>
+				{currentChat ? (
+					<>
+						{/* Header */}
+						<div className="flex items-center justify-between border-b border-border-default px-6 py-4">
+							<DialogTitle className="truncate text-lg">
+								{currentChat.title || "Untitled chat"}
+							</DialogTitle>
+							<div className="flex items-center gap-1 shrink-0">
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="icon"
+											onClick={handleOpenInChat}
+											aria-label="Open in chat"
+										>
+											<ExternalLinkIcon className="size-4" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Open in chat</TooltipContent>
+								</Tooltip>
 								<Button
 									variant="subtle"
 									size="icon"
-									onClick={handleOpenInChat}
-									aria-label="Open in chat"
+									onClick={() => onOpenChange(false)}
+									aria-label="Close"
 								>
-									<ExternalLinkIcon className="size-4" />
+									<XIcon className="size-4" />
 								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Open in chat</TooltipContent>
-						</Tooltip>
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() => onOpenChange(false)}
-							aria-label="Close"
-						>
-							<XIcon className="size-4" />
-						</Button>
-					</div>
-				</div>
+							</div>
+						</div>
 
-				{/* Review Banner */}
-				<ReviewBanner chat={currentChat} />
+						{/* Review Banner */}
+						<ReviewBanner chat={currentChat} />
 
-				{/* Chat Content */}
-				<div className="flex-1 min-h-0">
-					<ReviewChatContent chatId={currentChat.id} />
-				</div>
+						{/* Chat Content */}
+						<div className="flex-1 min-h-0">
+							<ReviewChatContent chatId={currentChat.id} />
+						</div>
 
-				{/* Navigation Bar */}
-				<ReviewNavigationBar
-					currentIndex={currentIndex}
-					totalCount={snapshotChats.length}
-					onPrevious={handlePrevious}
-					onNext={handleNext}
-					isLast={currentIndex >= snapshotChats.length - 1}
-				/>
+						{/* Navigation Bar */}
+						<ReviewNavigationBar
+							currentIndex={currentIndex}
+							totalCount={snapshotChats.length}
+							onPrevious={handlePrevious}
+							onNext={handleNext}
+							isLast={currentIndex >= snapshotChats.length - 1}
+						/>
+					</>
+				) : (
+					<>
+						<div className="flex items-center justify-between border-b border-border-default px-6 py-4">
+							<DialogTitle className="text-lg">Review unread chats</DialogTitle>
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => onOpenChange(false)}
+								aria-label="Close"
+							>
+								<XIcon className="size-4" />
+							</Button>
+						</div>
+						<div className="flex flex-1 items-center justify-center">
+							<p className="text-sm text-content-secondary">
+								No agent chats to review
+							</p>
+						</div>
+					</>
+				)}
 			</DialogContent>
 		</Dialog>
 	);

@@ -89,3 +89,9 @@ export const WithError: Story = {
 		unreadChats: [unreadChats[3], unreadChats[0]],
 	},
 };
+
+export const Empty: Story = {
+	args: {
+		unreadChats: [],
+	},
+};
