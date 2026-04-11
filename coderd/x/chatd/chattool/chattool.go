@@ -63,7 +63,7 @@ func newBuildError(msg string, buildID uuid.UUID) buildErrorResult {
 }
 
 // setBuildID adds the build_id field to a tool response map when
-// the build ID is known (non-nil).
+// the build ID is known (non-zero).
 func setBuildID(result map[string]any, buildID uuid.UUID) {
 	if buildID != uuid.Nil {
 		result["build_id"] = buildID.String()

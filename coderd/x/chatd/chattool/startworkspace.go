@@ -196,7 +196,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 
 // waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
-// success response. When buildID is non-nil, it is included in the
+// success response. When buildID is non-zero, it is included in the
 // response so the frontend can fetch historical build logs. Pass
 // uuid.Nil when no build was triggered (e.g. workspace already
 // running); the response will include no_build: true so the
