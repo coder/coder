@@ -17,16 +17,131 @@ Instead of making a separate post-hoc LLM call to classify the agent's output, g
 
 The agent already has the best context for this decision: it knows what the user asked, what it did, and whether it's done. A separate classifier model would be working with a lossy summary of that same information.
 
-### Why this beats a separate classification call
+### Approach comparison: tool vs. separate LLM call vs. text marker
 
-| | Tool approach | Separate LLM call |
+Three approaches were evaluated. Each is analyzed for cost, latency,
+reliability, and implementation complexity.
+
+#### Approach A — `coder_report_status` tool (CHOSEN)
+
+The agent gets a tool it calls at the end of its work to self-report
+its status. A callback captures the value; `processChat` maps it to
+a DB status.
+
+**Critical tradeoff: the extra round trip.** The chatloop's
+continuation logic is:
+
+```go
+result.shouldContinue = hasLocalToolCalls &&
+    result.finishReason == fantasy.FinishReasonToolCalls
+```
+
+When the agent calls `coder_report_status`, `shouldContinue` is true.
+The tool executes, its result is sent back, and the model generates
+**one more full response** on the main model with the full
+conversation context. This is the dominant cost.
+
+**Cost estimate per invocation (extra round trip):**
+
+| Model | Context size | Extra input cost | Extra output (~50 tok) | Total |
+|---|---|---|---|---|
+| Claude Sonnet ($3/$15 per MTok) | 50K tokens | $0.15 | $0.001 | ~$0.15 |
+| GPT-4o ($2.50/$10 per MTok) | 50K tokens | $0.125 | $0.001 | ~$0.13 |
+| Claude Haiku ($1/$5 per MTok) | 50K tokens | $0.05 | <$0.001 | ~$0.05 |
+| Any model | 200K tokens | 4x above | ~same | 4x above |
+
+**When the cost is zero:** If the model happens to call
+`coder_report_status` alongside other tool calls on a step that
+already triggers another round trip (e.g., the agent calls
+`write_file` + `coder_report_status` in the same step), the extra
+round trip was already happening. But this is the optimistic case —
+in the common "final step" scenario, the status tool is the only
+tool call and the extra round trip is unavoidable.
+
+**Other downsides:**
+- The extra round trip produces an additional assistant message
+  that gets persisted, cluttering the conversation history.
+- Adds ~50 tokens to the tool list definition on every step of
+  every chat, not just the final one.
+
+#### Approach B — Separate cheap LLM call (post-hoc classification)
+
+After `runChat` returns, call a cheap model (haiku/gpt-4o-mini/flash)
+with the user's original prompt + the agent's final text to classify
+the status.
+
+**Cost estimate per invocation:**
+
+| Model | Input tokens | Cost |
 |---|---|---|
-| Extra LLM calls | 0 | 1 per chat completion |
-| Extra latency | 0 | 1-3s (cheap model) to 15s (timeout) |
-| Extra token cost | ~0 (tiny tool call) | ~2-3K input tokens |
-| Classification context | Full conversation context | Truncated last message |
-| Failure mode | Falls back to `waiting` | Falls back to `waiting` |
-| Complexity | 1 tool + system prompt tweak | New function, model selection, retry logic |
+| Claude Haiku | ~2.5K | ~$0.003 |
+| GPT-4o-mini | ~2.5K | ~$0.001 |
+| Gemini Flash | ~2.5K | ~$0.001 |
+
+**This is 50-150x cheaper than the tool approach** when the main
+model is Sonnet/GPT-4o, because it uses a cheap model with
+truncated input instead of the main model with full context.
+
+**Downsides:**
+- Adds 1-3s latency after processing (15s timeout cap).
+- Requires model selection logic and retry handling (but this
+  pattern already exists in `quickgen.go` for push summaries).
+- The classifier has less context than the agent itself.
+
+#### Approach C — Text marker parsing
+
+Instruct the agent to end its response with a structured tag like
+`[TASK_COMPLETE]` or `[AWAITING_INPUT]`. Parse `FinalAssistantText`
+for these markers after the loop exits.
+
+**Cost:** Zero — no extra calls, no extra round trips.
+
+**Downsides:**
+- Fragile. Model compliance varies, especially across providers.
+- Pollutes the visible assistant response with machine-readable tags.
+- Harder to validate (regex parsing vs. structured output).
+- No clean fallback when the model doesn't produce the tag.
+
+#### Verdict
+
+| | Tool (A) | Cheap LLM (B) | Text marker (C) |
+|---|---|---|---|
+| Extra cost per call | ~$0.05-0.60 (main model) | ~$0.001-0.003 (cheap model) | $0 |
+| Extra latency | 2-10s (full model turn) | 1-3s (cheap model) | 0 |
+| Classification context | Full (best) | Truncated (good) | Full (best) |
+| Reliability | Good (structured tool) | Good (structured output) | Fragile (regex) |
+| Conversation clutter | Yes (extra message) | No | Yes (visible tags) |
+| Implementation complexity | Low | Medium | Low |
+| Failure mode | `waiting` (safe) | `waiting` (safe) | `waiting` (safe) |
+
+**Approach A (tool) is chosen** despite the higher per-call cost,
+for these reasons:
+
+1. **Accuracy.** The agent classifying its own output with full
+   conversation context will be significantly more accurate than
+   a separate cheap model working from truncated snippets. False
+   `completed` signals (saying done when not) are the highest-risk
+   misclassification, and the agent is best positioned to avoid them.
+
+2. **Simplicity.** One new tool file + a callback. No model
+   selection logic, no retry infrastructure, no prompt engineering
+   for a separate classifier.
+
+3. **The cost is bounded.** The extra round trip output is tiny
+   (~50 tokens). The input cost is real but only triggers when
+   the agent actually calls the tool. Models that ignore the
+   instruction cost nothing extra — they just stay on `waiting`.
+
+4. **Future optimization path.** If the extra round trip cost
+   proves significant, a "terminal tool" concept can be added
+   to the chatloop (tools that execute but don't trigger another
+   model turn). This would reduce the cost to ~zero without
+   changing the external API. This is deferred — it's a chatloop
+   infrastructure change that should be justified by data.
+
+If cost at scale becomes a concern, Approach B is a clean fallback
+that can be swapped in without changing the status semantics or
+frontend behavior.
 
 ## Implementation Details
 
