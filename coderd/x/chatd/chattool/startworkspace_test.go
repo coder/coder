@@ -387,6 +387,7 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, started)
 		require.Equal(t, startBuildID.String(), result["build_id"])
+		require.Nil(t, result["no_build"], "no_build should not be set when a build was triggered")
 	})
 
 	t.Run("InProgressBuild", func(t *testing.T) {
