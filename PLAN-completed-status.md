@@ -1,4 +1,4 @@
-# Plan: Implement `completed` Chat Status via LLM Classification
+# Plan: Implement `completed` Chat Status via Tool-Based Self-Reporting
 
 ## Problem
 
@@ -9,200 +9,213 @@ Today, when a chat finishes processing successfully, it always transitions to `w
 
 The `completed` status exists in the DB enum and SDK constants but is never set by production code. PR #24264 proposes removing it as dead code.
 
-Instead, we want to **implement it** by using a lightweight LLM call to classify the agent's final message.
+Instead, we want to **implement it**.
 
-## Approach: Post-Processing LLM Classification
+## Approach: `coder_report_status` Tool
 
-After `runChat` returns successfully (status would be `waiting`), make an async LLM call to classify the agent's final output into one of:
+Instead of making a separate post-hoc LLM call to classify the agent's output, give the agent a tool it calls as part of its normal work to report its own status. The classification piggybacks on the main agent call — **zero extra LLM calls, zero extra latency, zero extra token cost**.
 
-| Classification | Maps to DB Status | Meaning |
+The agent already has the best context for this decision: it knows what the user asked, what it did, and whether it's done. A separate classifier model would be working with a lossy summary of that same information.
+
+### Why this beats a separate classification call
+
+| | Tool approach | Separate LLM call |
 |---|---|---|
-| `completed` | `ChatStatusCompleted` | Agent finished the user's requested task |
-| `waiting_for_input` | `ChatStatusWaiting` | Agent is asking a question or needs user direction |
-| `intermediate` | `ChatStatusWaiting` | Agent finished a step but the overall task isn't done |
-
-### Two Modes
-
-**Mode A — Response-only classification (default, cheaper)**
-Only send the agent's final text. The LLM decides based solely on the tone/content of the response (e.g., "I've completed the changes and opened PR #1234" → `completed`; "Which approach would you prefer?" → `waiting_for_input`).
-
-**Mode B — Prompt-aware classification (opt-in, more accurate)**
-Send both the original user prompt and the agent's final text. The LLM compares the request against the response to judge task completion. More accurate for ambiguous responses like "Done." where the user's original ask provides necessary context.
-
-The implementation should support both modes. Mode B is strictly better in accuracy but costs ~2x the input tokens. Let the caller decide (or always use Mode B given the prompts are short — see token analysis below).
-
-### Token Budget Analysis
-
-We're capping `FinalAssistantText` at `maxConversationContextRunes` (6000 runes ≈ ~1500-2000 tokens). The system prompt is ~50 tokens. The initial user message is typically short (< 200 tokens). So even in Mode B, total input is well under 3K tokens. With a 16-token structured output, this is extremely cheap on any lightweight model. **Recommendation: always use Mode B — the marginal cost is negligible and the accuracy gain is significant.**
+| Extra LLM calls | 0 | 1 per chat completion |
+| Extra latency | 0 | 1-3s (cheap model) to 15s (timeout) |
+| Extra token cost | ~0 (tiny tool call) | ~2-3K input tokens |
+| Classification context | Full conversation context | Truncated last message |
+| Failure mode | Falls back to `waiting` | Falls back to `waiting` |
+| Complexity | 1 tool + system prompt tweak | New function, model selection, retry logic |
 
 ## Implementation Details
 
-### 1. New function in `quickgen.go`
+### 1. New tool: `coder_report_status` in `chattool/`
 
-Add a `classifyCompletionStatus` function following the exact same pattern as `generatePushSummary`:
+Create `chattool/reportstatus.go`:
 
 ```go
-type completionClassification struct {
-    Status string `json:"status" description:"One of: completed, waiting_for_input, intermediate"`
+type ReportStatusArgs struct {
+    Status string `json:"status"`
+    Summary string `json:"summary"`
 }
 
-const completionClassificationPrompt = `Classify the agent's response status. ` +
-    `Given the user's original request and the agent's final response, determine if:` +
-    `- "completed": The agent finished the user's requested task.` +
-    `- "waiting_for_input": The agent is asking the user a question or needs direction.` +
-    `- "intermediate": The agent finished a processing step but the overall task is not done.` +
-    `Return only the status field.`
+type ReportStatusOptions struct {
+    // OnReport is called when the agent reports its status.
+    // This callback captures the reported status so the
+    // caller can use it after the chat loop exits.
+    OnReport func(status string, summary string)
+}
+
+func ReportStatus(opts ReportStatusOptions) fantasy.AgentTool {
+    return fantasy.NewAgentTool(
+        "coder_report_status",
+        "Report your current status when you finish responding. "+
+            "Call this tool once at the end of your final response.\n\n"+
+            "status: one of:\n"+
+            "  - \"complete\" — you finished the user's requested task\n"+
+            "  - \"question\" — you are asking the user a question or need their input\n"+
+            "  - \"update\" — you finished an intermediate step but the overall task is not done\n\n"+
+            "summary: a one-sentence summary of what you did or what you need (under 120 chars)",
+        func(ctx context.Context, args ReportStatusArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+            status := strings.ToLower(strings.TrimSpace(args.Status))
+            summary := strings.TrimSpace(args.Summary)
+            if opts.OnReport != nil {
+                opts.OnReport(status, summary)
+            }
+            return toolResponse(map[string]any{
+                "ok": true,
+            }), nil
+        },
+    )
+}
 ```
 
-Use `object.Generate[completionClassification]` (structured output) with `maxOutputTokens = 32` to force a clean enum response. This is the same pattern used for title generation.
+Key design choices:
+- **Simple enum with short names**: `complete`, `question`, `update` — easy for any model to produce, no ambiguity.
+- **`summary` field**: bonus — we can reuse this for push notifications instead of the separate `generatePushSummary` call, further reducing LLM spend. (Follow-up optimization, not required for v1.)
+- **`coder_` prefix**: namespaced to avoid collision with MCP or user-defined tools.
+- **Callback-based**: the tool handler captures the status via `OnReport` closure. The chat loop doesn't need to know about status semantics.
 
-The function signature:
+### 2. Register the tool in `runChat`
+
+In `chatd.go`, where the tools slice is built (~line 4976):
 
 ```go
-func classifyCompletionStatus(
-    ctx context.Context,
-    userPrompt string,      // first user message text (Mode B context)
-    assistantText string,    // FinalAssistantText from runChatResult
-    fallbackModel fantasy.LanguageModel,
-    keys chatprovider.ProviderAPIKeys,
-    chat database.Chat,
-    logger slog.Logger,
-) database.ChatStatus
+var reportedStatus string
+var reportedSummary string
+
+tools = append(tools, chattool.ReportStatus(chattool.ReportStatusOptions{
+    OnReport: func(status string, summary string) {
+        reportedStatus = status
+        reportedSummary = summary
+    },
+}))
 ```
 
-- Uses `preferredTitleModels` candidate list (same cheap models as title/push).
-- Falls back to the chat's model.
-- Returns `ChatStatusWaiting` on any failure (safe default — same behavior as today).
-- 15-second timeout (faster than title gen since input is smaller).
-
-### 2. Extract initial user prompt
-
-Add a helper to pull the first user message text from the loaded messages:
+After `chatloop.Run` completes, capture the reported status into `runChatResult`:
 
 ```go
-func firstUserMessageText(messages []database.ChatMessage) string
+result.ReportedStatus = reportedStatus
+result.ReportedSummary = reportedSummary
 ```
-
-This iterates `messages`, skips `VisibilityModel` entries, and returns the text content of the first `RoleUser` message. This data is already loaded in `runChat` — we just need to capture it into `runChatResult`.
 
 ### 3. Extend `runChatResult`
 
 ```go
 type runChatResult struct {
     FinalAssistantText      string
-    InitialUserPrompt       string  // NEW: first user message text
+    ReportedStatus          string    // NEW: "complete", "question", "update", or ""
+    ReportedSummary         string    // NEW: agent's self-reported summary
     PushSummaryModel        fantasy.LanguageModel
     ProviderKeys            chatprovider.ProviderAPIKeys
     PendingDynamicToolCalls []chatloop.PendingToolCall
 }
 ```
 
-Populate `InitialUserPrompt` in `runChat` right after messages are loaded:
+### 4. Map reported status in `processChat`'s defer
+
+In the deferred cleanup, after `runChat` returns successfully and status defaults to `ChatStatusWaiting`:
 
 ```go
-result.InitialUserPrompt = firstUserMessageText(messages)
-```
-
-### 4. Call classification in `processChat`'s defer
-
-In the deferred cleanup of `processChat`, after the current logic that defaults `status = ChatStatusWaiting`, add the classification step. This runs **before** the DB transaction that commits the final status:
-
-```go
-// After runResult is available and status == ChatStatusWaiting:
-if status == database.ChatStatusWaiting && runResult.FinalAssistantText != "" {
-    classifiedStatus := classifyCompletionStatus(
-        cleanupCtx,
-        runResult.InitialUserPrompt,
-        runResult.FinalAssistantText,
-        runResult.PushSummaryModel,
-        runResult.ProviderKeys,
-        chat,
-        logger,
-    )
-    status = classifiedStatus
+// Map the agent's self-reported status to a database status.
+// Only "complete" upgrades from waiting → completed. All other
+// values (including empty/unrecognized) remain waiting, which
+// preserves today's behavior as the safe default.
+if status == database.ChatStatusWaiting && runResult.ReportedStatus == "complete" {
+    status = database.ChatStatusCompleted
 }
 ```
 
-**Important**: This must happen synchronously (not in a goroutine) because the status is committed in the DB transaction that follows in the same defer. The 15s timeout caps worst-case latency.
+This is intentionally simple. The mapping is:
 
-### 5. Sync vs Async Tradeoff
+| Agent reports | DB status | Rationale |
+|---|---|---|
+| `"complete"` | `ChatStatusCompleted` | Agent says it's done |
+| `"question"` | `ChatStatusWaiting` | Awaiting user input |
+| `"update"` | `ChatStatusWaiting` | Intermediate progress |
+| `""` (not called) | `ChatStatusWaiting` | Safe default, same as today |
+| anything else | `ChatStatusWaiting` | Unrecognized = safe default |
 
-**Option A — Synchronous (recommended):**
-Run classification before the DB transaction in the defer. Adds up to 15s latency to status finalization in the worst case, but the classification call typically completes in 1-3s on cheap models. The user sees `running` → `completed`/`waiting` in one transition.
+### 5. System prompt addition
 
-**Option B — Async with two-phase status:**
-Set `waiting` immediately, fire classification async, then update to `completed` if warranted. This is faster but introduces a visible `waiting` → `completed` transition flicker. Also requires a second DB write and pubsub publish.
+Add a brief instruction to the system prompt (in the deployment/user system prompt assembly, around line 912 in `chatd.go`) so the agent knows to call the tool:
 
-**Recommendation: Option A (synchronous).** The latency is acceptable since:
-- The user already waited for the full agent run (seconds to minutes).
-- An extra 1-3s for classification is imperceptible.
-- It avoids the complexity of two-phase status updates.
-- The push notification path already blocks on a similar LLM call.
+```
+When you finish responding, call the coder_report_status tool to report
+your status. Use "complete" when you've finished the task, "question"
+when you need user input, or "update" for intermediate progress.
+```
+
+This is a soft instruction — the agent may not always comply, but that's fine because the default is `waiting` (today's behavior). Over time, model compliance can be measured and the instruction tuned.
 
 ### 6. Database / Migration
 
-No schema changes needed. `completed` already exists in the `chat_status` PostgreSQL enum. The SDK constants (`ChatStatusCompleted`) and DB model (`ChatStatusCompleted`) are already defined. The only change PR #24264 proposed was removing it from docs — instead we'll be populating the docs with the newly-working status.
+No schema changes needed. `completed` already exists in the `chat_status` PostgreSQL enum, SDK constants, and DB models.
 
 ### 7. Update docs
 
-Update `docs/ai-coder/agents/chats-api.md` to include `completed` with accurate semantics:
+Update `docs/ai-coder/agents/chats-api.md` to include `completed`:
 
 ```
-| `completed` | Agent finished the user's requested task.              |
+| `completed` | Agent reports it finished the user's requested task.   |
 ```
 
 ### 8. Frontend considerations
 
-The frontend likely already handles `completed` since the enum existed in the SDK. If the UI treats `completed` the same as `waiting` (idle state), that's fine initially. A follow-up can add a visual indicator (e.g., checkmark badge).
+The frontend already has `ChatStatusCompleted` in the SDK enum. If the UI currently treats it identically to `waiting` (idle state), that's fine as a starting point. A follow-up can add a visual indicator (checkmark, "Task complete" label, etc.).
 
-## System Prompt Design
+## Edge Cases & Robustness
 
-The classification prompt should be minimal to reduce token spend and latency:
+### Agent doesn't call the tool
 
-```
-Classify this agent response. Return one status:
-- "completed": The agent finished the requested task.
-- "waiting_for_input": The agent needs user input or is asking a question.
-- "intermediate": The agent finished a step but not the full task.
+Status stays `waiting` — identical to today's behavior. No regression. This handles:
+- Models that ignore tool instructions
+- Interrupted chats
+- Error paths
+- `requires_action` (dynamic tool) paths (we only check when status == `waiting`)
 
-User's request:
-<request>{truncated_user_prompt}</request>
+### Agent calls the tool multiple times
 
-Agent's response:
-<response>{truncated_assistant_text}</response>
-```
+The `OnReport` callback overwrites on each call. The **last** call wins, which is correct — the agent's final status report is the most accurate.
 
-Key design choices:
-- No chain-of-thought / reasoning requested — just bucketing.
-- XML tags for clear boundary delineation.
-- Structured output (`object.Generate`) forces valid enum response.
-- `maxOutputTokens = 32` — we only need one short string.
-- Truncate inputs: user prompt to 1000 runes, assistant text to 2000 runes (last 2000, not first — the conclusion matters more than the middle).
+### Agent calls it mid-conversation (not at the end)
+
+Same as above — later calls overwrite earlier ones. If the agent reports `complete` mid-way then keeps working and reports `update`, the final status is `update` → `waiting`. Correct.
+
+### Agent reports `complete` but then makes more tool calls
+
+The chatloop continues executing. If the agent calls `coder_report_status` again with a different value, it overwrites. If it doesn't call again, the `complete` sticks. This is acceptable — the agent said it was done, and the subsequent tool calls were part of wrapping up.
+
+### Push notification summary reuse
+
+The `ReportedSummary` field can optionally replace or supplement the existing `generatePushSummary` LLM call. If `ReportedSummary` is non-empty, skip the push summary generation entirely. This is a clean follow-up optimization.
 
 ## Testing Strategy
 
-1. **Unit tests for `classifyCompletionStatus`**: Mock the LLM model, verify it returns `ChatStatusCompleted` / `ChatStatusWaiting` based on mock responses.
-2. **Unit tests for `firstUserMessageText`**: Verify extraction from various message arrays.
-3. **Integration test**: Verify end-to-end that a chat processing a simple "create a file" task ends in `completed` status.
-4. **Fallback test**: Verify that LLM failures gracefully fall back to `ChatStatusWaiting`.
-5. **Test the structured output parsing**: Ensure invalid LLM outputs (e.g., random text) map to `ChatStatusWaiting`.
+1. **Unit test for `ReportStatus` tool**: Verify the callback fires with correct args, verify the tool response.
+2. **Unit test for status mapping**: Verify `"complete"` → `ChatStatusCompleted`, all others → `ChatStatusWaiting`.
+3. **Integration test**: End-to-end chat where the mock LLM calls `coder_report_status` with `complete` → verify DB status is `completed`.
+4. **Fallback test**: Chat where the LLM never calls the tool → verify DB status is `waiting`.
+5. **Overwrite test**: LLM calls the tool twice with different values → verify last value wins.
 
 ## Files to Modify
 
 | File | Change |
 |---|---|
-| `coderd/x/chatd/quickgen.go` | Add `classifyCompletionStatus`, `completionClassification` struct, prompt constant, `firstUserMessageText` helper |
-| `coderd/x/chatd/chatd.go` | Extend `runChatResult` with `InitialUserPrompt`, populate it in `runChat`, call classification in `processChat` defer |
-| `coderd/x/chatd/quickgen_test.go` | Unit tests for classification and prompt extraction |
+| `coderd/x/chatd/chattool/reportstatus.go` | New file: `ReportStatus` tool implementation |
+| `coderd/x/chatd/chattool/reportstatus_test.go` | New file: unit tests |
+| `coderd/x/chatd/chatd.go` | Extend `runChatResult`, register tool in `runChat`, map status in `processChat` defer |
+| `coderd/x/chatd/chatd.go` (~line 912) | Add system prompt instruction to call the tool |
 | `coderd/x/chatd/chatd_test.go` or integration test | End-to-end test |
-| `docs/ai-coder/agents/chats-api.md` | Add `completed` status back to docs table |
+| `docs/ai-coder/agents/chats-api.md` | Add `completed` status to docs table |
 
 ## Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| LLM misclassifies → wrong status | Safe default to `waiting` on any error or ambiguity. `waiting` is strictly correct (just less informative). |
-| Added latency to status finalization | 15s timeout cap; cheap models typically respond in 1-3s. Negligible relative to full agent run time. |
-| Token cost | ~2-3K input tokens per classification on the cheapest available model. Comparable to existing push summary cost. |
-| LLM provider unavailable | Fallback chain tries multiple providers (same as title gen). Ultimate fallback = `waiting`. |
-| `intermediate` misuse | Both `intermediate` and `waiting_for_input` map to `ChatStatusWaiting`, so misclassification between these two is harmless. |
+| Agent doesn't call the tool | Default to `waiting` — no regression from today. |
+| Agent misreports status | Only `complete` changes behavior; `question`/`update`/unknown all → `waiting`. False positives (saying complete when not) are the main risk, but models are generally reliable at self-assessment. |
+| Tool adds noise to tool list | One extra tool definition in the prompt. Negligible token overhead (~50 tokens for the definition). |
+| Older models ignore the tool | Same as "doesn't call" — safe default. |
+| System prompt instruction ignored | Graceful degradation to `waiting`. Can tune instruction wording over time. |
