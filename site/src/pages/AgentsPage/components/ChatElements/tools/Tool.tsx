@@ -318,6 +318,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
 	const hasErrorInResult = Boolean(rec?.error);
+	const created = rec?.created !== false;
 
 	return (
 		<CreateWorkspaceTool
@@ -327,6 +328,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
+			created={created}
 		/>
 	);
 };

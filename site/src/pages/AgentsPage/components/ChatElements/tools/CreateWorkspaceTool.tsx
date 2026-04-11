@@ -29,6 +29,7 @@ export const CreateWorkspaceTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 	buildId?: string;
+	created?: boolean;
 }> = ({
 	workspaceName,
 	resultJson,
@@ -36,6 +37,7 @@ export const CreateWorkspaceTool: React.FC<{
 	isError,
 	errorMessage,
 	buildId,
+	created = true,
 }) => {
 	const isRunning = status === "running";
 	let rec: Record<string, unknown> | null = null;
@@ -56,9 +58,11 @@ export const CreateWorkspaceTool: React.FC<{
 		? "Creating workspace…"
 		: isError
 			? `Failed to create ${wsName || "workspace"}`
-			: wsName
-				? `Created ${wsName}`
-				: "Created workspace";
+			: created === false
+				? `Workspace ${wsName} already exists`
+				: wsName
+					? `Created ${wsName}`
+					: "Created workspace";
 
 	const hasBuildLogs = isRunning || Boolean(buildId);
 

@@ -126,8 +126,8 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 					// newBuildError returns via toolResponse (IsError: false)
 					// rather than NewTextErrorResponse (IsError: true) so the
 					// JSON result preserves build_id for the frontend's log
-					// viewer. The fantasy/chatprompt pipeline double-wraps
-					// IsError content, which would bury the structured fields.
+					// viewer. The fantasy/chatprompt pipeline discards structured
+					// fields from IsError content.
 					// The frontend detects errors via the "error" key instead.
 					return buildToolResponse(newBuildError(
 						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
