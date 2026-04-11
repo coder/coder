@@ -27,7 +27,8 @@ const LOG_LOAD_TIMEOUT_MS = 30_000;
 /**
  * Streams or fetches workspace build logs for display inside a tool
  * collapsible. While the tool is running, logs stream via WebSocket
- * from the workspace's current latest build. Once completed, logs
+ * from the build tracked by the chat binding (or the workspace's
+ * latest active build as a fallback). Once completed, logs
  * are fetched via REST and cached by React Query so expand/collapse
  * cycles don't re-fetch.
  */
