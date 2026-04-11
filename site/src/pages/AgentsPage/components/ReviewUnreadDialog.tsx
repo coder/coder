@@ -1,4 +1,5 @@
 import {
+	ArrowUpIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	ExternalLinkIcon,
@@ -126,6 +127,16 @@ export const ReviewUnreadDialog: FC<ReviewUnreadDialogProps> = ({
 						<div className="flex-1 min-h-0">
 							<ReviewChatContent chatId={currentChat.id} />
 						</div>
+
+						{/* Reply Input */}
+						<ReviewReplyInput
+							onSend={(message) => {
+								onOpenChange(false);
+								navigate(`/agents/${currentChat.id}`, {
+									state: { pendingMessage: message },
+								});
+							}}
+						/>
 
 						{/* Navigation Bar */}
 						<ReviewNavigationBar
@@ -300,6 +311,66 @@ const ReviewNavigationBar: FC<ReviewNavigationBarProps> = ({
 				{isLast ? "Done" : "Next"}
 				{!isLast && <ChevronRightIcon className="size-4" />}
 			</Button>
+		</div>
+	);
+};
+
+interface ReviewReplyInputProps {
+	onSend: (message: string) => void;
+}
+
+const ReviewReplyInput: FC<ReviewReplyInputProps> = ({ onSend }) => {
+	const [value, setValue] = useState("");
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+	const handleSubmit = () => {
+		const trimmed = value.trim();
+		if (!trimmed) return;
+		onSend(trimmed);
+		setValue("");
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (e.key === "Enter" && !e.shiftKey) {
+			e.preventDefault();
+			handleSubmit();
+		}
+	};
+
+	// Auto-resize the textarea to fit content.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: value drives the resize
+	useEffect(() => {
+		const el = textareaRef.current;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+	}, [value]);
+
+	return (
+		<div className="border-t border-border-default px-6 py-3">
+			<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+				<textarea
+					ref={textareaRef}
+					value={value}
+					onChange={(e) => setValue(e.target.value)}
+					onKeyDown={handleKeyDown}
+					placeholder="Reply to this agent…"
+					rows={1}
+					className="min-h-[44px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none"
+				/>
+				<div className="flex items-center justify-end px-2.5 pb-1.5">
+					<Button
+						size="icon"
+						variant="default"
+						className="size-7 rounded-full [&>svg]:!size-5 [&>svg]:p-0"
+						onClick={handleSubmit}
+						disabled={!value.trim()}
+						aria-label="Send and open chat"
+					>
+						<ArrowUpIcon />
+					</Button>
+				</div>
+			</div>
 		</div>
 	);
 };
