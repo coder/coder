@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";

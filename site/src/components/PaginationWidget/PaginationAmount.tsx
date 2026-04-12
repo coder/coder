@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
@@ -23,8 +22,6 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 	countIsCapped,
 	className,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<div
 			className={cn(
