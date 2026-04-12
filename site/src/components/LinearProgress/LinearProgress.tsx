@@ -13,8 +13,14 @@ const LinearProgress: FC<LinearProgressProps> = ({
 	variant,
 	...props
 }) => {
+	const isDeterminate = variant === "determinate";
+
 	return (
 		<div
+			role="progressbar"
+			aria-valuemin={0}
+			aria-valuemax={100}
+			{...(isDeterminate ? { "aria-valuenow": Math.round(value) } : {})}
 			className={cn(
 				"w-full h-1 bg-surface-sky rounded-full relative",
 				"overflow-hidden block",
@@ -22,7 +28,7 @@ const LinearProgress: FC<LinearProgressProps> = ({
 			)}
 			{...props}
 		>
-			{variant === "indeterminate" ? (
+			{!isDeterminate ? (
 				<>
 					<div
 						className={cn(
@@ -39,7 +45,7 @@ const LinearProgress: FC<LinearProgressProps> = ({
 				</>
 			) : (
 				<div
-					className="h-full rounded-full bg-highlight-sky transition-[width] duration-200 ease-linear"
+					className="h-full rounded-full bg-highlight-sky"
 					style={{ width: `${value}%` }}
 				/>
 			)}
