@@ -1,5 +1,4 @@
 import Collapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
 import {
 	CopyIcon,
 	EllipsisIcon,
@@ -37,6 +36,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tabs,
 	TabsContent,
@@ -426,18 +426,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 				{agent.status === "connecting" && !isExternalAgent && (
 					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
-						<Skeleton
-							width={80}
-							height={32}
-							variant="rectangular"
-							className="rounded"
-						/>
-						<Skeleton
-							width={110}
-							height={32}
-							variant="rectangular"
-							className="rounded"
-						/>
+						<Skeleton width={80} height={32} className="rounded" />
+						<Skeleton width={110} height={32} className="rounded" />
 					</section>
 				)}
 

@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
 import type { Breakpoint } from "@mui/system/createTheme";
 import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
@@ -19,6 +17,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
 import { useDebouncedFunction } from "#/hooks/debounce";
 
 type PresetFilter = {
@@ -132,13 +131,9 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 	return (
 		<Skeleton
-			variant="rectangular"
 			height={36}
 			{...skeletonProps}
-			css={(theme) => ({
-				backgroundColor: theme.palette.background.paper,
-				borderRadius: "6px",
-			})}
+			className="bg-surface-tertiary rounded-md"
 		>
 			{children}
 		</Skeleton>
@@ -178,9 +173,7 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	singleRowBreakpoint = "lg",
 }) => {
-	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
 	// aggressively without re-renders rippling out to the rest of the app every
 	// single time. Exists for performance reasons - not really a good way to
@@ -204,18 +197,7 @@ export const Filter: FC<FilterProps> = ({
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div
-			css={{
-				display: "flex",
-				gap: 8,
-				marginBottom: 16,
-				flexWrap: "wrap",
-
-				[theme.breakpoints.up(singleRowBreakpoint)]: {
-					flexWrap: "nowrap",
-				},
-			}}
-		>
+		<div className="flex gap-2 flex-wrap mb-4 md:flex-nowrap">
 			{isLoading ? (
 				<>
 					<BaseSkeleton width="100%" />

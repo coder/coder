@@ -1,4 +1,3 @@
-import Skeleton from "@mui/material/Skeleton";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -15,6 +14,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "#/api/typesGenerated";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,

@@ -1,13 +1,14 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
+import { useTheme } from "@emotion/react";
 import { InfoIcon } from "lucide-react";
 import type { WorkspaceBuild } from "#/api/typesGenerated";
 import { BuildIcon } from "#/components/BuildIcon/BuildIcon";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import {
 	buildReasonLabels,
@@ -21,26 +22,20 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 	const statusType = getDisplayWorkspaceBuildStatus(theme, build).type;
 
 	return (
-		<div css={styles.root}>
+		<div className="flex flex-row items-center gap-3 leading-normal">
 			<BuildIcon
 				transition={build.transition}
+				className="size-4"
 				css={{
-					width: 16,
-					height: 16,
 					color: theme.roles[statusType].fill.solid,
 				}}
 			/>
 			<div className="overflow-hidden">
 				<div
-					css={{
-						color: theme.palette.text.primary,
-						textOverflow: "ellipsis",
-						overflow: "hidden",
-						whiteSpace: "nowrap",
-						display: "flex",
-						alignItems: "center",
-						gap: 4,
-					}}
+					className={cn(
+						"text-content-secondary text-ellipsis overflow-hidden",
+						"whitespace-nowrap flex items-center gap-1",
+					)}
 				>
 					<span className="capitalize">{build.transition}</span> by{" "}
 					<span className="font-medium">
@@ -63,12 +58,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 							</Tooltip>
 						)}
 				</div>
-				<div
-					css={{
-						fontSize: 12,
-						color: theme.palette.text.secondary,
-					}}
-				>
+				<div className="text-sm text-content-secondary">
 					{createDayString(build.created_at)}
 				</div>
 			</div>
@@ -78,7 +68,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 
 export const WorkspaceBuildDataSkeleton = () => {
 	return (
-		<div css={styles.root}>
+		<div className="flex flex-row items-center gap-3 leading-normal">
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
@@ -87,13 +77,3 @@ export const WorkspaceBuildDataSkeleton = () => {
 		</div>
 	);
 };
-
-const styles = {
-	root: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 12,
-		lineHeight: "1.5",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

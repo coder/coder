@@ -1,6 +1,7 @@
 import { useTheme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import type { FC } from "react";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { cn } from "#/utils/cn";
 
 type PaginationHeaderProps = {
 	paginationUnitLabel: string;
@@ -26,19 +27,13 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 
 	return (
 		<div
-			css={{
-				display: "flex",
-				flexFlow: "row nowrap",
-				alignItems: "center",
-				margin: 0,
-				fontSize: "13px",
-				color: theme.palette.text.secondary,
-				height: "36px", // The size of a small button
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			}}
-			className={className}
+			className={cn(
+				"flex flex-row flex-nowrap items-center m-0",
+				"text-[13px] text-content-secondary",
+				"h-9", // The size of a small button
+				"[&_strong]:text-content-primary",
+				className,
+			)}
 		>
 			{totalRecords !== undefined ? (
 				<>
