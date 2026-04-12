@@ -56,6 +56,13 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		authMode = "byok"
 	}
 
+	if byok && !s.allowBYOK {
+		logger.Warn(ctx, "BYOK request rejected: not allowed by deployment configuration")
+		http.Error(rw, "Bring Your Own Key (BYOK) mode is not enabled. "+
+			"Contact your administrator to enable it with --ai-gateway-allow-byok.", http.StatusForbidden)
+		return
+	}
+
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
 		// Some clients (e.g. Claude) send a HEAD request

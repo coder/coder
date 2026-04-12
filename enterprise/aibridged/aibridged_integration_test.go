@@ -190,7 +190,7 @@ func TestIntegration(t *testing.T) {
 	// Given: aibridged is started.
 	srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, tracer)
+	}, logger, tracer, true)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
@@ -393,7 +393,7 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	// Given: aibridged is started.
 	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, testTracer)
+	}, logger, testTracer, true)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
@@ -508,7 +508,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	// Given: aibridged is started.
 	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger, testTracer)
+	}, logger, testTracer, true)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)

@@ -86,7 +86,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	// Create daemon.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer)
+	}, logger, tracer, cfg.AllowBYOK.Value())
 	if err != nil {
 		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}

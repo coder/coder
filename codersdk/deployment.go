@@ -3802,6 +3802,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:    "send_actor_headers",
 		},
 		{
+			Name:        "AI Gateway Allow BYOK",
+			Description: "Allow users to bring their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
+			Flag:        "ai-gateway-allow-byok",
+			Env:         "CODER_AI_GATEWAY_ALLOW_BYOK",
+			Value:       &c.AI.BridgeConfig.AllowBYOK,
+			Default:     "true",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "allow_byok",
+		},
+		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
 			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
 			Flag:        "aibridge-circuit-breaker-enabled",
@@ -4048,6 +4058,7 @@ type AIBridgeConfig struct {
 	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
+	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
