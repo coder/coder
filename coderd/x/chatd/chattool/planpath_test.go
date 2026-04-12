@@ -270,4 +270,13 @@ func TestLooksLikeHomePlanFile(t *testing.T) {
 			require.Equal(t, testCase.want, got)
 		})
 	}
+
+	t.Run("WindowsBackslashPaths", func(t *testing.T) {
+		t.Parallel()
+
+		require.True(t, chattool.LooksLikeHomePlanFile(`C:\Users\coder\PLAN.md`, `C:\Users\coder`))
+		require.True(t, chattool.LooksLikeHomePlanFile(`C:\Users\coder\plan.md`, `C:\Users\coder`))
+		require.False(t, chattool.LooksLikeHomePlanFile(`C:\Users\coder\project\plan.md`, `C:\Users\coder`))
+		require.True(t, chattool.LooksLikeHomePlanFile("C:/Users/coder/PLAN.md", `C:\Users\coder`))
+	})
 }

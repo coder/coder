@@ -62,11 +62,14 @@ func looksLikePlanFileName(requestedPath string) bool {
 // variant (case-insensitive) sitting directly in the workspace home
 // directory.
 func LooksLikeHomePlanFile(requestedPath, home string) bool {
-	cleaned := path.Clean(requestedPath)
-	cleanedHome := path.Clean(home)
+	// Normalize backslashes so Windows workspace paths (for example,
+	// C:\Users\coder\PLAN.md) are handled correctly. The chatd server
+	// runs on Linux, so path.Clean alone only parses forward slashes.
+	normalized := path.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
+	normalizedHome := path.Clean(strings.ReplaceAll(home, "\\", "/"))
 
-	return looksLikePlanFileName(cleaned) &&
-		path.Dir(cleaned) == cleanedHome
+	return looksLikePlanFileName(normalized) &&
+		path.Dir(normalized) == normalizedHome
 }
 
 // IsLegacySharedPlanPath reports whether requested is the exact legacy
