@@ -1,5 +1,3 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import capitalize from "lodash/capitalize";
