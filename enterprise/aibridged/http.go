@@ -21,6 +21,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrBYOKNotAllowed        = xerrors.New("Bring Your Own Key (BYOK) mode is not enabled. Contact your administrator to enable it with --ai-gateway-allow-byok")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -58,8 +59,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if byok && !s.allowBYOK {
 		logger.Warn(ctx, "BYOK request rejected: not allowed by deployment configuration")
-		http.Error(rw, "Bring Your Own Key (BYOK) mode is not enabled. "+
-			"Contact your administrator to enable it with --ai-gateway-allow-byok.", http.StatusForbidden)
+		http.Error(rw, ErrBYOKNotAllowed.Error(), http.StatusForbidden)
 		return
 	}
 
