@@ -149,6 +149,76 @@ func TestWriteFile(t *testing.T) {
 		assert.Equal(t, planPathVerificationMessage("/home/coder/plan.md"), resp.Content)
 	})
 
+	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md"
+		mockConn.EXPECT().
+			WriteFile(gomock.Any(), chatPlanPath, gomock.Any()).
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+				data, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.Equal(t, chatPlanPath, path)
+				require.Equal(t, "# Plan", string(data))
+				return nil
+			})
+
+		resolvePlanPathCalled := false
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				resolvePlanPathCalled = true
+				return chatPlanPath, "/home/coder", nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"` + chatPlanPath + `","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.False(t, resolvePlanPathCalled)
+		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
+	})
+
+	t.Run("NestedPlanPathAllowedWhenResolverFails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		mockConn.EXPECT().
+			WriteFile(gomock.Any(), "/home/coder/myproject/plan.md", gomock.Any()).
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+				data, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.Equal(t, "/home/coder/myproject/plan.md", path)
+				require.Equal(t, "# Plan", string(data))
+				return nil
+			})
+
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return "", "", xerrors.New("workspace unavailable")
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"/home/coder/myproject/plan.md","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
+	})
+
 	t.Run("NestedPlanPathUnderHomeIsAllowed", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

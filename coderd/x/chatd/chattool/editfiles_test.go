@@ -126,6 +126,72 @@ func TestEditFiles(t *testing.T) {
 		assert.Equal(t, relativePlanPathMessage(), resp.Content)
 	})
 
+	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md"
+		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
+			Path: chatPlanPath,
+			Edits: []workspacesdk.FileEdit{{
+				Search:  "old",
+				Replace: "new",
+			}},
+		}}}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+
+		resolvePlanPathCalled := false
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				resolvePlanPathCalled = true
+				return chatPlanPath, "/home/coder", nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"` + chatPlanPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.False(t, resolvePlanPathCalled)
+	})
+
+	t.Run("NestedPlanPathAllowedWhenResolverFails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
+			Path: "/home/coder/myproject/plan.md",
+			Edits: []workspacesdk.FileEdit{{
+				Search:  "old",
+				Replace: "new",
+			}},
+		}}}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return "", "", xerrors.New("workspace unavailable")
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+	})
+
 	t.Run("NestedPlanPathUnderHomeIsAllowed", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

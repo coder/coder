@@ -344,6 +344,74 @@ func TestProposePlan(t *testing.T) {
 		assert.Equal(t, planPathVerificationMessage(chattool.LegacySharedPlanPath), resp.Content)
 	})
 
+	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md"
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), chatPlanPath, int64(0), int64(32*1024+1)).
+			Return(io.NopCloser(strings.NewReader("# Per-Chat Plan")), "text/markdown", nil)
+
+		storeFile, stored := fakeStoreFile(t)
+		resolvePlanPathCalled := false
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			storeFile,
+			func(context.Context) (string, string, error) {
+				resolvePlanPathCalled = true
+				return chatPlanPath, "/home/coder", nil
+			},
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"` + chatPlanPath + `"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.False(t, resolvePlanPathCalled)
+
+		result := decodeProposePlanResponse(t, resp)
+		assert.True(t, result.OK)
+		assert.Equal(t, chatPlanPath, result.Path)
+		assert.Equal(t, []byte("# Per-Chat Plan"), *stored)
+	})
+
+	t.Run("NestedPlanPathAllowedWhenResolverFails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), "/home/coder/myproject/plan.md", int64(0), int64(32*1024+1)).
+			Return(io.NopCloser(strings.NewReader("# Nested Plan")), "text/markdown", nil)
+
+		storeFile, stored := fakeStoreFile(t)
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			storeFile,
+			func(context.Context) (string, string, error) {
+				return "", "", xerrors.New("workspace unavailable")
+			},
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/myproject/plan.md"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		result := decodeProposePlanResponse(t, resp)
+		assert.True(t, result.OK)
+		assert.Equal(t, "/home/coder/myproject/plan.md", result.Path)
+		assert.Equal(t, []byte("# Nested Plan"), *stored)
+	})
+
 	t.Run("WorkspaceConnectionError", func(t *testing.T) {
 		t.Parallel()
 		storeFile, _ := fakeStoreFile(t)

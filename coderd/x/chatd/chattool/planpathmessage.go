@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"fmt"
-	"strings"
 
 	"charm.land/fantasy"
 )
@@ -14,7 +13,11 @@ func rejectSharedPlanPath(
 	planPathErr error,
 ) (fantasy.ToolResponse, bool) {
 	if planPathErr != nil {
-		if !looksLikePlanFileName(requestedPath) {
+		// When the resolver fails, we cannot determine the actual
+		// home directory. Fall back to rejecting only the exact
+		// legacy shared path (case-insensitive) rather than every
+		// file named plan.md.
+		if !looksLikeLegacySharedPlanPath(requestedPath) {
 			return fantasy.ToolResponse{}, false
 		}
 
@@ -23,21 +26,13 @@ func rejectSharedPlanPath(
 		), true
 	}
 
-	if !looksLikeLegacyHomePlanPath(requestedPath, home) {
+	if !LooksLikeHomePlanFile(requestedPath, home) {
 		return fantasy.ToolResponse{}, false
 	}
 
 	return fantasy.NewTextErrorResponse(
 		sharedPlanPathMessage(requestedPath, planPath),
 	), true
-}
-
-func looksLikeLegacyHomePlanPath(requestedPath, home string) bool {
-	if strings.TrimSpace(home) == "" {
-		return strings.EqualFold(requestedPath, LegacySharedPlanPath)
-	}
-
-	return LooksLikeHomePlanFile(requestedPath, home)
 }
 
 func sharedPlanPathMessage(requestedPath, planPath string) string {

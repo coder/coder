@@ -93,6 +93,11 @@ func LooksLikeHomePlanFile(requestedPath, home string) bool {
 		strings.EqualFold(pathpkg.Dir(normalized), normalizedHome)
 }
 
-func isLegacySharedPlanPath(requested string) bool {
-	return requested == LegacySharedPlanPath
+// looksLikeLegacySharedPlanPath reports whether requestedPath
+// matches the legacy shared plan path (case-insensitive, with
+// backslash normalization). Used as a narrow fallback when the
+// workspace home cannot be resolved.
+func looksLikeLegacySharedPlanPath(requestedPath string) bool {
+	normalized := pathpkg.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
+	return strings.EqualFold(normalized, LegacySharedPlanPath)
 }

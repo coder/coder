@@ -47,7 +47,7 @@ func TestLooksLikeHomePlanFileWindowsDriveLetterCaseMismatch(t *testing.T) {
 	require.True(t, LooksLikeHomePlanFile("C:/Users/coder/plan.md", "c:/Users/coder"))
 }
 
-func TestIsLegacySharedPlanPath(t *testing.T) {
+func TestLooksLikeLegacySharedPlanPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -61,13 +61,23 @@ func TestIsLegacySharedPlanPath(t *testing.T) {
 			want:      true,
 		},
 		{
-			name:      "DifferentFilename",
-			requested: "/home/coder/OTHER.md",
+			name:      "CaseInsensitive",
+			requested: "/home/coder/plan.md",
+			want:      true,
+		},
+		{
+			name:      "MixedCase",
+			requested: "/home/coder/Plan.md",
+			want:      true,
+		},
+		{
+			name:      "NestedPath",
+			requested: "/home/coder/myproject/plan.md",
 			want:      false,
 		},
 		{
-			name:      "DifferentDirectory",
-			requested: "/home/dev/PLAN.md",
+			name:      "DifferentHome",
+			requested: "/Users/dev/PLAN.md",
 			want:      false,
 		},
 		{
@@ -80,30 +90,14 @@ func TestIsLegacySharedPlanPath(t *testing.T) {
 			requested: "",
 			want:      false,
 		},
-		{
-			name:      "SubstringMatch",
-			requested: "/home/coder/PLAN.md/extra",
-			want:      false,
-		},
 	}
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := isLegacySharedPlanPath(testCase.requested)
-
-			require.Equal(t, testCase.want, got)
+			require.Equal(t, testCase.want, looksLikeLegacySharedPlanPath(testCase.requested))
 		})
 	}
-}
-
-func TestLooksLikeLegacyHomePlanPath(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, looksLikeLegacyHomePlanPath(LegacySharedPlanPath, ""))
-	require.True(t, looksLikeLegacyHomePlanPath("/home/coder/plan.md", ""))
-	require.False(t, looksLikeLegacyHomePlanPath("/home/coder/notes.md", ""))
 }
 
 func TestSharedPlanPathMessage(t *testing.T) {
