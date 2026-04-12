@@ -53,6 +53,8 @@ func PlanPathForChat(home string, chatID uuid.UUID) string {
 	)
 }
 
+// looksLikePlanFileName reports whether the base name of requestedPath
+// is "plan.md" (case-insensitive), ignoring the directory component.
 func looksLikePlanFileName(requestedPath string) bool {
 	cleaned := path.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
 	return strings.EqualFold(path.Base(cleaned), "plan.md")
@@ -61,9 +63,11 @@ func looksLikePlanFileName(requestedPath string) bool {
 // LooksLikeHomePlanFile reports whether requestedPath is a plan.md
 // variant (case-insensitive) sitting directly in the workspace home
 // directory.
+// The filename is compared case-insensitively because LLM output varies.
+// The directory is compared exactly because it comes from the system.
 func LooksLikeHomePlanFile(requestedPath, home string) bool {
 	// Normalize backslashes so Windows workspace paths (for example,
-	// C:\Users\coder\PLAN.md) are handled correctly. The chatd server
+	// C:\\Users\\coder\\PLAN.md) are handled correctly. The chatd server
 	// runs on Linux, so path.Clean alone only parses forward slashes.
 	normalized := path.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
 	normalizedHome := path.Clean(strings.ReplaceAll(home, "\\", "/"))

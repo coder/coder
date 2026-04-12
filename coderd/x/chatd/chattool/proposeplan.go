@@ -3,6 +3,7 @@ package chattool
 import (
 	"context"
 	"io"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 
@@ -17,7 +18,7 @@ const maxProposePlanSize = 32 * 1024 // 32 KiB
 // ProposePlanOptions configures the propose_plan tool.
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	PlanPath         func(context.Context) (chatPath string, home string, err error)
+	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
 	StoreFile        func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error)
 }
 
@@ -46,7 +47,7 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeProposePlanTool(ctx, conn, args, options.PlanPath, options.StoreFile)
+			return executeProposePlanTool(ctx, conn, args, options.ResolvePlanPath, options.StoreFile)
 		},
 	)
 }
@@ -58,22 +59,29 @@ func executeProposePlanTool(
 	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
 ) (fantasy.ToolResponse, error) {
-	path := strings.TrimSpace(args.Path)
-	if path == "" {
+	requestedPath := strings.TrimSpace(args.Path)
+	if requestedPath == "" {
 		return fantasy.NewTextErrorResponse("path is required (use the chat-specific plan path from your instructions)"), nil
 	}
-	if !strings.HasSuffix(path, ".md") {
+	if !strings.HasSuffix(requestedPath, ".md") {
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
 	}
 
-	if resolvePlanPath != nil && looksLikePlanFileName(path) {
+	looksLikePlanPath := looksLikePlanFileName(requestedPath)
+	if looksLikePlanPath && !pathpkg.IsAbs(requestedPath) {
+		return fantasy.NewTextErrorResponse(
+			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
+		), nil
+	}
+
+	if resolvePlanPath != nil && looksLikePlanPath {
 		chatPath, home, err := resolvePlanPath(ctx)
-		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, err); rejected {
+		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
 			return resp, nil
 		}
 	}
 
-	rc, _, err := conn.ReadFile(ctx, path, 0, maxProposePlanSize+1)
+	rc, _, err := conn.ReadFile(ctx, requestedPath, 0, maxProposePlanSize+1)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
@@ -87,14 +95,14 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("plan file exceeds 32 KiB size limit"), nil
 	}
 
-	fileID, err := storeFile(ctx, filepath.Base(path), "text/markdown", data)
+	fileID, err := storeFile(ctx, filepath.Base(requestedPath), "text/markdown", data)
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to store plan file: " + err.Error()), nil
 	}
 
 	return toolResponse(map[string]any{
 		"ok":         true,
-		"path":       path,
+		"path":       requestedPath,
 		"kind":       "plan",
 		"file_id":    fileID.String(),
 		"media_type": "text/markdown",

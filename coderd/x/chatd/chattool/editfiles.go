@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"path"
 
 	"charm.land/fantasy"
 
@@ -10,7 +11,7 @@ import (
 
 type EditFilesOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	PlanPath         func(context.Context) (chatPath string, home string, err error)
+	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
 }
 
 type EditFilesArgs struct {
@@ -30,7 +31,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeEditFilesTool(ctx, conn, args, options.PlanPath)
+			return executeEditFilesTool(ctx, conn, args, options.ResolvePlanPath)
 		},
 	)
 }
@@ -52,7 +53,13 @@ func executeEditFilesTool(
 		planPathLoaded bool
 	)
 	for _, file := range args.Files {
-		if resolvePlanPath == nil || !looksLikePlanFileName(file.Path) {
+		looksLikePlanPath := looksLikePlanFileName(file.Path)
+		if looksLikePlanPath && !path.IsAbs(file.Path) {
+			return fantasy.NewTextErrorResponse(
+				"plan files must use absolute paths; use the chat-specific plan path from your instructions",
+			), nil
+		}
+		if resolvePlanPath == nil || !looksLikePlanPath {
 			continue
 		}
 		if !planPathLoaded {

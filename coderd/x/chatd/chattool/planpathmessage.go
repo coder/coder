@@ -17,28 +17,30 @@ func rejectSharedPlanPath(
 		return fantasy.ToolResponse{}, false
 	}
 
-	return fantasy.NewTextErrorResponse(sharedPlanPathMessage(planPath, planPathErr)), true
+	return fantasy.NewTextErrorResponse(
+		sharedPlanPathMessage(requestedPath, planPath, planPathErr),
+	), true
 }
 
 func looksLikeLegacyHomePlanPath(requestedPath, home string) bool {
 	if strings.TrimSpace(home) == "" {
-		return IsLegacySharedPlanPath(requestedPath)
+		return strings.EqualFold(requestedPath, LegacySharedPlanPath)
 	}
 
 	return LooksLikeHomePlanFile(requestedPath, home)
 }
 
-func sharedPlanPathMessage(planPath string, err error) string {
+func sharedPlanPathMessage(requestedPath, planPath string, err error) string {
 	if err == nil && strings.TrimSpace(planPath) != "" {
 		return fmt.Sprintf(
-			"the shared plan path %s is no longer supported; use the chat-specific plan path: %s",
-			LegacySharedPlanPath,
+			"the plan path %s is no longer supported at the home root; use the chat-specific plan path: %s",
+			requestedPath,
 			planPath,
 		)
 	}
 
 	return fmt.Sprintf(
-		"the shared plan path %s is no longer supported; use the chat-specific plan path provided in your instructions",
-		LegacySharedPlanPath,
+		"the plan path %s is no longer supported at the home root; the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly",
+		requestedPath,
 	)
 }

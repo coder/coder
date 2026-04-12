@@ -20,7 +20,7 @@ import (
 func TestWriteFile(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RejectsHomeRootPlanVariantsWhenPlanPathIsConfigured", func(t *testing.T) {
+	t.Run("RejectsHomeRootPlanVariantsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -46,7 +46,6 @@ func TestWriteFile(t *testing.T) {
 		}
 
 		for _, testCase := range tests {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -56,7 +55,7 @@ func TestWriteFile(t *testing.T) {
 					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 						return mockConn, nil
 					},
-					PlanPath: func(context.Context) (string, string, error) {
+					ResolvePlanPath: func(context.Context) (string, string, error) {
 						return "/home/coder/.coder/plans/PLAN-chat.md", testCase.home, nil
 					},
 				})
@@ -70,9 +69,59 @@ func TestWriteFile(t *testing.T) {
 				assert.True(t, resp.IsError)
 				assert.Equal(
 					t,
-					sharedPlanPathResolvedMessage("/home/coder/.coder/plans/PLAN-chat.md"),
+					sharedPlanPathResolvedMessage(
+						testCase.requested,
+						"/home/coder/.coder/plans/PLAN-chat.md",
+					),
 					resp.Content,
 				)
+			})
+		}
+	})
+
+	t.Run("RejectsRelativePlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			requested string
+		}{
+			{
+				name:      "PlainRelativePath",
+				requested: "plan.md",
+			},
+			{
+				name:      "DotSlashRelativePath",
+				requested: "./plan.md",
+			},
+		}
+
+		for _, testCase := range tests {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				resolvePlanPathCalled := false
+				tool := chattool.WriteFile(chattool.WriteFileOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+					ResolvePlanPath: func(context.Context) (string, string, error) {
+						resolvePlanPathCalled = true
+						return "/home/coder/.coder/plans/PLAN-chat.md", "/home/coder", nil
+					},
+				})
+
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "write_file",
+					Input: `{"path":"` + testCase.requested + `","content":"# Plan"}`,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.False(t, resolvePlanPathCalled)
+				assert.Equal(t, relativePlanPathMessage(), resp.Content)
 			})
 		}
 	})
@@ -91,13 +140,13 @@ func TestWriteFile(t *testing.T) {
 				return nil
 			})
 
-		planPathCalled := false
+		resolvePlanPathCalled := false
 		tool := chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return mockConn, nil
 			},
-			PlanPath: func(context.Context) (string, string, error) {
-				planPathCalled = true
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				resolvePlanPathCalled = true
 				return "", "", xerrors.New("should not be called")
 			},
 		})
@@ -109,11 +158,11 @@ func TestWriteFile(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
-		assert.False(t, planPathCalled)
+		assert.False(t, resolvePlanPathCalled)
 		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
 	})
 
-	t.Run("AllowsSharedPlanPathWhenPlanPathIsNil", func(t *testing.T) {
+	t.Run("AllowsSharedPlanPathWhenResolvePlanPathIsNil", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)

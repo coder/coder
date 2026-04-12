@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"path"
 	"strings"
 
 	"charm.land/fantasy"
@@ -11,7 +12,7 @@ import (
 
 type WriteFileOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	PlanPath         func(context.Context) (chatPath string, home string, err error)
+	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
 }
 
 type WriteFileArgs struct {
@@ -31,7 +32,7 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeWriteFileTool(ctx, conn, args, options.PlanPath)
+			return executeWriteFileTool(ctx, conn, args, options.ResolvePlanPath)
 		},
 	)
 }
@@ -46,7 +47,14 @@ func executeWriteFileTool(
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
-	if resolvePlanPath != nil && looksLikePlanFileName(args.Path) {
+	looksLikePlanPath := looksLikePlanFileName(args.Path)
+	if looksLikePlanPath && !path.IsAbs(args.Path) {
+		return fantasy.NewTextErrorResponse(
+			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
+		), nil
+	}
+
+	if resolvePlanPath != nil && looksLikePlanPath {
 		chatPath, home, err := resolvePlanPath(ctx)
 		if resp, rejected := rejectSharedPlanPath(args.Path, home, chatPath, err); rejected {
 			return resp, nil
