@@ -54,7 +54,7 @@ func PlanPathForChat(home string, chatID uuid.UUID) string {
 }
 
 func looksLikePlanFileName(requestedPath string) bool {
-	cleaned := path.Clean(requestedPath)
+	cleaned := path.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
 	return strings.EqualFold(path.Base(cleaned), "plan.md")
 }
 
