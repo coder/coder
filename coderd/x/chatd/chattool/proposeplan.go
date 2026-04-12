@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"io"
-	pathpkg "path"
 	"path/filepath"
 	"strings"
 
@@ -68,7 +67,7 @@ func executeProposePlanTool(
 	}
 
 	looksLikePlanPath := looksLikePlanFileName(requestedPath)
-	if looksLikePlanPath && !pathpkg.IsAbs(requestedPath) {
+	if looksLikePlanPath && !isAbsolutePath(requestedPath) {
 		return fantasy.NewTextErrorResponse(
 			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
 		), nil

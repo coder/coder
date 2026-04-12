@@ -7,6 +7,31 @@ import (
 	"golang.org/x/xerrors"
 )
 
+func TestIsAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/home/coder/PLAN.md", true},
+		{`C:\Users\coder\PLAN.md`, true},
+		{"C:/Users/coder/PLAN.md", true},
+		{`d:\data\plan.md`, true},
+		{"plan.md", false},
+		{"./plan.md", false},
+		{"../plan.md", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, isAbsolutePath(tt.path))
+		})
+	}
+}
+
 func TestLooksLikePlanFileName(t *testing.T) {
 	t.Parallel()
 

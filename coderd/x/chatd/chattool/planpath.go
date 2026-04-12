@@ -2,7 +2,7 @@ package chattool
 
 import (
 	"context"
-	"path"
+	pathpkg "path"
 	"strings"
 
 	"github.com/google/uuid"
@@ -45,7 +45,7 @@ func ResolveWorkspaceHome(
 // PlanPathForChat returns the per-chat plan file path rooted in the
 // workspace home directory.
 func PlanPathForChat(home string, chatID uuid.UUID) string {
-	return path.Join(
+	return pathpkg.Join(
 		home,
 		".coder",
 		"plans",
@@ -53,11 +53,27 @@ func PlanPathForChat(home string, chatID uuid.UUID) string {
 	)
 }
 
+// isAbsolutePath reports whether p is an absolute path on either
+// POSIX or Windows. Since chatd runs on Linux, the POSIX
+// absolute-path check only recognizes forward-slash roots. This
+// also detects Windows drive letter prefixes (for example, C:\ or
+// C:/).
+func isAbsolutePath(p string) bool {
+	if pathpkg.IsAbs(p) {
+		return true
+	}
+	if len(p) >= 3 && p[1] == ':' && (p[2] == '/' || p[2] == '\\') {
+		c := p[0]
+		return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+	}
+	return false
+}
+
 // looksLikePlanFileName reports whether the base name of requestedPath
 // is "plan.md" (case-insensitive), ignoring the directory component.
 func looksLikePlanFileName(requestedPath string) bool {
-	cleaned := path.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
-	return strings.EqualFold(path.Base(cleaned), "plan.md")
+	cleaned := pathpkg.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
+	return strings.EqualFold(pathpkg.Base(cleaned), "plan.md")
 }
 
 // LooksLikeHomePlanFile reports whether requestedPath is a plan.md
@@ -68,12 +84,12 @@ func looksLikePlanFileName(requestedPath string) bool {
 func LooksLikeHomePlanFile(requestedPath, home string) bool {
 	// Normalize backslashes so Windows workspace paths (for example,
 	// C:\\Users\\coder\\PLAN.md) are handled correctly. The chatd server
-	// runs on Linux, so path.Clean alone only parses forward slashes.
-	normalized := path.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
-	normalizedHome := path.Clean(strings.ReplaceAll(home, "\\", "/"))
+	// runs on Linux, so the POSIX cleaner alone only parses forward slashes.
+	normalized := pathpkg.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
+	normalizedHome := pathpkg.Clean(strings.ReplaceAll(home, "\\", "/"))
 
 	return looksLikePlanFileName(normalized) &&
-		path.Dir(normalized) == normalizedHome
+		pathpkg.Dir(normalized) == normalizedHome
 }
 
 // IsLegacySharedPlanPath reports whether requested is the exact legacy

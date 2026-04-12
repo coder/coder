@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"path"
 	"strings"
 
 	"charm.land/fantasy"
@@ -48,7 +47,7 @@ func executeWriteFileTool(
 	}
 
 	looksLikePlanPath := looksLikePlanFileName(args.Path)
-	if looksLikePlanPath && !path.IsAbs(args.Path) {
+	if looksLikePlanPath && !isAbsolutePath(args.Path) {
 		return fantasy.NewTextErrorResponse(
 			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
 		), nil
