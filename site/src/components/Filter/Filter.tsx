@@ -133,7 +133,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 		<Skeleton
 			height={36}
 			{...skeletonProps}
-			className="bg-surface-tertiary rounded-md"
+			className="bg-surface-tertiary rounded-md w-52"
 		>
 			{children}
 		</Skeleton>
@@ -197,7 +197,7 @@ export const Filter: FC<FilterProps> = ({
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex gap-2 flex-wrap mb-4 md:flex-nowrap">
+		<div className="flex gap-2 flex-nowrap mb-4 md:flex-wrap">
 			{isLoading ? (
 				<>
 					<BaseSkeleton width="100%" />

@@ -188,7 +188,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 
 						<TableCell
 							className={cn(
-								"uppercase",
+								"capitalize",
 								user.status === "suspended" && "text-content-secondary",
 							)}
 						>
