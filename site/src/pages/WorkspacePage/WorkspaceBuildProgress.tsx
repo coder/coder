@@ -164,12 +164,3 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		</div>
 	);
 };
-
-// const styles = {
-// 	label: (theme) => ({
-// 		fontSize: 12,
-// 		display: "block",
-// 		fontWeight: 600,
-// 		color: theme.palette.text.secondary,
-// 	}),
-// } satisfies Record<string, Interpolation<Theme>>;
