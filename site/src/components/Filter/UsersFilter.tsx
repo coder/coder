@@ -80,6 +80,7 @@ export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
 			error={error}
 			options={menus?.status && <StatusMenu {...menus.status} />}
 			optionsSkeleton={menus?.status && <MenuSkeleton />}
+			className="lg:flex-nowrap"
 		/>
 	);
 };

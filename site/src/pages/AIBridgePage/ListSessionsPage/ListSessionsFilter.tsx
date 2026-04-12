@@ -58,6 +58,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 					<ModelFilter menu={menus.model} />
 				</>
 			}
+			className="lg:flex-nowrap"
 		/>
 	);
 };
