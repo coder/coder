@@ -80,7 +80,8 @@ func looksLikePlanFileName(requestedPath string) bool {
 // variant (case-insensitive) sitting directly in the workspace home
 // directory.
 // The filename is compared case-insensitively because LLM output varies.
-// The directory is compared exactly because it comes from the system.
+// The directory comparison also ignores case so Windows drive-letter
+// casing mismatches do not bypass the guard.
 func LooksLikeHomePlanFile(requestedPath, home string) bool {
 	// Normalize backslashes so Windows workspace paths (for example,
 	// C:\\Users\\coder\\PLAN.md) are handled correctly. The chatd server
@@ -89,7 +90,7 @@ func LooksLikeHomePlanFile(requestedPath, home string) bool {
 	normalizedHome := pathpkg.Clean(strings.ReplaceAll(home, "\\", "/"))
 
 	return looksLikePlanFileName(normalized) &&
-		pathpkg.Dir(normalized) == normalizedHome
+		strings.EqualFold(pathpkg.Dir(normalized), normalizedHome)
 }
 
 func isLegacySharedPlanPath(requested string) bool {

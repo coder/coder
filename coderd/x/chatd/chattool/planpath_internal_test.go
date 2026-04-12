@@ -41,6 +41,12 @@ func TestLooksLikePlanFileName(t *testing.T) {
 	require.False(t, looksLikePlanFileName(`C:\\Users\\coder\\README.md`))
 }
 
+func TestLooksLikeHomePlanFileWindowsDriveLetterCaseMismatch(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, LooksLikeHomePlanFile("C:/Users/coder/plan.md", "c:/Users/coder"))
+}
+
 func TestIsLegacySharedPlanPath(t *testing.T) {
 	t.Parallel()
 
