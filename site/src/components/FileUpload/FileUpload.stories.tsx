@@ -1,5 +1,5 @@
-import Link from "@mui/material/Link";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Link } from "#/components/Link/Link";
 import { FileUpload } from "./FileUpload";
 
 const meta: Meta<typeof FileUpload> = {
@@ -10,8 +10,10 @@ const meta: Meta<typeof FileUpload> = {
 		description: (
 			<>
 				The template has to be a .tar or .zip file. You can also use our{" "}
-				<Link href="/starter-templates">starter templates</Link> to getting
-				started with Coder.
+				<Link href="/starter-templates" showExternalIcon={false}>
+					starter templates
+				</Link>{" "}
+				to getting started with Coder.
 			</>
 		),
 	},

@@ -1,11 +1,9 @@
-import { useTheme } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
 import type { FC } from "react";
 import type { GitSSHKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { Stack } from "#/components/Stack/Stack";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface SSHKeysPageViewProps {
 	isLoading: boolean;
@@ -20,43 +18,27 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 	sshKey,
 	onRegenerateClick,
 }) => {
-	const theme = useTheme();
-
 	if (isLoading) {
 		return (
 			<div className="p-8">
-				<CircularProgress size={26} />
+				<Spinner size="lg" loading />
 			</div>
 		);
 	}
 
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			{/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
 			{Boolean(getSSHKeyError) && <ErrorAlert error={getSSHKeyError} />}
 
 			{sshKey && (
 				<>
-					<p
-						css={{
-							fontSize: 14,
-							color: theme.palette.text.secondary,
-							margin: 0,
-						}}
-					>
+					<p className="m-0 text-sm text-content-secondary">
 						The following public key is used to authenticate Git in workspaces.
 						You may add it to Git services (such as GitHub) that you need to
 						access from your workspace. Coder configures authentication via{" "}
-						<code
-							css={{
-								background: theme.palette.divider,
-								fontSize: 12,
-								padding: "2px 4px",
-								color: theme.palette.text.primary,
-								borderRadius: 2,
-							}}
-						>
+						<code className="rounded-sm border border-border bg-surface-secondary px-1 py-0.5 text-xs text-content-primary">
 							$GIT_SSH_COMMAND
 						</code>
 						.
@@ -73,6 +55,6 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 					</div>
 				</>
 			)}
-		</Stack>
+		</div>
 	);
 };

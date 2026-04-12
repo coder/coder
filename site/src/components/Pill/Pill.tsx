@@ -1,9 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import CircularProgress, {
-	type CircularProgressProps,
-} from "@mui/material/CircularProgress";
-import { type FC, type ReactNode, useMemo } from "react";
+import { cva } from "class-variance-authority";
+import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "#/theme/roles";
+import { cn } from "#/utils/cn";
+import { Spinner, type SpinnerProps } from "../Spinner/Spinner";
 
 type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;
@@ -11,36 +10,88 @@ type PillProps = React.ComponentPropsWithRef<"div"> & {
 	size?: "md" | "lg";
 };
 
-const themeStyles = (type: ThemeRole) => (theme: Theme) => {
-	const palette = theme.roles[type];
-	return {
-		backgroundColor: palette.background,
-		borderColor: palette.outline,
-	};
-};
+const pillRoleVariants = cva("text-content-primary", {
+	variants: {
+		type: {
+			error: "border-border-destructive bg-surface-red",
+			warning: "border-border-warning bg-surface-orange",
+			notice: "border-border-pending bg-surface-sky",
+			info: "border-border bg-surface-quaternary",
+			success: "border-border-green bg-surface-green",
+			active: "border-border-pending bg-surface-sky",
+			inactive: "border-border bg-surface-secondary",
+			danger: "border-border-warning bg-surface-orange",
+			preview: "border-border-purple bg-surface-purple",
+		},
+	},
+	defaultVariants: {
+		type: "inactive",
+	},
+});
 
-const PILL_HEIGHT = 24;
-const PILL_ICON_SIZE = 14;
-const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
+const pillLayoutVariants = cva(
+	"inline-flex cursor-default items-center whitespace-nowrap border border-solid font-normal [&_svg]:size-[14px]",
+	{
+		variants: {
+			size: {
+				md: "h-6 rounded-full text-xs leading-none",
+				lg: "rounded-full py-3.5 pl-4 pr-4 text-sm leading-none",
+			},
+			withIcon: {
+				true: "",
+				false: "",
+			},
+		},
+		compoundVariants: [
+			{
+				size: "md",
+				withIcon: false,
+				class: "gap-[5px] px-3",
+			},
+			{
+				size: "md",
+				withIcon: true,
+				class: "gap-[5px] pr-3 pl-[5px]",
+			},
+			{
+				size: "lg",
+				withIcon: false,
+				class: "gap-2.5",
+			},
+			{
+				size: "lg",
+				withIcon: true,
+				class: "gap-2.5 pl-2.5 pr-4",
+			},
+		],
+		defaultVariants: {
+			size: "md",
+			withIcon: false,
+		},
+	},
+);
+
+type PillSpinnerProps = SpinnerProps;
+
+export const PillSpinner: FC<PillSpinnerProps> = ({ size = "sm" }) => {
+	return <Spinner size={size} loading />;
+};
 
 export const Pill: FC<PillProps> = ({
 	icon,
 	type = "inactive",
 	children,
 	size = "md",
+	className,
 	...divProps
 }) => {
-	const typeStyles = useMemo(() => themeStyles(type), [type]);
-
 	return (
 		<div
-			css={[
-				styles.pill,
-				Boolean(icon) && size === "md" && styles.pillWithIcon,
-				size === "lg" && styles.pillLg,
-				Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
-				typeStyles,
-			]}
+			className={cn(
+				pillLayoutVariants({ size, withIcon: Boolean(icon) }),
+				pillRoleVariants({ type }),
+				className,
+			)}
 			{...divProps}
 		>
 			{icon}
@@ -48,55 +99,3 @@ export const Pill: FC<PillProps> = ({
 		</div>
 	);
 };
-
-export const PillSpinner: FC<CircularProgressProps> = (props) => {
-	return (
-		<CircularProgress size={PILL_ICON_SIZE} css={styles.spinner} {...props} />
-	);
-};
-
-const styles = {
-	pill: (theme) => ({
-		fontSize: 12,
-		color: theme.experimental.l1.text,
-		cursor: "default",
-		display: "inline-flex",
-		alignItems: "center",
-		whiteSpace: "nowrap",
-		fontWeight: 400,
-		borderWidth: 1,
-		borderStyle: "solid",
-		borderRadius: 99999,
-		lineHeight: 1,
-		height: PILL_HEIGHT,
-		gap: PILL_ICON_SPACING,
-		paddingLeft: 12,
-		paddingRight: 12,
-
-		"& svg": {
-			width: PILL_ICON_SIZE,
-			height: PILL_ICON_SIZE,
-		},
-	}),
-
-	pillWithIcon: {
-		paddingLeft: PILL_ICON_SPACING,
-	},
-
-	pillLg: {
-		gap: PILL_ICON_SPACING * 2,
-		padding: "14px 16px",
-	},
-
-	pillLgWithIcon: {
-		paddingLeft: PILL_ICON_SPACING * 2,
-	},
-
-	spinner: (theme) => ({
-		color: theme.experimental.l1.text,
-		// It is necessary to align it with the MUI Icons internal padding
-		"& svg": {
-			transform: "scale(.75)",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

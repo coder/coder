@@ -1,6 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
 import { isAxiosError } from "axios";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
@@ -8,6 +5,9 @@ import type { ApiErrorResponse } from "#/api/errors";
 import type { ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
+import { Link } from "#/components/Link/Link";
+import { cn } from "#/utils/cn";
+import { Spinner } from "../Spinner/Spinner";
 
 interface GitDeviceAuthProps {
 	externalAuthDevice?: ExternalAuthDevice;
@@ -72,8 +72,12 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	deviceExchangeError,
 }) => {
 	let status = (
-		<p css={styles.status}>
-			<CircularProgress size={16} color="secondary" data-chromatic="ignore" />
+		<p
+			className={cn(
+				"m-0 flex items-center justify-center gap-2 text-content-disabled",
+			)}
+		>
+			<Spinner size="sm" loading />
 			Checking for authentication...
 		</p>
 	);
@@ -126,30 +130,33 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	}
 
 	if (!externalAuthDevice) {
-		return <CircularProgress />;
+		return <Spinner size="sm" loading />;
 	}
 
 	return (
 		<div>
-			<p css={styles.text}>
+			<div className="m-0 text-center text-base leading-[160%] text-content-secondary">
 				Copy your one-time code:&nbsp;
-				<div css={styles.copyCode}>
-					<span css={styles.code}>{externalAuthDevice.user_code}</span>
+				<span className="inline-flex items-center">
+					<span className="font-bold text-content-primary">
+						{externalAuthDevice.user_code}
+					</span>
 					&nbsp;{" "}
 					<CopyButton
 						text={externalAuthDevice.user_code}
 						label="Copy user code"
 					/>
-				</div>
+				</span>
 				<br />
 				Then open the link below and paste it:
-			</p>
-			<div css={styles.links}>
+			</div>
+			<div className="my-4 flex flex-col gap-1">
 				<Link
-					css={styles.link}
+					className="flex items-center justify-center gap-2 text-base"
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"
+					showExternalIcon={false}
 				>
 					<ExternalLinkIcon className="size-icon-xs" />
 					Open and Paste
@@ -160,46 +167,3 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	text: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		lineHeight: "160%",
-		margin: 0,
-	}),
-
-	copyCode: {
-		display: "inline-flex",
-		alignItems: "center",
-	},
-
-	code: (theme) => ({
-		fontWeight: "bold",
-		color: theme.palette.text.primary,
-	}),
-
-	links: {
-		display: "flex",
-		gap: 4,
-		margin: 16,
-		flexDirection: "column",
-	},
-
-	link: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		fontSize: 16,
-		gap: 8,
-	},
-
-	status: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		gap: 8,
-		color: theme.palette.text.disabled,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
