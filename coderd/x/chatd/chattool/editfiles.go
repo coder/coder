@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"strings"
 
 	"charm.land/fantasy"
 
@@ -51,7 +52,10 @@ func executeEditFilesTool(
 		planPathErr    error
 		planPathLoaded bool
 	)
-	for _, file := range args.Files {
+	for i := range args.Files {
+		args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
+		file := args.Files[i]
+
 		looksLikePlanPath := looksLikePlanFileName(file.Path)
 		if looksLikePlanPath && !isAbsolutePath(file.Path) {
 			return fantasy.NewTextErrorResponse(
@@ -66,7 +70,9 @@ func executeEditFilesTool(
 			planPathLoaded = true
 		}
 		if resp, rejected := rejectSharedPlanPath(file.Path, home, chatPath, planPathErr); rejected {
-			return resp, nil
+			return fantasy.NewTextErrorResponse(
+				resp.Content + "; no files in this batch were applied",
+			), nil
 		}
 	}
 

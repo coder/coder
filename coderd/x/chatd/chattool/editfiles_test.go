@@ -67,10 +67,10 @@ func TestEditFiles(t *testing.T) {
 				assert.Equal(t, 1, resolvePlanPathCalls)
 				assert.Equal(
 					t,
-					sharedPlanPathResolvedMessage(
+					editFilesBatchRejectedMessage(sharedPlanPathResolvedMessage(
 						testCase.expectedRejectedPath,
 						"/Users/dev/.coder/plans/PLAN-chat.md",
-					),
+					)),
 					resp.Content,
 				)
 			})
@@ -97,7 +97,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, sharedPlanPathFallbackMessage("/home/coder/plan.md"), resp.Content)
+		assert.Equal(t, editFilesBatchRejectedMessage(planPathVerificationMessage("/home/coder/plan.md")), resp.Content)
 	})
 
 	t.Run("RejectsRelativePlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
@@ -124,6 +124,40 @@ func TestEditFiles(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.False(t, resolvePlanPathCalled)
 		assert.Equal(t, relativePlanPathMessage(), resp.Content)
+	})
+
+	t.Run("NestedPlanPathUnderHomeIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
+			Path: "/home/coder/myproject/plan.md",
+			Edits: []workspacesdk.FileEdit{{
+				Search:  "old",
+				Replace: "new",
+			}},
+		}}}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+
+		planPathCalled := false
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				planPathCalled = true
+				return "/home/coder/.coder/plans/PLAN-chat.md", "/home/coder", nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.True(t, planPathCalled)
 	})
 
 	t.Run("AllowsNonSharedPath", func(t *testing.T) {

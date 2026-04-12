@@ -13,12 +13,22 @@ func rejectSharedPlanPath(
 	planPath string,
 	planPathErr error,
 ) (fantasy.ToolResponse, bool) {
+	if planPathErr != nil {
+		if !looksLikePlanFileName(requestedPath) {
+			return fantasy.ToolResponse{}, false
+		}
+
+		return fantasy.NewTextErrorResponse(
+			planPathVerificationMessage(requestedPath),
+		), true
+	}
+
 	if !looksLikeLegacyHomePlanPath(requestedPath, home) {
 		return fantasy.ToolResponse{}, false
 	}
 
 	return fantasy.NewTextErrorResponse(
-		sharedPlanPathMessage(requestedPath, planPath, planPathErr),
+		sharedPlanPathMessage(requestedPath, planPath),
 	), true
 }
 
@@ -30,17 +40,17 @@ func looksLikeLegacyHomePlanPath(requestedPath, home string) bool {
 	return LooksLikeHomePlanFile(requestedPath, home)
 }
 
-func sharedPlanPathMessage(requestedPath, planPath string, err error) string {
-	if err == nil && strings.TrimSpace(planPath) != "" {
-		return fmt.Sprintf(
-			"the plan path %s is no longer supported at the home root; use the chat-specific plan path: %s",
-			requestedPath,
-			planPath,
-		)
-	}
-
+func sharedPlanPathMessage(requestedPath, planPath string) string {
 	return fmt.Sprintf(
-		"the plan path %s is no longer supported at the home root; the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly",
+		"the plan path %s is no longer supported at the home root; use the chat-specific plan path: %s",
+		requestedPath,
+		planPath,
+	)
+}
+
+func planPathVerificationMessage(requestedPath string) string {
+	return fmt.Sprintf(
+		"the plan path %s could not be verified because the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly",
 		requestedPath,
 	)
 }

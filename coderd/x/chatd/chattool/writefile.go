@@ -42,12 +42,13 @@ func executeWriteFileTool(
 	args WriteFileArgs,
 	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 ) (fantasy.ToolResponse, error) {
-	if args.Path == "" {
+	requestedPath := strings.TrimSpace(args.Path)
+	if requestedPath == "" {
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
-	looksLikePlanPath := looksLikePlanFileName(args.Path)
-	if looksLikePlanPath && !isAbsolutePath(args.Path) {
+	looksLikePlanPath := looksLikePlanFileName(requestedPath)
+	if looksLikePlanPath && !isAbsolutePath(requestedPath) {
 		return fantasy.NewTextErrorResponse(
 			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
 		), nil
@@ -55,12 +56,12 @@ func executeWriteFileTool(
 
 	if resolvePlanPath != nil && looksLikePlanPath {
 		chatPath, home, err := resolvePlanPath(ctx)
-		if resp, rejected := rejectSharedPlanPath(args.Path, home, chatPath, err); rejected {
+		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
 			return resp, nil
 		}
 	}
 
-	if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
+	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 	return toolResponse(map[string]any{"ok": true}), nil

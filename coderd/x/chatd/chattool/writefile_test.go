@@ -126,6 +126,65 @@ func TestWriteFile(t *testing.T) {
 		}
 	})
 
+	t.Run("RejectsSharedPlanPathWhenResolverFails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return "", "", xerrors.New("workspace unavailable")
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"/home/coder/plan.md","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, planPathVerificationMessage("/home/coder/plan.md"), resp.Content)
+	})
+
+	t.Run("NestedPlanPathUnderHomeIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		mockConn.EXPECT().
+			WriteFile(gomock.Any(), "/home/coder/myproject/plan.md", gomock.Any()).
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+				data, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.Equal(t, "/home/coder/myproject/plan.md", path)
+				require.Equal(t, "# Plan", string(data))
+				return nil
+			})
+
+		planPathCalled := false
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				planPathCalled = true
+				return "/home/coder/.coder/plans/PLAN-chat.md", "/home/coder", nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"/home/coder/myproject/plan.md","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.True(t, planPathCalled)
+		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
+	})
+
 	t.Run("AllowsNonSharedPath", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

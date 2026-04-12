@@ -341,7 +341,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, sharedPlanPathFallbackMessage(chattool.LegacySharedPlanPath), resp.Content)
+		assert.Equal(t, planPathVerificationMessage(chattool.LegacySharedPlanPath), resp.Content)
 	})
 
 	t.Run("WorkspaceConnectionError", func(t *testing.T) {
@@ -430,9 +430,13 @@ func sharedPlanPathResolvedMessage(requestedPath, planPath string) string {
 		" is no longer supported at the home root; use the chat-specific plan path: " + planPath
 }
 
-func sharedPlanPathFallbackMessage(requestedPath string) string {
+func planPathVerificationMessage(requestedPath string) string {
 	return "the plan path " + requestedPath +
-		" is no longer supported at the home root; the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly"
+		" could not be verified because the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly"
+}
+
+func editFilesBatchRejectedMessage(message string) string {
+	return message + "; no files in this batch were applied"
 }
 
 func relativePlanPathMessage() string {

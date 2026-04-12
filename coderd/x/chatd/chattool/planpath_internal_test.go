@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
 
 func TestIsAbsolutePath(t *testing.T) {
@@ -15,9 +14,9 @@ func TestIsAbsolutePath(t *testing.T) {
 		want bool
 	}{
 		{"/home/coder/PLAN.md", true},
-		{`C:\Users\coder\PLAN.md`, true},
+		{`C:\\Users\\coder\\PLAN.md`, true},
 		{"C:/Users/coder/PLAN.md", true},
-		{`d:\data\plan.md`, true},
+		{`d:\\data\\plan.md`, true},
 		{"plan.md", false},
 		{"./plan.md", false},
 		{"../plan.md", false},
@@ -42,6 +41,57 @@ func TestLooksLikePlanFileName(t *testing.T) {
 	require.False(t, looksLikePlanFileName(`C:\\Users\\coder\\README.md`))
 }
 
+func TestIsLegacySharedPlanPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		requested string
+		want      bool
+	}{
+		{
+			name:      "ExactMatch",
+			requested: "/home/coder/PLAN.md",
+			want:      true,
+		},
+		{
+			name:      "DifferentFilename",
+			requested: "/home/coder/OTHER.md",
+			want:      false,
+		},
+		{
+			name:      "DifferentDirectory",
+			requested: "/home/dev/PLAN.md",
+			want:      false,
+		},
+		{
+			name:      "PerChatPath",
+			requested: "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md",
+			want:      false,
+		},
+		{
+			name:      "EmptyString",
+			requested: "",
+			want:      false,
+		},
+		{
+			name:      "SubstringMatch",
+			requested: "/home/coder/PLAN.md/extra",
+			want:      false,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := isLegacySharedPlanPath(testCase.requested)
+
+			require.Equal(t, testCase.want, got)
+		})
+	}
+}
+
 func TestLooksLikeLegacyHomePlanPath(t *testing.T) {
 	t.Parallel()
 
@@ -59,16 +109,11 @@ func TestSharedPlanPathMessage(t *testing.T) {
 		sharedPlanPathMessage(
 			"/home/coder/plan.md",
 			"/home/coder/.coder/plans/PLAN-chat.md",
-			nil,
 		),
 	)
 	require.Equal(
 		t,
-		"the plan path /home/coder/plan.md is no longer supported at the home root; the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly",
-		sharedPlanPathMessage(
-			"/home/coder/plan.md",
-			"",
-			xerrors.New("workspace unavailable"),
-		),
+		"the plan path /home/coder/plan.md could not be verified because the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly",
+		planPathVerificationMessage("/home/coder/plan.md"),
 	)
 }

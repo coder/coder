@@ -92,8 +92,6 @@ func LooksLikeHomePlanFile(requestedPath, home string) bool {
 		pathpkg.Dir(normalized) == normalizedHome
 }
 
-// IsLegacySharedPlanPath reports whether requested is the exact legacy
-// shared plan file path.
-func IsLegacySharedPlanPath(requested string) bool {
+func isLegacySharedPlanPath(requested string) bool {
 	return requested == LegacySharedPlanPath
 }

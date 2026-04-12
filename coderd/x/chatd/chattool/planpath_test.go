@@ -130,57 +130,6 @@ func TestPlanPathForChat(t *testing.T) {
 	})
 }
 
-func TestIsLegacySharedPlanPath(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		requested string
-		want      bool
-	}{
-		{
-			name:      "ExactMatch",
-			requested: "/home/coder/PLAN.md",
-			want:      true,
-		},
-		{
-			name:      "DifferentFilename",
-			requested: "/home/coder/OTHER.md",
-			want:      false,
-		},
-		{
-			name:      "DifferentDirectory",
-			requested: "/home/dev/PLAN.md",
-			want:      false,
-		},
-		{
-			name:      "PerChatPath",
-			requested: "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md",
-			want:      false,
-		},
-		{
-			name:      "EmptyString",
-			requested: "",
-			want:      false,
-		},
-		{
-			name:      "SubstringMatch",
-			requested: "/home/coder/PLAN.md/extra",
-			want:      false,
-		},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := chattool.IsLegacySharedPlanPath(testCase.requested)
-
-			require.Equal(t, testCase.want, got)
-		})
-	}
-}
-
 func TestLooksLikeHomePlanFile(t *testing.T) {
 	t.Parallel()
 
