@@ -169,6 +169,10 @@ AI BRIDGE OPTIONS:
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
+      --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
+          Allow users to bring their own LLM API keys or subscriptions. When
+          disabled, only centralized key authentication is permitted.
+
 AI BRIDGE PROXY OPTIONS: 
       --aibridge-proxy-allowed-private-cidrs string-array, $CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS
           Comma-separated list of CIDR ranges that are permitted even though

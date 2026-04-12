@@ -431,6 +431,7 @@
 
 ```json
 {
+  "allow_byok": true,
   "anthropic": {
     "base_url": "string",
     "key": "string"
@@ -466,6 +467,7 @@
 
 | Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
 |-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                       |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
 | `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
@@ -1210,6 +1212,7 @@
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "allow_byok": true,
     "anthropic": {
       "base_url": "string",
       "key": "string"
@@ -3231,6 +3234,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
@@ -3809,6 +3813,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "allow_byok": true,
       "anthropic": {
         "base_url": "string",
         "key": "string"

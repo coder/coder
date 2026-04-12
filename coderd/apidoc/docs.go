@@ -13102,6 +13102,9 @@ const docTemplate = `{
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
+                "allow_byok": {
+                    "type": "boolean"
+                },
                 "anthropic": {
                     "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
                 },

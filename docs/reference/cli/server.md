@@ -1868,6 +1868,17 @@ Emit structured logs for AI Bridge interception records. Use this for exporting 
 
 Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
 
+### --ai-gateway-allow-byok
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_AI_GATEWAY_ALLOW_BYOK</code> |
+| YAML        | <code>aibridge.allow_byok</code>          |
+| Default     | <code>true</code>                         |
+
+Allow users to bring their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.
+
 ### --aibridge-circuit-breaker-enabled
 
 |             |                                                      |
