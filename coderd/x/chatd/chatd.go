@@ -4482,6 +4482,11 @@ func (p *Server) runChat(
 		}
 		return chattool.PlanPathForChat(home, chat.ID), home, nil
 	}
+	resolvePlanPathForTools := func(ctx context.Context) (string, string, error) {
+		ctx, cancel := context.WithTimeout(ctx, planPathLookupTimeout)
+		defer cancel()
+		return planPathFn(ctx)
+	}
 	resolvePlanPathInstruction := func(resolveCtx context.Context) string {
 		if chat.ParentChatID.Valid {
 			return ""
@@ -4491,11 +4496,19 @@ func (p *Server) runChat(
 		defer cancel()
 
 		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
+			p.logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
 			return ""
 		}
 
 		planPath, _, err := planPathFn(planCtx)
 		if err != nil {
+			p.logger.Debug(resolveCtx, "plan path instruction: failed to resolve plan path",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
 			return ""
 		}
 
@@ -5010,11 +5023,11 @@ func (p *Server) runChat(
 		}),
 		chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  planPathFn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  planPathFn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5070,7 +5083,7 @@ func (p *Server) runChat(
 		// Plan presentation tool.
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  planPathFn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
 				workspaceCtx.chatStateMu.Lock()
 				chatSnapshot := *workspaceCtx.currentChat

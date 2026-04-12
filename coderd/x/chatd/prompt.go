@@ -88,9 +88,11 @@ Propose a plan when:
 If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
 Once a workspace is available:
 1. Use spawn_agent and wait_agent to research the codebase and gather context as needed.
-2. Use write_file to create a Markdown plan file at the chat-specific plan path provided in your instructions.
+2. Use write_file to create a Markdown plan file at the chat-specific
+   plan path provided in your runtime instructions (if available).
 3. Iterate on the plan with edit_files if needed.
-4. Call propose_plan with the absolute plan file path from your instructions to present the plan to the user.
+4. Call propose_plan with the absolute plan file path from your runtime
+   instructions to present the plan to the user.
 5. Wait for the user to review and approve the plan before starting implementation.
 
 The propose_plan tool reads the file from the workspace. Do not pass content directly.

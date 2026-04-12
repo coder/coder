@@ -59,7 +59,7 @@ func executeEditFilesTool(
 		looksLikePlanPath := looksLikePlanFileName(file.Path)
 		if looksLikePlanPath && !isAbsolutePath(file.Path) {
 			return fantasy.NewTextErrorResponse(
-				"plan files must use absolute paths; use the chat-specific plan path from your instructions",
+				"plan files must use absolute paths; use the chat-specific plan path from your instructions; no files in this batch were applied",
 			), nil
 		}
 		if resolvePlanPath == nil || !looksLikePlanPath {
