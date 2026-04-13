@@ -15,11 +15,26 @@ gpg_flags=(
 	--yes
 )
 
-pushd "$PROJECT_ROOT/dogfood/coder/files/usr/share/keyrings"
+pushd "$PROJECT_ROOT/dogfood/coder/ubuntu-22.04/files/usr/share/keyrings"
+
+# Ansible PPA signing key
+# This curl command is now resulting in a 404, causing the script to fail.
+# Rather than fix, we're just upgrading to Ubuntu 26.04 which removed the
+# dependency on this PPA.
+# curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0X6125E2A8C77F2818FB7BD15B93C4A3FD7BB9C367" |
+# 	gpg "${gpg_flags[@]}" --output="ansible.gpg"
 
 # Upstream Docker signing key
 curl "${curl_flags[@]}" "https://download.docker.com/linux/ubuntu/gpg" |
 	gpg "${gpg_flags[@]}" --output="docker.gpg"
+
+# Fish signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x88421E703EDC7AF54967DED473C9FCC9E2BB48DA" |
+	gpg "${gpg_flags[@]}" --output="fish-shell.gpg"
+
+# Git-Core signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE1DD270288B4E6030699E45FA1715D88E1DF1F24" |
+	gpg "${gpg_flags[@]}" --output="git-core.gpg"
 
 # GitHub CLI signing key
 curl "${curl_flags[@]}" "https://cli.github.com/packages/githubcli-archive-keyring.gpg" |
@@ -37,9 +52,17 @@ curl "${curl_flags[@]}" "https://packages.cloud.google.com/apt/doc/apt-key.gpg" 
 curl "${curl_flags[@]}" "https://apt.releases.hashicorp.com/gpg" |
 	gpg "${gpg_flags[@]}" --output="hashicorp.gpg"
 
+# Helix signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x27642B9FD7F1A161FC2524E3355A4FA515D7C855" |
+	gpg "${gpg_flags[@]}" --output="helix.gpg"
+
 # Microsoft repository signing key (Edge)
 curl "${curl_flags[@]}" "https://packages.microsoft.com/keys/microsoft.asc" |
 	gpg "${gpg_flags[@]}" --output="microsoft.gpg"
+
+# Neovim signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9DBB0BE9366964F134855E2255F96FCF8231B6DD" |
+	gpg "${gpg_flags[@]}" --output="neovim.gpg"
 
 # NodeSource signing key
 curl "${curl_flags[@]}" "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key" |

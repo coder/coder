@@ -8,7 +8,7 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:resolute@sha256:cc925e589b7543b910fea57a240468940003fbfc0515245a495dd0ad8fe7cef1 AS go
+FROM ubuntu:jammy@sha256:eb29ed27b0821dca09c2e28b39135e185fc1302036427d5f4d70a41ce8fd7659 AS go
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.25.8
@@ -83,7 +83,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:resolute@sha256:cc925e589b7543b910fea57a240468940003fbfc0515245a495dd0ad8fe7cef1
+FROM ubuntu:jammy@sha256:eb29ed27b0821dca09c2e28b39135e185fc1302036427d5f4d70a41ce8fd7659
 
 SHELL ["/bin/bash", "-c"]
 
@@ -96,7 +96,7 @@ ARG DEBIAN_FRONTEND="noninteractive"
 # Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
 # and unminimize to include man pages.
 RUN apt-get update && \
-	apt-get install --yes ca-certificates locales unminimize && \
+	apt-get install --yes ca-certificates locales && \
 	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
 	locale-gen && \
 	yes | unminimize
@@ -111,7 +111,8 @@ RUN mkdir -p /etc/sudoers.d && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
 # Use more reliable mirrors for Ubuntu packages
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
+	sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
 	apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
@@ -130,7 +131,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	docker-ce \
 	docker-ce-cli \
 	docker-compose-plugin \
-	eza \
+	exa \
 	fd-find \
 	file \
 	fish \
@@ -138,7 +139,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	git \
 	gnupg \
 	google-cloud-sdk \
-	hx \
+	helix \
 	htop \
 	httpie \
 	inetutils-tools \
@@ -162,7 +163,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	openssh-server \
 	openssl \
 	pkg-config \
-	postgresql-18 \
+	postgresql-16 \
 	python3 \
 	python3-pip \
 	ripgrep \
@@ -187,12 +188,12 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# Install Google Chrome directly from Google. Ubuntu 26.04 ships
+# Install Google Chrome directly from Google. Ubuntu 22.04 ships
 # chromium-browser as a snap-only package, which does not work in
 # Docker containers.
 # configure-chrome-flags.sh is automatically run after dpkg operations
 # by dogfood/coder/files/etc/apt/apt.conf.d/99-chrome-flags.
-COPY configure-chrome-flags.sh /usr/local/bin/configure-chrome-flags.sh
+COPY files/configure-chrome-flags.sh /usr/local/bin/configure-chrome-flags.sh
 RUN chmod a+x /usr/local/bin/configure-chrome-flags.sh && \
 	wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
 	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
@@ -261,8 +262,8 @@ RUN corepack enable && \
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 
 # Ensure PostgreSQL binaries are in the users $PATH.
-RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/18/bin/initdb 100 && \
-	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/18/bin/postgres 100
+RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
+	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/16/bin/postgres 100
 
 # Create links for injected dependencies
 RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \
@@ -315,11 +316,8 @@ RUN \
 	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Add coder user and allow use of docker/sudo.
-# Ubuntu 26.04 ships a default "ubuntu" user at UID 1000;
-# remove it so we can create "coder" with that UID.
-RUN userdel -r ubuntu && \
-	useradd coder \
+# Add coder user and allow use of docker/sudo
+RUN useradd coder \
 	--create-home \
 	--shell=/bin/bash \
 	--groups=docker \
