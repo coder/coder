@@ -96,6 +96,17 @@ export const ForMember: Story = {
 	},
 };
 
+export const ForMemberWithAgentsAccess: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		canCreateChat: true,
+	},
+};
+
 export const CustomLogo: Story = {
 	args: {
 		logo_url: "/icon/github.svg",
