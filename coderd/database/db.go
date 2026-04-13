@@ -203,19 +203,13 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
-		if txOpts.Isolation > q.txIsolationLevel {
-			// The nested call requested a stricter isolation level than
-			// the parent, but it will be silently ignored because we
-			// reuse the parent transaction. Log this so callers can
-			// detect the mismatch.
-			//
-			// NOTE: this comparison relies on sql.IsolationLevel's iota
-			// ordering matching strictness for the standard SQL levels
-			// (ReadUncommitted < ReadCommitted < RepeatableRead <
-			// Serializable). Non-standard levels like WriteCommitted,
-			// Snapshot, and Linearizable also exist in the enum but are
-			// never used by this codebase. If that changes, this numeric
-			// comparison may need revisiting.
+		parentLevel := normalizeIsolationLevel(q.txIsolationLevel)
+		childLevel := normalizeIsolationLevel(txOpts.Isolation)
+		if childLevel > parentLevel {
+			// The nested call requested a stricter isolation level
+			// than the parent, but it will be silently ignored
+			// because we reuse the parent transaction. Log this so
+			// callers can detect the mismatch.
 			q.logger.Warn(context.Background(), "nested transaction requested stricter isolation level than the outer transaction provides",
 				slog.F("parent_isolation", q.txIsolationLevel.String()),
 				slog.F("requested_isolation", txOpts.Isolation.String()),
@@ -254,6 +248,23 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		return xerrors.Errorf("commit transaction: %w", err)
 	}
 	return nil
+}
+
+// normalizeIsolationLevel maps sql.LevelDefault to sql.LevelReadCommitted
+// for comparison purposes. The Go sql package defines LevelDefault as 0,
+// which sits below LevelReadUncommitted (1) in the iota ordering. When
+// LevelDefault is passed to the database driver, no explicit isolation
+// clause is sent, and the server applies its configured default. In
+// standard PostgreSQL this is "read committed". We normalize to
+// LevelReadCommitted so that the strictness comparison in runTx produces
+// correct results for the common case. If your PostgreSQL instance uses a
+// non-standard default_transaction_isolation (e.g. serializable), this
+// assumption may produce false negatives.
+func normalizeIsolationLevel(level sql.IsolationLevel) sql.IsolationLevel {
+	if level == sql.LevelDefault {
+		return sql.LevelReadCommitted
+	}
+	return level
 }
 
 func safeString(s *string) string {

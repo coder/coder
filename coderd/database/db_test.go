@@ -126,7 +126,8 @@ func TestNestedInTxStricterIsolationDefaultParent(t *testing.T) {
 	db := database.New(sqlDB, database.WithLogger(logger))
 
 	// Outer uses default isolation, inner requests RepeatableRead.
-	// The inner level is stricter, so a Critical log should fire.
+	// After normalization default becomes ReadCommitted, so the
+	// inner level is stricter and a Warn log should fire.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
 			return nil
@@ -246,6 +247,34 @@ func TestNestedInTxWeakerIsolationNoLog(t *testing.T) {
 		return e.Level == slog.LevelWarn
 	})
 	require.Empty(t, entries, "should not log when inner isolation is weaker than outer")
+}
+
+func TestNestedInTxDefaultVsReadCommittedNoLog(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sink := testutil.NewFakeSink(t)
+	logger := slog.Make(sink).Leveled(slog.LevelDebug)
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB, database.WithLogger(logger))
+
+	// Outer uses default (nil opts), inner requests ReadCommitted.
+	// After normalization both map to ReadCommitted, so no log
+	// should fire.
+	err := db.InTx(func(outer database.Store) error {
+		return outer.InTx(func(_ database.Store) error {
+			return nil
+		}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
+	}, nil)
+	require.NoError(t, err)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn
+	})
+	require.Empty(t, entries, "should not log when default and ReadCommitted are equivalent after normalization")
 }
 
 func testSQLDB(t testing.TB) *sql.DB {
