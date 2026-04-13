@@ -4080,7 +4080,7 @@ func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) ResolveUserChatSpendLimit(ctx context.Context, userID database.ResolveUserChatSpendLimitParams) (int64, error) {
+func (m queryMetricsStore) ResolveUserChatSpendLimit(ctx context.Context, userID database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ResolveUserChatSpendLimit(ctx, userID)
 	m.queryLatencies.WithLabelValues("ResolveUserChatSpendLimit").Observe(time.Since(start).Seconds())

@@ -7739,10 +7739,10 @@ func (mr *MockStoreMockRecorder) RemoveUserFromGroups(ctx, arg any) *gomock.Call
 }
 
 // ResolveUserChatSpendLimit mocks base method.
-func (m *MockStore) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (int64, error) {
+func (m *MockStore) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ResolveUserChatSpendLimit", ctx, arg)
-	ret0, _ := ret[0].(int64)
+	ret0, _ := ret[0].(database.ResolveUserChatSpendLimitRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -806,7 +806,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	// TODO(coder/internal#1466): pass real organization ID
 	// when the HTTP endpoint supports org-scoped queries.
-	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, uuid.Nil, time.Now())
+	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, uuid.NullUUID{}, time.Now())
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to resolve usage limit status", slog.Error(err))
 	}
@@ -1109,7 +1109,7 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	// TODO(coder/internal#1466): pass real organization ID
 	// when the HTTP endpoint supports org-scoped queries.
-	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, uuid.Nil, time.Now())
+	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, uuid.NullUUID{}, time.Now())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat usage limit status.",

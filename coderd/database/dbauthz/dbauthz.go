@@ -5695,9 +5695,9 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 	return q.db.RemoveUserFromGroups(ctx, arg)
 }
 
-func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (int64, error) {
+func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
-		return 0, err
+		return database.ResolveUserChatSpendLimitRow{}, err
 	}
 	return q.db.ResolveUserChatSpendLimit(ctx, arg)
 }
