@@ -1,4 +1,3 @@
-import Skeleton from "@mui/material/Skeleton";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
@@ -19,6 +18,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { cn } from "#/utils/cn";

@@ -1836,10 +1836,12 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		now := dbtime.Now()
 		endedAt := now.Add(time.Minute)
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "openai",
-			Model:       "gpt-4",
-			StartedAt:   now,
+			InitiatorID:    firstUser.UserID,
+			Provider:       "openai",
+			Model:          "gpt-4",
+			StartedAt:      now,
+			CredentialKind: database.CredentialKindByok,
+			CredentialHint: "sk-a...efgh",
 		}, &endedAt)
 
 		// When no client session ID is set, the interception ID becomes the session identifier.
@@ -1847,6 +1849,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, i1.ID.String(), res.ID)
 		require.Len(t, res.Threads, 1)
+		require.Equal(t, "byok", res.Threads[0].CredentialKind)
+		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
 	})
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {

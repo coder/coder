@@ -46,6 +46,13 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if err := codersdk.UserSecretValueValid(req.Value); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid secret value.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	envOpts := codersdk.UserSecretEnvValidationOptions{
 		AIGatewayEnabled: api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	}
@@ -212,6 +219,13 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		FilePath:          "",
 	}
 	if req.Value != nil {
+		if err := codersdk.UserSecretValueValid(*req.Value); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid secret value.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		params.Value = *req.Value
 	}
 	if req.Description != nil {

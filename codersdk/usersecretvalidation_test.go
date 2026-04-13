@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -166,6 +167,8 @@ func TestUserSecretFilePathValid(t *testing.T) {
 		{name: "DotRelative", input: ".ssh/id_rsa", wantErr: true},
 		{name: "JustFilename", input: "credentials", wantErr: true},
 		{name: "TildeNoSlash", input: "~foo", wantErr: true},
+		{name: "NullByte", input: "/home/\x00coder", wantErr: true},
+		{name: "TooLong", input: "/" + strings.Repeat("a", 4096), wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -174,7 +177,36 @@ func TestUserSecretFilePathValid(t *testing.T) {
 			err := codersdk.UserSecretFilePathValid(tt.input)
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "must start with")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUserSecretValueValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "NormalString", input: "my-secret-token"},
+		{name: "Empty", input: ""},
+		{name: "WithNewlines", input: "line1\nline2\nline3"},
+		{name: "WithTabs", input: "key\tvalue"},
+		{name: "NullByte", input: "before\x00after", wantErr: true},
+		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize)},
+		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize+1), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.UserSecretValueValid(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}

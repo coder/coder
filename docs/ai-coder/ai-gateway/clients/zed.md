@@ -2,7 +2,7 @@
 
 Zed IDE supports AI Gateway via its `language_models` configuration in `settings.json`.
 
-## Configuration
+## Centralized API Key
 
 To configure Zed to use AI Gateway, you need to edit your `settings.json` file. You can access this by pressing `Cmd/Ctrl + ,` or opening the command palette and searching for "Open Settings".
 
@@ -59,5 +59,10 @@ You can set this in two ways:
 1. Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** in the environment where you launch Zed.
 
 </div>
+
+## BYOK (Personal API Key)
+
+> [!NOTE]
+> At the time of writing, Zed Agent does not support sending custom headers, so BYOK mode is not available.
 
 **References:** [Configuring Zed - Language Models](https://zed.dev/docs/reference/all-settings#language-models)

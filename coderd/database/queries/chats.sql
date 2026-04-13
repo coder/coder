@@ -392,6 +392,7 @@ LIMIT
 
 -- name: InsertChat :one
 INSERT INTO chats (
+    organization_id,
     owner_id,
     workspace_id,
     build_id,
@@ -406,6 +407,7 @@ INSERT INTO chats (
     labels,
     dynamic_tools
 ) VALUES (
+    @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('build_id')::uuid,

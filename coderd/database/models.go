@@ -4246,6 +4246,45 @@ type Chat struct {
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+}
+
+type ChatDebugRun struct {
+	ID                  uuid.UUID       `db:"id" json:"id"`
+	ChatID              uuid.UUID       `db:"chat_id" json:"chat_id"`
+	RootChatID          uuid.NullUUID   `db:"root_chat_id" json:"root_chat_id"`
+	ParentChatID        uuid.NullUUID   `db:"parent_chat_id" json:"parent_chat_id"`
+	ModelConfigID       uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	TriggerMessageID    sql.NullInt64   `db:"trigger_message_id" json:"trigger_message_id"`
+	HistoryTipMessageID sql.NullInt64   `db:"history_tip_message_id" json:"history_tip_message_id"`
+	Kind                string          `db:"kind" json:"kind"`
+	Status              string          `db:"status" json:"status"`
+	Provider            sql.NullString  `db:"provider" json:"provider"`
+	Model               sql.NullString  `db:"model" json:"model"`
+	Summary             json.RawMessage `db:"summary" json:"summary"`
+	StartedAt           time.Time       `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime    `db:"finished_at" json:"finished_at"`
+}
+
+type ChatDebugStep struct {
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	RunID               uuid.UUID             `db:"run_id" json:"run_id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	StepNumber          int32                 `db:"step_number" json:"step_number"`
+	Operation           string                `db:"operation" json:"operation"`
+	Status              string                `db:"status" json:"status"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	AssistantMessageID  sql.NullInt64         `db:"assistant_message_id" json:"assistant_message_id"`
+	NormalizedRequest   json.RawMessage       `db:"normalized_request" json:"normalized_request"`
+	NormalizedResponse  pqtype.NullRawMessage `db:"normalized_response" json:"normalized_response"`
+	Usage               pqtype.NullRawMessage `db:"usage" json:"usage"`
+	Attempts            json.RawMessage       `db:"attempts" json:"attempts"`
+	Error               pqtype.NullRawMessage `db:"error" json:"error"`
+	Metadata            json.RawMessage       `db:"metadata" json:"metadata"`
+	StartedAt           time.Time             `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
 }
 
 type ChatDiffStatus struct {
