@@ -4503,7 +4503,7 @@ func (p *Server) runChat(
 			return ""
 		}
 
-		planPath, _, err := planPathFn(planCtx)
+		planPath, home, err := planPathFn(planCtx)
 		if err != nil {
 			p.logger.Debug(resolveCtx, "plan path instruction: failed to resolve plan path",
 				slog.Error(err),
@@ -4512,7 +4512,7 @@ func (p *Server) runChat(
 			return ""
 		}
 
-		return formatPlanPathInstruction(planPath)
+		return formatPlanPathInstruction(planPath, home)
 	}
 
 	// Connect to MCP servers in parallel with instruction
@@ -5950,10 +5950,20 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
 }
 
-func formatPlanPathInstruction(planPath string) string {
+func formatPlanPathInstruction(planPath, home string) string {
 	planPath = strings.TrimSpace(planPath)
 	if planPath == "" {
 		return ""
+	}
+
+	avoidPlanPath := chattool.LegacySharedPlanPath
+	home = strings.TrimSpace(home)
+	if home != "" {
+		separator := "/"
+		if strings.Contains(home, "\\") && !strings.Contains(home, "/") {
+			separator = "\\"
+		}
+		avoidPlanPath = strings.TrimRight(home, "/\\") + separator + "PLAN.md"
 	}
 
 	var b strings.Builder
@@ -5962,7 +5972,7 @@ func formatPlanPathInstruction(planPath string) string {
 	_, _ = b.WriteString(planPath)
 	_, _ = b.WriteString("\n")
 	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
-	_, _ = b.WriteString(chattool.LegacySharedPlanPath)
+	_, _ = b.WriteString(avoidPlanPath)
 	_, _ = b.WriteString(".\n")
 	_, _ = b.WriteString("</plan-file-path>")
 	return b.String()

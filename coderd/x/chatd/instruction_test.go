@@ -8,8 +8,34 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func TestFormatPlanPathInstruction(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UsesResolvedHomeInWarning", func(t *testing.T) {
+		t.Parallel()
+
+		got := formatPlanPathInstruction(
+			"/Users/dev/.coder/plans/PLAN-chat.md",
+			"/Users/dev",
+		)
+
+		require.Contains(t, got, "Your plan file path for this chat is: /Users/dev/.coder/plans/PLAN-chat.md")
+		require.Contains(t, got, "Do not use /Users/dev/PLAN.md.")
+		require.NotContains(t, got, chattool.LegacySharedPlanPath)
+	})
+
+	t.Run("FallsBackToLegacySharedPathWhenHomeIsEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		got := formatPlanPathInstruction("/home/coder/.coder/plans/PLAN-chat.md", "")
+
+		require.Contains(t, got, "Do not use "+chattool.LegacySharedPlanPath+".")
+	})
+}
 
 func TestInsertSystemInstructionAfterSystemMessages(t *testing.T) {
 	t.Parallel()
