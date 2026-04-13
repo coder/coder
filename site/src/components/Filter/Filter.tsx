@@ -199,7 +199,10 @@ export const Filter: FC<FilterProps> = ({
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className={cn("flex gap-2 flex-wrap lg:flex-nowrap mb-4", className)} {...props}>
+		<div
+			className={cn("flex gap-2 flex-wrap lg:flex-nowrap mb-4", className)}
+			{...props}
+		>
 			{isLoading ? (
 				<>
 					<BaseSkeleton width="100%" />
