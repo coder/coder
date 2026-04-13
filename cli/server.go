@@ -852,6 +852,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
 				webpusher = &webpush.NoopWebpusher{
 					Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
+					Err: err,
 				}
 			}
 			options.WebPushDispatcher = webpusher

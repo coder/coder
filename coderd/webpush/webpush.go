@@ -391,13 +391,20 @@ func (n *Webpusher) PublicKey() string {
 // keys.
 type NoopWebpusher struct {
 	Msg string
+	Err error
 }
 
 func (n *NoopWebpusher) Dispatch(context.Context, uuid.UUID, codersdk.WebpushMessage) error {
+	if n.Err != nil {
+		return xerrors.Errorf("%s: %w", n.Msg, n.Err)
+	}
 	return xerrors.New(n.Msg)
 }
 
 func (n *NoopWebpusher) Test(context.Context, codersdk.WebpushSubscription) error {
+	if n.Err != nil {
+		return xerrors.Errorf("%s: %w", n.Msg, n.Err)
+	}
 	return xerrors.New(n.Msg)
 }
 
