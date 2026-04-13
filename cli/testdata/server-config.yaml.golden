@@ -228,6 +228,12 @@ introspection:
     # set to false, a reduced set of database metrics are still collected.
     # (default: false, type: bool)
     collect_db_metrics: false
+    # An API key to use for authenticating the periodic background healthcheck.
+    # Without this, the websocket healthcheck will fail since it requires
+    # authentication to reach the /debug/ws endpoint. The other healthchecks do not
+    # require this.
+    # (default: <unset>, type: string)
+    healthcheck_api_key: ""
   pprof:
     # Serve pprof metrics on the address defined by pprof address.
     # (default: <unset>, type: bool)

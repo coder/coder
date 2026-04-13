@@ -333,6 +333,16 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 
 Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
 
+### --prometheus-healthcheck-api-key
+
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>string</code>                                       |
+| Environment | <code>$CODER_PROMETHEUS_HEALTHCHECK_API_KEY</code>        |
+| YAML        | <code>introspection.prometheus.healthcheck_api_key</code> |
+
+An API key to use for authenticating the periodic background healthcheck. Without this, the websocket healthcheck will fail since it requires authentication to reach the /debug/ws endpoint. The other healthchecks do not require this.
+
 ### --pprof-enable
 
 |             |                                         |

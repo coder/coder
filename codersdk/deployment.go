@@ -758,6 +758,7 @@ type PrometheusConfig struct {
 	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
 	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	HealthcheckAPIKey     serpent.String      `json:"healthcheck_api_key"`
 }
 
 type PprofConfig struct {
@@ -2036,6 +2037,18 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Group:   &deploymentGroupIntrospectionPrometheus,
 			YAML:    "collect_db_metrics",
 			Default: "false",
+		},
+		{
+			Name: "Prometheus Healthcheck API Key",
+			Description: "An API key to use for authenticating the periodic background healthcheck. " +
+				"Without this, the websocket healthcheck will fail since it requires authentication " +
+				"to reach the /debug/ws endpoint. The other healthchecks do not require this.",
+			Flag:        "prometheus-healthcheck-api-key",
+			Env:         "CODER_PROMETHEUS_HEALTHCHECK_API_KEY",
+			Value:       &c.Prometheus.HealthcheckAPIKey,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "healthcheck_api_key",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		// Pprof settings
 		{

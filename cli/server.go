@@ -1019,6 +1019,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
 					return xerrors.Errorf("register experiments metric: %w", err)
 				}
+
+				closeHealthcheckFunc, err := prometheusmetrics.Healthcheck(ctx, logger, options.PrometheusRegistry, coderAPI.HealthcheckFunc, coderAPI.HealthCheckCache(), vals.Prometheus.HealthcheckAPIKey.String(), 0)
+				if err != nil {
+					return xerrors.Errorf("register healthcheck prometheus metric: %w", err)
+				}
+				defer closeHealthcheckFunc()
 			}
 
 			// This is helpful for tests, but can be silently ignored.

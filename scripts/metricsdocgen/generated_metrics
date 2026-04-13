@@ -241,6 +241,15 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 # HELP coderd_experiments Indicates whether each experiment is enabled (1) or not (0)
 # TYPE coderd_experiments gauge
 coderd_experiments{experiment=""} 0
+# HELP coderd_healthcheck_database_latency_seconds Median database ping latency in seconds from the last healthcheck.
+# TYPE coderd_healthcheck_database_latency_seconds gauge
+coderd_healthcheck_database_latency_seconds 0
+# HELP coderd_healthcheck_last_run_seconds Unix timestamp of the last healthcheck run.
+# TYPE coderd_healthcheck_last_run_seconds gauge
+coderd_healthcheck_last_run_seconds 0
+# HELP coderd_healthcheck_status Healthcheck status by category. 0 = ok, 1 = warning, 2 = error.
+# TYPE coderd_healthcheck_status gauge
+coderd_healthcheck_status{category=""} 0
 # HELP coderd_insights_applications_usage_seconds The application usage per template.
 # TYPE coderd_insights_applications_usage_seconds gauge
 coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0

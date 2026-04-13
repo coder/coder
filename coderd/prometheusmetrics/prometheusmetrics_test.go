@@ -27,10 +27,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1080,4 +1083,163 @@ func insertDeleted(t *testing.T, db database.Store, u database.User, org databas
 		Deleted: true,
 	})
 	require.NoError(t, err)
+}
+
+func TestHealthcheck(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name   string
+		Report healthsdk.HealthcheckReport
+		// Expected metric values keyed by category label.
+		ExpectedStatus map[string]float64
+		ExpectedDBMS   int64
+	}{
+		{
+			Name: "AllHealthy",
+			Report: healthsdk.HealthcheckReport{
+				Time:     time.Now(),
+				Severity: health.SeverityOK,
+				DERP:     healthsdk.DERPHealthReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
+				AccessURL: healthsdk.AccessURLReport{
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+				},
+				Websocket:          healthsdk.WebsocketReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
+				Database:           healthsdk.DatabaseReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}, LatencyMS: 5},
+				WorkspaceProxy:     healthsdk.WorkspaceProxyReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
+				ProvisionerDaemons: healthsdk.ProvisionerDaemonsReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
+			},
+			ExpectedStatus: map[string]float64{
+				"derp": 0, "access_url": 0, "websocket": 0,
+				"database": 0, "workspace_proxy": 0, "provisioner_daemons": 0,
+			},
+			ExpectedDBMS: 5,
+		},
+		{
+			Name: "MixedSeverities",
+			Report: healthsdk.HealthcheckReport{
+				Time:     time.Now(),
+				Severity: health.SeverityError,
+				DERP:     healthsdk.DERPHealthReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityWarning}},
+				AccessURL: healthsdk.AccessURLReport{
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+				},
+				Websocket:          healthsdk.WebsocketReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityError}},
+				Database:           healthsdk.DatabaseReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityError}, LatencyMS: 300},
+				WorkspaceProxy:     healthsdk.WorkspaceProxyReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
+				ProvisionerDaemons: healthsdk.ProvisionerDaemonsReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityWarning}},
+			},
+			ExpectedStatus: map[string]float64{
+				"derp": 1, "access_url": 0, "websocket": 2,
+				"database": 2, "workspace_proxy": 0, "provisioner_daemons": 1,
+			},
+			ExpectedDBMS: 300,
+		},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			registry := prometheus.NewRegistry()
+			var cache atomic.Pointer[healthsdk.HealthcheckReport]
+
+			healthcheckFunc := func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+				report := tc.Report
+				return &report
+			}
+
+			closeFunc, err := prometheusmetrics.Healthcheck(
+				context.Background(),
+				testutil.Logger(t),
+				registry,
+				healthcheckFunc,
+				&cache,
+				"",
+				time.Millisecond,
+			)
+			require.NoError(t, err)
+			t.Cleanup(closeFunc)
+
+			require.Eventually(t, func() bool {
+				metrics, err := registry.Gather()
+				if err != nil {
+					return false
+				}
+
+				// We expect 3 metric families: status, db latency,
+				// last run.
+				if len(metrics) < 3 {
+					return false
+				}
+
+				// Verify the status gauge values.
+				for _, mf := range metrics {
+					if mf.GetName() != "coderd_healthcheck_status" {
+						continue
+					}
+					for _, m := range mf.GetMetric() {
+						category := m.GetLabel()[0].GetValue()
+						expected, ok := tc.ExpectedStatus[category]
+						if !ok {
+							return false
+						}
+						if m.GetGauge().GetValue() != expected {
+							return false
+						}
+					}
+				}
+
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			// Verify the cache was populated.
+			cached := cache.Load()
+			require.NotNil(t, cached)
+
+			// Verify database latency metric.
+			metrics, err := registry.Gather()
+			require.NoError(t, err)
+
+			for _, mf := range metrics {
+				switch mf.GetName() {
+				case "coderd_healthcheck_database_latency_seconds":
+					got := mf.GetMetric()[0].GetGauge().GetValue()
+					expected := float64(tc.ExpectedDBMS) / 1000.0
+					require.InDelta(t, expected, got, 0.0001,
+						"database latency mismatch")
+				case "coderd_healthcheck_last_run_seconds":
+					got := mf.GetMetric()[0].GetGauge().GetValue()
+					require.Greater(t, got, float64(0),
+						"last run timestamp should be positive")
+				}
+			}
+		})
+	}
+}
+
+func TestHealthcheck_NilReport(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	var cache atomic.Pointer[healthsdk.HealthcheckReport]
+
+	healthcheckFunc := func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+		return nil
+	}
+
+	closeFunc, err := prometheusmetrics.Healthcheck(
+		context.Background(),
+		testutil.Logger(t),
+		registry,
+		healthcheckFunc,
+		&cache,
+		"",
+		time.Millisecond,
+	)
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
+
+	// Give the collector a moment to tick. With a nil report it
+	// should not panic and the cache should remain nil.
+	time.Sleep(50 * time.Millisecond)
+	require.Nil(t, cache.Load())
 }

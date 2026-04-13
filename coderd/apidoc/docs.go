@@ -18832,6 +18832,9 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
+                },
+                "healthcheck_api_key": {
+                    "type": "string"
                 }
             }
         },

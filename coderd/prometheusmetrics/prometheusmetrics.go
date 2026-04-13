@@ -20,7 +20,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 )
@@ -648,4 +650,94 @@ func filterAcceptableAgentLabels(labels []string) []string {
 	}
 
 	return out
+}
+
+// Healthcheck runs deployment healthchecks periodically in the background
+// and exposes their results as Prometheus metrics. It also updates the
+// shared healthcheck cache so the API endpoint can serve cached results.
+func Healthcheck(
+	ctx context.Context,
+	logger slog.Logger,
+	registerer prometheus.Registerer,
+	healthcheckFunc func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport,
+	healthCheckCache *atomic.Pointer[healthsdk.HealthcheckReport],
+	apiKey string,
+	duration time.Duration,
+) (func(), error) {
+	if duration == 0 {
+		duration = defaultRefreshRate
+	}
+
+	statusGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "healthcheck_status",
+		Help:      "Healthcheck status by category. 0 = ok, 1 = warning, 2 = error.",
+	}, []string{"category"})
+	if err := registerer.Register(statusGauge); err != nil {
+		return nil, err
+	}
+
+	dbLatencyGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "healthcheck_database_latency_seconds",
+		Help:      "Median database ping latency in seconds from the last healthcheck.",
+	})
+	if err := registerer.Register(dbLatencyGauge); err != nil {
+		return nil, err
+	}
+
+	lastRunGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "healthcheck_last_run_seconds",
+		Help:      "Unix timestamp of the last healthcheck run.",
+	})
+	if err := registerer.Register(lastRunGauge); err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
+	// Use a nanosecond ticker to force an initial collection, then
+	// reset to the configured interval after the first tick.
+	ticker := time.NewTicker(time.Nanosecond)
+	go func() {
+		defer close(done)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			checkCtx, checkCancel := context.WithTimeout(ctx, 30*time.Second)
+			report := healthcheckFunc(checkCtx, apiKey, nil)
+			checkCancel()
+
+			if report == nil {
+				logger.Warn(ctx, "healthcheck returned nil report")
+				ticker.Reset(duration)
+				continue
+			}
+
+			healthCheckCache.Store(report)
+
+			statusGauge.WithLabelValues("derp").Set(float64(report.DERP.Severity.Value()))
+			statusGauge.WithLabelValues("access_url").Set(float64(report.AccessURL.Severity.Value()))
+			statusGauge.WithLabelValues("websocket").Set(float64(report.Websocket.Severity.Value()))
+			statusGauge.WithLabelValues("database").Set(float64(report.Database.Severity.Value()))
+			statusGauge.WithLabelValues("workspace_proxy").Set(float64(report.WorkspaceProxy.Severity.Value()))
+			statusGauge.WithLabelValues("provisioner_daemons").Set(float64(report.ProvisionerDaemons.Severity.Value()))
+
+			dbLatencyGauge.Set(float64(report.Database.LatencyMS) / 1000.0)
+			lastRunGauge.Set(float64(report.Time.Unix()))
+
+			ticker.Reset(duration)
+		}
+	}()
+
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
 }

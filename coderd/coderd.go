@@ -2396,6 +2396,13 @@ func (api *API) DERPMap() *tailcfg.DERPMap {
 	return api.Options.BaseDERPMap
 }
 
+// HealthCheckCache returns a pointer to the healthcheck cache so
+// background processes (e.g. the Prometheus metrics collector) can
+// share the same cached report as the API handler.
+func (api *API) HealthCheckCache() *atomic.Pointer[healthsdk.HealthcheckReport] {
+	return &api.healthCheckCache
+}
+
 // nolint:revive
 func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))

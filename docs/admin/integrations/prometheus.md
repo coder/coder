@@ -203,6 +203,9 @@ deployment. They will always be available from the agent.
 | `coderd_dbpurge_iteration_duration_seconds`                             | histogram | Duration of each dbpurge iteration in seconds.                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `success`                                                                                             |
 | `coderd_dbpurge_records_purged_total`                                   | counter   | Total number of records purged by type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `record_type`                                                                                         |
 | `coderd_experiments`                                                    | gauge     | Indicates whether each experiment is enabled (1) or not (0)                                                                                                                                                                                                                                                                                                                                                                                                                                                | `experiment`                                                                                          |
+| `coderd_healthcheck_database_latency_seconds`                           | gauge     | Median database ping latency in seconds from the last healthcheck.                                                                                                                                                                                                                                                                                                                                                                                                                                         |                                                                                                       |
+| `coderd_healthcheck_last_run_seconds`                                   | gauge     | Unix timestamp of the last healthcheck run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                                                                                                       |
+| `coderd_healthcheck_status`                                             | gauge     | Healthcheck status by category. 0 = ok, 1 = warning, 2 = error.                                                                                                                                                                                                                                                                                                                                                                                                                                            | `category`                                                                                            |
 | `coderd_insights_applications_usage_seconds`                            | gauge     | The application usage per template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `application_name` `organization_name` `slug` `template_name`                                         |
 | `coderd_insights_parameters`                                            | gauge     | The parameter usage per template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `organization_name` `parameter_name` `parameter_type` `parameter_value` `template_name`               |
 | `coderd_insights_templates_active_users`                                | gauge     | The number of active users of the template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `organization_name` `template_name`                                                                   |
@@ -316,3 +319,65 @@ Whether a metric is exposed as classic or native depends entirely on the Prometh
 
 ⚠️ Important: classic and native histograms cannot be aggregated together. If Prometheus is switched from classic to native at a certain point in time, dashboards may need to account for that transition.
 For this reason, it’s recommended to follow [Prometheus’ migration guidelines](https://prometheus.io/docs/specs/native_histograms/#migration-considerations) when moving from classic to native histograms.
+
+## Healthcheck alerting rules
+
+When Prometheus metrics are enabled, Coder runs
+[deployment healthchecks](../monitoring/health-check.md) in the background and
+exposes the results as the `coderd_healthcheck_status` gauge. Each healthcheck
+category is a separate time series with a `category` label. The gauge value maps
+to the healthcheck severity: `0` = ok, `1` = warning, `2` = error.
+
+The following example
+[Prometheus alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/)
+can be used with [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/)
+to receive notifications when a healthcheck degrades:
+
+```yaml
+groups:
+  - name: coder-health
+    rules:
+      - alert: CoderHealthcheckError
+        expr: coderd_healthcheck_status == 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Coder {{ $labels.category }} healthcheck is failing"
+          description: >-
+            The {{ $labels.category }} healthcheck has reported errors for more
+            than 5 minutes. See the deployment health page for details.
+
+      - alert: CoderHealthcheckWarning
+        expr: coderd_healthcheck_status == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coder {{ $labels.category }} healthcheck has warnings"
+          description: >-
+            The {{ $labels.category }} healthcheck has been in a warning state
+            for more than 15 minutes.
+
+      - alert: CoderHealthcheckStale
+        expr: time() - coderd_healthcheck_last_run_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coder healthcheck data is stale"
+          description: >-
+            No healthcheck has completed in the last 30 minutes. The background
+            healthcheck runner may have stopped.
+
+      - alert: CoderDatabaseLatencyHigh
+        expr: coderd_healthcheck_database_latency_seconds > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coder database latency is high ({{ $value }}s)"
+          description: >-
+            The median database ping latency reported by the healthcheck exceeds
+            100 ms. Consider investigating database performance.
+```

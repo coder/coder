@@ -75,7 +75,10 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	// Check if the forced query parameter is set.
 	forced := r.URL.Query().Get("force") == "true"
 
-	// Get cached report if it exists and the requester did not force a refresh.
+	// When not forced, return the cached report if it's fresh enough.
+	// The background healthcheck runner (when Prometheus is enabled)
+	// keeps the cache populated, but the API handler also checks
+	// staleness as a fallback.
 	if !forced {
 		if report := api.healthCheckCache.Load(); report != nil {
 			if time.Since(report.Time) < api.Options.HealthcheckRefresh {
@@ -85,14 +88,15 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Either forced, cache is empty, or cache is stale. Run a
+	// healthcheck using the requester's API key so the websocket
+	// check can authenticate.
 	resChan := api.healthCheckGroup.DoChan("", func() (*healthsdk.HealthcheckReport, error) {
-		// Create a new context not tied to the request.
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
 
-		// Create and store progress tracker for timeout diagnostics.
 		report := api.HealthcheckFunc(ctx, apiKey, &api.healthCheckProgress)
-		if report != nil { // Only store non-nil reports.
+		if report != nil {
 			api.healthCheckCache.Store(report)
 		}
 		api.healthCheckProgress.Reset()
