@@ -2,7 +2,10 @@ import {
 	ArrowUpIcon,
 	Check,
 	CheckIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
+	CopyIcon,
+	ExternalLinkIcon,
 	ImageIcon,
 	MicIcon,
 	MonitorIcon,
@@ -10,6 +13,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	Square,
+	TerminalIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -21,6 +25,7 @@ import {
 	useState,
 } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -155,11 +160,139 @@ export interface AttachedWorkspaceInfo {
 	route: string;
 	statusIcon: React.ReactNode;
 	statusLabel: string;
+	// Workspace action handlers for the popover dropdown.
+	canOpenEditors?: boolean;
+	canOpenWorkspace?: boolean;
+	onOpenInEditor?: (editor: "cursor" | "vscode") => void;
+	onViewWorkspace?: () => void;
+	onOpenTerminal?: () => void;
+	sshCommand?: string;
 }
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
+
+/**
+ * Popover attached to the workspace badge that shows quick actions
+ * for the workspace (open in editor, terminal, SSH, etc.).
+ */
+const WorkspaceBadgePopover: FC<{
+	badge: { kind: "attached-workspace" } & AttachedWorkspaceInfo;
+	badgeCls: string;
+}> = ({ badge, badgeCls }) => {
+	const [open, setOpen] = useState(false);
+
+	const handleCopySSH = async () => {
+		if (!badge.sshCommand) return;
+		try {
+			await navigator.clipboard.writeText(badge.sshCommand);
+			toast.success("SSH command copied to clipboard");
+		} catch {
+			toast.error("Failed to copy SSH command");
+		}
+		setOpen(false);
+	};
+
+	const menuItemCls =
+		"flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50";
+
+		return (
+			<Popover open={open} onOpenChange={setOpen}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<PopoverTrigger asChild>
+							<button
+								type="button"
+								className={cn(
+									badgeCls,
+									"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+								)}
+							>
+								{badge.statusIcon}
+								{badge.name}
+								<ChevronDownIcon
+									className={cn(
+										"size-3 opacity-60 transition-transform",
+										open && "rotate-180",
+									)}
+								/>
+							</button>
+						</PopoverTrigger>
+					</TooltipTrigger>
+					<TooltipContent>{badge.statusLabel}</TooltipContent>
+				</Tooltip>
+				<PopoverContent				side="top"
+				align="start"
+				className="w-48 p-1"
+			>
+				<div className="flex flex-col">
+					<button
+						type="button"
+						className={menuItemCls}
+						disabled={!badge.canOpenEditors}
+						onClick={() => {
+							badge.onOpenInEditor?.("cursor");
+							setOpen(false);
+						}}
+					>
+						<ExternalLinkIcon className="size-3.5" />
+						Open in Cursor
+					</button>
+					<button
+						type="button"
+						className={menuItemCls}
+						disabled={!badge.canOpenEditors}
+						onClick={() => {
+							badge.onOpenInEditor?.("vscode");
+							setOpen(false);
+						}}
+					>
+						<ExternalLinkIcon className="size-3.5" />
+						Open in VS Code
+					</button>
+					<button
+						type="button"
+						className={menuItemCls}
+						// The web terminal shares the same agent readiness
+						// requirement as IDE openers, so canOpenEditors
+						// gates it too.
+						disabled={!badge.canOpenEditors}
+						onClick={() => {
+							badge.onOpenTerminal?.();
+							setOpen(false);
+						}}
+					>
+						<TerminalIcon className="size-3.5" />
+						Open Terminal
+					</button>
+					<button
+						type="button"
+						className={menuItemCls}
+						disabled={!badge.sshCommand}
+						onClick={() => void handleCopySSH()}
+					>
+						<CopyIcon className="size-3.5" />
+						Copy SSH Command
+					</button>
+					<div className="my-1 h-px bg-border-default" />
+					<button
+						type="button"
+						className={menuItemCls}
+						disabled={!badge.canOpenWorkspace}
+						onClick={() => {
+							badge.onViewWorkspace?.();
+							setOpen(false);
+						}}
+					>
+						<MonitorIcon className="size-3.5" />
+						View Workspace
+					</button>
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+};
 
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
@@ -173,24 +306,38 @@ const ToolBadge: FC<{
 	);
 
 	if (badge.kind === "attached-workspace") {
+		const hasActions =
+			badge.onOpenInEditor ||
+			badge.onOpenTerminal ||
+			badge.onViewWorkspace ||
+			badge.sshCommand;
+
+		// When there are no action handlers, render a simple
+		// tooltip + link like before.
+		if (!hasActions) {
+			return (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Link
+							to={badge.route}
+							target="_blank"
+							rel="noreferrer"
+							className={cn(
+								badgeCls,
+								"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+							)}
+						>
+							{badge.statusIcon}
+							{badge.name}
+						</Link>
+					</TooltipTrigger>
+					<TooltipContent>{badge.statusLabel}</TooltipContent>
+				</Tooltip>
+			);
+		}
+
 		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Link
-						to={badge.route}
-						target="_blank"
-						rel="noreferrer"
-						className={cn(
-							badgeCls,
-							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-						)}
-					>
-						{badge.statusIcon}
-						{badge.name}
-					</Link>
-				</TooltipTrigger>
-				<TooltipContent>{badge.statusLabel}</TooltipContent>
-			</Tooltip>
+			<WorkspaceBadgePopover badge={badge} badgeCls={badgeCls} />
 		);
 	}
 

@@ -317,6 +317,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			route: workspaceRoute,
 			statusIcon: statusIconMap[effectiveType],
 			statusLabel,
+			canOpenEditors,
+			canOpenWorkspace,
+			onOpenInEditor: handleOpenInEditor,
+			onViewWorkspace: handleViewWorkspace,
+			onOpenTerminal: handleOpenTerminal,
+			sshCommand,
 		};
 	})();
 
@@ -355,14 +361,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								panel={{
 									showSidebarPanel,
 									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
-								}}
-								workspace={{
-									canOpenEditors,
-									canOpenWorkspace,
-									onOpenInEditor: handleOpenInEditor,
-									onViewWorkspace: handleViewWorkspace,
-									onOpenTerminal: handleOpenTerminal,
-									sshCommand,
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
@@ -566,14 +564,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
-					workspace={{
-						canOpenEditors: false,
-						canOpenWorkspace: false,
-						onOpenInEditor: () => {},
-						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
-						sshCommand: undefined,
-					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
 					onRegenerateTitle={() => {}}
@@ -638,14 +628,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				panel={{
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
-				}}
-				workspace={{
-					canOpenEditors: false,
-					canOpenWorkspace: false,
-					onOpenInEditor: () => {},
-					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
-					sshCommand: undefined,
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
