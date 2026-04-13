@@ -5688,7 +5688,10 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		if msg.Role != "system" {
 			continue
 		}
-		planBlockCount += strings.Count(msg.Content, "<plan-file-path>")
+		planBlockCount += strings.Count(
+			msg.Content,
+			"<plan-file-path>\nYour plan file path for this chat is:",
+		)
 		trimmed := strings.TrimSpace(msg.Content)
 		if strings.HasPrefix(trimmed, "<plan-file-path>") &&
 			strings.HasSuffix(trimmed, "</plan-file-path>") {
@@ -5706,7 +5709,8 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		"system prompt should contain the plan-file-path block")
 	require.Contains(t, allSystemContent, "PLAN-"+chat.ID.String()+".md",
 		"system prompt should use the chat-specific plan path")
-	require.Contains(t, allSystemContent, "Do not use /home/coder/PLAN.md.",
+	require.Contains(t, allSystemContent,
+		"Do not use "+strings.TrimRight(fakeHome, "/")+"/PLAN.md.",
 		"system prompt should warn against the home-root plan path")
 	require.Equal(t, 1, planBlockCount,
 		"system prompt should contain a single plan-file-path block")
