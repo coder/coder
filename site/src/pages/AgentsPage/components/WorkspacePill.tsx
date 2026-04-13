@@ -3,13 +3,10 @@ import {
 	CopyIcon,
 	ExternalLinkIcon,
 	LayoutGridIcon,
-	MonitorDotIcon,
 	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { useState } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
@@ -42,19 +39,8 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
-import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
-
-const statusIconMap: Record<DisplayWorkspaceStatusType, ReactNode> = {
-	success: <MonitorIcon className="size-3" />,
-	active: <MonitorDotIcon className="size-3" />,
-	inactive: <MonitorPauseIcon className="size-3" />,
-	error: <MonitorXIcon className="size-3" />,
-	danger: <MonitorXIcon className="size-3" />,
-	warning: <MonitorXIcon className="size-3" />,
-};
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
+import { StatusIcon } from "./StatusIcon";
 
 interface WorkspacePillProps {
 	workspace: Workspace;
@@ -101,7 +87,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const statusLabel = workspace.health.healthy
 		? `Workspace ${text.toLowerCase()}`
 		: `Workspace ${text.toLowerCase()} (unhealthy)`;
-	const statusIcon = statusIconMap[effectiveType];
 
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
@@ -133,8 +118,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 							)}
 						>
-							{statusIcon}
-							{workspace.name}
+							<StatusIcon type={effectiveType} /> {workspace.name}
 							{/* The menu opens upward (side="top"), so the chevron
 							   points toward the menu when closed (default) and
 							   away when open (rotate-180). */}

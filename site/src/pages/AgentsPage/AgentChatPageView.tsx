@@ -1,10 +1,4 @@
-import {
-	ArchiveIcon,
-	MonitorDotIcon,
-	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
-} from "lucide-react";
+import { ArchiveIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -20,10 +14,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -42,6 +33,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import { StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -278,15 +270,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
 
-		const statusIconMap: Record<DisplayWorkspaceStatusType, ReactNode> = {
-			success: <MonitorIcon className="size-3" />,
-			active: <MonitorDotIcon className="size-3" />,
-			inactive: <MonitorPauseIcon className="size-3" />,
-			error: <MonitorXIcon className="size-3" />,
-			danger: <MonitorXIcon className="size-3" />,
-			warning: <MonitorXIcon className="size-3" />,
-		};
-
 		let { type, text } = getDisplayWorkspaceStatus(
 			workspace.latest_build.status,
 			workspace.latest_build.job,
@@ -312,8 +295,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		const statusLabel = workspace.health.healthy
 			? `Workspace ${text.toLowerCase()}`
 			: `Workspace ${text.toLowerCase()} (unhealthy)`;
-		const statusIcon = statusIconMap[effectiveType];
-
+		const statusIcon = <StatusIcon type={effectiveType} />;
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
