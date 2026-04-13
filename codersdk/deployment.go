@@ -3931,7 +3931,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Deprecated: This value is now derived automatically from the configured AI Bridge providers' base URLs. This option will be removed in a future release.",
+			Description: "Deprecated: This value is now derived automatically from the configured AI Bridge providers' base URLs. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "aibridge-proxy-domain-allowlist",
 			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
