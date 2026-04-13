@@ -37,7 +37,6 @@ if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_DOCKERFILE_2604" ]; then
 	error "Go version mismatch between go.mod and dogfood/coder/ubuntu-26.04/Dockerfile:"
 fi
 
-
 if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_SETUP_GO" ]; then
 	error "Go version mismatch between go.mod and .github/actions/setup-go/action.yaml"
 fi
