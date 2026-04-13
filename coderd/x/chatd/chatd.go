@@ -194,6 +194,32 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 	return m
 }
 
+// orgHasVisibleChatTemplates returns true when the org has at least one
+// non-deleted, non-deprecated template that the owner can see AND that
+// the chat template allowlist (if set) permits. We use this to skip
+// workspace/template tools when there is nothing the agent can act on.
+func (p *Server) orgHasVisibleChatTemplates(
+	ctx context.Context, orgID, ownerID uuid.UUID,
+) (bool, error) {
+	ownerCtx, err := chattool.AsOwner(ctx, p.db, ownerID)
+	if err != nil {
+		return false, err
+	}
+	params := database.GetTemplatesWithFilterParams{
+		OrganizationID: orgID,
+		Deleted:        false,
+		Deprecated:     sql.NullBool{Bool: false, Valid: true},
+	}
+	if allowlist := p.chatTemplateAllowlist(); len(allowlist) > 0 {
+		params.IDs = slices.Collect(maps.Keys(allowlist))
+	}
+	templates, err := p.db.GetTemplatesWithFilter(ownerCtx, params)
+	if err != nil {
+		return false, err
+	}
+	return len(templates) > 0, nil
+}
+
 // cachedWorkspaceMCPTools stores workspace MCP tools discovered
 // from a workspace agent, keyed by the agent ID that provided them.
 type cachedWorkspaceMCPTools struct {
@@ -5010,42 +5036,70 @@ func (p *Server) runChat(
 			// completes.
 			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 		}
-		tools = append(tools,
-			chattool.ListTemplates(chattool.ListTemplatesOptions{
-				DB:                 p.db,
-				OwnerID:            chat.OwnerID,
-				OrganizationID:     chat.OrganizationID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 p.db,
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-				DB:                             p.db,
-				OwnerID:                        chat.OwnerID,
-				OrganizationID:                 chat.OrganizationID,
-				ChatID:                         chat.ID,
-				CreateFn:                       p.createWorkspaceFn,
-				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  onChatUpdated,
-				Logger:                         p.logger,
-				AllowedTemplateIDs:             p.chatTemplateAllowlist,
-			}),
-			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-				DB:            p.db,
-				OwnerID:       chat.OwnerID,
-				ChatID:        chat.ID,
-				StartFn:       p.startWorkspaceFn,
-				AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu:   &workspaceMu,
-				OnChatUpdated: onChatUpdated,
-				Logger:        p.logger,
-			}),
-		)
+		hasTemplates, templErr := p.orgHasVisibleChatTemplates(ctx, chat.OrganizationID, chat.OwnerID)
+		if templErr != nil {
+			// Degrade gracefully: log and assume templates exist so the
+			// agent is not silently crippled by a transient DB error.
+			p.logger.Warn(ctx, "failed to check org template visibility, including provisioning tools",
+				slog.F("org_id", chat.OrganizationID),
+				slog.Error(templErr),
+			)
+			hasTemplates = true
+		}
+		if hasTemplates {
+			tools = append(tools,
+				chattool.ListTemplates(chattool.ListTemplatesOptions{
+					DB:                 p.db,
+					OwnerID:            chat.OwnerID,
+					OrganizationID:     chat.OrganizationID,
+					AllowedTemplateIDs: p.chatTemplateAllowlist,
+				}),
+				chattool.ReadTemplate(chattool.ReadTemplateOptions{
+					DB:                 p.db,
+					OwnerID:            chat.OwnerID,
+					AllowedTemplateIDs: p.chatTemplateAllowlist,
+				}),
+				chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+					DB:                             p.db,
+					OwnerID:                        chat.OwnerID,
+					OrganizationID:                 chat.OrganizationID,
+					ChatID:                         chat.ID,
+					CreateFn:                       p.createWorkspaceFn,
+					AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+					AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+					WorkspaceMu:                    &workspaceMu,
+					OnChatUpdated:                  onChatUpdated,
+					Logger:                         p.logger,
+					AllowedTemplateIDs:             p.chatTemplateAllowlist,
+				}),
+				chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+					DB:            p.db,
+					OwnerID:       chat.OwnerID,
+					ChatID:        chat.ID,
+					StartFn:       p.startWorkspaceFn,
+					AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+					WorkspaceMu:   &workspaceMu,
+					OnChatUpdated: onChatUpdated,
+					Logger:        p.logger,
+				}),
+			)
+		} else if chat.WorkspaceID.Valid {
+			// No visible templates but the chat has a workspace already
+			// bound — the user may need to restart it.
+			ws, wsErr := p.db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+			if wsErr == nil && !ws.Deleted {
+				tools = append(tools, chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+					DB:            p.db,
+					OwnerID:       chat.OwnerID,
+					ChatID:        chat.ID,
+					StartFn:       p.startWorkspaceFn,
+					AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+					WorkspaceMu:   &workspaceMu,
+					OnChatUpdated: onChatUpdated,
+					Logger:        p.logger,
+				}))
+			}
+		}
 		// Plan presentation tool.
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,

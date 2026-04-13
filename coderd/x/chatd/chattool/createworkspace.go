@@ -136,7 +136,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 
 			// Set up dbauthz context for DB lookups.
 			if options.DB != nil {
-				ownerCtx, ownerErr := asOwner(ctx, options.DB, ownerID)
+				ownerCtx, ownerErr := AsOwner(ctx, options.DB, ownerID)
 				if ownerErr != nil {
 					return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 				}

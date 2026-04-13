@@ -53,7 +53,7 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
-			ctx, err = asOwner(ctx, options.DB, options.OwnerID)
+			ctx, err = AsOwner(ctx, options.DB, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}

@@ -50,7 +50,7 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("database is not configured"), nil
 			}
 
-			ctx, err := asOwner(ctx, options.DB, options.OwnerID)
+			ctx, err := AsOwner(ctx, options.DB, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
@@ -150,9 +150,9 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 	)
 }
 
-// asOwner sets up a dbauthz context for the given owner so that
+// AsOwner sets up a dbauthz context for the given owner so that
 // subsequent database calls are scoped to what that user can access.
-func asOwner(ctx context.Context, db database.Store, ownerID uuid.UUID) (context.Context, error) {
+func AsOwner(ctx context.Context, db database.Store, ownerID uuid.UUID) (context.Context, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, ownerID, rbac.ScopeAll)
 	if err != nil {
 		return ctx, xerrors.Errorf("load user authorization: %w", err)

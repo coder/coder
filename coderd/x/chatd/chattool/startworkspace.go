@@ -149,7 +149,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			// Set up dbauthz context for the start call.
-			ownerCtx, ownerErr := asOwner(ctx, options.DB, options.OwnerID)
+			ownerCtx, ownerErr := AsOwner(ctx, options.DB, options.OwnerID)
 			if ownerErr != nil {
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
