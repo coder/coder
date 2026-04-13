@@ -5745,3 +5745,274 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	require.Contains(t, allSystemContent, "A test skill",
 		"system prompt should include the skill description")
 }
+
+// TestOmitsProvisioningToolsWhenOrgHasNoTemplates verifies that
+// list_templates, read_template, create_workspace, and start_workspace
+// are all absent from the LLM tool list when the org contains no
+// templates visible to the chat owner.
+func TestOmitsProvisioningToolsWhenOrgHasNoTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var toolsMu sync.Mutex
+	var capturedTools []string
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		toolsMu.Lock()
+		if capturedTools == nil {
+			capturedTools = make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				capturedTools = append(capturedTools, tool.Function.Name)
+			}
+		}
+		toolsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	// No templates are created for this org — orgHasVisibleChatTemplates
+	// must return false and the provisioning tools must be omitted.
+
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "no-templates-test",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	toolsMu.Lock()
+	tools := append([]string(nil), capturedTools...)
+	toolsMu.Unlock()
+
+	require.NotEmpty(t, tools, "LLM should have received at least one streaming request with tools")
+
+	// All four provisioning tools must be absent when no templates are
+	// visible in the org.
+	for _, tool := range []string{"list_templates", "read_template", "create_workspace", "start_workspace"} {
+		require.NotContains(t, tools, tool,
+			"provisioning tool %q should be absent when org has no templates", tool)
+	}
+
+	// Standard filesystem and process tools must remain present.
+	for _, tool := range []string{
+		"read_file", "write_file", "edit_files", "execute",
+		"process_output", "process_list", "process_signal", "propose_plan",
+	} {
+		require.Contains(t, tools, tool,
+			"standard tool %q should be present regardless of template visibility", tool)
+	}
+
+	// Subagent tools must be present on a root chat.
+	for _, tool := range []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"} {
+		require.Contains(t, tools, tool,
+			"subagent tool %q should be present on root chat", tool)
+	}
+}
+
+// TestIncludesStartWorkspaceWhenWorkspaceBoundButNoTemplates verifies
+// that start_workspace is present when a workspace is bound to the
+// chat even if no templates are visible in the org, while
+// list_templates, read_template, and create_workspace are still absent.
+func TestIncludesStartWorkspaceWhenWorkspaceBoundButNoTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var toolsMu sync.Mutex
+	var capturedTools []string
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		toolsMu.Lock()
+		if capturedTools == nil {
+			capturedTools = make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				capturedTools = append(capturedTools, tool.Function.Name)
+			}
+		}
+		toolsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Create a template and workspace so the chat has a bound workspace.
+	// An allowlist pointing at a different UUID ensures the org has no
+	// *visible* templates while the workspace itself still exists.
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             pj.ID,
+	})
+
+	// Point the allowlist at a UUID that matches no template so
+	// orgHasVisibleChatTemplates returns false.
+	allowlistJSON, err := json.Marshal([]string{uuid.New().String()})
+	require.NoError(t, err)
+	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "workspace-bound-no-templates",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	toolsMu.Lock()
+	tools := append([]string(nil), capturedTools...)
+	toolsMu.Unlock()
+
+	require.NotEmpty(t, tools, "LLM should have received at least one streaming request with tools")
+
+	// start_workspace must be present because the workspace is bound.
+	require.Contains(t, tools, "start_workspace",
+		"start_workspace should be present when workspace is bound")
+
+	// Template browsing and creation tools must be absent when no
+	// templates are visible, even though a workspace is bound.
+	for _, tool := range []string{"list_templates", "read_template", "create_workspace"} {
+		require.NotContains(t, tools, tool,
+			"tool %q should be absent when no templates are visible", tool)
+	}
+}
+
+// TestOmitsProvisioningToolsWhenAllowlistExcludesAllOrgTemplates
+// verifies that all four provisioning tools are absent when the
+// template allowlist is set to a UUID that does not match any template
+// in the org, making the effective visible template list empty.
+func TestOmitsProvisioningToolsWhenAllowlistExcludesAllOrgTemplates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var toolsMu sync.Mutex
+	var capturedTools []string
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		toolsMu.Lock()
+		if capturedTools == nil {
+			capturedTools = make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				capturedTools = append(capturedTools, tool.Function.Name)
+			}
+		}
+		toolsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Create a template in the org so the DB has something to filter.
+	_ = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	// Set the allowlist to a UUID that does not match the template so
+	// orgHasVisibleChatTemplates returns false despite the template
+	// existing in the org.
+	allowlistJSON, err := json.Marshal([]string{uuid.New().String()})
+	require.NoError(t, err)
+	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "allowlist-excludes-all",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	toolsMu.Lock()
+	tools := append([]string(nil), capturedTools...)
+	toolsMu.Unlock()
+
+	require.NotEmpty(t, tools, "LLM should have received at least one streaming request with tools")
+
+	// All four provisioning tools must be absent when the allowlist
+	// excludes every template in the org.
+	for _, tool := range []string{"list_templates", "read_template", "create_workspace", "start_workspace"} {
+		require.NotContains(t, tools, tool,
+			"provisioning tool %q should be absent when allowlist excludes all org templates", tool)
+	}
+}
