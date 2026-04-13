@@ -1241,7 +1241,7 @@ func buildAIBridgeThread(
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
 		thread.CredentialKind = string(rootIntc.CredentialKind)
-		thread.CredentialHint = rootIntc.CredentialHint
+		thread.CredentialHint = sanitizeCredentialHint(rootIntc.CredentialHint)
 		// Get first user prompt from root interception.
 		// A thread can only have one prompt, by definition, since we currently
 		// only store the last prompt observed in an interception.
@@ -1405,6 +1405,25 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 		})
 	}
 	return presets
+}
+
+// sanitizeCredentialHint ensures the hint looks masked before exposing
+// it in the API. The aibridge library uses "..." as the masking
+// delimiter (e.g. "sk-a...efgh"), so we check for its presence. If
+// the hint doesn't contain "..." or exceeds the max length, it's
+// replaced with "..." to prevent leaking raw secrets.
+func sanitizeCredentialHint(hint string) string {
+	// Matches the VARCHAR(15) DB constraint.
+	const maxCredentialHintLength = 15
+
+	if hint == "" {
+		return ""
+	}
+
+	if len(hint) > maxCredentialHintLength || !strings.Contains(hint, "...") {
+		return "..."
+	}
+	return hint
 }
 
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {

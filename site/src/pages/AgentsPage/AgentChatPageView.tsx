@@ -85,6 +85,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
@@ -176,6 +177,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	organizationId,
 	chatTitle,
 	parentChat,
 	persistedError,
@@ -417,6 +419,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
+								organizationId={organizationId}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}

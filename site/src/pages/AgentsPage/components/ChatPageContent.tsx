@@ -2,7 +2,6 @@ import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -124,6 +123,8 @@ export type PendingAttachment = {
 };
 
 interface ChatPageInputProps {
+	// Organization that owns this chat. Used to scope file uploads.
+	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (
@@ -181,6 +182,7 @@ interface ChatPageInputProps {
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
+	organizationId,
 	store,
 	compressionThreshold,
 	onSend,
@@ -257,8 +259,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const { organizations } = useDashboard();
-	const organizationId = organizations[0]?.id;
 	const {
 		attachments,
 		textContents,
