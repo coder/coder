@@ -258,7 +258,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
 	const { organizations } = useDashboard();
-	const organizationId = organizations.find((o) => o.is_default)?.id;
+	const organizationId = (
+		organizations.find((o) => o.is_default) ?? organizations[0]
+	)?.id;
 	const {
 		attachments,
 		textContents,
