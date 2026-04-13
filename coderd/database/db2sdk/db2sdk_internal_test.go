@@ -319,6 +319,7 @@ func TestSanitizeCredentialHint(t *testing.T) {
 		{"valid_long", "sk-a...efgh", "sk-a...efgh"},
 		{"valid_only_dots", "...", "..."},
 		{"empty", "", ""},
+		{"short_unmasked_secret", "abc12", "..."},
 		{"missing_dots", "sk-abcdefgh", "..."},
 		{"too_long", "sk-a...efghijklmn", "..."},
 		{"raw_secret", "sk-proj-abc123xyz789", "..."},
