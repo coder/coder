@@ -1733,6 +1733,106 @@ func (p *delayedAfterMessagePubsub) Close() error {
 	return p.inner.Close()
 }
 
+type flakySubscribePubsub struct {
+	inner dbpubsub.Pubsub
+
+	mu                sync.Mutex
+	subscribeFailures int
+	subscribeAttempts int
+	subscribed        chan struct{}
+	subscribedOnce    sync.Once
+}
+
+func newFlakySubscribePubsub(inner dbpubsub.Pubsub, subscribeFailures int) *flakySubscribePubsub {
+	return &flakySubscribePubsub{
+		inner:             inner,
+		subscribeFailures: subscribeFailures,
+		subscribed:        make(chan struct{}),
+	}
+}
+
+func (p *flakySubscribePubsub) Subscribe(event string, listener dbpubsub.Listener) (func(), error) {
+	return p.inner.Subscribe(event, listener)
+}
+
+func (p *flakySubscribePubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	p.mu.Lock()
+	p.subscribeAttempts++
+	if p.subscribeFailures > 0 {
+		p.subscribeFailures--
+		p.mu.Unlock()
+		return nil, xerrors.New("injected subscribe failure")
+	}
+	p.mu.Unlock()
+
+	cancel, err := p.inner.SubscribeWithErr(event, listener)
+	if err == nil {
+		p.subscribedOnce.Do(func() {
+			close(p.subscribed)
+		})
+	}
+	return cancel, err
+}
+
+func (p *flakySubscribePubsub) Publish(event string, message []byte) error {
+	return p.inner.Publish(event, message)
+}
+
+func (p *flakySubscribePubsub) Close() error {
+	return p.inner.Close()
+}
+
+func (p *flakySubscribePubsub) WaitForSubscribe(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-p.subscribed:
+		return nil
+	}
+}
+
+func (p *flakySubscribePubsub) SubscribeAttempts() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.subscribeAttempts
+}
+
+type recordingPubsub struct {
+	inner dbpubsub.Pubsub
+
+	mu     sync.Mutex
+	events []string
+}
+
+func newRecordingPubsub(inner dbpubsub.Pubsub) *recordingPubsub {
+	return &recordingPubsub{inner: inner}
+}
+
+func (p *recordingPubsub) Subscribe(event string, listener dbpubsub.Listener) (func(), error) {
+	return p.inner.Subscribe(event, listener)
+}
+
+func (p *recordingPubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	return p.inner.SubscribeWithErr(event, listener)
+}
+
+func (p *recordingPubsub) Publish(event string, message []byte) error {
+	p.mu.Lock()
+	p.events = append(p.events, event)
+	p.mu.Unlock()
+	return p.inner.Publish(event, message)
+}
+
+func (p *recordingPubsub) Close() error {
+	return p.inner.Close()
+}
+
+func (p *recordingPubsub) PublishedEvents() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.events...)
+}
+
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
 	t.Helper()
 
@@ -2850,7 +2950,7 @@ func TestSubscribeWorkerControl_CancelsRegisteredRun(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	ps := dbpubsub.NewInMemory()
+	ps := newFlakySubscribePubsub(dbpubsub.NewInMemory(), 0)
 
 	chatID := uuid.New()
 	workerID := uuid.New()
@@ -2878,6 +2978,58 @@ func TestSubscribeWorkerControl_CancelsRegisteredRun(t *testing.T) {
 	controlCancel := server.subscribeWorkerControl(ctx)
 	require.NotNil(t, controlCancel)
 	defer controlCancel()
+
+	require.NoError(t, ps.WaitForSubscribe(ctx))
+
+	payload, err := json.Marshal(coderdpubsub.ChatControlMessage{
+		ChatID:        chatID,
+		RunGeneration: runGeneration + 1,
+		Reason:        coderdpubsub.ChatControlReasonRestart,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ps.Publish(coderdpubsub.ChatControlChannel(workerID), payload))
+
+	require.Eventually(t, func() bool {
+		return errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted)
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestSubscribeWorkerControl_RetriesInitialSubscribeFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := newFlakySubscribePubsub(dbpubsub.NewInMemory(), 1)
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	runGeneration := int64(7)
+
+	server := &Server{
+		logger:            logger,
+		pubsub:            ps,
+		workerID:          workerID,
+		heartbeatRegistry: make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	chatCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	entry := &heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chatID,
+		runGeneration:   runGeneration,
+		logger:          logger,
+	}
+	server.registerHeartbeat(entry)
+	defer server.unregisterHeartbeat(entry)
+
+	controlCancel := server.subscribeWorkerControl(ctx)
+	require.NotNil(t, controlCancel)
+	defer controlCancel()
+
+	require.NoError(t, ps.WaitForSubscribe(ctx))
+	require.GreaterOrEqual(t, ps.SubscribeAttempts(), 2)
 
 	payload, err := json.Marshal(coderdpubsub.ChatControlMessage{
 		ChatID:        chatID,
@@ -2995,6 +3147,51 @@ func TestRegisterHeartbeat_ReplacesOlderGenerationAndIgnoresStaleUnregister(t *t
 	server.heartbeatMu.Lock()
 	_, exists := server.heartbeatRegistry[chatID]
 	server.heartbeatMu.Unlock()
+	require.False(t, exists)
+}
+
+func TestRecoverStaleChats_DoesNotPublishWhenRecoverySkipped(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	ps := newRecordingPubsub(dbpubsub.NewInMemory())
+
+	chatID := uuid.New()
+
+	server := &Server{
+		db:                     db,
+		logger:                 logger,
+		pubsub:                 ps,
+		inFlightChatStaleAfter: time.Minute,
+	}
+
+	db.EXPECT().GetStaleChats(gomock.Any(), gomock.AssignableToTypeOf(time.Time{})).Return(
+		[]database.Chat{{ID: chatID, Status: database.ChatStatusRunning}}, nil,
+	)
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(
+		database.Chat{
+			ID:     chatID,
+			Status: database.ChatStatusRunning,
+			HeartbeatAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+		}, nil,
+	)
+
+	server.recoverStaleChats(ctx)
+
+	require.Empty(t, ps.PublishedEvents())
+	_, exists := server.chatStreams.Load(uuid.Nil)
 	require.False(t, exists)
 }
 

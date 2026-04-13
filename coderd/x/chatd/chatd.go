@@ -17,6 +17,7 @@ import (
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
@@ -83,6 +84,13 @@ const (
 	// recovery loop runs relative to the stale threshold. A value
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
+
+	// workerControlSubscribeInitialInterval controls how quickly a worker
+	// retries its control-plane subscription after an initial setup
+	// failure. This only applies to startup/establishment failures;
+	// successful subscriptions rely on the pubsub layer's reconnect logic.
+	workerControlSubscribeInitialInterval = 100 * time.Millisecond
+	workerControlSubscribeMaxBackoff      = 10 * time.Second
 
 	// streamDropWarnInterval controls how often WARN-level logs are
 	// emitted when stream events are dropped. Between intervals the
@@ -4107,21 +4115,54 @@ func (p *Server) subscribeWorkerControl(ctx context.Context) func() {
 		return nil
 	}
 
-	controlCancel, err := p.pubsub.SubscribeWithErr(
-		coderdpubsub.ChatControlChannel(p.workerID),
-		coderdpubsub.HandleChatControl(func(ctx context.Context, msg coderdpubsub.ChatControlMessage, err error) {
+	controlCtx, stop := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		listener := coderdpubsub.HandleChatControl(func(ctx context.Context, msg coderdpubsub.ChatControlMessage, err error) {
 			if err != nil {
 				p.logger.Warn(ctx, "chat control pubsub error", slog.Error(err))
 				return
 			}
 			p.handleChatControlMessage(ctx, msg)
-		}),
-	)
-	if err != nil {
-		p.logger.Error(ctx, "failed to subscribe to worker chat controls", slog.Error(err))
-		return nil
+		})
+
+		eb := backoff.NewExponentialBackOff()
+		eb.InitialInterval = workerControlSubscribeInitialInterval
+		eb.MaxElapsedTime = 0
+		eb.MaxInterval = workerControlSubscribeMaxBackoff
+		bkoff := backoff.WithContext(eb, controlCtx)
+
+		var controlCancel func()
+		err := backoff.Retry(func() error {
+			cancelFn, err := p.pubsub.SubscribeWithErr(
+				coderdpubsub.ChatControlChannel(p.workerID),
+				listener,
+			)
+			if err != nil {
+				p.logger.Warn(controlCtx, "failed to subscribe to worker chat controls", slog.Error(err))
+				return err
+			}
+			controlCancel = cancelFn
+			return nil
+		}, bkoff)
+		if err != nil {
+			if controlCtx.Err() == nil {
+				p.logger.Error(controlCtx, "worker chat control subscription retry ended unexpectedly", slog.Error(err))
+			}
+			return
+		}
+		if controlCancel != nil {
+			defer controlCancel()
+		}
+		<-controlCtx.Done()
+	}()
+
+	return func() {
+		stop()
+		<-done
 	}
-	return controlCancel
 }
 
 // chatFileResolver returns a FileResolver that fetches chat file
@@ -6299,6 +6340,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			controlWorkerID uuid.UUID
 			controlMsg      coderdpubsub.ChatControlMessage
 			publishControl  bool
+			didRecover      bool
 		)
 		err := p.db.InTx(func(tx database.Store) error {
 			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
@@ -6383,7 +6425,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				updatedChat.RunGeneration,
 				coderdpubsub.ChatControlReasonRecoverStale,
 			)
-			recovered++
+			didRecover = true
 			return nil
 		}, nil)
 		if err != nil {
@@ -6391,6 +6433,10 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				slog.F("chat_id", chat.ID), slog.Error(err))
 			continue
 		}
+		if !didRecover {
+			continue
+		}
+		recovered++
 		if publishControl {
 			p.publishChatControl(controlWorkerID, controlMsg)
 		}
