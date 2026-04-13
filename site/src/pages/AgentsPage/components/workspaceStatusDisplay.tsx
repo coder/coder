@@ -23,7 +23,6 @@ const statusIconMap: Record<DisplayWorkspaceStatusType, ReactNode> = {
 };
 
 interface WorkspaceStatusDisplay {
-	effectiveType: DisplayWorkspaceStatusType;
 	statusLabel: string;
 	statusIcon: ReactNode;
 }
@@ -60,7 +59,6 @@ export function getWorkspaceStatusDisplay(
 		? `Workspace ${text.toLowerCase()}`
 		: `Workspace ${text.toLowerCase()} (unhealthy)`;
 	return {
-		effectiveType,
 		statusLabel,
 		statusIcon: statusIconMap[effectiveType],
 	};

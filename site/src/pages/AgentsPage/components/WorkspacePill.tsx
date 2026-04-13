@@ -17,12 +17,14 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "#/api/typesGenerated";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
 	TooltipContent,
@@ -31,14 +33,16 @@ import {
 import {
 	getTerminalHref,
 	getVSCodeHref,
+	isExternalApp,
+	needsSessionToken,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
-import { getWorkspaceStatusDisplay } from "./WorkspaceStatusIndicator";
+import { getWorkspaceStatusDisplay } from "./workspaceStatusDisplay";
 
-const menuItemCls =
-	"flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50";
+const badgeCls =
+	"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary";
 
 interface WorkspacePillProps {
 	workspace: Workspace;
@@ -70,14 +74,18 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
 
-	const badgeCls =
-		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary";
+	const hasItemsAboveSeparator =
+		hasVSCode ||
+		hasVSCodeInsiders ||
+		userApps.length > 0 ||
+		hasTerminal ||
+		!!sshCommand;
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<Tooltip open={open ? false : undefined}>
 				<TooltipTrigger asChild>
-					<PopoverTrigger asChild>
+					<DropdownMenuTrigger asChild>
 						<button
 							type="button"
 							className={cn(
@@ -87,76 +95,66 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						>
 							{statusIcon}
 							{workspace.name}
+							{/* The menu opens upward (side="top"), so the chevron
+							   points toward the menu when closed (default) and
+							   away when open (rotate-180). */}
 							<ChevronDownIcon
 								className={cn(
-									"size-3 opacity-60 transition-transform rotate-180",
-									open && "rotate-0",
+									"size-3 opacity-60 transition-transform",
+									open && "rotate-180",
 								)}
 							/>
 						</button>
-					</PopoverTrigger>
+					</DropdownMenuTrigger>
 				</TooltipTrigger>
 				<TooltipContent>{statusLabel}</TooltipContent>
 			</Tooltip>
-			<PopoverContent side="top" align="start" className="w-48 p-1">
-				<div className="flex flex-col">
-					{hasVSCode && (
-						<VSCodeMenuItem
-							variant="vscode"
-							label="Open in VS Code"
-							workspace={workspace}
-							agent={agent}
-							chatId={chatId}
-							folder={folder}
-							onDone={() => setOpen(false)}
-						/>
-					)}
-					{hasVSCodeInsiders && (
-						<VSCodeMenuItem
-							variant="vscode-insiders"
-							label="Open in VS Code Insiders"
-							workspace={workspace}
-							agent={agent}
-							chatId={chatId}
-							folder={folder}
-							onDone={() => setOpen(false)}
-						/>
-					)}
-					{userApps.map((app) => (
-						<AppMenuItem
-							key={app.id}
-							app={app}
-							workspace={workspace}
-							agent={agent}
-						/>
-					))}
-					{hasTerminal && (
-						<TerminalMenuItem
-							workspace={workspace}
-							agent={agent}
-							onDone={() => setOpen(false)}
-						/>
-					)}
-					{sshCommand && (
-						<CopySSHMenuItem
-							sshCommand={sshCommand}
-							onDone={() => setOpen(false)}
-						/>
-					)}
-					<div className="my-1 h-px bg-border-default" />
-					<Link
-						to={route}
-						target="_blank"
-						rel="noreferrer"
-						className={cn(menuItemCls, "no-underline")}
-						onClick={() => setOpen(false)}
-					>
+			<DropdownMenuContent
+				side="top"
+				align="start"
+				className="w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+			>
+				{hasVSCode && (
+					<VSCodeMenuItem
+						variant="vscode"
+						label="Open in VS Code"
+						workspace={workspace}
+						agent={agent}
+						chatId={chatId}
+						folder={folder}
+					/>
+				)}
+				{hasVSCodeInsiders && (
+					<VSCodeMenuItem
+						variant="vscode-insiders"
+						label="Open in VS Code Insiders"
+						workspace={workspace}
+						agent={agent}
+						chatId={chatId}
+						folder={folder}
+					/>
+				)}
+				{userApps.map((app) => (
+					<AppMenuItem
+						key={app.id}
+						app={app}
+						workspace={workspace}
+						agent={agent}
+					/>
+				))}
+				{hasTerminal && (
+					<TerminalMenuItem workspace={workspace} agent={agent} />
+				)}
+				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
+				{hasItemsAboveSeparator && <DropdownMenuSeparator className="my-1" />}
+				<DropdownMenuItem asChild>
+					<Link to={route} target="_blank" rel="noreferrer">
 						<MonitorIcon className="size-3.5" />
 						View Workspace
 					</Link>
-				</div>
-			</PopoverContent>
-		</Popover>
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };
 
@@ -167,8 +165,7 @@ const VSCodeMenuItem: FC<{
 	agent: WorkspaceAgent;
 	chatId: string;
 	folder?: string;
-	onDone: () => void;
-}> = ({ variant, label, workspace, agent, chatId, folder, onDone }) => {
+}> = ({ variant, label, workspace, agent, chatId, folder }) => {
 	const { mutate: generateKey, isPending } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
@@ -185,7 +182,6 @@ const VSCodeMenuItem: FC<{
 					folder: folder ?? agent.expanded_directory,
 					chatId,
 				});
-				onDone();
 			},
 			onError: () => {
 				toast.error(`Failed to open ${label}.`);
@@ -194,10 +190,10 @@ const VSCodeMenuItem: FC<{
 	};
 
 	return (
-		<button type="button" className={menuItemCls} onClick={handleClick}>
+		<DropdownMenuItem onSelect={handleClick} disabled={isPending}>
 			<ExternalLinkIcon className="size-3.5" />
 			{label}
-		</button>
+		</DropdownMenuItem>
 	);
 };
 
@@ -208,29 +204,32 @@ const AppMenuItem: FC<{
 }> = ({ app, workspace, agent }) => {
 	const link = useAppLink(app, { workspace, agent });
 
+	const canClick =
+		!isExternalApp(app) || !needsSessionToken(app) || link.hasToken;
+
 	return (
-		<a
-			href={link.href}
-			onClick={link.onClick}
-			target="_blank"
-			rel="noreferrer"
-			className={cn(menuItemCls, "no-underline")}
-		>
-			{app.icon ? (
-				<ExternalImage src={app.icon} className="size-3.5 rounded-sm" />
-			) : (
-				<LayoutGridIcon className="size-3.5" />
-			)}
-			{link.label}
-		</a>
+		<DropdownMenuItem asChild>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target="_blank"
+				rel="noreferrer"
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} className="size-3.5 rounded-sm" />
+				) : (
+					<LayoutGridIcon className="size-3.5" />
+				)}
+				{link.label}
+			</a>
+		</DropdownMenuItem>
 	);
 };
 
 const TerminalMenuItem: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
-	onDone: () => void;
-}> = ({ workspace, agent, onDone }) => {
+}> = ({ workspace, agent }) => {
 	const href = getTerminalHref({
 		username: workspace.owner_name,
 		workspace: workspace.name,
@@ -238,24 +237,20 @@ const TerminalMenuItem: FC<{
 	});
 
 	return (
-		<button
-			type="button"
-			className={menuItemCls}
-			onClick={() => {
+		<DropdownMenuItem
+			onSelect={() => {
 				openAppInNewWindow(href);
-				onDone();
 			}}
 		>
 			<SquareTerminalIcon className="size-3.5" />
 			Open Terminal
-		</button>
+		</DropdownMenuItem>
 	);
 };
 
 const CopySSHMenuItem: FC<{
 	sshCommand: string;
-	onDone: () => void;
-}> = ({ sshCommand, onDone }) => {
+}> = ({ sshCommand }) => {
 	const handleCopySSH = async () => {
 		try {
 			await navigator.clipboard.writeText(sshCommand);
@@ -263,17 +258,12 @@ const CopySSHMenuItem: FC<{
 		} catch {
 			toast.error("Failed to copy SSH command");
 		}
-		onDone();
 	};
 
 	return (
-		<button
-			type="button"
-			className={menuItemCls}
-			onClick={() => void handleCopySSH()}
-		>
+		<DropdownMenuItem onSelect={() => void handleCopySSH()}>
 			<CopyIcon className="size-3.5" />
 			Copy SSH Command
-		</button>
+		</DropdownMenuItem>
 	);
 };

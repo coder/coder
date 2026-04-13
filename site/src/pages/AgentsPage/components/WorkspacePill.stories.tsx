@@ -42,6 +42,20 @@ const cursorApp: WorkspaceApp = {
 	icon: "/icon/cursor.svg",
 };
 
+const hiddenApp: WorkspaceApp = {
+	id: "hidden-app",
+	slug: "hidden-internal",
+	display_name: "Hidden Internal Tool",
+	external: false,
+	url: "",
+	subdomain: false,
+	health: "disabled",
+	sharing_level: "owner",
+	hidden: true,
+	open_in: "slim-window",
+	statuses: [],
+};
+
 /** Agent with all built-in display apps and user-configured external apps. */
 const agentWithApps = {
 	...MockWorkspaceAgent,
@@ -70,6 +84,13 @@ const agentWithExternalOnly = {
 	apps: [externalApp, cursorApp],
 };
 
+/** Agent with a hidden app mixed in to verify filtering. */
+const agentWithHiddenApp = {
+	...MockWorkspaceAgent,
+	display_apps: ["vscode"] as const,
+	apps: [externalApp, hiddenApp],
+};
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -78,7 +99,7 @@ const meta: Meta<typeof WorkspacePill> = {
 	title: "pages/AgentsPage/WorkspacePill",
 	component: WorkspacePill,
 	// useAppLink calls useProxy(), so we need the proxy provider for
-	// stories that render ExternalAppMenuItem.
+	// stories that render AppMenuItem.
 	decorators: [withProxyProvider()],
 	parameters: {
 		layout: "centered",
@@ -92,13 +113,14 @@ type Story = StoryObj<typeof WorkspacePill>;
 // ---------------------------------------------------------------------------
 
 /** Pill with all app types: built-in VS Code, VS Code Insiders, external
- *  apps (JetBrains, Cursor), and terminal. Clicking the pill opens the
- *  dropdown. */
+ *  apps (JetBrains, Cursor), terminal, and SSH command. Clicking the pill
+ *  opens the dropdown. */
 export const WithAllApps: Story = {
 	args: {
 		...defaultProps,
 		workspace: MockWorkspace,
 		agent: agentWithApps,
+		sshCommand: "ssh coder.test-workspace",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -112,6 +134,7 @@ export const WithAllApps: Story = {
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
 			expect(body.getByText("Open Terminal")).toBeInTheDocument();
+			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 		});
 	},
@@ -168,11 +191,44 @@ export const WithExternalAppsOnly: Story = {
 };
 
 /** When the agent has no apps at all, the pill still renders with
- *  a "View Workspace" link in the popover. */
+ *  a "View Workspace" link in the dropdown. */
 export const NoApps: Story = {
 	args: {
 		...defaultProps,
 		workspace: MockWorkspace,
 		agent: agentWithNoApps,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = canvas.getByText("Test-Workspace");
+		await userEvent.click(pill);
+
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("View Workspace")).toBeInTheDocument();
+		});
+	},
+};
+
+/** Hidden apps should be filtered out and not appear in the dropdown. */
+export const WithHiddenApp: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: agentWithHiddenApp,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = canvas.getByText("Test-Workspace");
+		await userEvent.click(pill);
+
+		await waitFor(() => {
+			const body = within(document.body);
+			// Visible apps should appear.
+			expect(body.getByText("Open in VS Code")).toBeInTheDocument();
+			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
+			// Hidden app should NOT appear.
+			expect(body.queryByText("Hidden Internal Tool")).not.toBeInTheDocument();
+		});
 	},
 };

@@ -362,8 +362,8 @@ export const NoModelOptions: Story = {
 	),
 };
 
-/** Top bar has workspace action buttons visible. */
-export const WithWorkspaceActions: Story = {
+/** Chat with an attached workspace. */
+export const WithWorkspace: Story = {
 	render: () => <StoryAgentChatPageView sshCommand="ssh coder.workspace" />,
 };
 
