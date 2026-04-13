@@ -5145,6 +5145,7 @@ func (p *Server) finishActiveChat(
 			var promoteErr error
 			result.promotedMessage, result.remainingQueuedMessages, result.shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(ctx, tx, latestChat)
 			if promoteErr != nil {
+				logger.Error(ctx, "auto-promote queued message failed, rolling back", slog.Error(promoteErr))
 				return xerrors.Errorf("auto-promote queued message: %w", promoteErr)
 			} else if result.promotedMessage != nil {
 				status = database.ChatStatusPending
