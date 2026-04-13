@@ -17,6 +17,75 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestListTemplates_OrganizationFilter(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+
+	orgA := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: orgA.ID,
+	})
+	orgB := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: orgB.ID,
+	})
+
+	tAlpha := dbgen.Template(t, db, database.Template{
+		OrganizationID: orgA.ID,
+		CreatedBy:      user.ID,
+		Name:           "alpha",
+	})
+	dbgen.Template(t, db, database.Template{
+		OrganizationID: orgB.ID,
+		CreatedBy:      user.ID,
+		Name:           "beta",
+	})
+
+	t.Run("ScopedToOrgA", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+			DB:             db,
+			OwnerID:        user.ID,
+			OrganizationID: orgA.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "org-a", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		m := templates[0].(map[string]any)
+		require.Equal(t, tAlpha.ID.String(), m["id"].(string))
+	})
+
+	t.Run("NilOrgReturnsBoth", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			// OrganizationID left as uuid.Nil
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "nil-org", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 2)
+	})
+}
+
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.
 func TestTemplateAllowlistEnforcement(t *testing.T) {
 	t.Parallel()

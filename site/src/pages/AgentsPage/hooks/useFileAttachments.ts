@@ -21,14 +21,18 @@ interface PersistedAttachment {
 	fileName: string;
 	fileType: string;
 	lastModified: number;
+	organizationId: string;
 }
 
 /**
  * Restore previously persisted attachments from localStorage.
  * Creates synthetic File objects (empty blobs with correct metadata)
  * and populates the corresponding Maps so the UI can render them.
+ *
+ * Only attachments matching `currentOrgId` are returned. Entries
+ * belonging to a different organization are pruned from storage.
  */
-function restorePersistedAttachments(): {
+function restorePersistedAttachments(currentOrgId: string): {
 	attachments: File[];
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
@@ -43,11 +47,25 @@ function restorePersistedAttachments(): {
 	}
 	try {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
+		const matched = persisted.filter((p) => p.organizationId === currentOrgId);
+
+		// Prune entries that don't match the current org.
+		if (matched.length !== persisted.length) {
+			if (matched.length > 0) {
+				localStorage.setItem(
+					persistedAttachmentsStorageKey,
+					JSON.stringify(matched),
+				);
+			} else {
+				localStorage.removeItem(persistedAttachmentsStorageKey);
+			}
+		}
+
 		const attachments: File[] = [];
 		const uploadStates = new Map<File, UploadState>();
 		const previewUrls = new Map<File, string>();
 
-		for (const p of persisted) {
+		for (const p of matched) {
 			if (!p.fileId || !p.fileName) continue;
 			// Synthetic File used as a Map key only. Its content is
 			// never read because the existing file_id is reused at
@@ -72,7 +90,11 @@ function restorePersistedAttachments(): {
 	}
 }
 
-function addPersistedAttachment(file: File, fileId: string) {
+function addPersistedAttachment(
+	file: File,
+	fileId: string,
+	organizationId: string,
+) {
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
 	let persisted: PersistedAttachment[];
 	try {
@@ -85,6 +107,7 @@ function addPersistedAttachment(file: File, fileId: string) {
 		fileName: file.name,
 		fileType: file.type,
 		lastModified: file.lastModified,
+		organizationId,
 	});
 	localStorage.setItem(
 		persistedAttachmentsStorageKey,
@@ -141,7 +164,7 @@ export function useFileAttachments(
 	// when persistence is enabled. Computed once on first render.
 	const [restored] = useState(() =>
 		persist
-			? restorePersistedAttachments()
+			? restorePersistedAttachments(organizationId ?? "")
 			: {
 					attachments: [] as File[],
 					uploadStates: new Map<File, UploadState>(),
@@ -179,6 +202,10 @@ export function useFileAttachments(
 			);
 			return;
 		}
+
+		const shouldPersist = persist && !!organizationId;
+		const isImage = file.type.startsWith("image/");
+
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
 			try {
@@ -192,14 +219,14 @@ export function useFileAttachments(
 						fileId: result.id,
 					}),
 				);
-				if (persist) {
-					addPersistedAttachment(file, result.id);
+				if (shouldPersist) {
+					addPersistedAttachment(file, result.id, organizationId!);
 				}
 				// Pre-warm the browser HTTP cache for images so the
 				// timeline can render them instantly after send. We
 				// intentionally skip text attachments because the
 				// composer already has the text content locally.
-				if (file.type.startsWith("image/")) {
+				if (isImage) {
 					void fetch(`/api/experimental/chats/files/${result.id}`);
 				}
 			} catch (err: unknown) {

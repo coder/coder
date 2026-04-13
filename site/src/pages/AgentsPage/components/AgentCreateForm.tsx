@@ -1,7 +1,9 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -191,9 +193,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
 			if (!stored) return null;
 
-			// If workspaces haven't loaded yet, keep the stored value.
-			// It will be re-validated once the list arrives via
-			// filteredWorkspaces clearing the selection if stale.
+			// The stored value is kept optimistically until workspaces
+			// load. effectiveWorkspaceId (computed after render) drops
+			// it if it doesn't match the current org's workspaces.
 			if (workspaceOptions.length === 0) return stored;
 
 			// Validate the stored workspace still exists and belongs
@@ -255,12 +257,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
-	// that the onSend callback always sees the latest values without
-	// the shared input component re-rendering on every change.
-	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	const selectedModelRef = useRef(selectedModel);
-	const organizationIdRef = useRef(organizationId);
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
 	);
@@ -274,13 +270,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers ?? []);
 	})();
-	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
-	useEffect(() => {
-		selectedWorkspaceIdRef.current = selectedWorkspaceId;
-		selectedModelRef.current = selectedModel;
-		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
-		organizationIdRef.current = organizationId;
-	});
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -296,27 +285,47 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
-		submitDraft();
-		await onCreateChat({
-			message,
-			fileIDs,
-			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-			model: selectedModelRef.current || undefined,
-			organizationId: organizationIdRef.current,
-			mcpServerIds:
-				selectedMCPServerIdsRef.current.length > 0
-					? [...selectedMCPServerIdsRef.current]
-					: undefined,
-		}).catch((err) => {
-			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt, then rethrow
-			// so callers (handleSendWithAttachments) can preserve
-			// attachments on failure.
-			resetDraft();
-			throw err;
-		});
-	};
+	const isForbidden = !canCreateChat;
+
+	// Filter workspaces by the selected organization. We use
+	// client-side filtering of the full "owner:me" fetch rather
+	// than re-querying with an org filter because it avoids
+	// extra loading/error states on org change. The full list is
+	// already small (user's own workspaces) and limit: 0
+	// guarantees completeness. If workspace counts grow large
+	// enough to warrant pagination, this should switch to a
+	// server-side organization:<name> query filter.
+	const filteredWorkspaces =
+		showOrganizations && selectedOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
+			: workspaceOptions;
+
+	const effectiveWorkspaceId =
+		selectedWorkspaceId !== null &&
+		(isWorkspacesLoading ||
+			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
+			? selectedWorkspaceId
+			: null;
+
+	const handleSend = useEffectEvent(
+		async (message: string, fileIDs?: string[]) => {
+			submitDraft();
+			await onCreateChat({
+				message,
+				fileIDs,
+				workspaceId: effectiveWorkspaceId ?? undefined,
+				model: selectedModel || undefined,
+				organizationId,
+				mcpServerIds:
+					effectiveMCPServerIds.length > 0
+						? [...effectiveMCPServerIds]
+						: undefined,
+			}).catch((err) => {
+				resetDraft();
+				throw err;
+			});
+		},
+	);
 
 	const {
 		attachments,
@@ -355,20 +364,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const isForbidden = !canCreateChat;
-
-	// Filter workspaces by the selected organization. We use
-	// client-side filtering of the full "owner:me" fetch rather
-	// than re-querying with an org filter because it avoids
-	// extra loading/error states on org change. The full list is
-	// already small (user's own workspaces) and limit: 0
-	// guarantees completeness. If workspace counts grow large
-	// enough to warrant pagination, this should switch to a
-	// server-side organization:<name> query filter.
-	const filteredWorkspaces =
-		showOrganizations && selectedOrg
-			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
-			: workspaceOptions;
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "chat" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	const permittedOrgs = permittedOrgsQuery.data ?? [...organizations];
 
 	return (
 		<>
@@ -404,7 +407,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								id="organization"
 								required
 								value={selectedOrg}
-								options={[...organizations]}
+								options={permittedOrgs}
 								onChange={(newOrg) => {
 									const orgChanged = newOrg?.id !== selectedOrg?.id;
 									if (orgChanged && attachments.length > 0) {
@@ -447,7 +450,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						}}
 						onMCPAuthComplete={onMCPAuthComplete}
 						workspaceOptions={filteredWorkspaces}
-						selectedWorkspaceId={selectedWorkspaceId}
+						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
 						isWorkspaceLoading={isWorkspacesLoading}
 					/>

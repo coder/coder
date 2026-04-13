@@ -146,7 +146,12 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Verify the template belongs to the same org as the
 			// chat. Without this check the tool could silently
 			// bind a cross-org workspace to the chat.
-			if options.DB != nil && options.OrganizationID != uuid.Nil {
+			if options.DB != nil {
+				if options.OrganizationID == uuid.Nil {
+					return fantasy.NewTextErrorResponse(
+						"organization ID is required for template org validation",
+					), nil
+				}
 				tmpl, tmplErr := options.DB.GetTemplateByID(ctx, templateID)
 				if tmplErr != nil {
 					return fantasy.NewTextErrorResponse(
@@ -162,6 +167,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			var ttlMs *int64
+
 			if options.DB != nil {
 				raw, err := options.DB.GetChatWorkspaceTTL(ctx)
 				if err != nil {
