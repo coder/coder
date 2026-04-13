@@ -4381,7 +4381,7 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
-		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		// e.g. "mcp-server-http" -> "Mcp Server Http"
 		caser := cases.Title(language.English)
 		return caser.String(strings.ReplaceAll(string(e), "-", " "))
 	}

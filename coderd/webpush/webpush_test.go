@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -404,4 +405,44 @@ func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Sto
 	require.NoError(t, err, "Failed to create webpush manager")
 
 	return manager, db, server.URL
+}
+
+func TestNoopWebpusher(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithErr", func(t *testing.T) {
+		t.Parallel()
+		underlying := xerrors.New("vapid key generation failed")
+		noop := &webpush.NoopWebpusher{
+			Msg: "Web Push notifications are disabled",
+			Err: underlying,
+		}
+
+		dispatchErr := noop.Dispatch(context.Background(), uuid.New(), codersdk.WebpushMessage{})
+		require.Error(t, dispatchErr)
+		require.ErrorIs(t, dispatchErr, underlying)
+		require.Contains(t, dispatchErr.Error(), noop.Msg)
+
+		testErr := noop.Test(context.Background(), codersdk.WebpushSubscription{})
+		require.Error(t, testErr)
+		require.ErrorIs(t, testErr, underlying)
+		require.Contains(t, testErr.Error(), noop.Msg)
+
+		require.Empty(t, noop.PublicKey())
+	})
+
+	t.Run("WithoutErr", func(t *testing.T) {
+		t.Parallel()
+		noop := &webpush.NoopWebpusher{
+			Msg: "push disabled",
+		}
+
+		dispatchErr := noop.Dispatch(context.Background(), uuid.New(), codersdk.WebpushMessage{})
+		require.Error(t, dispatchErr)
+		require.Contains(t, dispatchErr.Error(), "push disabled")
+
+		testErr := noop.Test(context.Background(), codersdk.WebpushSubscription{})
+		require.Error(t, testErr)
+		require.Contains(t, testErr.Error(), "push disabled")
+	})
 }

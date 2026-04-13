@@ -386,9 +386,13 @@ func (n *Webpusher) PublicKey() string {
 	return n.VAPIDPublicKey
 }
 
-// NoopWebpusher is a Dispatcher that does nothing except return an error.
-// This is used as a fallback when there is an error generating the VAPID
-// keys.
+// NoopWebpusher is a Dispatcher that always fails. When Err is set, it
+// wraps the underlying error for diagnostic purposes. Note that the
+// wrapped error is returned directly to API callers in the response
+// Detail field (see coderd/webpush.go handlers). This is intentional
+// to help administrators diagnose VAPID key issues without requiring
+// server log access, but means internal error text (e.g. database
+// errors) may be visible to authenticated users.
 type NoopWebpusher struct {
 	Msg string
 	Err error

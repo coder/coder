@@ -18,7 +18,10 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const [subscribed, setSubscribed] = useState<boolean>(false);
 	const [loading, setLoading] = useState<boolean>(true);
-	const enabled = "Notification" in window && "serviceWorker" in navigator;
+	const enabled =
+		"Notification" in window &&
+		"serviceWorker" in navigator &&
+		!!buildInfoQuery.data?.webpush_public_key;
 
 	useEffect(() => {
 		// Check if browser supports push notifications
