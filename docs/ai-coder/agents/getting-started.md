@@ -163,7 +163,8 @@ set of expectations and limitations.
 
 Coder Agents use browser push notifications to alert you when a task
 completes or needs attention. Most browsers require a secure (HTTPS)
-origin for the Push API to work. If your access URL uses plain HTTP,
+origin for the [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
+to work. If your access URL uses plain HTTP,
 push notifications may not function.
 
 This does not affect agents themselves — only the browser notification
