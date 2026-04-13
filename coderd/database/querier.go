@@ -890,7 +890,8 @@ type sqlcQuerier interface {
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Resolves the effective spend limit for a user using the hierarchy:
-	// 1. Individual user override (highest priority)
+	// 1. Individual user override (highest priority, applies globally across
+	//    all organizations since it lives on the users table)
 	// 2. Minimum group limit across the user's groups
 	// 3. Global default from config
 	// Returns -1 if limits are not enabled.

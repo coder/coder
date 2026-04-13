@@ -6775,9 +6775,11 @@ type ResolveUserChatSpendLimitParams struct {
 }
 
 // Resolves the effective spend limit for a user using the hierarchy:
-// 1. Individual user override (highest priority)
-// 2. Minimum group limit across the user's groups
-// 3. Global default from config
+//  1. Individual user override (highest priority, applies globally across
+//     all organizations since it lives on the users table)
+//  2. Minimum group limit across the user's groups
+//  3. Global default from config
+//
 // Returns -1 if limits are not enabled.
 // When organization_id is the nil UUID, groups across all organizations
 // are considered (legacy global behavior). Otherwise only groups within

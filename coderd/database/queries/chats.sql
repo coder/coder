@@ -1216,7 +1216,8 @@ ORDER BY workspace_id, updated_at DESC;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:
--- 1. Individual user override (highest priority)
+-- 1. Individual user override (highest priority, applies globally across
+--    all organizations since it lives on the users table)
 -- 2. Minimum group limit across the user's groups
 -- 3. Global default from config
 -- Returns -1 if limits are not enabled.

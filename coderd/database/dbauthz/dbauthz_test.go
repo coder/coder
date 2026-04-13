@@ -1042,9 +1042,10 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetUserChatSpendInPeriod", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetUserChatSpendInPeriodParams{
-			UserID:    uuid.New(),
-			StartTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			EndTime:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+			UserID:         uuid.New(),
+			OrganizationID: uuid.New(),
+			StartTime:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:        time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
 		}
 		spend := int64(123)
 		dbm.EXPECT().GetUserChatSpendInPeriod(gomock.Any(), arg).Return(spend, nil).AnyTimes()
