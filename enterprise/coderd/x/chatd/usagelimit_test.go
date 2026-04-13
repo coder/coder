@@ -175,10 +175,10 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// When the org ID does not match any group the user belongs
-		// to, MIN() over an empty set returns NULL, COALESCE yields
-		// -1 ("no group limit"), and the CASE falls through to the
-		// global default. This subtest guards that contract: if
-		// someone changes the COALESCE or NULL-handling in
+		// to, MIN() over an empty set returns NULL, the CASE sees
+		// gl.limit_micros IS NOT NULL as false, and falls through
+		// to the global default. This subtest guards that contract:
+		// if someone changes the NULL-handling in
 		// ResolveUserChatSpendLimit, this will catch it.
 		randomOrg := uuid.NullUUID{UUID: uuid.New(), Valid: true}
 		status, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, randomOrg, now)
