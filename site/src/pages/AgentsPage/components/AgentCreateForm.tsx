@@ -404,7 +404,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								id="organization"
 								required
 								value={selectedOrg}
-								options={[...organizations]}
+								options={organizations}
 								onChange={(newOrg) => {
 									const orgChanged = newOrg?.id !== selectedOrg?.id;
 									if (orgChanged && attachments.length > 0) {
