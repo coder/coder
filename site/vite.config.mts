@@ -182,7 +182,6 @@ export default defineConfig({
 			"@mui/material/FormLabel",
 			"@mui/material/InputAdornment",
 			"@mui/material/InputBase",
-			"@mui/material/LinearProgress",
 			"@mui/material/Link",
 			"@mui/material/List",
 			"@mui/material/ListItem",
