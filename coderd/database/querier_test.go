@@ -11259,6 +11259,1004 @@ func TestChatLabels(t *testing.T) {
 	})
 }
 
+func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-rollback-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	const cutoff int64 = 50
+
+	affectedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff + 10, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 5, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      affectedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+	})
+	require.NoError(t, err)
+
+	affectedByStepHistoryTipRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff - 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               affectedByStepHistoryTipRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "interrupted",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 7, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// affectedByStepAssistantMsgRun: run-level fields are at/below
+	// the cutoff, but its step has assistant_message_id above the
+	// cutoff.  This exercises the step.assistant_message_id > cutoff
+	// branch of the UNION independently of history_tip_message_id.
+	affectedByStepAssistantMsgRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff - 2, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 2, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              affectedByStepAssistantMsgRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff + 3, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unaffectedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unaffectedStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              unaffectedRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "in_progress",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:    chat.ID,
+		MessageID: cutoff,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, deletedRows)
+
+	_, err = store.GetChatDebugRunByID(ctx, affectedRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedSteps)
+
+	_, err = store.GetChatDebugRunByID(ctx, affectedByStepHistoryTipRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedByStepHistoryTipSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedByStepHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedByStepHistoryTipSteps)
+
+	// Verify the run caught by step-level assistant_message_id is
+	// also deleted.  This would survive if the
+	// step.assistant_message_id > @message_id clause were removed.
+	_, err = store.GetChatDebugRunByID(ctx, affectedByStepAssistantMsgRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedByStepAssistantMsgSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedByStepAssistantMsgRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedByStepAssistantMsgSteps)
+
+	remainingRuns, err := store.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID:   chat.ID,
+		LimitVal: 100,
+	})
+	require.NoError(t, err)
+	require.Len(t, remainingRuns, 1)
+	require.Equal(t, unaffectedRun.ID, remainingRuns[0].ID)
+
+	remainingRun, err := store.GetChatDebugRunByID(ctx, unaffectedRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, unaffectedRun.ID, remainingRun.ID)
+
+	remainingSteps, err := store.GetChatDebugStepsByRunID(ctx, unaffectedRun.ID)
+	require.NoError(t, err)
+	require.Len(t, remainingSteps, 1)
+	require.Equal(t, unaffectedStep.ID, remainingSteps[0].ID)
+}
+
+func TestFinalizeStaleChatDebugRows(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-finalize-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-finalize-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	// staleTime is well before the threshold so rows stamped with it
+	// are considered stale.  The threshold sits between staleTime and
+	// NOW(), letting us create rows that are stale-by-age and rows
+	// that are fresh-by-age in the same test.
+	staleTime := time.Now().Add(-2 * time.Hour)
+	staleThreshold := time.Now().Add(-1 * time.Hour)
+
+	// --- staleRun: in_progress run with no finished_at --- should be
+	// finalized.
+	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// staleStep: in_progress step attached to staleRun.
+	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      staleRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// --- orphanStep: in_progress step whose run is already completed ---
+	// its own updated_at is old, so it should be finalized directly.
+	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 2, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 2, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+	})
+	require.NoError(t, err)
+
+	// Mark the run as completed with a finished_at timestamp.
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     completedRun.ID,
+		ChatID: completedRun.ChatID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      completedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// --- cascadeRun: stale in_progress run with a FRESH step ---
+	// The run's updated_at is old so the run itself is finalized by
+	// age.  The step's updated_at is recent (default NOW()), so it is
+	// NOT caught by the age predicate.  It must be finalized solely
+	// via the cascade CTE clause: run_id IN (SELECT id FROM
+	// finalized_runs).  Removing that clause would leave this step
+	// stuck in 'in_progress'.
+	cascadeRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 10, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 10, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// cascadeStep: recent updated_at (default NOW()), so only the
+	// cascade path can finalize it.
+	cascadeStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      cascadeRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+	})
+	require.NoError(t, err)
+
+	// --- alreadyDone: completed run/step --- should NOT be touched.
+	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 3, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 3, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     doneRun.ID,
+		ChatID: doneRun.ChatID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      doneRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+		ID:     doneStep.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	// --- errorRun: error run/step --- should NOT be touched either,
+	// exercising the 'error' branch of the NOT IN clause.
+	errorRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 4, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 4, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "error",
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     errorRun.ID,
+		ChatID: errorRun.ChatID,
+		Status: sql.NullString{String: "error", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      errorRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "error",
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+		ID:     errorStep.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "error", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	// --- freshRun: recent in_progress run with current timestamp ---
+	// should NOT be finalized because its updated_at is after the
+	// threshold, exercising the age predicate (not just terminal
+	// status) as the survival reason.
+	freshRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 20, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 20, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		// UpdatedAt defaults to NOW(), which is after staleThreshold.
+	})
+	require.NoError(t, err)
+
+	freshStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      freshRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		// UpdatedAt defaults to NOW().
+	})
+	require.NoError(t, err)
+
+	// --- Execute the finalization sweep. ---
+	result, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	require.NoError(t, err)
+
+	// staleRun + cascadeRun were finalized; completedRun and doneRun
+	// were already terminal, and freshRun survives because its
+	// updated_at is after the threshold — so only 2 runs are expected.
+	assert.EqualValues(t, 2, result.RunsFinalized,
+		"stale + cascade in_progress runs should be finalized")
+	// staleStep (age), orphanStep (age), cascadeStep (cascade only)
+	// should all be finalized.
+	assert.EqualValues(t, 3, result.StepsFinalized,
+		"stale step + orphan step + cascade step should all be finalized")
+
+	// Verify the stale run was set to interrupted.
+	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "interrupted", updatedStaleRun.Status)
+	assert.True(t, updatedStaleRun.FinishedAt.Valid,
+		"finalized run should have a finished_at timestamp")
+
+	// Verify the stale step was set to interrupted.
+	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
+	require.NoError(t, err)
+	require.Len(t, staleSteps, 1)
+	assert.Equal(t, staleStep.ID, staleSteps[0].ID)
+	assert.Equal(t, "interrupted", staleSteps[0].Status)
+	assert.True(t, staleSteps[0].FinishedAt.Valid,
+		"finalized step should have a finished_at timestamp")
+
+	// Verify the orphan step was also finalized.
+	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
+	require.NoError(t, err)
+	require.Len(t, orphanSteps, 1)
+	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
+	assert.Equal(t, "interrupted", orphanSteps[0].Status)
+
+	// Verify the cascade run was finalized.
+	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
+	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
+		"cascade run should have a finished_at timestamp")
+
+	// Verify the cascade step was finalized despite its recent
+	// updated_at, proving the cascade CTE clause is required.
+	cascadeSteps, err := store.GetChatDebugStepsByRunID(ctx, cascadeRun.ID)
+	require.NoError(t, err)
+	require.Len(t, cascadeSteps, 1)
+	assert.Equal(t, cascadeStep.ID, cascadeSteps[0].ID)
+	assert.Equal(t, "interrupted", cascadeSteps[0].Status,
+		"fresh step should be finalized via cascade, not age")
+	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
+		"cascade step should have a finished_at timestamp")
+
+	// Verify the completed run/step are untouched.
+	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "completed", unchangedRun.Status)
+
+	doneSteps, err := store.GetChatDebugStepsByRunID(ctx, doneRun.ID)
+	require.NoError(t, err)
+	require.Len(t, doneSteps, 1)
+	assert.Equal(t, "completed", doneSteps[0].Status)
+
+	// Verify the error run/step are untouched.
+	unchangedErrorRun, err := store.GetChatDebugRunByID(ctx, errorRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "error", unchangedErrorRun.Status)
+
+	errorSteps, err := store.GetChatDebugStepsByRunID(ctx, errorRun.ID)
+	require.NoError(t, err)
+	require.Len(t, errorSteps, 1)
+	assert.Equal(t, "error", errorSteps[0].Status)
+
+	// Verify the fresh in_progress run survived due to recency,
+	// not terminal status — its updated_at is after the threshold.
+	unchangedFreshRun, err := store.GetChatDebugRunByID(ctx, freshRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "in_progress", unchangedFreshRun.Status,
+		"fresh in_progress run must survive due to recency")
+	assert.False(t, unchangedFreshRun.FinishedAt.Valid,
+		"fresh run should not have a finished_at timestamp")
+
+	freshSteps, err := store.GetChatDebugStepsByRunID(ctx, freshRun.ID)
+	require.NoError(t, err)
+	require.Len(t, freshSteps, 1)
+	assert.Equal(t, freshStep.ID, freshSteps[0].ID)
+	assert.Equal(t, "in_progress", freshSteps[0].Status,
+		"fresh in_progress step must survive due to recency")
+	assert.False(t, freshSteps[0].FinishedAt.Valid,
+		"fresh step should not have a finished_at timestamp")
+
+	// A second sweep should be a no-op.
+	result2, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, result2.RunsFinalized,
+		"second sweep should find nothing to finalize")
+	assert.EqualValues(t, 0, result2.StepsFinalized,
+		"second sweep should find nothing to finalize")
+}
+
+func TestChatDebugSQLGuards(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-guards-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chatA, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-guard-A-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	chatB, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-guard-B-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	runA, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chatA.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	stepA, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      runA.ID,
+		ChatID:     chatA.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+	})
+	require.NoError(t, err)
+
+	// InsertChatDebugStep: valid run_id but chat_id belongs to a
+	// different chat.  The INSERT...SELECT guard should produce zero
+	// rows, surfacing as sql.ErrNoRows.
+	t.Run("InsertChatDebugStep_MismatchedChatID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+			RunID:      runA.ID,
+			ChatID:     chatB.ID, // wrong chat
+			StepNumber: 2,
+			Operation:  "stream",
+			Status:     "in_progress",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"InsertChatDebugStep should fail when chat_id does not match the run's chat_id")
+	})
+
+	// UpdateChatDebugRun: valid run ID but wrong chat_id.
+	t.Run("UpdateChatDebugRun_MismatchedChatID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+			ID:     runA.ID,
+			ChatID: chatB.ID, // wrong chat
+			Status: sql.NullString{String: "completed", Valid: true},
+			FinishedAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"UpdateChatDebugRun should fail when chat_id does not match")
+	})
+
+	// UpdateChatDebugStep: valid step ID but wrong chat_id.
+	t.Run("UpdateChatDebugStep_MismatchedChatID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+			ID:     stepA.ID,
+			ChatID: chatB.ID, // wrong chat
+			Status: sql.NullString{String: "completed", Valid: true},
+			FinishedAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"UpdateChatDebugStep should fail when chat_id does not match")
+	})
+}
+
+// TestChatDebugRunCOALESCEPreservation verifies that the COALESCE
+// pattern in UpdateChatDebugRun preserves every field that was not
+// explicitly supplied in the update.  If COALESCE were removed from
+// any column, the corresponding field would silently null out.
+func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-coalesce-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-coalesce-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	rootChatID := uuid.New()
+	parentChatID := uuid.New()
+
+	// Insert a fully-populated run so every nullable field has a value.
+	original, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		RootChatID:          uuid.NullUUID{UUID: rootChatID, Valid: true},
+		ParentChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 42, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 41, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		Summary:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"key":"val"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Update only Status and FinishedAt. Every other nullable param
+	// is left as its Go zero value (Valid: false → SQL NULL), which
+	// the COALESCE pattern should interpret as "keep existing."
+	now := time.Now()
+	updated, err := store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     original.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	// Status and FinishedAt should be updated.
+	require.Equal(t, "completed", updated.Status)
+	require.True(t, updated.FinishedAt.Valid)
+
+	// UpdatedAt should advance (set to NOW() unconditionally).
+	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
+		updated.UpdatedAt.Equal(original.UpdatedAt))
+
+	// Every field not in the update call must be preserved exactly.
+	require.Equal(t, original.RootChatID, updated.RootChatID,
+		"RootChatID should survive a partial update")
+	require.Equal(t, original.ParentChatID, updated.ParentChatID,
+		"ParentChatID should survive a partial update")
+	require.Equal(t, original.ModelConfigID, updated.ModelConfigID,
+		"ModelConfigID should survive a partial update")
+	require.Equal(t, original.TriggerMessageID, updated.TriggerMessageID,
+		"TriggerMessageID should survive a partial update")
+	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,
+		"HistoryTipMessageID should survive a partial update")
+	require.Equal(t, original.Provider, updated.Provider,
+		"Provider should survive a partial update")
+	require.Equal(t, original.Model, updated.Model,
+		"Model should survive a partial update")
+	require.JSONEq(t, string(original.Summary), string(updated.Summary),
+		"Summary should survive a partial update")
+	require.Equal(t, original.Kind, updated.Kind,
+		"Kind should survive a partial update")
+	require.Equal(t, original.StartedAt.UTC(), updated.StartedAt.UTC(),
+		"StartedAt should survive a partial update")
+}
+
+// TestChatDebugStepCOALESCEPreservation verifies that the COALESCE
+// pattern in UpdateChatDebugStep preserves every field that was not
+// explicitly supplied in the update. If COALESCE were removed from
+// any column, the corresponding field would silently null out.
+func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-step-coalesce-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-step-coalesce-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	run, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID: chat.ID,
+		Kind:   "chat_turn",
+		Status: "in_progress",
+	})
+	require.NoError(t, err)
+
+	// Insert a fully-populated step so every nullable field has a value.
+	original, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               run.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "llm_call",
+		Status:              "in_progress",
+		HistoryTipMessageID: sql.NullInt64{Int64: 10, Valid: true},
+		AssistantMessageID:  sql.NullInt64{Int64: 11, Valid: true},
+		NormalizedRequest:   pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"prompt":"hello"}`), Valid: true},
+		NormalizedResponse:  pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"text":"world"}`), Valid: true},
+		Usage:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"tokens":42}`), Valid: true},
+		Attempts:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"n":1}]`), Valid: true},
+		Error:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"code":"transient"}`), Valid: true},
+		Metadata:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"trace_id":"abc"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Update only Status and FinishedAt. Every other nullable param
+	// is left as its Go zero value (Valid: false -> SQL NULL), which
+	// the COALESCE pattern should interpret as "keep existing."
+	now := time.Now()
+	updated, err := store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+		ID:     original.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	// Status and FinishedAt should be updated.
+	require.Equal(t, "completed", updated.Status)
+	require.True(t, updated.FinishedAt.Valid)
+
+	// UpdatedAt should advance (set to NOW() unconditionally).
+	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
+		updated.UpdatedAt.Equal(original.UpdatedAt))
+
+	// Every field not in the update call must be preserved exactly.
+	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,
+		"HistoryTipMessageID should survive a partial update")
+	require.Equal(t, original.AssistantMessageID, updated.AssistantMessageID,
+		"AssistantMessageID should survive a partial update")
+	require.JSONEq(t, string(original.NormalizedRequest), string(updated.NormalizedRequest),
+		"NormalizedRequest should survive a partial update")
+	require.JSONEq(t, string(original.NormalizedResponse.RawMessage), string(updated.NormalizedResponse.RawMessage),
+		"NormalizedResponse should survive a partial update")
+	require.JSONEq(t, string(original.Usage.RawMessage), string(updated.Usage.RawMessage),
+		"Usage should survive a partial update")
+	require.JSONEq(t, string(original.Attempts), string(updated.Attempts),
+		"Attempts should survive a partial update")
+	require.JSONEq(t, string(original.Error.RawMessage), string(updated.Error.RawMessage),
+		"Error should survive a partial update")
+	require.JSONEq(t, string(original.Metadata), string(updated.Metadata),
+		"Metadata should survive a partial update")
+	require.Equal(t, original.Operation, updated.Operation,
+		"Operation should survive a partial update")
+	require.Equal(t, original.StepNumber, updated.StepNumber,
+		"StepNumber should survive a partial update")
+	require.Equal(t, original.StartedAt.UTC(), updated.StartedAt.UTC(),
+		"StartedAt should survive a partial update")
+}
+
+// TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive verifies
+// that runs whose message ID columns are all NULL are never matched
+// by DeleteChatDebugDataAfterMessageID.  SQL's three-valued logic
+// means NULL > N evaluates to NULL (not TRUE), so these rows must
+// survive.  Without this test a future change could break the
+// invariant with no test failure.
+func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-null-msg-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-null-msg-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	// Insert a run with all message ID columns left as NULL (Valid: false).
+	nullMsgRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Kind:          "chat_turn",
+		Status:        "in_progress",
+		Provider:      sql.NullString{String: providerName, Valid: true},
+		Model:         sql.NullString{String: modelName, Valid: true},
+		// TriggerMessageID and HistoryTipMessageID intentionally
+		// omitted (zero-value → SQL NULL).
+	})
+	require.NoError(t, err)
+
+	// Attach a step with NULL message IDs too.
+	nullMsgStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      nullMsgRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		// HistoryTipMessageID and AssistantMessageID intentionally
+		// omitted (zero-value → SQL NULL).
+	})
+	require.NoError(t, err)
+
+	// Delete with an arbitrary cutoff. The run and its step should
+	// survive because NULL > cutoff evaluates to NULL, not TRUE.
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:    chat.ID,
+		MessageID: 1,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 0, deletedRows, "rows with NULL message IDs must not be deleted")
+
+	// Verify run still exists.
+	remaining, err := store.GetChatDebugRunByID(ctx, nullMsgRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, nullMsgRun.ID, remaining.ID)
+
+	// Verify step still exists.
+	remainingSteps, err := store.GetChatDebugStepsByRunID(ctx, nullMsgRun.ID)
+	require.NoError(t, err)
+	require.Len(t, remainingSteps, 1)
+	require.Equal(t, nullMsgStep.ID, remainingSteps[0].ID)
+}
+
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
 

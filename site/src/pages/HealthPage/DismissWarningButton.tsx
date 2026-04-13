@@ -1,10 +1,10 @@
-import Skeleton from "@mui/material/Skeleton";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { healthSettings, updateHealthSettings } from "#/api/queries/debug";
 import type { HealthSection } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
@@ -18,14 +18,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 	const dismissMutation = useMutation(updateHealthSettings(queryClient));
 
 	if (!healthSettingsQuery.data) {
-		return (
-			<Skeleton
-				variant="rectangular"
-				height={36}
-				width={170}
-				className="rounded-lg"
-			/>
-		);
+		return <Skeleton height={36} width={170} className="rounded-lg" />;
 	}
 
 	const { dismissed_healthchecks } = healthSettingsQuery.data;

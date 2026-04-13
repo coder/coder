@@ -1702,6 +1702,17 @@ How often to reconcile workspace prebuilds state.
 
 Hide AI tasks from the dashboard.
 
+### --chat-debug-logging-enabled
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_CHAT_DEBUG_LOGGING_ENABLED</code> |
+| YAML        | <code>chat.debugLoggingEnabled</code>          |
+| Default     | <code>false</code>                             |
+
+Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
+
 ### --aibridge-enabled
 
 |             |                                      |

@@ -18,7 +18,7 @@ const skeletonVariants = cva("bg-surface-tertiary animate-pulse", {
 	},
 });
 
-type SkeletonProps = React.ComponentProps<"div"> &
+export type SkeletonProps = React.ComponentProps<"div"> &
 	VariantProps<typeof skeletonVariants> & {
 		/** Width in pixels (number) or any CSS value (string). */
 		width?: number | string;
