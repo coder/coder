@@ -98,26 +98,26 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and push Non-Nix image
+      - name: Build and push Ubuntu 22.04 image
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder-22.04"
+          context: "{{defaultContext}}:dogfood/coder/ubuntu-22.04"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:22.04"
         if: matrix.image-version == '22.04'
 
-      - name: Build and push Non-Nix image
+      - name: Build and push Ubuntu 26.04 image
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder-26.04"
+          context: "{{defaultContext}}:dogfood/coder/ubuntu-26.04"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
