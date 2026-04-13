@@ -5946,6 +5946,126 @@ func TestIncludesStartWorkspaceWhenWorkspaceBoundButNoTemplates(t *testing.T) {
 	}
 }
 
+// TestOmitsStartWorkspaceWhenBoundWorkspaceIsDeleted verifies that when
+// a chat's org has no visible templates AND the bound workspace is
+// soft-deleted, start_workspace is NOT included in the tool list.
+func TestOmitsStartWorkspaceWhenBoundWorkspaceIsDeleted(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var toolsMu sync.Mutex
+	var capturedTools []string
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		toolsMu.Lock()
+		if capturedTools == nil {
+			capturedTools = make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				capturedTools = append(capturedTools, tool.Function.Name)
+			}
+		}
+		toolsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Create a template and workspace so the chat has a bound workspace.
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             pj.ID,
+	})
+
+	// Soft-delete the workspace.
+	err := db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      ws.ID,
+		Deleted: true,
+	})
+	require.NoError(t, err)
+
+	// Point the allowlist at a UUID that matches no template so
+	// orgHasVisibleChatTemplates returns false.
+	allowlistJSON, err := json.Marshal([]string{uuid.New().String()})
+	require.NoError(t, err)
+	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "deleted-workspace-no-templates",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	toolsMu.Lock()
+	tools := append([]string(nil), capturedTools...)
+	toolsMu.Unlock()
+
+	require.NotEmpty(t, tools, "LLM should have received at least one streaming request with tools")
+
+	// All four provisioning tools must be absent: the workspace is
+	// soft-deleted and there are no visible templates.
+	for _, tool := range []string{"list_templates", "read_template", "create_workspace", "start_workspace"} {
+		require.NotContains(t, tools, tool,
+			"provisioning tool %q should be absent when workspace is deleted and org has no templates", tool)
+	}
+
+	// Standard filesystem and process tools must remain present.
+	for _, tool := range []string{
+		"read_file", "write_file", "edit_files", "execute",
+		"process_output", "process_list", "process_signal", "propose_plan",
+	} {
+		require.Contains(t, tools, tool,
+			"standard tool %q should be present regardless of template visibility", tool)
+	}
+}
+
 // TestOmitsProvisioningToolsWhenAllowlistExcludesAllOrgTemplates
 // verifies that all four provisioning tools are absent when the
 // template allowlist is set to a UUID that does not match any template
