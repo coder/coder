@@ -231,6 +231,7 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 					fileName: "photo.png",
 					fileType: "image/png",
 					lastModified: 1000,
+					organizationId: "my-organization-id",
 				},
 			]),
 		);
