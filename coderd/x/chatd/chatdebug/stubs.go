@@ -56,9 +56,17 @@ var stepCounters sync.Map // map[uuid.UUID]*atomic.Int32
 // runRefCounts tracks how many live RunContext instances reference each
 // RunID. Cleanup of shared state (step counters) is deferred until the
 // last RunContext for a given RunID is garbage collected.
-var runRefCounts sync.Map // map[uuid.UUID]*atomic.Int32
+var (
+	runRefCounts sync.Map // map[uuid.UUID]*atomic.Int32
+	// refCountMu serializes trackRunRef and releaseRunRef so the
+	// decrement-to-zero check and subsequent map deletions are
+	// atomic with respect to new references being added.
+	refCountMu sync.Mutex
+)
 
 func trackRunRef(runID uuid.UUID) {
+	refCountMu.Lock()
+	defer refCountMu.Unlock()
 	val, _ := runRefCounts.LoadOrStore(runID, &atomic.Int32{})
 	counter, ok := val.(*atomic.Int32)
 	if !ok {
@@ -68,11 +76,12 @@ func trackRunRef(runID uuid.UUID) {
 }
 
 // releaseRunRef decrements the reference count for runID and cleans up
-// shared state when the last reference is released. The cleanup uses
-// CompareAndSwap to ensure that a concurrent trackRunRef that
-// incremented the counter between our Add and Delete does not lose
-// its reference.
+// shared state when the last reference is released. The mutex ensures
+// no concurrent trackRunRef can increment between the zero check and
+// the map deletions.
 func releaseRunRef(runID uuid.UUID) {
+	refCountMu.Lock()
+	defer refCountMu.Unlock()
 	val, ok := runRefCounts.Load(runID)
 	if !ok {
 		return
@@ -81,20 +90,10 @@ func releaseRunRef(runID uuid.UUID) {
 	if !ok {
 		panic("chatdebug: runRefCounts contains non-*atomic.Int32 value")
 	}
-	newVal := counter.Add(-1)
-	if newVal > 0 {
-		return
+	if counter.Add(-1) <= 0 {
+		runRefCounts.Delete(runID)
+		stepCounters.Delete(runID)
 	}
-	// Attempt to claim the zero state. If another goroutine already
-	// incremented the counter (trackRunRef raced with us), the CAS
-	// fails and we leave the entries alone.
-	if !counter.CompareAndSwap(newVal, newVal) {
-		return
-	}
-	// Only delete if the map still points to our counter instance.
-	// A concurrent LoadOrStore in trackRunRef may have replaced it.
-	runRefCounts.CompareAndDelete(runID, val)
-	stepCounters.Delete(runID)
 }
 
 func nextStepNumber(runID uuid.UUID) int32 {

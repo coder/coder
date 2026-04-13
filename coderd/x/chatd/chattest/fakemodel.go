@@ -7,8 +7,8 @@ import (
 )
 
 // FakeModel is a configurable test double for fantasy.LanguageModel.
-// When a method function is nil, the method returns a safe empty
-// response.
+// Calling a method whose function field is nil panics, forcing tests
+// to be explicit about which methods they expect to be invoked.
 type FakeModel struct {
 	ProviderName     string
 	ModelName        string
@@ -22,28 +22,28 @@ var _ fantasy.LanguageModel = (*FakeModel)(nil)
 
 func (m *FakeModel) Generate(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
 	if m.GenerateFn == nil {
-		return &fantasy.Response{}, nil
+		panic("chattest: FakeModel.Generate called but GenerateFn is nil")
 	}
 	return m.GenerateFn(ctx, call)
 }
 
 func (m *FakeModel) Stream(ctx context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 	if m.StreamFn == nil {
-		return fantasy.StreamResponse(func(func(fantasy.StreamPart) bool) {}), nil
+		panic("chattest: FakeModel.Stream called but StreamFn is nil")
 	}
 	return m.StreamFn(ctx, call)
 }
 
 func (m *FakeModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 	if m.GenerateObjectFn == nil {
-		return &fantasy.ObjectResponse{}, nil
+		panic("chattest: FakeModel.GenerateObject called but GenerateObjectFn is nil")
 	}
 	return m.GenerateObjectFn(ctx, call)
 }
 
 func (m *FakeModel) StreamObject(ctx context.Context, call fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
 	if m.StreamObjectFn == nil {
-		return fantasy.ObjectStreamResponse(func(func(fantasy.ObjectStreamPart) bool) {}), nil
+		panic("chattest: FakeModel.StreamObject called but StreamObjectFn is nil")
 	}
 	return m.StreamObjectFn(ctx, call)
 }

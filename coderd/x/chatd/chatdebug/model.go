@@ -748,8 +748,10 @@ func appendStreamToolInput(
 		return content
 	}
 
-	// Find the last tool_input part for this specific tool call ID.
-	// This keeps chunks from different tool calls in separate parts.
+	// Find the existing tool_input part for this specific tool call ID.
+	// Scan backwards through all content; tool_input deltas for the
+	// same call may be separated by text, reasoning, or source parts
+	// when streams interleave multiple tool invocations.
 	for i := len(content) - 1; i >= 0; i-- {
 		if content[i].Type == "tool_input" && content[i].ToolCallID == part.ID {
 			content[i].Arguments += delta
@@ -757,11 +759,6 @@ func appendStreamToolInput(
 				*streamDebugBytes += len(delta)
 			}
 			return content
-		}
-		// Stop searching once we hit a different content type to
-		// preserve insertion order.
-		if content[i].Type != "tool_input" {
-			break
 		}
 	}
 

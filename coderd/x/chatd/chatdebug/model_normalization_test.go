@@ -173,6 +173,26 @@ func TestAppendNormalizedStreamContent_ToolInputAttributionPerCall(t *testing.T)
 	}, content)
 }
 
+func TestAppendNormalizedStreamContent_ToolInputAcrossInterleavedText(t *testing.T) {
+	t.Parallel()
+
+	var content []normalizedContentPart
+	streamDebugBytes := 0
+	for _, part := range []fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-a", ToolCallName: "search", Delta: `{"q`},
+		// Text delta interleaved between tool_input deltas for call-a.
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "thinking..."},
+		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `uery":"x"}`},
+	} {
+		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+	}
+
+	require.Equal(t, []normalizedContentPart{
+		{Type: "tool_input", ToolCallID: "call-a", ToolName: "search", Arguments: `{"query":"x"}`},
+		{Type: "text", Text: "thinking..."},
+	}, content)
+}
+
 func TestAppendNormalizedStreamContent_GlobalTextCap(t *testing.T) {
 	t.Parallel()
 
