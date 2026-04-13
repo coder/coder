@@ -14,7 +14,7 @@ export interface EditFilesFileEntry {
 
 const editSchema = Yup.object({
 	search: Yup.string().required(),
-	replace: Yup.string().required(),
+	replace: Yup.string().defined(),
 });
 
 const editFileEntrySchema = Yup.object({

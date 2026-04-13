@@ -561,6 +561,24 @@ describe("parseEditFilesArgs", () => {
 		const diff = buildEditDiff(parsed[0].path, parsed[0].edits);
 		expect(diff).not.toBeNull();
 	});
+
+	// Empty-string replace is a valid deletion edit and must not be
+	// rejected. Yup.string().required() would filter these out;
+	// defined() allows them through.
+	it("preserves edits with empty-string replace (deletion)", () => {
+		const args = {
+			files: [
+				{
+					path: "src/app.ts",
+					edits: [{ search: "const old = 1;", replace: "" }],
+				},
+			],
+		};
+		const parsed = parseEditFilesArgs(args);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].edits).toHaveLength(1);
+		expect(parsed[0].edits[0].replace).toBe("");
+	});
 });
 
 describe("buildEditDiff", () => {
