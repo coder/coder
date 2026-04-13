@@ -98,6 +98,7 @@ func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		sink:          sink,
 		startedAt:     startedAt,
 		contentLength: resp.ContentLength,
+		contentType:   resp.Header.Get("Content-Type"),
 		base: Attempt{
 			Number:          attemptNumber,
 			Method:          method,
@@ -180,6 +181,7 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 type recordingBody struct {
 	inner         io.ReadCloser
 	contentLength int64
+	contentType   string // from resp.Header.Get (case-insensitive)
 	sink          *attemptSink
 	base          Attempt
 	startedAt     time.Time
@@ -194,10 +196,9 @@ type recordingBody struct {
 	closeOnce  sync.Once
 }
 
-func (r *recordingBody) Read(p []byte) (int, error) {
-	n, err := r.inner.Read(p)
-
-	r.mu.Lock()
+// accumulateReadLocked updates the buffer, byte counters, and
+// truncation/EOF flags after a read.  The caller must hold r.mu.
+func (r *recordingBody) accumulateReadLocked(data []byte, n int, err error) {
 	r.bytesRead += int64(n)
 	if n > 0 && !r.truncated {
 		remaining := maxRecordedResponseBodyBytes - r.buf.Len()
@@ -207,7 +208,7 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 				toWrite = remaining
 				r.truncated = true
 			}
-			_, _ = r.buf.Write(p[:toWrite])
+			_, _ = r.buf.Write(data[:toWrite])
 		} else {
 			r.truncated = true
 		}
@@ -215,9 +216,20 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 	if errors.Is(err, io.EOF) {
 		r.sawEOF = true
 	}
+}
+
+func (r *recordingBody) Read(p []byte) (int, error) {
+	n, err := r.inner.Read(p)
+
+	r.mu.Lock()
+	r.accumulateReadLocked(p, n, err)
 	r.mu.Unlock()
 
-	if err != nil {
+	// Only record non-EOF errors immediately. io.EOF is deferred
+	// to Close() which runs more sophisticated validation (JSON
+	// completeness checks, content-length verification, etc.).
+	// Recording EOF here would preempt Close() via recordOnce.
+	if err != nil && !errors.Is(err, io.EOF) {
 		r.record(err)
 	}
 	return n, err
@@ -232,7 +244,7 @@ func (r *recordingBody) Close() error {
 	responseBody := append([]byte(nil), r.buf.Bytes()...)
 	r.mu.Unlock()
 
-	contentType := r.base.ResponseHeaders["Content-Type"]
+	contentType := r.contentType
 	shouldDrainUnknownLengthJSON := contentLength < 0 &&
 		!sawEOF &&
 		bytesRead > 0 &&
@@ -281,6 +293,12 @@ func (r *recordingBody) Close() error {
 		r.record(nil)
 	case contentLength < 0 && !truncated && isCompleteUnknownLengthJSONBody(contentType, responseBody):
 		r.record(nil)
+	// Truncated unknown-length bodies: the caller consumed the
+	// response successfully but the recording buffer exceeded
+	// maxRecordedResponseBodyBytes. This is not a transport
+	// failure - mark as completed with the truncated capture.
+	case contentLength < 0 && truncated:
+		r.record(nil)
 	default:
 		r.record(io.ErrUnexpectedEOF)
 	}
@@ -296,12 +314,24 @@ func responseHasNoBody(method string, statusCode int) bool {
 		(statusCode >= 100 && statusCode < 200)
 }
 
-func isJSONLikeContentType(contentType string) bool {
+// parseMediaType extracts the media type from a Content-Type header
+// value, falling back to splitting on ";" when mime.ParseMediaType
+// fails.
+func parseMediaType(contentType string) string {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		mediaType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+		mediaType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 	}
+	return mediaType
+}
+
+func isJSONLikeContentType(contentType string) bool {
+	mediaType := parseMediaType(contentType)
 	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+}
+
+func isNDJSONContentType(contentType string) bool {
+	return parseMediaType(contentType) == "application/x-ndjson"
 }
 
 // maxDrainBytes caps how many trailing bytes drainToEOF will consume.
@@ -316,24 +346,8 @@ func (r *recordingBody) drainToEOF() error {
 		n, err := r.inner.Read(buf)
 
 		r.mu.Lock()
-		r.bytesRead += int64(n)
+		r.accumulateReadLocked(buf, n, err)
 		drained += int64(n)
-		if n > 0 && !r.truncated {
-			remaining := maxRecordedResponseBodyBytes - r.buf.Len()
-			if remaining > 0 {
-				toWrite := n
-				if toWrite > remaining {
-					toWrite = remaining
-					r.truncated = true
-				}
-				_, _ = r.buf.Write(buf[:toWrite])
-			} else {
-				r.truncated = true
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			r.sawEOF = true
-		}
 		r.mu.Unlock()
 
 		if err != nil {
@@ -381,16 +395,19 @@ func (r *recordingBody) record(err error) {
 		startedAt := r.startedAt
 		r.mu.Unlock()
 
-		contentType := base.ResponseHeaders["Content-Type"]
-		if truncated {
+		contentType := r.contentType
+		switch {
+		case truncated:
 			base.ResponseBody = []byte("[TRUNCATED]")
-		} else if contentType == "" || isJSONLikeContentType(contentType) {
+		case isNDJSONContentType(contentType):
+			base.ResponseBody = RedactNDJSONSecrets(responseBody)
+		case contentType == "" || isJSONLikeContentType(contentType):
 			// Redact JSON secrets when the content type is JSON-like
 			// or absent (unknown). For unknown types, RedactJSONSecrets
 			// fails closed by replacing non-JSON payloads with a
 			// diagnostic message.
 			base.ResponseBody = RedactJSONSecrets(responseBody)
-		} else {
+		default:
 			// Non-JSON content types (SSE, text/plain, HTML, etc.)
 			// are preserved as-is to avoid losing debug content.
 			base.ResponseBody = responseBody

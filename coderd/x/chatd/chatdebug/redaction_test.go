@@ -2,6 +2,7 @@ package chatdebug_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -273,5 +274,48 @@ func TestRedactJSONSecrets(t *testing.T) {
 		input := []byte(`{"accessToken":"abc","refreshToken":"def","authToken":"ghi","input_tokens":100,"output_tokens":50}`)
 		redacted := chatdebug.RedactJSONSecrets(input)
 		require.JSONEq(t, `{"accessToken":"[REDACTED]","refreshToken":"[REDACTED]","authToken":"[REDACTED]","input_tokens":100,"output_tokens":50}`, string(redacted))
+	})
+}
+
+func TestRedactNDJSONSecrets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty input", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, chatdebug.RedactNDJSONSecrets(nil))
+		require.Empty(t, chatdebug.RedactNDJSONSecrets([]byte{}))
+	})
+
+	t.Run("redacts secrets in each line", func(t *testing.T) {
+		t.Parallel()
+		input := []byte("{\"api_key\":\"sk-123\",\"safe\":\"ok\"}\n{\"token\":\"tok-456\",\"data\":\"value\"}\n")
+		redacted := chatdebug.RedactNDJSONSecrets(input)
+		lines := strings.Split(string(redacted), "\n")
+		require.JSONEq(t, `{"api_key":"[REDACTED]","safe":"ok"}`, lines[0])
+		require.JSONEq(t, `{"token":"[REDACTED]","data":"value"}`, lines[1])
+	})
+
+	t.Run("preserves lines without secrets", func(t *testing.T) {
+		t.Parallel()
+		input := []byte("{\"safe\":\"ok\"}\n{\"data\":\"value\"}\n")
+		redacted := chatdebug.RedactNDJSONSecrets(input)
+		require.Equal(t, string(input), string(redacted))
+	})
+
+	t.Run("handles malformed lines with fail-closed", func(t *testing.T) {
+		t.Parallel()
+		input := []byte("{\"safe\":\"ok\"}\nnot-json\n{\"token\":\"secret\"}\n")
+		redacted := chatdebug.RedactNDJSONSecrets(input)
+		lines := strings.Split(string(redacted), "\n")
+		require.JSONEq(t, `{"safe":"ok"}`, lines[0])
+		require.Contains(t, lines[1], "not valid JSON")
+		require.JSONEq(t, `{"token":"[REDACTED]"}`, lines[2])
+	})
+
+	t.Run("handles single line without trailing newline", func(t *testing.T) {
+		t.Parallel()
+		input := []byte(`{"api_key":"secret","value":"ok"}`)
+		redacted := chatdebug.RedactNDJSONSecrets(input)
+		require.JSONEq(t, `{"api_key":"[REDACTED]","value":"ok"}`, string(redacted))
 	})
 }

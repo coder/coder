@@ -2,7 +2,7 @@ package chatdebug //nolint:testpackage // Uses unexported recorder helpers.
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 
@@ -20,13 +20,11 @@ func TestAttemptSink_ThreadSafe(t *testing.T) {
 
 	sink := &attemptSink{}
 	var wg sync.WaitGroup
-	wg.Add(n)
 
 	for i := range n {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			sink.record(Attempt{Number: i + 1, ResponseStatus: 200 + i})
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -40,8 +38,8 @@ func TestAttemptSink_ThreadSafe(t *testing.T) {
 		numbers = append(numbers, attempt.Number)
 		statuses = append(statuses, attempt.ResponseStatus)
 	}
-	sort.Ints(numbers)
-	sort.Ints(statuses)
+	slices.Sort(numbers)
+	slices.Sort(statuses)
 
 	for i := range n {
 		require.Equal(t, i+1, numbers[i])
@@ -86,18 +84,16 @@ func TestNextStepNumber_Concurrent(t *testing.T) {
 
 	results := make([]int, n)
 	var wg sync.WaitGroup
-	wg.Add(n)
 
 	for i := range n {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			results[i] = int(nextStepNumber(runID))
-		}()
+		})
 	}
 
 	wg.Wait()
 
-	sort.Ints(results)
+	slices.Sort(results)
 	for i := range n {
 		require.Equal(t, i+1, results[i])
 	}

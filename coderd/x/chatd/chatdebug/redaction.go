@@ -122,6 +122,34 @@ func RedactJSONSecrets(data []byte) []byte {
 	return encoded
 }
 
+// RedactNDJSONSecrets redacts sensitive values in newline-delimited
+// JSON (NDJSON) payloads. Each non-empty line is treated as an
+// independent JSON document and redacted individually. Lines that
+// fail to parse are replaced with a diagnostic placeholder.
+func RedactNDJSONSecrets(data []byte) []byte {
+	if len(data) == 0 {
+		return data
+	}
+
+	lines := bytes.Split(data, []byte("\n"))
+	changed := false
+	for i, line := range lines {
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) == 0 {
+			continue
+		}
+		redacted := RedactJSONSecrets(trimmed)
+		if !bytes.Equal(redacted, trimmed) {
+			lines[i] = redacted
+			changed = true
+		}
+	}
+	if !changed {
+		return data
+	}
+	return bytes.Join(lines, []byte("\n"))
+}
+
 func consumeJSONEOF(decoder *json.Decoder) error {
 	var extra any
 	err := decoder.Decode(&extra)
