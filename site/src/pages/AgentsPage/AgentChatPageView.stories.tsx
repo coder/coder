@@ -5,7 +5,11 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -371,6 +375,74 @@ export const WithWorkspaceActions: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Workspace status pill stories
+// ---------------------------------------------------------------------------
+
+export const WorkspaceAgentStarting: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "starting",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentCreated: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "created",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentReady: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "ready",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_error",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartTimeout: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_timeout",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceNoAgent: Story = {
+	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
 };
 
 // ---------------------------------------------------------------------------
