@@ -392,6 +392,18 @@ export const WorkspaceAgentStarting: Story = {
 	),
 };
 
+export const WorkspaceAgentCreated: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "created",
+			}}
+		/>
+	),
+};
+
 export const WorkspaceAgentReady: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -399,6 +411,30 @@ export const WorkspaceAgentReady: Story = {
 			workspaceAgent={{
 				...MockWorkspaceAgent,
 				lifecycle_state: "ready",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_error",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartTimeout: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_timeout",
 			}}
 		/>
 	),

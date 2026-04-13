@@ -286,9 +286,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			workspace.latest_build.status === "running" &&
 			(workspaceAgent?.lifecycle_state === "created" ||
 				workspaceAgent?.lifecycle_state === "starting");
+		const agentStartupFailed =
+			workspace.latest_build.status === "running" &&
+			(workspaceAgent?.lifecycle_state === "start_error" ||
+				workspaceAgent?.lifecycle_state === "start_timeout");
 		if (agentPreparing) {
 			type = "active";
 			text = "Preparing";
+		} else if (agentStartupFailed) {
+			type = "warning";
+			text = "Startup failed";
 		}
 		const effectiveType = workspace.health.healthy ? type : "warning";
 		const statusLabel = workspace.health.healthy
