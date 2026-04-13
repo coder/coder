@@ -1,5 +1,3 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
-import { parsePatchFiles } from "@pierre/diffs";
 import {
 	ArrowLeftIcon,
 	ExternalLinkIcon,
@@ -9,7 +7,7 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useEffect, useMemo, useState } from "react";
+import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -20,6 +18,7 @@ import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { getDiffCacheKeyPrefix } from "../DiffViewer/diffCacheKey";
+import { useParsedDiff } from "../DiffViewer/useParsedDiff";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 
@@ -91,25 +90,16 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 
 	const diffContent = diffContentsQuery.data?.diff;
 	const dataUpdatedAt = diffContentsQuery.dataUpdatedAt;
-	const parsedFiles = useMemo(() => {
-		if (!diffContent) {
-			return [] as FileDiffMetadata[];
-		}
-		try {
-			// The @pierre/diffs worker pool only keys cached highlighted
-			// ASTs by `cacheKey`, so the key must change whenever the diff
-			// query updates. React Query's `dataUpdatedAt` survives panel
-			// remounts, which prevents stale cache hits from pairing a new
-			// FileDiffMetadata with an older highlighted AST.
-			const patches = parsePatchFiles(
-				diffContent,
-				getDiffCacheKeyPrefix(`chat-${chatId}`, dataUpdatedAt),
-			);
-			return patches.flatMap((p) => p.files);
-		} catch {
-			return [] as FileDiffMetadata[];
-		}
-	}, [diffContent, chatId, dataUpdatedAt]);
+
+	// The @pierre/diffs worker pool only keys cached highlighted
+	// ASTs by `cacheKey`, so the key must change whenever the diff
+	// query updates. React Query's `dataUpdatedAt` survives panel
+	// remounts, which prevents stale cache hits from pairing a new
+	// FileDiffMetadata with an older highlighted AST.
+	const parsedFiles = useParsedDiff(
+		diffContent,
+		getDiffCacheKeyPrefix(`chat-${chatId}`, dataUpdatedAt),
+	);
 
 	// ---------------------------------------------------------------
 	// Scroll-to-file from chat input chip clicks

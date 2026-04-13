@@ -110,8 +110,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	}, [repositories]);
 
 	const localRepos = useMemo(
-		() =>
-			Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b)),
+		() => Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b)),
 		[repoStats],
 	);
 

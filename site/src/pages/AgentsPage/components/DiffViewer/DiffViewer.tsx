@@ -29,6 +29,7 @@ import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
 } from "../ChatElements/tools/utils";
+import { useActiveFileTracking } from "./useActiveFileTracking";
 
 // -------------------------------------------------------------------
 // Public interface
@@ -660,95 +661,18 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		sortedFiles.length > 0;
 
 	// ---------------------------------------------------------------
-	// Refs for each file diff wrapper so we can scroll-to and track
-	// which file is currently visible.
+	// Active-file tracking (IntersectionObserver + scroll-to-file)
 	// ---------------------------------------------------------------
-	const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-	const activeFileRef = useRef<string | null>(null);
-	const [treeActiveFile, setTreeActiveFile] = useState<string | null>(null);
-
-	// Keep a ref callback that sets up per-file refs.
-	const setFileRef = (name: string, el: HTMLDivElement | null) => {
-		if (el) {
-			fileRefs.current.set(name, el);
-		} else {
-			fileRefs.current.delete(name);
-		}
-	};
-
-	// Track which file is at the top of the diff scroll area using
-	// an IntersectionObserver. The observer watches a narrow strip
-	// at the top 5% of the viewport. When a file boundary crosses
-	// this strip, the callback fires — zero synchronous layout
-	// reads per frame.
 	const diffViewportRef = useRef<HTMLElement | null>(null);
-
-	useEffect(() => {
-		if (!showTree || sortedFiles.length === 0) return;
-		const viewport = diffViewportRef.current;
-		if (!viewport) return;
-
-		// Track which files currently intersect the top strip.
-		const intersecting = new Set<string>();
-
-		const observer = new IntersectionObserver(
-			(entries) => {
-				for (const entry of entries) {
-					const name = (entry.target as HTMLElement).dataset.fileName;
-					if (!name) continue;
-					if (entry.isIntersecting) {
-						intersecting.add(name);
-					} else {
-						intersecting.delete(name);
-					}
-				}
-				// Pick the first intersecting file in document order.
-				for (const file of sortedFiles) {
-					if (intersecting.has(file.name)) {
-						activeFileRef.current = file.name;
-						setTreeActiveFile(file.name);
-						break;
-					}
-				}
-			},
-			{
-				root: viewport,
-				// Observe only the top ~5% strip of the viewport.
-				rootMargin: "0px 0px -95% 0px",
-				threshold: 0,
-			},
-		);
-
-		for (const [, el] of fileRefs.current.entries()) {
-			observer.observe(el);
-		}
-
-		return () => observer.disconnect();
-	}, [showTree, sortedFiles]);
-
-	const handleFileClick = useCallback((name: string) => {
-		const el = fileRefs.current.get(name);
-		if (el) {
-			el.scrollIntoView({ block: "start" });
-			activeFileRef.current = name;
-			setTreeActiveFile(name);
-		}
-	}, []);
-
-	// Scroll to a file programmatically when the parent sets
-	// scrollToFile. This enables external navigation (e.g.
-	// clicking a file reference chip in the chat input).
-	useEffect(() => {
-		if (scrollToFile) {
-			const el = fileRefs.current.get(scrollToFile);
-			if (el) {
-				el.scrollIntoView({ block: "start", behavior: "instant" });
-				activeFileRef.current = scrollToFile;
-				setTreeActiveFile(scrollToFile);
-			}
-			onScrollToFileComplete?.();
-		}
-	}, [scrollToFile, onScrollToFileComplete]);
+	const { treeActiveFile, setFileRef, handleFileClick } = useActiveFileTracking(
+		{
+			viewportRef: diffViewportRef,
+			sortedFiles,
+			enabled: showTree,
+			scrollToFile,
+			onScrollComplete: onScrollToFileComplete,
+		},
+	);
 
 	// ---------------------------------------------------------------
 	// Loading state
