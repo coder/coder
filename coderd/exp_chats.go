@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +27,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/chatfiles"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -3292,48 +3290,7 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 const (
 	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
 	maxChatFileSize = 10 << 20
-	// maxChatFileName is the maximum length of an uploaded file name.
-	maxChatFileName = 255
 )
-
-// allowedChatFileMIMETypes lists the content types accepted for chat
-// file uploads. SVG is explicitly excluded because it can contain scripts.
-var allowedChatFileMIMETypes = map[string]bool{
-	"image/png":     true,
-	"image/jpeg":    true,
-	"image/gif":     true,
-	"image/webp":    true,
-	"text/plain":    true,
-	"image/svg+xml": false, // SVG can contain scripts.
-}
-
-func allowedChatFileMIMETypesStr() string {
-	var types []string
-	for t, allowed := range allowedChatFileMIMETypes {
-		if allowed {
-			types = append(types, t)
-		}
-	}
-	slices.Sort(types)
-	return strings.Join(types, ", ")
-}
-
-var (
-	webpMagicRIFF = []byte("RIFF")
-	webpMagicWEBP = []byte("WEBP")
-)
-
-// detectChatFileType detects the MIME type of the given data.
-// It extends http.DetectContentType with support for WebP, which
-// Go's standard sniffer does not recognize.
-func detectChatFileType(data []byte) string {
-	if len(data) >= 12 &&
-		bytes.Equal(data[0:4], webpMagicRIFF) &&
-		bytes.Equal(data[8:12], webpMagicWEBP) {
-		return "image/webp"
-	}
-	return http.DetectContentType(data)
-}
 
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -4114,61 +4071,24 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
 		contentType = mediaType
 	}
-
-	if allowed, ok := allowedChatFileMIMETypes[contentType]; !ok || !allowed {
+	if !chatfiles.IsAllowedStoredMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
 		})
 		return
+	}
+
+	// Extract filename from Content-Disposition header if provided.
+	var filename string
+	if cd := r.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			filename = params["filename"]
+		}
 	}
 
 	r.Body = http.MaxBytesReader(rw, r.Body, maxChatFileSize)
-	br := bufio.NewReader(r.Body)
-
-	// Peek at the leading bytes to sniff the real content type
-	// before reading the entire body.
-	peek, peekErr := br.Peek(512)
-	if peekErr != nil && !errors.Is(peekErr, io.EOF) && !errors.Is(peekErr, bufio.ErrBufferFull) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read file from request.",
-			Detail:  peekErr.Error(),
-		})
-		return
-	}
-
-	// Verify the actual content matches an allowed file type so that
-	// a client cannot spoof Content-Type to serve active content.
-	detected := detectChatFileType(peek)
-	if mediaType, _, err := mime.ParseMediaType(detected); err == nil {
-		detected = mediaType
-	}
-	if contentType == "text/plain" && strings.HasPrefix(detected, "text/") {
-		detected = "text/plain"
-	}
-	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
-		})
-		return
-	}
-	// The mismatch check below is security-critical: it prevents a text
-	// body from being uploaded under an image Content-Type (or vice
-	// versa) now that both text/plain and image types are in the
-	// allowlist. Combined with the X-Content-Type-Options: nosniff
-	// header applied globally, this ensures browsers respect the
-	// stored MIME type.
-	if detected != contentType {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "File content type does not match Content-Type header.",
-			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
-		})
-		return
-	}
-
-	// Read the full body now that we know the type is valid.
-	data, err := io.ReadAll(br)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -4185,27 +4105,43 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract filename from Content-Disposition header if provided.
-	var filename string
-	if cd := r.Header.Get("Content-Disposition"); cd != "" {
-		if _, params, err := mime.ParseMediaType(cd); err == nil {
-			filename = params["filename"]
-			if len(filename) > maxChatFileName {
-				// Truncate at rune boundary to avoid splitting
-				// multi-byte UTF-8 characters.
-				var truncated []byte
-				for _, r := range filename {
-					encoded := []byte(string(r))
-					if len(truncated)+len(encoded) > maxChatFileName {
-						break
-					}
-					truncated = append(truncated, encoded...)
-				}
-				filename = string(truncated)
-			}
+	// Verify the actual content matches an allowed file type so that
+	// a client cannot spoof Content-Type to serve active content.
+	filename, detected, err := chatfiles.PrepareStoredFile(filename, filename, data)
+	if err != nil {
+		switch {
+		case errors.Is(err, chatfiles.ErrStoredFileNameRequired):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Filename is required.",
+				Detail:  "Provide a filename in the Content-Disposition header.",
+			})
+		case errors.Is(err, chatfiles.ErrUnsupportedStoredFileType):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unsupported file type.",
+				Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid file.",
+				Detail:  err.Error(),
+			})
 		}
+		return
 	}
-
+	// The compatibility check below is security-critical: it keeps exact
+	// media-type matching by default while allowing safe text/plain
+	// refinements such as JSON, CSV, and Markdown now that upload
+	// classification can return richer stored media types. Combined with
+	// the X-Content-Type-Options: nosniff header applied globally, this
+	// still prevents clients from smuggling binary or active content under
+	// a safer declared Content-Type.
+	if !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "File content type does not match Content-Type header.",
+			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
+		})
+		return
+	}
 	chatFile, err := api.Database.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        apiKey.UserID,
 		OrganizationID: orgID,
@@ -4252,10 +4188,14 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
+	disposition := "attachment"
+	if chatfiles.IsInlineRenderableStoredMediaType(chatFile.Mimetype) {
+		disposition = "inline"
+	}
 	if chatFile.Name != "" {
-		rw.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": chatFile.Name}))
+		rw.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": chatFile.Name}))
 	} else {
-		rw.Header().Set("Content-Disposition", "inline")
+		rw.Header().Set("Content-Disposition", disposition)
 	}
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
@@ -4325,7 +4265,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype))
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
 			fileIDs = append(fileIDs, part.FileID)
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.

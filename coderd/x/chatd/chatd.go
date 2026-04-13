@@ -4713,6 +4713,7 @@ type rootChatToolsOptions struct {
 	instruction     *string
 	skills          *[]chattool.SkillMeta
 	resolvePlanPath func(context.Context) (string, string, error)
+	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
 }
 
@@ -4815,68 +4816,13 @@ func (p *Server) appendRootChatTools(
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  opts.resolvePlanPath,
 			IsPlanTurn:       opts.isPlanModeTurn,
-			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
-				return p.storePlanSnapshotFile(ctx, opts.workspaceCtx, name, mediaType, data)
-			},
+			StoreFile:        opts.storeFile,
 		}))
 	}
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
 	}, opts.modelConfigID)...)
-}
-
-func (p *Server) storePlanSnapshotFile(
-	ctx context.Context,
-	workspaceCtx *turnWorkspaceContext,
-	name string,
-	mediaType string,
-	data []byte,
-) (uuid.UUID, error) {
-	chatSnapshot := workspaceCtx.currentChatSnapshot()
-	if !chatSnapshot.WorkspaceID.Valid {
-		return uuid.Nil, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
-	}
-
-	ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
-	}
-
-	row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        chatSnapshot.OwnerID,
-		OrganizationID: ws.OrganizationID,
-		Name:           name,
-		Mimetype:       mediaType,
-		Data:           data,
-	})
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
-	}
-
-	// Cap enforcement and dedup are handled atomically in SQL.
-	// rejected > 0 means the cap was exceeded.
-	rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chatSnapshot.ID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      []uuid.UUID{row.ID},
-	})
-	switch {
-	case err != nil:
-		p.logger.Error(ctx, "failed to link file to chat",
-			slog.F("chat_id", chatSnapshot.ID),
-			slog.F("file_id", row.ID),
-			slog.Error(err),
-		)
-	case rejected > 0:
-		p.logger.Warn(ctx, "file cap reached, file not linked to chat",
-			slog.F("chat_id", chatSnapshot.ID),
-			slog.F("file_id", row.ID),
-			slog.F("max_file_links", codersdk.MaxChatFileIDs),
-		)
-	}
-
-	return row.ID, nil
 }
 
 func appendDynamicTools(
@@ -5381,36 +5327,20 @@ func (p *Server) runChat(
 		// Pre-marshal all content outside the transaction so the
 		// FOR UPDATE lock is held only for the INSERT statements.
 		// Marshaling is pure CPU work with no database dependency.
+		assistantParts := buildAssistantPartsForPersist(
+			ctx,
+			p.logger,
+			assistantBlocks,
+			toolResults,
+			step,
+			toolNameToConfigID,
+		)
+
 		var assistantContent pqtype.NullRawMessage
-		if len(assistantBlocks) > 0 {
-			sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
-			for _, block := range assistantBlocks {
-				part := chatprompt.PartFromContent(block)
-				if part.ToolName != "" {
-					if configID, ok := toolNameToConfigID[part.ToolName]; ok {
-						part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
-					}
-				}
-				// Apply recorded timestamps so persisted
-				// tool-call parts carry accurate CreatedAt.
-				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID != "" && step.ToolCallCreatedAt != nil {
-					if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
-						part.CreatedAt = &ts
-					}
-				}
-				// Provider-executed tool results appear in
-				// assistantBlocks rather than toolResults,
-				// so apply their timestamps here as well.
-				if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID != "" && step.ToolResultCreatedAt != nil {
-					if ts, ok := step.ToolResultCreatedAt[part.ToolCallID]; ok {
-						part.CreatedAt = &ts
-					}
-				}
-				sdkParts = append(sdkParts, part)
-			}
-			finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
+		if len(assistantParts) > 0 {
+			finalAssistantText = strings.TrimSpace(contentBlocksToText(assistantParts))
 			var marshalErr error
-			assistantContent, marshalErr = chatprompt.MarshalParts(sdkParts)
+			assistantContent, marshalErr = chatprompt.MarshalParts(assistantParts)
 			if marshalErr != nil {
 				return xerrors.Errorf("marshal assistant content: %w", marshalErr)
 			}
@@ -5443,7 +5373,7 @@ func (p *Server) runChat(
 		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
 
 		var insertedMessages []database.ChatMessage
-		err := p.db.InTx(func(tx database.Store) error {
+		if err := p.db.InTx(func(tx database.Store) error {
 			// Verify this worker still owns the chat before
 			// inserting messages. This closes the race where
 			// EditMessage soft-deletes history and clears worker_id
@@ -5536,8 +5466,7 @@ func (p *Server) runChat(
 			}
 
 			return nil
-		}, nil)
-		if err != nil {
+		}, nil); err != nil {
 			return xerrors.Errorf("persist step transaction: %w", err)
 		}
 
@@ -5633,6 +5562,7 @@ func (p *Server) runChat(
 	)
 
 	allowAskUserQuestion := isPlanModeTurn && isRootChat
+	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5646,6 +5576,10 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  resolvePlanPathForTools,
 			IsPlanTurn:       isPlanModeTurn,
+		}),
+		chattool.AttachFile(chattool.AttachFileOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			StoreFile:        storeChatAttachment,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5676,6 +5610,7 @@ func (p *Server) runChat(
 			instruction:     &instruction,
 			skills:          &skills,
 			resolvePlanPath: resolvePlanPathForTools,
+			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
 	}
@@ -5744,7 +5679,9 @@ func (p *Server) runChat(
 				desktopGeometry.DeclaredWidth,
 				desktopGeometry.DeclaredHeight,
 				workspaceCtx.getWorkspaceConn,
+				storeChatAttachment,
 				quartz.NewReal(),
+				p.logger.Named("computer_use"),
 			),
 		})
 	}
