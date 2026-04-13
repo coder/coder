@@ -3187,28 +3187,37 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Deliver status=waiting (interrupt) followed by a durable
-		// assistant message. Stream state should be preserved through
-		// the status change, then cleared by the durable message via
-		// the needsStreamReset path.
+		// Deliver status=waiting (interrupt). Stream state should be
+		// preserved so the user continues to see the partial response
+		// until the durable message arrives.
 		act(() => {
-			mockSocket.emitDataBatch([
-				{
-					type: "status",
-					chat_id: chatID,
-					status: { status: "waiting" },
-				},
-				{
-					type: "message",
-					chat_id: chatID,
-					message: makeMessage(chatID, 2, "assistant", "partial response"),
-				},
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "waiting" },
+			});
+		});
+
+		// Stream state must still be present after the status change.
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "partial response" },
 			]);
 		});
 
-		// After the batch, stream state should be null (cleared by
-		// needsStreamReset) and the durable message should be in
-		// the message store.
+		// Now deliver the durable assistant message. This should
+		// clear stream state via the needsStreamReset path.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: makeMessage(chatID, 2, "assistant", "partial response"),
+			});
+		});
+
+		// Stream state should now be null and the durable message
+		// should be in the message store.
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
 			expect(result.current.orderedIDs).toContain(2);
