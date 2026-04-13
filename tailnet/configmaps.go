@@ -525,7 +525,10 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 	case update.Kind == proto.CoordinateResponse_PeerUpdate_LOST:
 		lc.lost = true
 		lc.setLostTimer(c)
-		logger.Debug(context.Background(), "marked peer lost")
+		logger.Debug(context.Background(), "marked peer lost",
+			slog.F("last_handshake", lc.lastHandshake),
+			slog.F("lost_timer_ttl_ms", lc.lostTimerTTL.Milliseconds()),
+		)
 		// marking a node lost doesn't change anything right now, so dirty=false
 		return false
 	default:
@@ -717,6 +720,7 @@ type peerLifecycle struct {
 	lost                   bool
 	lastHandshake          time.Time
 	lostTimer              *quartz.Timer
+		lostTimerTTL           time.Duration
 	readyForHandshake      bool
 	readyForHandshakeTimer *quartz.Timer
 }
@@ -732,19 +736,18 @@ func (l *peerLifecycle) setLostTimer(c *configMaps) {
 	if l.lostTimer != nil {
 		l.lostTimer.Stop()
 	}
-	var ttl time.Duration
-	if l.lastHandshake.IsZero() {
-		// Peer has never completed a handshake. Give it the full
-		// lostTimeout to establish one rather than deleting it
-		// immediately. A zero lastHandshake just means WireGuard
-		// hasn't connected yet, not that the peer is gone.
-		ttl = lostTimeout
-	} else {
-		ttl = lostTimeout - c.clock.Since(l.lastHandshake)
-	}
+	ttl := lostTimeout - c.clock.Since(l.lastHandshake)
 	if ttl <= 0 {
-		ttl = time.Nanosecond
+		if l.lastHandshake.Unix() <= 0 {
+			// Peer has never completed a handshake (WireGuard reports
+			// Unix epoch, i.e. unix timestamp 0). Give it the full
+			// timeout to establish one.
+			ttl = lostTimeout
+		} else {
+			ttl = time.Nanosecond
+		}
 	}
+	l.lostTimerTTL = ttl
 	l.lostTimer = c.clock.AfterFunc(ttl, func() {
 		c.peerLostTimeout(l.peerID)
 	})

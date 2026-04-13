@@ -659,30 +659,15 @@ func TestConfigMaps_updatePeers_lost_zero_handshake(t *testing.T) {
 	p1n, err := NodeToProto(p1Node)
 	require.NoError(t, err)
 
-	// Respond to the status request from updatePeers(NODE) with no
-	// handshake information, so lastHandshake stays zero.
-	expectNoStatus := func() <-chan struct{} {
-		called := make(chan struct{})
-		go func() {
-			select {
-			case <-ctx.Done():
-				t.Error("timeout waiting for status")
-				return
-			case b := <-fEng.status:
-				_ = b // don't add any peer
-			}
-			select {
-			case <-ctx.Done():
-				t.Error("timeout sending done")
-			case fEng.statusDone <- struct{}{}:
-				close(called)
-			}
-		}()
-		return called
+	// Respond to status requests with Unix epoch handshake, which is what
+	// WireGuard actually reports for peers that have never completed a
+	// handshake (not Go zero time).
+	expectEpochStatus := func() <-chan struct{} {
+		return expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, time.Unix(0, 0))
 	}
 
-	// Add the peer via NODE update — no handshake in status.
-	s1 := expectNoStatus()
+	// Add the peer via NODE update — handshake is Unix epoch.
+	s1 := expectEpochStatus()
 	updates := []*proto.CoordinateResponse_PeerUpdate{
 		{
 			Id:   p1ID[:],
@@ -697,8 +682,8 @@ func TestConfigMaps_updatePeers_lost_zero_handshake(t *testing.T) {
 	require.Len(t, r.wg.Peers, 1)
 	_ = testutil.TryReceive(ctx, t, s1)
 
-	// Mark the peer as LOST, still with no handshake.
-	s2 := expectNoStatus()
+	// Mark the peer as LOST, still with Unix epoch handshake.
+	s2 := expectEpochStatus()
 	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_LOST
 	updates[0].Node = nil
 	uut.updatePeers(updates)
@@ -713,12 +698,79 @@ func TestConfigMaps_updatePeers_lost_zero_handshake(t *testing.T) {
 	}
 
 	// Prepare a status response for when the lost timer fires after
-	// lostTimeout. Return empty status (no handshake ever happened).
-	s3 := expectNoStatus()
+	// lostTimeout. Return Unix epoch handshake (no real handshake).
+	s3 := expectEpochStatus()
 	mClock.Advance(lostTimeout).MustWait(ctx)
 	_ = testutil.TryReceive(ctx, t, s3)
 
 	// Now the peer should be removed.
+	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r = testutil.TryReceive(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 0)
+	require.Len(t, r.wg.Peers, 0)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.TryReceive(ctx, t, done)
+}
+
+
+func TestConfigMaps_updatePeers_lost_old_handshake(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
+	defer uut.close()
+	mClock := quartz.NewMock(t)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+
+	// Peer handshaked 1 hour ago — well past lostTimeout.
+	oldHandshake := mClock.Now().Add(-1 * time.Hour)
+	expectOldStatus := func() <-chan struct{} {
+		return expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, oldHandshake)
+	}
+
+	// Add the peer via NODE update.
+	s1 := expectOldStatus()
+	updates := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(updates)
+	nm := testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	r := testutil.TryReceive(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 1)
+	require.Len(t, r.wg.Peers, 1)
+	_ = testutil.TryReceive(ctx, t, s1)
+
+	// Mark the peer as LOST with old handshake — should be removed promptly.
+	s2 := expectOldStatus()
+	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_LOST
+	updates[0].Node = nil
+	uut.updatePeers(updates)
+	_ = testutil.TryReceive(ctx, t, s2)
+
+	// The lost timer should fire at ~1ns, so advance a tiny amount.
+	s3 := expectOldStatus()
+	mClock.Advance(time.Nanosecond).MustWait(ctx)
+	_ = testutil.TryReceive(ctx, t, s3)
+
+	// Peer should be removed.
 	nm = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
 	r = testutil.TryReceive(ctx, t, fEng.reconfig)
 	require.Len(t, nm.Peers, 0)
