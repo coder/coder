@@ -108,7 +108,10 @@ jobs:
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:22.04"
+          # TODO: move the `latest` tag to 26.04 soon. we don't want to transition
+          # it immediately because that would make workspaces switch to it
+          # automatically without any grace period.
+          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:22.04,codercom/oss-dogfood:latest"
         if: matrix.image-version == '22.04'
 
       - name: Build and push Ubuntu 26.04 image
@@ -121,7 +124,7 @@ jobs:
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:26.04,codercom/oss-dogfood:latest"
+          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:26.04"
         if: matrix.image-version == '26.04'
 
       - name: Build Nix image

@@ -129,7 +129,12 @@ data "coder_parameter" "image_type" {
   option {
     icon  = "/icon/coder.svg"
     name  = "Dogfood (Default)"
-    value = "codercom/oss-dogfood:latest"
+    value = "codercom/oss-dogfood:22.04"
+  }
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Dogfood (Default)"
+    value = "codercom/oss-dogfood:26.04"
   }
   option {
     icon  = "/icon/nix.svg"
