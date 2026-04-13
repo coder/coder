@@ -60,6 +60,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	folder,
 }) => {
 	const [open, setOpen] = useState(false);
+	const [tooltipOpen, setTooltipOpen] = useState(false);
+	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
 	const { statusLabel, statusIcon } = getWorkspaceStatusDisplay(
@@ -83,7 +85,10 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
-			<Tooltip open={open ? false : undefined}>
+			<Tooltip
+				open={tooltipOpen}
+				onOpenChange={(v) => setTooltipOpen(v && !open)}
+			>
 				<TooltipTrigger asChild>
 					<DropdownMenuTrigger asChild>
 						<button
@@ -123,6 +128,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						agent={agent}
 						chatId={chatId}
 						folder={folder}
+						isRunning={isRunning}
 					/>
 				)}
 				{hasVSCodeInsiders && (
@@ -133,6 +139,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						agent={agent}
 						chatId={chatId}
 						folder={folder}
+						isRunning={isRunning}
 					/>
 				)}
 				{userApps.map((app) => (
@@ -141,10 +148,15 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						app={app}
 						workspace={workspace}
 						agent={agent}
+						isRunning={isRunning}
 					/>
 				))}
 				{hasTerminal && (
-					<TerminalMenuItem workspace={workspace} agent={agent} />
+					<TerminalMenuItem
+						workspace={workspace}
+						agent={agent}
+						isRunning={isRunning}
+					/>
 				)}
 				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
 				{hasItemsAboveSeparator && <DropdownMenuSeparator className="my-1" />}
@@ -166,7 +178,8 @@ const VSCodeMenuItem: FC<{
 	agent: WorkspaceAgent;
 	chatId: string;
 	folder?: string;
-}> = ({ variant, label, workspace, agent, chatId, folder }) => {
+	isRunning: boolean;
+}> = ({ variant, label, workspace, agent, chatId, folder, isRunning }) => {
 	const { mutate: generateKey, isPending } = useMutation({
 		mutationFn: () => API.getApiKey(),
 		onSuccess: ({ key }) => {
@@ -189,7 +202,7 @@ const VSCodeMenuItem: FC<{
 	};
 
 	return (
-		<DropdownMenuItem onSelect={handleClick} disabled={isPending}>
+		<DropdownMenuItem onSelect={handleClick} disabled={isPending || !isRunning}>
 			<ExternalLinkIcon className="size-3.5" />
 			{label}
 		</DropdownMenuItem>
@@ -200,14 +213,15 @@ const AppMenuItem: FC<{
 	app: WorkspaceApp;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
-}> = ({ app, workspace, agent }) => {
+	isRunning: boolean;
+}> = ({ app, workspace, agent, isRunning }) => {
 	const link = useAppLink(app, { workspace, agent });
 
 	const canClick =
 		!isExternalApp(app) || !needsSessionToken(app) || link.hasToken;
 
 	return (
-		<DropdownMenuItem asChild disabled={!canClick}>
+		<DropdownMenuItem asChild disabled={!canClick || !isRunning}>
 			<a
 				href={canClick ? link.href : undefined}
 				onClick={link.onClick}
@@ -215,7 +229,11 @@ const AppMenuItem: FC<{
 				rel="noreferrer"
 			>
 				{app.icon ? (
-					<ExternalImage src={app.icon} className="size-3.5 rounded-sm" />
+					<ExternalImage
+						src={app.icon}
+						alt=""
+						className="size-3.5 rounded-sm"
+					/>
 				) : (
 					<LayoutGridIcon className="size-3.5" />
 				)}
@@ -228,7 +246,8 @@ const AppMenuItem: FC<{
 const TerminalMenuItem: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
-}> = ({ workspace, agent }) => {
+	isRunning: boolean;
+}> = ({ workspace, agent, isRunning }) => {
 	const href = getTerminalHref({
 		username: workspace.owner_name,
 		workspace: workspace.name,
@@ -240,6 +259,7 @@ const TerminalMenuItem: FC<{
 			onSelect={() => {
 				openAppInNewWindow(href);
 			}}
+			disabled={!isRunning}
 		>
 			<SquareTerminalIcon className="size-3.5" />
 			Open Terminal

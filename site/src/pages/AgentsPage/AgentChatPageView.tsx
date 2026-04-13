@@ -260,7 +260,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// for VS Code folder resolution (important for monorepos).
 	const preferredFolder = (() => {
 		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
-		return repoRoots[0] ?? workspaceAgent?.expanded_directory;
+		return repoRoots[0] || workspaceAgent?.expanded_directory;
 	})();
 
 	const workspaceRoute = workspace
