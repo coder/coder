@@ -40,17 +40,16 @@ describe("CreateWorkspacePage", () => {
 	};
 
 	beforeEach(() => {
-		jest.clearAllMocks();
+		vi.clearAllMocks();
 
-		jest.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-		jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
-		jest.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
-		jest.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
-		jest.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
+		vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
 
-		jest
-			.spyOn(API, "templateVersionDynamicParameters")
-			.mockImplementation((_versionId, _ownerId, callbacks) => {
+		vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+			(_versionId, _ownerId, callbacks) => {
 				const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
 				mockWebSocket.addEventListener("message", (event) => {
@@ -73,11 +72,13 @@ describe("CreateWorkspacePage", () => {
 				);
 
 				return mockWebSocket;
-			});
+			},
+		);
 	});
 
 	afterEach(() => {
-		jest.restoreAllMocks();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
 	});
 
 	describe("WebSocket Integration", () => {
@@ -107,9 +108,8 @@ describe("CreateWorkspacePage", () => {
 		it("sends parameter updates via WebSocket when form values change", async () => {
 			const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
+			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+				(_versionId, _ownerId, callbacks) => {
 					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
@@ -130,7 +130,8 @@ describe("CreateWorkspacePage", () => {
 					);
 
 					return mockWebSocket;
-				});
+				},
+			);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -144,7 +145,7 @@ describe("CreateWorkspacePage", () => {
 				within(instanceTypeField).getByRole("combobox");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
-			jest.useFakeTimers();
+			vi.useFakeTimers({ shouldAdvanceTime: true });
 
 			await waitFor(async () => {
 				await userEvent.click(instanceTypeSelect);
@@ -160,29 +161,29 @@ describe("CreateWorkspacePage", () => {
 				await userEvent.click(mediumOption!);
 			});
 
-			act(() => {
-				jest.runAllTimers();
+			await act(async () => {
+				await vi.runAllTimersAsync();
 			});
 
 			expect(mockWebSocket.send).toHaveBeenCalledWith(
 				expect.stringContaining('"instance_type":"t3.medium"'),
 			);
 
-			jest.useRealTimers();
+			vi.useRealTimers();
 		});
 
 		it("handles WebSocket error gracefully", async () => {
 			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
 
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
+			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+				(_versionId, _ownerId, callbacks) => {
 					mockWebSocket.addEventListener("error", () => {
 						callbacks.onError(new Error("Connection failed"));
 					});
 
 					return mockWebSocket;
-				});
+				},
+			);
 
 			renderCreateWorkspacePage();
 
@@ -199,15 +200,15 @@ describe("CreateWorkspacePage", () => {
 		it("handles WebSocket close event", async () => {
 			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
 
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
+			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+				(_versionId, _ownerId, callbacks) => {
 					mockWebSocket.addEventListener("close", () => {
 						callbacks.onClose();
 					});
 
 					return mockWebSocket;
-				});
+				},
+			);
 
 			renderCreateWorkspacePage();
 
@@ -225,9 +226,8 @@ describe("CreateWorkspacePage", () => {
 
 		it("only parameters from latest response are displayed", async () => {
 			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
+			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+				(_versionId, _ownerId, callbacks) => {
 					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
@@ -244,7 +244,8 @@ describe("CreateWorkspacePage", () => {
 					);
 
 					return mockWebSocket;
-				});
+				},
+			);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -277,9 +278,8 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Dynamic Parameter Types", () => {
 		it("displays parameter validation errors", async () => {
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
+			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+				(_versionId, _ownerId, callbacks) => {
 					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
 					mockWebSocket.addEventListener("message", (event) => {
@@ -293,7 +293,8 @@ describe("CreateWorkspacePage", () => {
 					);
 
 					return mockWebSocket;
-				});
+				},
+			);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -337,9 +338,8 @@ describe("CreateWorkspacePage", () => {
 				diagnostics: [],
 			};
 
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
+			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+				(_versionId, _ownerId, callbacks) => {
 					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
 					mockWebSocket.addEventListener("message", (event) => {
@@ -355,7 +355,7 @@ describe("CreateWorkspacePage", () => {
 					);
 
 					const originalSend = mockWebSocket.send;
-					mockWebSocket.send = jest.fn((data) => {
+					mockWebSocket.send = vi.fn((data) => {
 						originalSend.call(mockWebSocket, data);
 
 						if (typeof data === "string" && data.includes('"200"')) {
@@ -368,7 +368,8 @@ describe("CreateWorkspacePage", () => {
 					});
 
 					return mockWebSocket;
-				});
+				},
+			);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -414,9 +415,9 @@ describe("CreateWorkspacePage", () => {
 
 	describe("External Authentication", () => {
 		it("displays external auth providers", async () => {
-			jest
-				.spyOn(API, "getTemplateVersionExternalAuth")
-				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithub,
+			]);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -430,11 +431,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("shows authenticated state for connected providers", async () => {
-			jest
-				.spyOn(API, "getTemplateVersionExternalAuth")
-				.mockResolvedValue([
-					MockTemplateVersionExternalAuthGithubAuthenticated,
-				]);
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithubAuthenticated,
+			]);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -446,9 +445,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("prevents auto-creation when required external auth is missing", async () => {
-			jest
-				.spyOn(API, "getTemplateVersionExternalAuth")
-				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithub,
+			]);
 
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto&version=${MockTemplate.id}`,
@@ -470,14 +469,12 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Auto-creation Mode", () => {
 		it("falls back to form mode when auto-creation fails", async () => {
-			jest
-				.spyOn(API, "getTemplateVersionExternalAuth")
-				.mockResolvedValue([
-					MockTemplateVersionExternalAuthGithubAuthenticated,
-				]);
-			jest
-				.spyOn(API, "createWorkspace")
-				.mockRejectedValue(new Error("Auto-creation failed"));
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithubAuthenticated,
+			]);
+			vi.spyOn(API, "createWorkspace").mockRejectedValue(
+				new Error("Auto-creation failed"),
+			);
 
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,

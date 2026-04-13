@@ -876,6 +876,186 @@ func TestListChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, allChats, totalChats)
 	})
+
+	// Test that a pinned chat with an old updated_at appears on page 1.
+	t.Run("PinnedOnFirstPage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create the chat that will later be pinned. It gets the
+		// earliest updated_at because it is inserted first.
+		pinnedChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "pinned-chat",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Fill page 1 with newer chats so the pinned chat would
+		// normally be pushed off the first page (default limit 50).
+		const fillerCount = 51
+		fillerChats := make([]codersdk.Chat, 0, fillerCount)
+		for i := range fillerCount {
+			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: fmt.Sprintf("filler-%d", i),
+				}},
+			})
+			require.NoError(t, createErr)
+			fillerChats = append(fillerChats, c)
+		}
+
+		// Wait for all chats to reach a terminal status so
+		// updated_at is stable before paginating. A single
+		// polling loop checks every chat per tick to avoid
+		// O(N) separate Eventually loops.
+		allCreated := append([]codersdk.Chat{pinnedChat}, fillerChats...)
+		pending := make(map[uuid.UUID]struct{}, len(allCreated))
+		for _, c := range allCreated {
+			pending[c.ID] = struct{}{}
+		}
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			all, listErr := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Pagination: codersdk.Pagination{Limit: fillerCount + 10},
+			})
+			if listErr != nil {
+				return false
+			}
+			for _, ch := range all {
+				if _, ok := pending[ch.ID]; ok && ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning {
+					delete(pending, ch.ID)
+				}
+			}
+			return len(pending) == 0
+		}, testutil.IntervalFast)
+
+		// Pin the earliest chat.
+		err = client.UpdateChat(ctx, pinnedChat.ID, codersdk.UpdateChatRequest{
+			PinOrder: ptr.Ref(int32(1)),
+		})
+		require.NoError(t, err)
+
+		// Fetch page 1 with default limit (50).
+		page1, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Limit: 50},
+		})
+		require.NoError(t, err)
+
+		// The pinned chat must appear on page 1.
+		page1IDs := make(map[uuid.UUID]struct{}, len(page1))
+		for _, c := range page1 {
+			page1IDs[c.ID] = struct{}{}
+		}
+		_, found := page1IDs[pinnedChat.ID]
+		require.True(t, found, "pinned chat should appear on page 1")
+
+		// The pinned chat should be the first item in the list.
+		require.Equal(t, pinnedChat.ID, page1[0].ID, "pinned chat should be first")
+	})
+
+	// Test cursor pagination with a mix of pinned and unpinned chats.
+	t.Run("CursorWithPins", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create 5 chats: 2 will be pinned, 3 unpinned.
+		const totalChats = 5
+		createdChats := make([]codersdk.Chat, 0, totalChats)
+		for i := range totalChats {
+			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: fmt.Sprintf("cursor-pin-chat-%d", i),
+				}},
+			})
+			require.NoError(t, createErr)
+			createdChats = append(createdChats, c)
+		}
+
+		// Wait for all chats to reach terminal status.
+		// Check each chat by ID rather than fetching the full list.
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			for _, c := range createdChats {
+				ch, err := client.GetChat(ctx, c.ID)
+				require.NoError(t, err, "GetChat should succeed for just-created chat %s", c.ID)
+				if ch.Status == codersdk.ChatStatusPending || ch.Status == codersdk.ChatStatusRunning {
+					return false
+				}
+			}
+			return true
+		}, testutil.IntervalFast)
+
+		// Pin the first two chats (oldest updated_at).
+		err := client.UpdateChat(ctx, createdChats[0].ID, codersdk.UpdateChatRequest{
+			PinOrder: ptr.Ref(int32(1)),
+		})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, createdChats[1].ID, codersdk.UpdateChatRequest{
+			PinOrder: ptr.Ref(int32(1)),
+		})
+		require.NoError(t, err)
+
+		// Paginate with limit=2 using cursor (after_id).
+		const pageSize = 2
+		maxPages := totalChats/pageSize + 2
+		var allPaginated []codersdk.Chat
+		var afterID uuid.UUID
+		for range maxPages {
+			opts := &codersdk.ListChatsOptions{
+				Pagination: codersdk.Pagination{Limit: pageSize},
+			}
+			if afterID != uuid.Nil {
+				opts.Pagination.AfterID = afterID
+			}
+			page, listErr := client.ListChats(ctx, opts)
+			require.NoError(t, listErr)
+			if len(page) == 0 {
+				break
+			}
+			allPaginated = append(allPaginated, page...)
+			afterID = page[len(page)-1].ID
+		}
+
+		// All chats should appear exactly once.
+		seenIDs := make(map[uuid.UUID]struct{}, len(allPaginated))
+		for _, c := range allPaginated {
+			_, dup := seenIDs[c.ID]
+			require.False(t, dup, "chat %s appeared more than once", c.ID)
+			seenIDs[c.ID] = struct{}{}
+		}
+		require.Len(t, seenIDs, totalChats, "all chats should appear in paginated results")
+
+		// Pinned chats should come before unpinned ones, and
+		// within the pinned group, lower pin_order sorts first.
+		pinnedSeen := false
+		unpinnedSeen := false
+		for _, c := range allPaginated {
+			if c.PinOrder > 0 {
+				require.False(t, unpinnedSeen, "pinned chat %s appeared after unpinned chat", c.ID)
+				pinnedSeen = true
+			} else {
+				unpinnedSeen = true
+			}
+		}
+		require.True(t, pinnedSeen, "at least one pinned chat should exist")
+
+		// Verify within-pinned ordering: pin_order=1 before
+		// pin_order=2 (the -pin_order DESC column).
+		require.Equal(t, createdChats[0].ID, allPaginated[0].ID,
+			"pin_order=1 chat should be first")
+		require.Equal(t, createdChats[1].ID, allPaginated[1].ID,
+			"pin_order=2 chat should be second")
+	})
 }
 
 func TestListChatModels(t *testing.T) {

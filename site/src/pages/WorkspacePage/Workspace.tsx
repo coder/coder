@@ -7,21 +7,18 @@ import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
-import { getAgentHealthIssue } from "#/modules/workspaces/health";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
-import { WorkspaceAlert } from "./WorkspaceAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 interface WorkspaceProps {
@@ -99,7 +96,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
-	const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
 
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
@@ -193,13 +189,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 										{workspace.latest_build.job.error}
 									</AlertDescription>
 								</Alert>
-							)}
-
-							{!workspace.health.healthy && (
-								<WorkspaceAlert
-									{...getAgentHealthIssue(workspace)}
-									troubleshootingURL={troubleshootingURL}
-								/>
 							)}
 
 							{transitionStats !== undefined && (

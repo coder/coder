@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { toast } from "sonner";
+import type { MockInstance } from "vitest";
 import * as apiModule from "#/api/api";
 import type { WorkspaceAgentLog } from "#/api/typesGenerated";
 import { MockWorkspaceAgent } from "#/testHelpers/entities";
@@ -45,7 +46,7 @@ type MountHookOptions = Readonly<{
 type MountHookResult = Readonly<{
 	serverResult: ServerResult;
 	rerender: (props: { agentId: string; enabled: boolean }) => void;
-	toastError: jest.SpyInstance;
+	toastError: MockInstance;
 
 	// Note: the `current` property is only "halfway" readonly; the value is
 	// readonly, but the key is still mutable
@@ -56,9 +57,8 @@ function mountHook(options: MountHookOptions): MountHookResult {
 	const { initialAgentId, enabled = true } = options;
 	const serverResult: ServerResult = { current: undefined };
 
-	jest
-		.spyOn(apiModule, "watchWorkspaceAgentLogs")
-		.mockImplementation((agentId, params) => {
+	vi.spyOn(apiModule, "watchWorkspaceAgentLogs").mockImplementation(
+		(agentId, params) => {
 			return new OneWayWebSocket({
 				apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
 				searchParams: new URLSearchParams({
@@ -71,10 +71,11 @@ function mountHook(options: MountHookOptions): MountHookResult {
 					return mockSocket;
 				},
 			});
-		});
+		},
+	);
 
-	void jest.spyOn(console, "error").mockImplementation(() => {});
-	const toastError = jest.spyOn(toast, "error");
+	void vi.spyOn(console, "error").mockImplementation(() => {});
+	const toastError = vi.spyOn(toast, "error");
 
 	const { result: hookResult, rerender } = renderHook(
 		(props) => useAgentLogs(props),

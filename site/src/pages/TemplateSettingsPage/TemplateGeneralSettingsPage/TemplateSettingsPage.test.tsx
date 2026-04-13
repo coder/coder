@@ -105,10 +105,14 @@ const fillAndSubmitForm = async ({
 	await userEvent.click(submitButton);
 };
 
-describe("TemplateSettingsPage", () => {
+describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("succeeds", async () => {
 		await renderTemplateSettingsPage();
-		jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
 			...MockTemplate,
 			...validFormValues,
 		});
@@ -118,7 +122,7 @@ describe("TemplateSettingsPage", () => {
 
 	it("displays an error if the name is taken", async () => {
 		await renderTemplateSettingsPage();
-		jest.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
+		vi.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
 			mockApiError({
 				message: `Template with name "test-template" already exists`,
 				validations: [
@@ -173,14 +177,16 @@ describe("TemplateSettingsPage", () => {
 					});
 				}),
 			);
-			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 			const deprecationMessage = "This template is deprecated";
 
 			await renderTemplateSettingsPage();
 			await deprecateTemplate(deprecationMessage);
+			await waitFor(() =>
+				expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1),
+			);
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-
 			expect(templateId).toEqual(MockTemplate.id);
 			expect(data).toEqual(
 				expect.objectContaining({ deprecation_message: deprecationMessage }),
@@ -198,13 +204,15 @@ describe("TemplateSettingsPage", () => {
 					});
 				}),
 			);
-			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 
 			await renderTemplateSettingsPage();
 			await deprecateTemplate("This template should not be able to deprecate");
+			await waitFor(() =>
+				expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1),
+			);
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-
 			expect(templateId).toEqual(MockTemplate.id);
 			expect(data).toEqual(
 				expect.objectContaining({ deprecation_message: "" }),

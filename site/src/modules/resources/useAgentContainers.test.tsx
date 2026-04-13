@@ -84,12 +84,12 @@ describe("useAgentContainers", () => {
 	});
 
 	it("handles parsing errors from WebSocket", async () => {
-		const toastErrorSpy = jest.spyOn(toast, "error");
-		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+		const toastErrorSpy = vi.spyOn(toast, "error");
+		const watchAgentContainersSpy = vi.spyOn(API, "watchAgentContainers");
 
 		const mockSocket = {
-			addEventListener: jest.fn(),
-			close: jest.fn(),
+			addEventListener: vi.fn(),
+			close: vi.fn(),
 		};
 		watchAgentContainersSpy.mockReturnValue(
 			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentListContainersResponse>,
@@ -146,12 +146,12 @@ describe("useAgentContainers", () => {
 	});
 
 	it("handles WebSocket errors", async () => {
-		const toastErrorSpy = jest.spyOn(toast, "error");
-		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+		const toastErrorSpy = vi.spyOn(toast, "error");
+		const watchAgentContainersSpy = vi.spyOn(API, "watchAgentContainers");
 
 		const mockSocket = {
-			addEventListener: jest.fn(),
-			close: jest.fn(),
+			addEventListener: vi.fn(),
+			close: vi.fn(),
 		};
 		watchAgentContainersSpy.mockReturnValue(
 			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentListContainersResponse>,
@@ -204,7 +204,7 @@ describe("useAgentContainers", () => {
 	});
 
 	it("does not establish WebSocket connection when agent is not connected", () => {
-		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+		const watchAgentContainersSpy = vi.spyOn(API, "watchAgentContainers");
 
 		const disconnectedAgent = {
 			...MockWorkspaceAgent,
@@ -222,7 +222,7 @@ describe("useAgentContainers", () => {
 	});
 
 	it("does not establish WebSocket connection when dev container feature is not enabled", async () => {
-		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+		const watchAgentContainersSpy = vi.spyOn(API, "watchAgentContainers");
 
 		server.use(
 			http.get(

@@ -10,14 +10,14 @@ const wrapper = ({ children }: { children: React.ReactNode }) =>
 
 test("delete dialog starts closed", () => {
 	const { result } = renderHook(
-		() => useDeletionDialogState(MockTemplate.id, jest.fn()),
+		() => useDeletionDialogState(MockTemplate.id, vi.fn()),
 		{ wrapper },
 	);
 	expect(result.current.isDeleteDialogOpen).toBeFalsy();
 });
 
 test("confirm template deletion", async () => {
-	const onDeleteTemplate = jest.fn();
+	const onDeleteTemplate = vi.fn();
 	const { result } = renderHook(
 		() => useDeletionDialogState(MockTemplate.id, onDeleteTemplate),
 		{ wrapper },
@@ -28,7 +28,7 @@ test("confirm template deletion", async () => {
 	});
 	expect(result.current.isDeleteDialogOpen).toBeTruthy();
 
-	jest.spyOn(API, "deleteTemplate");
+	vi.spyOn(API, "deleteTemplate");
 	await act(async () => result.current.confirmDelete());
 	await waitFor(() => expect(API.deleteTemplate).toBeCalledTimes(1));
 	await waitFor(() => expect(onDeleteTemplate).toBeCalledTimes(1));
@@ -36,7 +36,7 @@ test("confirm template deletion", async () => {
 
 test("cancel template deletion", () => {
 	const { result } = renderHook(
-		() => useDeletionDialogState(MockTemplate.id, jest.fn()),
+		() => useDeletionDialogState(MockTemplate.id, vi.fn()),
 		{ wrapper },
 	);
 

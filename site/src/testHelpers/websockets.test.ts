@@ -16,10 +16,10 @@ describe(createMockWebSocket.name, () => {
 	it("Sends events from server to socket", () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/shake");
 
-		const onOpen = jest.fn();
-		const onError = jest.fn();
-		const onMessage = jest.fn();
-		const onClose = jest.fn();
+		const onOpen = vi.fn();
+		const onError = vi.fn();
+		const onMessage = vi.fn();
+		const onClose = vi.fn();
 
 		socket.addEventListener("open", onOpen);
 		socket.addEventListener("error", onError);
@@ -51,7 +51,7 @@ describe(createMockWebSocket.name, () => {
 
 	it("Sends JSON data to the socket for message events", () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/wag");
-		const onMessage = jest.fn();
+		const onMessage = vi.fn();
 
 		// Could type this as a special JSON type, but unknown is good enough,
 		// since any invalid values will throw in the test case
@@ -91,10 +91,10 @@ describe(createMockWebSocket.name, () => {
 	it("Only registers each socket event handler once", () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/borf");
 
-		const onOpen = jest.fn();
-		const onError = jest.fn();
-		const onMessage = jest.fn();
-		const onClose = jest.fn();
+		const onOpen = vi.fn();
+		const onError = vi.fn();
+		const onMessage = vi.fn();
+		const onClose = vi.fn();
 
 		// Do it once
 		socket.addEventListener("open", onOpen);
@@ -122,10 +122,10 @@ describe(createMockWebSocket.name, () => {
 	it("Lets a socket unsubscribe to event types", () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/zoomies");
 
-		const onOpen = jest.fn();
-		const onError = jest.fn();
-		const onMessage = jest.fn();
-		const onClose = jest.fn();
+		const onOpen = vi.fn();
+		const onError = vi.fn();
+		const onMessage = vi.fn();
+		const onClose = vi.fn();
 
 		socket.addEventListener("open", onOpen);
 		socket.addEventListener("error", onError);
@@ -152,7 +152,7 @@ describe(createMockWebSocket.name, () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/woof");
 		expect(server.isConnectionOpen).toBe(true);
 
-		const onMessage = jest.fn();
+		const onMessage = vi.fn();
 		socket.addEventListener("message", onMessage);
 
 		socket.close();

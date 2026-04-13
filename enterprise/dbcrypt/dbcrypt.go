@@ -717,6 +717,60 @@ func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database
 	return tok, nil
 }
 
+func (db *dbCrypt) CreateUserSecret(ctx context.Context, params database.CreateUserSecretParams) (database.UserSecret, error) {
+	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	secret, err := db.Store.CreateUserSecret(ctx, params)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
+func (db *dbCrypt) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
+	secret, err := db.Store.GetUserSecretByUserIDAndName(ctx, arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
+func (db *dbCrypt) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+	secrets, err := db.Store.ListUserSecretsWithValues(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range secrets {
+		if err := db.decryptField(&secrets[i].Value, secrets[i].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return secrets, nil
+}
+
+func (db *dbCrypt) UpdateUserSecretByUserIDAndName(ctx context.Context, arg database.UpdateUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
+	if arg.UpdateValue {
+		if err := db.encryptField(&arg.Value, &arg.ValueKeyID); err != nil {
+			return database.UserSecret{}, err
+		}
+	}
+	secret, err := db.Store.UpdateUserSecretByUserIDAndName(ctx, arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {

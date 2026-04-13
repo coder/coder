@@ -70,11 +70,11 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
 		// Don't need these other methods for any of the tests; read and write are
 		// both synchronous and slower than the promise-based methods, so ideally
 		// we won't ever need to call them in the hook logic
-		addEventListener: jest.fn(),
-		removeEventListener: jest.fn(),
-		dispatchEvent: jest.fn(),
-		read: jest.fn(),
-		write: jest.fn(),
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+		dispatchEvent: vi.fn(),
+		read: vi.fn(),
+		write: vi.fn(),
 	};
 
 	return {
@@ -145,19 +145,19 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	} = setupMockClipboard(isSecure);
 
 	beforeEach(() => {
-		jest.useFakeTimers();
+		vi.useFakeTimers();
 
-		// Can't use jest.spyOn here because there's no guarantee that the mock
+		// Can't use vi.spyOn here because there's no guarantee that the mock
 		// browser environment actually implements execCommand. Trying to spy on an
 		// undefined value will throw an error
 		global.document.execCommand = mockExecCommand;
 
-		jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
+		vi.spyOn(window, "navigator", "get").mockImplementation(() => ({
 			...originalNavigator,
 			clipboard: mockClipboard,
 		}));
 
-		jest.spyOn(console, "error").mockImplementation((errorValue, ...rest) => {
+		vi.spyOn(console, "error").mockImplementation((errorValue, ...rest) => {
 			const canIgnore =
 				errorValue instanceof Error &&
 				errorValue.message === COPY_FAILED_MESSAGE;
@@ -169,9 +169,9 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	});
 
 	afterEach(() => {
-		jest.runAllTimers();
-		jest.useRealTimers();
-		jest.resetAllMocks();
+		vi.runAllTimers();
+		vi.useRealTimers();
+		vi.resetAllMocks();
 		global.document.execCommand = originalExecCommand;
 
 		// Still have to reset the mock clipboard state because the same mock values
@@ -193,7 +193,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		// tests more annoying. Getting around that by waiting for all timeouts to
 		// wrap up, but note that the value of showCopiedSuccess will become false
 		// after runAllTimersAsync finishes
-		await act(() => jest.runAllTimersAsync());
+		await act(() => vi.runAllTimersAsync());
 
 		const clipboardText = getClipboardText();
 		expect(clipboardText).toEqual(textToCopy);
@@ -214,7 +214,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
 	it("Should notify the user of an error using the provided callback", async () => {
 		const textToCopy = "birds";
-		const onError = jest.fn();
+		const onError = vi.fn();
 		const { result } = renderUseClipboard({ onError });
 
 		setSimulateFailure(true);
@@ -223,7 +223,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	});
 
 	it("Should dispatch a new toast message to the global snackbar when errors happen while no error callback is provided to the hook", async () => {
-		const toastErrorSpy = jest.spyOn(toast, "error");
+		const toastErrorSpy = vi.spyOn(toast, "error");
 		const textToCopy = "crow";
 		const { result } = renderUseClipboard();
 
@@ -239,7 +239,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		// Snackbar state transitions that you might get if the hook uses the
 		// default
 		const textToCopy = "hamster";
-		const { result } = renderUseClipboard({ onError: jest.fn() });
+		const { result } = renderUseClipboard({ onError: vi.fn() });
 
 		setSimulateFailure(true);
 		await act(() => result.current.copyToClipboard(textToCopy));
@@ -264,7 +264,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	// inside of useEffect calls without having to think about dependencies too
 	// much
 	it("Ensures that the copyToClipboard function always maintains a stable reference across all re-renders", async () => {
-		const initialOnError = jest.fn();
+		const initialOnError = vi.fn();
 		const { result, rerender } = renderUseClipboard({
 			onError: initialOnError,
 			clearErrorOnSuccess: true,
@@ -278,7 +278,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
 		// Re-render with new onError prop and then swap back to simplify
 		// testing
-		rerender({ onError: jest.fn() });
+		rerender({ onError: vi.fn() });
 		expect(result.current.copyToClipboard).toBe(initialCopy);
 		rerender({ onError: initialOnError });
 
@@ -310,13 +310,13 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	});
 
 	it("Always uses the most up-to-date onError prop", async () => {
-		const initialOnError = jest.fn();
+		const initialOnError = vi.fn();
 		const { result, rerender } = renderUseClipboard({
 			onError: initialOnError,
 		});
 		setSimulateFailure(true);
 
-		const secondOnError = jest.fn();
+		const secondOnError = vi.fn();
 		rerender({ onError: secondOnError });
 		await act(() => result.current.copyToClipboard("dummy-text"));
 
