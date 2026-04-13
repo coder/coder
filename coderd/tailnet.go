@@ -290,10 +290,15 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	)
 
 	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
+	ensureStart := time.Now()
 	err := s.coordCtrl.ensureAgent(agentID)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
 	}
+	s.logger.Debug(s.ctx, "ensured agent",
+		slog.F("agent_id", agentID),
+		slog.F("ensure_ms", time.Since(ensureStart).Milliseconds()),
+	)
 	ret = s.coordCtrl.acquireTicket(agentID)
 
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
@@ -304,11 +309,20 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 
+	awaitStart := time.Now()
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
+		s.logger.Debug(s.ctx, "agent unreachable",
+			slog.F("agent_id", agentID),
+			slog.F("await_ms", time.Since(awaitStart).Milliseconds()),
+		)
 		ret()
 		return nil, nil, xerrors.New("agent is unreachable")
 	}
+	s.logger.Debug(s.ctx, "agent reachable",
+		slog.F("agent_id", agentID),
+		slog.F("await_ms", time.Since(awaitStart).Milliseconds()),
+	)
 
 	return conn, ret, nil
 }
@@ -428,8 +442,12 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 	}
 	m.mu.Unlock()
 
+	agentIP := tailnet.TailscaleServicePrefix.AddrFromUUID(agentID)
 	m.logger.Debug(context.Background(),
-		"subscribing to agent", slog.F("agent_id", agentID))
+		"subscribing to agent",
+		slog.F("agent_id", agentID),
+		slog.F("agent_ip", agentIP),
+	)
 
 	_, err, _ := m.sendGroup.Do(agentID.String(), func() (interface{}, error) {
 		m.mu.Lock()

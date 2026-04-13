@@ -603,6 +603,9 @@ func (c *Conn) DERPMap() *tailcfg.DERPMap {
 // address is reachable. It's the callers responsibility to provide
 // a timeout, otherwise this function will block forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
+	c.logger.Debug(context.Background(), "awaiting reachable",
+		slog.F("target_ip", ip),
+	)
 	result, _, _ := c.awaitReachableGroup.Do(ip.String(), func() (interface{}, error) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel() // Cancel all pending pings on exit.
@@ -656,7 +659,12 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 			}
 		}
 	})
-	return result.(bool)
+	reachable := result.(bool)
+	c.logger.Debug(context.Background(), "await reachable complete",
+		slog.F("target_ip", ip),
+		slog.F("reachable", reachable),
+	)
+	return reachable
 }
 
 // Closed is a channel that ends when the connection has
