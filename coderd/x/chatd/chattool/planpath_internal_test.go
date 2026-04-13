@@ -91,6 +91,28 @@ func TestLooksLikeLegacySharedPlanPath(t *testing.T) {
 	}
 }
 
+func TestRejectSharedPlanPath(t *testing.T) {
+	t.Parallel()
+
+	resp, rejected := rejectSharedPlanPath(
+		LegacySharedPlanPath,
+		"/Users/dev",
+		"/Users/dev/.coder/plans/PLAN-chat.md",
+		nil,
+	)
+
+	require.True(t, rejected)
+	require.True(t, resp.IsError)
+	require.Equal(
+		t,
+		sharedPlanPathMessage(
+			LegacySharedPlanPath,
+			"/Users/dev/.coder/plans/PLAN-chat.md",
+		),
+		resp.Content,
+	)
+}
+
 func TestSharedPlanPathMessage(t *testing.T) {
 	t.Parallel()
 

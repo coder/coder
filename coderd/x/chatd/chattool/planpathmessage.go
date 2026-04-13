@@ -6,10 +6,13 @@ import (
 	"charm.land/fantasy"
 )
 
+// rejectSharedPlanPath reports whether requestedPath targets the shared
+// home-root plan file and, if so, returns a rejection response that
+// points callers at the chat-specific plan path.
 func rejectSharedPlanPath(
 	requestedPath string,
 	home string,
-	planPath string,
+	chatPath string,
 	planPathErr error,
 ) (fantasy.ToolResponse, bool) {
 	if planPathErr != nil {
@@ -26,20 +29,20 @@ func rejectSharedPlanPath(
 		), true
 	}
 
-	if !LooksLikeHomePlanFile(requestedPath, home) {
+	if !LooksLikeHomePlanFile(requestedPath, home) && !looksLikeLegacySharedPlanPath(requestedPath) {
 		return fantasy.ToolResponse{}, false
 	}
 
 	return fantasy.NewTextErrorResponse(
-		sharedPlanPathMessage(requestedPath, planPath),
+		sharedPlanPathMessage(requestedPath, chatPath),
 	), true
 }
 
-func sharedPlanPathMessage(requestedPath, planPath string) string {
+func sharedPlanPathMessage(requestedPath, chatPath string) string {
 	return fmt.Sprintf(
 		"the plan path %s is no longer supported at the home root; use the chat-specific plan path: %s",
 		requestedPath,
-		planPath,
+		chatPath,
 	)
 }
 

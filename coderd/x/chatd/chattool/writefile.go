@@ -47,14 +47,14 @@ func executeWriteFileTool(
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
-	looksLikePlanPath := looksLikePlanFileName(requestedPath)
-	if looksLikePlanPath && !isAbsolutePath(requestedPath) {
+	hasPlanFileName := looksLikePlanFileName(requestedPath)
+	if hasPlanFileName && !isAbsolutePath(requestedPath) {
 		return fantasy.NewTextErrorResponse(
 			"plan files must use absolute paths; use the chat-specific absolute plan path",
 		), nil
 	}
 
-	if resolvePlanPath != nil && looksLikePlanPath {
+	if resolvePlanPath != nil && hasPlanFileName {
 		chatPath, home, err := resolvePlanPath(ctx)
 		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
 			return resp, nil

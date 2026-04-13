@@ -5946,34 +5946,11 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
 }
 
-// renderPlanPathPrompt fills the plan-path placeholder for new chats and
-// appends the block to the main system prompt for persisted chats that
-// predate the placeholder.
+// renderPlanPathPrompt fills the plan-path placeholder when it is
+// present in the prompt.
 func renderPlanPathPrompt(prompt []fantasy.Message, planPathBlock string) []fantasy.Message {
-	prompt, hadPlaceholder := replacePlanPathPlaceholder(prompt, planPathBlock)
-	if hadPlaceholder || planPathBlock == "" {
-		return prompt
-	}
-
-	for i, message := range prompt {
-		if message.Role != fantasy.MessageRoleSystem {
-			continue
-		}
-		updatedMessage, ok := appendPlanPathBlock(message, planPathBlock)
-		if !ok {
-			continue
-		}
-		updatedPrompt := slices.Clone(prompt)
-		updatedPrompt[i] = updatedMessage
-		return updatedPrompt
-	}
-
-	return append([]fantasy.Message{{
-		Role: fantasy.MessageRoleSystem,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: planPathBlock},
-		},
-	}}, prompt...)
+	prompt, _ = replacePlanPathPlaceholder(prompt, planPathBlock)
+	return prompt
 }
 
 func replacePlanPathPlaceholder(
@@ -6028,34 +6005,9 @@ func replacePlanPathPlaceholderInMessage(
 	return message, true
 }
 
-func appendPlanPathBlock(
-	message fantasy.Message,
-	planPathBlock string,
-) (fantasy.Message, bool) {
-	if message.Role != fantasy.MessageRoleSystem {
-		return message, false
-	}
-
-	content := slices.Clone(message.Content)
-	for i, part := range content {
-		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
-		if !ok {
-			continue
-		}
-		text := strings.TrimRight(textPart.Text, "\n")
-		if text != "" {
-			text += "\n\n"
-		}
-		content[i] = fantasy.TextPart{Text: text + planPathBlock}
-		message.Content = content
-		return message, true
-	}
-	return message, false
-}
-
-func formatPlanPathBlock(planPath, home string) string {
-	planPath = strings.TrimSpace(planPath)
-	if planPath == "" {
+func formatPlanPathBlock(chatPath, home string) string {
+	chatPath = strings.TrimSpace(chatPath)
+	if chatPath == "" {
 		return ""
 	}
 
@@ -6068,7 +6020,7 @@ func formatPlanPathBlock(planPath, home string) string {
 	var b strings.Builder
 	_, _ = b.WriteString("<plan-file-path>\n")
 	_, _ = b.WriteString("Your plan file path for this chat is: ")
-	_, _ = b.WriteString(planPath)
+	_, _ = b.WriteString(chatPath)
 	_, _ = b.WriteString("\n")
 	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
 	_, _ = b.WriteString(avoidPlanPath)

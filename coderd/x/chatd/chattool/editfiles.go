@@ -56,13 +56,13 @@ func executeEditFilesTool(
 		args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
 		file := args.Files[i]
 
-		looksLikePlanPath := looksLikePlanFileName(file.Path)
-		if looksLikePlanPath && !isAbsolutePath(file.Path) {
+		hasPlanFileName := looksLikePlanFileName(file.Path)
+		if hasPlanFileName && !isAbsolutePath(file.Path) {
 			return fantasy.NewTextErrorResponse(
 				"plan files must use absolute paths; use the chat-specific absolute plan path; no files in this batch were applied",
 			), nil
 		}
-		if resolvePlanPath == nil || !looksLikePlanPath {
+		if resolvePlanPath == nil || !hasPlanFileName {
 			continue
 		}
 		if !planPathLoaded {

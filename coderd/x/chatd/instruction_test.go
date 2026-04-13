@@ -68,7 +68,7 @@ func TestRenderPlanPathPrompt(t *testing.T) {
 		require.Contains(t, text, "Do not use "+chattool.LegacySharedPlanPath+".")
 	})
 
-	t.Run("AppendsBlockToMainSystemMessageWhenPlaceholderMissing", func(t *testing.T) {
+	t.Run("LeavesPromptUnchangedWhenPlaceholderMissing", func(t *testing.T) {
 		t.Parallel()
 
 		prompt := []fantasy.Message{
@@ -97,11 +97,7 @@ func TestRenderPlanPathPrompt(t *testing.T) {
 			"/home/coder",
 		))
 
-		require.Len(t, got, len(prompt))
-		firstText := messageText(t, got[0])
-		require.Contains(t, firstText, "base instructions")
-		require.Contains(t, firstText, "<plan-file-path>")
-		require.Equal(t, "workspace awareness", messageText(t, got[1]))
+		require.Equal(t, prompt, got)
 	})
 
 	t.Run("RemovesPlaceholderWhenPlanPathBlockIsEmpty", func(t *testing.T) {
