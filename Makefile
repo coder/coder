@@ -91,6 +91,17 @@ define atomic_write
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 endef
 
+# Common paths to exclude from find commands, this rule is written so
+# that it can be it can be used in a chain of AND statements (meaning
+# you can simply write `find . $(FIND_EXCLUSIONS) -name thing-i-want`).
+# Note, all find statements should be written with `.` or `./path` as
+# the search path so that these exclusions match.
+FIND_EXCLUSIONS= \
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+
+# Source files used for make targets, evaluated on use.
+GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
+
 # Helper binary targets. Built with go build -o to avoid caching
 # link-stage executables in GOCACHE. Each binary is a real Make
 # target so parallel -j builds serialize correctly instead of
@@ -108,7 +119,9 @@ _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
 
-_gen/bin/clidocgen: $(wildcard scripts/clidocgen/*.go) | _gen
+# clidocgen reflects over the full CLI tree, so it must rebuild when any
+# Go source changes or when its embedded template changes.
+_gen/bin/clidocgen: $(wildcard scripts/clidocgen/*.go) scripts/clidocgen/command.tpl $(GO_SRC_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
@@ -181,17 +194,6 @@ ZSTDFLAGS := -22 --ultra
 else
 ZSTDFLAGS := -6 -T0
 endif
-
-# Common paths to exclude from find commands, this rule is written so
-# that it can be it can be used in a chain of AND statements (meaning
-# you can simply write `find . $(FIND_EXCLUSIONS) -name thing-i-want`).
-# Note, all find statements should be written with `.` or `./path` as
-# the search path so that these exclusions match.
-FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
-
-# Source files used for make targets, evaluated on use.
-GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
 
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
