@@ -640,11 +640,12 @@ export const CompletedWithDiffPanel: Story = {
 		// Verify menu items are rendered.
 		const body = within(document.body);
 		await waitFor(() => {
-			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
+			expect(body.getByText("View Workspace")).toBeInTheDocument();
 		});
-		expect(body.getByText("Open in VS Code")).toBeInTheDocument();
-		expect(body.getByText("View Workspace")).toBeInTheDocument();
 		expect(body.getByText("Archive Agent")).toBeInTheDocument();
+		// IDE items moved to the workspace pill dropdown.
+		expect(body.queryByText("Open in Cursor")).not.toBeInTheDocument();
+		expect(body.queryByText("Open in VS Code")).not.toBeInTheDocument();
 	},
 };
 
