@@ -398,6 +398,33 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate organization membership.
+	if req.OrganizationID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "organization_id is required.",
+		})
+		return
+	}
+	orgMembers, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: req.OrganizationID,
+		UserID:         apiKey.UserID,
+		IncludeSystem:  false,
+		GithubUserID:   0,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate organization membership.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(orgMembers) == 0 {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not a member of the specified organization.",
+		})
+		return
+	}
+
 	// Validate per-chat system prompt length.
 	const maxSystemPromptLen = 10000
 	if len(req.SystemPrompt) > maxSystemPromptLen {
@@ -407,7 +434,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	contentBlocks, titleSource, fileIDs, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -528,6 +554,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
@@ -1847,6 +1874,18 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	// Gate message sending behind the same agents-access check
+	// used by postChats. Sending a message triggers AI/LLM
+	// inference, so it should require the same authorization as
+	// chat creation. This is a handler-level band-aid; the
+	// structural fix is to make agents-access org-aware so
+	// dbauthz enforces this at the RBAC layer.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
@@ -2090,6 +2129,15 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	// Gate queued-message promotion behind agents-access.
+	// Promoting a queued message triggers AI/LLM inference,
+	// same as sending a new message.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
@@ -2911,6 +2959,12 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	selection.WorkspaceID = uuid.NullUUID{
 		UUID:  workspace.ID,
 		Valid: true,
+	}
+
+	if workspace.OrganizationID != req.OrganizationID {
+		return selection, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace does not belong to the specified organization.",
+		}
 	}
 
 	if !api.Authorize(r, policy.ActionSSH, workspace) {
@@ -5801,6 +5855,15 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
+
+	// Gate tool-result submission behind agents-access.
+	// Submitting tool results resumes AI/LLM inference on
+	// a chat in requires_action state.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	// Cap the raw request body to prevent excessive memory use.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))

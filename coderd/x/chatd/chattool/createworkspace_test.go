@@ -507,6 +507,69 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 	}
 }
 
+func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	chatOrgID := uuid.New()
+	templateOrgID := uuid.New() // Different org.
+	templateID := uuid.New()
+
+	chatID := uuid.New()
+
+	// Chat exists but has no workspace binding.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{},
+		}, nil)
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: templateOrgID,
+			Name:           "wrong-org-template",
+		}, nil)
+
+	createCalled := false
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OwnerID:        ownerID,
+		OrganizationID: chatOrgID,
+		ChatID:         chatID,
+		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			createCalled = true
+			return codersdk.Workspace{}, nil
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, createCalled, "CreateFn must not be called for cross-org template")
+	require.Contains(t, resp.Content, "organization")
+}
+
 func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)

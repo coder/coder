@@ -176,7 +176,7 @@ func (t Task) RBACObject() rbac.Object {
 }
 
 func (c Chat) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String())
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
 func (r GetChatsRow) RBACObject() rbac.Object {

@@ -205,6 +205,34 @@ func TestRolePermissions(t *testing.T) {
 	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	agentsAccessUser := authSubject{Name: "chat_access", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAgentsAccess()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	orgMemberMe := func() authSubject {
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		perms := rbac.OrgMemberPermissions(rbac.OrgSettings{
+			ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone,
+		})
+		return authSubject{
+			Name: "org_member_me",
+			Actor: rbac.Subject{
+				ID: currentUser.String(),
+				Roles: rbac.Roles{
+					memberRole,
+					{
+						Identifier: rbac.ScopedRoleOrgMember(orgID),
+						Site:       []rbac.Permission{},
+						User:       []rbac.Permission{},
+						ByOrgID: map[string]rbac.OrgPermissions{
+							orgID.String(): {
+								Org:    perms.Org,
+								Member: perms.Member,
+							},
+						},
+					},
+				},
+				Scope: rbac.ScopeAll,
+			}.WithCachedASTValue(),
+		}
+	}()
 	setOrgNotMe := authSubjectSet{orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin}
 
 	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(otherOrg)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
@@ -1070,16 +1098,10 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ChatUsage",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
+			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, agentsAccessUser},
-				false: {
-					memberMe,
-					orgAdmin, otherOrgAdmin,
-					orgAuditor, otherOrgAuditor,
-					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
-					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-				},
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 	}

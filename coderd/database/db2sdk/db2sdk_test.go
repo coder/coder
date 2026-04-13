@@ -210,6 +210,279 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
 }
 
+func TestChatDebugRunSummary(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(5 * time.Second)
+
+	run := database.ChatDebugRun{
+		ID:         uuid.New(),
+		ChatID:     uuid.New(),
+		Kind:       "chat_turn",
+		Status:     "completed",
+		Provider:   sql.NullString{String: "openai", Valid: true},
+		Model:      sql.NullString{String: "gpt-4o", Valid: true},
+		Summary:    json.RawMessage(`{"step_count":3,"has_error":false}`),
+		StartedAt:  startedAt,
+		UpdatedAt:  finishedAt,
+		FinishedAt: sql.NullTime{Time: finishedAt, Valid: true},
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+
+	require.Equal(t, run.ID, sdk.ID)
+	require.Equal(t, run.ChatID, sdk.ChatID)
+	require.Equal(t, codersdk.ChatDebugRunKindChatTurn, sdk.Kind)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.NotNil(t, sdk.Provider)
+	require.Equal(t, "openai", *sdk.Provider)
+	require.NotNil(t, sdk.Model)
+	require.Equal(t, "gpt-4o", *sdk.Model)
+	require.Equal(t, map[string]any{"step_count": float64(3), "has_error": false}, sdk.Summary)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.NotNil(t, sdk.FinishedAt)
+	require.Equal(t, finishedAt, *sdk.FinishedAt)
+}
+
+func TestChatDebugRunSummary_NullableFieldsNil(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "title_generation",
+		Status:    "in_progress",
+		Summary:   json.RawMessage(`{}`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+
+	require.Nil(t, sdk.Provider, "NULL Provider should map to nil")
+	require.Nil(t, sdk.Model, "NULL Model should map to nil")
+	require.Nil(t, sdk.FinishedAt, "NULL FinishedAt should map to nil")
+}
+
+func TestChatDebugStep(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(2 * time.Second)
+	attempts := json.RawMessage(`[
+		{
+			"attempt_number": 1,
+			"status": "completed",
+			"raw_request": {"url": "https://example.com"},
+			"raw_response": {"status": "200"},
+			"duration_ms": 123,
+			"started_at": "2026-03-01T10:00:01Z",
+			"finished_at": "2026-03-01T10:00:02Z"
+		}
+	]`)
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          attempts,
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         startedAt,
+		UpdatedAt:         finishedAt,
+		FinishedAt:        sql.NullTime{Time: finishedAt, Valid: true},
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+
+	// Verify all scalar fields are mapped correctly.
+	require.Equal(t, step.ID, sdk.ID)
+	require.Equal(t, step.RunID, sdk.RunID)
+	require.Equal(t, step.ChatID, sdk.ChatID)
+	require.Equal(t, step.StepNumber, sdk.StepNumber)
+	require.Equal(t, codersdk.ChatDebugStepOperationStream, sdk.Operation)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.Equal(t, &finishedAt, sdk.FinishedAt)
+
+	// Verify JSON object fields are deserialized.
+	require.NotNil(t, sdk.NormalizedRequest)
+	require.Equal(t, map[string]any{"messages": []any{}}, sdk.NormalizedRequest)
+	require.NotNil(t, sdk.Metadata)
+	require.Equal(t, map[string]any{"provider": "openai"}, sdk.Metadata)
+
+	// Verify nullable fields are nil when the DB row has NULL values.
+	require.Nil(t, sdk.HistoryTipMessageID, "NULL HistoryTipMessageID should map to nil")
+	require.Nil(t, sdk.AssistantMessageID, "NULL AssistantMessageID should map to nil")
+	require.Nil(t, sdk.NormalizedResponse, "NULL NormalizedResponse should map to nil")
+	require.Nil(t, sdk.Usage, "NULL Usage should map to nil")
+	require.Nil(t, sdk.Error, "NULL Error should map to nil")
+
+	// Verify attempts are preserved with all fields.
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, float64(1), sdk.Attempts[0]["attempt_number"])
+	require.Equal(t, "completed", sdk.Attempts[0]["status"])
+	require.Equal(t, float64(123), sdk.Attempts[0]["duration_ms"])
+	require.Equal(t, map[string]any{"url": "https://example.com"}, sdk.Attempts[0]["raw_request"])
+	require.Equal(t, map[string]any{"status": "200"}, sdk.Attempts[0]["raw_response"])
+}
+
+func TestChatDebugStep_NullableFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
+	tipID := int64(42)
+	asstID := int64(99)
+	step := database.ChatDebugStep{
+		ID:                  uuid.New(),
+		RunID:               uuid.New(),
+		ChatID:              uuid.New(),
+		StepNumber:          2,
+		Operation:           "generate",
+		Status:              "completed",
+		HistoryTipMessageID: sql.NullInt64{Int64: tipID, Valid: true},
+		AssistantMessageID:  sql.NullInt64{Int64: asstID, Valid: true},
+		NormalizedRequest:   json.RawMessage(`{}`),
+		NormalizedResponse:  pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"text":"hi"}`), Valid: true},
+		Usage:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"tokens":10}`), Valid: true},
+		Error:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"code":"rate_limit"}`), Valid: true},
+		Attempts:            json.RawMessage(`[]`),
+		Metadata:            json.RawMessage(`{}`),
+		StartedAt:           time.Now().UTC(),
+		UpdatedAt:           time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+
+	require.NotNil(t, sdk.HistoryTipMessageID)
+	require.Equal(t, tipID, *sdk.HistoryTipMessageID)
+	require.NotNil(t, sdk.AssistantMessageID)
+	require.Equal(t, asstID, *sdk.AssistantMessageID)
+	require.NotNil(t, sdk.NormalizedResponse)
+	require.Equal(t, map[string]any{"text": "hi"}, sdk.NormalizedResponse)
+	require.NotNil(t, sdk.Usage)
+	require.Equal(t, map[string]any{"tokens": float64(10)}, sdk.Usage)
+	require.NotNil(t, sdk.Error)
+	require.Equal(t, map[string]any{"code": "rate_limit"}, sdk.Error)
+}
+
+func TestChatDebugStep_PreservesMalformedAttempts(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          json.RawMessage(`{"bad":true}`),
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, "malformed attempts payload", sdk.Attempts[0]["error"])
+	require.NotEmpty(t, sdk.Attempts[0]["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, `{"bad":true}`, sdk.Attempts[0]["raw"])
+}
+
+func TestChatDebugRunSummary_PreservesMalformedSummary(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "completed",
+		Summary:   json.RawMessage(`not-an-object`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+	require.Equal(t, "malformed debug payload", sdk.Summary["error"])
+	require.NotEmpty(t, sdk.Summary["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, "not-an-object", sdk.Summary["raw"])
+}
+
+func TestChatDebugStep_PreservesMalformedRequest(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`[1,2,3]`),
+		Attempts:          json.RawMessage(`[]`),
+		Metadata:          json.RawMessage(`"just-a-string"`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Equal(t, "malformed debug payload", sdk.NormalizedRequest["error"])
+	require.NotEmpty(t, sdk.NormalizedRequest["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, "[1,2,3]", sdk.NormalizedRequest["raw"])
+	require.Equal(t, "malformed debug payload", sdk.Metadata["error"])
+	require.NotEmpty(t, sdk.Metadata["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, `"just-a-string"`, sdk.Metadata["raw"])
+}
+
+func TestChatDebugRunSummary_JSONNullYieldsEmptyMap(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "completed",
+		Summary:   json.RawMessage(`null`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+	require.NotNil(t, sdk.Summary, "JSON literal null must produce non-nil map")
+	require.Empty(t, sdk.Summary, "JSON literal null must produce empty map")
+}
+
+func TestChatDebugStep_JSONNullYieldsEmptyStructures(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`null`),
+		Attempts:          json.RawMessage(`null`),
+		Metadata:          json.RawMessage(`null`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.NotNil(t, sdk.NormalizedRequest, "JSON literal null must produce non-nil map")
+	require.Empty(t, sdk.NormalizedRequest, "JSON literal null must produce empty map")
+	require.NotNil(t, sdk.Attempts, "JSON literal null must produce non-nil slice")
+	require.Empty(t, sdk.Attempts, "JSON literal null must produce empty slice")
+	require.NotNil(t, sdk.Metadata, "JSON literal null must produce non-nil map")
+	require.Empty(t, sdk.Metadata, "JSON literal null must produce empty map")
+}
+
 func TestAIBridgeInterception(t *testing.T) {
 	t.Parallel()
 
@@ -530,6 +803,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	input := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
+		OrganizationID:    uuid.New(),
 		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},

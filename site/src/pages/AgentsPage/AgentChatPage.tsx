@@ -470,6 +470,7 @@ type _UncoveredAgentFields = Omit<
 	| "status"
 	| "name"
 	| "expanded_directory"
+	| "lifecycle_state"
 	// Fields below are intentionally not compared. They change
 	// frequently (stats, metadata) or are objects/arrays that would
 	// require deep comparison, and the UI does not read them.
@@ -481,7 +482,6 @@ type _UncoveredAgentFields = Omit<
 	| "disconnected_at"
 	| "started_at"
 	| "ready_at"
-	| "lifecycle_state"
 	| "resource_id"
 	| "instance_id"
 	| "architecture"
@@ -641,7 +641,8 @@ const AgentChatPage: FC = () => {
 									prevAgent?.status === nextAgent?.status &&
 									prevAgent?.name === nextAgent?.name &&
 									prevAgent?.expanded_directory ===
-										nextAgent?.expanded_directory
+										nextAgent?.expanded_directory &&
+									prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
 								) {
 									return prev;
 								}
@@ -1232,6 +1233,7 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			persistedError={persistedError}

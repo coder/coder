@@ -1,5 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import { EllipsisVertical, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -14,6 +12,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
@@ -64,8 +63,8 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				justifyContent="space-between"
 			>
 				<span>
-					<h2 css={styles.tableHeader}>Custom Roles</h2>
-					<span css={styles.tableDescription}>
+					<h2 className="mb-0 text-lg">Custom Roles</h2>
+					<span className="text-sm text-content-secondary leading-relaxed">
 						Create custom roles to grant users a tailored set of granular
 						permissions.
 					</span>
@@ -88,8 +87,8 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				onDeleteRole={onDeleteRole}
 			/>
 			<span>
-				<h2 css={styles.tableHeader}>Built-In Roles</h2>
-				<span css={styles.tableDescription}>
+				<h2 className="mb-0 text-lg">Built-In Roles</h2>
+				<span className="text-sm text-content-secondary leading-relaxed">
 					Built-in roles have predefined permissions. You cannot edit or delete
 					built-in roles.
 				</span>
@@ -262,18 +261,3 @@ const TableLoader = () => {
 		</TableLoaderSkeleton>
 	);
 };
-
-const styles = {
-	secondary: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-	tableHeader: () => ({
-		marginBottom: 0,
-		fontSize: 18,
-	}),
-	tableDescription: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

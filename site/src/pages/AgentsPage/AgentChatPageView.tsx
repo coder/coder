@@ -85,6 +85,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
@@ -176,6 +177,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	organizationId,
 	chatTitle,
 	parentChat,
 	persistedError,
@@ -278,10 +280,25 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		const { type, text } = getDisplayWorkspaceStatus(
+		let { type, text } = getDisplayWorkspaceStatus(
 			workspace.latest_build.status,
 			workspace.latest_build.job,
 		);
+		const agentPreparing =
+			workspace.latest_build.status === "running" &&
+			(workspaceAgent?.lifecycle_state === "created" ||
+				workspaceAgent?.lifecycle_state === "starting");
+		const agentStartupFailed =
+			workspace.latest_build.status === "running" &&
+			(workspaceAgent?.lifecycle_state === "start_error" ||
+				workspaceAgent?.lifecycle_state === "start_timeout");
+		if (agentPreparing) {
+			type = "active";
+			text = "Preparing";
+		} else if (agentStartupFailed) {
+			type = "warning";
+			text = "Startup failed";
+		}
 		const effectiveType = workspace.health.healthy ? type : "warning";
 		const statusLabel = workspace.health.healthy
 			? `Workspace ${text.toLowerCase()}`
@@ -402,6 +419,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
+								organizationId={organizationId}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}

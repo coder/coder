@@ -35,6 +35,7 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 	for _, archived := range []bool{false, true} {
 		for _, status := range database.AllChatStatusValues() {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
 				Status:            status,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelConfig.ID,

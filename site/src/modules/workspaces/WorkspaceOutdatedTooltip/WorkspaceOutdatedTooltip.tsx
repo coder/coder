@@ -1,6 +1,5 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Skeleton from "@mui/material/Skeleton";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
@@ -18,6 +17,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
@@ -40,13 +40,22 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 			{children ? (
 				<HelpPopoverTrigger asChild>
 					<span className="flex items-center gap-1.5 cursor-help">
-						<InfoIcon css={styles.icon} size={14} />
+						<InfoIcon
+							css={(theme) => ({
+								color: theme.roles.notice.outline,
+							})}
+							size={14}
+						/>
 						<span>{children}</span>
 					</span>
 				</HelpPopoverTrigger>
 			) : (
 				<HelpPopoverIconTrigger size="small" hoverEffect={false}>
-					<InfoIcon css={styles.icon} />
+					<InfoIcon
+						css={(theme) => ({
+							color: theme.roles.notice.outline,
+						})}
+					/>
 					<span className="sr-only">Outdated info</span>
 				</HelpPopoverIconTrigger>
 			)}
@@ -92,9 +101,11 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					This workspace version is outdated and a newer version is available.
 				</HelpPopoverText>
 
-				<div css={styles.container}>
+				<div className="flex flex-col gap-2 py-2 text-[13px]">
 					<div className="leading-[1.6]">
-						<div css={styles.bold}>New version</div>
+						<div className="text-content-primary font-semibold">
+							New version
+						</div>
 						<div>
 							{activeVersion ? (
 								<Link
@@ -111,7 +122,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</div>
 
 					<div className="leading-[1.6]">
-						<div css={styles.bold}>Message</div>
+						<div className="text-content-primary font-semibold">Message</div>
 						<div>
 							{activeVersion ? (
 								activeVersion.message || "No message"
@@ -135,23 +146,3 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 		</>
 	);
 };
-
-const styles = {
-	icon: (theme) => ({
-		color: theme.roles.notice.outline,
-	}),
-
-	container: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-		paddingTop: 8,
-		paddingBottom: 8,
-		fontSize: 13,
-	},
-
-	bold: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
