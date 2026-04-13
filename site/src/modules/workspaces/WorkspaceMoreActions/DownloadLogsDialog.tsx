@@ -198,7 +198,7 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 			<span
 				className={cn(
 					"font-medium text-content-primary",
-					"flex flex-row nowrap gap-x-0 overflow-hidden",
+					"flex flex-row flex-nowrap gap-x-0 overflow-hidden",
 					!isWaiting && "text-content-disabled",
 				)}
 			>
@@ -208,7 +208,7 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 				<span className="flex-shrink-0">.{fileExtension}</span>
 			</span>
 
-			<span className="flex-shrink text-sm whitespace-nowrap">
+			<span className="flex-shrink-0 text-sm whitespace-nowrap">
 				{file.blob ? (
 					humanBlobSize(file.blob.size)
 				) : isWaiting ? (
@@ -216,7 +216,7 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 				) : (
 					<p
 						className={cn(
-							"flex flex-row nowrap items-center gap-x-1",
+							"flex flex-row flex-nowrap items-center gap-x-1",
 							"text-content-disabled",
 						)}
 					>

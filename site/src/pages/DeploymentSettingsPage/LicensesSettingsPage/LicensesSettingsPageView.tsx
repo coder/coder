@@ -112,7 +112,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 			</Stack>
 
 			<div className="flex flex-col gap-4">
-				{isLoading && <Skeleton variant="text" height={78} />}
+				{isLoading && <Skeleton height={78} />}
 
 				{!isLoading && licenses && licenses?.length > 0 && (
 					<Stack spacing={4} className="licenses">
