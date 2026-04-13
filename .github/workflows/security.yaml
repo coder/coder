@@ -63,3 +63,126 @@ jobs:
             --data "{\"content\": \"$msg\"}" \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
+  osv-scanner:
+    permissions:
+      security-events: write
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Install cosign
+        uses: ./.github/actions/install-cosign
+
+      - name: Install syft
+        uses: ./.github/actions/install-syft
+
+      - name: Install OSV-Scanner
+        run: go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.5
+      - name: Install yq
+        run: go run github.com/mikefarah/yq/v4@v4.44.3
+      - name: Install mockgen
+        run: go install go.uber.org/mock/mockgen@v0.6.0
+      - name: Install protoc-gen-go
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+      - name: Install protoc-gen-go-drpc
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
+      - name: Install Protoc
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile or the
+          # version in the comments will differ. This is also defined in
+          # ci.yaml.
+          set -euxo pipefail
+          cd dogfood/coder
+          mkdir -p /usr/local/bin
+          mkdir -p /usr/local/include
+
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          protoc_path=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
+          chmod +x $protoc_path
+          protoc --version
+          # Copy the generated files to the include directory.
+          docker run --rm -v /usr/local/include:/target protoc cp -r /tmp/include/google /target/
+          ls -la /usr/local/include/google/protobuf/
+          stat /usr/local/include/google/protobuf/timestamp.proto
+
+      - name: Build Coder linux amd64 Docker image
+        id: build
+        run: |
+          set -euo pipefail
+
+          version="$(./scripts/version.sh)"
+          image_job="build/coder_${version}_linux_amd64.tag"
+
+          # This environment variable force make to not build packages and
+          # archives (which the Docker image depends on due to technical
+          # reasons related to concurrent FS writes).
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          # This environment variable forces scripts/build_docker.sh to build
+          # the base image tag locally instead of using the cached version
+          # from the registry.
+          CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          export CODER_IMAGE_BUILD_BASE_TAG
+
+          # We would like to use make -j here, but it doesn't work with some
+          # recent additions to our code generation.
+          make "$image_job"
+          echo "image=$(cat "$image_job")" >> "$GITHUB_OUTPUT"
+
+      - name: Run OSV-Scanner vulnerability scanner
+        id: scan
+        continue-on-error: true
+        env:
+          IMAGE_REF: ${{ steps.build.outputs.image }}
+        run: |
+          osv-scanner scan image "$IMAGE_REF" \
+            --format sarif \
+            --output-file osv-results.sarif
+
+      - name: Upload OSV-Scanner scan results to GitHub Security tab
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
+        with:
+          sarif_file: osv-results.sarif
+          category: "OSV-Scanner"
+
+      - name: Upload OSV-Scanner scan results as an artifact
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: osv-scanner
+          path: osv-results.sarif
+          retention-days: 7
+
+      - name: Fail if OSV-Scanner found vulnerabilities
+        if: ${{ steps.scan.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Send Slack notification on failure
+        if: ${{ failure() }}
+        run: |
+          msg="❌ OSV-Scanner Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
