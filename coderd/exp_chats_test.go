@@ -1565,32 +1565,56 @@ func TestWatchChats(t *testing.T) {
 		}
 		payload, err := json.Marshal(event)
 		require.NoError(t, err)
-		err = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
-		require.NoError(t, err)
 
+		// Publish the event in a goroutine that keeps retrying.
+		// When the WebSocket Dial returns, the server has completed
+		// the HTTP upgrade but may not have called SubscribeWithErr
+		// yet. If we publish only once, the message can arrive
+		// before the subscription is active and be silently dropped,
+		// causing the read loop to block until the context deadline.
+		// Re-publishing on a short ticker guarantees that at least
+		// one publish lands after the subscription is ready.
+		publishDone := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(testutil.IntervalFast)
+			defer ticker.Stop()
+			for {
+				// Publish immediately on the first iteration,
+				// then again on each tick.
+				_ = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
+				select {
+				case <-publishDone:
+					return
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+
+		var received codersdk.ChatWatchEvent
 		for {
-			var received codersdk.ChatWatchEvent
 			err = wsjson.Read(ctx, conn, &received)
 			require.NoError(t, err)
 
-			if received.Kind != codersdk.ChatWatchEventKindDiffStatusChange ||
-				received.Chat.ID != chat.ID {
-				continue
+			if received.Kind == codersdk.ChatWatchEventKindDiffStatusChange &&
+				received.Chat.ID == chat.ID {
+				break
 			}
-
-			// Verify the event carries the full DiffStatus.
-			require.NotNil(t, received.Chat.DiffStatus, "diff_status_change event must include DiffStatus")
-			ds := received.Chat.DiffStatus
-			require.Equal(t, chat.ID, ds.ChatID)
-			require.NotNil(t, ds.URL)
-			require.Equal(t, "https://github.com/coder/coder/pull/99", *ds.URL)
-			require.NotNil(t, ds.PullRequestState)
-			require.Equal(t, "open", *ds.PullRequestState)
-			require.EqualValues(t, 42, ds.Additions)
-			require.EqualValues(t, 7, ds.Deletions)
-			require.EqualValues(t, 5, ds.ChangedFiles)
-			break
 		}
+		close(publishDone)
+
+		// Verify the event carries the full DiffStatus.
+		require.NotNil(t, received.Chat.DiffStatus, "diff_status_change event must include DiffStatus")
+		ds := received.Chat.DiffStatus
+		require.Equal(t, chat.ID, ds.ChatID)
+		require.NotNil(t, ds.URL)
+		require.Equal(t, "https://github.com/coder/coder/pull/99", *ds.URL)
+		require.NotNil(t, ds.PullRequestState)
+		require.Equal(t, "open", *ds.PullRequestState)
+		require.EqualValues(t, 42, ds.Additions)
+		require.EqualValues(t, 7, ds.Deletions)
+		require.EqualValues(t, 5, ds.ChangedFiles)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
