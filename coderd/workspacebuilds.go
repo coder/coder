@@ -402,8 +402,16 @@ func (api *API) postWorkspaceBuildsInternal(
 	// RepeatableRead to detect concurrent modifications and retry.
 	// Because InTx reuses the parent transaction, the RepeatableRead
 	// request is silently ignored and its retry loop is ineffective.
+	//
+	// ReadModifyUpdate was added in #10277 (Oct 2023) when Build()
+	// was called directly on api.Database with no outer transaction.
+	// This outer InTx was introduced later in #15979 (Jan 2025) for
+	// workspace update notifications, unintentionally nesting the
+	// repeatable-read transaction inside a default-isolation parent.
+	//
 	// This should be elevated to sql.LevelRepeatableRead to match
-	// what the lifecycle executor already does.
+	// what the lifecycle executor already does, with the retry loop
+	// moved to wrap the outer transaction.
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
 

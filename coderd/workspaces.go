@@ -673,8 +673,16 @@ func createWorkspace(
 	// RepeatableRead to detect concurrent modifications and retry.
 	// Because InTx reuses the parent transaction, the RepeatableRead
 	// request is silently ignored and its retry loop is ineffective.
+	//
+	// This outer InTx dates back to #1486 (May 2022) and predates
+	// ReadModifyUpdate, which was added in #10277 (Oct 2023). The
+	// repeatable-read transaction and retry loop inside Build() have
+	// never worked correctly in this code path; they were always
+	// nested inside this default-isolation parent.
+	//
 	// This should be elevated to sql.LevelRepeatableRead to match
-	// what the lifecycle executor already does.
+	// what the lifecycle executor already does, with the retry loop
+	// moved to wrap the outer transaction.
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
 			prebuildsClaimer = *api.PrebuildsClaimer.Load()
