@@ -11,7 +11,14 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	type RefObject,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import type {
 	ChatDiffStatus,
@@ -82,7 +89,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const prDraft = remoteDiffStats?.pull_request_draft;
 
 	// Compute per-repo diff stats from unified diffs.
-	const repoStats = (() => {
+	const repoStats = useMemo(() => {
 		const stats = new Map<string, DiffStats>();
 		for (const [root, repo] of repositories.entries()) {
 			if (!repo.unified_diff) continue;
@@ -100,10 +107,12 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		}
 		return stats;
-	})();
+	}, [repositories]);
 
-	const localRepos = Array.from(repoStats.keys()).sort((a, b) =>
-		a.localeCompare(b),
+	const localRepos = useMemo(
+		() =>
+			Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b)),
+		[repoStats],
 	);
 
 	// Default to the first local repo when there are only local

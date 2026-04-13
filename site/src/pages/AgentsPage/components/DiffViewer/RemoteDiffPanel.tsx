@@ -9,7 +9,7 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useEffect, useState } from "react";
+import { type FC, type RefObject, useEffect, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -90,7 +90,8 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	const parsedFiles = (() => {
+	const dataUpdatedAt = diffContentsQuery.dataUpdatedAt;
+	const parsedFiles = useMemo(() => {
 		if (!diffContent) {
 			return [] as FileDiffMetadata[];
 		}
@@ -102,16 +103,13 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 			// FileDiffMetadata with an older highlighted AST.
 			const patches = parsePatchFiles(
 				diffContent,
-				getDiffCacheKeyPrefix(
-					`chat-${chatId}`,
-					diffContentsQuery.dataUpdatedAt,
-				),
+				getDiffCacheKeyPrefix(`chat-${chatId}`, dataUpdatedAt),
 			);
 			return patches.flatMap((p) => p.files);
 		} catch {
 			return [] as FileDiffMetadata[];
 		}
-	})();
+	}, [diffContent, chatId, dataUpdatedAt]);
 
 	// ---------------------------------------------------------------
 	// Scroll-to-file from chat input chip clicks

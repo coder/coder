@@ -1,5 +1,5 @@
 import { parsePatchFiles } from "@pierre/diffs";
-import type { FC, RefObject } from "react";
+import { type FC, type RefObject, useMemo } from "react";
 import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
@@ -18,7 +18,7 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 	diffStyle,
 	chatInputRef,
 }) => {
-	const parsedFiles = (() => {
+	const parsedFiles = useMemo(() => {
 		const diff = repo.unified_diff;
 		if (!diff) {
 			return [];
@@ -29,7 +29,7 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 		} catch {
 			return [];
 		}
-	})();
+	}, [repo.unified_diff]);
 
 	return (
 		<CommentableDiffViewer
