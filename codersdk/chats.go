@@ -2619,6 +2619,22 @@ func (c *ExperimentalClient) SubmitToolResults(ctx context.Context, chatID uuid.
 	return nil
 }
 
+// ForkChat creates a new chat by forking an existing one at a specific
+// message. All messages up to and including the specified message ID are
+// copied to the new chat.
+func (c *ExperimentalClient) ForkChat(ctx context.Context, chatID uuid.UUID, req ForkChatRequest) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/fork", chatID), req)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest
 // non-archived chat ID for each requested workspace. Workspaces with
 // no chats are omitted from the response.

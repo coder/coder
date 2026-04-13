@@ -9421,3 +9421,285 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 	require.Equal(t, expectedStatus, sdkErr.StatusCode())
 	return sdkErr
 }
+
+func TestForkChat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a source chat via DB to control message IDs.
+		sourceChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "fork source chat",
+		})
+		require.NoError(t, err)
+
+		// Insert three messages: user, assistant, user.
+		userContent1, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("first user message"),
+		})
+		require.NoError(t, err)
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("assistant reply"),
+		})
+		require.NoError(t, err)
+		userContent2, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("second user message"),
+		})
+		require.NoError(t, err)
+
+		insertedMsgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              sourceChat.ID,
+			CreatedBy:           []uuid.UUID{firstUser.UserID, uuid.Nil, firstUser.UserID},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID, modelConfig.ID, modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleUser},
+			Content:             []string{string(userContent1.RawMessage), string(assistantContent.RawMessage), string(userContent2.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{10, 20, 30},
+			OutputTokens:        []int64{5, 15, 25},
+			TotalTokens:         []int64{15, 35, 55},
+			ReasoningTokens:     []int64{0, 0, 0},
+			CacheCreationTokens: []int64{0, 0, 0},
+			CacheReadTokens:     []int64{0, 0, 0},
+			ContextLimit:        []int64{4096, 4096, 4096},
+			Compressed:          []bool{false, false, false},
+			TotalCostMicros:     []int64{100, 200, 300},
+			RuntimeMs:           []int64{50, 100, 150},
+		})
+		require.NoError(t, err)
+		require.Len(t, insertedMsgs, 3)
+
+		// Fork at the second message (assistant reply) — should
+		// copy the first two messages only.
+		forkPoint := insertedMsgs[1].ID
+		forkedChat, err := client.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
+			MessageID: forkPoint,
+		})
+		require.NoError(t, err)
+
+		// Verify the new chat metadata.
+		require.NotEqual(t, uuid.Nil, forkedChat.ID)
+		require.NotEqual(t, sourceChat.ID, forkedChat.ID)
+		require.NotNil(t, forkedChat.AncestorChatID)
+		require.Equal(t, sourceChat.ID, *forkedChat.AncestorChatID)
+		require.NotNil(t, forkedChat.AncestorMessageID)
+		require.Equal(t, forkPoint, *forkedChat.AncestorMessageID)
+		require.Equal(t, firstUser.OrganizationID, forkedChat.OrganizationID)
+		require.Equal(t, modelConfig.ID, forkedChat.LastModelConfigID)
+		require.Equal(t, codersdk.ChatStatusWaiting, forkedChat.Status)
+
+		// The forked chat should have exactly 2 messages (the first
+		// two from the source, up to and including the fork point).
+		forkedMessages, err := client.GetChatMessages(ctx, forkedChat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, forkedMessages.Messages, 2)
+	})
+
+	t.Run("InvalidMessageID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		sourceChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "fork invalid msg id",
+		})
+		require.NoError(t, err)
+
+		_, err = client.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
+			MessageID: 0,
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("NonexistentMessageID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a chat with no messages so the CTE's
+		// copied_messages subquery matches nothing.
+		sourceChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "fork nonexistent msg",
+		})
+		require.NoError(t, err)
+
+		// Fork with an arbitrary positive message_id. The CTE
+		// creates the chat but copies zero messages because
+		// the source chat is empty.
+		forkedChat, err := client.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
+			MessageID: 999999,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, forkedChat.ID)
+		require.NotNil(t, forkedChat.AncestorChatID)
+		require.Equal(t, sourceChat.ID, *forkedChat.AncestorChatID)
+
+		forkedMessages, err := client.GetChatMessages(ctx, forkedChat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, forkedMessages.Messages)
+	})
+
+	t.Run("NotOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a chat owned by the first user.
+		sourceChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "private fork chat",
+		})
+		require.NoError(t, err)
+
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("owner message"),
+		})
+		require.NoError(t, err)
+
+		insertedMsgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              sourceChat.ID,
+			CreatedBy:           []uuid.UUID{firstUser.UserID},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+			Content:             []string{string(userContent.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+		require.Len(t, insertedMsgs, 1)
+
+		// Create a different user and try to fork.
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
+
+		_, err = otherClient.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
+			MessageID: insertedMsgs[0].ID,
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("MessageContentPreserved", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		sourceChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "fork content preserved",
+		})
+		require.NoError(t, err)
+
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("verify content preservation"),
+		})
+		require.NoError(t, err)
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("assistant preserved reply"),
+		})
+		require.NoError(t, err)
+
+		insertedMsgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              sourceChat.ID,
+			CreatedBy:           []uuid.UUID{firstUser.UserID, uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID, modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant},
+			Content:             []string{string(userContent.RawMessage), string(assistantContent.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{100, 200},
+			OutputTokens:        []int64{50, 150},
+			TotalTokens:         []int64{150, 350},
+			ReasoningTokens:     []int64{0, 0},
+			CacheCreationTokens: []int64{0, 0},
+			CacheReadTokens:     []int64{0, 0},
+			ContextLimit:        []int64{4096, 4096},
+			Compressed:          []bool{false, false},
+			TotalCostMicros:     []int64{500, 1000},
+			RuntimeMs:           []int64{100, 200},
+		})
+		require.NoError(t, err)
+		require.Len(t, insertedMsgs, 2)
+
+		// Fork at the last message to copy everything.
+		forkedChat, err := client.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
+			MessageID: insertedMsgs[1].ID,
+		})
+		require.NoError(t, err)
+
+		forkedMessages, err := client.GetChatMessages(ctx, forkedChat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, forkedMessages.Messages, 2)
+
+		// Map source messages by role for comparison.
+		sourceMessages, err := client.GetChatMessages(ctx, sourceChat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, sourceMessages.Messages, 2)
+
+		// Verify each copied message preserves role and content.
+		for i, forkedMsg := range forkedMessages.Messages {
+			sourceMsg := sourceMessages.Messages[i]
+			require.Equal(t, sourceMsg.Role, forkedMsg.Role,
+				"role mismatch at index %d", i)
+			require.Equal(t, sourceMsg.Content, forkedMsg.Content,
+				"content mismatch at index %d", i)
+			// The forked message belongs to the new chat.
+			require.Equal(t, forkedChat.ID, forkedMsg.ChatID)
+			require.NotEqual(t, sourceMsg.ID, forkedMsg.ID,
+				"forked message should have a new ID")
+		}
+
+		// Verify token/cost fields are NULL on copied messages.
+		// The SQL CTE does not copy token columns, so Usage
+		// should be nil for every forked message.
+		for i, forkedMsg := range forkedMessages.Messages {
+			require.Nil(t, forkedMsg.Usage,
+				"expected nil usage on forked message at index %d", i)
+		}
+	})
+}
