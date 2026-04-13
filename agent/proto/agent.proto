@@ -98,6 +98,21 @@ message Manifest {
 	repeated WorkspaceApp apps = 11;
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
+	repeated WorkspaceSecret secrets = 19;
+}
+
+// WorkspaceSecret is a secret included in the agent manifest
+// for injection into a workspace.
+message WorkspaceSecret {
+	// Environment variable name to inject (e.g. "GITHUB_TOKEN").
+	// Empty string means this secret is not injected as an env var.
+	string env_name = 1;
+	// File path to write the secret value to (e.g.
+	// "~/.aws/credentials"). Empty string means this secret is not
+	// written to a file.
+	string file_path = 2;
+	// The decrypted secret value.
+	bytes value = 3;
 }
 
 message WorkspaceAgentDevcontainer {

@@ -97,8 +97,8 @@ export const IconField: FC<IconFieldProps> = ({
       Unfortunately, React doesn't provide an API to start warming a lazy component,
       so we just have to sneak it into the DOM, which is kind of annoying, but means
       that users shouldn't ever spend time waiting for it to load.
-      - Except we don't do it when running tests, because Jest doesn't define
-      `IntersectionObserver`, and it would make them slower anyway. */}
+      - Except we don't do it when running tests, because it would make them
+      slower anyway. */}
 			{process.env.NODE_ENV !== "test" && (
 				<div className="sr-only" aria-hidden="true">
 					<Suspense>

@@ -121,12 +121,15 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			// Check for an existing workspace on the chat.
-			existing, done, existErr := options.checkExistingWorkspace(ctx)
-			if existErr != nil {
-				return fantasy.NewTextErrorResponse(existErr.Error()), nil
+			check := options.checkExistingWorkspace(ctx)
+			if check.Err != nil {
+				if check.FailedBuildID != uuid.Nil {
+					return buildToolResponse(newBuildError(check.Err.Error(), check.FailedBuildID)), nil
+				}
+				return fantasy.NewTextErrorResponse(check.Err.Error()), nil
 			}
-			if done {
-				return toolResponse(existing), nil
+			if check.Done {
+				return toolResponse(check.Result), nil
 			}
 			ownerID := options.OwnerID
 
@@ -193,21 +196,57 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
-			// Wait for the build to complete and the agent to
-			// come online so subsequent tools can use the
-			// workspace immediately.
-			if options.DB != nil {
-				if err := waitForBuild(ctx, options.DB, workspace.ID); err != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("workspace build failed: %w", err).Error(),
-					), nil
+			// Persist the workspace binding on the chat
+			// immediately so the frontend can start streaming
+			// build logs while the build is still running.
+			// Note: this binding is intentional even if the build
+			// later fails. The checkExistingWorkspace recovery
+			// path handles failed workspaces by allowing
+			// re-creation.
+			if options.DB != nil && options.ChatID != uuid.Nil {
+				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID: options.ChatID,
+					WorkspaceID: uuid.NullUUID{
+						UUID:  workspace.ID,
+						Valid: true,
+					},
+					BuildID: uuid.NullUUID{
+						UUID:  workspace.LatestBuild.ID,
+						Valid: workspace.LatestBuild.ID != uuid.Nil,
+					},
+					// AgentID is left null because the build hasn't
+					// completed yet. The chatd runtime binds it once
+					// the agent comes online.
+					AgentID: uuid.NullUUID{},
+				})
+				if err != nil {
+					options.Logger.Error(ctx, "failed to persist chat workspace association",
+						slog.F("chat_id", options.ChatID),
+						slog.F("workspace_id", workspace.ID),
+						slog.Error(err),
+					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
 				}
 			}
 
+			// Wait for the build to complete and the agent to
+			// come online so subsequent tools can use the
+			// workspace immediately.
+			buildID := workspace.LatestBuild.ID
+			if options.DB != nil && buildID != uuid.Nil {
+				if err := waitForBuild(ctx, options.DB, buildID); err != nil {
+					return buildToolResponse(newBuildError(
+						xerrors.Errorf("workspace build failed: %w", err).Error(),
+						buildID,
+					)), nil
+				}
+			}
 			result := map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
 			}
+			setBuildID(result, buildID)
 
 			// Select the chat agent so follow-up tools wait on the
 			// intended workspace agent.
@@ -229,32 +268,6 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				}
 			}
 
-			// Persist the workspace binding on the chat.
-			if options.DB != nil && options.ChatID != uuid.Nil {
-				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-					ID: options.ChatID,
-					WorkspaceID: uuid.NullUUID{
-						UUID:  workspace.ID,
-						Valid: true,
-					},
-					// BuildID and AgentID are intentionally left null
-					// here. The chatd runtime (loadWorkspaceAgentLocked)
-					// will bind them on the next turn. Authoritative
-					// tool-path binding is deferred to a follow-up PR.
-					BuildID: uuid.NullUUID{},
-					AgentID: uuid.NullUUID{},
-				})
-				if err != nil {
-					options.Logger.Error(ctx, "failed to persist chat workspace association",
-						slog.F("chat_id", options.ChatID),
-						slog.F("workspace_id", workspace.ID),
-						slog.Error(err),
-					)
-				} else if options.OnChatUpdated != nil {
-					options.OnChatUpdated(updatedChat)
-				}
-			}
-
 			// Wait for the agent to come online and startup scripts to finish.
 			if workspaceAgentID != uuid.Nil {
 				agentStatus := waitForAgentReady(ctx, options.DB, workspaceAgentID, options.AgentConnFn)
@@ -267,16 +280,31 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 		})
 }
 
-// checkExistingWorkspace checks whether the configured chat already has
-// a usable workspace. Returns the result map and true if the caller
-// should return early (workspace exists and is alive or building).
-// Returns false if the caller should proceed with creation (workspace
-// is dead or missing).
+// existingWorkspaceResult holds the outcome of checking for an
+// existing workspace on the chat.
+type existingWorkspaceResult struct {
+	// Result is the tool response map when Done is true.
+	Result map[string]any
+	// Done indicates the caller should return early.
+	Done bool
+	// FailedBuildID is set when waitForBuild failed, so the
+	// caller can include it in a structured error response.
+	FailedBuildID uuid.UUID
+	// Err is non-nil when the check itself failed.
+	Err error
+}
+
+// checkExistingWorkspace checks whether the configured chat
+// already has a usable workspace. Returns an
+// existingWorkspaceResult with Done set when the caller should
+// return early (workspace exists and is alive or building).
+// Returns Done unset if the caller should proceed with creation
+// (workspace is dead or missing).
 func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
-) (map[string]any, bool, error) {
+) existingWorkspaceResult {
 	if o.DB == nil || o.ChatID == uuid.Nil {
-		return nil, false, nil
+		return existingWorkspaceResult{}
 	}
 
 	db := o.DB
@@ -286,42 +314,61 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 
 	chat, err := db.GetChatByID(ctx, chatID)
 	if err != nil {
-		return nil, false, xerrors.Errorf("load chat: %w", err)
+		return existingWorkspaceResult{Err: xerrors.Errorf("load chat: %w", err)}
 	}
 	if !chat.WorkspaceID.Valid {
-		return nil, false, nil
+		return existingWorkspaceResult{}
 	}
 
 	ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		return nil, false, xerrors.Errorf("load workspace: %w", err)
+		return existingWorkspaceResult{Err: xerrors.Errorf("load workspace: %w", err)}
 	}
 	// Workspace was soft-deleted — allow creation.
 	if ws.Deleted {
-		return nil, false, nil
+		return existingWorkspaceResult{}
 	}
 
 	// Check the latest build status.
 	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil {
 		// Can't determine status — allow creation.
-		return nil, false, nil
+		return existingWorkspaceResult{}
 	}
 
 	job, err := db.GetProvisionerJobByID(ctx, build.JobID)
 	if err != nil {
-		return nil, false, nil
+		return existingWorkspaceResult{}
 	}
 
 	switch job.JobStatus {
 	case database.ProvisionerJobStatusPending,
 		database.ProvisionerJobStatusRunning:
-		// Build is in progress — wait for it instead of
-		// creating a new workspace.
-		if err := waitForBuild(ctx, db, ws.ID); err != nil {
-			return nil, false, xerrors.Errorf(
-				"existing workspace build failed: %w", err,
+		// Build is in progress. Publish the build ID so the
+		// frontend can start streaming logs, then wait.
+		updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          o.ChatID,
+			WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+			BuildID: uuid.NullUUID{
+				UUID:  build.ID,
+				Valid: build.ID != uuid.Nil,
+			},
+			AgentID: uuid.NullUUID{},
+		})
+		if bindErr != nil {
+			o.Logger.Error(ctx, "failed to persist build ID on chat binding",
+				slog.F("chat_id", o.ChatID),
+				slog.F("build_id", build.ID),
+				slog.Error(bindErr),
 			)
+		} else if o.OnChatUpdated != nil {
+			o.OnChatUpdated(updatedChat)
+		}
+		if err := waitForBuild(ctx, db, build.ID); err != nil {
+			return existingWorkspaceResult{
+				FailedBuildID: build.ID,
+				Err:           xerrors.Errorf("existing workspace build failed: %w", err),
+			}
 		}
 		result := map[string]any{
 			"created":        false,
@@ -329,6 +376,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			"status":         "already_exists",
 			"message":        "workspace build completed",
 		}
+		setBuildID(result, build.ID)
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {
 			selected, selectErr := agentselect.FindChatAgent(agents)
@@ -343,18 +391,18 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				result[k] = v
 			}
 		}
-		return result, true, nil
+		return existingWorkspaceResult{Result: result, Done: true}
 
 	case database.ProvisionerJobStatusSucceeded:
 		// If the workspace was stopped, tell the model to use
 		// start_workspace instead of creating a new one.
 		if build.Transition == database.WorkspaceTransitionStop {
-			return map[string]any{
+			return existingWorkspaceResult{Result: map[string]any{
 				"created":        false,
 				"workspace_name": ws.Name,
 				"status":         "stopped",
 				"message":        "workspace is stopped; use start_workspace to start it",
-			}, true, nil
+			}, Done: true}
 		}
 
 		// Build succeeded — use the agent's recent DB-backed
@@ -383,13 +431,13 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				for k, v := range waitForAgentReady(ctx, db, selected.ID, nil) {
 					result[k] = v
 				}
-				return result, true, nil
+				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusConnecting:
 				result["message"] = "workspace exists and the agent is still connecting"
 				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 					result[k] = v
 				}
-				return result, true, nil
+				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusDisconnected,
 				database.WorkspaceAgentStatusTimeout:
 				// Agent is offline or never became ready - allow
@@ -397,20 +445,20 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			}
 		}
 		// No agent ID or no agent status — allow creation.
-		return nil, false, nil
+		return existingWorkspaceResult{}
 
 	default:
 		// Failed, canceled, etc — allow creation.
-		return nil, false, nil
+		return existingWorkspaceResult{}
 	}
 }
 
-// waitForBuild polls the workspace's latest build until it
+// waitForBuild polls the specified build until its provisioner job
 // completes or the context expires.
 func waitForBuild(
 	ctx context.Context,
 	db database.Store,
-	workspaceID uuid.UUID,
+	buildID uuid.UUID,
 ) error {
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
@@ -419,11 +467,9 @@ func waitForBuild(
 	defer ticker.Stop()
 
 	for {
-		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(
-			buildCtx, workspaceID,
-		)
+		build, err := db.GetWorkspaceBuildByID(buildCtx, buildID)
 		if err != nil {
-			return xerrors.Errorf("get latest build: %w", err)
+			return xerrors.Errorf("get build: %w", err)
 		}
 
 		job, err := db.GetProvisionerJobByID(buildCtx, build.JobID)

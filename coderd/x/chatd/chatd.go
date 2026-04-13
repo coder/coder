@@ -4998,6 +4998,13 @@ func (p *Server) runChat(
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
 		// Workspace provisioning tools.
+		onChatUpdated := func(updatedChat database.Chat) {
+			workspaceCtx.selectWorkspace(updatedChat)
+			// Notify the frontend immediately so it can
+			// start streaming build logs before the tool
+			// completes.
+			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		}
 		tools = append(tools,
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
 				DB:                 p.db,
@@ -5017,17 +5024,19 @@ func (p *Server) runChat(
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  workspaceCtx.selectWorkspace,
+				OnChatUpdated:                  onChatUpdated,
 				Logger:                         p.logger,
 				AllowedTemplateIDs:             p.chatTemplateAllowlist,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-				DB:          p.db,
-				OwnerID:     chat.OwnerID,
-				ChatID:      chat.ID,
-				StartFn:     p.startWorkspaceFn,
-				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu: &workspaceMu,
+				DB:            p.db,
+				OwnerID:       chat.OwnerID,
+				ChatID:        chat.ID,
+				StartFn:       p.startWorkspaceFn,
+				AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu:   &workspaceMu,
+				OnChatUpdated: onChatUpdated,
+				Logger:        p.logger,
 			}),
 		)
 		// Plan presentation tool.

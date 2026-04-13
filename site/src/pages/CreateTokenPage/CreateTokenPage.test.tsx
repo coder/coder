@@ -9,7 +9,7 @@ import CreateTokenPage from "./CreateTokenPage";
 
 describe("TokenPage", () => {
 	it("shows the success modal", async () => {
-		jest.spyOn(API, "createToken").mockResolvedValueOnce({
+		vi.spyOn(API, "createToken").mockResolvedValueOnce({
 			key: "abcd",
 		});
 

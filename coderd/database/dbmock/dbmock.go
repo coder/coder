@@ -3692,19 +3692,19 @@ func (mr *MockStoreMockRecorder) GetPRInsightsPerModel(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsPerModel", reflect.TypeOf((*MockStore)(nil).GetPRInsightsPerModel), ctx, arg)
 }
 
-// GetPRInsightsRecentPRs mocks base method.
-func (m *MockStore) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+// GetPRInsightsPullRequests mocks base method.
+func (m *MockStore) GetPRInsightsPullRequests(ctx context.Context, arg database.GetPRInsightsPullRequestsParams) ([]database.GetPRInsightsPullRequestsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPRInsightsRecentPRs", ctx, arg)
-	ret0, _ := ret[0].([]database.GetPRInsightsRecentPRsRow)
+	ret := m.ctrl.Call(m, "GetPRInsightsPullRequests", ctx, arg)
+	ret0, _ := ret[0].([]database.GetPRInsightsPullRequestsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetPRInsightsRecentPRs indicates an expected call of GetPRInsightsRecentPRs.
-func (mr *MockStoreMockRecorder) GetPRInsightsRecentPRs(ctx, arg any) *gomock.Call {
+// GetPRInsightsPullRequests indicates an expected call of GetPRInsightsPullRequests.
+func (mr *MockStoreMockRecorder) GetPRInsightsPullRequests(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsRecentPRs", reflect.TypeOf((*MockStore)(nil).GetPRInsightsRecentPRs), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsPullRequests", reflect.TypeOf((*MockStore)(nil).GetPRInsightsPullRequests), ctx, arg)
 }
 
 // GetPRInsightsSummary mocks base method.

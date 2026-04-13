@@ -67,10 +67,10 @@ const mockRequiredParameter = createMockParameter({
 });
 
 describe("DynamicParameter", () => {
-	const mockOnChange = jest.fn();
+	const mockOnChange = vi.fn();
 
 	beforeEach(() => {
-		jest.clearAllMocks();
+		vi.clearAllMocks();
 	});
 
 	describe("Input Parameter", () => {
@@ -800,7 +800,7 @@ describe("DynamicParameter", () => {
 		});
 
 		it("calls onChange when numeric value changes (debounced)", () => {
-			jest.useFakeTimers();
+			vi.useFakeTimers();
 			render(
 				<DynamicParameter
 					parameter={mockNumberInputParameter}
@@ -813,11 +813,11 @@ describe("DynamicParameter", () => {
 			fireEvent.change(input, { target: { value: "7" } });
 
 			act(() => {
-				jest.runAllTimers();
+				vi.runAllTimers();
 			});
 
 			expect(mockOnChange).toHaveBeenCalledWith("7");
-			jest.useRealTimers();
+			vi.useRealTimers();
 		});
 	});
 

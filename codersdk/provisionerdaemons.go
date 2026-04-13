@@ -143,13 +143,14 @@ type ProvisionerJobInput struct {
 
 // ProvisionerJobMetadata contains metadata for the job.
 type ProvisionerJobMetadata struct {
-	TemplateVersionName string     `json:"template_version_name" table:"template version name"`
-	TemplateID          uuid.UUID  `json:"template_id" format:"uuid" table:"template id"`
-	TemplateName        string     `json:"template_name" table:"template name"`
-	TemplateDisplayName string     `json:"template_display_name" table:"template display name"`
-	TemplateIcon        string     `json:"template_icon" table:"template icon"`
-	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
-	WorkspaceName       string     `json:"workspace_name,omitempty" table:"workspace name"`
+	TemplateVersionName      string              `json:"template_version_name" table:"template version name"`
+	TemplateID               uuid.UUID           `json:"template_id" format:"uuid" table:"template id"`
+	TemplateName             string              `json:"template_name" table:"template name"`
+	TemplateDisplayName      string              `json:"template_display_name" table:"template display name"`
+	TemplateIcon             string              `json:"template_icon" table:"template icon"`
+	WorkspaceID              *uuid.UUID          `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
+	WorkspaceName            string              `json:"workspace_name,omitempty" table:"workspace name"`
+	WorkspaceBuildTransition WorkspaceTransition `json:"workspace_build_transition,omitempty" table:"workspace build transition"`
 }
 
 // ProvisionerJobType represents the type of job.

@@ -134,10 +134,19 @@ jobs:
             exit 0
           fi
 
-          gh pr create \
-            --base "$RELEASE_BRANCH" \
-            --head "$BACKPORT_BRANCH" \
-            --title "$TITLE" \
-            --body "$BODY" \
-            --assignee "$SENDER" \
-            --reviewer "$SENDER"
+          NEW_PR_URL=$(
+            gh pr create \
+              --base "$RELEASE_BRANCH" \
+              --head "$BACKPORT_BRANCH" \
+              --title "$TITLE" \
+              --body "$BODY" \
+              --assignee "$SENDER" \
+              --reviewer "$SENDER"
+          )
+
+          # Comment on the original PR to notify the author.
+          COMMENT="Cherry-pick PR created: ${NEW_PR_URL}"
+          if [ "$CONFLICT" = true ]; then
+            COMMENT="${COMMENT} (⚠️ conflicts need manual resolution)"
+          fi
+          gh pr comment "$PR_NUMBER" --body "$COMMENT"

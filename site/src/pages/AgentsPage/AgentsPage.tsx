@@ -575,6 +575,7 @@ const AgentsPage: FC = () => {
 									: c.diff_status;
 								const nextWorkspaceId =
 									updatedChat.workspace_id ?? c.workspace_id;
+								const nextBuildId = updatedChat.build_id ?? c.build_id;
 								const nextUpdatedAt =
 									c.updated_at > updatedChat.updated_at
 										? c.updated_at
@@ -593,6 +594,7 @@ const AgentsPage: FC = () => {
 									nextTitle === c.title &&
 									diffStatusEqual(nextDiffStatus, c.diff_status) &&
 									nextWorkspaceId === c.workspace_id &&
+									nextBuildId === c.build_id &&
 									nextHasUnread === c.has_unread
 								) {
 									return c;
@@ -604,6 +606,7 @@ const AgentsPage: FC = () => {
 									title: nextTitle,
 									diff_status: nextDiffStatus,
 									workspace_id: nextWorkspaceId,
+									build_id: nextBuildId,
 									updated_at: nextUpdatedAt,
 									has_unread: nextHasUnread,
 								};
@@ -634,6 +637,7 @@ const AgentsPage: FC = () => {
 								: previousChat.diff_status;
 							const nextWorkspaceId =
 								updatedChat.workspace_id ?? previousChat.workspace_id;
+							const nextBuildId = updatedChat.build_id ?? previousChat.build_id;
 							const nextUpdatedAt =
 								previousChat.updated_at > updatedChat.updated_at
 									? previousChat.updated_at
@@ -643,7 +647,8 @@ const AgentsPage: FC = () => {
 								nextStatus === previousChat.status &&
 								nextTitle === previousChat.title &&
 								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-								nextWorkspaceId === previousChat.workspace_id
+								nextWorkspaceId === previousChat.workspace_id &&
+								nextBuildId === previousChat.build_id
 							) {
 								return previousChat;
 							}
@@ -653,6 +658,7 @@ const AgentsPage: FC = () => {
 								title: nextTitle,
 								diff_status: nextDiffStatus,
 								workspace_id: nextWorkspaceId,
+								build_id: nextBuildId,
 								updated_at: nextUpdatedAt,
 							};
 						},

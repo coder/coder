@@ -7121,6 +7121,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -7787,6 +7788,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
+    "workspace_build_transition": "start",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string"
   },
@@ -7896,6 +7898,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_version_name": "string",
+  "workspace_build_transition": "start",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string"
 }
@@ -7903,15 +7906,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                    | Type   | Required | Restrictions | Description |
-|-------------------------|--------|----------|--------------|-------------|
-| `template_display_name` | string | false    |              |             |
-| `template_icon`         | string | false    |              |             |
-| `template_id`           | string | false    |              |             |
-| `template_name`         | string | false    |              |             |
-| `template_version_name` | string | false    |              |             |
-| `workspace_id`          | string | false    |              |             |
-| `workspace_name`        | string | false    |              |             |
+| Name                         | Type                                                         | Required | Restrictions | Description |
+|------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `template_display_name`      | string                                                       | false    |              |             |
+| `template_icon`              | string                                                       | false    |              |             |
+| `template_id`                | string                                                       | false    |              |             |
+| `template_name`              | string                                                       | false    |              |             |
+| `template_version_name`      | string                                                       | false    |              |             |
+| `workspace_build_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition) | false    |              |             |
+| `workspace_id`               | string                                                       | false    |              |             |
+| `workspace_name`             | string                                                       | false    |              |             |
 
 ## codersdk.ProvisionerJobStatus
 
@@ -8467,6 +8471,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -10014,6 +10019,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -11404,6 +11410,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -12562,6 +12569,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -13394,6 +13402,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
+            "workspace_build_transition": "start",
             "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
             "workspace_name": "string"
           },
