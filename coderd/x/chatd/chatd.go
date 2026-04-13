@@ -3212,6 +3212,14 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 		runGenerations = append(runGenerations, entry.runGeneration)
 	}
 
+	if len(ids) != len(runGenerations) {
+		p.logger.Error(ctx, "batch heartbeat snapshot mismatch",
+			slog.F("ids_len", len(ids)),
+			slog.F("run_generations_len", len(runGenerations)),
+		)
+		return
+	}
+
 	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
 	// access for batch-updating heartbeats.
 	chatdCtx := dbauthz.AsChatd(ctx)
@@ -3248,6 +3256,40 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 			current.workspaceID = newWsID
 		}
 		p.heartbeatMu.Unlock()
+	}
+}
+
+// forwardRelevantLocalPubsubEvent forwards local transient events and
+// same-replica durable messages into a merged subscription stream when
+// pubsub is active. Only new durable message IDs and transient-only
+// event types are forwarded; pubsub/DB catch-up handles the rest.
+func forwardRelevantLocalPubsubEvent(
+	ctx context.Context,
+	mergedEvents chan<- codersdk.ChatStreamEvent,
+	event codersdk.ChatStreamEvent,
+	lastMessageID *int64,
+) bool {
+	switch event.Type {
+	case codersdk.ChatStreamEventTypeMessage:
+		if event.Message == nil || event.Message.ID <= *lastMessageID {
+			return true
+		}
+	case codersdk.ChatStreamEventTypeMessagePart,
+		codersdk.ChatStreamEventTypeStatus,
+		codersdk.ChatStreamEventTypeActionRequired:
+	default:
+		return true
+	}
+
+	if event.Type == codersdk.ChatStreamEventTypeMessage {
+		*lastMessageID = event.Message.ID
+	}
+
+	select {
+	case <-ctx.Done():
+		return false
+	case mergedEvents <- event:
+		return true
 	}
 }
 
@@ -3462,6 +3504,30 @@ func (p *Server) Subscribe(
 		if statusNotifications != nil {
 			defer close(statusNotifications)
 		}
+
+		drainLocalBeforeNotify := func() bool {
+			for localParts != nil {
+				select {
+				case event, ok := <-localParts:
+					if !ok {
+						localParts = nil
+						return true
+					}
+					if !forwardRelevantLocalPubsubEvent(
+						mergedCtx,
+						mergedEvents,
+						event,
+						&lastMessageID,
+					) {
+						return false
+					}
+				default:
+					return true
+				}
+			}
+			return true
+		}
+
 		for {
 			select {
 			case <-mergedCtx.Done():
@@ -3483,32 +3549,8 @@ func (p *Server) Subscribe(
 				}
 				return
 			case notify := <-notifications:
-			drainLocalBeforeNotify:
-				for localParts != nil {
-					select {
-					case event, ok := <-localParts:
-						if !ok {
-							localParts = nil
-							break drainLocalBeforeNotify
-						}
-						if event.Type == codersdk.ChatStreamEventTypeMessage {
-							if event.Message == nil || event.Message.ID <= lastMessageID {
-								continue
-							}
-							lastMessageID = event.Message.ID
-						} else if event.Type != codersdk.ChatStreamEventTypeMessagePart &&
-							event.Type != codersdk.ChatStreamEventTypeStatus &&
-							event.Type != codersdk.ChatStreamEventTypeActionRequired {
-							continue
-						}
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
-						}
-					default:
-						break drainLocalBeforeNotify
-					}
+				if !drainLocalBeforeNotify() {
+					return
 				}
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
 					if notify.FullRefresh {
@@ -3669,39 +3711,20 @@ func (p *Server) Subscribe(
 					continue
 				}
 				if hasPubsub {
-					// Forward local transient events and same-replica durable
-					// messages. Message parts and running status share a FIFO
-					// local channel so the frontend sees status=running before
-					// streamed content. Durable messages are also forwarded for
-					// new message IDs so batched pubsub delivery cannot create
-					// a gap where status=waiting arrives before the committed
-					// assistant message catch-up. action_required is transient
-					// and only published on the local stream, so it must be
-					// forwarded here as well. Pubsub may later deliver stale
-					// status/message notifications; lastMessageID and the
-					// frontend's idempotent status handling absorb duplicates.
-					if event.Type == codersdk.ChatStreamEventTypeMessage {
-						if event.Message == nil || event.Message.ID <= lastMessageID {
-							continue
-						}
-						lastMessageID = event.Message.ID
-					} else if event.Type != codersdk.ChatStreamEventTypeMessagePart &&
-						event.Type != codersdk.ChatStreamEventTypeStatus &&
-						event.Type != codersdk.ChatStreamEventTypeActionRequired {
-						continue
-					}
-					select {
-					case <-mergedCtx.Done():
+					if !forwardRelevantLocalPubsubEvent(
+						mergedCtx,
+						mergedEvents,
+						event,
+						&lastMessageID,
+					) {
 						return
-					case mergedEvents <- event:
 					}
-				} else {
-					// No pubsub: forward all event types.
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- event:
-					}
+					continue
+				}
+				select {
+				case <-mergedCtx.Done():
+					return
+				case mergedEvents <- event:
 				}
 			case event, ok := <-relayEvents:
 				if !ok {
@@ -4218,6 +4241,9 @@ func (p *Server) trackWorkspaceUsage(
 }
 
 func (p *Server) shouldStartOwnedRun(ctx context.Context, chat database.Chat) bool {
+	// This ownership re-check is best-effort. On read failure we prefer
+	// liveness here because persist-time generation fencing remains the
+	// authoritative safety boundary for stale runs.
 	latest, err := p.db.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		p.logger.Warn(ctx, "failed to verify chat ownership before start",

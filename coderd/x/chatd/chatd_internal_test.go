@@ -2755,6 +2755,16 @@ func TestShouldInterruptActiveRunFromControlMessage(t *testing.T) {
 			want: true,
 		},
 		{
+			name:  "newer generation recover stale cancels",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 8,
+				Reason:        coderdpubsub.ChatControlReasonRecoverStale,
+			},
+			want: true,
+		},
+		{
 			name:  "equal generation interrupt cancels",
 			entry: entry,
 			msg: coderdpubsub.ChatControlMessage{
@@ -2781,6 +2791,16 @@ func TestShouldInterruptActiveRunFromControlMessage(t *testing.T) {
 				ChatID:        chatID,
 				RunGeneration: 7,
 				Reason:        coderdpubsub.ChatControlReasonRestart,
+			},
+			want: false,
+		},
+		{
+			name:  "equal generation recover stale is ignored",
+			entry: entry,
+			msg: coderdpubsub.ChatControlMessage{
+				ChatID:        chatID,
+				RunGeneration: 7,
+				Reason:        coderdpubsub.ChatControlReasonRecoverStale,
 			},
 			want: false,
 		},
@@ -2870,6 +2890,59 @@ func TestSubscribeWorkerControl_CancelsRegisteredRun(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted)
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestRegisterHeartbeat_IgnoresEqualGenerationDuplicate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chatID := uuid.New()
+
+	server := &Server{
+		logger:            logger,
+		heartbeatRegistry: make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	activeCtx, activeCancel := context.WithCancelCause(ctx)
+	defer activeCancel(nil)
+	activeEntry := &heartbeatEntry{
+		cancelWithCause: activeCancel,
+		chatID:          chatID,
+		runGeneration:   2,
+		logger:          logger,
+	}
+	server.registerHeartbeat(activeEntry)
+
+	duplicateCtx, duplicateCancel := context.WithCancelCause(ctx)
+	defer duplicateCancel(nil)
+	duplicateEntry := &heartbeatEntry{
+		cancelWithCause: duplicateCancel,
+		chatID:          chatID,
+		runGeneration:   2,
+		logger:          logger,
+	}
+	server.registerHeartbeat(duplicateEntry)
+
+	require.NoError(t, context.Cause(activeCtx))
+	require.NoError(t, context.Cause(duplicateCtx))
+
+	server.heartbeatMu.Lock()
+	require.Same(t, activeEntry, server.heartbeatRegistry[chatID])
+	server.heartbeatMu.Unlock()
+
+	server.unregisterHeartbeat(duplicateEntry)
+
+	server.heartbeatMu.Lock()
+	require.Same(t, activeEntry, server.heartbeatRegistry[chatID])
+	server.heartbeatMu.Unlock()
+
+	server.unregisterHeartbeat(activeEntry)
+
+	server.heartbeatMu.Lock()
+	_, exists := server.heartbeatRegistry[chatID]
+	server.heartbeatMu.Unlock()
+	require.False(t, exists)
 }
 
 func TestRegisterHeartbeat_ReplacesOlderGenerationAndIgnoresStaleUnregister(t *testing.T) {
