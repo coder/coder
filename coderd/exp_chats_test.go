@@ -9547,20 +9547,15 @@ func TestForkChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Fork with an arbitrary positive message_id. The CTE
-		// creates the chat but copies zero messages because
-		// the source chat is empty.
-		forkedChat, err := client.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
+		// Fork with a nonexistent message_id. The handler
+		// validates the message exists before forking.
+		_, err = client.ForkChat(ctx, sourceChat.ID, codersdk.ForkChatRequest{
 			MessageID: 999999,
 		})
-		require.NoError(t, err)
-		require.NotEqual(t, uuid.Nil, forkedChat.ID)
-		require.NotNil(t, forkedChat.AncestorChatID)
-		require.Equal(t, sourceChat.ID, *forkedChat.AncestorChatID)
-
-		forkedMessages, err := client.GetChatMessages(ctx, forkedChat.ID, nil)
-		require.NoError(t, err)
-		require.Empty(t, forkedMessages.Messages)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("NotOwner", func(t *testing.T) {
