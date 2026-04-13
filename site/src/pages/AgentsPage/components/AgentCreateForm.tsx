@@ -221,7 +221,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
-	const organizationId = selectedOrg?.id ?? organizations[0]?.id ?? "";
+	const organizationId = selectedOrg?.id ?? "";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
