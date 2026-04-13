@@ -2180,10 +2180,10 @@ func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.De
 	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
-func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) error {
+func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
@@ -3401,11 +3401,11 @@ func (q *querier) GetPRInsightsPerModel(ctx context.Context, arg database.GetPRI
 	return q.db.GetPRInsightsPerModel(ctx, arg)
 }
 
-func (q *querier) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+func (q *querier) GetPRInsightsPullRequests(ctx context.Context, arg database.GetPRInsightsPullRequestsParams) ([]database.GetPRInsightsPullRequestsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetPRInsightsRecentPRs(ctx, arg)
+	return q.db.GetPRInsightsPullRequests(ctx, arg)
 }
 
 func (q *querier) GetPRInsightsSummary(ctx context.Context, arg database.GetPRInsightsSummaryParams) (database.GetPRInsightsSummaryRow, error) {
@@ -4846,7 +4846,7 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
-	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()), q.db.InsertChat)(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
 func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
@@ -6781,6 +6781,19 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 		return err
 	}
 	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg database.UpdateWorkspaceAgentDirectoryByIDParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentDirectoryByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {

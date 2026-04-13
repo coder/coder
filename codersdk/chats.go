@@ -55,6 +55,7 @@ const (
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
@@ -381,12 +382,13 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content       []ChatInputPart   `json:"content"`
-	SystemPrompt  string            `json:"system_prompt,omitempty"`
-	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels        map[string]string `json:"labels,omitempty"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	Content        []ChatInputPart   `json:"content"`
+	SystemPrompt   string            `json:"system_prompt,omitempty"`
+	WorkspaceID    *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels         map[string]string `json:"labels,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -1128,11 +1130,6 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
-}
-
-type chatStreamEnvelope struct {
-	Type ServerSentEventType `json:"type"`
-	Data json.RawMessage     `json:"data,omitempty"`
 }
 
 // ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
@@ -1987,8 +1984,8 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 		}()
 
 		for {
-			var envelope chatStreamEnvelope
-			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+			var batch []ChatStreamEvent
+			if err := wsjson.Read(streamCtx, conn, &batch); err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -2005,61 +2002,10 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 				return
 			}
 
-			switch envelope.Type {
-			case ServerSentEventTypePing:
-				continue
-			case ServerSentEventTypeData:
-				var batch []ChatStreamEvent
-				decodeErr := json.Unmarshal(envelope.Data, &batch)
-				if decodeErr == nil {
-					for _, streamedEvent := range batch {
-						if !send(streamedEvent) {
-							return
-						}
-					}
-					continue
-				}
-
-				{
-					_ = send(ChatStreamEvent{
-						Type: ChatStreamEventTypeError,
-						Error: &ChatStreamError{
-							Message: fmt.Sprintf(
-								"decode chat stream event batch: %v",
-								decodeErr,
-							),
-						},
-					})
+			for _, event := range batch {
+				if !send(event) {
 					return
 				}
-			case ServerSentEventTypeError:
-				message := "chat stream returned an error"
-				if len(envelope.Data) > 0 {
-					var response Response
-					if err := json.Unmarshal(envelope.Data, &response); err == nil {
-						message = formatChatStreamResponseError(response)
-					} else {
-						trimmed := strings.TrimSpace(string(envelope.Data))
-						if trimmed != "" {
-							message = trimmed
-						}
-					}
-				}
-				_ = send(ChatStreamEvent{
-					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
-						Message: message,
-					},
-				})
-				return
-			default:
-				_ = send(ChatStreamEvent{
-					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
-						Message: fmt.Sprintf("unknown chat stream event type %q", envelope.Type),
-					},
-				})
-				return
 			}
 		}
 	}()
@@ -2098,8 +2044,8 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 		}()
 
 		for {
-			var envelope chatStreamEnvelope
-			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+			var event ChatWatchEvent
+			if err := wsjson.Read(streamCtx, conn, &event); err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -2110,23 +2056,10 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 				return
 			}
 
-			switch envelope.Type {
-			case ServerSentEventTypePing:
-				continue
-			case ServerSentEventTypeData:
-				var event ChatWatchEvent
-				if err := json.Unmarshal(envelope.Data, &event); err != nil {
-					return
-				}
-				select {
-				case <-streamCtx.Done():
-					return
-				case events <- event:
-				}
-			case ServerSentEventTypeError:
+			select {
+			case <-streamCtx.Done():
 				return
-			default:
-				return
+			case events <- event:
 			}
 		}
 	}()
@@ -2478,27 +2411,12 @@ func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceI
 	return result, json.NewDecoder(res.Body).Decode(&result)
 }
 
-func formatChatStreamResponseError(response Response) string {
-	message := strings.TrimSpace(response.Message)
-	detail := strings.TrimSpace(response.Detail)
-	switch {
-	case message == "" && detail == "":
-		return "chat stream returned an error"
-	case message == "":
-		return detail
-	case detail == "":
-		return message
-	default:
-		return fmt.Sprintf("%s: %s", message, detail)
-	}
-}
-
 // PRInsightsResponse is the response from the PR insights endpoint.
 type PRInsightsResponse struct {
-	Summary    PRInsightsSummary           `json:"summary"`
-	TimeSeries []PRInsightsTimeSeriesEntry `json:"time_series"`
-	ByModel    []PRInsightsModelBreakdown  `json:"by_model"`
-	RecentPRs  []PRInsightsPullRequest     `json:"recent_prs"`
+	Summary      PRInsightsSummary           `json:"summary"`
+	TimeSeries   []PRInsightsTimeSeriesEntry `json:"time_series"`
+	ByModel      []PRInsightsModelBreakdown  `json:"by_model"`
+	PullRequests []PRInsightsPullRequest     `json:"recent_prs"`
 }
 
 // PRInsightsSummary contains aggregate PR metrics for a time period,

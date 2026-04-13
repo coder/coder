@@ -232,6 +232,8 @@ export interface AIBridgeThread {
 	readonly prompt?: string;
 	readonly model: string;
 	readonly provider: string;
+	readonly credential_kind: string;
+	readonly credential_hint: string;
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
@@ -1223,6 +1225,7 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
  */
 export interface Chat {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
@@ -2525,6 +2528,7 @@ export interface CreateChatProviderConfigRequest {
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
+	readonly organization_id: string;
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -5652,6 +5656,7 @@ export interface ProvisionerJobMetadata {
 	readonly template_icon: string;
 	readonly workspace_id?: string;
 	readonly workspace_name?: string;
+	readonly workspace_build_transition?: WorkspaceTransition;
 }
 
 // From codersdk/provisionerdaemons.go

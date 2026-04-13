@@ -668,9 +668,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="h-3.5 w-3.5" />
-							{isLoading
-								? "Saving edit..."
-								: "Editing will delete all subsequent messages and restart the conversation here."}
+							Editing will delete all subsequent messages and restart the
+							conversation here.
 						</span>
 						<Button
 							type="button"

@@ -2862,6 +2862,126 @@ func TestAPI(t *testing.T) {
 			"rebuilt agent should include updated display apps")
 	})
 
+	// Verify that when a terraform-managed subagent is injected into
+	// a devcontainer, the Directory field sent to Create reflects
+	// the container-internal workspaceFolder from devcontainer
+	// read-configuration, not the host-side workspace_folder from
+	// the terraform resource. This is the scenario described in
+	// https://linear.app/codercom/issue/PRODUCT-259:
+	//   1. Non-terraform subagent → directory = /workspaces/foo (correct)
+	//   2. Terraform subagent → directory was stuck on host path (bug)
+	t.Run("TerraformDefinedSubAgentUsesContainerInternalDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			mCtrl  = gomock.NewController(t)
+
+			terraformAgentID = uuid.New()
+			containerID      = "test-container-id"
+
+			// Given: A container with a host-side workspace folder.
+			terraformContainer = codersdk.WorkspaceAgentContainer{
+				ID:           containerID,
+				FriendlyName: "test-container",
+				Image:        "test-image",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project",
+					agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project/.devcontainer/devcontainer.json",
+				},
+			}
+
+			// Given: A terraform-defined devcontainer whose
+			// workspace_folder is the HOST-side path (set by provisioner).
+			terraformDevcontainer = codersdk.WorkspaceAgentDevcontainer{
+				ID:              uuid.New(),
+				Name:            "terraform-devcontainer",
+				WorkspaceFolder: "/home/coder/project",
+				ConfigPath:      "/home/coder/project/.devcontainer/devcontainer.json",
+				SubagentID:      uuid.NullUUID{UUID: terraformAgentID, Valid: true},
+			}
+
+			fCCLI = &fakeContainerCLI{
+				containers: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{terraformContainer},
+				},
+				arch: runtime.GOARCH,
+			}
+
+			// Given: devcontainer read-configuration returns the
+			// CONTAINER-INTERNAL workspace folder.
+			fDCCLI = &fakeDevcontainerCLI{
+				upID: containerID,
+				readConfig: agentcontainers.DevcontainerConfig{
+					Workspace: agentcontainers.DevcontainerWorkspace{
+						WorkspaceFolder: "/workspaces/project",
+					},
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: []agentcontainers.CoderCustomization{{}},
+						},
+					},
+				},
+			}
+
+			mSAC        = acmock.NewMockSubAgentClient(mCtrl)
+			createCalls = make(chan agentcontainers.SubAgent, 1)
+			closed      bool
+		)
+
+		mSAC.EXPECT().List(gomock.Any()).Return([]agentcontainers.SubAgent{}, nil).AnyTimes()
+
+		mSAC.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, agent agentcontainers.SubAgent) (agentcontainers.SubAgent, error) {
+				agent.AuthToken = uuid.New()
+				createCalls <- agent
+				return agent, nil
+			},
+		).Times(1)
+
+		mSAC.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, _ uuid.UUID) error {
+			assert.True(t, closed, "Delete should only be called after Close")
+			return nil
+		}).AnyTimes()
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithContainerCLI(fCCLI),
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithDevcontainers(
+				[]codersdk.WorkspaceAgentDevcontainer{terraformDevcontainer},
+				[]codersdk.WorkspaceAgentScript{{ID: terraformDevcontainer.ID, LogSourceID: uuid.New()}},
+			),
+			agentcontainers.WithSubAgentClient(mSAC),
+			agentcontainers.WithSubAgentURL("test-subagent-url"),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+		)
+		api.Start()
+		defer func() {
+			closed = true
+			api.Close()
+		}()
+
+		// When: The devcontainer is created (triggering injection).
+		err := api.CreateDevcontainer(terraformDevcontainer.WorkspaceFolder, terraformDevcontainer.ConfigPath)
+		require.NoError(t, err)
+
+		// Then: The subagent sent to Create has the correct
+		// container-internal directory, not the host path.
+		createdAgent := testutil.RequireReceive(ctx, t, createCalls)
+		assert.Equal(t, terraformAgentID, createdAgent.ID,
+			"agent should use terraform-defined ID")
+		assert.Equal(t, "/workspaces/project", createdAgent.Directory,
+			"directory should be the container-internal path from devcontainer "+
+				"read-configuration, not the host-side workspace_folder")
+	})
+
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 

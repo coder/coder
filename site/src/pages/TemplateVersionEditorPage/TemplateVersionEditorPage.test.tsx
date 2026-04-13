@@ -40,8 +40,8 @@ vi.mock(
 	}),
 );
 
-// Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
-// required for these tests, we can safely mock it.
+// Monaco is a large and complicated codebase that slows tests down and we don't
+// need to test.
 vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({
 	MonacoEditor: (props: MonacoEditorProps) => (
 		<textarea

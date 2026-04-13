@@ -190,6 +190,14 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateWorkspaceAgentDirectoryByID :exec
+UPDATE
+	workspace_agents
+SET
+	directory = $2, updated_at = $3
+WHERE
+	id = $1;
+
 -- name: GetWorkspaceAgentLogsAfter :many
 SELECT
 	*

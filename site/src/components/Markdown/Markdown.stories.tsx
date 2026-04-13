@@ -102,6 +102,6 @@ export const GFMAlertWithInlineFormatting: Story = {
 > [!IMPORTANT]
 > Larger **instances** cost more. Choose based on your workload.
 > Test line two
-		`,
+			`,
 	},
 };

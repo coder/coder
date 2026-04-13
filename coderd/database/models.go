@@ -4246,6 +4246,7 @@ type Chat struct {
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 }
 
 type ChatDiffStatus struct {

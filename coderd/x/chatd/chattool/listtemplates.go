@@ -24,6 +24,7 @@ const listTemplatesPageSize = 10
 type ListTemplatesOptions struct {
 	DB                 database.Store
 	OwnerID            uuid.UUID
+	OrganizationID     uuid.UUID
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
@@ -55,7 +56,8 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 
 			filterParams := database.GetTemplatesWithFilterParams{
-				Deleted: false,
+				Deleted:        false,
+				OrganizationID: options.OrganizationID,
 				Deprecated: sql.NullBool{
 					Bool:  false,
 					Valid: true,
@@ -121,8 +123,9 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			items := make([]map[string]any, 0, len(pageTemplates))
 			for _, t := range pageTemplates {
 				item := map[string]any{
-					"id":   t.ID.String(),
-					"name": t.Name,
+					"id":              t.ID.String(),
+					"name":            t.Name,
+					"organization_id": t.OrganizationID.String(),
 				}
 				if display := strings.TrimSpace(t.DisplayName); display != "" {
 					item["display_name"] = display

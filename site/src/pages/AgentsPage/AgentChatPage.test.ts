@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
+	restoreOptimisticRequestSnapshot,
 	useConversationEditingState,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { createChatStore } from "./components/ChatConversation/chatStore";
+import type { PendingAttachment } from "./components/ChatPageContent";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -81,6 +84,41 @@ describe("getPersistedDraftInputValue", () => {
 
 	it("returns empty string when localStorage has no draft", () => {
 		expect(getPersistedDraftInputValue(chatID)).toBe("");
+	});
+});
+
+describe("restoreOptimisticRequestSnapshot", () => {
+	it("restores queued messages, stream output, status, and stream error", () => {
+		const store = createChatStore();
+		store.setQueuedMessages([
+			{
+				id: 9,
+				chat_id: "chat-abc-123",
+				created_at: "2025-01-01T00:00:00.000Z",
+				content: [{ type: "text" as const, text: "queued" }],
+			},
+		]);
+		store.setChatStatus("running");
+		store.applyMessagePart({ type: "text", text: "partial response" });
+		store.setStreamError({ kind: "generic", message: "old error" });
+		const previousSnapshot = store.getSnapshot();
+
+		store.batch(() => {
+			store.setQueuedMessages([]);
+			store.setChatStatus("pending");
+			store.clearStreamState();
+			store.clearStreamError();
+		});
+
+		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+
+		const restoredSnapshot = store.getSnapshot();
+		expect(restoredSnapshot.queuedMessages).toEqual(
+			previousSnapshot.queuedMessages,
+		);
+		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
+		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
+		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
 	});
 });
 
@@ -324,6 +362,64 @@ describe("useConversationEditingState", () => {
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
 		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		unmount();
+	});
+
+	it("forwards pending attachments through history-edit send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const attachments: PendingAttachment[] = [
+			{ fileId: "file-1", mediaType: "image/png" },
+		];
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "hello");
+		});
+
+		await act(async () => {
+			await result.current.handleSendFromInput("hello", attachments);
+		});
+
+		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
+		unmount();
+	});
+
+	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("edited message");
+		const fileBlocks = [
+			{ type: "file", file_id: "file-1", media_type: "image/png" },
+		] as const;
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [{ text: "edited message" }],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
+			result.current.handleContentChange("edited message", editorState, false);
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput("edited message"),
+			).rejects.toThrow("boom");
+		});
+
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("edited message");
+		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.initialEditorState).toBe(editorState);
 		unmount();
 	});
 

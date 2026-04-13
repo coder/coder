@@ -1,9 +1,6 @@
 import { Check } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
-import { useQuery } from "react-query";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { organizations } from "#/api/queries/organizations";
-import type { AuthorizationCheck, Organization } from "#/api/typesGenerated";
+import { type FC, useState } from "react";
+import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -22,62 +19,21 @@ import {
 } from "#/components/Popover/Popover";
 
 type OrganizationAutocompleteProps = {
+	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
+	options: Organization[];
 	id?: string;
 	required?: boolean;
-	check?: AuthorizationCheck;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
+	value,
 	onChange,
+	options,
 	id,
 	required,
-	check,
 }) => {
 	const [open, setOpen] = useState(false);
-	const [selected, setSelected] = useState<Organization | null>(null);
-
-	const organizationsQuery = useQuery(organizations());
-
-	const checks =
-		check &&
-		organizationsQuery.data &&
-		Object.fromEntries(
-			organizationsQuery.data.map((org) => [
-				org.id,
-				{
-					...check,
-					object: { ...check.object, organization_id: org.id },
-				},
-			]),
-		);
-
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks: checks ?? {} }),
-		enabled: Boolean(check && organizationsQuery.data),
-	});
-
-	// If an authorization check was provided, filter the organizations based on
-	// the results of that check.
-	let options = organizationsQuery.data ?? [];
-	if (check) {
-		options = permissionsQuery.data
-			? options.filter((org) => permissionsQuery.data[org.id])
-			: [];
-	}
-
-	// Unfortunate: this useEffect sets a default org value
-	// if only one is available and is necessary as the autocomplete loads
-	// its own data. Until we refactor, proceed cautiously!
-	useEffect(() => {
-		const org = options[0];
-		if (options.length !== 1 || org === selected) {
-			return;
-		}
-
-		setSelected(org);
-		onChange(org);
-	}, [options, selected, onChange]);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -90,14 +46,14 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					data-testid="organization-autocomplete"
 					className="w-full justify-start gap-2 font-normal"
 				>
-					{selected ? (
+					{value ? (
 						<>
 							<Avatar
 								size="sm"
-								src={selected.icon}
-								fallback={selected.display_name}
+								src={value.icon}
+								fallback={value.display_name}
 							/>
-							<span className="truncate">{selected.display_name}</span>
+							<span className="truncate">{value.display_name}</span>
 						</>
 					) : (
 						<span className="text-content-secondary">
@@ -121,7 +77,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
 									onSelect={() => {
-										setSelected(org);
 										onChange(org);
 										setOpen(false);
 									}}
@@ -134,7 +89,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 									<span className="truncate">
 										{org.display_name || org.name}
 									</span>
-									{selected?.id === org.id && (
+									{value?.id === org.id && (
 										<Check className="ml-auto size-icon-sm shrink-0" />
 									)}
 								</CommandItem>

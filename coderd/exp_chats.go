@@ -137,8 +137,9 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	logger := api.Logger.Named("chat_watcher")
 
-	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
+	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to open chat watch stream.",
@@ -146,54 +147,44 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		<-senderClosed
-	}()
 
-	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatEventChannel(apiKey.UserID),
-		pubsub.HandleChatEvent(
-			func(ctx context.Context, payload pubsub.ChatEvent, err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+
+	// The encoder is only written from the SubscribeWithErr callback,
+	// which delivers serially per subscription. Do not add a second
+	// write path without introducing synchronization.
+	encoder := json.NewEncoder(wsNetConn)
+
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID),
+		pubsub.HandleChatWatchEvent(
+			func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
 				if err != nil {
-					api.Logger.Error(ctx, "chat event subscription error", slog.Error(err))
+					logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
 					return
 				}
-				if err := sendEvent(codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeData,
-					Data: payload,
-				}); err != nil {
-					api.Logger.Debug(ctx, "failed to send chat event", slog.Error(err))
+				if err := encoder.Encode(payload); err != nil {
+					logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
+					cancel()
+					return
 				}
 			},
 		))
 	if err != nil {
-		if err := sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeError,
-			Data: codersdk.Response{
-				Message: "Internal error subscribing to chat events.",
-				Detail:  err.Error(),
-			},
-		}); err != nil {
-			api.Logger.Debug(ctx, "failed to send chat subscribe error event", slog.Error(err))
-		}
+		logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
 		return
 	}
 	defer cancelSubscribe()
 
-	// Send initial ping to signal the connection is ready.
-	if err := sendEvent(codersdk.ServerSentEvent{
-		Type: codersdk.ServerSentEventTypePing,
-	}); err != nil {
-		api.Logger.Debug(ctx, "failed to send chat ping event", slog.Error(err))
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-senderClosed:
-			return
-		}
-	}
+	<-ctx.Done()
 }
 
 // EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
@@ -407,6 +398,33 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate organization membership.
+	if req.OrganizationID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "organization_id is required.",
+		})
+		return
+	}
+	orgMembers, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: req.OrganizationID,
+		UserID:         apiKey.UserID,
+		IncludeSystem:  false,
+		GithubUserID:   0,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate organization membership.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(orgMembers) == 0 {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not a member of the specified organization.",
+		})
+		return
+	}
+
 	// Validate per-chat system prompt length.
 	const maxSystemPromptLen = 10000
 	if len(req.SystemPrompt) > maxSystemPromptLen {
@@ -416,7 +434,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	contentBlocks, titleSource, fileIDs, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -537,6 +554,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
@@ -1819,9 +1837,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		// - pinOrder > 0 && already pinned: reorder (shift
 		//   neighbors, clamp to [1, count]).
 		// - pinOrder > 0 && not pinned: append to end. The
-		//   requested value is intentionally ignored because
-		//   PinChatByID also bumps updated_at to keep the
-		//   chat visible in the paginated sidebar.
+		//   requested value is intentionally ignored; the
+		//   SQL ORDER BY sorts pinned chats first so they
+		//   appear on page 1 of the paginated sidebar.
 		var err error
 		errMsg := "Failed to pin chat."
 		switch {
@@ -1855,6 +1873,18 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	// Gate message sending behind the same agents-access check
+	// used by postChats. Sending a message triggers AI/LLM
+	// inference, so it should require the same authorization as
+	// chat creation. This is a handler-level band-aid; the
+	// structural fix is to make agents-access org-aware so
+	// dbauthz enforces this at the RBAC layer.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2100,6 +2130,15 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	// Gate queued-message promotion behind agents-access.
+	// Promoting a queued message triggers AI/LLM inference,
+	// same as sending a new message.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
 	if err != nil {
@@ -2176,6 +2215,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+	logger := api.Logger.Named("chat_streamer").With(slog.F("chat_id", chatID))
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2198,7 +2238,22 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
+	// Subscribe before accepting the WebSocket so that failures
+	// can still be reported as normal HTTP errors.
+	snapshot, events, cancelSub, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
+	// Subscribe only fails today when the receiver is nil, which
+	// the chatDaemon == nil guard above already catches. This is
+	// defensive against future Subscribe failure modes.
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat streaming is not available.",
+			Detail:  "Chat stream state is not configured.",
+		})
+		return
+	}
+	defer cancelSub()
+
+	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to open chat stream.",
@@ -2206,26 +2261,16 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
-	if !ok {
-		if err := sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeError,
-			Data: codersdk.Response{
-				Message: "Chat streaming is not available.",
-				Detail:  "Chat stream state is not configured.",
-			},
-		}); err != nil {
-			api.Logger.Debug(ctx, "failed to send chat stream unavailable event", slog.Error(err))
-		}
-		// Ensure the WebSocket is closed so senderClosed
-		// completes and the handler can return.
-		<-senderClosed
-		return
-	}
-	defer func() {
-		<-senderClosed
-	}()
+
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	// Mark the chat as read when the stream connects and again
 	// when it disconnects so we avoid per-message API calls while
@@ -2233,14 +2278,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	api.markChatAsRead(ctx, chatID)
 	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 
+	encoder := json.NewEncoder(wsNetConn)
+
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
 			return nil
 		}
-		return sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeData,
-			Data: batch,
-		})
+		return encoder.Encode(batch)
 	}
 
 	drainChatStreamBatch := func(
@@ -2273,7 +2317,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			end = len(snapshot)
 		}
 		if err := sendChatStreamBatch(snapshot[start:end]); err != nil {
-			api.Logger.Debug(ctx, "failed to send chat stream snapshot", slog.Error(err))
+			logger.Debug(ctx, "failed to send chat stream snapshot", slog.Error(err))
 			return
 		}
 	}
@@ -2281,8 +2325,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-senderClosed:
 			return
 		case firstEvent, ok := <-events:
 			if !ok {
@@ -2293,7 +2335,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				chatStreamBatchSize,
 			)
 			if err := sendChatStreamBatch(batch); err != nil {
-				api.Logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
+				logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
 				return
 			}
 			if streamClosed {
@@ -2308,6 +2350,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
 
 	if api.chatDaemon != nil {
 		chat = api.chatDaemon.InterruptChat(ctx, chat)
@@ -2321,8 +2364,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 			LastError:   sql.NullString{},
 		})
 		if updateErr != nil {
-			api.Logger.Error(ctx, "failed to mark chat as waiting",
-				slog.F("chat_id", chatID), slog.Error(updateErr))
+			logger.Error(ctx, "failed to mark chat as waiting", slog.Error(updateErr))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to interrupt chat.",
 				Detail:  updateErr.Error(),
@@ -2917,6 +2959,12 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	selection.WorkspaceID = uuid.NullUUID{
 		UUID:  workspace.ID,
 		Valid: true,
+	}
+
+	if workspace.OrganizationID != req.OrganizationID {
+		return selection, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace does not belong to the specified organization.",
+		}
 	}
 
 	if !api.Authorize(r, policy.ActionSSH, workspace) {
@@ -5632,7 +5680,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		previousSummary database.GetPRInsightsSummaryRow
 		timeSeries      []database.GetPRInsightsTimeSeriesRow
 		byModel         []database.GetPRInsightsPerModelRow
-		recentPRs       []database.GetPRInsightsRecentPRsRow
+		recentPRs       []database.GetPRInsightsPullRequestsRow
 	)
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -5680,11 +5728,10 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 
 	eg.Go(func() error {
 		var err error
-		recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
+		recentPRs, err = api.Database.GetPRInsightsPullRequests(egCtx, database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   ownerID,
-			LimitVal:  20,
 		})
 		return err
 	})
@@ -5794,10 +5841,10 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PRInsightsResponse{
-		Summary:    summary,
-		TimeSeries: tsEntries,
-		ByModel:    modelEntries,
-		RecentPRs:  prEntries,
+		Summary:      summary,
+		TimeSeries:   tsEntries,
+		ByModel:      modelEntries,
+		PullRequests: prEntries,
 	})
 }
 
@@ -5808,6 +5855,15 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
+
+	// Gate tool-result submission behind agents-access.
+	// Submitting tool results resumes AI/LLM inference on
+	// a chat in requires_action state.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	// Cap the raw request body to prevent excessive memory use.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))

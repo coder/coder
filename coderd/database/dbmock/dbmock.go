@@ -1244,11 +1244,12 @@ func (mr *MockStoreMockRecorder) DeleteUserChatProviderKey(ctx, arg any) *gomock
 }
 
 // DeleteUserSecretByUserIDAndName mocks base method.
-func (m *MockStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) error {
+func (m *MockStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteUserSecretByUserIDAndName", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteUserSecretByUserIDAndName indicates an expected call of DeleteUserSecretByUserIDAndName.
@@ -3691,19 +3692,19 @@ func (mr *MockStoreMockRecorder) GetPRInsightsPerModel(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsPerModel", reflect.TypeOf((*MockStore)(nil).GetPRInsightsPerModel), ctx, arg)
 }
 
-// GetPRInsightsRecentPRs mocks base method.
-func (m *MockStore) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+// GetPRInsightsPullRequests mocks base method.
+func (m *MockStore) GetPRInsightsPullRequests(ctx context.Context, arg database.GetPRInsightsPullRequestsParams) ([]database.GetPRInsightsPullRequestsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPRInsightsRecentPRs", ctx, arg)
-	ret0, _ := ret[0].([]database.GetPRInsightsRecentPRsRow)
+	ret := m.ctrl.Call(m, "GetPRInsightsPullRequests", ctx, arg)
+	ret0, _ := ret[0].([]database.GetPRInsightsPullRequestsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetPRInsightsRecentPRs indicates an expected call of GetPRInsightsRecentPRs.
-func (mr *MockStoreMockRecorder) GetPRInsightsRecentPRs(ctx, arg any) *gomock.Call {
+// GetPRInsightsPullRequests indicates an expected call of GetPRInsightsPullRequests.
+func (mr *MockStoreMockRecorder) GetPRInsightsPullRequests(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsRecentPRs", reflect.TypeOf((*MockStore)(nil).GetPRInsightsRecentPRs), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsPullRequests", reflect.TypeOf((*MockStore)(nil).GetPRInsightsPullRequests), ctx, arg)
 }
 
 // GetPRInsightsSummary mocks base method.
@@ -9117,6 +9118,20 @@ func (m *MockStore) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentConnectionByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentConnectionByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentConnectionByID), ctx, arg)
+}
+
+// UpdateWorkspaceAgentDirectoryByID mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg database.UpdateWorkspaceAgentDirectoryByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentDirectoryByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentDirectoryByID indicates an expected call of UpdateWorkspaceAgentDirectoryByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentDirectoryByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentDirectoryByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentDirectoryByID), ctx, arg)
 }
 
 // UpdateWorkspaceAgentDisplayAppsByID mocks base method.

@@ -121,6 +121,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const baseChatFields = {
+	organization_id: "test-org-id",
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
@@ -197,14 +198,6 @@ const buildQueries = (
 		{ key: mcpServerConfigsKey, data: [] },
 	];
 };
-
-/**
- * Wrap a chat stream event payload in the JSON string format that
- * OneWayWebSocket expects when receiving a WebSocket message event.
- * The result is a `ServerSentEvent` of type `"data"` serialised to JSON.
- */
-const wrapSSE = (payload: unknown): string =>
-	JSON.stringify({ type: "data", data: payload });
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -856,17 +849,20 @@ export const StreamedSubagentTitle: Story = {
 			"/chats/": [
 				{
 					event: "message",
-					data: wrapSSE({
-						type: "message_part",
-						message_part: {
-							part: {
-								type: "tool-call",
-								tool_call_id: "tool-subagent-stream-1",
-								tool_name: "spawn_agent",
-								args_delta: '{"title":"Streamed Child"',
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "tool-subagent-stream-1",
+									tool_name: "spawn_agent",
+									args_delta: '{"title":"Streamed Child"',
+								},
 							},
 						},
-					}),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},
@@ -1150,15 +1146,18 @@ export const StreamedReasoning: Story = {
 			"/chats/": [
 				{
 					event: "message",
-					data: wrapSSE({
-						type: "message_part",
-						message_part: {
-							part: {
-								type: "reasoning",
-								text: "Streaming reasoning body",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming reasoning body",
+								},
 							},
 						},
-					}),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},
@@ -1230,18 +1229,20 @@ export const WithWaitAgentComputerUseVNC: Story = {
 			"/chats/": [
 				{
 					event: "message",
-					data: wrapSSE({
-						type: "message_part",
-						chat_id: CHAT_ID,
-						message_part: {
-							part: {
-								type: "tool-call",
-								tool_call_id: "tool-wait-desktop",
-								tool_name: "wait_agent",
-								args_delta: '{"chat_id":"desktop-child-1"}',
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "tool-wait-desktop",
+									tool_name: "wait_agent",
+									args_delta: '{"chat_id":"desktop-child-1"}',
+								},
 							},
 						},
-					}),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},

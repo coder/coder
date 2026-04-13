@@ -919,6 +919,8 @@
           ]
         }
       ],
+      "credential_hint": "string",
+      "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
@@ -1054,6 +1056,8 @@
       ]
     }
   ],
+  "credential_hint": "string",
+  "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
@@ -1078,6 +1082,8 @@
 | Name              | Type                                                                                   | Required | Restrictions | Description |
 |-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
+| `credential_hint` | string                                                                                 | false    |              |             |
+| `credential_kind` | string                                                                                 | false    |              |             |
 | `ended_at`        | string                                                                                 | false    |              |             |
 | `id`              | string                                                                                 | false    |              |             |
 | `model`           | string                                                                                 | false    |              |             |
@@ -2744,6 +2750,28 @@ This is required on creation to enable a user-flow of validating a template work
 | `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
+
+## codersdk.CreateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `value`       | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceBuildReason
 
@@ -7158,6 +7186,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -7824,6 +7853,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
+    "workspace_build_transition": "start",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string"
   },
@@ -7933,6 +7963,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_version_name": "string",
+  "workspace_build_transition": "start",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string"
 }
@@ -7940,15 +7971,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                    | Type   | Required | Restrictions | Description |
-|-------------------------|--------|----------|--------------|-------------|
-| `template_display_name` | string | false    |              |             |
-| `template_icon`         | string | false    |              |             |
-| `template_id`           | string | false    |              |             |
-| `template_name`         | string | false    |              |             |
-| `template_version_name` | string | false    |              |             |
-| `workspace_id`          | string | false    |              |             |
-| `workspace_name`        | string | false    |              |             |
+| Name                         | Type                                                         | Required | Restrictions | Description |
+|------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `template_display_name`      | string                                                       | false    |              |             |
+| `template_icon`              | string                                                       | false    |              |             |
+| `template_id`                | string                                                       | false    |              |             |
+| `template_name`              | string                                                       | false    |              |             |
+| `template_version_name`      | string                                                       | false    |              |             |
+| `workspace_build_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition) | false    |              |             |
+| `workspace_id`               | string                                                       | false    |              |             |
+| `workspace_name`             | string                                                       | false    |              |             |
 
 ## codersdk.ProvisionerJobStatus
 
@@ -8504,6 +8536,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -10051,6 +10084,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -10647,6 +10681,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
 
+## codersdk.UpdateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `value`       | string | false    |              |             |
+
 ## codersdk.UpdateWorkspaceACL
 
 ```json
@@ -11205,6 +11259,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
+## codersdk.UserSecret
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
+
 ## codersdk.UserStatus
 
 ```json
@@ -11395,6 +11475,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -12553,6 +12634,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -13385,6 +13467,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
+            "workspace_build_transition": "start",
             "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
             "workspace_name": "string"
           },

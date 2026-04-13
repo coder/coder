@@ -1646,6 +1646,7 @@ func TestChatsTelemetry(t *testing.T) {
 	})
 
 	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "Root Chat",
@@ -1657,6 +1658,7 @@ func TestChatsTelemetry(t *testing.T) {
 
 	// Create a child chat (has parent + root).
 	childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg2.ID,
 		Title:             "Child Chat",

@@ -437,17 +437,22 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			return auditorRole
 		},
 
+		// templateAdmin grants all actions on templates, files,
+		// provisioner daemons, and prebuilt workspaces.
 		templateAdmin: func(_ uuid.UUID) Role {
 			return templateAdminRole
 		},
 
+		// userAdmin grants all actions on users, groups, roles,
+		// and organization membership.
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
 		},
 
 		// agentsAccess grants all actions on chat resources owned
-		// by the user. Without this role, members cannot create
-		// or interact with chats.
+		// by the user. Without this role, members can still read,
+		// update, and delete their own chats via org membership,
+		// but cannot create chats or trigger AI inference.
 		agentsAccess: func(_ uuid.UUID) Role {
 			return agentsAccessRole
 		},

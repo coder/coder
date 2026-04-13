@@ -51,7 +51,6 @@ import {
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-// Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
 // fields, ignoring refreshed_at/stale_at which change on every poll.
 function diffStatusEqual(
@@ -72,19 +71,6 @@ function diffStatusEqual(
 		a.pr_number === b.pr_number &&
 		a.approved === b.approved &&
 		a.commits === b.commits
-	);
-}
-
-function isChatListSSEEvent(
-	data: unknown,
-): data is { kind: string; chat: TypesGen.Chat } {
-	if (typeof data !== "object" || data === null) return false;
-	const obj = data as Record<string, unknown>;
-	return (
-		typeof obj.kind === "string" &&
-		typeof obj.chat === "object" &&
-		obj.chat !== null &&
-		"id" in obj.chat
 	);
 }
 
@@ -495,14 +481,7 @@ const AgentsPage: FC = () => {
 						console.warn("Failed to parse chat watch event:", event.parseError);
 						return;
 					}
-					const sse = event.parsedMessage;
-					if (sse?.type !== "data" || !sse.data) {
-						return;
-					}
-					if (!isChatListSSEEvent(sse.data)) {
-						return;
-					}
-					const chatEvent = sse.data;
+					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// Read the previous status from the infinite chat list
 					// cache before we write the update below. The per-chat
@@ -596,6 +575,7 @@ const AgentsPage: FC = () => {
 									: c.diff_status;
 								const nextWorkspaceId =
 									updatedChat.workspace_id ?? c.workspace_id;
+								const nextBuildId = updatedChat.build_id ?? c.build_id;
 								const nextUpdatedAt =
 									c.updated_at > updatedChat.updated_at
 										? c.updated_at
@@ -614,6 +594,7 @@ const AgentsPage: FC = () => {
 									nextTitle === c.title &&
 									diffStatusEqual(nextDiffStatus, c.diff_status) &&
 									nextWorkspaceId === c.workspace_id &&
+									nextBuildId === c.build_id &&
 									nextHasUnread === c.has_unread
 								) {
 									return c;
@@ -625,6 +606,7 @@ const AgentsPage: FC = () => {
 									title: nextTitle,
 									diff_status: nextDiffStatus,
 									workspace_id: nextWorkspaceId,
+									build_id: nextBuildId,
 									updated_at: nextUpdatedAt,
 									has_unread: nextHasUnread,
 								};
@@ -655,6 +637,7 @@ const AgentsPage: FC = () => {
 								: previousChat.diff_status;
 							const nextWorkspaceId =
 								updatedChat.workspace_id ?? previousChat.workspace_id;
+							const nextBuildId = updatedChat.build_id ?? previousChat.build_id;
 							const nextUpdatedAt =
 								previousChat.updated_at > updatedChat.updated_at
 									? previousChat.updated_at
@@ -664,7 +647,8 @@ const AgentsPage: FC = () => {
 								nextStatus === previousChat.status &&
 								nextTitle === previousChat.title &&
 								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-								nextWorkspaceId === previousChat.workspace_id
+								nextWorkspaceId === previousChat.workspace_id &&
+								nextBuildId === previousChat.build_id
 							) {
 								return previousChat;
 							}
@@ -674,6 +658,7 @@ const AgentsPage: FC = () => {
 								title: nextTitle,
 								diff_status: nextDiffStatus,
 								workspace_id: nextWorkspaceId,
+								build_id: nextBuildId,
 								updated_at: nextUpdatedAt,
 							};
 						},

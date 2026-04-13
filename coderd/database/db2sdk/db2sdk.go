@@ -1240,6 +1240,8 @@ func buildAIBridgeThread(
 	if rootIntc != nil {
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
+		thread.CredentialKind = string(rootIntc.CredentialKind)
+		thread.CredentialHint = rootIntc.CredentialHint
 		// Get first user prompt from root interception.
 		// A thread can only have one prompt, by definition, since we currently
 		// only store the last prompt observed in an interception.
@@ -1548,6 +1550,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
+		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,

@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { screen, userEvent } from "storybook/test";
-import {
-	getProvisionerDaemonsKey,
-	organizationsKey,
-} from "#/api/queries/organizations";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { getProvisionerDaemonsKey } from "#/api/queries/organizations";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -61,39 +58,19 @@ export const StarterTemplateWithOrgPicker: Story = {
 	},
 };
 
-const canCreateTemplate = (organizationId: string) => {
-	return {
-		[organizationId]: {
-			object: {
-				resource_type: "template",
-				organization_id: organizationId,
-			},
-			action: "create",
-		},
-	};
-};
+// Query key used by permittedOrganizations() in the form.
+const permittedOrgsKey = [
+	"organizations",
+	"permitted",
+	{ object: { resource_type: "template" }, action: "create" },
+];
 
 export const StarterTemplateWithProvisionerWarning: Story = {
 	parameters: {
 		queries: [
 			{
-				key: organizationsKey,
+				key: permittedOrgsKey,
 				data: [MockDefaultOrganization, MockOrganization2],
-			},
-			{
-				key: [
-					"authorization",
-					{
-						checks: {
-							...canCreateTemplate(MockDefaultOrganization.id),
-							...canCreateTemplate(MockOrganization2.id),
-						},
-					},
-				],
-				data: {
-					[MockDefaultOrganization.id]: true,
-					[MockOrganization2.id]: true,
-				},
 			},
 			{
 				key: getProvisionerDaemonsKey(MockOrganization2.id),
@@ -117,27 +94,11 @@ export const StarterTemplatePermissionsCheck: Story = {
 	parameters: {
 		queries: [
 			{
-				key: organizationsKey,
-				data: [MockDefaultOrganization, MockOrganization2],
-			},
-			{
-				key: [
-					"authorization",
-					{
-						checks: {
-							...canCreateTemplate(MockDefaultOrganization.id),
-							...canCreateTemplate(MockOrganization2.id),
-						},
-					},
-				],
-				data: {
-					[MockDefaultOrganization.id]: true,
-					[MockOrganization2.id]: false,
-				},
-			},
-			{
-				key: getProvisionerDaemonsKey(MockOrganization2.id),
-				data: [],
+				// Only MockDefaultOrganization passes the permission
+				// check; MockOrganization2 is filtered out by the
+				// permittedOrganizations query.
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization],
 			},
 		],
 	},
@@ -146,7 +107,14 @@ export const StarterTemplatePermissionsCheck: Story = {
 		showOrganizationPicker: true,
 	},
 	play: async () => {
+		// When only one org passes the permission check, it should be
+		// auto-selected in the picker.
 		const organizationPicker = screen.getByTestId("organization-autocomplete");
+		await waitFor(() =>
+			expect(organizationPicker).toHaveTextContent(
+				MockDefaultOrganization.display_name,
+			),
+		);
 		await userEvent.click(organizationPicker);
 	},
 };
