@@ -848,7 +848,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
 				webpusher = &webpush.NoopWebpusher{
 					Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
-					Err: err,
 				}
 			}
 			options.WebPushDispatcher = webpusher
