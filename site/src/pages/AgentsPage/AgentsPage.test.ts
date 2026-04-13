@@ -307,12 +307,14 @@ describe("useFileAttachments persistence", () => {
 			fileName: string;
 			fileType: string;
 			lastModified: number;
+			organizationId: string;
 		}> = {},
 	) => ({
 		fileId: "file-1",
 		fileName: "photo.png",
 		fileType: "image/png",
 		lastModified: 1000,
+		organizationId: "org-1",
 		...overrides,
 	});
 
