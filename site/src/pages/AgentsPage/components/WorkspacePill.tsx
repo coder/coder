@@ -88,6 +88,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 					<DropdownMenuTrigger asChild>
 						<button
 							type="button"
+							aria-label={`${workspace.name} workspace menu`}
 							className={cn(
 								badgeCls,
 								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
@@ -168,25 +169,23 @@ const VSCodeMenuItem: FC<{
 }> = ({ variant, label, workspace, agent, chatId, folder }) => {
 	const { mutate: generateKey, isPending } = useMutation({
 		mutationFn: () => API.getApiKey(),
+		onSuccess: ({ key }) => {
+			location.href = getVSCodeHref(variant, {
+				owner: workspace.owner_name,
+				workspace: workspace.name,
+				token: key,
+				agent: agent.name,
+				folder: folder ?? agent.expanded_directory,
+				chatId,
+			});
+		},
+		onError: () => {
+			toast.error(`Failed to open ${label}.`);
+		},
 	});
 
 	const handleClick = () => {
-		if (isPending) return;
-		generateKey(undefined, {
-			onSuccess: ({ key }) => {
-				location.href = getVSCodeHref(variant, {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					token: key,
-					agent: agent.name,
-					folder: folder ?? agent.expanded_directory,
-					chatId,
-				});
-			},
-			onError: () => {
-				toast.error(`Failed to open ${label}.`);
-			},
-		});
+		generateKey();
 	};
 
 	return (
@@ -208,7 +207,7 @@ const AppMenuItem: FC<{
 		!isExternalApp(app) || !needsSessionToken(app) || link.hasToken;
 
 	return (
-		<DropdownMenuItem asChild>
+		<DropdownMenuItem asChild disabled={!canClick}>
 			<a
 				href={canClick ? link.href : undefined}
 				onClick={link.onClick}
