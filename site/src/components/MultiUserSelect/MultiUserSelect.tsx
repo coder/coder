@@ -13,18 +13,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { SearchField } from "#/components/SearchField/SearchField";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
-import {
-	TableLoaderSkeleton,
-	TableRowSkeleton,
-} from "#/components/TableLoader/TableLoader";
 import { useDebouncedFunction } from "#/hooks/debounce";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { cn } from "#/utils/cn";
 import { prepareQuery } from "#/utils/filters";
 
@@ -120,9 +109,9 @@ const InnerMultiSelect = <T extends SelectedUser>({
 	);
 
 	return (
-		<div className={cn("flex flex-col gap-2", className)}>
+		<div className={cn("flex flex-col gap-4", className)}>
 			<SearchField
-				className="w-full"
+				className="h-12 w-full rounded-lg"
 				value={inputValue}
 				aria-label="Search users"
 				onChange={(query) => {
@@ -136,17 +125,22 @@ const InnerMultiSelect = <T extends SelectedUser>({
 				}}
 				placeholder="Search users..."
 			/>
-			<div className="max-h-[360px] overflow-auto">
-				<Table>
-					<TableBody className="[&_td]:h-[72px]">
+			<div className="h-96 w-full rounded-lg border border-border border-solid">
+				<div className="h-full overflow-hidden p-px">
+					<div
+						className="h-full overflow-y-auto overflow-x-hidden overscroll-contain"
+						onWheel={(event) => {
+							event.stopPropagation();
+						}}
+					>
 						<UsersTable
 							error={error}
 							onChange={onChange}
 							selected={selected}
 							users={users}
 						/>
-					</TableBody>
-				</Table>
+					</div>
+				</div>
 			</div>
 		</div>
 	);
@@ -167,11 +161,9 @@ const UsersTable = <T extends SelectedUser>({
 }: UsersTable<T>) => {
 	if (error) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<ErrorAlert error={error} />
-				</TableCell>
-			</TableRow>
+			<div className="p-3">
+				<ErrorAlert error={error} />
+			</div>
 		);
 	}
 
@@ -181,66 +173,72 @@ const UsersTable = <T extends SelectedUser>({
 
 	if (users.length === 0) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message="No users found" isCompact />
-				</TableCell>
-			</TableRow>
+			<div className="p-3">
+				<EmptyState message="No users found" isCompact />
+			</div>
 		);
 	}
 
-	return users.map((user) => {
-		const checked = selected.some((u) => userMatches(u, user));
-		return (
-			<UserRow
-				key={user.username}
-				user={user}
-				checked={checked}
-				onChange={onChange}
-			>
-				<TableCell className="border-0">
-					<div className="flex items-center gap-5">
-						<Checkbox
-							data-testid={`checkbox-${user.username}`}
-							checked={checked}
-							onClick={(e) => {
-								e.stopPropagation();
-							}}
-							onCheckedChange={(checked) => {
-								onChange(user, Boolean(checked));
-							}}
-							aria-label={`Select user ${user.username}`}
-						/>
-						<AvatarData
-							title={user.username}
-							subtitle={user.email}
-							src={user.avatar_url}
-						/>
-					</div>
-				</TableCell>
-			</UserRow>
-		);
-	});
+	return (
+		<div className="flex flex-col">
+			{users.map((user, index) => {
+				const checked = selected.some((u) => userMatches(u, user));
+				return (
+					<UserRow
+						key={user.username}
+						user={user}
+						checked={checked}
+						isFirst={index === 0}
+						isLast={index === users.length - 1}
+						onChange={onChange}
+					>
+						<div className="flex items-center gap-3">
+							<Checkbox
+								data-testid={`checkbox-${user.username}`}
+								checked={checked}
+								onClick={(e) => {
+									e.stopPropagation();
+								}}
+								onCheckedChange={(checked) => {
+									onChange(user, Boolean(checked));
+								}}
+								aria-label={`Select user ${user.username}`}
+							/>
+							<AvatarData
+								title={user.username}
+								subtitle={user.email}
+								src={user.avatar_url}
+							/>
+						</div>
+					</UserRow>
+				);
+			})}
+		</div>
+	);
 };
 
 const TableLoader: FC = () => {
+	const skeletonRows = Array.from({ length: 6 }, (_, index) => index);
+
 	return (
-		<TableLoaderSkeleton>
-			<TableRowSkeleton>
-				<TableCell className="w-2/6">
-					<div className="flex items-center gap-5">
+		<div>
+			{skeletonRows.map((row) => (
+				<div className="flex min-h-[64px] items-center px-4 py-3" key={row}>
+					<div className="flex items-center gap-3">
 						<Checkbox disabled />
 						<AvatarDataSkeleton />
 					</div>
-				</TableCell>
-			</TableRowSkeleton>
-		</TableLoaderSkeleton>
+				</div>
+			))}
+		</div>
 	);
 };
 
 interface UserRowProps<T extends SelectedUser> {
 	checked: boolean;
 	children?: ReactNode;
+	isFirst: boolean;
+	isLast: boolean;
 	onChange: (user: T, checked: boolean) => void;
 	user: T;
 }
@@ -248,23 +246,40 @@ interface UserRowProps<T extends SelectedUser> {
 const UserRow = <T extends SelectedUser>({
 	checked,
 	children,
+	isFirst,
+	isLast,
 	onChange,
 	user,
 }: UserRowProps<T>) => {
-	const clickableProps = useClickableTableRow({
-		onClick: () => onChange(user, !checked),
-	});
 	return (
-		<TableRow
-			{...clickableProps}
+		<div
 			data-testid={`user-${user.username}`}
-			className={cn([
-				checked ? "bg-muted hover:bg-muted" : undefined,
-				clickableProps.className,
-			])}
+			tabIndex={-1}
+			className={cn(
+				"cursor-pointer",
+				"hover:[&>div]:ring-1 hover:[&>div]:ring-inset hover:[&>div]:ring-border-hover",
+				checked
+					? "[&>div]:bg-surface-secondary hover:[&>div]:bg-surface-secondary"
+					: undefined,
+			)}
+			onClick={() => onChange(user, !checked)}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onChange(user, !checked);
+				}
+			}}
 		>
-			{children}
-		</TableRow>
+			<div
+				className={cn(
+					"flex min-h-[64px] items-center px-4 py-3",
+					isFirst && "rounded-tl-md rounded-tr-md",
+					isLast && "rounded-bl-md rounded-br-md",
+				)}
+			>
+				{children}
+			</div>
+		</div>
 	);
 };
 
