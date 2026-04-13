@@ -49,9 +49,6 @@ jobs:
           # token is scoped to members: read only and used via a
           # separate Octokit client for the membership check.
           script: |
-            const { Octokit } = require("@octokit/rest")
-            const orgClient = new Octokit({ auth: process.env.APP_TOKEN })
-
             const params = {
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -70,17 +67,26 @@ jobs:
             // Use the org membership API as the source of truth.
             // See: https://github.com/actions/github-script/issues/643
             const author = context.payload.pull_request.user.login
-            try {
-              await orgClient.orgs.checkMembershipForUser({
-                org: context.repo.owner,
-                username: author,
-              })
+            const res = await fetch(
+              `https://api.github.com/orgs/${context.repo.owner}/members/${author}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${process.env.APP_TOKEN}`,
+                  Accept: "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                },
+              },
+            )
+            // 204 = member, 404 = not a member, 302 = requester
+            // is not an org member (should not happen with App token).
+            if (res.status === 204) {
               console.log('Author "%s" is an org member, skipping.', author)
               return
-            } catch (error) {
-              if (error.status !== 404 && error.status !== 302) {
-                throw error
-              }
+            }
+            if (res.status !== 404 && res.status !== 302) {
+              throw new Error(
+                `Unexpected status ${res.status} checking membership for ${author}`,
+              )
             }
 
             console.log('Adding "community" label for author "%s".', author)
