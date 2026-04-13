@@ -333,6 +333,14 @@ func (b *Builder) Build(
 	// RepeatableRead isolation ensures that we get a consistent view of the database while
 	// computing the new build.  This simplifies the logic so that we do not need to worry if
 	// later reads are consistent with earlier ones.
+	//
+	// TODO: On retry, the Builder's lazy-cached fields (b.template,
+	// b.templateVersion, b.lastBuild, etc.) retain stale data from the
+	// failed attempt because the getters short-circuit when the cache is
+	// non-nil. This means a retry may compute the new build using a
+	// snapshot that no longer matches the database. The caches should be
+	// reset at the top of each attempt so that buildTx re-reads
+	// everything from the new transaction snapshot.
 	var workspaceBuild *database.WorkspaceBuild
 	var provisionerJob *database.ProvisionerJob
 	var provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
