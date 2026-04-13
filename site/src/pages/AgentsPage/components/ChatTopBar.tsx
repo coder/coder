@@ -203,7 +203,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 											</DropdownMenuItem>
 											<DropdownMenuSeparator />
 										</>
-									)}{" "}
+									)}
 								</>
 							)}
 							{isArchived ? (

@@ -1,10 +1,4 @@
-import {
-	ArchiveIcon,
-	MonitorDotIcon,
-	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
-} from "lucide-react";
+import { ArchiveIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -20,10 +14,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
 
 import {
 	AgentChatInput,
@@ -44,6 +34,7 @@ import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
+import { getWorkspaceStatusDisplay } from "./components/WorkspaceStatusIndicator";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -265,48 +256,28 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Compute local diff stats from git watcher unified diffs.
 
+	// Prefer the git repository root over the agent's expanded directory
+	// for VS Code folder resolution (important for monorepos).
+	const preferredFolder = (() => {
+		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
+		return repoRoots[0] ?? workspaceAgent?.expanded_directory;
+	})();
+
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
 		: undefined;
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		let { type, text } = getDisplayWorkspaceStatus(
-			workspace.latest_build.status,
-			workspace.latest_build.job,
+		const { statusLabel, statusIcon } = getWorkspaceStatusDisplay(
+			workspace,
+			workspaceAgent,
 		);
-		const agentPreparing =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "created" ||
-				workspaceAgent?.lifecycle_state === "starting");
-		const agentStartupFailed =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "start_error" ||
-				workspaceAgent?.lifecycle_state === "start_timeout");
-		if (agentPreparing) {
-			type = "active";
-			text = "Preparing";
-		} else if (agentStartupFailed) {
-			type = "warning";
-			text = "Startup failed";
-		}
-		const effectiveType = workspace.health.healthy ? type : "warning";
-		const statusLabel = workspace.health.healthy
-			? `Workspace ${text.toLowerCase()}`
-			: `Workspace ${text.toLowerCase()} (unhealthy)`;
-		const iconCls = "size-3";
-		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
-			success: <MonitorIcon className={iconCls} />,
-			active: <MonitorDotIcon className={iconCls} />,
-			inactive: <MonitorPauseIcon className={iconCls} />,
-			error: <MonitorXIcon className={iconCls} />,
-			danger: <MonitorXIcon className={iconCls} />,
-			warning: <MonitorXIcon className={iconCls} />,
-		};
+
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
-			statusIcon: statusIconMap[effectiveType],
+			statusIcon,
 			statusLabel,
 		};
 	})();
@@ -441,6 +412,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								chatId={agentId}
 								sshCommand={sshCommand}
 								attachedWorkspace={attachedWorkspace}
+								folder={preferredFolder}
 							/>
 						</div>
 					</div>

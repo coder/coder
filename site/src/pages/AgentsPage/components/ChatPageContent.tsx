@@ -189,6 +189,7 @@ interface ChatPageInputProps {
 	chatId?: string;
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
@@ -231,6 +232,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chatId,
 	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -409,6 +411,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			chatId={chatId}
 			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
+			folder={folder}
 		/>
 	);
 

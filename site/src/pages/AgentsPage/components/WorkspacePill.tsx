@@ -3,10 +3,7 @@ import {
 	CopyIcon,
 	ExternalLinkIcon,
 	LayoutGridIcon,
-	MonitorDotIcon,
 	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -38,10 +35,7 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
-import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
+import { getWorkspaceStatusDisplay } from "./WorkspaceStatusIndicator";
 
 const menuItemCls =
 	"flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-xs text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50";
@@ -51,6 +45,7 @@ interface WorkspacePillProps {
 	agent: WorkspaceAgent;
 	chatId: string;
 	sshCommand?: string;
+	folder?: string;
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
@@ -58,28 +53,15 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	agent,
 	chatId,
 	sshCommand,
+	folder,
 }) => {
 	const [open, setOpen] = useState(false);
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
-	const { type, text } = getDisplayWorkspaceStatus(
-		workspace.latest_build.status,
-		workspace.latest_build.job,
+	const { statusLabel, statusIcon } = getWorkspaceStatusDisplay(
+		workspace,
+		agent,
 	);
-	const effectiveType = workspace.health.healthy ? type : "warning";
-	const statusLabel = workspace.health.healthy
-		? `Workspace ${text.toLowerCase()}`
-		: `Workspace ${text.toLowerCase()} (unhealthy)`;
-	const iconCls = "size-3";
-	const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
-		success: <MonitorIcon className={iconCls} />,
-		active: <MonitorDotIcon className={iconCls} />,
-		inactive: <MonitorPauseIcon className={iconCls} />,
-		error: <MonitorXIcon className={iconCls} />,
-		danger: <MonitorXIcon className={iconCls} />,
-		warning: <MonitorXIcon className={iconCls} />,
-	};
-	const statusIcon = statusIconMap[effectiveType];
 
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
@@ -87,13 +69,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const hasTerminal = builtinApps.has("web_terminal");
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
-
-	const hasApps =
-		hasVSCode || hasVSCodeInsiders || hasTerminal || userApps.length > 0;
-
-	if (!hasApps && !sshCommand) {
-		return null;
-	}
 
 	const badgeCls =
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary";
@@ -132,6 +107,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							workspace={workspace}
 							agent={agent}
 							chatId={chatId}
+							folder={folder}
 							onDone={() => setOpen(false)}
 						/>
 					)}
@@ -142,6 +118,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							workspace={workspace}
 							agent={agent}
 							chatId={chatId}
+							folder={folder}
 							onDone={() => setOpen(false)}
 						/>
 					)}
@@ -189,8 +166,9 @@ const VSCodeMenuItem: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
+	folder?: string;
 	onDone: () => void;
-}> = ({ variant, label, workspace, agent, chatId, onDone }) => {
+}> = ({ variant, label, workspace, agent, chatId, folder, onDone }) => {
 	const { mutate: generateKey, isPending } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
@@ -204,7 +182,7 @@ const VSCodeMenuItem: FC<{
 					workspace: workspace.name,
 					token: key,
 					agent: agent.name,
-					folder: agent.expanded_directory,
+					folder: folder ?? agent.expanded_directory,
 					chatId,
 				});
 				onDone();

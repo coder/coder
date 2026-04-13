@@ -154,6 +154,7 @@ interface AgentChatInputProps {
 	chatId?: string;
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -295,6 +296,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	chatId,
 	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
@@ -936,6 +938,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								agent={workspaceAgent}
 								chatId={chatId}
 								sshCommand={sshCommand}
+								folder={folder}
 							/>
 						)}
 						<div

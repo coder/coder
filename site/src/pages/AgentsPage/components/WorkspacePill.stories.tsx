@@ -167,9 +167,8 @@ export const WithExternalAppsOnly: Story = {
 	},
 };
 
-/** When the agent has no apps at all, the component returns null.
- *  The fallback plain link is handled by the ToolBadge in
- *  AgentChatInput, not by WorkspacePill. */
+/** When the agent has no apps at all, the pill still renders with
+ *  a "View Workspace" link in the popover. */
 export const NoApps: Story = {
 	args: {
 		...defaultProps,
