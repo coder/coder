@@ -803,61 +803,60 @@ const AgentChatPage: FC = () => {
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-		const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
-		const {
-			isPending: isUpdateChatWorkspacePending,
-			mutateAsync: updateChatWorkspaceAsync,
-		} = useMutation({
-			...updateChatWorkspaceBase,
-			onError: (error, variables, context) => {
-				updateChatWorkspaceBase.onError(error, variables, context);
-				toast.error(getErrorMessage(error, "Failed to update workspace."));
-			},
+	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
+	const {
+		isPending: isUpdateChatWorkspacePending,
+		mutateAsync: updateChatWorkspaceAsync,
+	} = useMutation({
+		...updateChatWorkspaceBase,
+		onError: (error, variables, context) => {
+			updateChatWorkspaceBase.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to update workspace."));
+		},
+	});
+
+	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
+	const {
+		isPending: isUpdateChatPlanModePending,
+		mutateAsync: updateChatPlanModeAsync,
+	} = useMutation({
+		...updateChatPlanModeBase,
+		onError: (error, variables, context) => {
+			updateChatPlanModeBase.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to update plan mode."));
+		},
+	});
+	const setCachedChatPlanMode = (
+		chatId: string,
+		planMode?: TypesGen.ChatPlanMode,
+	) => {
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+			),
+		);
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
+			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
+		);
+	};
+
+	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
+	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
+	const trackPendingChatSettingSync = (
+		syncPromise: Promise<unknown>,
+		syncRef: { current: Promise<unknown> | null },
+	) => {
+		let trackedSync: Promise<unknown>;
+		trackedSync = syncPromise.finally(() => {
+			if (syncRef.current === trackedSync) {
+				syncRef.current = null;
+			}
 		});
-
-		const updateChatPlanModeBase = updateChatPlanMode(queryClient);
-		const {
-			isPending: isUpdateChatPlanModePending,
-			mutateAsync: updateChatPlanModeAsync,
-		} = useMutation({
-			...updateChatPlanModeBase,
-			onError: (error, variables, context) => {
-				updateChatPlanModeBase.onError(error, variables, context);
-				toast.error(getErrorMessage(error, "Failed to update plan mode."));
-			},
-		});
-		const setCachedChatPlanMode = (
-			chatId: string,
-			planMode?: TypesGen.ChatPlanMode,
-		) => {
-			updateInfiniteChatsCache(queryClient, (chats) =>
-				chats.map((chat) =>
-					chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
-				),
-			);
-			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
-				previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
-			);
-		};
-
-		const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
-		const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
-		const trackPendingChatSettingSync = (
-			syncPromise: Promise<unknown>,
-			syncRef: { current: Promise<unknown> | null },
-		) => {
-			let trackedSync: Promise<unknown>;
-			trackedSync = syncPromise.finally(() => {
-				if (syncRef.current === trackedSync) {
-					syncRef.current = null;
-				}
-			});
-			syncRef.current = trackedSync;
-			void trackedSync.catch(() => undefined);
-		};
-		const forkMutation = useMutation(forkChat(queryClient));
-		const navigate = useNavigate();
-
+		syncRef.current = trackedSync;
+		void trackedSync.catch(() => undefined);
+	};
+	const { mutateAsync: forkChatAsync } = useMutation(forkChat(queryClient));
+	const navigate = useNavigate();
 
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
@@ -1350,36 +1349,35 @@ const AgentChatPage: FC = () => {
 		onRegenerateTitle(agentId);
 	};
 
-		const handleSendAskUserQuestionResponse = async (message: string) => {
-			await submitChatTurn({
-				message,
-				useComposerContent: false,
-			});
-		};
+	const handleSendAskUserQuestionResponse = async (message: string) => {
+		await submitChatTurn({
+			message,
+			useComposerContent: false,
+		});
+	};
 
-		const handleImplementPlan = async () => {
-			await submitChatTurn({
-				message: "Implement the plan.",
-				planModeSwitch: "clear",
-				useComposerContent: false,
-			});
-		};
-		const handleForkFromMessage = useCallback(
-			async (messageId: number) => {
-				if (!agentId) return;
-				try {
-					const newChat = await forkMutation.mutateAsync({
-						chatId: agentId,
-						req: { message_id: messageId },
-					});
-					navigate(`/agents/${newChat.id}`);
-				} catch {
-					// Error is handled by React Query.
-				}
-			},
-			[agentId, forkMutation, navigate],
-		);
-
+	const handleImplementPlan = async () => {
+		await submitChatTurn({
+			message: "Implement the plan.",
+			planModeSwitch: "clear",
+			useComposerContent: false,
+		});
+	};
+	const handleForkFromMessage = useCallback(
+		async (messageId: number) => {
+			if (!agentId) return;
+			try {
+				const newChat = await forkChatAsync({
+					chatId: agentId,
+					req: { message_id: messageId },
+				});
+				navigate(`/agents/${newChat.id}`);
+			} catch {
+				toast.error("Failed to fork chat.");
+			}
+		},
+		[agentId, forkChatAsync, navigate],
+	);
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (

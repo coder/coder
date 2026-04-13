@@ -2529,6 +2529,30 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate that the message belongs to the source chat.
+	msg, err := api.Database.GetChatMessageByID(ctx, req.MessageID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid message ID.",
+				Detail:  "The specified message does not exist.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate message.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if msg.ChatID != chat.ID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid message ID.",
+			Detail:  "The specified message does not belong to this chat.",
+		})
+		return
+	}
+
 	// Derive a title from the first user message that will be copied.
 	msgs, err := api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
 		ChatID:   chat.ID,
@@ -2544,6 +2568,9 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 
 	title := "New Chat"
 	for _, m := range msgs {
+		if m.ID > req.MessageID {
+			break
+		}
 		if m.Role == database.ChatMessageRoleUser && m.Content.Valid {
 			// Try to extract text from content parts.
 			var parts []codersdk.ChatMessagePart
@@ -2567,11 +2594,10 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 		UpToMessageID: req.MessageID,
 	})
 	if err != nil {
-		// Check if the error is because no messages matched.
-		if database.IsQueryCanceledError(err) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to fork chat.",
-				Detail:  err.Error(),
+				Detail:  "The source chat or message could not be found.",
 			})
 			return
 		}
@@ -2582,8 +2608,7 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-read the chat as a full database.Chat for conversion and
-	// title regeneration.
+	// Re-read the chat as a full database.Chat for conversion.
 	fullChat, err := api.Database.GetChatByID(ctx, newChat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2591,16 +2616,6 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
-	}
-
-	// Trigger async title regeneration if chatDaemon is available.
-	if api.chatDaemon != nil {
-		// Best-effort title regeneration - don't fail the fork if
-		// this errors.
-		updated, titleErr := api.chatDaemon.RegenerateChatTitle(ctx, fullChat)
-		if titleErr == nil {
-			fullChat = updated
-		}
 	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, fullChat.ID)
