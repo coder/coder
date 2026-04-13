@@ -187,6 +187,7 @@ interface ChatPageInputProps {
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
@@ -228,6 +229,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	workspace,
 	workspaceAgent,
 	chatId,
+	sshCommand,
 	attachedWorkspace,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -405,6 +407,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}
+			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 		/>
 	);

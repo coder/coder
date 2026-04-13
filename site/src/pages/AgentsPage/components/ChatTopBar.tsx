@@ -3,9 +3,7 @@ import {
 	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
-	CopyIcon,
 	EllipsisIcon,
-	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -14,7 +12,6 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -36,17 +33,10 @@ interface SidebarPanelState {
 	onToggleSidebar: () => void;
 }
 
-interface WorkspaceActions {
-	canOpenWorkspace: boolean;
-	onViewWorkspace: () => void;
-	sshCommand: string | undefined;
-}
-
 type ChatTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
-	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
@@ -64,7 +54,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chatTitle,
 	parentChat,
 	panel,
-	workspace,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -201,30 +190,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							align="end"
 							className="[&_[role=menuitem]]:text-[13px]"
 						>
-							<DropdownMenuItem
-								disabled={!workspace.sshCommand}
-								onSelect={async () => {
-									if (!workspace.sshCommand) return;
-									try {
-										await navigator.clipboard.writeText(workspace.sshCommand);
-										toast.success("SSH command copied to clipboard");
-									} catch {
-										toast.error("Failed to copy SSH command");
-									}
-								}}
-							>
-								<CopyIcon className="h-3.5 w-3.5" />
-								Copy SSH Command
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-
-							<DropdownMenuItem
-								disabled={!workspace.canOpenWorkspace}
-								onSelect={workspace.onViewWorkspace}
-							>
-								<MonitorIcon className="h-3.5 w-3.5" />
-								View Workspace
-							</DropdownMenuItem>
 							{!isArchived && (
 								<>
 									<DropdownMenuSeparator />

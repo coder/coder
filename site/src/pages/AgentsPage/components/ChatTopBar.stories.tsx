@@ -8,11 +8,6 @@ const defaultProps = {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
 	},
-	workspace: {
-		canOpenWorkspace: true,
-		onViewWorkspace: fn(),
-		sshCommand: "ssh main.my-workspace.admin.coder",
-	},
 	onArchiveAgent: fn(),
 	onArchiveAndDeleteWorkspace: fn(),
 	onRegenerateTitle: fn(),

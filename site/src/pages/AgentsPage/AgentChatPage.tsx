@@ -1063,21 +1063,10 @@ const AgentChatPage: FC = () => {
 	);
 
 	const parentChat = parentChatQuery.data;
-	const workspaceRoute = workspace
-		? `/@${workspace.owner_name}/${workspace.name}`
-		: null;
-	const canOpenWorkspace = Boolean(workspaceRoute);
 	const sshCommand =
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-
-	const handleViewWorkspace = () => {
-		if (!workspaceRoute) {
-			return;
-		}
-		window.open(workspaceRoute, "_blank");
-	};
 
 	const handleArchiveAgentAction = () => {
 		if (!agentId || isArchived) {
@@ -1203,8 +1192,6 @@ const AgentChatPage: FC = () => {
 			diffStatusData={chatQuery.data?.diff_status}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
-			canOpenWorkspace={canOpenWorkspace}
-			handleViewWorkspace={handleViewWorkspace}
 			handleCommit={handleCommit}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}

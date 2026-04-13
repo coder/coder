@@ -137,9 +137,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 			typeof AgentChatPageView
 		>["diffStatusData"],
 		gitWatcher: buildGitWatcher(),
-		canOpenWorkspace: false,
 		sshCommand: undefined as string | undefined,
-		handleViewWorkspace: fn(),
 		handleCommit: fn(),
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
@@ -366,9 +364,7 @@ export const NoModelOptions: Story = {
 
 /** Top bar has workspace action buttons visible. */
 export const WithWorkspaceActions: Story = {
-	render: () => (
-		<StoryAgentChatPageView canOpenWorkspace sshCommand="ssh coder.workspace" />
-	),
+	render: () => <StoryAgentChatPageView sshCommand="ssh coder.workspace" />,
 };
 
 // ---------------------------------------------------------------------------

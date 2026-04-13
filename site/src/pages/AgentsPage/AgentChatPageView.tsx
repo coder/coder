@@ -132,9 +132,7 @@ interface AgentChatPageViewProps {
 	};
 
 	// Workspace action handlers.
-	canOpenWorkspace: boolean;
 	sshCommand: string | undefined;
-	handleViewWorkspace: () => void;
 	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
@@ -203,9 +201,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	prNumber,
 	diffStatusData,
 	gitWatcher,
-	canOpenWorkspace,
 	sshCommand,
-	handleViewWorkspace,
 	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -351,11 +347,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									showSidebarPanel,
 									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
 								}}
-								workspace={{
-									canOpenWorkspace,
-									onViewWorkspace: handleViewWorkspace,
-									sshCommand,
-								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
 								onArchiveAndDeleteWorkspace={
@@ -448,6 +439,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								workspace={workspace}
 								workspaceAgent={workspaceAgent}
 								chatId={agentId}
+								sshCommand={sshCommand}
 								attachedWorkspace={attachedWorkspace}
 							/>
 						</div>
@@ -562,11 +554,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
-					workspace={{
-						canOpenWorkspace: false,
-						onViewWorkspace: () => {},
-						sshCommand: undefined,
-					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
 					onRegenerateTitle={() => {}}
@@ -636,11 +623,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				panel={{
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
-				}}
-				workspace={{
-					canOpenWorkspace: false,
-					onViewWorkspace: () => {},
-					sshCommand: undefined,
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}

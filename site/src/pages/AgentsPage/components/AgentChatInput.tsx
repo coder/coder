@@ -152,6 +152,7 @@ interface AgentChatInputProps {
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
@@ -292,6 +293,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	workspace,
 	workspaceAgent,
 	chatId,
+	sshCommand,
 	attachedWorkspace,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -937,8 +939,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									workspace={workspace}
 									agent={workspaceAgent}
 									chatId={chatId}
+									sshCommand={sshCommand}
 								/>
-							)}
+							)}{" "}
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (

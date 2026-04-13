@@ -1,5 +1,6 @@
 import {
 	ChevronDownIcon,
+	CopyIcon,
 	ExternalLinkIcon,
 	LayoutGridIcon,
 	MonitorDotIcon,
@@ -50,14 +51,14 @@ interface WorkspacePillProps {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
-	className?: string;
+	sshCommand?: string;
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
 	workspace,
 	agent,
 	chatId,
-	className,
+	sshCommand,
 }) => {
 	const [open, setOpen] = useState(false);
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
@@ -81,11 +82,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	};
 	const statusIcon = statusIconMap[effectiveType];
 
-	const badgeCls = cn(
-		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
-		className,
-	);
-
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
 	const hasVSCodeInsiders = builtinApps.has("vscode_insiders");
@@ -99,27 +95,12 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const hasApps =
 		hasVSCode || hasVSCodeInsiders || hasTerminal || externalApps.length > 0;
 
-	if (!hasApps) {
-		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Link
-						to={route}
-						target="_blank"
-						rel="noreferrer"
-						className={cn(
-							badgeCls,
-							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-						)}
-					>
-						{statusIcon}
-						{workspace.name}
-					</Link>
-				</TooltipTrigger>
-				<TooltipContent>{statusLabel}</TooltipContent>
-			</Tooltip>
-		);
+	if (!hasApps && !sshCommand) {
+		return null;
 	}
+
+	const badgeCls =
+		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary";
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -180,6 +161,12 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						<TerminalMenuItem
 							workspace={workspace}
 							agent={agent}
+							onDone={() => setOpen(false)}
+						/>
+					)}
+					{sshCommand && (
+						<CopySSHMenuItem
+							sshCommand={sshCommand}
 							onDone={() => setOpen(false)}
 						/>
 					)}
@@ -287,6 +274,32 @@ const TerminalMenuItem: FC<{
 		>
 			<SquareTerminalIcon className="size-3.5" />
 			Open Terminal
+		</button>
+	);
+};
+
+const CopySSHMenuItem: FC<{
+	sshCommand: string;
+	onDone: () => void;
+}> = ({ sshCommand, onDone }) => {
+	const handleCopySSH = async () => {
+		try {
+			await navigator.clipboard.writeText(sshCommand);
+			toast.success("SSH command copied to clipboard");
+		} catch {
+			toast.error("Failed to copy SSH command");
+		}
+		onDone();
+	};
+
+	return (
+		<button
+			type="button"
+			className={menuItemCls}
+			onClick={() => void handleCopySSH()}
+		>
+			<CopyIcon className="size-3.5" />
+			Copy SSH Command
 		</button>
 	);
 };
