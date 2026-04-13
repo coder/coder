@@ -3,10 +3,14 @@
 package terraform
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,36 +81,6 @@ func TestExtractProviderName(t *testing.T) {
 	}
 }
 
-func TestSamplerCollectsProcessStats(t *testing.T) {
-	t.Parallel()
-
-	// Start a long-lived process. The sampler identifies children
-	// by PPID, so we don't need Setpgid here — just need the PID.
-	cmd := exec.Command("sleep", "60")
-	require.NoError(t, cmd.Start())
-
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-	})
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	sampler := newProcSampler(cmd.Process.Pid, 50*time.Millisecond)
-	sampler.Start(ctx)
-
-	// Let the sampler collect a few ticks of data.
-	time.Sleep(200 * time.Millisecond)
-
-	summary := sampler.Stop()
-
-	require.NotEmpty(t, summary.Providers, "expected at least one process entry")
-
-	usage, ok := summary.Providers["sleep"]
-	require.True(t, ok, "expected entry for 'sleep', got: %v", summary.Providers)
-	assert.Greater(t, usage.PeakRSSBytes, uint64(0), "sleep should have non-zero RSS")
-}
-
 func TestSamplerHandlesVanishedProcesses(t *testing.T) {
 	t.Parallel()
 
@@ -132,35 +106,131 @@ func TestSamplerHandlesVanishedProcesses(t *testing.T) {
 	assert.NotNil(t, summary.Providers, "providers map should never be nil")
 }
 
-func TestSamplerSummary(t *testing.T) {
+// TestSamplerWithFakeProcfs exercises the sampler's filtering and
+// aggregation logic against a synthetic /proc tree. No real
+// processes are involved, making this fully deterministic.
+func TestSamplerWithFakeProcfs(t *testing.T) {
 	t.Parallel()
 
-	// Start a CPU-intensive process so we can verify that both
-	// peak RSS and CPU time are captured.
-	cmd := exec.Command("yes")
-	// Discard stdout to avoid filling pipe buffers.
-	cmd.Stdout = nil
-	require.NoError(t, cmd.Start())
+	root := t.TempDir()
 
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+	const (
+		terraformPID = 41
+		providerPID  = 42
+		unrelatedPID = 99
+	)
+
+	// Terraform process — PID matches sampler target, so it is
+	// collected regardless of PPID.
+	writeFakeProcEntry(t, root, terraformPID, fakeProcEntry{
+		stat: fmt.Sprintf(
+			"%d (terraform) S 1 %d 1 0 -1 4194304 100 0 0 0 "+
+				"250 100 0 0 20 0 1 0 12345 67890 500 "+
+				"18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 "+
+				"17 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+			terraformPID, terraformPID),
+		status: "Name:\tterraform\n" +
+			"VmPeak:\t150 kB\n" +
+			"VmSize:\t120 kB\n" +
+			"VmHWM:\t100 kB\n" +
+			"VmRSS:\t80 kB\n",
 	})
 
-	ctx := testutil.Context(t, testutil.WaitShort)
+	// Provider child — PPID matches terraform, and the comm is
+	// truncated to the kernel's 15-char limit. The cmdline file
+	// carries the full binary name for fallback resolution.
+	writeFakeProcEntry(t, root, providerPID, fakeProcEntry{
+		stat: fmt.Sprintf(
+			"%d (terraform-provi) S %d %d 1 0 -1 4194304 100 0 0 0 "+
+				"150 50 0 0 20 0 1 0 12345 67890 500 "+
+				"18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 "+
+				"17 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+			providerPID, terraformPID, providerPID),
+		status: "Name:\tterraform-provi\n" +
+			"VmPeak:\t300 kB\n" +
+			"VmSize:\t250 kB\n" +
+			"VmHWM:\t200 kB\n" +
+			"VmRSS:\t180 kB\n",
+		cmdline: "terraform-provider-aws_v5.0.0_x5\x00",
+	})
 
-	sampler := newProcSampler(cmd.Process.Pid, 50*time.Millisecond)
-	sampler.Start(ctx)
+	// Unrelated process — different PPID, must be filtered out.
+	writeFakeProcEntry(t, root, unrelatedPID, fakeProcEntry{
+		stat: fmt.Sprintf(
+			"%d (nginx) S 1 %d 1 0 -1 4194304 100 0 0 0 "+
+				"50 10 0 0 20 0 1 0 12345 67890 500 "+
+				"18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 "+
+				"17 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+			unrelatedPID, unrelatedPID),
+		status: "Name:\tnginx\n" +
+			"VmPeak:\t500 kB\n" +
+			"VmSize:\t400 kB\n" +
+			"VmHWM:\t300 kB\n" +
+			"VmRSS:\t250 kB\n",
+	})
 
-	// Give the process a moment to accumulate CPU time.
-	time.Sleep(300 * time.Millisecond)
+	fs, err := procfs.NewFS(root)
+	require.NoError(t, err)
 
-	summary := sampler.Stop()
+	s := newProcSampler(terraformPID, time.Second)
+	s.fs = fs
+	s.sample()
 
-	require.NotEmpty(t, summary.Providers)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	usage, ok := summary.Providers["yes"]
-	require.True(t, ok, "expected entry for 'yes', got: %v", summary.Providers)
-	assert.Greater(t, usage.PeakRSSBytes, uint64(0), "peak RSS should be non-zero")
-	assert.Greater(t, usage.CPUTimeSeconds, float64(0), "CPU time should be non-zero for a busy process")
+	// Only the terraform process and its provider child should
+	// be collected; the unrelated process must be filtered out.
+	assert.Len(t, s.current, 2)
+	assert.NotContains(t, s.current, "nginx")
+
+	// --- terraform binary itself ---
+	tf, ok := s.current["terraform"]
+	require.True(t, ok, "expected 'terraform' entry, got: %v",
+		s.current)
+
+	// UTime=250 + STime=100 at userHZ=100 → 3.5 seconds.
+	assert.InDelta(t, 3.5, tf.CPUTimeSeconds, 0.01)
+
+	// VmHWM: 100 kB. procfs converts to bytes (100 * 1024 = 102400).
+	assert.Equal(t, uint64(100*1024), tf.PeakRSSBytes)
+
+	// --- provider child (comm truncated, resolved via cmdline) ---
+	aws, ok := s.current["aws"]
+	require.True(t, ok, "expected 'aws' entry, got: %v",
+		s.current)
+
+	// UTime=150 + STime=50 at userHZ=100 → 2.0 seconds.
+	assert.InDelta(t, 2.0, aws.CPUTimeSeconds, 0.01)
+
+	// VmHWM: 200 kB → 200 * 1024 = 204800 bytes.
+	assert.Equal(t, uint64(200*1024), aws.PeakRSSBytes)
+}
+
+// fakeProcEntry holds the raw file contents for a single synthetic
+// /proc/<pid> directory.
+type fakeProcEntry struct {
+	stat    string
+	status  string
+	cmdline string // optional; only needed for truncated comm.
+}
+
+// writeFakeProcEntry creates a minimal /proc/<pid> tree that the
+// procfs library can parse.
+func writeFakeProcEntry(t *testing.T, root string, pid int, entry fakeProcEntry) {
+	t.Helper()
+
+	dir := filepath.Join(root, fmt.Sprintf("%d", pid))
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "stat"), []byte(entry.stat), 0o600))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "status"), []byte(entry.status), 0o600))
+
+	if entry.cmdline != "" {
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "cmdline"),
+			[]byte(entry.cmdline), 0o600))
+	}
 }

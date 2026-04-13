@@ -142,7 +142,9 @@ func (s *procSampler) sample() {
 		// RSS and we would miss spikes between samples.
 		var peakRSSBytes uint64
 		if status, err := proc.NewStatus(); err == nil {
-			peakRSSBytes = status.VmHWM * 1024 // VmHWM is in kB.
+			// procfs already converts VmHWM from kB to bytes
+			// during parsing (proc_status.go:114).
+			peakRSSBytes = status.VmHWM
 		}
 
 		// CPU time is also monotonically non-decreasing, so the

@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,6 +37,7 @@ type provisionerServeOptions struct {
 	exitTimeout   time.Duration
 	workDir       string
 	logger        *slog.Logger
+	registerer    prometheus.Registerer
 }
 
 func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Context, proto.DRPCProvisionerClient) {
@@ -72,6 +75,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 			CachePath:     cachePath,
 			ExitTimeout:   opts.exitTimeout,
 			CliConfigPath: opts.cliConfigPath,
+			Registerer:    opts.registerer,
 		})
 	}()
 	api := proto.NewDRPCProvisionerClient(client)
@@ -1318,4 +1322,48 @@ func TestProvision_MalformedModules(t *testing.T) {
 
 	log, _ := readProvisionLog(t, sess)
 	require.Contains(t, log, "Invalid block definition")
+}
+
+func TestProvision_ResourceMetrics(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("resource sampling requires /proc (Linux only)")
+	}
+
+	reg := prometheus.NewRegistry()
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		registerer: reg,
+	})
+
+	sess := configure(ctx, t, api, &proto.Config{})
+
+	// A trivial template that exercises terraform init without
+	// needing real cloud credentials.
+	_ = sendInitAndGetResp(t, sess, testutil.CreateTar(t, map[string]string{
+		"main.tf": `resource "null_resource" "A" {}`,
+	}))
+
+	// After init completes, check whether metrics were observed.
+	// The sampler takes an immediate first sample, so the
+	// terraform binary itself should appear on most runs. We use
+	// non-fatal assertions because a very fast init could race
+	// against the sampling goroutine.
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	var foundMemory, foundCPU bool
+	for _, fam := range families {
+		switch fam.GetName() {
+		case "coderd_provisionerd_provider_memory_peak_bytes":
+			foundMemory = len(fam.GetMetric()) > 0
+		case "coderd_provisionerd_provider_cpu_seconds":
+			foundCPU = len(fam.GetMetric()) > 0
+		}
+	}
+
+	assert.True(t, foundMemory,
+		"expected provider memory metrics to be observed")
+	assert.True(t, foundCPU,
+		"expected provider CPU metrics to be observed")
 }
