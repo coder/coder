@@ -274,12 +274,19 @@ function buildFileTree(files: readonly FileDiffMetadata[]): FileTreeNode[] {
 // Tree node renderer
 // -------------------------------------------------------------------
 
-const FileTreeNodeView = memo<{
+interface FileTreeNodeViewProps {
 	node: FileTreeNode;
 	depth: number;
 	activeFile: string | null;
 	onFileClick: (fullPath: string) => void;
-}>(function FileTreeNodeView({ node, depth, activeFile, onFileClick }) {
+}
+
+function FileTreeNodeViewInner({
+	node,
+	depth,
+	activeFile,
+	onFileClick,
+}: FileTreeNodeViewProps) {
 	const [expanded, setExpanded] = useState(true);
 
 	if (node.type === "directory") {
@@ -350,7 +357,9 @@ const FileTreeNodeView = memo<{
 			)}
 		</button>
 	);
-});
+}
+
+const FileTreeNodeView = memo(FileTreeNodeViewInner);
 
 // -------------------------------------------------------------------
 // Virtualized scroll container
@@ -437,13 +446,13 @@ interface LazyFileDiffProps {
 	selectedLines?: SelectedLineRange | null;
 }
 
-const LazyFileDiff = memo<LazyFileDiffProps>(function LazyFileDiff({
+function LazyFileDiffInner({
 	fileDiff,
 	options,
 	lineAnnotations,
 	renderAnnotation: renderAnnotationProp,
 	selectedLines,
-}) {
+}: LazyFileDiffProps) {
 	const placeholderRef = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
 
@@ -494,7 +503,9 @@ const LazyFileDiff = memo<LazyFileDiffProps>(function LazyFileDiff({
 			selectedLines={selectedLines}
 		/>
 	);
-});
+}
+
+const LazyFileDiff = memo(LazyFileDiffInner);
 
 // -------------------------------------------------------------------
 // Main component
