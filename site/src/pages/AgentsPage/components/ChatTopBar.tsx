@@ -5,12 +5,10 @@ import {
 	ChevronRightIcon,
 	CopyIcon,
 	EllipsisIcon,
-	ExternalLinkIcon,
 	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
-	TerminalIcon,
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
@@ -39,11 +37,8 @@ interface SidebarPanelState {
 }
 
 interface WorkspaceActions {
-	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
-	onOpenInEditor: (editor: "cursor" | "vscode") => void;
 	onViewWorkspace: () => void;
-	onOpenTerminal: () => void;
 	sshCommand: string | undefined;
 }
 
@@ -207,32 +202,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							className="[&_[role=menuitem]]:text-[13px]"
 						>
 							<DropdownMenuItem
-								disabled={!workspace.canOpenEditors}
-								onSelect={() => {
-									workspace.onOpenInEditor("cursor");
-								}}
-							>
-								<ExternalLinkIcon className="h-3.5 w-3.5" />
-								Open in Cursor
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={!workspace.canOpenEditors}
-								onSelect={() => {
-									workspace.onOpenInEditor("vscode");
-								}}
-							>
-								<ExternalLinkIcon className="h-3.5 w-3.5" />
-								Open in VS Code
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								// You can think of the web terminal as an editor if you squint.
-								disabled={!workspace.canOpenEditors}
-								onSelect={workspace.onOpenTerminal}
-							>
-								<TerminalIcon className="h-3.5 w-3.5" />
-								Open Terminal
-							</DropdownMenuItem>
-							<DropdownMenuItem
 								disabled={!workspace.sshCommand}
 								onSelect={async () => {
 									if (!workspace.sshCommand) return;
@@ -247,7 +216,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<CopyIcon className="h-3.5 w-3.5" />
 								Copy SSH Command
 							</DropdownMenuItem>
-							<DropdownMenuSeparator />
+							<DropdownMenuSeparator />{" "}
 							<DropdownMenuItem
 								disabled={!workspace.canOpenWorkspace}
 								onSelect={workspace.onViewWorkspace}

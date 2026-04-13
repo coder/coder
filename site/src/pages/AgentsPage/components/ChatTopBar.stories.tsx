@@ -9,11 +9,8 @@ const defaultProps = {
 		onToggleSidebar: fn(),
 	},
 	workspace: {
-		canOpenEditors: true,
 		canOpenWorkspace: true,
-		onOpenInEditor: fn(),
 		onViewWorkspace: fn(),
-		onOpenTerminal: fn(),
 		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
 	onArchiveAgent: fn(),

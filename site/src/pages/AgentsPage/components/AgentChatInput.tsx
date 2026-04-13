@@ -148,6 +148,9 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	// Pre-rendered workspace pill element. When provided, it
+	// replaces the simple attached-workspace ToolBadge.
+	workspacePill?: React.ReactNode;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
@@ -285,6 +288,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspacePill,
 	attachedWorkspace,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -395,7 +399,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (attachedWorkspace) {
+	// When a workspacePill is provided, it handles the workspace
+	// display (including app dropdown). Otherwise fall back to
+	// the simple attached-workspace ToolBadge.
+	if (!workspacePill && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (selectedWorkspace && onWorkspaceChange) {
@@ -922,6 +929,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
+							{workspacePill}
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (

@@ -44,6 +44,7 @@ import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
+import { WorkspacePill } from "./components/WorkspacePill";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -132,12 +133,9 @@ interface AgentChatPageViewProps {
 	};
 
 	// Workspace action handlers.
-	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
 	sshCommand: string | undefined;
-	handleOpenInEditor: (editor: "cursor" | "vscode") => void;
 	handleViewWorkspace: () => void;
-	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
@@ -206,12 +204,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	prNumber,
 	diffStatusData,
 	gitWatcher,
-	canOpenEditors,
 	canOpenWorkspace,
 	sshCommand,
-	handleOpenInEditor,
 	handleViewWorkspace,
-	handleOpenTerminal,
 	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -321,6 +316,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
+	// Pre-render the workspace pill when we have sufficient data
+	// for it to show app links in the dropdown.
+	const workspacePillElement =
+		attachedWorkspace && workspace && workspaceAgent ? (
+			<WorkspacePill
+				name={attachedWorkspace.name}
+				route={attachedWorkspace.route}
+				statusIcon={attachedWorkspace.statusIcon}
+				statusLabel={attachedWorkspace.statusLabel}
+				workspace={workspace}
+				agent={workspaceAgent}
+				chatId={agentId}
+			/>
+		) : undefined;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -358,11 +368,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
 								}}
 								workspace={{
-									canOpenEditors,
 									canOpenWorkspace,
-									onOpenInEditor: handleOpenInEditor,
 									onViewWorkspace: handleViewWorkspace,
-									onOpenTerminal: handleOpenTerminal,
 									sshCommand,
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
@@ -454,7 +461,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
 								lastInjectedContext={lastInjectedContext}
-								attachedWorkspace={attachedWorkspace}
+								workspacePill={workspacePillElement}
+								attachedWorkspace={
+									// Only pass through for the ToolBadge
+									// fallback when WorkspacePill is not
+									// rendered.
+									workspacePillElement ? undefined : attachedWorkspace
+								}
 							/>
 						</div>
 					</div>
@@ -569,11 +582,8 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						onToggleSidebar: () => {},
 					}}
 					workspace={{
-						canOpenEditors: false,
 						canOpenWorkspace: false,
-						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
 					onArchiveAgent={() => {}}
@@ -647,11 +657,8 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 					onToggleSidebar: () => {},
 				}}
 				workspace={{
-					canOpenEditors: false,
 					canOpenWorkspace: false,
-					onOpenInEditor: () => {},
 					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
 					sshCommand: undefined,
 				}}
 				onArchiveAgent={() => {}}
