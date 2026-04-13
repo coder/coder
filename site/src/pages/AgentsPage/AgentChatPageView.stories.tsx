@@ -380,7 +380,6 @@ export const WithWorkspaceActions: Story = {
 // Workspace status pill stories
 // ---------------------------------------------------------------------------
 
-/** Pill shows "Preparing" when workspace is running but agent startup scripts are still executing. */
 export const WorkspaceAgentStarting: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -393,7 +392,6 @@ export const WorkspaceAgentStarting: Story = {
 	),
 };
 
-/** Pill shows "Running" when workspace is running and agent lifecycle is ready. */
 export const WorkspaceAgentReady: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -406,7 +404,6 @@ export const WorkspaceAgentReady: Story = {
 	),
 };
 
-/** Pill shows "Running" when workspace is running but no agent data is available. */
 export const WorkspaceNoAgent: Story = {
 	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
 };

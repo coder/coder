@@ -282,9 +282,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			workspace.latest_build.status,
 			workspace.latest_build.job,
 		);
-		// When the workspace is running but the agent's startup scripts
-		// are still executing, show "Preparing" instead of "Running" so
-		// the user knows the environment is not yet fully ready.
 		const agentStarting =
 			workspace.latest_build.status === "running" &&
 			workspaceAgent?.lifecycle_state != null &&
