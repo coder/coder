@@ -1316,6 +1316,53 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestForwardRelevantLocalPubsubEvent_DoesNotAdvanceCursorOnCanceledSend(t *testing.T) {
+	t.Parallel()
+
+	t.Run("successful send advances cursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mergedEvents := make(chan codersdk.ChatStreamEvent, 1)
+		lastMessageID := int64(1)
+		event := codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessage,
+			Message: &codersdk.ChatMessage{
+				ID: 2,
+			},
+		}
+
+		require.True(t, forwardRelevantLocalPubsubEvent(ctx, mergedEvents, event, &lastMessageID))
+		require.Equal(t, int64(2), lastMessageID)
+		forwarded := requireStreamMessageEvent(t, mergedEvents)
+		require.Equal(t, int64(2), forwarded.Message.ID)
+	})
+
+	t.Run("canceled send leaves cursor unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		mergedEvents := make(chan codersdk.ChatStreamEvent)
+		lastMessageID := int64(1)
+		event := codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessage,
+			Message: &codersdk.ChatMessage{
+				ID: 2,
+			},
+		}
+
+		require.False(t, forwardRelevantLocalPubsubEvent(ctx, mergedEvents, event, &lastMessageID))
+		require.Equal(t, int64(1), lastMessageID)
+		select {
+		case unexpected := <-mergedEvents:
+			t.Fatalf("unexpected forwarded event: %+v", unexpected)
+		default:
+		}
+	})
+}
+
 func TestSubscribeDeliversLocalDurableMessageBeforeDelayedPubsubCatchup(t *testing.T) {
 	t.Parallel()
 
@@ -3297,6 +3344,50 @@ func TestRecoverStaleChats_DoesNotPublishWhenRecoverySkipped(t *testing.T) {
 	require.False(t, exists)
 }
 
+func TestSetChatWaiting_DoesNotFanoutWhenAlreadyPending(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	pubsub := newRecordingPubsub(dbpubsub.NewInMemory())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+	pendingChat := database.Chat{
+		ID:      chatID,
+		OwnerID: ownerID,
+		Status:  database.ChatStatusPending,
+	}
+
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(pendingChat, nil)
+
+	server := &Server{
+		db:     db,
+		logger: logger,
+		pubsub: pubsub,
+	}
+	_, localEvents, cancel := server.subscribeToStream(chatID)
+	defer cancel()
+
+	updatedChat, err := server.setChatWaiting(ctx, chatID)
+	require.NoError(t, err)
+	require.Equal(t, pendingChat, updatedChat)
+	require.Empty(t, pubsub.PublishedEvents(), "pending no-op should not publish pubsub fanout")
+	select {
+	case unexpected := <-localEvents:
+		t.Fatalf("unexpected local fanout event: %+v", unexpected)
+	default:
+	}
+}
+
 // TestProcessChat_IgnoresStaleStatusNotification verifies that
 // processChat is not interrupted by a stale "pending" status
 // fanout delivered after the worker has already published
@@ -3430,8 +3521,8 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 	chat2 := uuid.New()
 	chat3 := uuid.New()
 
-	_, cancel1 := context.WithCancelCause(ctx)
-	_, cancel2 := context.WithCancelCause(ctx)
+	ctx1, cancel1 := context.WithCancelCause(ctx)
+	ctx2, cancel2 := context.WithCancelCause(ctx)
 	ctx3, cancel3 := context.WithCancelCause(ctx)
 
 	server.registerHeartbeat(&heartbeatEntry{
@@ -3475,6 +3566,9 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 	// chat3's context should be canceled with ErrInterrupted.
 	require.ErrorIs(t, context.Cause(ctx3), chatloop.ErrInterrupted,
 		"stolen chat should be interrupted")
+
+	require.NoError(t, ctx1.Err(), "surviving chat1 should not be interrupted")
+	require.NoError(t, ctx2.Err(), "surviving chat2 should not be interrupted")
 
 	// chat3 should have been removed from the registry by
 	// unregister (in production this happens via defer in

@@ -2395,6 +2395,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		controlWorkerID uuid.UUID
 		controlMsg      coderdpubsub.ChatControlMessage
 		publishControl  bool
+		publishFanout   bool
 	)
 	err := p.db.InTx(func(tx database.Store) error {
 		locked, lockErr := tx.GetChatByIDForUpdate(ctx, chatID)
@@ -2421,6 +2422,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		if updateErr != nil {
 			return updateErr
 		}
+		publishFanout = true
 		controlWorkerID, controlMsg, publishControl = controlMessageForWorker(
 			locked,
 			updatedChat.RunGeneration,
@@ -2434,8 +2436,10 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 	if publishControl {
 		p.publishChatControl(controlWorkerID, controlMsg)
 	}
-	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if publishFanout {
+		p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
 	return updatedChat, nil
 }
 
@@ -3300,14 +3304,13 @@ func forwardRelevantLocalPubsubEvent(
 		return true
 	}
 
-	if event.Type == codersdk.ChatStreamEventTypeMessage {
-		*lastMessageID = event.Message.ID
-	}
-
 	select {
 	case <-ctx.Done():
 		return false
 	case mergedEvents <- event:
+		if event.Type == codersdk.ChatStreamEventTypeMessage {
+			*lastMessageID = event.Message.ID
+		}
 		return true
 	}
 }
