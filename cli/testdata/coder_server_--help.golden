@@ -301,6 +301,11 @@ Configure TLS for your SMTP server target.
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
 INTROSPECTION / HEALTH CHECK OPTIONS: 
+      --health-check-api-key string, $CODER_HEALTH_CHECK_API_KEY
+          An API key to use for authenticating the background healthcheck.
+          Without this, the websocket healthcheck will report errors since it
+          requires authentication to access the /debug/ws endpoint.
+
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
 
@@ -345,12 +350,6 @@ INTROSPECTION / PROMETHEUS OPTIONS:
 
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
-
-      --prometheus-healthcheck-api-key string, $CODER_PROMETHEUS_HEALTHCHECK_API_KEY
-          An API key to use for authenticating the periodic background
-          healthcheck. Without this, the websocket healthcheck will fail since
-          it requires authentication to reach the /debug/ws endpoint. The other
-          healthchecks do not require this.
 
 INTROSPECTION / STATS COLLECTION / USAGE STATS OPTIONS: 
       --stats-collection-usage-stats-enable bool, $CODER_STATS_COLLECTION_USAGE_STATS_ENABLE (default: true)

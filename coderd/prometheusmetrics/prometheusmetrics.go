@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -659,7 +660,7 @@ func Healthcheck(
 	ctx context.Context,
 	logger slog.Logger,
 	registerer prometheus.Registerer,
-	healthcheckFunc func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport,
+	healthcheckFunc func(ctx context.Context, apiKey string, client *http.Client, progress *healthcheck.Progress) *healthsdk.HealthcheckReport,
 	healthCheckCache *atomic.Pointer[healthsdk.HealthcheckReport],
 	apiKey string,
 	duration time.Duration,
@@ -695,6 +696,14 @@ func Healthcheck(
 		return nil, err
 	}
 
+	// Use a dedicated HTTP client so connections don't pool in
+	// http.DefaultTransport and leak goroutines after shutdown.
+	client := &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	// Use a nanosecond ticker to force an initial collection, then
@@ -711,7 +720,7 @@ func Healthcheck(
 			}
 
 			checkCtx, checkCancel := context.WithTimeout(ctx, 30*time.Second)
-			report := healthcheckFunc(checkCtx, apiKey, nil)
+			report := healthcheckFunc(checkCtx, apiKey, client, nil)
 			checkCancel()
 
 			if report == nil {
@@ -739,5 +748,6 @@ func Healthcheck(
 	return func() {
 		cancelFunc()
 		<-done
+		client.CloseIdleConnections()
 	}, nil
 }

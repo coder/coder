@@ -3370,6 +3370,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "string"
     ],
     "healthcheck": {
+      "api_key": "string",
       "refresh": 0,
       "threshold_database": 0
     },
@@ -3542,8 +3543,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
-      "enable": true,
-      "healthcheck_api_key": "string"
+      "enable": true
     },
     "provisioner": {
       "daemon_poll_interval": 0,
@@ -3949,6 +3949,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "string"
   ],
   "healthcheck": {
+    "api_key": "string",
     "refresh": 0,
     "threshold_database": 0
   },
@@ -4121,8 +4122,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
-    "enable": true,
-    "healthcheck_api_key": "string"
+    "enable": true
   },
   "provisioner": {
     "daemon_poll_interval": 0,
@@ -5162,6 +5162,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
+  "api_key": "string",
   "refresh": 0,
   "threshold_database": 0
 }
@@ -5171,6 +5172,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Name                 | Type    | Required | Restrictions | Description |
 |----------------------|---------|----------|--------------|-------------|
+| `api_key`            | string  | false    |              |             |
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
 
@@ -7617,8 +7619,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
-  "enable": true,
-  "healthcheck_api_key": "string"
+  "enable": true
 }
 ```
 
@@ -7631,7 +7632,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
-| `healthcheck_api_key`      | string                               | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 

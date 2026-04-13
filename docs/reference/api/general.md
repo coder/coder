@@ -318,6 +318,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "string"
     ],
     "healthcheck": {
+      "api_key": "string",
       "refresh": 0,
       "threshold_database": 0
     },
@@ -490,8 +491,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
-      "enable": true,
-      "healthcheck_api_key": "string"
+      "enable": true
     },
     "provisioner": {
       "daemon_poll_interval": 0,

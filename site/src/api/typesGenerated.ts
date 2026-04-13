@@ -3966,6 +3966,7 @@ export interface Healthcheck {
 export interface HealthcheckConfig {
 	readonly refresh: number;
 	readonly threshold_database: number;
+	readonly api_key: string;
 }
 
 // From healthsdk/healthsdk.go
@@ -5472,7 +5473,6 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
-	readonly healthcheck_api_key: string;
 }
 
 // From codersdk/deployment.go

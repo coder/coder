@@ -16705,6 +16705,9 @@ const docTemplate = `{
         "codersdk.HealthcheckConfig": {
             "type": "object",
             "properties": {
+                "api_key": {
+                    "type": "string"
+                },
                 "refresh": {
                     "type": "integer"
                 },
@@ -18832,9 +18835,6 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
-                },
-                "healthcheck_api_key": {
-                    "type": "string"
                 }
             }
         },

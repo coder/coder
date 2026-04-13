@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"reflect"
 	"sync/atomic"
@@ -1142,7 +1143,7 @@ func TestHealthcheck(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			var cache atomic.Pointer[healthsdk.HealthcheckReport]
 
-			healthcheckFunc := func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+			healthcheckFunc := func(_ context.Context, _ string, _ *http.Client, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 				report := tc.Report
 				return &report
 			}
@@ -1222,7 +1223,7 @@ func TestHealthcheck_NilReport(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	var cache atomic.Pointer[healthsdk.HealthcheckReport]
 
-	healthcheckFunc := func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+	healthcheckFunc := func(_ context.Context, _ string, _ *http.Client, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 		return nil
 	}
 
