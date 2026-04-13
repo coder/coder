@@ -68,7 +68,10 @@ func trackRunRef(runID uuid.UUID) {
 }
 
 // releaseRunRef decrements the reference count for runID and cleans up
-// shared state when the last reference is released.
+// shared state when the last reference is released. The cleanup uses
+// CompareAndSwap to ensure that a concurrent trackRunRef that
+// incremented the counter between our Add and Delete does not lose
+// its reference.
 func releaseRunRef(runID uuid.UUID) {
 	val, ok := runRefCounts.Load(runID)
 	if !ok {
@@ -78,10 +81,20 @@ func releaseRunRef(runID uuid.UUID) {
 	if !ok {
 		panic("chatdebug: runRefCounts contains non-*atomic.Int32 value")
 	}
-	if counter.Add(-1) <= 0 {
-		runRefCounts.Delete(runID)
-		stepCounters.Delete(runID)
+	newVal := counter.Add(-1)
+	if newVal > 0 {
+		return
 	}
+	// Attempt to claim the zero state. If another goroutine already
+	// incremented the counter (trackRunRef raced with us), the CAS
+	// fails and we leave the entries alone.
+	if !counter.CompareAndSwap(newVal, newVal) {
+		return
+	}
+	// Only delete if the map still points to our counter instance.
+	// A concurrent LoadOrStore in trackRunRef may have replaced it.
+	runRefCounts.CompareAndDelete(runID, val)
+	stepCounters.Delete(runID)
 }
 
 func nextStepNumber(runID uuid.UUID) int32 {
@@ -206,26 +219,28 @@ func (h *stepHandle) finish(
 // whitespaceRun matches one or more consecutive whitespace characters.
 var whitespaceRun = regexp.MustCompile(`\s+`)
 
-// TruncateLabel whitespace-normalizes and truncates text to maxLen runes.
-// Returns "" if input is empty or whitespace-only.
-func TruncateLabel(text string, maxLen int) string {
-	if maxLen < 0 {
-		maxLen = 0
-	}
-
-	normalized := strings.TrimSpace(whitespaceRun.ReplaceAllString(text, " "))
-	if normalized == "" || maxLen == 0 {
+// truncateRunes truncates s to maxLen runes, appending an ellipsis
+// when truncation occurs. Returns "" when maxLen <= 0.
+func truncateRunes(s string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
-
-	if utf8.RuneCountInString(normalized) <= maxLen {
-		return normalized
+	if utf8.RuneCountInString(s) <= maxLen {
+		return s
 	}
 	if maxLen == 1 {
 		return "…"
 	}
-
-	// Truncate to leave room for the trailing ellipsis within maxLen.
-	runes := []rune(normalized)
+	runes := []rune(s)
 	return string(runes[:maxLen-1]) + "…"
+}
+
+// TruncateLabel whitespace-normalizes and truncates text to maxLen runes.
+// Returns "" if input is empty or whitespace-only.
+func TruncateLabel(text string, maxLen int) string {
+	normalized := strings.TrimSpace(whitespaceRun.ReplaceAllString(text, " "))
+	if normalized == "" {
+		return ""
+	}
+	return truncateRunes(normalized, maxLen)
 }

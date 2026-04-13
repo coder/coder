@@ -643,17 +643,7 @@ func normalizeMessages(prompt fantasy.Prompt) []normalizedMessage {
 // boundText truncates s to MaxMessagePartTextLength runes, appending
 // an ellipsis if truncation occurs.
 func boundText(s string) string {
-	if utf8.RuneCountInString(s) <= MaxMessagePartTextLength {
-		return s
-	}
-	if MaxMessagePartTextLength <= 0 {
-		return ""
-	}
-	if MaxMessagePartTextLength == 1 {
-		return "…"
-	}
-	runes := []rune(s)
-	return string(runes[:MaxMessagePartTextLength-1]) + "…"
+	return truncateRunes(s, MaxMessagePartTextLength)
 }
 
 // safeMarshalJSON marshals value to JSON. On failure it returns a
@@ -720,6 +710,73 @@ func appendStreamContentText(
 	return content
 }
 
+// appendStreamToolInput accumulates incremental tool-input deltas
+// per tool call ID so that parallel or sequential tool invocations
+// remain distinguishable in interrupted stream debug payloads.
+func appendStreamToolInput(
+	content []normalizedContentPart,
+	part fantasy.StreamPart,
+	streamDebugBytes *int,
+) []normalizedContentPart {
+	if part.Delta == "" {
+		return content
+	}
+
+	remaining := maxStreamDebugTextBytes
+	if streamDebugBytes != nil {
+		remaining -= *streamDebugBytes
+	}
+	if remaining <= 0 {
+		return content
+	}
+	delta := part.Delta
+	if len(delta) > remaining {
+		cut := 0
+		for _, r := range delta {
+			size := utf8.RuneLen(r)
+			if size < 0 {
+				size = 1
+			}
+			if cut+size > remaining {
+				break
+			}
+			cut += size
+		}
+		delta = delta[:cut]
+	}
+	if delta == "" {
+		return content
+	}
+
+	// Find the last tool_input part for this specific tool call ID.
+	// This keeps chunks from different tool calls in separate parts.
+	for i := len(content) - 1; i >= 0; i-- {
+		if content[i].Type == "tool_input" && content[i].ToolCallID == part.ID {
+			content[i].Arguments += delta
+			if streamDebugBytes != nil {
+				*streamDebugBytes += len(delta)
+			}
+			return content
+		}
+		// Stop searching once we hit a different content type to
+		// preserve insertion order.
+		if content[i].Type != "tool_input" {
+			break
+		}
+	}
+
+	content = append(content, normalizedContentPart{
+		Type:       "tool_input",
+		ToolCallID: part.ID,
+		ToolName:   part.ToolCallName,
+		Arguments:  delta,
+	})
+	if streamDebugBytes != nil {
+		*streamDebugBytes += len(delta)
+	}
+	return content
+}
+
 func canonicalContentType(partType string) string {
 	switch partType {
 	case string(fantasy.StreamPartTypeToolCall), string(fantasy.ContentTypeToolCall):
@@ -745,9 +802,10 @@ func appendNormalizedStreamContent(
 		fantasy.StreamPartTypeToolInputDelta,
 		fantasy.StreamPartTypeToolInputEnd:
 		// Incremental tool input parts are emitted before the final
-		// tool_call summary.  Capture them so interrupted streams
-		// still show the in-progress tool invocation.
-		return appendStreamContentText(content, "tool_input", part.Delta, streamDebugBytes)
+		// tool_call summary. Attribute each chunk to its tool call
+		// so interrupted streams can reconstruct which partial input
+		// belonged to which invocation.
+		return appendStreamToolInput(content, part, streamDebugBytes)
 	case fantasy.StreamPartTypeToolCall:
 		return append(content, normalizedContentPart{
 			Type:        canonicalContentType(string(part.Type)),
@@ -928,6 +986,10 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 			nt.ID = v.ID
 		case *fantasy.ProviderDefinedTool:
 			nt.ID = v.ID
+		case fantasy.ExecutableProviderTool:
+			nt.ID = v.Definition().ID
+		case *fantasy.ExecutableProviderTool:
+			nt.ID = v.Definition().ID
 		}
 		result = append(result, nt)
 	}

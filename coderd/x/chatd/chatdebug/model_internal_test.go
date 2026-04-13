@@ -337,59 +337,29 @@ func TestDebugModel_StreamObject(t *testing.T) {
 func TestDebugModel_StreamCompletedAfterFinish(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	runID := uuid.New()
+	handle := &stepHandle{
+		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
+		sink:    &attemptSink{},
+	}
+
 	parts := []fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
 		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 5, OutputTokens: 1, TotalTokens: 6}},
 	}
+	seq := wrapStreamSeq(context.Background(), handle, partsToSeq(parts))
 
-	svc := NewService(db, testutil.Logger(t), nil)
-	model := &debugModel{
-		inner: &chattest.FakeModel{
-			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				return partsToSeq(parts), nil
-			},
-		},
-		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: uuid.New()},
-	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-
-	seq, err := model.Stream(ctx, fantasy.Call{})
-	require.NoError(t, err)
-
-	// Consumer reads the finish part then breaks -- this should still be
-	// considered a completed stream, not interrupted.
-	var handle *stepHandle
+	// Consumer reads through the finish part then breaks. The wrapper
+	// should finalize as completed, not interrupted.
 	for part := range seq {
 		if part.Type == fantasy.StreamPartTypeFinish {
 			break
 		}
 	}
-	// The step handle is on the model's last beginStep call; verify
-	// status via the internal handle state by calling beginStep directly.
-	// Since the model wrapper already finalized the handle, just verify
-	// we consumed something. The real assertion is that the finalize
-	// path chose StatusCompleted (tested via handle.status below).
-	_ = handle // handle is not directly accessible, but we can verify via a fresh step
 
-	// Verify by running a second stream where we inspect the handle.
-	runID2 := uuid.New()
-	t.Cleanup(func() { CleanupStepCounter(runID2) })
-	ctx2 := ContextWithRun(context.Background(), &RunContext{RunID: runID2, ChatID: chatID})
-
-	h, _ := beginStep(ctx2, svc, RecorderOptions{ChatID: chatID}, OperationStream, nil)
-	require.NotNil(t, h)
-	// The handle starts with zero status; simulate what the wrapper does
-	// when consumer breaks after finish.
-	h.finish(ctx2, StatusCompleted, nil, nil, nil, nil)
-	h.mu.Lock()
-	require.Equal(t, StatusCompleted, h.status)
-	h.mu.Unlock()
+	handle.mu.Lock()
+	status := handle.status
+	handle.mu.Unlock()
+	require.Equal(t, StatusCompleted, status)
 }
 
 // TestDebugModel_StreamInterruptedBeforeFinish verifies that when a consumer

@@ -15,7 +15,7 @@ import (
 // developer to decide whether to normalize or skip it.
 //
 // This mirrors the audit-table exhaustiveness check in
-// enterprise/audit/table.go -- same idea, different domain.
+// enterprise/audit/table.go; same idea, different domain.
 type fieldDisposition = map[string]string
 
 // TestNormalizationFieldCoverage ensures every exported field on the
@@ -302,12 +302,12 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 				disposition, ok := tt.fields[field.Name]
 				if !ok {
 					require.Failf(t, "unregistered field",
-						"%s.%s is not in the coverage map -- "+
+						"%s.%s is not in the coverage map: "+
 							"add it as \"normalized\" or \"skipped: <reason>\"",
 						tt.typ.Name(), field.Name)
 				}
 				require.NotEmptyf(t, disposition,
-					"%s.%s has an empty disposition -- "+
+					"%s.%s has an empty disposition: "+
 						"use \"normalized\" or \"skipped: <reason>\"",
 					tt.typ.Name(), field.Name)
 			}
@@ -322,7 +322,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 					}
 				}
 				require.Truef(t, found,
-					"stale coverage entry %s.%s -- "+
+					"stale coverage entry %s.%s: "+
 						"field no longer exists in fantasy, remove it",
 					tt.typ.Name(), name)
 			}

@@ -50,21 +50,13 @@ func TestTruncateLabel(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := TruncateLabel(tc.input, tc.maxLen)
 			require.Equal(t, tc.want, got)
-			require.LessOrEqual(t, utf8.RuneCountInString(got), maxInt(tc.maxLen, 0))
+			require.LessOrEqual(t, utf8.RuneCountInString(got), max(tc.maxLen, 0))
 		})
 	}
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // RedactedValue replaces sensitive values in debug payloads.

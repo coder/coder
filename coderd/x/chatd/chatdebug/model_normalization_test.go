@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -68,6 +69,23 @@ func TestNormalizeCall_PreservesToolSchemasAndMessageToolPayloads(t *testing.T) 
 	)
 }
 
+func TestNormalizeTools_PreservesExecutableProviderToolID(t *testing.T) {
+	t.Parallel()
+
+	pdt := fantasy.ProviderDefinedTool{
+		ID:   "anthropic.computer_use",
+		Name: "computer",
+	}
+	ept := fantasy.NewExecutableProviderTool(pdt, func(context.Context, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		return fantasy.ToolResponse{}, nil
+	})
+
+	tools := normalizeTools([]fantasy.Tool{ept})
+	require.Len(t, tools, 1)
+	require.Equal(t, "anthropic.computer_use", tools[0].ID)
+	require.Equal(t, "computer", tools[0].Name)
+}
+
 func TestNormalizers_SkipTypedNilInterfaceValues(t *testing.T) {
 	t.Parallel()
 
@@ -127,9 +145,31 @@ func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testin
 
 	require.Equal(t, []normalizedContentPart{
 		{Type: "text", Text: "before "},
-		{Type: "tool-call", ToolCallID: "call-1", ToolName: "search_docs", Arguments: `{"query":"debug"}`, InputLength: len(`{"query":"debug"}`)},
+		{Type: "tool-call", ToolCallID: "call-1", ToolName: "search_docs", Arguments: `{"query":"debug"}`, InputLength: utf8.RuneCountInString(`{"query":"debug"}`)},
 		{Type: "tool-result", ToolCallID: "call-1", ToolName: "search_docs", Result: `{"matches":1}`},
 		{Type: "text", Text: "after"},
+	}, content)
+}
+
+func TestAppendNormalizedStreamContent_ToolInputAttributionPerCall(t *testing.T) {
+	t.Parallel()
+
+	var content []normalizedContentPart
+	streamDebugBytes := 0
+	for _, part := range []fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-a", ToolCallName: "search", Delta: `{"q`},
+		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `uery`},
+		// Interleaved second tool call.
+		{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-b", ToolCallName: "calc", Delta: `{"op`},
+		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `":"x"}`},
+		{Type: fantasy.StreamPartTypeToolInputEnd, ID: "call-b", ToolCallName: "calc", Delta: `":"add"}`},
+	} {
+		content = appendNormalizedStreamContent(content, part, &streamDebugBytes)
+	}
+
+	require.Equal(t, []normalizedContentPart{
+		{Type: "tool_input", ToolCallID: "call-a", ToolName: "search", Arguments: `{"query":"x"}`},
+		{Type: "tool_input", ToolCallID: "call-b", ToolName: "calc", Arguments: `{"op":"add"}`},
 	}, content)
 }
 
@@ -202,7 +242,7 @@ func TestWrapObjectStreamSeq_UsesStructuredOutputPayload(t *testing.T) {
 	resp, ok := handle.response.(normalizedObjectResponsePayload)
 	require.True(t, ok)
 	require.Equal(t, normalizedObjectResponsePayload{
-		RawTextLength:    len("object"),
+		RawTextLength:    utf8.RuneCountInString("object"),
 		FinishReason:     string(fantasy.FinishReasonStop),
 		Usage:            normalizeUsage(usage),
 		StructuredOutput: true,
@@ -375,5 +415,5 @@ func TestNormalizeResponse_PreservesToolCallArguments(t *testing.T) {
 		`{"operation":"add","operands":[2,2]}`,
 		payload.Content[0].Arguments,
 	)
-	require.Equal(t, len(`{"operation":"add","operands":[2,2]}`), payload.Content[0].InputLength)
+	require.Equal(t, utf8.RuneCountInString(`{"operation":"add","operands":[2,2]}`), payload.Content[0].InputLength)
 }
