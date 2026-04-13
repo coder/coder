@@ -411,13 +411,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		IncludeSystem:  false,
 		GithubUserID:   0,
 	})
-	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You are not a member of the specified organization.",
-		})
-		return
-	}
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not a member of the specified organization.",
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to validate organization membership.",
 			Detail:  err.Error(),
