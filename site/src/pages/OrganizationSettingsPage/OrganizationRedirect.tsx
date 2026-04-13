@@ -11,9 +11,9 @@ const OrganizationRedirect: FC = () => {
 	} = useOrganizationSettings();
 
 	// Redirect /organizations => /organizations/some-organization-name
-	// If they can edit the default org, we should redirect to the default.
-	// If they cannot edit the default, we should redirect to the first org
-	// that they can edit.
+	// Prefer the editable default org, then any editable org, then
+	// any viewable org. This replaces the previous [...organizations]
+	// .sort() approach with direct lookups to avoid copying the array.
 	const defaultOrg = organizations.find((org) => org.is_default);
 	const editableOrg =
 		(defaultOrg &&
