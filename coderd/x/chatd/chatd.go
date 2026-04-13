@@ -4487,7 +4487,7 @@ func (p *Server) runChat(
 		defer cancel()
 		return planPathFn(ctx)
 	}
-	resolvePlanPathInstruction := func(resolveCtx context.Context) string {
+	resolvePlanPathBlock := func(resolveCtx context.Context) string {
 		if chat.ParentChatID.Valid {
 			return ""
 		}
@@ -4512,7 +4512,7 @@ func (p *Server) runChat(
 			return ""
 		}
 
-		return formatPlanPathInstruction(planPath, home)
+		return formatPlanPathBlock(planPath, home)
 	}
 
 	// Connect to MCP servers in parallel with instruction
@@ -4708,9 +4708,7 @@ func (p *Server) runChat(
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
-	if planPathInstruction := resolvePlanPathInstruction(ctx); planPathInstruction != "" {
-		prompt = chatprompt.InsertSystem(prompt, planPathInstruction)
-	}
+	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
 	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
@@ -5276,9 +5274,7 @@ func (p *Server) runChat(
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
 			}
-			if planPathInstruction := resolvePlanPathInstruction(reloadCtx); planPathInstruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, planPathInstruction)
-			}
+			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
@@ -5950,7 +5946,114 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
 }
 
-func formatPlanPathInstruction(planPath, home string) string {
+// renderPlanPathPrompt fills the plan-path placeholder for new chats and
+// appends the block to the main system prompt for persisted chats that
+// predate the placeholder.
+func renderPlanPathPrompt(prompt []fantasy.Message, planPathBlock string) []fantasy.Message {
+	prompt, hadPlaceholder := replacePlanPathPlaceholder(prompt, planPathBlock)
+	if hadPlaceholder || planPathBlock == "" {
+		return prompt
+	}
+
+	for i, message := range prompt {
+		if message.Role != fantasy.MessageRoleSystem {
+			continue
+		}
+		updatedMessage, ok := appendPlanPathBlock(message, planPathBlock)
+		if !ok {
+			continue
+		}
+		updatedPrompt := slices.Clone(prompt)
+		updatedPrompt[i] = updatedMessage
+		return updatedPrompt
+	}
+
+	return append([]fantasy.Message{{
+		Role: fantasy.MessageRoleSystem,
+		Content: []fantasy.MessagePart{
+			fantasy.TextPart{Text: planPathBlock},
+		},
+	}}, prompt...)
+}
+
+func replacePlanPathPlaceholder(
+	prompt []fantasy.Message,
+	planPathBlock string,
+) ([]fantasy.Message, bool) {
+	var updatedPrompt []fantasy.Message
+	replaced := false
+	for i, message := range prompt {
+		updatedMessage, ok := replacePlanPathPlaceholderInMessage(message, planPathBlock)
+		if !ok {
+			continue
+		}
+		if updatedPrompt == nil {
+			updatedPrompt = slices.Clone(prompt)
+		}
+		updatedPrompt[i] = updatedMessage
+		replaced = true
+	}
+	if !replaced {
+		return prompt, false
+	}
+	return updatedPrompt, true
+}
+
+func replacePlanPathPlaceholderInMessage(
+	message fantasy.Message,
+	planPathBlock string,
+) (fantasy.Message, bool) {
+	if message.Role != fantasy.MessageRoleSystem {
+		return message, false
+	}
+
+	content := slices.Clone(message.Content)
+	replaced := false
+	for i, part := range content {
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+		if !ok || !strings.Contains(textPart.Text, defaultSystemPromptPlanPathBlockPlaceholder) {
+			continue
+		}
+		replaced = true
+		content[i] = fantasy.TextPart{Text: strings.ReplaceAll(
+			textPart.Text,
+			defaultSystemPromptPlanPathBlockPlaceholder,
+			planPathBlock,
+		)}
+	}
+	if !replaced {
+		return message, false
+	}
+	message.Content = content
+	return message, true
+}
+
+func appendPlanPathBlock(
+	message fantasy.Message,
+	planPathBlock string,
+) (fantasy.Message, bool) {
+	if message.Role != fantasy.MessageRoleSystem {
+		return message, false
+	}
+
+	content := slices.Clone(message.Content)
+	for i, part := range content {
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+		if !ok {
+			continue
+		}
+		text := strings.TrimRight(textPart.Text, "\n")
+		if text != "" {
+			text += "\n\n"
+		}
+		content[i] = fantasy.TextPart{Text: text + planPathBlock}
+		message.Content = content
+		return message, true
+	}
+	return message, false
+}
+
+func formatPlanPathBlock(planPath, home string) string {
 	planPath = strings.TrimSpace(planPath)
 	if planPath == "" {
 		return ""
@@ -5959,11 +6062,7 @@ func formatPlanPathInstruction(planPath, home string) string {
 	avoidPlanPath := chattool.LegacySharedPlanPath
 	home = strings.TrimSpace(home)
 	if home != "" {
-		separator := "/"
-		if strings.Contains(home, "\\") && !strings.Contains(home, "/") {
-			separator = "\\"
-		}
-		avoidPlanPath = strings.TrimRight(home, "/\\") + separator + "PLAN.md"
+		avoidPlanPath = strings.TrimRight(home, "/") + "/PLAN.md"
 	}
 
 	var b strings.Builder

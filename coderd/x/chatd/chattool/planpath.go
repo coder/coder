@@ -2,7 +2,7 @@ package chattool
 
 import (
 	"context"
-	pathpkg "path"
+	"path"
 	"strings"
 
 	"github.com/google/uuid"
@@ -45,7 +45,7 @@ func ResolveWorkspaceHome(
 // PlanPathForChat returns the per-chat plan file path rooted in the
 // workspace home directory.
 func PlanPathForChat(home string, chatID uuid.UUID) string {
-	return pathpkg.Join(
+	return path.Join(
 		home,
 		".coder",
 		"plans",
@@ -53,51 +53,38 @@ func PlanPathForChat(home string, chatID uuid.UUID) string {
 	)
 }
 
-// isAbsolutePath reports whether p is an absolute path on either
-// POSIX or Windows. Since chatd runs on Linux, the POSIX
-// absolute-path check only recognizes forward-slash roots. This
-// also detects Windows drive letter prefixes (for example, C:\ or
-// C:/).
+// chatd consumes agent-normalized POSIX paths. Workspace agents are
+// expected to convert separators to forward slashes before these
+// helpers run.
+
+// isAbsolutePath reports whether p is an absolute POSIX path.
 func isAbsolutePath(p string) bool {
-	if pathpkg.IsAbs(p) {
-		return true
-	}
-	if len(p) >= 3 && p[1] == ':' && (p[2] == '/' || p[2] == '\\') {
-		c := p[0]
-		return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-	}
-	return false
+	return path.IsAbs(p)
 }
 
 // looksLikePlanFileName reports whether the base name of requestedPath
 // is "plan.md" (case-insensitive), ignoring the directory component.
 func looksLikePlanFileName(requestedPath string) bool {
-	cleaned := pathpkg.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
-	return strings.EqualFold(pathpkg.Base(cleaned), "plan.md")
+	cleaned := path.Clean(requestedPath)
+	return strings.EqualFold(path.Base(cleaned), "plan.md")
 }
 
 // LooksLikeHomePlanFile reports whether requestedPath is a plan.md
 // variant (case-insensitive) sitting directly in the workspace home
 // directory.
 // The filename is compared case-insensitively because LLM output varies.
-// The directory comparison also ignores case so Windows drive-letter
-// casing mismatches do not bypass the guard.
 func LooksLikeHomePlanFile(requestedPath, home string) bool {
-	// Normalize backslashes so Windows workspace paths (for example,
-	// C:\\Users\\coder\\PLAN.md) are handled correctly. The chatd server
-	// runs on Linux, so the POSIX cleaner alone only parses forward slashes.
-	normalized := pathpkg.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
-	normalizedHome := pathpkg.Clean(strings.ReplaceAll(home, "\\", "/"))
+	normalized := path.Clean(requestedPath)
+	normalizedHome := path.Clean(home)
 
 	return looksLikePlanFileName(normalized) &&
-		strings.EqualFold(pathpkg.Dir(normalized), normalizedHome)
+		strings.EqualFold(path.Dir(normalized), normalizedHome)
 }
 
 // looksLikeLegacySharedPlanPath reports whether requestedPath
-// matches the legacy shared plan path (case-insensitive, with
-// backslash normalization). Used as a narrow fallback when the
-// workspace home cannot be resolved.
+// matches the legacy shared plan path (case-insensitive). Used as a
+// narrow fallback when the workspace home cannot be resolved.
 func looksLikeLegacySharedPlanPath(requestedPath string) bool {
-	normalized := pathpkg.Clean(strings.ReplaceAll(requestedPath, "\\", "/"))
+	normalized := path.Clean(requestedPath)
 	return strings.EqualFold(normalized, LegacySharedPlanPath)
 }

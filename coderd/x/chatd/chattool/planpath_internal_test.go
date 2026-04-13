@@ -14,9 +14,7 @@ func TestIsAbsolutePath(t *testing.T) {
 		want bool
 	}{
 		{"/home/coder/PLAN.md", true},
-		{`C:\\Users\\coder\\PLAN.md`, true},
-		{"C:/Users/coder/PLAN.md", true},
-		{`d:\\data\\plan.md`, true},
+		{"/workspace/project/plan.md", true},
 		{"plan.md", false},
 		{"./plan.md", false},
 		{"../plan.md", false},
@@ -36,15 +34,8 @@ func TestLooksLikePlanFileName(t *testing.T) {
 
 	require.True(t, looksLikePlanFileName("plan.md"))
 	require.True(t, looksLikePlanFileName("./Plan.md"))
-	require.True(t, looksLikePlanFileName(`C:\\Users\\coder\\PLAN.md`))
-	require.True(t, looksLikePlanFileName(`C:\\Users\\coder\\plan.md`))
-	require.False(t, looksLikePlanFileName(`C:\\Users\\coder\\README.md`))
-}
-
-func TestLooksLikeHomePlanFileWindowsDriveLetterCaseMismatch(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, LooksLikeHomePlanFile("C:/Users/coder/plan.md", "c:/Users/coder"))
+	require.True(t, looksLikePlanFileName("/home/coder/PLAN.md"))
+	require.False(t, looksLikePlanFileName("/home/coder/README.md"))
 }
 
 func TestLooksLikeLegacySharedPlanPath(t *testing.T) {
