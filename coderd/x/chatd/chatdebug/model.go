@@ -362,7 +362,7 @@ func wrapStreamSeq(
 		mu.Lock()
 		defer mu.Unlock()
 		// If the stream already received a finish chunk, let
-		// finalize handle it -- it has the real response payload
+		// finalize handle it; it has the real response payload
 		// and usage data that we would otherwise clobber.
 		if finalized || streamComplete.Load() {
 			return
@@ -463,7 +463,7 @@ func wrapStreamSeq(
 				if !yield(part) {
 					// When the consumer stops iteration after
 					// receiving a finish part, the stream completed
-					// successfully -- the consumer simply has nothing
+					// successfully; the consumer simply has nothing
 					// left to read. Only mark as interrupted when the
 					// consumer exits before the provider finished.
 					switch {

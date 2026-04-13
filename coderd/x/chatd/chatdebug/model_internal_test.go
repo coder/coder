@@ -706,7 +706,7 @@ func TestWrapStreamSeq_DroppedStreamFinalizedOnCtxCancel(t *testing.T) {
 	// Create the wrapped stream but never iterate it.
 	_ = wrapStreamSeq(ctx, handle, partsToSeq(parts))
 
-	// Cancel the context -- the AfterFunc safety net should finalize
+	// Cancel the context; the AfterFunc safety net should finalize
 	// the step as interrupted.
 	cancel()
 
