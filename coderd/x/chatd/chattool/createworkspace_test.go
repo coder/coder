@@ -126,6 +126,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	ownerID := uuid.New()
+	orgID := uuid.New()
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	jobID := uuid.New()
@@ -188,12 +189,13 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	}
 
 	tool := CreateWorkspace(CreateWorkspaceOptions{
-		DB:          db,
-		OwnerID:     ownerID,
-		CreateFn:    createFn,
-		AgentConnFn: agentConnFn,
-		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		DB:             db,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+		CreateFn:       createFn,
+		AgentConnFn:    agentConnFn,
+		WorkspaceMu:    &sync.Mutex{},
+		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-chat-agent"}`, templateID.String())
@@ -218,6 +220,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	ownerID := uuid.New()
+	orgID := uuid.New()
 	chatID := uuid.New()
 	templateID := uuid.New()
 	workspaceID := uuid.New()
@@ -270,9 +273,10 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 		}, nil)
 
 	tool := CreateWorkspace(CreateWorkspaceOptions{
-		DB:      db,
-		OwnerID: ownerID,
-		ChatID:  chatID,
+		DB:             db,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+		ChatID:         chatID,
 		CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			return codersdk.Workspace{
 				ID:        workspaceID,
@@ -315,6 +319,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	ownerID := uuid.New()
+	orgID := uuid.New()
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	jobID := uuid.New()
@@ -363,12 +368,13 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	}
 
 	tool := CreateWorkspace(CreateWorkspaceOptions{
-		DB:          db,
-		OwnerID:     ownerID,
-		ChatID:      uuid.Nil,
-		CreateFn:    createFn,
-		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		DB:             db,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+		ChatID:         uuid.Nil,
+		CreateFn:       createFn,
+		WorkspaceMu:    &sync.Mutex{},
+		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-build-fail"}`, templateID.String())
@@ -426,6 +432,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 
 			ownerID := uuid.New()
+			orgID := uuid.New()
 			templateID := uuid.New()
 			workspaceID := uuid.New()
 			jobID := uuid.New()
@@ -476,12 +483,13 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			}
 
 			tool := CreateWorkspace(CreateWorkspaceOptions{
-				DB:          db,
-				OwnerID:     ownerID,
-				ChatID:      uuid.Nil,
-				CreateFn:    createFn,
-				WorkspaceMu: &sync.Mutex{},
-				Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				DB:             db,
+				OwnerID:        ownerID,
+				OrganizationID: orgID,
+				ChatID:         uuid.Nil,
+				CreateFn:       createFn,
+				WorkspaceMu:    &sync.Mutex{},
+				Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			})
 
 			input := fmt.Sprintf(`{"template_id":%q,"name":"test-ws-%s"}`, templateID.String(), tc.name)
@@ -907,6 +915,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	ownerID := uuid.New()
+	orgID := uuid.New()
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	jobID := uuid.New()
@@ -954,12 +963,13 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 	}
 
 	tool := CreateWorkspace(CreateWorkspaceOptions{
-		DB:          db,
-		OwnerID:     ownerID,
-		ChatID:      uuid.Nil,
-		CreateFn:    createFn,
-		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		DB:             db,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+		ChatID:         uuid.Nil,
+		CreateFn:       createFn,
+		WorkspaceMu:    &sync.Mutex{},
+		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-build-cancel"}`, templateID.String())

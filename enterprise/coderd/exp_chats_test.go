@@ -1237,12 +1237,10 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	require.Equal(t, secondOrg.ID, memberChat.OrganizationID)
 
 	// Create an org admin in the second org with agents access.
-	adminClientRaw, admin := coderdtest.CreateAnotherUser(
+	adminClientRaw, _ := coderdtest.CreateAnotherUser(
 		t, client, firstUser.OrganizationID,
 		rbac.ScopedRoleOrgAdmin(secondOrg.ID), rbac.RoleAgentsAccess(),
 	)
-	_, err = client.PostOrganizationMember(ctx, secondOrg.ID, admin.Username)
-	require.NoError(t, err)
 	adminExp := codersdk.NewExperimentalClient(adminClientRaw)
 
 	// Admin creates a chat in the second org.
