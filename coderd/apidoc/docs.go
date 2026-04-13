@@ -14691,6 +14691,9 @@ const docTemplate = `{
             "properties": {
                 "acquire_batch_size": {
                     "type": "integer"
+                },
+                "debug_logging_enabled": {
+                    "type": "boolean"
                 }
             }
         },

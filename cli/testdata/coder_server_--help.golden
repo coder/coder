@@ -211,6 +211,13 @@ AI BRIDGE PROXY OPTIONS:
           certificates not trusted by the system. If not provided, the system
           certificate pool is used.
 
+CHAT OPTIONS: 
+Configure the background chat processing daemon.
+
+      --chat-debug-logging-enabled bool, $CODER_CHAT_DEBUG_LOGGING_ENABLED (default: false)
+          Force chat debug logging on for every chat, bypassing the runtime
+          admin and user opt-in settings.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

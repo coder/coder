@@ -2,7 +2,7 @@
 
 VS Code's native chat can be configured to use AI Gateway with the GitHub Copilot Chat extension's custom language model support.
 
-## Configuration
+## Centralized API Key
 
 > [!IMPORTANT]
 > You need the **Pre-release** version of the [GitHub Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) and [VS Code Insiders](https://code.visualstudio.com/insiders/).
@@ -46,5 +46,10 @@ _Replace `coder.example.com` with your Coder deployment URL._
 
 > [!NOTE]
 > The setting names may change as the feature moves from pre-release to stable. Refer to the official documentation for the latest setting keys.
+
+## BYOK (Personal API Key)
+
+> [!NOTE]
+> At the time of writing, GitHub Copilot Chat does not support sending custom headers, so BYOK mode is not available.
 
 **References:** [GitHub Copilot - Bring your own language model](https://code.visualstudio.com/docs/copilot/customization/language-models#_add-an-openaicompatible-model)

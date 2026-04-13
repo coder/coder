@@ -25,6 +25,7 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
+import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
@@ -314,15 +315,20 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const wsName = rec ? asString(rec.workspace_name) : "";
+	const buildId = rec ? asString(rec.build_id) : undefined;
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
+	const hasErrorInResult = Boolean(rec?.error);
+	const created = rec?.created !== false;
 
 	return (
 		<CreateWorkspaceTool
 			workspaceName={wsName}
 			resultJson={resultJson}
 			status={status}
-			isError={isError}
+			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			buildId={buildId}
+			created={created}
 		/>
 	);
 };
@@ -704,6 +710,29 @@ const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	);
 };
 
+const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const wsName = rec ? asString(rec.workspace_name) : "";
+	const buildId = rec ? asString(rec.build_id) : undefined;
+	const hasErrorInResult = Boolean(rec?.error);
+	const noBuild = Boolean(rec?.no_build);
+
+	return (
+		<StartWorkspaceTool
+			status={status}
+			buildId={buildId}
+			workspaceName={wsName}
+			isError={isError || hasErrorInResult}
+			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			noBuild={noBuild}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map — maps tool names to their specialized renderers.
 // ---------------------------------------------------------------------------
@@ -717,6 +746,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,
+	start_workspace: StartWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,

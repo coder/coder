@@ -44,6 +44,7 @@ const AgentCreatePage: FC = () => {
 		workspaceId,
 		model,
 		mcpServerIds,
+		organizationId,
 	}: CreateChatOptions) => {
 		const modelConfigID = model || nilUUID;
 		const content: TypesGen.ChatInputPart[] = [];
@@ -56,6 +57,7 @@ const AgentCreatePage: FC = () => {
 			}
 		}
 		const createdChat = await createMutation.mutateAsync({
+			organization_id: organizationId,
 			content,
 			workspace_id: workspaceId,
 			model_config_id: modelConfigID,

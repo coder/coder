@@ -37,6 +37,7 @@ const ComboboxWithHooks = ({
 	optionsList?: SelectFilterOption[];
 }) => {
 	const [value, setValue] = useState<string | undefined>(undefined);
+	const [inputValue, setInputValue] = useState("");
 	const selectedOption = optionsList.find((opt) => opt.value === value);
 
 	return (
@@ -48,7 +49,11 @@ const ComboboxWithHooks = ({
 				/>
 			</ComboboxTrigger>
 			<ComboboxContent className="w-60">
-				<ComboboxInput placeholder="Search..." />
+				<ComboboxInput
+					placeholder="Search..."
+					value={inputValue}
+					onValueChange={setInputValue}
+				/>
 				<ComboboxList>
 					{optionsList.map((option) => (
 						<ComboboxItem key={option.value} value={option.value}>

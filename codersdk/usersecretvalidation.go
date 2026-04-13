@@ -7,6 +7,27 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	// MaxSecretValueSize is the maximum size of a user secret value
+	// in bytes. This limit applies uniformly to both env var and
+	// file-destined secrets because the value field is shared and
+	// the destination can change after creation. 32KB is generous
+	// for env vars (most are under 1KB) but necessary for file
+	// content like SSH keys, TLS certificate chains, and JSON
+	// configs. We are not trying to be overly restrictive here;
+	// users can use the full 32KB for env var values even though
+	// it would be unusual.
+	MaxSecretValueSize = 32 * 1024 // 32KB
+
+	// maxFilePathLength is the maximum length of a file path for
+	// a user secret. Matches Linux PATH_MAX, which is the common
+	// case since workspace agents almost always run on Linux.
+	// This does not catch all Windows path length edge cases
+	// (legacy MAX_PATH is 260), but the agent will surface a
+	// runtime error if the write fails.
+	maxFilePathLength = 4096
+)
+
 // UserSecretEnvValidationOptions controls deployment-aware behavior
 // in environment variable name validation.
 type UserSecretEnvValidationOptions struct {
@@ -177,15 +198,38 @@ func UserSecretEnvNameValid(s string, opts UserSecretEnvValidationOptions) error
 
 // UserSecretFilePathValid validates a file path for a user secret.
 // Empty string is allowed (means no file injection). Non-empty paths
-// must start with ~/ or /.
+// must start with ~/ or /, must not contain null bytes, and must not
+// exceed 4096 bytes.
 func UserSecretFilePathValid(s string) error {
 	if s == "" {
 		return nil
 	}
 
-	if strings.HasPrefix(s, "~/") || strings.HasPrefix(s, "/") {
-		return nil
+	if !strings.HasPrefix(s, "~/") && !strings.HasPrefix(s, "/") {
+		return xerrors.New("file path must start with ~/ or /")
 	}
 
-	return xerrors.New("file path must start with ~/ or /")
+	if strings.Contains(s, "\x00") {
+		return xerrors.New("file path must not contain null bytes")
+	}
+
+	if len(s) > maxFilePathLength {
+		return xerrors.Errorf("file path must not exceed %d bytes", maxFilePathLength)
+	}
+
+	return nil
+}
+
+// UserSecretValueValid validates a user secret value. The value must
+// not contain null bytes and must not exceed MaxSecretValueSize.
+func UserSecretValueValid(value string) error {
+	if strings.Contains(value, "\x00") {
+		return xerrors.New("secret value must not contain null bytes")
+	}
+
+	if len(value) > MaxSecretValueSize {
+		return xerrors.Errorf("secret value must not exceed %d bytes", MaxSecretValueSize)
+	}
+
+	return nil
 }
