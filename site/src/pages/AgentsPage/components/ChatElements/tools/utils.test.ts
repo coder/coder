@@ -562,9 +562,27 @@ describe("parseEditFilesArgs", () => {
 		expect(diff).not.toBeNull();
 	});
 
-	// Empty-string replace is a valid deletion edit and must not be
-	// rejected. Yup.string().required() would filter these out;
-	// defined() allows them through.
+	// search uses required() (rejects "") while replace uses
+	// defined() (allows ""). This asymmetry is intentional:
+	// empty search is meaningless, empty replace is a deletion.
+	it("rejects edits with empty-string search", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{ search: "", replace: "new" },
+						{ search: "valid", replace: "also valid" },
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0].search).toBe("valid");
+	});
+
 	it("preserves edits with empty-string replace (deletion)", () => {
 		const args = {
 			files: [
