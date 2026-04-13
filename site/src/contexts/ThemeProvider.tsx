@@ -104,15 +104,9 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (root.dataset.embedTheme) {
 			return;
 		}
+
 		root.classList.remove(...THEME_NAMES);
 		root.classList.add(themePreference);
-
-		return () => {
-			if (root.dataset.embedTheme) {
-				return;
-			}
-			root.classList.remove(...THEME_NAMES);
-		};
 	}, [themePreference]);
 
 	const theme = themes[themePreference];
