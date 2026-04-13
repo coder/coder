@@ -5,7 +5,11 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -370,6 +374,41 @@ export const WithWorkspaceActions: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Workspace status pill stories
+// ---------------------------------------------------------------------------
+
+/** Pill shows "Preparing" when workspace is running but agent startup scripts are still executing. */
+export const WorkspaceAgentStarting: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "starting",
+			}}
+		/>
+	),
+};
+
+/** Pill shows "Running" when workspace is running and agent lifecycle is ready. */
+export const WorkspaceAgentReady: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "ready",
+			}}
+		/>
+	),
+};
+
+/** Pill shows "Running" when workspace is running but no agent data is available. */
+export const WorkspaceNoAgent: Story = {
+	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
 };
 
 // ---------------------------------------------------------------------------
