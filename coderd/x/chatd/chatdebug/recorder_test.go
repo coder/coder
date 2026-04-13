@@ -82,6 +82,8 @@ func TestNextStepNumber_Concurrent(t *testing.T) {
 	const n = 256
 
 	runID := uuid.New()
+	t.Cleanup(func() { CleanupStepCounter(runID) })
+
 	results := make([]int, n)
 	var wg sync.WaitGroup
 	wg.Add(n)

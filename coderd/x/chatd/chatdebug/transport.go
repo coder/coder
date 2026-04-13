@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -85,7 +86,7 @@ func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 			FinishedAt:     finishedAt.UTC().Format(time.RFC3339Nano),
 			RequestHeaders: requestHeaders,
 			RequestBody:    requestBody,
-			Error:          err.Error(),
+			Error:          sanitizeErrorString(err.Error()),
 			DurationMs:     durationMs,
 		})
 		return nil, err
@@ -111,6 +112,24 @@ func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 	}
 
 	return resp, nil
+}
+
+// urlInErrorPattern matches URL-like substrings that transports or
+// retry middleware may embed in error messages. Credentials can
+// appear in userinfo or query parameters.
+var urlInErrorPattern = regexp.MustCompile(`https?://[^\s"']+`)
+
+// sanitizeErrorString redacts URL-like substrings that may contain
+// credentials (userinfo, query parameters) from transport error
+// messages before they are persisted in debug attempts.
+func sanitizeErrorString(errMsg string) string {
+	return urlInErrorPattern.ReplaceAllStringFunc(errMsg, func(rawURL string) string {
+		parsed, err := url.Parse(rawURL)
+		if err != nil {
+			return "[REDACTED_URL]"
+		}
+		return redactURL(parsed)
+	})
 }
 
 func redactURL(u *url.URL) string {
@@ -362,17 +381,26 @@ func (r *recordingBody) record(err error) {
 		startedAt := r.startedAt
 		r.mu.Unlock()
 
+		contentType := base.ResponseHeaders["Content-Type"]
 		if truncated {
 			base.ResponseBody = []byte("[TRUNCATED]")
-		} else {
+		} else if contentType == "" || isJSONLikeContentType(contentType) {
+			// Redact JSON secrets when the content type is JSON-like
+			// or absent (unknown). For unknown types, RedactJSONSecrets
+			// fails closed by replacing non-JSON payloads with a
+			// diagnostic message.
 			base.ResponseBody = RedactJSONSecrets(responseBody)
+		} else {
+			// Non-JSON content types (SSE, text/plain, HTML, etc.)
+			// are preserved as-is to avoid losing debug content.
+			base.ResponseBody = responseBody
 		}
 		base.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
 		base.FinishedAt = finishedAt.UTC().Format(time.RFC3339Nano)
 		// Recompute duration to include body read time.
 		base.DurationMs = finishedAt.Sub(startedAt).Milliseconds()
 		if err != nil && !errors.Is(err, io.EOF) {
-			base.Error = err.Error()
+			base.Error = sanitizeErrorString(err.Error())
 			base.Status = attemptStatusFailed
 		} else {
 			base.Status = attemptStatusCompleted

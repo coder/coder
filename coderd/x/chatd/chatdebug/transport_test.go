@@ -249,6 +249,7 @@ func TestRecordingTransport_CaptureResponse(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
 		rw.Header().Set("X-API-Key", "response-secret")
 		rw.Header().Set("X-Trace-ID", "trace-123")
 		rw.WriteHeader(http.StatusCreated)
@@ -275,6 +276,7 @@ func TestRecordingTransport_CaptureResponse(t *testing.T) {
 	attempts := sink.snapshot()
 	require.Len(t, attempts, 1)
 	require.Equal(t, http.StatusCreated, attempts[0].ResponseStatus)
+	require.Equal(t, "application/json", attempts[0].ResponseHeaders["Content-Type"])
 	require.Equal(t, RedactedValue, attempts[0].ResponseHeaders["X-Api-Key"])
 	require.Equal(t, "trace-123", attempts[0].ResponseHeaders["X-Trace-Id"])
 	require.JSONEq(t, `{"token":"[REDACTED]","safe":"ok"}`, string(attempts[0].ResponseBody))
@@ -714,6 +716,34 @@ func TestRecordingTransport_TransportError(t *testing.T) {
 	require.GreaterOrEqual(t, attempts[0].DurationMs, int64(0))
 }
 
+func TestRecordingTransport_TransportErrorSanitizesURLCredentials(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return nil, xerrors.New("connection to http://admin:s3cret@api.example.com/v1?api_key=sk-1234 refused")
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	require.Error(t, err)
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.NotContains(t, attempts[0].Error, "s3cret")
+	require.NotContains(t, attempts[0].Error, "sk-1234")
+	require.Contains(t, attempts[0].Error, "api_key=%5BREDACTED%5D")
+}
+
 func TestRecordingTransport_NilBase(t *testing.T) {
 	t.Parallel()
 
@@ -734,4 +764,113 @@ func TestRecordingTransport_NilBase(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "ok", string(body))
+}
+
+func TestRecordingTransport_SSEReadToEOFMarksCompleted(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	ssePayload := "data: {\"token\":\"secret\"}\n\ndata: [DONE]\n\n"
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body:          io.NopCloser(strings.NewReader(ssePayload)),
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, ssePayload, string(body))
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+	// SSE bodies should be preserved as-is, not replaced with
+	// a redaction diagnostic.
+	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+func TestRecordingTransport_SSEClosedEarlyMarksFailed(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	ssePayload := "data: {\"token\":\"secret\"}\n\ndata: [DONE]\n\n"
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body:          &scriptedReadCloser{chunks: [][]byte{[]byte(ssePayload)}},
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	// Read only a few bytes then close early.
+	buf := make([]byte, 5)
+	_, err = resp.Body.Read(buf)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusFailed, attempts[0].Status)
+	require.Equal(t, io.ErrUnexpectedEOF.Error(), attempts[0].Error)
+}
+
+func TestRecordingTransport_TextPlainPreservedNotRedacted(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	textPayload := "This is plain text, not JSON."
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test text/plain content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/plain"}},
+					Body:          io.NopCloser(strings.NewReader(textPayload)),
+					ContentLength: int64(len(textPayload)),
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	_, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	// Non-JSON bodies should be preserved as-is, not replaced
+	// with a redaction diagnostic.
+	require.Equal(t, textPayload, string(attempts[0].ResponseBody))
 }
