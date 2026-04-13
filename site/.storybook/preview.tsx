@@ -13,7 +13,7 @@ import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
-import themes from "../src/theme";
+import { themes } from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
