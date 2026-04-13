@@ -513,6 +513,54 @@ describe("parseEditFilesArgs", () => {
 		expect(result).toHaveLength(1);
 		expect(result[0].path).toBe("test.ts");
 	});
+
+	it("filters out edits with non-string search or replace", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{ search: "x", replace: "y" },
+						{ search: "a" }, // missing replace
+						{ replace: "b" }, // missing search
+						{ search: 42, replace: "c" }, // non-string search
+						{ search: "d", replace: null }, // non-string replace
+						null, // null edit
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "x", replace: "y" });
+	});
+
+	// Regression: a partial edit with a missing replace field caused
+	// Diff.createPatch to crash inside its tokenize method with
+	// "Cannot read properties of undefined (reading 'split')".
+	// This reproduces the exact call path from Tool.tsx:
+	// parseEditFilesArgs(args) -> buildEditDiff(file.path, file.edits).
+	it("does not crash buildEditDiff when edits have missing replace", () => {
+		const args = {
+			files: [
+				{
+					path: "src/app.ts",
+					edits: [
+						{ search: "const x = 1;", replace: "const x = 2;" },
+						{ search: "const y = 3;" }, // streamed edit, replace not yet present
+					],
+				},
+			],
+		};
+		const parsed = parseEditFilesArgs(args);
+		expect(parsed).toHaveLength(1);
+		// The incomplete edit should be filtered out, leaving only
+		// the valid one so buildEditDiff never sees undefined.
+		expect(parsed[0].edits).toHaveLength(1);
+		const diff = buildEditDiff(parsed[0].path, parsed[0].edits);
+		expect(diff).not.toBeNull();
+	});
 });
 
 describe("buildEditDiff", () => {

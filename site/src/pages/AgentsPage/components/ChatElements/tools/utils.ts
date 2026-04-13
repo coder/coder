@@ -2,6 +2,7 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
 import type React from "react";
+import * as Yup from "yup";
 import { asRecord, asString } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
@@ -10,6 +11,16 @@ export interface EditFilesFileEntry {
 	path: string;
 	edits: Array<{ search: string; replace: string }>;
 }
+
+const editSchema = Yup.object({
+	search: Yup.string().required(),
+	replace: Yup.string().required(),
+});
+
+const editFileEntrySchema = Yup.object({
+	path: Yup.string().required(),
+	edits: Yup.array().defined(),
+});
 
 export const toProviderLabel = (
 	providerDisplayName: string,
@@ -515,13 +526,17 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	if (!parsed) return [];
 	const files = parsed.files;
 	if (!Array.isArray(files)) return [];
-	return files.filter(
-		(f): f is EditFilesFileEntry =>
-			f !== null &&
-			typeof f === "object" &&
-			typeof (f as Record<string, unknown>).path === "string" &&
-			Array.isArray((f as Record<string, unknown>).edits),
-	);
+	return files
+		.filter((f) => editFileEntrySchema.isValidSync(f, { strict: true }))
+		.map((f) => {
+			const entry = editFileEntrySchema.cast(f);
+			return {
+				path: entry.path,
+				edits: (entry.edits ?? []).filter((e) =>
+					editSchema.isValidSync(e, { strict: true }),
+				) as EditFilesFileEntry["edits"],
+			};
+		});
 };
 
 /**
