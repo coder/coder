@@ -387,8 +387,8 @@ func (n *Webpusher) PublicKey() string {
 }
 
 // NoopWebpusher is a Dispatcher that does nothing except return an error.
-// This is returned when web push notifications are disabled, or if there was an
-// error generating the VAPID keys.
+// This is used as a fallback when there is an error generating the VAPID
+// keys.
 type NoopWebpusher struct {
 	Msg string
 }
