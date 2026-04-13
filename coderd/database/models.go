@@ -4362,6 +4362,9 @@ type Chat struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+	AncestorChatID      uuid.NullUUID         `db:"ancestor_chat_id" json:"ancestor_chat_id"`
+	AncestorMessageID   sql.NullInt64         `db:"ancestor_message_id" json:"ancestor_message_id"`
+
 }
 
 type ChatDebugRun struct {

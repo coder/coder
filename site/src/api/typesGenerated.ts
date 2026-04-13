@@ -1233,6 +1233,8 @@ export interface Chat {
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
+	readonly ancestor_chat_id?: string;
+	readonly ancestor_message_id?: number;
 	readonly last_model_config_id: string;
 	readonly title: string;
 	readonly status: ChatStatus;
@@ -3884,6 +3886,14 @@ export const FeatureNames: FeatureName[] = [
 export type FeatureSet = "enterprise" | "" | "premium";
 
 export const FeatureSets: FeatureSet[] = ["enterprise", "", "premium"];
+
+// From codersdk/chats.go
+/**
+ * ForkChatRequest is the request to fork a chat at a specific message.
+ */
+export interface ForkChatRequest {
+	readonly message_id: number;
+}
 
 // From codersdk/files.go
 export const FormatZip = "zip";

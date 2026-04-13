@@ -3157,6 +3157,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	forkChat = async (
+		chatId: string,
+		req: TypesGen.ForkChatRequest,
+	): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/fork`,
+			req,
+		);
+		return response.data;
+	};
+
 	updateChat = async (
 		chatId: string,
 		req: UpdateChatRequestWithClearablePlanMode,

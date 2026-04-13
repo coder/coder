@@ -48,6 +48,7 @@ interface ChatPageTimelineProps {
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
+	onForkFromMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -60,6 +61,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
 	persistedError,
 	onEditUserMessage,
+	onForkFromMessage,
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
@@ -109,6 +111,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					parsedMessages={parsedMessages}
 					subagentTitles={subagentTitles}
 					onEditUserMessage={onEditUserMessage}
+					onForkFromMessage={onForkFromMessage}
 					editingMessageId={editingMessageId}
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}

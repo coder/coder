@@ -749,6 +749,22 @@ export const createChat = (queryClient: QueryClient) => ({
 	},
 });
 
+export const forkChat = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		chatId,
+		req,
+	}: {
+		chatId: string;
+		req: TypesGen.ForkChatRequest;
+	}) => API.experimental.forkChat(chatId, req),
+	onSuccess: () => {
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
+	},
+});
+
 export const createChatMessage = (
 	_queryClient: QueryClient,
 	chatId: string,

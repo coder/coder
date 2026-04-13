@@ -2385,6 +2385,22 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) ForkChat(ctx context.Context, arg database.ForkChatParams) (database.ForkChatRow, error) {
+	// First, verify the user can read the source chat.
+	sourceChat, err := q.db.GetChatByID(ctx, arg.SourceChatID)
+	if err != nil {
+		return database.ForkChatRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, sourceChat.RBACObject()); err != nil {
+		return database.ForkChatRow{}, err
+	}
+	// Authorize creating a new chat with the same owner and org.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceChat.WithOwner(sourceChat.OwnerID.String()).InOrg(sourceChat.OrganizationID)); err != nil {
+		return database.ForkChatRow{}, err
+	}
+	return q.db.ForkChat(ctx, arg)
+}
+
 func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
 }

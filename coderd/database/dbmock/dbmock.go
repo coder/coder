@@ -1547,6 +1547,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// ForkChat mocks base method.
+func (m *MockStore) ForkChat(ctx context.Context, arg database.ForkChatParams) (database.ForkChatRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForkChat", ctx, arg)
+	ret0, _ := ret[0].(database.ForkChatRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ForkChat indicates an expected call of ForkChat.
+func (mr *MockStoreMockRecorder) ForkChat(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForkChat", reflect.TypeOf((*MockStore)(nil).ForkChat), ctx, arg)
+}
+
 // GetAIBridgeInterceptionByID mocks base method.
 func (m *MockStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	m.ctrl.T.Helper()

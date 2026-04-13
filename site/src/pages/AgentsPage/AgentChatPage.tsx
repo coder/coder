@@ -1,4 +1,11 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	useInfiniteQuery,
@@ -6,7 +13,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useOutletContext, useParams } from "react-router";
+import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
@@ -26,6 +33,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	forkChat,
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
@@ -609,6 +617,11 @@ const AgentChatPage: FC = () => {
 		...chat(parentChatID ?? ""),
 		enabled: Boolean(parentChatID),
 	});
+	const ancestorChatID = chatQuery.data?.ancestor_chat_id;
+	const ancestorChatQuery = useQuery({
+		...chat(ancestorChatID ?? ""),
+		enabled: Boolean(ancestorChatID),
+	});
 	const workspaceId = chatQuery.data?.workspace_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
@@ -790,58 +803,61 @@ const AgentChatPage: FC = () => {
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
-	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
-	const {
-		isPending: isUpdateChatWorkspacePending,
-		mutateAsync: updateChatWorkspaceAsync,
-	} = useMutation({
-		...updateChatWorkspaceBase,
-		onError: (error, variables, context) => {
-			updateChatWorkspaceBase.onError(error, variables, context);
-			toast.error(getErrorMessage(error, "Failed to update workspace."));
-		},
-	});
-
-	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
-	const {
-		isPending: isUpdateChatPlanModePending,
-		mutateAsync: updateChatPlanModeAsync,
-	} = useMutation({
-		...updateChatPlanModeBase,
-		onError: (error, variables, context) => {
-			updateChatPlanModeBase.onError(error, variables, context);
-			toast.error(getErrorMessage(error, "Failed to update plan mode."));
-		},
-	});
-	const setCachedChatPlanMode = (
-		chatId: string,
-		planMode?: TypesGen.ChatPlanMode,
-	) => {
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
-			),
-		);
-		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
-			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
-		);
-	};
-
-	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
-	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
-	const trackPendingChatSettingSync = (
-		syncPromise: Promise<unknown>,
-		syncRef: { current: Promise<unknown> | null },
-	) => {
-		let trackedSync: Promise<unknown>;
-		trackedSync = syncPromise.finally(() => {
-			if (syncRef.current === trackedSync) {
-				syncRef.current = null;
-			}
+		const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
+		const {
+			isPending: isUpdateChatWorkspacePending,
+			mutateAsync: updateChatWorkspaceAsync,
+		} = useMutation({
+			...updateChatWorkspaceBase,
+			onError: (error, variables, context) => {
+				updateChatWorkspaceBase.onError(error, variables, context);
+				toast.error(getErrorMessage(error, "Failed to update workspace."));
+			},
 		});
-		syncRef.current = trackedSync;
-		void trackedSync.catch(() => undefined);
-	};
+
+		const updateChatPlanModeBase = updateChatPlanMode(queryClient);
+		const {
+			isPending: isUpdateChatPlanModePending,
+			mutateAsync: updateChatPlanModeAsync,
+		} = useMutation({
+			...updateChatPlanModeBase,
+			onError: (error, variables, context) => {
+				updateChatPlanModeBase.onError(error, variables, context);
+				toast.error(getErrorMessage(error, "Failed to update plan mode."));
+			},
+		});
+		const setCachedChatPlanMode = (
+			chatId: string,
+			planMode?: TypesGen.ChatPlanMode,
+		) => {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+				),
+			);
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
+				previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
+			);
+		};
+
+		const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
+		const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
+		const trackPendingChatSettingSync = (
+			syncPromise: Promise<unknown>,
+			syncRef: { current: Promise<unknown> | null },
+		) => {
+			let trackedSync: Promise<unknown>;
+			trackedSync = syncPromise.finally(() => {
+				if (syncRef.current === trackedSync) {
+					syncRef.current = null;
+				}
+			});
+			syncRef.current = trackedSync;
+			void trackedSync.catch(() => undefined);
+		};
+		const forkMutation = useMutation(forkChat(queryClient));
+		const navigate = useNavigate();
+
 
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
@@ -1059,6 +1075,21 @@ const AgentChatPage: FC = () => {
 	);
 
 	const parentChat = parentChatQuery.data;
+		const ancestorChat = ancestorChatQuery.data;
+		const workspaceRoute = workspace
+			? `/@${workspace.owner_name}/${workspace.name}`
+			: null;
+		const canOpenWorkspace = Boolean(workspaceRoute);
+		const canOpenEditors = Boolean(workspace && workspaceAgent);
+		const terminalHref =
+			workspace && workspaceAgent
+				? getTerminalHref({
+						username: workspace.owner_name,
+						workspace: workspace.name,
+						agent: workspaceAgent.name,
+					})
+				: null;
+
 	const sshCommand =
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
@@ -1319,20 +1350,36 @@ const AgentChatPage: FC = () => {
 		onRegenerateTitle(agentId);
 	};
 
-	const handleSendAskUserQuestionResponse = async (message: string) => {
-		await submitChatTurn({
-			message,
-			useComposerContent: false,
-		});
-	};
+		const handleSendAskUserQuestionResponse = async (message: string) => {
+			await submitChatTurn({
+				message,
+				useComposerContent: false,
+			});
+		};
 
-	const handleImplementPlan = async () => {
-		await submitChatTurn({
-			message: "Implement the plan.",
-			planModeSwitch: "clear",
-			useComposerContent: false,
-		});
-	};
+		const handleImplementPlan = async () => {
+			await submitChatTurn({
+				message: "Implement the plan.",
+				planModeSwitch: "clear",
+				useComposerContent: false,
+			});
+		};
+		const handleForkFromMessage = useCallback(
+			async (messageId: number) => {
+				if (!agentId) return;
+				try {
+					const newChat = await forkMutation.mutateAsync({
+						chatId: agentId,
+						req: { message_id: messageId },
+					});
+					navigate(`/agents/${newChat.id}`);
+				} catch {
+					// Error is handled by React Query.
+				}
+			},
+			[agentId, forkMutation, navigate],
+		);
+
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
@@ -1370,6 +1417,7 @@ const AgentChatPage: FC = () => {
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
+			ancestorChat={ancestorChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
 			workspace={workspace}
@@ -1423,6 +1471,7 @@ const AgentChatPage: FC = () => {
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 			desktopChatId={desktopEnabled ? agentId : undefined}
+			onForkFromMessage={handleForkFromMessage}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}
 			onMCPSelectionChange={handleMCPSelectionChange}

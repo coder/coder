@@ -1,4 +1,5 @@
-import { PencilIcon } from "lucide-react";
+import { GitForkIcon, PencilIcon } from "lucide-react";
+
 import {
 	type FC,
 	Fragment,
@@ -342,6 +343,7 @@ const ChatMessageItem = memo<{
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
+	onForkFromMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
@@ -366,6 +368,7 @@ const ChatMessageItem = memo<{
 		message,
 		parsed,
 		onEditUserMessage,
+		onForkFromMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
@@ -459,7 +462,9 @@ const ChatMessageItem = memo<{
 					)}
 				</ConversationItem>
 				{!hideActions &&
-					(displayState.hasCopyableContent ||
+						(displayState.hasCopyableContent ||
+							onForkFromMessage ||
+
 						(isUser && onEditUserMessage)) && (
 						<div
 							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
@@ -472,6 +477,22 @@ const ChatMessageItem = memo<{
 									className="size-6"
 									tooltipSide="bottom"
 								/>
+							)}
+							{onForkFromMessage && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											className="size-6"
+											aria-label="Fork from here"
+											onClick={() => onForkFromMessage(message.id)}
+										>
+											<GitForkIcon />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">Fork from here</TooltipContent>
+								</Tooltip>
 							)}
 							{isUser && onEditUserMessage && (
 								<Tooltip>
@@ -525,6 +546,7 @@ const StickyUserMessage = memo<{
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
+	onForkFromMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 }>(
@@ -532,6 +554,7 @@ const StickyUserMessage = memo<{
 		message,
 		parsed,
 		onEditUserMessage,
+		onForkFromMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
 	}) => {
@@ -756,9 +779,10 @@ const StickyUserMessage = memo<{
 							message={message}
 							parsed={parsed}
 							onEditUserMessage={handleEditUserMessage}
+							onForkFromMessage={onForkFromMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
-						/>
+						/>{" "}
 					</div>
 
 					{/* Overlay: absolutely positioned, matching the
@@ -798,10 +822,11 @@ const StickyUserMessage = memo<{
 									message={message}
 									parsed={parsed}
 									onEditUserMessage={handleEditUserMessage}
+									onForkFromMessage={onForkFromMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
 									fadeFromBottom
-								/>
+								/>{" "}
 							</div>
 						</div>
 					)}
@@ -819,6 +844,7 @@ interface ConversationTimelineProps {
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
+	onForkFromMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -835,6 +861,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		parsedMessages,
 		subagentTitles,
 		onEditUserMessage,
+		onForkFromMessage,
 		editingMessageId,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -910,6 +937,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								message={message}
 								parsed={parsed}
 								onEditUserMessage={onEditUserMessage}
+								onForkFromMessage={onForkFromMessage}
 								editingMessageId={editingMessageId}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 							/>
@@ -924,14 +952,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							key={message.id}
 							message={message}
 							parsed={parsed}
-							onImplementPlan={onImplementPlan}
-							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-							isChatCompleted={isChatCompleted}
-							latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-							askUserQuestionResponseTextByToolId={
-								historicalAskUserQuestionResponseTextByToolId
-							}
-							hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+								askUserQuestionResponseTextByToolId={
+									historicalAskUserQuestionResponseTextByToolId
+								}
+								hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
+								onForkFromMessage={onForkFromMessage}
+
 							urlTransform={urlTransform}
 							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 							hideActions={!isLastInChain}

@@ -1358,3 +1358,85 @@ UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
     AND deleted = false
     AND content::jsonb @> '[{"type": "context-file"}]';
+
+-- name: ForkChat :one
+-- ForkChat creates a new chat from an existing one, copying all metadata and
+-- messages up to and including the specified message ID. This is a single
+-- atomic operation that:
+-- 1. Creates a new chat with the same workspace, model, MCP server, and
+--    label configuration as the source.
+-- 2. Copies all non-deleted messages up to the given message ID.
+-- 3. Copies all file links from the source chat.
+-- The new chat is set to 'waiting' status with ancestor lineage recorded.
+WITH new_chat AS (
+    INSERT INTO chats (
+        organization_id,
+        owner_id,
+        workspace_id,
+        build_id,
+        agent_id,
+        last_model_config_id,
+        title,
+        mode,
+        status,
+        mcp_server_ids,
+        labels,
+        dynamic_tools,
+        last_injected_context,
+        ancestor_chat_id,
+        ancestor_message_id
+    )
+    SELECT
+        organization_id,
+        owner_id,
+        workspace_id,
+        build_id,
+        agent_id,
+        last_model_config_id,
+        @title::text,
+        mode,
+        'waiting'::chat_status,
+        mcp_server_ids,
+        labels,
+        dynamic_tools,
+        last_injected_context,
+        @source_chat_id::uuid,
+        @up_to_message_id::bigint
+    FROM chats
+    WHERE id = @source_chat_id::uuid
+    RETURNING *
+),
+copied_messages AS (
+    INSERT INTO chat_messages (
+        chat_id,
+        created_by,
+        model_config_id,
+        role,
+        content,
+        content_version,
+        visibility,
+        compressed
+    )
+    SELECT
+        (SELECT id FROM new_chat),
+        created_by,
+        model_config_id,
+        role,
+        content,
+        content_version,
+        visibility,
+        compressed
+    FROM chat_messages
+    WHERE chat_id = @source_chat_id::uuid
+        AND id <= @up_to_message_id::bigint
+        AND deleted = false
+    ORDER BY id ASC
+),
+copied_file_links AS (
+    INSERT INTO chat_file_links (chat_id, file_id)
+    SELECT (SELECT id FROM new_chat), file_id
+    FROM chat_file_links
+    WHERE chat_id = @source_chat_id::uuid
+    ON CONFLICT (chat_id, file_id) DO NOTHING
+)
+SELECT * FROM new_chat;

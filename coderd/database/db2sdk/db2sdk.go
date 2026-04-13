@@ -1620,6 +1620,13 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		rootChatID := c.ID
 		chat.RootChatID = &rootChatID
 	}
+	if c.AncestorChatID.Valid {
+		chat.AncestorChatID = &c.AncestorChatID.UUID
+	}
+	if c.AncestorMessageID.Valid {
+		ancestorMsgID := c.AncestorMessageID.Int64
+		chat.AncestorMessageID = &ancestorMsgID
+	}
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}

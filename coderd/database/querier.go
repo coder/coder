@@ -211,6 +211,15 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	// ForkChat creates a new chat from an existing one, copying all metadata and
+	// messages up to and including the specified message ID. This is a single
+	// atomic operation that:
+	// 1. Creates a new chat with the same workspace, model, MCP server, and
+	//    label configuration as the source.
+	// 2. Copies all non-deleted messages up to the given message ID.
+	// 3. Copies all file links from the source chat.
+	// The new chat is set to 'waiting' status with ancestor lineage recorded.
+	ForkChat(ctx context.Context, arg ForkChatParams) (ForkChatRow, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
 	// Look up the parent interception and the root of the thread by finding
 	// which interception recorded a tool usage with the given tool call ID.

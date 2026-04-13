@@ -2507,6 +2507,109 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionRead, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.ForkChatRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.MessageID <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid message ID.",
+			Detail:  "message_id must be a positive integer.",
+		})
+		return
+	}
+
+	// Derive a title from the first user message that will be copied.
+	msgs, err := api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+		ChatID:   chat.ID,
+		LimitVal: 10,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to read source chat messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	title := "New Chat"
+	for _, m := range msgs {
+		if m.Role == database.ChatMessageRoleUser && m.Content.Valid {
+			// Try to extract text from content parts.
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal(m.Content.RawMessage, &parts); err == nil {
+				for _, p := range parts {
+					if p.Type == codersdk.ChatMessagePartTypeText && p.Text != "" {
+						title = chatTitleFromMessage(p.Text)
+						break
+					}
+				}
+			}
+			if title != "New Chat" {
+				break
+			}
+		}
+	}
+
+	newChat, err := api.Database.ForkChat(ctx, database.ForkChatParams{
+		Title:         title,
+		SourceChatID:  chat.ID,
+		UpToMessageID: req.MessageID,
+	})
+	if err != nil {
+		// Check if the error is because no messages matched.
+		if database.IsQueryCanceledError(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to fork chat.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fork chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Re-read the chat as a full database.Chat for conversion and
+	// title regeneration.
+	fullChat, err := api.Database.GetChatByID(ctx, newChat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat forked but failed to read result.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Trigger async title regeneration if chatDaemon is available.
+	if api.chatDaemon != nil {
+		// Best-effort title regeneration - don't fail the fork if
+		// this errors.
+		updated, titleErr := api.chatDaemon.RegenerateChatTitle(ctx, fullChat)
+		if titleErr == nil {
+			fullChat = updated
+		}
+	}
+
+	chatFiles := api.fetchChatFileMetadata(ctx, fullChat.ID)
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(fullChat, nil, chatFiles))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
