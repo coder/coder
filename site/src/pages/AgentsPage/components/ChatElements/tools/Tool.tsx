@@ -707,26 +707,30 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 }) => {
-	// The result can be a single object with {data, text, mime_type}
-	// or an array of content blocks.
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
+	let attachmentFileId = "";
+	let attachmentName = "";
 
 	if (Array.isArray(result)) {
 		for (const block of result) {
 			const blockRec = asRecord(block);
-			if (blockRec) {
-				if (blockRec.type === "image" || asString(blockRec.data)) {
-					imageData = asString(blockRec.data);
-					mimeType = asString(blockRec.mime_type) || "image/png";
-				}
-				if (
-					blockRec.type === "text" ||
-					(!imageData && asString(blockRec.text))
-				) {
-					text = asString(blockRec.text);
-				}
+			if (!blockRec) {
+				continue;
+			}
+			if (blockRec.type === "image" || asString(blockRec.data)) {
+				imageData = asString(blockRec.data);
+				mimeType = asString(blockRec.mime_type) || "image/png";
+			}
+			if (blockRec.type === "text" || (!imageData && asString(blockRec.text))) {
+				text = asString(blockRec.text);
+			}
+			if (!attachmentFileId) {
+				attachmentFileId = asString(blockRec.attachment_file_id);
+			}
+			if (!attachmentName) {
+				attachmentName = asString(blockRec.attachment_name);
 			}
 		}
 	} else {
@@ -735,6 +739,17 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 			imageData = asString(rec.data);
 			mimeType = asString(rec.mime_type) || "image/png";
 			text = asString(rec.text);
+			attachmentFileId = asString(rec.attachment_file_id);
+			attachmentName = asString(rec.attachment_name);
+		}
+	}
+
+	if (attachmentFileId) {
+		imageData = "";
+		if (!text) {
+			text = attachmentName
+				? `Attached ${attachmentName}`
+				: "Attached screenshot";
 		}
 	}
 

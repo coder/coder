@@ -6015,7 +6015,7 @@ func (p *Server) runChat(
 		// FOR UPDATE lock is held only for the INSERT statements.
 		// Marshaling is pure CPU work with no database dependency.
 		assistantParts := buildAssistantPartsForPersist(
-			ctx,
+			persistCtx,
 			p.logger,
 			assistantBlocks,
 			toolResults,

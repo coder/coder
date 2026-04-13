@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -492,6 +493,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Execute only built-in tools.
 				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
+					publishToolAttachments(tr, completedAt, publishMessagePart)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
 					publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
@@ -1543,6 +1545,26 @@ func recordToolResultTimestamp(result *stepResult, toolCallID string, ts time.Ti
 		result.toolResultCreatedAt = make(map[string]time.Time)
 	}
 	result.toolResultCreatedAt[toolCallID] = ts
+}
+
+func publishToolAttachments(
+	tr fantasy.ToolResultContent,
+	createdAt time.Time,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) {
+	attachments, err := chattool.AttachmentsFromMetadata(tr.ClientMetadata)
+	if err != nil {
+		return
+	}
+	for _, attachment := range attachments {
+		filePart := codersdk.ChatMessageFile(
+			attachment.FileID,
+			attachment.MediaType,
+			attachment.Name,
+		)
+		filePart.CreatedAt = &createdAt
+		publishMessagePart(codersdk.ChatMessageRoleAssistant, filePart)
+	}
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {
