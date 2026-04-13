@@ -579,6 +579,26 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed[0].edits).toHaveLength(1);
 		expect(parsed[0].edits[0].replace).toBe("");
 	});
+
+	// During streaming the model may emit a file entry before any
+	// edit is complete. Every edit has a missing replace, so all are
+	// filtered out. The file entry survives with an empty edits
+	// array and buildEditDiff returns null.
+	it("returns file entry with empty edits when all edits are invalid", () => {
+		const args = {
+			files: [
+				{
+					path: "src/app.ts",
+					edits: [{ search: "const x = 1;" }, { search: "const y = 2;" }],
+				},
+			],
+		};
+		const parsed = parseEditFilesArgs(args);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].path).toBe("src/app.ts");
+		expect(parsed[0].edits).toHaveLength(0);
+		expect(buildEditDiff(parsed[0].path, parsed[0].edits)).toBeNull();
+	});
 });
 
 describe("buildEditDiff", () => {
