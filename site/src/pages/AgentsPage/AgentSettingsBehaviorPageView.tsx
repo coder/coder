@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
@@ -130,6 +131,9 @@ export const AgentSettingsBehaviorPageView: FC<
 				isSaveUserPromptError={isSaveUserPromptError}
 				isAnyPromptSaving={isAnyPromptSaving}
 			/>
+
+			<hr className="my-5 border-0 border-t border-solid border-border" />
+			<ChatFullWidthSettings />
 
 			<hr className="my-5 border-0 border-t border-solid border-border" />
 			<UserCompactionThresholdSettings
