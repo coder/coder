@@ -216,7 +216,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<CopyIcon className="h-3.5 w-3.5" />
 								Copy SSH Command
 							</DropdownMenuItem>
-							<DropdownMenuSeparator />{" "}
+							<DropdownMenuSeparator />
+
 							<DropdownMenuItem
 								disabled={!workspace.canOpenWorkspace}
 								onSelect={workspace.onViewWorkspace}
