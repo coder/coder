@@ -37,6 +37,34 @@ interface DiffStats {
 	deletions: number;
 }
 
+function getRepoStats(
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
+) {
+	const stats = new Map<string, DiffStats>();
+	for (const [root, repo] of repositories.entries()) {
+		if (!repo.unified_diff) {
+			continue;
+		}
+		let additions = 0;
+		let deletions = 0;
+		for (const line of repo.unified_diff.split("\n")) {
+			if (line.startsWith("+") && !line.startsWith("+++")) {
+				additions++;
+			} else if (line.startsWith("-") && !line.startsWith("---")) {
+				deletions++;
+			}
+		}
+		if (additions > 0 || deletions > 0) {
+			stats.set(root, { additions, deletions });
+		}
+	}
+	return stats;
+}
+
+function getSortedRepoRoots(repoStats: ReadonlyMap<string, DiffStats>) {
+	return Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b));
+}
+
 interface GitPanelProps {
 	/** PR tab data. Omitted if no PR is associated. */
 	prTab?: {
@@ -81,30 +109,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const prState = remoteDiffStats?.pull_request_state;
 	const prDraft = remoteDiffStats?.pull_request_draft;
 
-	// Compute per-repo diff stats from unified diffs.
-	const repoStats = (() => {
-		const stats = new Map<string, DiffStats>();
-		for (const [root, repo] of repositories.entries()) {
-			if (!repo.unified_diff) continue;
-			let additions = 0;
-			let deletions = 0;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
-			if (additions > 0 || deletions > 0) {
-				stats.set(root, { additions, deletions });
-			}
-		}
-		return stats;
-	})();
-
-	const localRepos = Array.from(repoStats.keys()).sort((a, b) =>
-		a.localeCompare(b),
-	);
+	const repoStats = getRepoStats(repositories);
+	const localRepos = getSortedRepoRoots(repoStats);
 
 	// Default to the first local repo when there are only local
 	// changes and no remote stats.

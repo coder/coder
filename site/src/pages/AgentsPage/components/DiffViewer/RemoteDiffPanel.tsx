@@ -1,5 +1,3 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
-import { parsePatchFiles } from "@pierre/diffs";
 import {
 	ArrowLeftIcon,
 	ExternalLinkIcon,
@@ -20,6 +18,7 @@ import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { getDiffCacheKeyPrefix } from "../DiffViewer/diffCacheKey";
+import { useParsedDiffFiles } from "./useParsedDiffFiles";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 
@@ -90,28 +89,15 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	const parsedFiles = (() => {
-		if (!diffContent) {
-			return [] as FileDiffMetadata[];
-		}
-		try {
-			// The @pierre/diffs worker pool only keys cached highlighted
-			// ASTs by `cacheKey`, so the key must change whenever the diff
-			// query updates. React Query's `dataUpdatedAt` survives panel
-			// remounts, which prevents stale cache hits from pairing a new
-			// FileDiffMetadata with an older highlighted AST.
-			const patches = parsePatchFiles(
-				diffContent,
-				getDiffCacheKeyPrefix(
-					`chat-${chatId}`,
-					diffContentsQuery.dataUpdatedAt,
-				),
-			);
-			return patches.flatMap((p) => p.files);
-		} catch {
-			return [] as FileDiffMetadata[];
-		}
-	})();
+	// The @pierre/diffs worker pool only keys cached highlighted ASTs by
+	// `cacheKey`, so the key must change whenever the diff query updates.
+	// React Query's `dataUpdatedAt` survives panel remounts, which prevents
+	// stale cache hits from pairing a new FileDiffMetadata with an older
+	// highlighted AST.
+	const parsedFiles = useParsedDiffFiles(
+		diffContent,
+		getDiffCacheKeyPrefix(`chat-${chatId}`, diffContentsQuery.dataUpdatedAt),
+	);
 
 	// ---------------------------------------------------------------
 	// Scroll-to-file from chat input chip clicks
