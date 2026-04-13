@@ -3044,6 +3044,108 @@ func TestSubscribeWorkerControl_RetriesInitialSubscribeFailure(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+func TestPromoteQueued_InterruptsActiveRunImmediately(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	userID := uuid.New()
+	modelConfigID := uuid.New()
+	queuedMessageID := int64(17)
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+	require.NoError(t, err)
+
+	lockedChat := database.Chat{
+		ID:                chatID,
+		Status:            database.ChatStatusRunning,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
+		LastModelConfigID: modelConfigID,
+		RunGeneration:     7,
+	}
+	updatedChat := lockedChat
+	updatedChat.Status = database.ChatStatusPending
+	updatedChat.WorkerID = uuid.NullUUID{}
+	updatedChat.RunGeneration++
+
+	server := &Server{
+		db:                db,
+		logger:            logger,
+		workerID:          workerID,
+		heartbeatRegistry: make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	chatCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	entry := &heartbeatEntry{
+		cancelWithCause: cancel,
+		chatID:          chatID,
+		runGeneration:   lockedChat.RunGeneration,
+		logger:          logger,
+	}
+	server.registerHeartbeat(entry)
+	defer server.unregisterHeartbeat(entry)
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(tx)
+		},
+	)
+
+	gomock.InOrder(
+		tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil),
+		tx.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return([]database.ChatQueuedMessage{{
+			ID:      queuedMessageID,
+			ChatID:  chatID,
+			Content: queuedContent,
+		}}, nil),
+		tx.EXPECT().DeleteChatQueuedMessage(gomock.Any(), database.DeleteChatQueuedMessageParams{
+			ID:     queuedMessageID,
+			ChatID: chatID,
+		}).Return(nil),
+		tx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
+			func(_ context.Context, params database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+				require.Equal(t, chatID, params.ChatID)
+				require.Equal(t, []uuid.UUID{userID}, params.CreatedBy)
+				require.Equal(t, []uuid.UUID{modelConfigID}, params.ModelConfigID)
+				require.Equal(t, []database.ChatMessageRole{database.ChatMessageRoleUser}, params.Role)
+				require.Equal(t, []string{string(queuedContent)}, params.Content)
+				return []database.ChatMessage{{
+					ID:         91,
+					ChatID:     chatID,
+					Role:       database.ChatMessageRoleUser,
+					Content:    pqtype.NullRawMessage{RawMessage: queuedContent, Valid: true},
+					Visibility: database.ChatMessageVisibilityBoth,
+					CreatedBy:  uuid.NullUUID{UUID: userID, Valid: true},
+				}}, nil
+			},
+		),
+		tx.EXPECT().AdvanceChatRunGenerationAndUpdateStatus(gomock.Any(), database.AdvanceChatRunGenerationAndUpdateStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		}).Return(updatedChat, nil),
+		tx.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+	)
+
+	result, err := server.PromoteQueued(ctx, PromoteQueuedOptions{
+		ChatID:          chatID,
+		QueuedMessageID: queuedMessageID,
+		CreatedBy:       userID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(91), result.PromotedMessage.ID)
+	require.ErrorIs(t, context.Cause(chatCtx), chatloop.ErrInterrupted)
+}
+
 func TestRegisterHeartbeat_IgnoresEqualGenerationDuplicate(t *testing.T) {
 	t.Parallel()
 
