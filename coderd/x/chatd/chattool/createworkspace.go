@@ -145,22 +145,20 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			// Verify the template belongs to the same org as the
 			// chat. Without this check the tool could silently
 			// bind a cross-org workspace to the chat.
-			if organizationID != uuid.Nil {
-				tmpl, tmplErr := db.GetTemplateByID(ctx, templateID)
-				if tmplErr != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("look up template: %w", tmplErr).Error(),
-					), nil
-				}
-				if tmpl.OrganizationID != organizationID {
-					return fantasy.NewTextErrorResponse(
-						"template belongs to a different organization than this chat; " +
-							"use list_templates to find templates in the correct organization",
-					), nil
-				}
+			tmpl, tmplErr := db.GetTemplateByID(ctx, templateID)
+			if tmplErr != nil {
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("look up template: %w", tmplErr).Error(),
+				), nil
 			}
-			var ttlMs *int64
+			if tmpl.OrganizationID != organizationID {
+				return fantasy.NewTextErrorResponse(
+					"template belongs to a different organization than this chat; " +
+						"use list_templates to find templates in the correct organization",
+				), nil
+			}
 
+			var ttlMs *int64
 			raw, err := db.GetChatWorkspaceTTL(ctx)
 			if err != nil {
 				options.Logger.Error(ctx, "failed to read chat workspace TTL setting, using template default",
