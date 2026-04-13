@@ -27,7 +27,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
-	appendChatIdToHref,
 	getTerminalHref,
 	getVSCodeHref,
 	isExternalApp,
@@ -147,7 +146,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						app={app}
 						workspace={workspace}
 						agent={agent}
-						chatId={chatId}
 					/>
 				))}
 				{hasTerminal && (
@@ -211,21 +209,24 @@ const VSCodeMenuItem: FC<{
 /**
  * Renders a dropdown item for a user-configured external workspace
  * app. Uses the `useAppLink` hook for URL construction and token
- * handling, then post-processes the URL to inject chatId for
- * supported protocols.
+ * handling, matching the same pattern used by the dashboard's
+ * AgentRow.
  */
 const ExternalAppMenuItem: FC<{
 	app: WorkspaceApp;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
-	chatId: string;
-}> = ({ app, workspace, agent, chatId }) => {
+}> = ({ app, workspace, agent }) => {
 	const link = useAppLink(app, { workspace, agent });
-	const href = appendChatIdToHref(link.href, chatId);
 
 	return (
 		<DropdownMenuItem asChild>
-			<a href={href} onClick={link.onClick} target="_blank" rel="noreferrer">
+			<a
+				href={link.href}
+				onClick={link.onClick}
+				target="_blank"
+				rel="noreferrer"
+			>
 				{app.icon ? (
 					<ExternalImage src={app.icon} className="!size-3.5 rounded-sm" />
 				) : (
