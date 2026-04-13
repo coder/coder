@@ -775,6 +775,7 @@ func (e *UsageLimitExceededError) Error() string {
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
+	OrganizationID     uuid.UUID
 	OwnerID            uuid.UUID
 	WorkspaceID        uuid.NullUUID
 	BuildID            uuid.NullUUID
@@ -852,6 +853,9 @@ type PromoteQueuedResult struct {
 // CreateChat creates a chat, inserts optional system prompt and initial user
 // message, and moves the chat into pending status.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
+	if opts.OrganizationID == uuid.Nil {
+		return database.Chat{}, xerrors.New("organization_id is required")
+	}
 	if opts.OwnerID == uuid.Nil {
 		return database.Chat{}, xerrors.New("owner_id is required")
 	}
@@ -883,6 +887,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    opts.OrganizationID,
 			OwnerID:           opts.OwnerID,
 			WorkspaceID:       opts.WorkspaceID,
 			BuildID:           opts.BuildID,
@@ -5009,6 +5014,7 @@ func (p *Server) runChat(
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
 				DB:                 p.db,
 				OwnerID:            chat.OwnerID,
+				OrganizationID:     chat.OrganizationID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
 			chattool.ReadTemplate(chattool.ReadTemplateOptions{
@@ -5019,6 +5025,7 @@ func (p *Server) runChat(
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                             p.db,
 				OwnerID:                        chat.OwnerID,
+				OrganizationID:                 chat.OrganizationID,
 				ChatID:                         chat.ID,
 				CreateFn:                       p.createWorkspaceFn,
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),

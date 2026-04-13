@@ -1670,9 +1670,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 	// createChat inserts a chat and optionally archives it, then
 	// backdates updated_at to control the "archived since" window.
-	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, modelConfigID uuid.UUID, archived bool, updatedAt time.Time) database.Chat {
+	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, orgID, modelConfigID uuid.UUID, archived bool, updatedAt time.Time) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    orgID,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelConfigID,
 			Title:             "test-chat",
@@ -1736,7 +1737,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create an old archived chat and an orphaned old file.
-				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
@@ -1766,7 +1767,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				// Old archived chat (31 days) — should be deleted.
-				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				// Insert a message so we can verify CASCADE.
 				_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 					ChatID:              oldChat.ID,
@@ -1791,10 +1792,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				// Recently archived chat (10 days) — should be retained.
-				recentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
+				recentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
 
 				// Active chat — should be retained.
-				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
 				done := awaitDoTick(ctx, t, clk)
 				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
@@ -1839,7 +1840,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// File B: 31 days old, in an active chat -> should be retained.
 				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
-				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 					ChatID:       activeChat.ID,
 					MaxFileLinks: 100,
@@ -1887,7 +1888,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// File D: 31 days old, in a chat archived 31 days ago -> should be deleted.
 				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
-				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 					ChatID:       oldArchivedChat.ID,
 					MaxFileLinks: 100,
@@ -1901,7 +1902,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// File E: 31 days old, in a chat archived 10 days ago -> should be retained.
 				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
-				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
+				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 					ChatID:       recentArchivedChat.ID,
 					MaxFileLinks: 100,
@@ -1914,7 +1915,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// File F: 31 days old, in BOTH an active chat AND an old archived chat -> should be retained.
 				fileF := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
-				anotherOldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				anotherOldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 					ChatID:       anotherOldArchivedChat.ID,
 					MaxFileLinks: 100,
@@ -1925,7 +1926,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					now.Add(-31*24*time.Hour), anotherOldArchivedChat.ID)
 				require.NoError(t, err)
 
-				activeChatForF := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				activeChatForF := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 					ChatID:       activeChatForF.ID,
 					MaxFileLinks: 100,
@@ -1964,7 +1965,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
 				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
 
-				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 				_, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 					ChatID:       chat.ID,
 					MaxFileLinks: 100,
@@ -2009,14 +2010,16 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Test parent+child cascade: deleting files should
 				// clean up links for both parent and child chats
 				// independently via FK cascade.
-				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 				childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+					OrganizationID:    deps.org.ID,
 					OwnerID:           deps.user.ID,
 					LastModelConfigID: deps.modelConfig.ID,
 					Title:             "child-chat",
 					Status:            database.ChatStatusWaiting,
 				})
 				require.NoError(t, err)
+
 				// Set root_chat_id to link child to parent.
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET root_chat_id = $1 WHERE id = $2", parentChat.ID, childChat.ID)
 				require.NoError(t, err)
@@ -2104,7 +2107,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// Create 3 deletable old archived chats.
 				for range 3 {
-					createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+					createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				}
 
 				// Delete with limit 2 — should delete 2, leave 1.

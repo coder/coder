@@ -1258,6 +1258,11 @@ func TestGetAuthorizedChats(t *testing.T) {
 		RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
 	})
 
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
+
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -1286,6 +1291,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 3 chats owned by owner.
 	for i := range 3 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -1297,6 +1303,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 2 chats owned by member.
 	for i := range 2 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -1340,8 +1347,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, secondRows, 0)
 
-		// Org admin should NOT see other users' chats — chats are
-		// not org-scoped resources.
+		// Org admin should NOT see other users' chats when they are
+		// in a different org than the chat owner.
 		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		require.NoError(t, err)
 		require.NotEmpty(t, orgs)
@@ -1358,6 +1365,21 @@ func TestGetAuthorizedChats(t *testing.T) {
 		orgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOrgAdmin)
 		require.NoError(t, err)
 		require.Len(t, orgAdminRows, 0, "org admin with no chats should see 0 chats")
+
+		// Org admin in SAME org should see all chats in that org.
+		sameOrgAdmin := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         sameOrgAdmin.ID,
+			OrganizationID: org.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+		sameOrgAdminSubject, _, err := httpmw.UserRBACSubject(ctx, db, sameOrgAdmin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedSameOrgAdmin, err := authorizer.Prepare(ctx, sameOrgAdminSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		sameOrgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSameOrgAdmin)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(sameOrgAdminRows), 5, "same-org admin should see all chats in their org")
 
 		// OwnerID filter: member queries their own chats.
 		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
@@ -1417,8 +1439,10 @@ func TestGetAuthorizedChats(t *testing.T) {
 		paginationUser := dbgen.User(t, db, database.User{
 			RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
 		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
@@ -9753,8 +9777,9 @@ func TestInsertChatMessages(t *testing.T) {
 		store, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
 
-		dbgen.Organization(t, store, database.Organization{})
+		org := dbgen.Organization(t, store, database.Organization{})
 		user := dbgen.User(t, store, database.User{})
+		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 		provider := "openai"
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -9778,6 +9803,7 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
@@ -9921,6 +9947,8 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// Helper: create a chat model config (required FK for chats).
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 	// A chat_providers row is required as a FK for model configs.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -9949,6 +9977,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	newChat := func(t *testing.T) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -10288,12 +10317,13 @@ func TestGetPRInsights(t *testing.T) {
 
 	// setupChatInfra creates a fresh database with a user, chat provider,
 	// and model config. Returns the store, user ID, and model config ID.
-	setupChatInfra := func(t *testing.T) (database.Store, uuid.UUID, uuid.UUID) {
+	setupChatInfra := func(t *testing.T) (database.Store, uuid.UUID, uuid.UUID, uuid.UUID) {
 		t.Helper()
 		store, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
-		dbgen.Organization(t, store, database.Organization{})
+		org := dbgen.Organization(t, store, database.Organization{})
 		user := dbgen.User(t, store, database.User{})
+		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
 			Provider:             "anthropic",
@@ -10318,12 +10348,13 @@ func TestGetPRInsights(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return store, user.ID, mc.ID
+		return store, user.ID, mc.ID, org.ID
 	}
 
-	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
+	createChat := func(t *testing.T, store database.Store, userID, mcID, orgID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
@@ -10384,12 +10415,12 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("MultipleChatsSamePR_CostSummed", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
-		chatA := createChat(t, store, userID, mcID, "chat-A")
+		chatA := createChat(t, store, userID, mcID, orgID, "chat-A")
 		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000) // $5
 
-		chatB := createChat(t, store, userID, mcID, "chat-B")
+		chatB := createChat(t, store, userID, mcID, orgID, "chat-B")
 		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000) // $3
 
 		prURL := "https://github.com/org/repo/pull/123"
@@ -10420,13 +10451,13 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("DifferentPRs_NoDuplication", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
-		chatA := createChat(t, store, userID, mcID, "chat-A")
+		chatA := createChat(t, store, userID, mcID, orgID, "chat-A")
 		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, chatA.ID, "https://github.com/org/repo/pull/1", "merged", "feat: A", 50, 10, 2)
 
-		chatB := createChat(t, store, userID, mcID, "chat-B")
+		chatB := createChat(t, store, userID, mcID, orgID, "chat-B")
 		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000)
 		linkPR(t, store, chatB.ID, "https://github.com/org/repo/pull/2", "open", "feat: B", 80, 30, 4)
 
@@ -10455,9 +10486,10 @@ func TestGetPRInsights(t *testing.T) {
 
 	// createChildChat creates a chat with ParentChatID and RootChatID
 	// set, simulating a subagent/child chat in a tree.
-	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
+	createChildChat := func(t *testing.T, store database.Store, userID, mcID, orgID, parentID, rootID uuid.UUID, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           userID,
 			LastModelConfigID: mcID,
@@ -10471,11 +10503,11 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("DuplicatePRUrl_CountedOnce", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		prURL := "https://github.com/org/repo/pull/99"
 		for i := 0; i < 3; i++ {
-			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			chat := createChat(t, store, userID, mcID, orgID, fmt.Sprintf("chat-%d", i))
 			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
 			linkPR(t, store, chat.ID, prURL, "merged", "fix: same PR", 40, 10, 3)
 		}
@@ -10500,19 +10532,19 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ChildChatCostsIncluded", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Parent chat with a $5 cost.
-		parent := createChat(t, store, userID, mcID, "parent-chat")
+		parent := createChat(t, store, userID, mcID, orgID, "parent-chat")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 5_000_000)
 
 		// Two child chats (subagents) with $2 each. Only the parent
 		// has a chat_diff_statuses entry, but the children's costs
 		// should be included via the tree join.
-		child1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		child1 := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, child1.ID, userID, mcID, 2_000_000)
 
-		child2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		child2 := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, child2.ID, userID, mcID, 2_000_000)
 
 		prURL := "https://github.com/org/repo/pull/42"
@@ -10542,19 +10574,19 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("SiblingPRs_NoCrossContamination", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Parent chat with $10 orchestration cost.
-		parent := createChat(t, store, userID, mcID, "parent")
+		parent := createChat(t, store, userID, mcID, orgID, "parent")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
 
 		// Child C1 ($5) creates PR1.
-		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		c1 := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/10", "merged", "feat: PR1", 50, 10, 2)
 
 		// Child C2 ($3) creates PR2.
-		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		c2 := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, c2.ID, userID, mcID, 3_000_000)
 		linkPR(t, store, c2.ID, "https://github.com/org/repo/pull/11", "open", "feat: PR2", 30, 5, 1)
 
@@ -10585,23 +10617,23 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ParentAndChildDifferentPRs_NoCrossContamination", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Parent P ($10) creates PR1.
-		parent := createChat(t, store, userID, mcID, "parent")
+		parent := createChat(t, store, userID, mcID, orgID, "parent")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
 		linkPR(t, store, parent.ID, "https://github.com/org/repo/pull/20", "merged", "feat: parent PR", 80, 20, 4)
 
 		// Child C1 ($5) has its own PR2. Because C1 has its own
 		// chat_diff_statuses entry, its cost should NOT be included
 		// under PR1 — it belongs to PR2 only.
-		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		c1 := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/21", "open", "feat: child PR", 30, 5, 1)
 
 		// Child C2 ($2) has NO cds entry — pure subagent.
 		// Its cost should be included under PR1 (the parent's PR).
-		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		c2 := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, c2.ID, userID, mcID, 2_000_000)
 
 		// PR1 cost = parent ($10) + C2 ($2) = $12 (C1 excluded)
@@ -10630,16 +10662,16 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("EmptyURLNotCollapsed", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Two chats with empty-string URLs should be treated as
 		// separate PRs (NULLIF converts '' to NULL, falling back
 		// to c.id::text).
-		chatX := createChat(t, store, userID, mcID, "chat-X")
+		chatX := createChat(t, store, userID, mcID, orgID, "chat-X")
 		insertCostMessage(t, store, chatX.ID, userID, mcID, 4_000_000)
 		linkPR(t, store, chatX.ID, "", "open", "draft: X", 10, 2, 1)
 
-		chatY := createChat(t, store, userID, mcID, "chat-Y")
+		chatY := createChat(t, store, userID, mcID, orgID, "chat-Y")
 		insertCostMessage(t, store, chatY.ID, userID, mcID, 6_000_000)
 		linkPR(t, store, chatY.ID, "", "merged", "draft: Y", 20, 5, 2)
 
@@ -10663,14 +10695,14 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ParentAndChildSameURL_DedupedWithCombinedCost", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Parent P ($10) links to a PR.
-		parent := createChat(t, store, userID, mcID, "parent")
+		parent := createChat(t, store, userID, mcID, orgID, "parent")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
 
 		// Child C ($5) also links to the same PR URL.
-		child := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child")
+		child := createChildChat(t, store, userID, mcID, orgID, parent.ID, parent.ID, "child")
 		insertCostMessage(t, store, child.ID, userID, mcID, 5_000_000)
 
 		prURL := "https://github.com/org/repo/pull/50"
@@ -10700,11 +10732,11 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ZeroCostChat_StillCounted", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// A chat linked to a PR but with NO chat_messages at all.
 		// The PR should still appear with zero cost.
-		chat := createChat(t, store, userID, mcID, "zero-cost-chat")
+		chat := createChat(t, store, userID, mcID, orgID, "zero-cost-chat")
 		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/60", "open", "feat: no messages", 25, 5, 2)
 
 		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
@@ -10728,7 +10760,7 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("BlankDisplayNameFallsBackToModel", func(t *testing.T) {
 		t.Parallel()
-		store, userID, _ := setupChatInfra(t)
+		store, userID, _, orgID := setupChatInfra(t)
 
 		const modelName = "claude-4.1"
 		emptyDisplayModel, err := store.InsertChatModelConfig(context.Background(), database.InsertChatModelConfigParams{
@@ -10745,7 +10777,7 @@ func TestGetPRInsights(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat := createChat(t, store, userID, emptyDisplayModel.ID, "chat-empty-display-name")
+		chat := createChat(t, store, userID, emptyDisplayModel.ID, orgID, "chat-empty-display-name")
 		insertCostMessage(t, store, chat.ID, userID, emptyDisplayModel.ID, 1_000_000)
 		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/72", "merged", "fix: blank display name", 10, 2, 1)
 
@@ -10770,15 +10802,15 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("MergedCostMicros_OnlyCountsMerged", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Merged PR with $5 cost.
-		chatMerged := createChat(t, store, userID, mcID, "chat-merged")
+		chatMerged := createChat(t, store, userID, mcID, orgID, "chat-merged")
 		insertCostMessage(t, store, chatMerged.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, chatMerged.ID, "https://github.com/org/repo/pull/70", "merged", "fix: merged", 40, 10, 2)
 
 		// Open PR with $3 cost.
-		chatOpen := createChat(t, store, userID, mcID, "chat-open")
+		chatOpen := createChat(t, store, userID, mcID, orgID, "chat-open")
 		insertCostMessage(t, store, chatOpen.ID, userID, mcID, 3_000_000)
 		linkPR(t, store, chatOpen.ID, "https://github.com/org/repo/pull/71", "open", "feat: open", 20, 5, 1)
 
@@ -10796,13 +10828,13 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("AllPRsReturnedWithSafetyCap", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
 
 		// Create 25 distinct PRs — more than the old LIMIT 20 — and
 		// verify all are returned.
 		const prCount = 25
 		for i := range prCount {
-			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			chat := createChat(t, store, userID, mcID, orgID, fmt.Sprintf("chat-%d", i))
 			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
 			linkPR(t, store, chat.ID,
 				fmt.Sprintf("https://github.com/org/repo/pull/%d", 100+i),
@@ -10825,11 +10857,13 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.SkipNow()
 	}
 
-	setup := func(t *testing.T) (context.Context, database.Store, uuid.UUID, uuid.UUID) {
+	setup := func(t *testing.T) (context.Context, database.Store, uuid.UUID, uuid.UUID, uuid.UUID) {
 		t.Helper()
 
 		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
 		// Use background context for fixture setup so the
 		// timed test context doesn't tick during DB init.
@@ -10858,13 +10892,14 @@ func TestChatPinOrderQueries(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		return ctx, db, owner.ID, modelCfg.ID
+		return ctx, db, owner.ID, modelCfg.ID, org.ID
 	}
 
-	createChat := func(t *testing.T, ctx context.Context, db database.Store, ownerID, modelCfgID uuid.UUID, title string) database.Chat {
+	createChat := func(t *testing.T, ctx context.Context, db database.Store, ownerID, modelCfgID, orgID uuid.UUID, title string) database.Chat {
 		t.Helper()
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
@@ -10887,13 +10922,13 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("PinChatByIDAppendsWithinOwner", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		otherOwner := dbgen.User(t, db, database.User{})
-		other := createChat(t, ctx, db, otherOwner.ID, modelCfgID, "other-owner")
+		other := createChat(t, ctx, db, otherOwner.ID, modelCfgID, orgID, "other-owner")
 
 		require.NoError(t, db.PinChatByID(ctx, other.ID))
 		require.NoError(t, db.PinChatByID(ctx, first.ID))
@@ -10911,10 +10946,10 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("UpdateChatPinOrderShiftsNeighborsAndClamps", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		for _, chat := range []database.Chat{first, second, third} {
 			require.NoError(t, db.PinChatByID(ctx, chat.ID))
@@ -10944,10 +10979,10 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("UnpinChatByIDCompactsPinnedChats", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		for _, chat := range []database.Chat{first, second, third} {
 			require.NoError(t, db.PinChatByID(ctx, chat.ID))
@@ -10964,10 +10999,10 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("ArchiveClearsPinAndExcludesFromRanking", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		for _, chat := range []database.Chat{first, second, third} {
 			require.NoError(t, db.PinChatByID(ctx, chat.ID))
@@ -11014,6 +11049,8 @@ func TestChatLabels(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "openai",
@@ -11047,6 +11084,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -11070,6 +11108,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -11086,6 +11125,7 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -11127,6 +11167,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -11164,10 +11205,10 @@ func TestChatLabels(t *testing.T) {
 			labelsJSON, err := json.Marshal(tc.labels)
 			require.NoError(t, err)
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
 				OwnerID:           owner.ID,
-				LastModelConfigID: modelCfg.ID,
-				Title:             tc.title,
+				LastModelConfigID: modelCfg.ID, Title: tc.title,
 				Labels: pqtype.NullRawMessage{
 					RawMessage: labelsJSON,
 					Valid:      true,
@@ -11224,8 +11265,9 @@ func TestChatHasUnread(t *testing.T) {
 	store, _ := dbtestutil.NewDB(t)
 	ctx := context.Background()
 
-	dbgen.Organization(t, store, database.Organization{})
+	org := dbgen.Organization(t, store, database.Organization{})
 	user := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "openai",
@@ -11251,6 +11293,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,

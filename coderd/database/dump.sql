@@ -1431,7 +1431,8 @@ CREATE TABLE chats (
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
     last_injected_context jsonb,
-    dynamic_tools jsonb
+    dynamic_tools jsonb,
+    organization_id uuid NOT NULL
 );
 
 CREATE TABLE connection_logs (
@@ -3789,6 +3790,8 @@ CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
+CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
+
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
@@ -4103,6 +4106,9 @@ ALTER TABLE ONLY chats
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;

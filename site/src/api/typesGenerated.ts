@@ -1186,6 +1186,7 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
  */
 export interface Chat {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
@@ -2488,6 +2489,7 @@ export interface CreateChatProviderConfigRequest {
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
+	readonly organization_id: string;
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;

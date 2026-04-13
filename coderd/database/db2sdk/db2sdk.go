@@ -1550,6 +1550,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
+		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
