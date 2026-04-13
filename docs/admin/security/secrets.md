@@ -59,10 +59,10 @@ coder secret create api-key \
   --inject-env API_KEY
 
 # Create a secret and inject it into a file in your workspace.
-coder secret create aws-credentials \
-  --value "$AWS_CREDENTIALS_FILE_CONTENTS" \
-  --description "AWS credentials" \
-  --inject-file ~/.aws/credentials
+coder secret create tool-config \
+  --value "$TOOL_CONFIG_CONTENTS" \
+  --description "Tool configuration" \
+  --inject-file ~/.config/tool/config.json
 
 # List all of your secrets.
 coder secret list

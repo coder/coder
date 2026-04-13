@@ -142,17 +142,17 @@ func TestSecretList(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:        "aws-creds",
-			Value:       "aws-value",
-			Description: "AWS credentials",
-			FilePath:    "~/.aws/creds",
+			Name:        "tool-config",
+			Value:       "config-value",
+			Description: "Tool configuration",
+			FilePath:    "~/.config/tool/config.json",
 		})
 		require.NoError(t, err)
 		_, err = client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:        "github-token",
-			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "GitHub access token",
-			EnvName:     "GITHUB_TOKEN",
+			Name:        "service-token",
+			Value:       "service-token-value",
+			Description: "Service access token",
+			EnvName:     "SERVICE_TOKEN",
 		})
 		require.NoError(t, err)
 
@@ -171,10 +171,10 @@ func TestSecretList(t *testing.T) {
 		assert.Contains(t, out, "ENV")
 		assert.Contains(t, out, "FILE")
 		assert.Contains(t, out, "DESCRIPTION")
-		assert.Contains(t, out, "github-token")
-		assert.Contains(t, out, "GITHUB_TOKEN")
-		assert.Contains(t, out, "aws-creds")
-		assert.Contains(t, out, "~/.aws/creds")
+		assert.Contains(t, out, "service-token")
+		assert.Contains(t, out, "SERVICE_TOKEN")
+		assert.Contains(t, out, "tool-config")
+		assert.Contains(t, out, "~/.config/tool/config.json")
 	})
 
 	t.Run("JSONOutput", func(t *testing.T) {
@@ -185,10 +185,10 @@ func TestSecretList(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		created, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:        "github-token",
-			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "GitHub access token",
-			EnvName:     "GITHUB_TOKEN",
+			Name:        "service-token",
+			Value:       "service-token-value",
+			Description: "Service access token",
+			EnvName:     "SERVICE_TOKEN",
 		})
 		require.NoError(t, err)
 
@@ -214,21 +214,21 @@ func TestSecretList(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:        "aws-creds",
-			Value:       "aws-value",
-			Description: "AWS credentials",
-			FilePath:    "~/.aws/creds",
+			Name:        "tool-config",
+			Value:       "config-value",
+			Description: "Tool configuration",
+			FilePath:    "~/.config/tool/config.json",
 		})
 		require.NoError(t, err)
 		_, err = client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:        "github-token",
-			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "GitHub access token",
-			EnvName:     "GITHUB_TOKEN",
+			Name:        "service-token",
+			Value:       "service-token-value",
+			Description: "Service access token",
+			EnvName:     "SERVICE_TOKEN",
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "secret", "list", "github-token")
+		inv, root := clitest.New(t, "secret", "list", "service-token")
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, client, root)
 
@@ -243,10 +243,10 @@ func TestSecretList(t *testing.T) {
 		assert.Contains(t, out, "ENV")
 		assert.Contains(t, out, "FILE")
 		assert.Contains(t, out, "DESCRIPTION")
-		assert.Contains(t, out, "github-token")
-		assert.Contains(t, out, "GITHUB_TOKEN")
-		assert.NotContains(t, out, "aws-creds")
-		assert.NotContains(t, out, "~/.aws/creds")
+		assert.Contains(t, out, "service-token")
+		assert.Contains(t, out, "SERVICE_TOKEN")
+		assert.NotContains(t, out, "tool-config")
+		assert.NotContains(t, out, "~/.config/tool/config.json")
 	})
 
 	t.Run("SingleSecretJSONOutput", func(t *testing.T) {
@@ -257,14 +257,14 @@ func TestSecretList(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		created, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:        "github-token",
-			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "GitHub access token",
-			EnvName:     "GITHUB_TOKEN",
+			Name:        "service-token",
+			Value:       "service-token-value",
+			Description: "Service access token",
+			EnvName:     "SERVICE_TOKEN",
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "secret", "list", "github-token", "--output=json")
+		inv, root := clitest.New(t, "secret", "list", "service-token", "--output=json")
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, client, root)
 
@@ -306,12 +306,12 @@ func TestSecretDelete(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitMedium)
 		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "github-token",
-			Value: "ghp_xxxxxxxxxxxx",
+			Name:  "service-token",
+			Value: "service-token-value",
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "secret", "delete", "github-token")
+		inv, root := clitest.New(t, "secret", "delete", "service-token")
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -319,13 +319,13 @@ func TestSecretDelete(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 		waiter := clitest.StartWithWaiter(t, inv)
 		pty.ExpectMatchContext(ctx, "Delete secret")
-		pty.ExpectMatchContext(ctx, "github-token")
+		pty.ExpectMatchContext(ctx, "service-token")
 		pty.WriteLine("yes")
 		pty.ExpectMatchContext(ctx, "Deleted secret")
 
 		require.NoError(t, waiter.Wait())
 
-		_, err = client.UserSecretByName(setupCtx, codersdk.Me, "github-token")
+		_, err = client.UserSecretByName(setupCtx, codersdk.Me, "service-token")
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
