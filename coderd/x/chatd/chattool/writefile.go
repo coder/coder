@@ -50,7 +50,7 @@ func executeWriteFileTool(
 	looksLikePlanPath := looksLikePlanFileName(requestedPath)
 	if looksLikePlanPath && !isAbsolutePath(requestedPath) {
 		return fantasy.NewTextErrorResponse(
-			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
+			"plan files must use absolute paths; use the chat-specific absolute plan path",
 		), nil
 	}
 

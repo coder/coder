@@ -34,7 +34,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name: "MultiFileBatchWithHomeRootPlanPath",
 				input: `{"files":[` +
-					`{"path":"/Users/dev/notes.md","edits":[{"search":"old","replace":"new"}]},` +
+					`{"path":"/Users/dev/subdir/plan.md","edits":[{"search":"old","replace":"new"}]},` +
 					`{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}` +
 					`]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",

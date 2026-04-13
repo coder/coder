@@ -33,7 +33,7 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 		"propose_plan",
 		"Present a Markdown plan file from the workspace for user review. "+
 			"The file must already exist with a .md extension. Use write_file to create it or edit_files to refine it before calling this tool. "+
-			"Pass the absolute file path to the plan. Important: use the chat-specific plan path from your runtime instructions, not a generic path like PLAN.md in the home directory. "+
+			"Pass the absolute file path to the plan. Important: use the chat-specific absolute plan path, not a generic path like PLAN.md in the home directory. "+
 			"The tool reads the content from the workspace.",
 		func(ctx context.Context, args ProposePlanArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
@@ -60,7 +60,7 @@ func executeProposePlanTool(
 ) (fantasy.ToolResponse, error) {
 	requestedPath := strings.TrimSpace(args.Path)
 	if requestedPath == "" {
-		return fantasy.NewTextErrorResponse("path is required (use the chat-specific plan path from your instructions)"), nil
+		return fantasy.NewTextErrorResponse("path is required (use the chat-specific absolute plan path)"), nil
 	}
 	if !strings.HasSuffix(requestedPath, ".md") {
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
@@ -69,7 +69,7 @@ func executeProposePlanTool(
 	looksLikePlanPath := looksLikePlanFileName(requestedPath)
 	if looksLikePlanPath && !isAbsolutePath(requestedPath) {
 		return fantasy.NewTextErrorResponse(
-			"plan files must use absolute paths; use the chat-specific plan path from your instructions",
+			"plan files must use absolute paths; use the chat-specific absolute plan path",
 		), nil
 	}
 

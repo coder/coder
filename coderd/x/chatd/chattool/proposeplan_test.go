@@ -509,7 +509,7 @@ func editFilesBatchRejectedMessage(message string) string {
 }
 
 func relativePlanPathMessage() string {
-	return "plan files must use absolute paths; use the chat-specific plan path from your instructions"
+	return "plan files must use absolute paths; use the chat-specific absolute plan path"
 }
 
 func fakeStoreFile(t *testing.T) (func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error), *[]byte) {
