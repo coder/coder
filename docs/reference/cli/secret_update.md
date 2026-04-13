@@ -9,6 +9,12 @@ Update a secret
 coder secret update [flags] <name>
 ```
 
+## Description
+
+```console
+At least one of --value, --description, --inject-env, or --inject-file must be specified.
+```
+
 ## Options
 
 ### --value

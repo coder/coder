@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # secret
 
-Manage personal secrets
+Manage secrets
 
 Aliases:
 
@@ -18,11 +18,11 @@ coder secret
 ```console
   - Create a secret:
 
-     $ coder secret create openai-key --value "$SECRET_VALUE" --description "Personal OPENAI_API key" --inject-env OPEN_AI_KEY --inject-file "~/.openai-key"
+     $ coder secret create api-key --value "$SECRET_VALUE" --description "API key for workspace tools" --inject-env API_KEY --inject-file "~/.api-key"
 
   - Update a secret:
 
-     $ coder secret update openai-key --value "$NEW_SECRET_VALUE" --description "Updated description" --inject-env NEW_ENV_NAME --inject-file "~/.new-path"
+     $ coder secret update api-key --value "$NEW_SECRET_VALUE" --description "Rotated API key" --inject-env API_KEY --inject-file "~/.api-key"
 
   - List your secrets:
 
@@ -30,11 +30,11 @@ coder secret
 
   - Show a specific secret:
 
-     $ coder secret list openai-key
+     $ coder secret list api-key
 
   - Delete a secret:
 
-     $ coder secret delete openai-key
+     $ coder secret delete api-key
 ```
 
 ## Subcommands

@@ -13,14 +13,20 @@ Aliases:
 coder secret list [flags] [name]
 ```
 
+## Description
+
+```console
+Secret values are omitted from the output.
+```
+
 ## Options
 
 ### -c, --column
 
-|         |                                                      |
-|---------|------------------------------------------------------|
-| Type    | <code>[name\|updated\|env\|file\|description]</code> |
-| Default | <code>name,updated,env,file,description</code>       |
+|         |                                                               |
+|---------|---------------------------------------------------------------|
+| Type    | <code>[created\|name\|updated\|env\|file\|description]</code> |
+| Default | <code>name,created,updated,env,file,description</code>        |
 
 Columns to display in table output.
 

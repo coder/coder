@@ -42,36 +42,36 @@ Users can view their public key in their account settings:
 > SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
 
-## Personal Secrets
+## User Secrets
 
-Personal secrets let each user store their own secret values in Coder and make
+User secrets let each user store their own secret values in Coder and make
 them available in workspaces without adding those values to template code.
 They are a good fit for per-user credentials such as API keys, cloud
 credentials, or other values that should follow a user across workspaces.
 
-Use the CLI to create and manage personal secrets:
+Use the CLI to create and manage user secrets:
 
 ```sh
 # Create a secret and inject it into workspaces as an environment variable.
-coder secret create openai-key \
-  --value "$OPENAI_API_KEY" \
-  --description "Personal OpenAI API key" \
-  --inject-env OPENAI_API_KEY
+coder secret create api-key \
+  --value "$API_KEY" \
+  --description "API key for workspace tools" \
+  --inject-env API_KEY
 
 # Create a secret and inject it into a file in your workspace.
 coder secret create aws-credentials \
   --value "$AWS_CREDENTIALS_FILE_CONTENTS" \
-  --description "Personal AWS credentials" \
+  --description "AWS credentials" \
   --inject-file ~/.aws/credentials
 
 # List all of your secrets.
 coder secret list
 
 # Show a single secret by name.
-coder secret list openai-key
+coder secret list api-key
 
 # Delete a secret you no longer need.
-coder secret delete openai-key
+coder secret delete api-key
 ```
 
 Use `--inject-env` to inject a secret into your workspaces as an environment

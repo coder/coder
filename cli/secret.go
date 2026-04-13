@@ -17,15 +17,15 @@ func (r *RootCmd) secrets() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "secret",
 		Aliases: []string{"secrets"},
-		Short:   "Manage personal secrets",
+		Short:   "Manage secrets",
 		Long: FormatExamples(
 			Example{
 				Description: "Create a secret",
-				Command:     "coder secret create openai-key --value \"$SECRET_VALUE\" --description \"Personal OPENAI_API key\" --inject-env OPEN_AI_KEY --inject-file \"~/.openai-key\"",
+				Command:     "coder secret create api-key --value \"$SECRET_VALUE\" --description \"API key for workspace tools\" --inject-env API_KEY --inject-file \"~/.api-key\"",
 			},
 			Example{
 				Description: "Update a secret",
-				Command:     "coder secret update openai-key --value \"$NEW_SECRET_VALUE\" --description \"Updated description\" --inject-env NEW_ENV_NAME --inject-file \"~/.new-path\"",
+				Command:     "coder secret update api-key --value \"$NEW_SECRET_VALUE\" --description \"Rotated API key\" --inject-env API_KEY --inject-file \"~/.api-key\"",
 			},
 			Example{
 				Description: "List your secrets",
@@ -33,11 +33,11 @@ func (r *RootCmd) secrets() *serpent.Command {
 			},
 			Example{
 				Description: "Show a specific secret",
-				Command:     "coder secret list openai-key",
+				Command:     "coder secret list api-key",
 			},
 			Example{
 				Description: "Delete a secret",
-				Command:     "coder secret delete openai-key",
+				Command:     "coder secret delete api-key",
 			},
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -131,6 +131,7 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "update <name>",
 		Short: "Update a secret",
+		Long:  "At least one of --value, --description, --inject-env, or --inject-file must be specified.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -196,6 +197,7 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 type secretListRow struct {
 	codersdk.UserSecret `table:"-"`
 
+	Created     string `json:"-" table:"created"`
 	Name        string `json:"-" table:"name,default_sort"`
 	Updated     string `json:"-" table:"updated"`
 	Env         string `json:"-" table:"env"`
@@ -206,6 +208,7 @@ type secretListRow struct {
 func secretListRowFromSecret(secret codersdk.UserSecret) secretListRow {
 	return secretListRow{
 		UserSecret:  secret,
+		Created:     humanize.Time(secret.CreatedAt),
 		Name:        secret.Name,
 		Updated:     humanize.Time(secret.UpdatedAt),
 		Env:         secret.EnvName,
@@ -219,7 +222,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 		cliui.ChangeFormatterData(
 			cliui.TableFormat(
 				[]secretListRow{},
-				[]string{"name", "updated", "env", "file", "description"},
+				[]string{"name", "created", "updated", "env", "file", "description"},
 			),
 			func(data any) (any, error) {
 				switch rows := data.(type) {
@@ -255,6 +258,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 		Use:        "list [name]",
 		Aliases:    []string{"ls"},
 		Short:      "List secrets, or show one by name",
+		Long:       "Secret values are omitted from the output.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)

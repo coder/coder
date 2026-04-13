@@ -2018,7 +2018,7 @@
 						},
 						{
 							"title": "secret",
-							"description": "Manage personal secrets",
+							"description": "Manage secrets",
 							"path": "reference/cli/secret.md"
 						},
 						{

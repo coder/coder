@@ -24,7 +24,7 @@ func TestSecretCreate(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		inv, root := clitest.New(t, "secret", "create", "openai-key")
+		inv, root := clitest.New(t, "secret", "create", "api-key")
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -42,11 +42,11 @@ func TestSecretCreate(t *testing.T) {
 			t,
 			"secret",
 			"create",
-			"openai-key",
+			"api-key",
 			"--value", "super-secret-value",
-			"--description", "Personal OPENAI_API key",
-			"--inject-env", "OPEN_AI_KEY",
-			"--inject-file", "~/.openai-key",
+			"--description", "API key for workspace tools",
+			"--inject-env", "API_KEY",
+			"--inject-file", "~/.api-key",
 		)
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, client, root)
@@ -54,14 +54,14 @@ func TestSecretCreate(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		require.Contains(t, output.Stdout(), "openai-key")
+		require.Contains(t, output.Stdout(), "api-key")
 
-		secret, err := client.UserSecretByName(ctx, codersdk.Me, "openai-key")
+		secret, err := client.UserSecretByName(ctx, codersdk.Me, "api-key")
 		require.NoError(t, err)
-		require.Equal(t, "openai-key", secret.Name)
-		require.Equal(t, "Personal OPENAI_API key", secret.Description)
-		require.Equal(t, "OPEN_AI_KEY", secret.EnvName)
-		require.Equal(t, "~/.openai-key", secret.FilePath)
+		require.Equal(t, "api-key", secret.Name)
+		require.Equal(t, "API key for workspace tools", secret.Description)
+		require.Equal(t, "API_KEY", secret.EnvName)
+		require.Equal(t, "~/.api-key", secret.FilePath)
 	})
 }
 
@@ -151,7 +151,7 @@ func TestSecretList(t *testing.T) {
 		_, err = client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
 			Name:        "github-token",
 			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "Personal GitHub access token",
+			Description: "GitHub access token",
 			EnvName:     "GITHUB_TOKEN",
 		})
 		require.NoError(t, err)
@@ -166,6 +166,7 @@ func TestSecretList(t *testing.T) {
 
 		out := output.Stdout()
 		assert.Contains(t, out, "NAME")
+		assert.Contains(t, out, "CREATED")
 		assert.Contains(t, out, "UPDATED")
 		assert.Contains(t, out, "ENV")
 		assert.Contains(t, out, "FILE")
@@ -186,7 +187,7 @@ func TestSecretList(t *testing.T) {
 		created, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
 			Name:        "github-token",
 			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "Personal GitHub access token",
+			Description: "GitHub access token",
 			EnvName:     "GITHUB_TOKEN",
 		})
 		require.NoError(t, err)
@@ -222,7 +223,7 @@ func TestSecretList(t *testing.T) {
 		_, err = client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
 			Name:        "github-token",
 			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "Personal GitHub access token",
+			Description: "GitHub access token",
 			EnvName:     "GITHUB_TOKEN",
 		})
 		require.NoError(t, err)
@@ -237,6 +238,7 @@ func TestSecretList(t *testing.T) {
 
 		out := output.Stdout()
 		assert.Contains(t, out, "NAME")
+		assert.Contains(t, out, "CREATED")
 		assert.Contains(t, out, "UPDATED")
 		assert.Contains(t, out, "ENV")
 		assert.Contains(t, out, "FILE")
@@ -257,7 +259,7 @@ func TestSecretList(t *testing.T) {
 		created, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
 			Name:        "github-token",
 			Value:       "ghp_xxxxxxxxxxxx",
-			Description: "Personal GitHub access token",
+			Description: "GitHub access token",
 			EnvName:     "GITHUB_TOKEN",
 		})
 		require.NoError(t, err)
