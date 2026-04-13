@@ -101,7 +101,6 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 					{menus.organization && <MenuSkeleton />}
 				</>
 			}
-			className="lg:flex-nowrap"
 		/>
 	);
 };

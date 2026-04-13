@@ -81,7 +81,6 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 					{menus.organization && <MenuSkeleton />}
 				</>
 			}
-			className="lg:flex-nowrap"
 		/>
 	);
 };

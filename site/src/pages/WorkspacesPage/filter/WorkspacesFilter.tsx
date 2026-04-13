@@ -139,7 +139,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 					{organizationsActive && <MenuSkeleton />}
 				</>
 			}
-			className="lg:flex-nowrap"
 		/>
 	);
 };

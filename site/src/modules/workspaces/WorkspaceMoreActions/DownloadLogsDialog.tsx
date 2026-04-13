@@ -130,7 +130,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
 					downloadTimeoutIdRef.current = window.setTimeout(() => {
 						setIsDownloading(false);
-					}, 2_000);
+					}, 200);
 				} catch (error) {
 					setIsDownloading(false);
 					toast.error(`Error downloading workspace "${workspace.name}" logs.`, {

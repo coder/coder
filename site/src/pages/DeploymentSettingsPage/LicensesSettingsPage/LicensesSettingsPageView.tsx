@@ -1,4 +1,4 @@
-import { useTheme } from "@mui/material";
+import { useTheme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";

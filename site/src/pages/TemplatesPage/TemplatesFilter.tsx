@@ -82,7 +82,6 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 					<MenuSkeleton />
 				</>
 			}
-			className="lg:flex-nowrap"
 		/>
 	);
 };
