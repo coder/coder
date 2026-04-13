@@ -62,7 +62,6 @@ type AgentConnFunc func(
 type CreateWorkspaceOptions struct {
 	DB                             database.Store
 	OwnerID                        uuid.UUID
-	OrganizationID                 uuid.UUID
 	ChatID                         uuid.UUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
@@ -84,7 +83,7 @@ type createWorkspaceArgs struct {
 // workspace that is building or running, it returns the existing
 // workspace instead of creating a new one. A mutex prevents parallel
 // calls from creating duplicate workspaces.
-func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
+func CreateWorkspace(organizationID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"create_workspace",
 		"Create a new workspace from a template. Requires a "+
@@ -146,26 +145,20 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Verify the template belongs to the same org as the
 			// chat. Without this check the tool could silently
 			// bind a cross-org workspace to the chat.
-			if options.DB != nil {
-				if options.OrganizationID == uuid.Nil {
-					return fantasy.NewTextErrorResponse(
-						"organization ID is required for template org validation",
-					), nil
-				}
+			if options.DB != nil && organizationID != uuid.Nil {
 				tmpl, tmplErr := options.DB.GetTemplateByID(ctx, templateID)
 				if tmplErr != nil {
 					return fantasy.NewTextErrorResponse(
 						xerrors.Errorf("look up template: %w", tmplErr).Error(),
 					), nil
 				}
-				if tmpl.OrganizationID != options.OrganizationID {
+				if tmpl.OrganizationID != organizationID {
 					return fantasy.NewTextErrorResponse(
 						"template belongs to a different organization than this chat; " +
 							"use list_templates to find templates in the correct organization",
 					), nil
 				}
 			}
-
 			var ttlMs *int64
 
 			if options.DB != nil {

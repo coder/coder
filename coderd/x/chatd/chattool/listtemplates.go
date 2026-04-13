@@ -24,7 +24,6 @@ const listTemplatesPageSize = 10
 type ListTemplatesOptions struct {
 	DB                 database.Store
 	OwnerID            uuid.UUID
-	OrganizationID     uuid.UUID
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
@@ -37,7 +36,7 @@ type listTemplatesArgs struct {
 // The agent uses this to discover templates before creating a workspace.
 // Results are ordered by number of active developers (most popular first)
 // and paginated at 10 per page.
-func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
+func ListTemplates(organizationID uuid.UUID, options ListTemplatesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"list_templates",
 		"List available workspace templates. Optionally filter by a "+
@@ -57,7 +56,7 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 
 			filterParams := database.GetTemplatesWithFilterParams{
 				Deleted:        false,
-				OrganizationID: options.OrganizationID,
+				OrganizationID: organizationID,
 				Deprecated: sql.NullBool{
 					Bool:  false,
 					Valid: true,
