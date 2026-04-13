@@ -119,6 +119,24 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 			"orgB should resolve to groupB's $50 limit, not global MIN")
 	})
 
+	t.Run("UnknownOrg_falls_through_to_global_default", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// When the org ID doesn't match any group the user belongs to,
+		// the MIN() over an empty set returns NULL, COALESCE yields -1
+		// ("no group limit"), and the CASE falls through to the global
+		// default. This subtest guards that contract — if someone changes
+		// the COALESCE or NULL-handling in ResolveUserChatSpendLimit, this
+		// will catch it.
+		randomOrg := uuid.New()
+		status, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, randomOrg, now)
+		require.NoError(t, err)
+		require.NotNil(t, status)
+		require.NotNil(t, status.SpendLimitMicros)
+		require.Equal(t, int64(100_000_000), *status.SpendLimitMicros,
+			"org with no matching groups should fall through to global default ($100)")
+	})
+
 	t.Run("NilOrg_gets_global_min", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
