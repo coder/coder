@@ -36,7 +36,7 @@ name = "AI Bridge"
 base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
 wire_api = "responses"
 requires_openai_auth = true
-env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_SESSION_TOKEN" }
+env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 ```
 
 Set both environment variables:
@@ -46,7 +46,7 @@ Set both environment variables:
 export OPENAI_API_KEY="<your-openai-api-key>"
 
 # Your Coder API token, used for authentication with AI Gateway.
-export CODER_SESSION_TOKEN="<your-coder-api-token>"
+export CODER_API_TOKEN="<your-coder-api-token>"
 ```
 
 ## BYOK (ChatGPT Subscription)
@@ -61,7 +61,7 @@ name = "AI Bridge"
 base_url = "<your-deployment-url>/api/v2/aibridge/chatgpt/v1"
 wire_api = "responses"
 requires_openai_auth = true
-env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_SESSION_TOKEN" }
+env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 ```
 
 > [!NOTE]
@@ -71,7 +71,7 @@ Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
 
 ```bash
 # Your Coder API token, used for authentication with AI Gateway.
-export CODER_SESSION_TOKEN="<your-coder-api-token>"
+export CODER_API_TOKEN="<your-coder-api-token>"
 
 # Ensure no OpenAI API key is set so Codex uses ChatGPT login instead.
 unset OPENAI_API_KEY
