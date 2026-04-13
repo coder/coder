@@ -205,10 +205,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				localStorage.removeItem(selectedWorkspaceIdStorageKey);
 				return null;
 			}
+			const defaultOrg = organizations.find((o) => o.is_default);
 			if (
 				showOrganizations &&
-				organizations[0] &&
-				workspace.organization_id !== organizations[0].id
+				defaultOrg &&
+				workspace.organization_id !== defaultOrg.id
 			) {
 				localStorage.removeItem(selectedWorkspaceIdStorageKey);
 				return null;
@@ -217,7 +218,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		},
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		organizations[0] ?? null,
+		organizations.find((o) => o.is_default) ?? null,
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
