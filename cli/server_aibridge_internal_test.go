@@ -227,6 +227,32 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "sk-xxx", providers[0].Key)
 	})
 
+	t.Run("PluralKeyAliases", func(t *testing.T) {
+		t.Parallel()
+		// KEYS, BEDROCK_ACCESS_KEYS, and BEDROCK_ACCESS_KEY_SECRETS
+		// are plural aliases for their singular counterparts. Both
+		// forms must produce identical provider configs.
+		singular, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
+			"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+			"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-xxx",
+			"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY=AKID",
+			"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRET=secret",
+		})
+		require.NoError(t, err)
+		require.Len(t, singular, 1)
+
+		plural, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), []string{
+			"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+			"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+			"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID",
+			"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=secret",
+		})
+		require.NoError(t, err)
+		require.Len(t, plural, 1)
+
+		assert.Equal(t, singular[0], plural[0])
+	})
+
 	t.Run("UnknownFieldWarnsButSucceeds", func(t *testing.T) {
 		t.Parallel()
 		// A typo like TPYE instead of TYPE should not prevent startup;

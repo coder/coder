@@ -2969,7 +2969,9 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			provider.Type = v.Value
 		case "NAME":
 			provider.Name = v.Value
-		case "KEY":
+		case "KEY": // Alias for a single key.
+			provider.Key = v.Value
+		case "KEYS":
 			provider.Key = v.Value
 		case "BASE_URL":
 			provider.BaseURL = v.Value
@@ -2977,9 +2979,13 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":
 			provider.BedrockRegion = v.Value
-		case "BEDROCK_ACCESS_KEY":
+		case "BEDROCK_ACCESS_KEY": // Alias for a single key.
 			provider.BedrockAccessKey = v.Value
-		case "BEDROCK_ACCESS_KEY_SECRET":
+		case "BEDROCK_ACCESS_KEYS":
+			provider.BedrockAccessKey = v.Value
+		case "BEDROCK_ACCESS_KEY_SECRET": // Alias for a single key secret.
+			provider.BedrockAccessKeySecret = v.Value
+		case "BEDROCK_ACCESS_KEY_SECRETS":
 			provider.BedrockAccessKeySecret = v.Value
 		case "BEDROCK_MODEL":
 			provider.BedrockModel = v.Value

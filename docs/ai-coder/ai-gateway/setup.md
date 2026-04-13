@@ -144,12 +144,14 @@ requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 |------------|----------|------------------------------------------------------|
 | `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`   |
 | `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE` |
-| `KEY`      | No       | API key for upstream authentication                  |
+| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)  |
 | `BASE_URL` | No       | Base URL of the upstream API                         |
 
 For `anthropic` providers using AWS Bedrock, the following keys are also
-available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`, `BEDROCK_ACCESS_KEY`,
-`BEDROCK_ACCESS_KEY_SECRET`, `BEDROCK_MODEL`, `BEDROCK_SMALL_FAST_MODEL`.
+available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,
+`BEDROCK_ACCESS_KEY` (alias: `BEDROCK_ACCESS_KEYS`),
+`BEDROCK_ACCESS_KEY_SECRET` (alias: `BEDROCK_ACCESS_KEY_SECRETS`),
+`BEDROCK_MODEL`, `BEDROCK_SMALL_FAST_MODEL`.
 
 > [!NOTE]
 > Indices must be contiguous and start at `0`. Each instance must have a unique
