@@ -1,9 +1,13 @@
 import {
 	ExternalLinkIcon,
 	LayoutGridIcon,
+	MonitorDotIcon,
+	MonitorIcon,
+	MonitorPauseIcon,
+	MonitorXIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -34,12 +38,12 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
 
 interface WorkspacePillProps {
-	name: string;
-	route: string;
-	statusIcon: ReactNode;
-	statusLabel: string;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
@@ -47,15 +51,32 @@ interface WorkspacePillProps {
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
-	name,
-	route,
-	statusIcon,
-	statusLabel,
 	workspace,
 	agent,
 	chatId,
 	className,
 }) => {
+	const route = `/@${workspace.owner_name}/${workspace.name}`;
+
+	const { type, text } = getDisplayWorkspaceStatus(
+		workspace.latest_build.status,
+		workspace.latest_build.job,
+	);
+	const effectiveType = workspace.health.healthy ? type : "warning";
+	const statusLabel = workspace.health.healthy
+		? `Workspace ${text.toLowerCase()}`
+		: `Workspace ${text.toLowerCase()} (unhealthy)`;
+	const iconCls = "size-3";
+	const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
+		success: <MonitorIcon className={iconCls} />,
+		active: <MonitorDotIcon className={iconCls} />,
+		inactive: <MonitorPauseIcon className={iconCls} />,
+		error: <MonitorXIcon className={iconCls} />,
+		danger: <MonitorXIcon className={iconCls} />,
+		warning: <MonitorXIcon className={iconCls} />,
+	};
+	const statusIcon = statusIconMap[effectiveType];
+
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
@@ -88,7 +109,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						)}
 					>
 						{statusIcon}
-						{name}
+						{workspace.name}
 					</Link>
 				</TooltipTrigger>
 				<TooltipContent>{statusLabel}</TooltipContent>
@@ -107,7 +128,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						)}
 					>
 						{statusIcon}
-						{name}
+						{workspace.name}{" "}
 					</DropdownMenuTrigger>
 				</TooltipTrigger>
 				<TooltipContent>{statusLabel}</TooltipContent>

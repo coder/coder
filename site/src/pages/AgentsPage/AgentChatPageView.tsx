@@ -44,7 +44,6 @@ import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
-import { WorkspacePill } from "./components/WorkspacePill";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -316,21 +315,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
-	// Pre-render the workspace pill when we have sufficient data
-	// for it to show app links in the dropdown.
-	const workspacePillElement =
-		attachedWorkspace && workspace && workspaceAgent ? (
-			<WorkspacePill
-				name={attachedWorkspace.name}
-				route={attachedWorkspace.route}
-				statusIcon={attachedWorkspace.statusIcon}
-				statusLabel={attachedWorkspace.statusLabel}
-				workspace={workspace}
-				agent={workspaceAgent}
-				chatId={agentId}
-			/>
-		) : undefined;
-
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -461,13 +445,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
 								lastInjectedContext={lastInjectedContext}
-								workspacePill={workspacePillElement}
-								attachedWorkspace={
-									// Only pass through for the ToolBadge
-									// fallback when WorkspacePill is not
-									// rendered.
-									workspacePillElement ? undefined : attachedWorkspace
-								}
+								workspace={workspace}
+								workspaceAgent={workspaceAgent}
+								chatId={agentId}
+								attachedWorkspace={attachedWorkspace}
 							/>
 						</div>
 					</div>

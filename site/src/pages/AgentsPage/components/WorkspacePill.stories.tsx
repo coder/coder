@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MonitorIcon } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
@@ -11,10 +10,6 @@ import { WorkspacePill } from "./WorkspacePill";
 // ---------------------------------------------------------------------------
 
 const defaultProps = {
-	name: "my-workspace",
-	route: "/@admin/my-workspace",
-	statusIcon: <MonitorIcon className="size-3" />,
-	statusLabel: "Workspace running",
 	chatId: "chat-abc-123",
 } satisfies Partial<React.ComponentProps<typeof WorkspacePill>>;
 
@@ -107,7 +102,7 @@ export const WithAllApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("my-workspace");
+		const pill = canvas.getByText("Test-Workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -132,7 +127,7 @@ export const WithBuiltinAppsOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("my-workspace");
+		const pill = canvas.getByText("Test-Workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -157,7 +152,7 @@ export const WithExternalAppsOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("my-workspace");
+		const pill = canvas.getByText("Test-Workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -182,11 +177,11 @@ export const NoApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const link = canvas.getByText("my-workspace");
+		const link = canvas.getByText("Test-Workspace");
 		// The pill should be a link, not a dropdown trigger.
 		expect(link.closest("a")).toHaveAttribute(
 			"href",
-			expect.stringContaining("/@admin/my-workspace"),
+			expect.stringContaining("/@"),
 		);
 	},
 };

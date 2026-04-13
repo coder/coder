@@ -184,7 +184,9 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
-	workspacePill?: React.ReactNode;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
@@ -223,7 +225,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
-	workspacePill,
+	workspace,
+	workspaceAgent,
+	chatId,
 	attachedWorkspace,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -398,7 +402,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
-			workspacePill={workspacePill}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			chatId={chatId}
 			attachedWorkspace={attachedWorkspace}
 		/>
 	);

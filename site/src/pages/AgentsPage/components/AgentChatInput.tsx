@@ -67,6 +67,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
+import { WorkspacePill } from "./WorkspacePill";
 
 export {
 	ImageThumbnail,
@@ -148,9 +149,9 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	// Pre-rendered workspace pill element. When provided, it
-	// replaces the simple attached-workspace ToolBadge.
-	workspacePill?: React.ReactNode;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 }
 
@@ -288,7 +289,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	workspacePill,
+	workspace,
+	workspaceAgent,
+	chatId,
 	attachedWorkspace,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -399,10 +402,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	// When a workspacePill is provided, it handles the workspace
-	// display (including app dropdown). Otherwise fall back to
-	// the simple attached-workspace ToolBadge.
-	if (!workspacePill && attachedWorkspace) {
+	// When workspace data is available, WorkspacePill handles
+	// the display (including app dropdown). Otherwise fall back
+	// to the simple attached-workspace ToolBadge.
+	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (selectedWorkspace && onWorkspaceChange) {
@@ -929,7 +932,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
-							{workspacePill}
+							{workspace && workspaceAgent && chatId && (
+								<WorkspacePill
+									workspace={workspace}
+									agent={workspaceAgent}
+									chatId={chatId}
+								/>
+							)}
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (
