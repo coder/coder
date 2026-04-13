@@ -6,6 +6,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -193,6 +194,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		organizations[0] ?? null,
 	);
+	const [pendingOrgChange, setPendingOrgChange] =
+		useState<TypesGen.Organization | null>(null);
 	const organizationId = selectedOrg?.id ?? organizations[0]?.id ?? "";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -329,113 +332,133 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const isForbidden = !canCreateChat;
 
+	// Filter workspaces by the selected organization. We use
+	// client-side filtering of the full "owner:me" fetch rather
+	// than re-querying with an org filter because it avoids
+	// extra loading/error states on org change. The full list is
+	// already small (user's own workspaces) and limit: 0
+	// guarantees completeness. If workspace counts grow large
+	// enough to warrant pagination, this should switch to a
+	// server-side organization:<name> query filter.
+	const filteredWorkspaces =
+		showOrganizations && selectedOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
+			: workspaceOptions;
+
 	return (
-		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{isForbidden ? (
-					<ChatAccessDeniedAlert />
-				) : createError ? (
-					isApiError(createError) &&
-					createError.response?.status === 409 &&
-					isUsageLimitData(createError.response.data) ? (
-						<Alert
-							severity="info"
-							actions={
-								<Button asChild size="sm">
-									<Link to="/agents/analytics">View Usage</Link>
-								</Button>
-							}
-						>
-							<AlertDescription>
-								{formatUsageLimitMessage(createError.response.data)}
-							</AlertDescription>
-						</Alert>
-					) : (
-						<ErrorAlert error={createError} />
-					)
-				) : null}
-				{workspacesError != null && <ErrorAlert error={workspacesError} />}
-				{showOrganizations && (
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="organization">Organization</Label>
-						<OrganizationAutocomplete
-							id="organization"
-							required
-							value={selectedOrg}
-							options={[...organizations]}
-							onChange={(newOrg) => {
-								const orgChanged =
-									(newOrg === null) !== (selectedOrg === null) ||
-									(newOrg !== null &&
-										selectedOrg !== null &&
-										newOrg.id !== selectedOrg.id);
-								if (orgChanged && attachments.length > 0) {
-									if (
-										!window.confirm(
-											"Changing organization will remove your current attachments. Continue?",
-										)
-									) {
+		<>
+			<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+					{isForbidden ? (
+						<ChatAccessDeniedAlert />
+					) : createError ? (
+						isApiError(createError) &&
+						createError.response?.status === 409 &&
+						isUsageLimitData(createError.response.data) ? (
+							<Alert
+								severity="info"
+								actions={
+									<Button asChild size="sm">
+										<Link to="/agents/analytics">View Usage</Link>
+									</Button>
+								}
+							>
+								<AlertDescription>
+									{formatUsageLimitMessage(createError.response.data)}
+								</AlertDescription>
+							</Alert>
+						) : (
+							<ErrorAlert error={createError} />
+						)
+					) : null}
+					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{showOrganizations && (
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="organization">Organization</Label>
+							<OrganizationAutocomplete
+								id="organization"
+								required
+								value={selectedOrg}
+								options={[...organizations]}
+								onChange={(newOrg) => {
+									const orgChanged = newOrg?.id !== selectedOrg?.id;
+									if (orgChanged && attachments.length > 0) {
+										setPendingOrgChange(newOrg);
 										return;
 									}
-									resetAttachments();
-								}
-								if (orgChanged) {
-									handleWorkspaceChange(null);
-								}
-								setSelectedOrg(newOrg);
-							}}
-						/>
-					</div>
-				)}
-				<AgentChatInput
-					onSend={handleSendWithAttachments}
-					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={isCreating || isForbidden}
-					isLoading={isCreating}
-					initialValue={initialInputValue}
-					initialEditorState={initialEditorState}
-					onContentChange={handleContentChange}
-					selectedModel={selectedModel}
-					onModelChange={handleModelChange}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					isModelCatalogLoading={isModelCatalogLoading}
-					hasModelOptions={hasModelOptions}
-					attachments={attachments}
-					onAttach={handleAttach}
-					onRemoveAttachment={handleRemoveAttachment}
-					uploadStates={uploadStates}
-					previewUrls={previewUrls}
-					textContents={textContents}
-					mcpServers={mcpServers}
-					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={(ids) => {
-						setUserMCPServerIds(ids);
-						saveMCPSelection(ids);
-					}}
-					onMCPAuthComplete={onMCPAuthComplete}
-					workspaceOptions={workspaceOptions}
-					selectedWorkspaceId={selectedWorkspaceId}
-					onWorkspaceChange={handleWorkspaceChange}
-					isWorkspaceLoading={isWorkspacesLoading}
-				/>
-				{modelSelectorHelp ? (
-					<div className="px-3 pt-1 text-2xs text-content-secondary">
-						{modelSelectorHelp}
-					</div>
-				) : null}
-				<p className="mt-1 text-center text-xs text-content-secondary/50">
-					Coder Agents is available via{" "}
-					<a
-						href={docs("/ai-coder/agents/early-access")}
-						target="_blank"
-						rel="noreferrer"
-						className="text-content-secondary/50 underline hover:text-content-secondary"
-					>
-						Early Access
-					</a>
-				</p>
+									if (orgChanged) {
+										handleWorkspaceChange(null);
+									}
+									setSelectedOrg(newOrg);
+								}}
+							/>
+						</div>
+					)}
+					<AgentChatInput
+						onSend={handleSendWithAttachments}
+						placeholder="Ask Coder to build, fix bugs, or explore your project..."
+						isDisabled={isCreating || isForbidden}
+						isLoading={isCreating}
+						initialValue={initialInputValue}
+						initialEditorState={initialEditorState}
+						onContentChange={handleContentChange}
+						selectedModel={selectedModel}
+						onModelChange={handleModelChange}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						isModelCatalogLoading={isModelCatalogLoading}
+						hasModelOptions={hasModelOptions}
+						attachments={attachments}
+						onAttach={handleAttach}
+						onRemoveAttachment={handleRemoveAttachment}
+						uploadStates={uploadStates}
+						previewUrls={previewUrls}
+						textContents={textContents}
+						mcpServers={mcpServers}
+						selectedMCPServerIds={effectiveMCPServerIds}
+						onMCPSelectionChange={(ids) => {
+							setUserMCPServerIds(ids);
+							saveMCPSelection(ids);
+						}}
+						onMCPAuthComplete={onMCPAuthComplete}
+						workspaceOptions={filteredWorkspaces}
+						selectedWorkspaceId={selectedWorkspaceId}
+						onWorkspaceChange={handleWorkspaceChange}
+						isWorkspaceLoading={isWorkspacesLoading}
+					/>
+					{modelSelectorHelp ? (
+						<div className="px-3 pt-1 text-2xs text-content-secondary">
+							{modelSelectorHelp}
+						</div>
+					) : null}
+					<p className="mt-1 text-center text-xs text-content-secondary/50">
+						Coder Agents is available via{" "}
+						<a
+							href={docs("/ai-coder/agents/early-access")}
+							target="_blank"
+							rel="noreferrer"
+							className="text-content-secondary/50 underline hover:text-content-secondary"
+						>
+							Early Access
+						</a>
+					</p>
+				</div>
 			</div>
-		</div>
+			<ConfirmDialog
+				open={pendingOrgChange !== null}
+				title="Change organization?"
+				description="Changing organization will remove your current attachments."
+				type="info"
+				hideCancel={false}
+				confirmText="Continue"
+				onConfirm={() => {
+					resetAttachments();
+					handleWorkspaceChange(null);
+					setSelectedOrg(pendingOrgChange);
+					setPendingOrgChange(null);
+				}}
+				onClose={() => setPendingOrgChange(null)}
+			/>
+		</>
 	);
 };

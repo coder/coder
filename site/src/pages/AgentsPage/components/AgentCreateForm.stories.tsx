@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -318,6 +319,44 @@ export const WithOrganizationPicker: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+};
+
+/**
+ * Standalone story for the org-change confirmation dialog. Renders
+ * the ConfirmDialog directly in its open state, following the same
+ * pattern as DeleteConfirmationDialog in AgentsPageView.stories.
+ */
+export const OrgChangeConfirmation: Story = {
+	render: () => (
+		<ConfirmDialog
+			open={true}
+			title="Change organization?"
+			description="Changing organization will remove your current attachments."
+			type="info"
+			hideCancel={false}
+			confirmText="Continue"
+			onConfirm={fn()}
+			onClose={fn()}
+		/>
+	),
+	play: async () => {
+		const dialog = await screen.findByRole("dialog");
+		await expect(dialog).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText("Change organization?"),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText(
+				"Changing organization will remove your current attachments.",
+			),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByRole("button", { name: /continue/i }),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByRole("button", { name: /cancel/i }),
+		).toBeInTheDocument();
 	},
 };
 

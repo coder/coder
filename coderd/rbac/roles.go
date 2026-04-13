@@ -437,10 +437,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			return auditorRole
 		},
 
+		// templateAdmin grants all actions on templates, files,
+		// provisioner daemons, and prebuilt workspaces.
 		templateAdmin: func(_ uuid.UUID) Role {
 			return templateAdminRole
 		},
 
+		// userAdmin grants all actions on users, groups, roles,
+		// and organization membership.
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
 		},

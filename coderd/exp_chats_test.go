@@ -6329,6 +6329,52 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.Equal(t, "Invalid queued message ID.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
 	})
+
+	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a member without agents-access. Even though the
+		// member owns the chat, promoting a queued message should
+		// be gated by agents-access because it triggers inference.
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           member.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "promote queued no agents access",
+		})
+		require.NoError(t, err)
+
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued message no agents access"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		promoteRes, err := memberClient.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
+	})
 }
 
 func TestChatUsageLimitOverrideRoutes(t *testing.T) {
@@ -8803,6 +8849,33 @@ func TestSubmitToolResults(t *testing.T) {
 			},
 		})
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a member without agents-access. Even though the
+		// member owns the chat, submitting tool results should be
+		// gated by agents-access because it triggers inference.
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_noaccess"}
+
+		chat := setupRequiresAction(ctx, t, db, member.ID, firstUser.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
+
+		err := memberClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_noaccess", Output: json.RawMessage(`"should fail"`)},
+			},
+		})
+		requireSDKError(t, err, http.StatusForbidden)
 	})
 }
 
