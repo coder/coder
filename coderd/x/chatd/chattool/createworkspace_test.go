@@ -144,6 +144,13 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		}, nil)
 
 	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
+		}, nil)
+
+	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
@@ -239,8 +246,15 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 			Status: database.UserStatusActive,
 		}, nil)
 	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
+		}, nil)
+	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
+
 	db.EXPECT().
 		GetWorkspaceBuildByID(gomock.Any(), buildID).
 		Return(database.WorkspaceBuild{
@@ -332,6 +346,13 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 			Roles:  []string{},
 			Groups: []string{},
 			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
 		}, nil)
 
 	db.EXPECT().
@@ -445,6 +466,13 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 					Roles:  []string{},
 					Groups: []string{},
 					Status: database.UserStatusActive,
+				}, nil)
+
+			db.EXPECT().
+				GetTemplateByID(gomock.Any(), templateID).
+				Return(database.Template{
+					ID:             templateID,
+					OrganizationID: orgID,
 				}, nil)
 
 			db.EXPECT().
@@ -928,6 +956,13 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 			Roles:  []string{},
 			Groups: []string{},
 			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
 		}, nil)
 
 	db.EXPECT().

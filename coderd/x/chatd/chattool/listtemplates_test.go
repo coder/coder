@@ -217,7 +217,9 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			tool := chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                 db,
 				OwnerID:            user.ID,
+				OrganizationID:     org.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
+
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
 					return codersdk.Workspace{}, nil
