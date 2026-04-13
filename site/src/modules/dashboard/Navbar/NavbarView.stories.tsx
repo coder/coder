@@ -96,15 +96,6 @@ export const ForMember: Story = {
 	},
 };
 
-export const AgentsTabHiddenWithoutPermission: Story = {
-	parameters: {
-		experiments: ["agents"],
-	},
-	args: {
-		canCreateChat: false,
-	},
-};
-
 export const CustomLogo: Story = {
 	args: {
 		logo_url: "/icon/github.svg",
