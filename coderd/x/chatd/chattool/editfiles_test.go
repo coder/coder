@@ -123,7 +123,7 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.False(t, resolvePlanPathCalled)
-		assert.Equal(t, relativePlanPathMessage(), resp.Content)
+		assert.Equal(t, editFilesBatchRejectedMessage(relativePlanPathMessage()), resp.Content)
 	})
 
 	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
