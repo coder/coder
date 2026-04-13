@@ -16,10 +16,10 @@ env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 ```
 
-To authenticate with AI Gateway, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
+To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
 
 ```bash
-export OPENAI_API_KEY="<your-coder-session-token>"
+export OPENAI_API_KEY="<your-coder-api-token>"
 ```
 
 Run Codex as usual. It will automatically use the `aibridge` model provider from your configuration.
@@ -45,8 +45,8 @@ Set both environment variables:
 # Your personal OpenAI API key, forwarded to OpenAI.
 export OPENAI_API_KEY="<your-openai-api-key>"
 
-# Your Coder session token, used for authentication with AI Gateway.
-export CODER_SESSION_TOKEN="<your-coder-session-token>"
+# Your Coder API token, used for authentication with AI Gateway.
+export CODER_SESSION_TOKEN="<your-coder-api-token>"
 ```
 
 ## BYOK (ChatGPT Subscription)
@@ -67,11 +67,11 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_SESSION_TOKEN" }
 > [!NOTE]
 > The `base_url` uses `/aibridge/chatgpt/v1` instead of `/aibridge/openai/v1` to route requests through the ChatGPT provider.
 
-Set your Coder session token and ensure `OPENAI_API_KEY` is not set:
+Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
 
 ```bash
-# Your Coder session token, used for authentication with AI Gateway.
-export CODER_SESSION_TOKEN="<your-coder-session-token>"
+# Your Coder API token, used for authentication with AI Gateway.
+export CODER_SESSION_TOKEN="<your-coder-api-token>"
 
 # Ensure no OpenAI API key is set so Codex uses ChatGPT login instead.
 unset OPENAI_API_KEY
