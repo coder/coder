@@ -91,16 +91,18 @@ define atomic_write
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 endef
 
-# Common paths to exclude from find commands, this rule is written so
-# that it can be it can be used in a chain of AND statements (meaning
-# you can simply write `find . $(FIND_EXCLUSIONS) -name thing-i-want`).
-# Note, all find statements should be written with `.` or `./path` as
-# the search path so that these exclusions match.
-FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+# CLI doc generation reflects over the assembled CLI tree. Track command
+# definitions plus the top-level SDK types they expose in help text and flag
+# values, without pulling in unrelated generated sources.
+CLIDOC_SRC_FILES := \
+	$(shell find ./cli ./enterprise/cli -type f -name '*.go' -not -name '*_test.go') \
+	$(wildcard codersdk/*.go) \
+	$(wildcard buildinfo/*.go)
 
-# Source files used for make targets, evaluated on use.
-GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
+CLIDOCGEN_INPUTS := \
+	$(wildcard scripts/clidocgen/*.go) \
+	scripts/clidocgen/command.tpl \
+	$(CLIDOC_SRC_FILES)
 
 # Helper binary targets. Built with go build -o to avoid caching
 # link-stage executables in GOCACHE. Each binary is a real Make
@@ -119,9 +121,9 @@ _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
 
-# clidocgen reflects over the full CLI tree, so it must rebuild when any
-# Go source changes or when its embedded template changes.
-_gen/bin/clidocgen: $(wildcard scripts/clidocgen/*.go) scripts/clidocgen/command.tpl $(GO_SRC_FILES) | _gen
+# clidocgen reflects over the full CLI tree, so it must rebuild when its
+# command definitions, flag types, or embedded template change.
+_gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
@@ -194,6 +196,17 @@ ZSTDFLAGS := -22 --ultra
 else
 ZSTDFLAGS := -6 -T0
 endif
+
+# Common paths to exclude from find commands, this rule is written so
+# that it can be it can be used in a chain of AND statements (meaning
+# you can simply write `find . $(FIND_EXCLUSIONS) -name thing-i-want`).
+# Note, all find statements should be written with `.` or `./path` as
+# the search path so that these exclusions match.
+FIND_EXCLUSIONS= \
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+
+# Source files used for make targets, evaluated on use.
+GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
 
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
@@ -1191,7 +1204,7 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES) | _gen _gen/bin/clidocgen
+docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json _gen/bin/clidocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
