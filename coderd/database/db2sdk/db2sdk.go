@@ -1408,8 +1408,10 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 }
 
 // sanitizeCredentialHint ensures the hint looks masked before exposing
-// it in the API. If it doesn't contain "..." or exceeds the max
-// length, it's replaced with "..." to prevent leaking raw secrets.
+// it in the API. The aibridge library uses "..." as the masking
+// delimiter (e.g. "sk-a...efgh"), so we check for its presence. If
+// the hint doesn't contain "..." or exceeds the max length, it's
+// replaced with "..." to prevent leaking raw secrets.
 func sanitizeCredentialHint(hint string) string {
 	// Matches the VARCHAR(15) DB constraint.
 	const maxCredentialHintLength = 15
