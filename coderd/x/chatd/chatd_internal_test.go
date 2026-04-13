@@ -1316,6 +1316,80 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestSubscribeDeliversLocalDurableMessageBeforeDelayedPubsubCatchup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+	localMessage := database.ChatMessage{
+		ID:     2,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	ps := newDelayedAfterMessagePubsub(dbpubsub.NewInMemory())
+	ps.DelayAfterMessage(coderdpubsub.ChatStreamNotifyChannel(chatID), localMessage.ID-1)
+	server := &Server{
+		db:     db,
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		pubsub: ps,
+	}
+
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishMessage(chatID, localMessage)
+	server.publishStatus(chatID, database.ChatStatusWaiting, uuid.NullUUID{})
+
+	messageEvent := requireStreamMessageEvent(t, events)
+	require.Equal(t, localMessage.ID, messageEvent.Message.ID)
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "chat stream closed before delivering status")
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+		require.NotNil(t, event.Status)
+		require.Equal(t, codersdk.ChatStatusWaiting, event.Status.Status)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for chat stream status event")
+	}
+
+	require.NoError(t, ps.ReleaseAfterMessage(coderdpubsub.ChatStreamNotifyChannel(chatID), localMessage.ID-1))
+
+	deadline := time.After(200 * time.Millisecond)
+	for {
+		select {
+		case event, ok := <-events:
+			require.True(t, ok, "chat stream closed unexpectedly")
+			require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type,
+				"delayed pubsub catch-up should not redeliver the durable message")
+		case <-deadline:
+			return
+		}
+	}
+}
+
 func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) {
 	t.Parallel()
 
@@ -1580,6 +1654,83 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 	event := requireStreamErrorEvent(t, events)
 	require.Equal(t, &codersdk.ChatStreamError{Message: "legacy error only"}, event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+type delayedAfterMessageKey struct {
+	event          string
+	afterMessageID int64
+}
+
+// delayedAfterMessagePubsub buffers selected AfterMessageID notifications until
+// a test releases them. This models batched durable-message pubsub delivery
+// while leaving local stream delivery immediate.
+type delayedAfterMessagePubsub struct {
+	inner dbpubsub.Pubsub
+
+	mu              sync.Mutex
+	delayEnabled    map[delayedAfterMessageKey]bool
+	delayedMessages map[delayedAfterMessageKey][][]byte
+}
+
+func newDelayedAfterMessagePubsub(inner dbpubsub.Pubsub) *delayedAfterMessagePubsub {
+	return &delayedAfterMessagePubsub{
+		inner:           inner,
+		delayEnabled:    make(map[delayedAfterMessageKey]bool),
+		delayedMessages: make(map[delayedAfterMessageKey][][]byte),
+	}
+}
+
+func (p *delayedAfterMessagePubsub) DelayAfterMessage(event string, afterMessageID int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.delayEnabled[delayedAfterMessageKey{event: event, afterMessageID: afterMessageID}] = true
+}
+
+func (p *delayedAfterMessagePubsub) ReleaseAfterMessage(event string, afterMessageID int64) error {
+	key := delayedAfterMessageKey{event: event, afterMessageID: afterMessageID}
+
+	p.mu.Lock()
+	delete(p.delayEnabled, key)
+	messages := p.delayedMessages[key]
+	delete(p.delayedMessages, key)
+	p.mu.Unlock()
+
+	for _, message := range messages {
+		if err := p.inner.Publish(event, message); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *delayedAfterMessagePubsub) Subscribe(event string, listener dbpubsub.Listener) (func(), error) {
+	return p.inner.Subscribe(event, listener)
+}
+
+func (p *delayedAfterMessagePubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	return p.inner.SubscribeWithErr(event, listener)
+}
+
+func (p *delayedAfterMessagePubsub) Publish(event string, message []byte) error {
+	var notify coderdpubsub.ChatStreamNotifyMessage
+	if err := json.Unmarshal(message, &notify); err == nil {
+		key := delayedAfterMessageKey{event: event, afterMessageID: notify.AfterMessageID}
+		p.mu.Lock()
+		delay := p.delayEnabled[key]
+		if delay {
+			p.delayedMessages[key] = append(p.delayedMessages[key], append([]byte(nil), message...))
+		}
+		p.mu.Unlock()
+		if delay {
+			return nil
+		}
+	}
+	return p.inner.Publish(event, message)
+}
+
+func (p *delayedAfterMessagePubsub) Close() error {
+	return p.inner.Close()
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {

@@ -1829,7 +1829,7 @@ func (p *Server) SubmitToolResults(
 		p.publishChatControl(controlWorkerID, controlMsg)
 	}
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 	// Wake the chatd run loop so it processes the chat immediately.
 	p.signalWake()
@@ -3483,44 +3483,98 @@ func (p *Server) Subscribe(
 				}
 				return
 			case notify := <-notifications:
+			drainLocalBeforeNotify:
+				for localParts != nil {
+					select {
+					case event, ok := <-localParts:
+						if !ok {
+							localParts = nil
+							break drainLocalBeforeNotify
+						}
+						if event.Type == codersdk.ChatStreamEventTypeMessage {
+							if event.Message == nil || event.Message.ID <= lastMessageID {
+								continue
+							}
+							lastMessageID = event.Message.ID
+						} else if event.Type != codersdk.ChatStreamEventTypeMessagePart &&
+							event.Type != codersdk.ChatStreamEventTypeStatus &&
+							event.Type != codersdk.ChatStreamEventTypeActionRequired {
+							continue
+						}
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					default:
+						break drainLocalBeforeNotify
+					}
+				}
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
 					if notify.FullRefresh {
 						lastMessageID = 0
-					}
-					cached := p.getCachedDurableMessages(chatID, lastMessageID)
-					if !notify.FullRefresh && len(cached) > 0 {
-						for _, event := range cached {
-							select {
-							case <-mergedCtx.Done():
-								return
-							case mergedEvents <- event:
+						if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+							ChatID:  chatID,
+							AfterID: lastMessageID,
+						}); msgErr != nil {
+							p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
+								slog.F("chat_id", chatID),
+								slog.Error(msgErr),
+							)
+						} else {
+							for _, msg := range newMessages {
+								if msg.ID <= lastMessageID {
+									continue
+								}
+								sdkMsg := db2sdk.ChatMessage(msg)
+								select {
+								case <-mergedCtx.Done():
+									return
+								case mergedEvents <- codersdk.ChatStreamEvent{
+									Type:    codersdk.ChatStreamEventTypeMessage,
+									ChatID:  chatID,
+									Message: &sdkMsg,
+								}:
+								}
+								lastMessageID = msg.ID
 							}
-							lastMessageID = event.Message.ID
 						}
-					} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
-						ChatID:  chatID,
-						AfterID: lastMessageID,
-					}); msgErr != nil {
-						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
-							slog.F("chat_id", chatID),
-							slog.Error(msgErr),
-						)
-					} else {
-						for _, msg := range newMessages {
-							if msg.ID <= lastMessageID {
-								continue
+					} else if notify.AfterMessageID >= lastMessageID {
+						cached := p.getCachedDurableMessages(chatID, lastMessageID)
+						if len(cached) > 0 {
+							for _, event := range cached {
+								select {
+								case <-mergedCtx.Done():
+									return
+								case mergedEvents <- event:
+								}
+								lastMessageID = event.Message.ID
 							}
-							sdkMsg := db2sdk.ChatMessage(msg)
-							select {
-							case <-mergedCtx.Done():
-								return
-							case mergedEvents <- codersdk.ChatStreamEvent{
-								Type:    codersdk.ChatStreamEventTypeMessage,
-								ChatID:  chatID,
-								Message: &sdkMsg,
-							}:
+						} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+							ChatID:  chatID,
+							AfterID: lastMessageID,
+						}); msgErr != nil {
+							p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
+								slog.F("chat_id", chatID),
+								slog.Error(msgErr),
+							)
+						} else {
+							for _, msg := range newMessages {
+								if msg.ID <= lastMessageID {
+									continue
+								}
+								sdkMsg := db2sdk.ChatMessage(msg)
+								select {
+								case <-mergedCtx.Done():
+									return
+								case mergedEvents <- codersdk.ChatStreamEvent{
+									Type:    codersdk.ChatStreamEventTypeMessage,
+									ChatID:  chatID,
+									Message: &sdkMsg,
+								}:
+								}
+								lastMessageID = msg.ID
 							}
-							lastMessageID = msg.ID
 						}
 					}
 				}
@@ -3615,29 +3669,31 @@ func (p *Server) Subscribe(
 					continue
 				}
 				if hasPubsub {
-					// Forward transient events from local.
-					// Durable events (messages, queue updates)
-					// come via pubsub + cache.  Status is
-					// included alongside message_part because
-					// both travel through the same ordered
-					// channel: publishStatus is called before
-					// the first message_part, so FIFO delivery
-					// guarantees the frontend sees
-					// status=running before any content.
-					// Pubsub will deliver a duplicate status
-					// later; the frontend deduplicates it
-					// (setChatStatus is idempotent).
-					// action_required is also transient and
-					// only published on the local stream, so
-					// it must be forwarded here.
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart ||
-						event.Type == codersdk.ChatStreamEventTypeStatus ||
-						event.Type == codersdk.ChatStreamEventTypeActionRequired {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
+					// Forward local transient events and same-replica durable
+					// messages. Message parts and running status share a FIFO
+					// local channel so the frontend sees status=running before
+					// streamed content. Durable messages are also forwarded for
+					// new message IDs so batched pubsub delivery cannot create
+					// a gap where status=waiting arrives before the committed
+					// assistant message catch-up. action_required is transient
+					// and only published on the local stream, so it must be
+					// forwarded here as well. Pubsub may later deliver stale
+					// status/message notifications; lastMessageID and the
+					// frontend's idempotent status handling absorb duplicates.
+					if event.Type == codersdk.ChatStreamEventTypeMessage {
+						if event.Message == nil || event.Message.ID <= lastMessageID {
+							continue
 						}
+						lastMessageID = event.Message.ID
+					} else if event.Type != codersdk.ChatStreamEventTypeMessagePart &&
+						event.Type != codersdk.ChatStreamEventTypeStatus &&
+						event.Type != codersdk.ChatStreamEventTypeActionRequired {
+						continue
+					}
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- event:
 					}
 				} else {
 					// No pubsub: forward all event types.
@@ -6313,7 +6369,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			p.publishChatControl(controlWorkerID, controlMsg)
 		}
 		p.publishStatus(updatedChat.ID, updatedChat.Status, updatedChat.WorkerID)
-		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
 	if recovered > 0 {

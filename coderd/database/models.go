@@ -4227,7 +4227,6 @@ type Chat struct {
 	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
 	Title               string                `db:"title" json:"title"`
 	Status              ChatStatus            `db:"status" json:"status"`
-	RunGeneration       int64                 `db:"run_generation" json:"run_generation"`
 	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
 	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
 	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
@@ -4247,6 +4246,7 @@ type Chat struct {
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	RunGeneration       int64                 `db:"run_generation" json:"run_generation"`
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 }
 
