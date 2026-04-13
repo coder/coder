@@ -423,6 +423,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
@@ -518,6 +519,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
@@ -599,6 +601,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
