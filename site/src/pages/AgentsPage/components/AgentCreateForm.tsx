@@ -402,7 +402,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
-					{showOrganizations && (
+					{showOrganizations && permittedOrgs.length > 1 && (
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="organization">Organization</Label>
 							<OrganizationAutocomplete
