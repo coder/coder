@@ -226,6 +226,7 @@ func TestProposePlan(t *testing.T) {
 		assert.Equal(t, "/home/coder/myproject/plan.md", result.Path)
 		assert.Equal(t, []byte("# Nested Plan"), *stored)
 	})
+
 	t.Run("FileNotFound", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
