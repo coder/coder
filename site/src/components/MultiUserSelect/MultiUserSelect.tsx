@@ -259,7 +259,7 @@ const UserRow = <T extends SelectedUser>({
 			{...clickableProps}
 			data-testid={`user-${user.username}`}
 			className={cn([
-				checked ? "bg-muted hover:bg-muted" : undefined,
+				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
 				clickableProps.className,
 			])}
 		>
