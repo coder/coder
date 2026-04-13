@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Internal access to ResolveUsageLimitStatus.
+package chatd_test
 
 import (
 	"encoding/json"
@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -99,7 +100,7 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 	t.Run("OrgA_gets_orgA_limit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		status, err := ResolveUsageLimitStatus(ctx, db, user.ID, orgA.ID, now)
+		status, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, orgA.ID, now)
 		require.NoError(t, err)
 		require.NotNil(t, status)
 		require.NotNil(t, status.SpendLimitMicros)
@@ -110,7 +111,7 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 	t.Run("OrgB_gets_orgB_limit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		status, err := ResolveUsageLimitStatus(ctx, db, user.ID, orgB.ID, now)
+		status, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, orgB.ID, now)
 		require.NoError(t, err)
 		require.NotNil(t, status)
 		require.NotNil(t, status.SpendLimitMicros)
@@ -122,7 +123,7 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// Nil UUID = legacy global behavior: MIN across all groups.
-		status, err := ResolveUsageLimitStatus(ctx, db, user.ID, uuid.Nil, now)
+		status, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, uuid.Nil, now)
 		require.NoError(t, err)
 		require.NotNil(t, status)
 		require.NotNil(t, status.SpendLimitMicros)
@@ -168,21 +169,21 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve for orgB — should see zero spend (orgA's $3 not counted).
-		statusB, err := ResolveUsageLimitStatus(ctx, db, user.ID, orgB.ID, now)
+		statusB, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, orgB.ID, now)
 		require.NoError(t, err)
 		require.NotNil(t, statusB)
 		require.Equal(t, int64(0), statusB.CurrentSpend,
 			"orgB should not include orgA's spend")
 
 		// Resolve for orgA — should see $3 spend.
-		statusA, err := ResolveUsageLimitStatus(ctx, db, user.ID, orgA.ID, now)
+		statusA, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, orgA.ID, now)
 		require.NoError(t, err)
 		require.NotNil(t, statusA)
 		require.Equal(t, int64(3_000_000), statusA.CurrentSpend,
 			"orgA should include its own spend")
 
 		// Nil org — should see $3 (global).
-		statusNil, err := ResolveUsageLimitStatus(ctx, db, user.ID, uuid.Nil, now)
+		statusNil, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, uuid.Nil, now)
 		require.NoError(t, err)
 		require.NotNil(t, statusNil)
 		require.Equal(t, int64(3_000_000), statusNil.CurrentSpend,
@@ -210,7 +211,7 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		status, err := ResolveUsageLimitStatus(ctx, db, user2.ID, orgA.ID, now)
+		status, err := chatd.ResolveUsageLimitStatus(ctx, db, user2.ID, orgA.ID, now)
 		require.NoError(t, err)
 		require.NotNil(t, status)
 		require.NotNil(t, status.SpendLimitMicros)
