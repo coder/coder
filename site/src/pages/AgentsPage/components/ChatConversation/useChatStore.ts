@@ -508,7 +508,6 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearStreamState();
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {
