@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/testutil"
 )
 
 func TestSerializedRetry(t *testing.T) {
@@ -119,39 +118,18 @@ func TestNestedInTxStricterIsolationDefaultParent(t *testing.T) {
 		t.SkipNow()
 	}
 
-	sink := testutil.NewFakeSink(t)
-	logger := slog.Make(sink).Leveled(slog.LevelDebug)
-
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, logger)
+	db := database.New(sqlDB, slog.Logger{})
 
 	// Outer uses default isolation, inner requests RepeatableRead.
 	// After normalization default becomes ReadCommitted, so the
-	// inner level is stricter and a Critical log should fire.
+	// inner level is stricter and an error should be returned.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
 			return nil
 		}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
 	}, nil)
-	require.NoError(t, err)
-
-	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
-	})
-	require.Len(t, entries, 1, "expected exactly one Critical log entry")
-	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
-
-	var parentVal, requestedVal string
-	for _, f := range entries[0].Fields {
-		switch f.Name {
-		case "existing_isolation":
-			parentVal, _ = f.Value.(string)
-		case "requested_isolation":
-			requestedVal, _ = f.Value.(string)
-		}
-	}
-	require.Equal(t, sql.LevelDefault.String(), parentVal)
-	require.Equal(t, sql.LevelRepeatableRead.String(), requestedVal)
+	require.ErrorIs(t, err, database.ErrNestedTransactionIsolationMismatch)
 }
 
 func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
@@ -160,54 +138,30 @@ func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
 		t.SkipNow()
 	}
 
-	sink := testutil.NewFakeSink(t)
-	logger := slog.Make(sink).Leveled(slog.LevelDebug)
-
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, logger)
+	db := database.New(sqlDB, slog.Logger{})
 
 	// Outer uses RepeatableRead, inner requests Serializable.
-	// Both are explicit and the inner is stricter, so a Critical
-	// log should fire.
+	// Both are explicit and the inner is stricter, so an error
+	// should be returned.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
 			return nil
 		}, &database.TxOptions{Isolation: sql.LevelSerializable})
 	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
-	require.NoError(t, err)
-
-	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
-	})
-	require.Len(t, entries, 1, "expected exactly one Critical log entry")
-	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
-
-	var parentVal, requestedVal string
-	for _, f := range entries[0].Fields {
-		switch f.Name {
-		case "existing_isolation":
-			parentVal, _ = f.Value.(string)
-		case "requested_isolation":
-			requestedVal, _ = f.Value.(string)
-		}
-	}
-	require.Equal(t, sql.LevelRepeatableRead.String(), parentVal)
-	require.Equal(t, sql.LevelSerializable.String(), requestedVal)
+	require.ErrorIs(t, err, database.ErrNestedTransactionIsolationMismatch)
 }
 
-func TestNestedInTxSameIsolationNoLog(t *testing.T) {
+func TestNestedInTxSameIsolationNoError(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	sink := testutil.NewFakeSink(t)
-	logger := slog.Make(sink).Leveled(slog.LevelDebug)
-
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, logger)
+	db := database.New(sqlDB, slog.Logger{})
 
-	// Both use the same isolation level. No log should fire.
+	// Both use the same isolation level. No error should occur.
 	opts := &database.TxOptions{Isolation: sql.LevelRepeatableRead}
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
@@ -215,66 +169,46 @@ func TestNestedInTxSameIsolationNoLog(t *testing.T) {
 		}, opts)
 	}, opts)
 	require.NoError(t, err)
-
-	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
-	})
-	require.Empty(t, entries, "should not log when isolation levels match")
 }
 
-func TestNestedInTxWeakerIsolationNoLog(t *testing.T) {
+func TestNestedInTxWeakerIsolationNoError(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	sink := testutil.NewFakeSink(t)
-	logger := slog.Make(sink).Leveled(slog.LevelDebug)
-
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, logger)
+	db := database.New(sqlDB, slog.Logger{})
 
 	// Outer uses Serializable, inner requests RepeatableRead (weaker).
-	// No log should fire because the inner gets more isolation than needed.
+	// No error should occur because the inner gets more isolation
+	// than needed.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
 			return nil
 		}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
 	}, &database.TxOptions{Isolation: sql.LevelSerializable})
 	require.NoError(t, err)
-
-	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
-	})
-	require.Empty(t, entries, "should not log when inner isolation is weaker than outer")
 }
 
-func TestNestedInTxDefaultVsReadCommittedNoLog(t *testing.T) {
+func TestNestedInTxDefaultVsReadCommittedNoError(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	sink := testutil.NewFakeSink(t)
-	logger := slog.Make(sink).Leveled(slog.LevelDebug)
-
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, logger)
+	db := database.New(sqlDB, slog.Logger{})
 
 	// Outer uses default (nil opts), inner requests ReadCommitted.
-	// After normalization both map to ReadCommitted, so no log
-	// should fire.
+	// After normalization both map to ReadCommitted, so no error
+	// should occur.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
 			return nil
 		}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
 	}, nil)
 	require.NoError(t, err)
-
-	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelCritical
-	})
-	require.Empty(t, entries, "should not log when default and ReadCommitted are equivalent after normalization")
 }
 
 func TestInTransaction_TopLevel(t *testing.T) {

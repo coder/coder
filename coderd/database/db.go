@@ -19,6 +19,14 @@ import (
 	slog "cdr.dev/slog/v3"
 )
 
+// ErrNestedTransactionIsolationMismatch is returned when a nested InTx
+// call requests a stricter isolation level than the outer transaction.
+// The inner request would be silently ignored because PostgreSQL does
+// not support changing isolation levels within a transaction. Callers
+// must ensure the outer transaction is started at a sufficiently strict
+// isolation level.
+var ErrNestedTransactionIsolationMismatch = xerrors.New("nested transaction isolation mismatch")
+
 // Store contains all queryable database functions.
 // It extends the generated interface to add transaction support.
 type Store interface {
@@ -215,13 +223,9 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		existingLevel := normalizeIsolationLevel(q.txIsolationLevel)
 		requestedLevel := normalizeIsolationLevel(txOpts.Isolation)
 		if requestedLevel > existingLevel {
-			// The nested call requested a stricter isolation level
-			// than the parent, but it will be silently ignored
-			// because we reuse the parent transaction. Log this so
-			// callers can detect the mismatch.
-			q.logger.Critical(context.Background(), "nested transaction requested stricter isolation level than the existing transaction provides",
-				slog.F("existing_isolation", q.txIsolationLevel.String()),
-				slog.F("requested_isolation", txOpts.Isolation.String()),
+			return xerrors.Errorf(
+				"nested transaction requested stricter isolation level (%s) than the existing transaction provides (%s): %w",
+				txOpts.Isolation, q.txIsolationLevel, ErrNestedTransactionIsolationMismatch,
 			)
 		}
 		err := function(q)
