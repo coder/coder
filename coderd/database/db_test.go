@@ -136,9 +136,9 @@ func TestNestedInTxStricterIsolationDefaultParent(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelWarn
+		return e.Level == slog.LevelCritical
 	})
-	require.Len(t, entries, 1, "expected exactly one Warn log entry")
+	require.Len(t, entries, 1, "expected exactly one Critical log entry")
 	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
 
 	var parentVal, requestedVal string
@@ -177,9 +177,9 @@ func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelWarn
+		return e.Level == slog.LevelCritical
 	})
-	require.Len(t, entries, 1, "expected exactly one Warn log entry")
+	require.Len(t, entries, 1, "expected exactly one Critical log entry")
 	require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
 
 	var parentVal, requestedVal string
@@ -217,7 +217,7 @@ func TestNestedInTxSameIsolationNoLog(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelWarn
+		return e.Level == slog.LevelCritical
 	})
 	require.Empty(t, entries, "should not log when isolation levels match")
 }
@@ -244,7 +244,7 @@ func TestNestedInTxWeakerIsolationNoLog(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelWarn
+		return e.Level == slog.LevelCritical
 	})
 	require.Empty(t, entries, "should not log when inner isolation is weaker than outer")
 }
@@ -272,7 +272,7 @@ func TestNestedInTxDefaultVsReadCommittedNoLog(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		return e.Level == slog.LevelWarn
+		return e.Level == slog.LevelCritical
 	})
 	require.Empty(t, entries, "should not log when default and ReadCommitted are equivalent after normalization")
 }

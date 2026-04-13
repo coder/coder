@@ -205,7 +205,7 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 			// than the parent, but it will be silently ignored
 			// because we reuse the parent transaction. Log this so
 			// callers can detect the mismatch.
-			q.logger.Warn(context.Background(), "nested transaction requested stricter isolation level than the existing transaction provides",
+			q.logger.Critical(context.Background(), "nested transaction requested stricter isolation level than the existing transaction provides",
 				slog.F("existing_isolation", q.txIsolationLevel.String()),
 				slog.F("requested_isolation", txOpts.Isolation.String()),
 			)
