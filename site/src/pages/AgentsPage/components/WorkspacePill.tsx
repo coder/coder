@@ -3,10 +3,13 @@ import {
 	CopyIcon,
 	ExternalLinkIcon,
 	LayoutGridIcon,
+	MonitorDotIcon,
 	MonitorIcon,
+	MonitorPauseIcon,
+	MonitorXIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { useState } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
@@ -39,10 +42,19 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
-import { getWorkspaceStatusDisplay } from "./workspaceStatusDisplay";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
 
-const badgeCls =
-	"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary";
+const statusIconMap: Record<DisplayWorkspaceStatusType, ReactNode> = {
+	success: <MonitorIcon className="size-3" />,
+	active: <MonitorDotIcon className="size-3" />,
+	inactive: <MonitorPauseIcon className="size-3" />,
+	error: <MonitorXIcon className="size-3" />,
+	danger: <MonitorXIcon className="size-3" />,
+	warning: <MonitorXIcon className="size-3" />,
+};
 
 interface WorkspacePillProps {
 	workspace: Workspace;
@@ -64,10 +76,32 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
-	const { statusLabel, statusIcon } = getWorkspaceStatusDisplay(
-		workspace,
-		agent,
+	let { type, text } = getDisplayWorkspaceStatus(
+		workspace.latest_build.status,
+		workspace.latest_build.job,
 	);
+
+	const agentPreparing =
+		workspace.latest_build.status === "running" &&
+		(agent?.lifecycle_state === "created" ||
+			agent?.lifecycle_state === "starting");
+	const agentStartupFailed =
+		workspace.latest_build.status === "running" &&
+		(agent?.lifecycle_state === "start_error" ||
+			agent?.lifecycle_state === "start_timeout");
+	if (agentPreparing) {
+		type = "active";
+		text = "Preparing";
+	} else if (agentStartupFailed) {
+		type = "warning";
+		text = "Startup failed";
+	}
+
+	const effectiveType = workspace.health.healthy ? type : "warning";
+	const statusLabel = workspace.health.healthy
+		? `Workspace ${text.toLowerCase()}`
+		: `Workspace ${text.toLowerCase()} (unhealthy)`;
+	const statusIcon = statusIconMap[effectiveType];
 
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
@@ -95,7 +129,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							type="button"
 							aria-label={`${workspace.name} workspace menu`}
 							className={cn(
-								badgeCls,
+								"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 							)}
 						>

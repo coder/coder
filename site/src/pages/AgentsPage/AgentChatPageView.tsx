@@ -1,4 +1,10 @@
-import { ArchiveIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	MonitorDotIcon,
+	MonitorIcon,
+	MonitorPauseIcon,
+	MonitorXIcon,
+} from "lucide-react";
 
 import {
 	type FC,
@@ -14,7 +20,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -34,7 +43,6 @@ import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
-import { getWorkspaceStatusDisplay } from "./components/workspaceStatusDisplay";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -269,10 +277,42 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		const { statusLabel, statusIcon } = getWorkspaceStatusDisplay(
-			workspace,
-			workspaceAgent,
+
+		const statusIconMap: Record<DisplayWorkspaceStatusType, ReactNode> = {
+			success: <MonitorIcon className="size-3" />,
+			active: <MonitorDotIcon className="size-3" />,
+			inactive: <MonitorPauseIcon className="size-3" />,
+			error: <MonitorXIcon className="size-3" />,
+			danger: <MonitorXIcon className="size-3" />,
+			warning: <MonitorXIcon className="size-3" />,
+		};
+
+		let { type, text } = getDisplayWorkspaceStatus(
+			workspace.latest_build.status,
+			workspace.latest_build.job,
 		);
+
+		const agentPreparing =
+			workspace.latest_build.status === "running" &&
+			(workspaceAgent?.lifecycle_state === "created" ||
+				workspaceAgent?.lifecycle_state === "starting");
+		const agentStartupFailed =
+			workspace.latest_build.status === "running" &&
+			(workspaceAgent?.lifecycle_state === "start_error" ||
+				workspaceAgent?.lifecycle_state === "start_timeout");
+		if (agentPreparing) {
+			type = "active";
+			text = "Preparing";
+		} else if (agentStartupFailed) {
+			type = "warning";
+			text = "Startup failed";
+		}
+
+		const effectiveType = workspace.health.healthy ? type : "warning";
+		const statusLabel = workspace.health.healthy
+			? `Workspace ${text.toLowerCase()}`
+			: `Workspace ${text.toLowerCase()} (unhealthy)`;
+		const statusIcon = statusIconMap[effectiveType];
 
 		return {
 			name: workspace.name,
