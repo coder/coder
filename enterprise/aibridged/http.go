@@ -58,7 +58,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if byok && !s.allowBYOK {
-		logger.Warn(ctx, "BYOK request rejected: not allowed by deployment configuration")
+		logger.Warn(ctx, "byok request rejected: not allowed by deployment configuration")
 		http.Error(rw, ErrBYOKNotAllowed.Error(), http.StatusForbidden)
 		return
 	}
