@@ -3,7 +3,8 @@
 # This script ensures that the same version of Go is referenced in all of the
 # following files:
 # - go.mod
-# - dogfood/coder/Dockerfile
+# - dogfood/coder/ubuntu-22.04/Dockerfile
+# - dogfood/coder/ubuntu-26.04/Dockerfile
 # - flake.nix
 # - .github/actions/setup-go/action.yml
 # The version of Go in go.mod is considered the source of truth.
