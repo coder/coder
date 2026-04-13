@@ -843,15 +843,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage push notifications.
-			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-			if experiments.Enabled(codersdk.ExperimentAgents) && !strings.HasPrefix(options.AccessURL.String(), "https://") {
-				options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
-			}
-
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
 			if err != nil {
 				options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
-				options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
 				webpusher = &webpush.NoopWebpusher{
 					Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
 					Err: err,
