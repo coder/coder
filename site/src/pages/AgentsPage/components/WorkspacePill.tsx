@@ -104,7 +104,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<Tooltip>
+			<Tooltip open={open ? false : undefined}>
 				<TooltipTrigger asChild>
 					<PopoverTrigger asChild>
 						<button
@@ -118,8 +118,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							{workspace.name}
 							<ChevronDownIcon
 								className={cn(
-									"size-3 opacity-60 transition-transform",
-									open && "rotate-180",
+									"size-3 opacity-60 transition-transform rotate-180",
+									open && "rotate-0",
 								)}
 							/>
 						</button>
