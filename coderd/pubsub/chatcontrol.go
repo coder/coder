@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // ChatControlReason identifies why a worker-scoped control message was sent.
@@ -45,12 +46,12 @@ type ChatControlMessage struct {
 func HandleChatControl(cb func(ctx context.Context, payload ChatControlMessage, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {
-			cb(ctx, ChatControlMessage{}, err)
+			cb(ctx, ChatControlMessage{}, xerrors.Errorf("chat control pubsub: %w", err))
 			return
 		}
 		var payload ChatControlMessage
 		if err := json.Unmarshal(message, &payload); err != nil {
-			cb(ctx, ChatControlMessage{}, err)
+			cb(ctx, ChatControlMessage{}, xerrors.Errorf("unmarshal chat control message: %w", err))
 			return
 		}
 		cb(ctx, payload, nil)

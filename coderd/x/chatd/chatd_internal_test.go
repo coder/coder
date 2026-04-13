@@ -1311,9 +1311,9 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 
 	server.publishMessage(chatID, localMessage)
 
-	event := requireStreamMessageEvent(t, events)
+	event := requireStreamMessageEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, int64(2), event.Message.ID)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 func TestForwardRelevantLocalPubsubEvent_DoesNotAdvanceCursorOnCanceledSend(t *testing.T) {
@@ -1334,7 +1334,7 @@ func TestForwardRelevantLocalPubsubEvent_DoesNotAdvanceCursorOnCanceledSend(t *t
 
 		require.True(t, forwardRelevantLocalPubsubEvent(ctx, mergedEvents, event, &lastMessageID))
 		require.Equal(t, int64(2), lastMessageID)
-		forwarded := requireStreamMessageEvent(t, mergedEvents)
+		forwarded := requireStreamMessageEvent(testutil.Context(t, testutil.WaitShort), t, mergedEvents)
 		require.Equal(t, int64(2), forwarded.Message.ID)
 	})
 
@@ -1409,29 +1409,30 @@ func TestSubscribeDeliversLocalDurableMessageBeforeDelayedPubsubCatchup(t *testi
 	server.publishMessage(chatID, localMessage)
 	server.publishStatus(chatID, database.ChatStatusWaiting, uuid.NullUUID{})
 
-	messageEvent := requireStreamMessageEvent(t, events)
+	messageEvent := requireStreamMessageEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, localMessage.ID, messageEvent.Message.ID)
 
+	statusCtx := testutil.Context(t, testutil.WaitShort)
 	select {
 	case event, ok := <-events:
 		require.True(t, ok, "chat stream closed before delivering status")
 		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
 		require.NotNil(t, event.Status)
 		require.Equal(t, codersdk.ChatStatusWaiting, event.Status.Status)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for chat stream status event")
+	case <-statusCtx.Done():
+		t.Fatalf("timed out waiting for chat stream status event: %v", statusCtx.Err())
 	}
 
 	require.NoError(t, ps.ReleaseAfterMessage(coderdpubsub.ChatStreamNotifyChannel(chatID), localMessage.ID-1))
 
-	deadline := time.After(200 * time.Millisecond)
+	noDuplicateCtx := testutil.Context(t, 200*time.Millisecond)
 	for {
 		select {
 		case event, ok := <-events:
 			require.True(t, ok, "chat stream closed unexpectedly")
 			require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type,
 				"delayed pubsub catch-up should not redeliver the durable message")
-		case <-deadline:
+		case <-noDuplicateCtx.Done():
 			return
 		}
 	}
@@ -1483,9 +1484,9 @@ func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) 
 		AfterMessageID: 1,
 	})
 
-	event := requireStreamMessageEvent(t, events)
+	event := requireStreamMessageEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, int64(2), event.Message.ID)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 func TestSubscribeQueriesDatabaseWhenDurableCacheMisses(t *testing.T) {
@@ -1532,9 +1533,9 @@ func TestSubscribeQueriesDatabaseWhenDurableCacheMisses(t *testing.T) {
 		AfterMessageID: 1,
 	})
 
-	event := requireStreamMessageEvent(t, events)
+	event := requireStreamMessageEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, int64(2), event.Message.ID)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
@@ -1579,9 +1580,9 @@ func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
 
 	server.publishEditedMessage(chatID, editedMessage)
 
-	event := requireStreamMessageEvent(t, events)
+	event := requireStreamMessageEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, int64(1), event.Message.ID)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
@@ -1623,9 +1624,9 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 
 	server.publishRetry(chatID, expected)
 
-	event := requireStreamRetryEvent(t, events)
+	event := requireStreamRetryEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, expected, event.Retry)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
@@ -1663,9 +1664,9 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 	}
 	server.publishError(chatID, classified)
 
-	event := requireStreamErrorEvent(t, events)
+	event := requireStreamErrorEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, chaterror.StreamErrorPayload(classified), event.Error)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
@@ -1698,9 +1699,9 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 		Error: "legacy error only",
 	})
 
-	event := requireStreamErrorEvent(t, events)
+	event := requireStreamErrorEvent(testutil.Context(t, testutil.WaitShort), t, events)
 	require.Equal(t, &codersdk.ChatStreamError{Message: "legacy error only"}, event.Error)
-	requireNoStreamEvent(t, events, 200*time.Millisecond)
+	requireNoStreamEvent(testutil.Context(t, 200*time.Millisecond), t, events)
 }
 
 type delayedAfterMessageKey struct {
@@ -1890,7 +1891,7 @@ func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
 	}
 }
 
-func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+func requireStreamMessageEvent(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
 	t.Helper()
 
 	select {
@@ -1899,13 +1900,13 @@ func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEv
 		require.Equal(t, codersdk.ChatStreamEventTypeMessage, event.Type)
 		require.NotNil(t, event.Message)
 		return event
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for chat stream message event")
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for chat stream message event: %v", ctx.Err())
 		return codersdk.ChatStreamEvent{}
 	}
 }
 
-func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+func requireStreamRetryEvent(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
 	t.Helper()
 
 	select {
@@ -1914,13 +1915,13 @@ func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEven
 		require.Equal(t, codersdk.ChatStreamEventTypeRetry, event.Type)
 		require.NotNil(t, event.Retry)
 		return event
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for chat stream retry event")
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for chat stream retry event: %v", ctx.Err())
 		return codersdk.ChatStreamEvent{}
 	}
 }
 
-func requireStreamErrorEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+func requireStreamErrorEvent(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
 	t.Helper()
 
 	select {
@@ -1929,13 +1930,13 @@ func requireStreamErrorEvent(t *testing.T, events <-chan codersdk.ChatStreamEven
 		require.Equal(t, codersdk.ChatStreamEventTypeError, event.Type)
 		require.NotNil(t, event.Error)
 		return event
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for chat stream error event")
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for chat stream error event: %v", ctx.Err())
 		return codersdk.ChatStreamEvent{}
 	}
 }
 
-func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, wait time.Duration) {
+func requireNoStreamEvent(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 
 	select {
@@ -1944,7 +1945,7 @@ func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, 
 			t.Fatal("chat stream closed unexpectedly")
 		}
 		t.Fatalf("unexpected chat stream event: %+v", event)
-	case <-time.After(wait):
+	case <-ctx.Done():
 	}
 }
 
@@ -3213,7 +3214,7 @@ func TestRegisterHeartbeat_IgnoresEqualGenerationDuplicate(t *testing.T) {
 		runGeneration:   2,
 		logger:          logger,
 	}
-	server.registerHeartbeat(activeEntry)
+	require.True(t, server.registerHeartbeat(activeEntry))
 
 	duplicateCtx, duplicateCancel := context.WithCancelCause(ctx)
 	defer duplicateCancel(nil)
@@ -3223,7 +3224,7 @@ func TestRegisterHeartbeat_IgnoresEqualGenerationDuplicate(t *testing.T) {
 		runGeneration:   2,
 		logger:          logger,
 	}
-	server.registerHeartbeat(duplicateEntry)
+	require.False(t, server.registerHeartbeat(duplicateEntry))
 
 	require.NoError(t, context.Cause(activeCtx))
 	require.NoError(t, context.Cause(duplicateCtx))
@@ -3266,7 +3267,7 @@ func TestRegisterHeartbeat_ReplacesOlderGenerationAndIgnoresStaleUnregister(t *t
 		runGeneration:   1,
 		logger:          logger,
 	}
-	server.registerHeartbeat(oldEntry)
+	require.True(t, server.registerHeartbeat(oldEntry))
 
 	newCtx, newCancel := context.WithCancelCause(ctx)
 	defer newCancel(nil)
@@ -3276,7 +3277,7 @@ func TestRegisterHeartbeat_ReplacesOlderGenerationAndIgnoresStaleUnregister(t *t
 		runGeneration:   2,
 		logger:          logger,
 	}
-	server.registerHeartbeat(newEntry)
+	require.True(t, server.registerHeartbeat(newEntry))
 
 	require.ErrorIs(t, context.Cause(oldCtx), chatloop.ErrInterrupted)
 	require.NoError(t, context.Cause(newCtx))
@@ -3297,6 +3298,165 @@ func TestRegisterHeartbeat_ReplacesOlderGenerationAndIgnoresStaleUnregister(t *t
 	_, exists := server.heartbeatRegistry[chatID]
 	server.heartbeatMu.Unlock()
 	require.False(t, exists)
+}
+
+func TestProcessChat_SkipsStaleRunWhenHeartbeatRegistrationRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+
+	server := &Server{
+		db:                db,
+		logger:            logger,
+		heartbeatRegistry: make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	activeCtx, activeCancel := context.WithCancelCause(ctx)
+	defer activeCancel(nil)
+	activeEntry := &heartbeatEntry{
+		cancelWithCause: activeCancel,
+		chatID:          chatID,
+		runGeneration:   2,
+		logger:          logger,
+	}
+	require.True(t, server.registerHeartbeat(activeEntry))
+
+	server.processChat(ctx, database.Chat{ID: chatID, RunGeneration: 1})
+
+	require.NoError(t, context.Cause(activeCtx))
+
+	server.heartbeatMu.Lock()
+	require.Same(t, activeEntry, server.heartbeatRegistry[chatID])
+	server.heartbeatMu.Unlock()
+}
+
+func TestRecoverStaleChats_RecoverAndPublish(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	ps := newRecordingPubsub(dbpubsub.NewInMemory())
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+	workerID := uuid.New()
+	lockedChat := database.Chat{
+		ID:            chatID,
+		OwnerID:       ownerID,
+		Status:        database.ChatStatusRunning,
+		WorkerID:      uuid.NullUUID{UUID: workerID, Valid: true},
+		RunGeneration: 7,
+		HeartbeatAt: sql.NullTime{
+			Time:  time.Now().Add(-2 * time.Minute),
+			Valid: true,
+		},
+	}
+	updatedChat := lockedChat
+	updatedChat.Status = database.ChatStatusPending
+	updatedChat.WorkerID = uuid.NullUUID{}
+	updatedChat.RunGeneration++
+	updatedChat.HeartbeatAt = sql.NullTime{}
+
+	controlMessages := make(chan coderdpubsub.ChatControlMessage, 1)
+	cancelControl, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatControlChannel(workerID),
+		coderdpubsub.HandleChatControl(func(_ context.Context, payload coderdpubsub.ChatControlMessage, err error) {
+			require.NoError(t, err)
+			controlMessages <- payload
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelControl()
+
+	statusNotifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 1)
+	cancelStatus, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatStreamNotifyChannel(chatID),
+		func(_ context.Context, message []byte, err error) {
+			require.NoError(t, err)
+			var payload coderdpubsub.ChatStreamNotifyMessage
+			require.NoError(t, json.Unmarshal(message, &payload))
+			statusNotifications <- payload
+		},
+	)
+	require.NoError(t, err)
+	defer cancelStatus()
+
+	watchEvents := make(chan codersdk.ChatWatchEvent, 1)
+	cancelWatch, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+			require.NoError(t, err)
+			watchEvents <- payload
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelWatch()
+
+	server := &Server{
+		db:                     db,
+		logger:                 logger,
+		pubsub:                 ps,
+		inFlightChatStaleAfter: time.Minute,
+	}
+
+	db.EXPECT().GetStaleChats(gomock.Any(), gomock.AssignableToTypeOf(time.Time{})).Return(
+		[]database.Chat{{ID: chatID, Status: database.ChatStatusRunning}}, nil,
+	)
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+	tx.EXPECT().AdvanceChatRunGenerationAndUpdateStatus(gomock.Any(), database.AdvanceChatRunGenerationAndUpdateStatusParams{
+		ID:          chatID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	}).Return(updatedChat, nil)
+
+	server.recoverStaleChats(ctx)
+
+	require.Equal(t, []string{
+		coderdpubsub.ChatControlChannel(workerID),
+		coderdpubsub.ChatStreamNotifyChannel(chatID),
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+	}, ps.PublishedEvents())
+	select {
+	case controlMessage := <-controlMessages:
+		require.Equal(t, coderdpubsub.ChatControlMessage{
+			ChatID:        chatID,
+			RunGeneration: updatedChat.RunGeneration,
+			Reason:        coderdpubsub.ChatControlReasonRecoverStale,
+		}, controlMessage)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for stale-recovery control message")
+	}
+	select {
+	case statusNotification := <-statusNotifications:
+		require.Equal(t, coderdpubsub.ChatStreamNotifyMessage{
+			Status: string(database.ChatStatusPending),
+		}, statusNotification)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for stale-recovery status notification")
+	}
+	select {
+	case watchEvent := <-watchEvents:
+		require.Equal(t, codersdk.ChatWatchEventKindStatusChange, watchEvent.Kind)
+		require.Equal(t, updatedChat.ID, watchEvent.Chat.ID)
+		require.Equal(t, codersdk.ChatStatusPending, watchEvent.Chat.Status)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for stale-recovery watch event")
+	}
 }
 
 func TestRecoverStaleChats_DoesNotPublishWhenRecoverySkipped(t *testing.T) {
