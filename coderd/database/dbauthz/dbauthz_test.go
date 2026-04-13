@@ -480,6 +480,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), updatedBefore).Return(row, nil).AnyTimes()
 		check.Args(updatedBefore).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(row)
 	}))
+	s.Run("ForkChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ForkChatParams{
+			Title:         "forked-chat",
+			SourceChatID:  chat.ID,
+			UpToMessageID: 42,
+		}
+		forked := testutil.Fake(s.T(), faker, database.ForkChatRow{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ForkChat(gomock.Any(), arg).Return(forked, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead, rbac.ResourceChat.WithOwner(chat.OwnerID.String()).InOrg(chat.OrganizationID), policy.ActionCreate).Returns(forked)
+	}))
 	s.Run("GetChatDebugLoggingAllowUsers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatDebugLoggingAllowUsers(gomock.Any()).Return(true, nil).AnyTimes()
 		check.Args().Asserts().Returns(true)

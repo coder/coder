@@ -809,6 +809,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AncestorChatID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AncestorMessageID: sql.NullInt64{Int64: 42, Valid: true},
 		LastModelConfigID: uuid.New(),
 		Title:             "all-fields-test",
 		Status:            database.ChatStatusRunning,
