@@ -94,6 +94,23 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 
 *Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*
 
+### BYOK Support
+
+| Client                           | Personal API Key (OpenAI) | Personal API Key (Anthropic) | ChatGPT Subscription | Claude Subscription |
+|----------------------------------|---------------------------|------------------------------|----------------------|---------------------|
+| [Claude Code](./claude-code.md)  | -                         | ✅                            | -                    | ✅                   |
+| [Codex CLI](./codex.md)          | ✅                         | -                            | ✅                    | -                   |
+| [OpenCode](./opencode.md)        | ✅                         | ✅                            | ❌                    | ❌                   |
+| [Factory](./factory.md)          | ✅                         | ✅                            | ❌                    | ❌                   |
+| [Cline](./cline.md)              | ✅                         | ❌                            | ❌                    | ❌                   |
+| [Kilo Code](./kilo-code.md)      | ❌                         | ❌                            | ❌                    | ❌                   |
+| [Roo Code](./roo-code.md)        | ✅                         | ❌                            | ❌                    | ❌                   |
+| [VS Code](./vscode.md)           | ❌                         | ❌                            | ❌                    | ❌                   |
+| [JetBrains IDEs](./jetbrains.md) | ❌                         | ❌                            | ❌                    | ❌                   |
+| [Zed](./zed.md)                  | ❌                         | ❌                            | ❌                    | ❌                   |
+
+*Legend: ✅ supported, ❌ not supported, - not applicable.*
+
 ## Configuring In-Workspace Tools
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Gateway.
