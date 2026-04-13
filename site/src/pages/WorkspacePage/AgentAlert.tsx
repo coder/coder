@@ -1,16 +1,16 @@
 import type { FC } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { Link } from "#/components/Link/Link";
+import { Button } from "#/components/Button/Button";
 
-interface WorkspaceAlertProps {
+interface AgentAlertProps {
 	title: string;
 	detail: string;
 	severity: "info" | "warning";
 	prominent: boolean;
-	troubleshootingURL: string | undefined;
+	troubleshootingURL?: string;
 }
 
-export const WorkspaceAlert: FC<WorkspaceAlertProps> = ({
+export const AgentAlert: FC<AgentAlertProps> = ({
 	title,
 	detail,
 	severity,
@@ -21,14 +21,14 @@ export const WorkspaceAlert: FC<WorkspaceAlertProps> = ({
 		<Alert severity={severity} prominent={prominent}>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>
-				<p>{detail}</p>
-				<p>
-					{troubleshootingURL && (
-						<Link href={troubleshootingURL} target="_blank">
+				<div className="mb-2">{detail}</div>
+				{troubleshootingURL && (
+					<Button size="sm" asChild>
+						<a href={troubleshootingURL} target="_blank" rel="noopener">
 							View docs to troubleshoot
-						</Link>
-					)}
-				</p>
+						</a>
+					</Button>
+				)}
 			</AlertDescription>
 		</Alert>
 	);

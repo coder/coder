@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe("WorkspaceBuildPage", () => {
 	test("gets the right workspace build", async () => {
-		const getWorkspaceBuildSpy = jest
+		const getWorkspaceBuildSpy = vi
 			.spyOn(API, "getWorkspaceBuildByNumber")
 			.mockResolvedValue(MockWorkspaceBuild);
 		renderWithAuth(<WorkspaceBuildPage />, {
@@ -54,8 +54,8 @@ describe("WorkspaceBuildPage", () => {
 			output: "",
 		};
 		client.send(JSON.stringify(log));
-		await expect(server).toReceiveMessage(log);
-		expect(server).toHaveReceivedMessages([log]);
+		expect(await server.nextMessage).toEqual(log);
+		expect(server.messages).toEqual([log]);
 
 		client.onmessage = async () => {
 			renderWithAuth(<WorkspaceBuildPage />, {
@@ -73,9 +73,8 @@ describe("WorkspaceBuildPage", () => {
 	test("shows selected agent logs", async () => {
 		let mockServer: MockWebSocketServer | undefined;
 
-		jest
-			.spyOn(apiModule, "watchWorkspaceAgentLogs")
-			.mockImplementation((agentId, params) => {
+		vi.spyOn(apiModule, "watchWorkspaceAgentLogs").mockImplementation(
+			(agentId, params) => {
 				return new OneWayWebSocket({
 					apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
 					searchParams: new URLSearchParams({
@@ -88,7 +87,8 @@ describe("WorkspaceBuildPage", () => {
 						return socket;
 					},
 				});
-			});
+			},
+		);
 		const user = userEvent.setup();
 
 		renderWithAuth(<WorkspaceBuildPage />, {

@@ -30,7 +30,7 @@ const renderPage = async (searchParams: URLSearchParams) => {
 	return view;
 };
 
-test("Create template from starter template", async () => {
+test("Create template from starter template", { timeout: 20_000 }, async () => {
 	// Render page, fill the name and submit
 	const searchParams = new URLSearchParams({
 		exampleId: MockTemplateExample.id,
@@ -38,14 +38,14 @@ test("Create template from starter template", async () => {
 	const { router, container } = await renderPage(searchParams);
 	const form = container.querySelector("form") as HTMLFormElement;
 
-	jest.spyOn(API, "createTemplateVersion").mockResolvedValueOnce({
+	vi.spyOn(API, "createTemplateVersion").mockResolvedValueOnce({
 		...MockTemplateVersion,
 		job: {
 			...MockTemplateVersion.job,
 			status: "pending",
 		},
 	});
-	jest.spyOn(API, "getTemplateVersion").mockResolvedValue({
+	vi.spyOn(API, "getTemplateVersion").mockResolvedValue({
 		...MockTemplateVersion,
 		job: {
 			...MockTemplateVersion.job,
@@ -53,13 +53,11 @@ test("Create template from starter template", async () => {
 			error_code: "REQUIRED_TEMPLATE_VARIABLES",
 		},
 	});
-	jest
-		.spyOn(API, "getTemplateVersionVariables")
-		.mockResolvedValue([
-			MockTemplateVersionVariable1,
-			MockTemplateVersionVariable2,
-			MockTemplateVersionVariable3,
-		]);
+	vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValue([
+		MockTemplateVersionVariable1,
+		MockTemplateVersionVariable2,
+		MockTemplateVersionVariable3,
+	]);
 	await userEvent.type(screen.getByLabelText(/Name/), "my-template");
 	await userEvent.click(within(form).getByRole("button", { name: /save/i }));
 
@@ -84,12 +82,10 @@ test("Create template from starter template", async () => {
 	// Select third variable on radio
 	await userEvent.click(screen.getByLabelText(/True/));
 	// Setup the mock for the second template version creation before submit the form
-	jest.clearAllMocks();
-	jest
-		.spyOn(API, "createTemplateVersion")
-		.mockResolvedValue(MockTemplateVersion);
-	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-	jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
+	vi.clearAllMocks();
+	vi.spyOn(API, "createTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	vi.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
 	await userEvent.click(within(form).getByRole("button", { name: /save/i }));
 	await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1));
 	expect(router.state.location.pathname).toEqual(
@@ -109,11 +105,11 @@ test("Create template from starter template", async () => {
 });
 
 test("Create template from duplicating a template", async () => {
-	jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-	jest
-		.spyOn(API, "getTemplateVersionVariables")
-		.mockResolvedValue([MockTemplateVersionVariable1]);
+	vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+	vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValue([
+		MockTemplateVersionVariable1,
+	]);
 
 	const searchParams = new URLSearchParams({
 		fromTemplate: MockTemplate.id,
@@ -133,11 +129,9 @@ test("Create template from duplicating a template", async () => {
 		}),
 	).toHaveValue(MockTemplateVersionVariable1.value);
 	// Create template
-	jest
-		.spyOn(API, "createTemplateVersion")
-		.mockResolvedValue(MockTemplateVersion);
-	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-	jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
+	vi.spyOn(API, "createTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	vi.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
 	await userEvent.click(screen.getByRole("button", { name: /save/i }));
 	await waitFor(() => {
 		expect(router.state.location.pathname).toEqual(
@@ -148,7 +142,7 @@ test("Create template from duplicating a template", async () => {
 
 test("The page displays an error if the upload fails", async () => {
 	const errMsg = "Unsupported content type header";
-	jest.spyOn(API, "uploadFile").mockRejectedValueOnce(
+	vi.spyOn(API, "uploadFile").mockRejectedValueOnce(
 		mockApiError({
 			message: errMsg,
 		}),

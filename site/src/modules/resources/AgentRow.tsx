@@ -5,6 +5,7 @@ import {
 	EllipsisIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import {
 	type FC,
@@ -25,6 +26,7 @@ import type {
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -45,6 +47,8 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -135,9 +139,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
+	const healthIssues = getAgentHealthIssues(agent);
+	const hasAgentIssues = healthIssues.length > 0;
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
+		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
+			hasAgentIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
@@ -146,8 +153,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
-		setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures);
-	}, [agent.lifecycle_state, hasStartupFeatures]);
+		setShowLogs(
+			(agent.lifecycle_state !== "ready" || hasAgentIssues) &&
+				hasStartupFeatures,
+		);
+	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
@@ -208,7 +218,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
 	const sourceLogTabs = agent.log_sources
 		.filter((logSource) => {
@@ -459,20 +468,37 @@ export const AgentRow: FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			{hasStartupFeatures && (
-				<section className="border-0 border-t border-solid border-border">
-					<div className="px-4 py-2 relative">
-						<Button
-							variant="subtle"
-							onClick={() => setShowLogs((v) => !v)}
-							className="after:content-[''] after:absolute after:inset-0"
-						>
-							<ChevronDownIcon open={showLogs} />
-							<span>Logs</span>
-						</Button>
-					</div>
-					<Collapse in={showLogs}>
-						<div className="px-4 pb-4">
+			<section className="border-0 border-t border-solid border-border">
+				<div className="px-4 py-2 relative">
+					<Button
+						variant="subtle"
+						onClick={() => setShowLogs((v) => !v)}
+						className="after:content-[''] after:absolute after:inset-0"
+					>
+						<ChevronDownIcon open={showLogs} />
+						<span>Logs</span>
+						{healthIssues.length > 0 && (
+							<Badge variant="warning" size="xs" className="ml-1.5">
+								<TriangleAlertIcon />
+								<span>{healthIssues.length}</span>
+							</Badge>
+						)}
+					</Button>
+				</div>
+				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
+					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
+						{healthIssues.length > 0 && (
+							<div className="mb-4 flex flex-col gap-3">
+								{healthIssues.map((issue) => (
+									<AgentAlert
+										key={`${issue.title}-${issue.detail}`}
+										{...issue}
+										troubleshootingURL={agent.troubleshooting_url}
+									/>
+								))}
+							</div>
+						)}
+						{hasStartupFeatures && hasAnyLogs && (
 							<div className="border border-solid rounded-md overflow-clip">
 								<Tabs
 									className="-mx-px -mt-px"
@@ -585,10 +611,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 									</TabsContent>
 								</Tabs>
 							</div>
-						</div>
-					</Collapse>
-				</section>
-			)}
+						)}
+					</div>
+				</Collapse>
+			</section>
 		</div>
 	);
 };

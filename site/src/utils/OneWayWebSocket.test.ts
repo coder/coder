@@ -43,10 +43,10 @@ describe(OneWayWebSocket.name, () => {
 			},
 		});
 
-		const onOpen = jest.fn();
-		const onClose = jest.fn();
-		const onError = jest.fn();
-		const onMessage = jest.fn();
+		const onOpen = vi.fn();
+		const onClose = vi.fn();
+		const onError = vi.fn();
+		const onMessage = vi.fn();
 
 		oneWay.addEventListener("open", onOpen);
 		oneWay.addEventListener("close", onClose);
@@ -83,10 +83,10 @@ describe(OneWayWebSocket.name, () => {
 			},
 		});
 
-		const onOpen = jest.fn();
-		const onClose = jest.fn();
-		const onError = jest.fn();
-		const onMessage = jest.fn();
+		const onOpen = vi.fn();
+		const onClose = vi.fn();
+		const onError = vi.fn();
+		const onMessage = vi.fn();
 
 		oneWay.addEventListener("open", onOpen);
 		oneWay.addEventListener("close", onClose);
@@ -128,10 +128,10 @@ describe(OneWayWebSocket.name, () => {
 			},
 		});
 
-		const onOpen = jest.fn();
-		const onClose = jest.fn();
-		const onError = jest.fn();
-		const onMessage = jest.fn();
+		const onOpen = vi.fn();
+		const onClose = vi.fn();
+		const onError = vi.fn();
+		const onMessage = vi.fn();
 
 		for (let i = 0; i < 10; i++) {
 			oneWay.addEventListener("open", onOpen);
@@ -170,19 +170,19 @@ describe(OneWayWebSocket.name, () => {
 			},
 		});
 
-		const onOpen1 = jest.fn();
-		const onClose1 = jest.fn();
-		const onError1 = jest.fn();
-		const onMessage1 = jest.fn();
+		const onOpen1 = vi.fn();
+		const onClose1 = vi.fn();
+		const onError1 = vi.fn();
+		const onMessage1 = vi.fn();
 		oneWay.addEventListener("open", onOpen1);
 		oneWay.addEventListener("close", onClose1);
 		oneWay.addEventListener("error", onError1);
 		oneWay.addEventListener("message", onMessage1);
 
-		const onOpen2 = jest.fn();
-		const onClose2 = jest.fn();
-		const onError2 = jest.fn();
-		const onMessage2 = jest.fn();
+		const onOpen2 = vi.fn();
+		const onClose2 = vi.fn();
+		const onError2 = vi.fn();
+		const onMessage2 = vi.fn();
 		oneWay.addEventListener("open", onOpen2);
 		oneWay.addEventListener("close", onClose2);
 		oneWay.addEventListener("error", onError2);
@@ -251,7 +251,7 @@ describe(OneWayWebSocket.name, () => {
 			},
 		});
 
-		const onMessage = jest.fn();
+		const onMessage = vi.fn();
 		oneWay.addEventListener("message", onMessage);
 
 		const payload = {
@@ -281,7 +281,7 @@ describe(OneWayWebSocket.name, () => {
 			},
 		});
 
-		const onMessage = jest.fn();
+		const onMessage = vi.fn();
 		oneWay.addEventListener("message", onMessage);
 
 		const payload = "definitely not valid JSON";
@@ -290,7 +290,7 @@ describe(OneWayWebSocket.name, () => {
 		});
 		mockServer.publishMessage(event);
 
-		const arg: OneWayMessageEvent<never> = onMessage.mock.lastCall[0];
+		const arg: OneWayMessageEvent<never> = onMessage.mock.lastCall![0];
 		expect(arg.sourceEvent).toEqual(event);
 		expect(arg.parsedMessage).toEqual(undefined);
 		expect(arg.parseError).toBeInstanceOf(Error);

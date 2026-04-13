@@ -91,12 +91,6 @@ updates:
       emotion:
         patterns:
           - "@emotion*"
-        exclude-patterns:
-          - "jest-runner-eslint"
-      jest:
-        patterns:
-          - "jest"
-          - "@types/jest"
       vite:
         patterns:
           - "vite*"
