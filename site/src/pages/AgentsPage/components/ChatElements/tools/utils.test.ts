@@ -495,6 +495,7 @@ describe("parseEditFilesArgs", () => {
 				{ path: "a.ts", edits: [{ search: "x", replace: "y" }] },
 				{ path: 42, edits: [] }, // invalid: path not string
 				null, // invalid: null
+				undefined, // invalid: undefined
 				{ path: "b.ts" }, // invalid: no edits array
 				{ path: "c.ts", edits: [{ search: "a", replace: "b" }] },
 			],
@@ -532,6 +533,27 @@ describe("parseEditFilesArgs", () => {
 		};
 		const result = parseEditFilesArgs(args);
 		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "x", replace: "y" });
+	});
+
+	// Yup.object() is optional by default, so undefined passes
+	// isValidSync in strict mode. Without .required() on the
+	// schemas, undefined entries survive the filter and crash
+	// the subsequent .map() accessing f.path.
+	it("rejects undefined file entries and edits", () => {
+		const args = {
+			files: [
+				undefined,
+				{
+					path: "a.ts",
+					edits: [undefined, { search: "x", replace: "y" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].path).toBe("a.ts");
 		expect(result[0].edits).toHaveLength(1);
 		expect(result[0].edits[0]).toEqual({ search: "x", replace: "y" });
 	});

@@ -15,14 +15,14 @@ export interface EditFilesFileEntry {
 const searchReplaceSchema = Yup.object({
 	search: Yup.string().required(),
 	replace: Yup.string().defined(),
-});
+}).required();
 
 type SearchReplace = Yup.InferType<typeof searchReplaceSchema>;
 
 const fileEntrySchema = Yup.object({
 	path: Yup.string().required(),
 	edits: Yup.array().defined(),
-});
+}).required();
 
 type FileEntry = Yup.InferType<typeof fileEntrySchema>;
 
