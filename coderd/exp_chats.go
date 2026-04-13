@@ -412,12 +412,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		GithubUserID:   0,
 	})
 	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "You are not a member of the specified organization.",
-			})
-			return
-		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to validate organization membership.",
 			Detail:  err.Error(),
@@ -2952,7 +2946,7 @@ func (api *API) validateCreateChatWorkspaceSelection(
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
 	if err != nil {
-		if httpapi.Is404Error(err) || dbauthz.IsNotAuthorizedError(err) {
+		if httpapi.Is404Error(err) {
 			return selection, http.StatusBadRequest, &codersdk.Response{
 				Message: "Workspace not found or you do not have access to this resource",
 			}

@@ -1366,6 +1366,21 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, orgAdminRows, 0, "org admin with no chats should see 0 chats")
 
+		// Org admin in SAME org should see all chats in that org.
+		sameOrgAdmin := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         sameOrgAdmin.ID,
+			OrganizationID: org.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+		sameOrgAdminSubject, _, err := httpmw.UserRBACSubject(ctx, db, sameOrgAdmin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedSameOrgAdmin, err := authorizer.Prepare(ctx, sameOrgAdminSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		sameOrgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSameOrgAdmin)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(sameOrgAdminRows), 5, "same-org admin should see all chats in their org")
+
 		// OwnerID filter: member queries their own chats.
 		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
 			OwnerID: member.ID,

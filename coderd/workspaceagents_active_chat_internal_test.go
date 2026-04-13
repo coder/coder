@@ -35,8 +35,9 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 	for _, archived := range []bool{false, true} {
 		for _, status := range database.AllChatStatusValues() {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
-				OrganizationID: org.ID,
-				Status:         status, OwnerID: owner.ID,
+				OrganizationID:    org.ID,
+				Status:            status,
+				OwnerID:           owner.ID,
 				LastModelConfigID: modelConfig.ID,
 				Title:             fmt.Sprintf("%s-archived-%t", status, archived),
 				AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},

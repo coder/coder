@@ -671,7 +671,8 @@ func TestPostChats(t *testing.T) {
 				},
 			},
 		})
-		requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "organization_id is required.", sdkErr.Message)
 	})
 
 	t.Run("NonMemberOrganization", func(t *testing.T) {
@@ -698,7 +699,8 @@ func TestPostChats(t *testing.T) {
 				},
 			},
 		})
-		requireSDKError(t, err, http.StatusForbidden)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "You are not a member of the specified organization.", sdkErr.Message)
 	})
 
 	t.Run("CrossOrgWorkspaceMismatch", func(t *testing.T) {
@@ -870,6 +872,12 @@ func TestListChats(t *testing.T) {
 		chats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, chats, 1)
+
+		// Verify member without agents-access can update own chat.
+		err = memberClient.UpdateChat(ctx, chats[0].ID, codersdk.UpdateChatRequest{
+			Title: ptr.Ref("new title"),
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {

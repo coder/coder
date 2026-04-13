@@ -188,7 +188,32 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: preferredModelID;
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
-			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
+			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
+			if (!stored) return null;
+
+			// If workspaces haven't loaded yet, keep the stored value.
+			// It will be re-validated once the list arrives via
+			// filteredWorkspaces clearing the selection if stale.
+			if (workspaceOptions.length === 0) return stored;
+
+			// Validate the stored workspace still exists and belongs
+			// to the initial org. Without this, a workspace from a
+			// previously selected org persists across sessions and
+			// gets submitted even though it's hidden from the picker.
+			const workspace = workspaceOptions.find((ws) => ws.id === stored);
+			if (!workspace) {
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+				return null;
+			}
+			if (
+				showOrganizations &&
+				organizations[0] &&
+				workspace.organization_id !== organizations[0].id
+			) {
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+				return null;
+			}
+			return stored;
 		},
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
