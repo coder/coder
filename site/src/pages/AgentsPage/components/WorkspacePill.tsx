@@ -34,7 +34,6 @@ import {
 import {
 	getTerminalHref,
 	getVSCodeHref,
-	isExternalApp,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -87,13 +86,10 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const hasVSCodeInsiders = builtinApps.has("vscode_insiders");
 	const hasTerminal = builtinApps.has("web_terminal");
 
-	// User-configured external apps (non-hidden, non-web).
-	const externalApps = agent.apps.filter(
-		(app) => !app.hidden && isExternalApp(app),
-	);
+	const userApps = agent.apps.filter((app) => !app.hidden);
 
 	const hasApps =
-		hasVSCode || hasVSCodeInsiders || hasTerminal || externalApps.length > 0;
+		hasVSCode || hasVSCodeInsiders || hasTerminal || userApps.length > 0;
 
 	if (!hasApps && !sshCommand) {
 		return null;
@@ -149,8 +145,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							onDone={() => setOpen(false)}
 						/>
 					)}
-					{externalApps.map((app) => (
-						<ExternalAppMenuItem
+					{userApps.map((app) => (
+						<AppMenuItem
 							key={app.id}
 							app={app}
 							workspace={workspace}
@@ -227,7 +223,7 @@ const VSCodeMenuItem: FC<{
 	);
 };
 
-const ExternalAppMenuItem: FC<{
+const AppMenuItem: FC<{
 	app: WorkspaceApp;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
