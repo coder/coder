@@ -34,5 +34,3 @@ export const themes = {
 } satisfies Record<string, Theme>;
 
 export type ThemeName = keyof typeof themes;
-
-export const DEFAULT_THEME: ThemeName = "dark";

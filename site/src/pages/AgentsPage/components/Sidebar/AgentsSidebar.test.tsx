@@ -14,7 +14,7 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import { DEFAULT_THEME, themes } from "#/theme";
+import { themes } from "#/theme";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -86,7 +86,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	});
 	return (
 		<QueryClientProvider client={queryClient}>
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+			<ThemeOverride theme={themes.dark}>
 				<MemoryRouter initialEntries={["/agents"]}>
 					<DashboardContext.Provider value={dashboardValue}>
 						{children}

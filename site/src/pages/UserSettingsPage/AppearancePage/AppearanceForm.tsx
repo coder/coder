@@ -9,7 +9,6 @@ import { PreviewBadge } from "#/components/Badges/Badges";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { DEFAULT_THEME } from "#/theme";
 import {
 	DEFAULT_TERMINAL_FONT,
 	terminalFontLabels,
@@ -39,7 +38,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	onSubmit,
 	initialValues,
 }) => {
-	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
+	const currentTheme = initialValues.theme_preference || "dark";
 	const currentTerminalFont =
 		initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
 

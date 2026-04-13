@@ -20,7 +20,7 @@ import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "#/pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "#/pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { DEFAULT_THEME, themes } from "#/theme";
+import { themes } from "#/theme";
 import { MockUserOwner } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are
@@ -240,7 +240,7 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 export const renderComponent = (component: React.ReactNode) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => (
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+			<ThemeOverride theme={themes.dark}>
 				<TooltipProvider delayDuration={100}>{children}</TooltipProvider>
 			</ThemeOverride>
 		),
