@@ -14,7 +14,7 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import themes, { DEFAULT_THEME } from "#/theme";
+import { DEFAULT_THEME, themes } from "#/theme";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----

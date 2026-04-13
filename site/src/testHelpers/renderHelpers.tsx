@@ -20,7 +20,7 @@ import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "#/pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "#/pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import themes, { DEFAULT_THEME } from "#/theme";
+import { DEFAULT_THEME, themes } from "#/theme";
 import { MockUserOwner } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are

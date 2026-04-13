@@ -28,16 +28,11 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 	externalImages: ExternalImageModeStyles;
 }
 
-const theme = {
+export const themes = {
 	dark,
 	light,
 } satisfies Record<string, Theme>;
 
-export default theme;
-
-export type ThemeName = keyof typeof theme;
+export type ThemeName = keyof typeof themes;
 
 export const DEFAULT_THEME: ThemeName = "dark";
-
-export const isValidThemeName = (name: string | undefined): name is ThemeName =>
-	name !== undefined && name in theme;

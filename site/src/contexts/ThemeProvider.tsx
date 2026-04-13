@@ -22,13 +22,16 @@ import {
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { isValidThemeName, type Theme, type ThemeName } from "#/theme";
+import { type Theme, type ThemeName, themes } from "#/theme";
 
 /**
  * We use theme names as classnames on the html root. Get the string values
  * here.
  */
 const THEME_NAMES = Object.keys(themes);
+
+const isValidThemeName = (name: string | undefined): name is ThemeName =>
+	name !== undefined && name in themes;
 
 /**
  * Returns the user's selected theme in their settings. If the user has "auto"

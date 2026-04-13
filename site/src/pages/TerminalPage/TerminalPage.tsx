@@ -18,7 +18,7 @@ import {
 	type WorkspaceTerminalHandle,
 } from "#/modules/terminal/WorkspaceTerminal";
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
-import themes from "#/theme";
+import { themes } from "#/theme";
 import { pageTitle } from "#/utils/page";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
