@@ -1,4 +1,4 @@
-# Plan: Implement `completed` Chat Status via Tool-Based Self-Reporting
+# Plan: Implement `completed` Chat Status via LLM Classification
 
 ## Problem
 
@@ -7,7 +7,7 @@ Today, when a chat finishes processing successfully, it always transitions to `w
 1. **The agent completed the user's task** (should be `completed`)
 2. **The agent finished an intermediate step and is awaiting user input** (should stay `waiting`)
 
-The `completed` status exists in the DB enum and SDK constants but is never set by production code. PR #24264 proposes removing it as dead code.
+The `completed` status exists in the DB enum and SDK constants but is never set by production code. PR #24264 removes it from the docs as dead code (the enum and SDK constants remain).
 
 Instead, we want to **implement it**.
 
@@ -30,7 +30,7 @@ to make this call.
 Three approaches were evaluated. Each is analyzed for cost, latency,
 reliability, and implementation complexity.
 
-#### Approach A — `coder_report_status` tool (CHOSEN)
+#### Approach A — `coder_report_status` tool
 
 The agent gets a tool it calls at the end of its work to self-report
 its status. A callback captures the value; `processChat` maps it to
@@ -75,20 +75,25 @@ tool call and the extra round trip is unavoidable.
 #### Approach B — Separate cheap LLM call (post-hoc classification)
 
 After `runChat` returns, call a cheap model (haiku/gpt-4o-mini/flash)
-with the user's original prompt + the agent's final text to classify
-the status.
+with the agent's final text to classify the status.
 
 **Cost estimate per invocation:**
 
-| Model | Input tokens | Cost |
-|---|---|---|
-| Claude Haiku | ~2.5K | ~$0.003 |
-| GPT-4o-mini | ~2.5K | ~$0.001 |
-| Gemini Flash | ~2.5K | ~$0.001 |
+| Model | Input tokens | Input cost/MTok | Estimated cost |
+|---|---|---|---|
+| GPT-4o-mini | ~700 | $0.15 | ~$0.0001 |
+| Claude Haiku 4.5 | ~700 | $1.00 | ~$0.0007 |
+| Gemini 2.5 Flash | ~700 | $0.30 | ~$0.0002 |
 
-**This is 50-150x cheaper than the tool approach** when the main
+Input is ~600-800 tokens (system prompt ~50 tokens + last 2000
+runes of assistant text ≈ 500-700 tokens). Output is ~10 tokens
+(structured enum). Total cost per classification: **< $0.001**
+on GPT-4o-mini or Flash, **< $0.001** on Haiku.
+
+**This is 100-1000x cheaper than the tool approach** when the main
 model is Sonnet/GPT-4o, because it uses a cheap model with
-truncated input instead of the main model with full context.
+truncated input (~700 tokens) instead of the main model with full
+context (50-200K tokens).
 
 **Downsides:**
 - Adds 1-3s latency after processing (15s timeout cap).
@@ -114,7 +119,7 @@ for these markers after the loop exits.
 
 | | Tool (A) | Cheap LLM (B) | Text marker (C) |
 |---|---|---|---|
-| Extra cost per call | ~$0.05-0.60 (main model) | ~$0.001-0.003 (cheap model) | $0 |
+| Extra cost per call | ~$0.05-0.60 (main model) | < $0.001 (cheap model) | $0 |
 | Extra latency | 2-10s (full model turn) | 1-3s (cheap model) | 0 |
 | Classification context | Full (best) | Truncated (good) | Full (best) |
 | Reliability | Good (structured tool) | Good (structured output) | Fragile (regex) |
@@ -290,21 +295,26 @@ The tool's `summary` arg could replace `generatePushSummary`,
 eliminating another LLM call. This is a secondary benefit worth
 revisiting if/when the terminal tool path opens up.
 
-### 6. Database / Migration
+### 4. Database / Migration
 
-No schema changes needed. `completed` already exists in the `chat_status` PostgreSQL enum, SDK constants, and DB models.
+No schema changes needed. `completed` already exists in the
+`chat_status` PostgreSQL enum (since migration 000422), SDK
+constants, and DB models.
 
-### 7. Update docs
+### 5. Update docs
 
 Update `docs/ai-coder/agents/chats-api.md` to include `completed`:
 
 ```
-| `completed` | Agent reports it finished the user's requested task.   |
+| `completed` | Agent finished the user's requested task.               |
 ```
 
-### 8. Frontend considerations
+### 6. Frontend considerations
 
-The frontend already has `ChatStatusCompleted` in the SDK enum. If the UI currently treats it identically to `waiting` (idle state), that's fine as a starting point. A follow-up can add a visual indicator (checkmark, "Task complete" label, etc.).
+The frontend already has `ChatStatusCompleted` in the SDK enum. If
+the UI currently treats it identically to `waiting` (idle state),
+that's fine as a starting point. A follow-up can add a visual
+indicator (checkmark, "Task complete" label, etc.).
 
 ## Edge Cases & Robustness
 
@@ -356,6 +366,6 @@ LLM call. This is noted as a future optimization.
 |---|---|
 | Classifier misreads tone → wrong status | Only `complete` changes behavior; `question`/`update`/unknown all map to `waiting`. False positive (`completed` when not) is the main risk, but the signal in the agent's final text is usually unambiguous. |
 | Added latency to status finalization | 15s timeout cap; cheap models respond in 1-3s. Negligible relative to full agent run time. |
-| Token cost | ~2-3K input tokens on the cheapest available model (~$0.001-0.003). Comparable to existing push summary cost. |
+| Token cost | ~700 input tokens on the cheapest available model (< $0.001). Cheaper than the existing push summary call. |
 | Cheap model unavailable | Fallback chain tries multiple providers (same as title gen). Ultimate fallback = `waiting`. |
 | `intermediate` / `question` misclassification | Both map to `ChatStatusWaiting`, so confusion between them is harmless. |
