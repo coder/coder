@@ -282,12 +282,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			workspace.latest_build.status,
 			workspace.latest_build.job,
 		);
-		const agentStarting =
+		const agentPreparing =
 			workspace.latest_build.status === "running" &&
-			workspaceAgent?.lifecycle_state != null &&
-			(workspaceAgent.lifecycle_state === "created" ||
-				workspaceAgent.lifecycle_state === "starting");
-		if (agentStarting) {
+			(workspaceAgent?.lifecycle_state === "created" ||
+				workspaceAgent?.lifecycle_state === "starting");
+		if (agentPreparing) {
 			type = "active";
 			text = "Preparing";
 		}
