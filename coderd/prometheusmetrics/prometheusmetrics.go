@@ -364,16 +364,24 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				if agent.WorkspaceAgent.FirstConnectedAt.Valid {
 					if _, alreadyObserved := observedFirstConnection[agent.WorkspaceAgent.ID]; !alreadyObserved {
 						duration := agent.WorkspaceAgent.FirstConnectedAt.Time.Sub(agent.WorkspaceAgent.CreatedAt).Seconds()
-						agentsFirstConnectionHistogram.WithLabelValues(
-							agent.TemplateName,
-							agent.WorkspaceAgent.Name,
-							agent.OwnerUsername,
-							agent.WorkspaceName,
-						).Observe(duration)
+						if duration < 0 {
+							logger.Warn(ctx, "negative agent first connection duration, possible clock skew",
+								slog.F("agent_id", agent.WorkspaceAgent.ID),
+								slog.F("created_at", agent.WorkspaceAgent.CreatedAt),
+								slog.F("first_connected_at", agent.WorkspaceAgent.FirstConnectedAt.Time),
+								slog.F("duration_s", duration),
+							)
+						} else {
+							agentsFirstConnectionHistogram.WithLabelValues(
+								agent.TemplateName,
+								agent.WorkspaceAgent.Name,
+								agent.OwnerUsername,
+								agent.WorkspaceName,
+							).Observe(duration)
+						}
 						observedFirstConnection[agent.WorkspaceAgent.ID] = struct{}{}
 					}
 				}
-
 				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
 				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
 
