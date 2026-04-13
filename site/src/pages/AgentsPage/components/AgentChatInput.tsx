@@ -930,18 +930,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
+						{workspace && workspaceAgent && chatId && (
+							<WorkspacePill
+								workspace={workspace}
+								agent={workspaceAgent}
+								chatId={chatId}
+								sshCommand={sshCommand}
+							/>
+						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
-							{workspace && workspaceAgent && chatId && (
-								<WorkspacePill
-									workspace={workspace}
-									agent={workspaceAgent}
-									chatId={chatId}
-									sshCommand={sshCommand}
-								/>
-							)}{" "}
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
 								return (

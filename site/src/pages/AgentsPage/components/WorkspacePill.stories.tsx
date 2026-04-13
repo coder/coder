@@ -167,21 +167,13 @@ export const WithExternalAppsOnly: Story = {
 	},
 };
 
-/** When the agent has no apps at all, the pill renders as a simple link
- *  to the workspace page instead of a dropdown trigger. */
+/** When the agent has no apps at all, the component returns null.
+ *  The fallback plain link is handled by the ToolBadge in
+ *  AgentChatInput, not by WorkspacePill. */
 export const NoApps: Story = {
 	args: {
 		...defaultProps,
 		workspace: MockWorkspace,
 		agent: agentWithNoApps,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const link = canvas.getByText("Test-Workspace");
-		// The pill should be a link, not a dropdown trigger.
-		expect(link.closest("a")).toHaveAttribute(
-			"href",
-			expect.stringContaining("/@"),
-		);
 	},
 };

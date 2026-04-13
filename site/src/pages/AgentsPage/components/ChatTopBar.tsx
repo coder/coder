@@ -192,7 +192,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						>
 							{!isArchived && (
 								<>
-									<DropdownMenuSeparator />
 									{onRegenerateTitle && (
 										<>
 											<DropdownMenuItem
@@ -204,7 +203,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 											</DropdownMenuItem>
 											<DropdownMenuSeparator />
 										</>
-									)}
+									)}{" "}
 								</>
 							)}
 							{isArchived ? (
