@@ -1134,10 +1134,16 @@ FROM users
 WHERE id = @user_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserChatSpendInPeriod :one
+-- Returns the total spend for a user in the given period.
+-- When organization_id is the nil UUID, spend across all organizations is
+-- returned (legacy global behavior). Otherwise only spend within the
+-- specified organization is included.
 SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
 FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 WHERE c.owner_id = @user_id::uuid
+  AND (@organization_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+       OR c.organization_id = @organization_id::uuid)
   AND cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.total_cost_micros IS NOT NULL;
@@ -1190,10 +1196,15 @@ WHERE id = @group_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 -- name: GetUserGroupSpendLimit :one
 -- Returns the minimum (most restrictive) group limit for a user.
 -- Returns -1 if the user has no group limits applied.
+-- When organization_id is the nil UUID, groups across all organizations
+-- are considered (legacy global behavior). Otherwise only groups within
+-- the specified organization are considered.
 SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
 FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
+  AND (@organization_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+       OR g.organization_id = @organization_id::uuid)
   AND g.chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetChatsByWorkspaceIDs :many
@@ -1206,15 +1217,18 @@ ORDER BY workspace_id, updated_at DESC;
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:
 -- 1. Individual user override (highest priority)
--- 2. Minimum group limit across all user's groups
+-- 2. Minimum group limit across the user's groups
 -- 3. Global default from config
 -- Returns -1 if limits are not enabled.
+-- When organization_id is the nil UUID, groups across all organizations
+-- are considered (legacy global behavior). Otherwise only groups within
+-- the specified organization are considered.
 SELECT CASE
     -- If limits are disabled, return -1.
     WHEN NOT cfg.enabled THEN -1
     -- Individual override takes priority.
     WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
-    -- Group limit (minimum across all user's groups) is next.
+    -- Group limit (minimum across the user's groups) is next.
     WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
     -- Fall back to global default.
     ELSE cfg.default_limit_micros
@@ -1226,6 +1240,8 @@ LEFT JOIN LATERAL (
     FROM groups g
     JOIN group_members_expanded gme ON gme.group_id = g.id
     WHERE gme.user_id = @user_id::uuid
+      AND (@organization_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+           OR g.organization_id = @organization_id::uuid)
       AND g.chat_spend_limit_micros IS NOT NULL
 ) gl ON TRUE
 WHERE u.id = @user_id::uuid

@@ -60,7 +60,7 @@ func ComputeUsagePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPerio
 // Then scan spend once over the widest active window with conditional SUMs
 // for each period and compare each spend/limit pair Go-side, blocking on
 // whichever period is tightest.
-func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
+func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, organizationID uuid.UUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
 	//nolint:gocritic // AsChatd provides narrowly-scoped daemon access for
 	// deployment config reads and cross-user chat spend aggregation.
 	authCtx := dbauthz.AsChatd(ctx)
@@ -83,7 +83,10 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 
 	// Resolve effective limit in a single query:
 	// individual override > group limit > global default.
-	effectiveLimit, err := db.ResolveUserChatSpendLimit(authCtx, userID)
+	effectiveLimit, err := db.ResolveUserChatSpendLimit(authCtx, database.ResolveUserChatSpendLimitParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +99,10 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 	start, end := ComputeUsagePeriodBounds(now, period)
 
 	spendTotal, err := db.GetUserChatSpendInPeriod(authCtx, database.GetUserChatSpendInPeriodParams{
-		UserID:    userID,
-		StartTime: start,
-		EndTime:   end,
+		UserID:         userID,
+		OrganizationID: organizationID,
+		StartTime:      start,
+		EndTime:        end,
 	})
 	if err != nil {
 		return nil, err

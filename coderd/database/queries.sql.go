@@ -6170,19 +6170,31 @@ SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
 FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 WHERE c.owner_id = $1::uuid
-  AND cm.created_at >= $2::timestamptz
-  AND cm.created_at < $3::timestamptz
+  AND ($2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+       OR c.organization_id = $2::uuid)
+  AND cm.created_at >= $3::timestamptz
+  AND cm.created_at < $4::timestamptz
   AND cm.total_cost_micros IS NOT NULL
 `
 
 type GetUserChatSpendInPeriodParams struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	StartTime      time.Time `db:"start_time" json:"start_time"`
+	EndTime        time.Time `db:"end_time" json:"end_time"`
 }
 
+// Returns the total spend for a user in the given period.
+// When organization_id is the nil UUID, spend across all organizations is
+// returned (legacy global behavior). Otherwise only spend within the
+// specified organization is included.
 func (q *sqlQuerier) GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatSpendInPeriod, arg.UserID, arg.StartTime, arg.EndTime)
+	row := q.db.QueryRowContext(ctx, getUserChatSpendInPeriod,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.StartTime,
+		arg.EndTime,
+	)
 	var total_spend_micros int64
 	err := row.Scan(&total_spend_micros)
 	return total_spend_micros, err
@@ -6193,13 +6205,23 @@ SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
 FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = $1::uuid
+  AND ($2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+       OR g.organization_id = $2::uuid)
   AND g.chat_spend_limit_micros IS NOT NULL
 `
 
+type GetUserGroupSpendLimitParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
 // Returns the minimum (most restrictive) group limit for a user.
 // Returns -1 if the user has no group limits applied.
-func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserGroupSpendLimit, userID)
+// When organization_id is the nil UUID, groups across all organizations
+// are considered (legacy global behavior). Otherwise only groups within
+// the specified organization are considered.
+func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, arg GetUserGroupSpendLimitParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserGroupSpendLimit, arg.UserID, arg.OrganizationID)
 	var limit_micros int64
 	err := row.Scan(&limit_micros)
 	return limit_micros, err
@@ -6727,7 +6749,7 @@ SELECT CASE
     WHEN NOT cfg.enabled THEN -1
     -- Individual override takes priority.
     WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
-    -- Group limit (minimum across all user's groups) is next.
+    -- Group limit (minimum across the user's groups) is next.
     WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
     -- Fall back to global default.
     ELSE cfg.default_limit_micros
@@ -6739,19 +6761,29 @@ LEFT JOIN LATERAL (
     FROM groups g
     JOIN group_members_expanded gme ON gme.group_id = g.id
     WHERE gme.user_id = $1::uuid
+      AND ($2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+           OR g.organization_id = $2::uuid)
       AND g.chat_spend_limit_micros IS NOT NULL
 ) gl ON TRUE
 WHERE u.id = $1::uuid
 LIMIT 1
 `
 
+type ResolveUserChatSpendLimitParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
 // Resolves the effective spend limit for a user using the hierarchy:
 // 1. Individual user override (highest priority)
-// 2. Minimum group limit across all user's groups
+// 2. Minimum group limit across the user's groups
 // 3. Global default from config
 // Returns -1 if limits are not enabled.
-func (q *sqlQuerier) ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, resolveUserChatSpendLimit, userID)
+// When organization_id is the nil UUID, groups across all organizations
+// are considered (legacy global behavior). Otherwise only groups within
+// the specified organization are considered.
+func (q *sqlQuerier) ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, resolveUserChatSpendLimit, arg.UserID, arg.OrganizationID)
 	var effective_limit_micros int64
 	err := row.Scan(&effective_limit_micros)
 	return effective_limit_micros, err

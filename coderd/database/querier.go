@@ -620,11 +620,18 @@ type sqlcQuerier interface {
 	GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error)
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]UserChatProviderKey, error)
+	// Returns the total spend for a user in the given period.
+	// When organization_id is the nil UUID, spend across all organizations is
+	// returned (legacy global behavior). Otherwise only spend within the
+	// specified organization is included.
 	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the minimum (most restrictive) group limit for a user.
 	// Returns -1 if the user has no group limits applied.
-	GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error)
+	// When organization_id is the nil UUID, groups across all organizations
+	// are considered (legacy global behavior). Otherwise only groups within
+	// the specified organization are considered.
+	GetUserGroupSpendLimit(ctx context.Context, arg GetUserGroupSpendLimitParams) (int64, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates
@@ -884,10 +891,13 @@ type sqlcQuerier interface {
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Resolves the effective spend limit for a user using the hierarchy:
 	// 1. Individual user override (highest priority)
-	// 2. Minimum group limit across all user's groups
+	// 2. Minimum group limit across the user's groups
 	// 3. Global default from config
 	// Returns -1 if limits are not enabled.
-	ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error)
+	// When organization_id is the nil UUID, groups across all organizations
+	// are considered (legacy global behavior). Otherwise only groups within
+	// the specified organization are considered.
+	ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
