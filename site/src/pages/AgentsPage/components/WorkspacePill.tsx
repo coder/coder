@@ -46,12 +46,6 @@ interface WorkspacePillProps {
 	className?: string;
 }
 
-/**
- * Renders the workspace pill in the chat input area. When the
- * workspace has apps to show (external apps, built-in IDEs, and
- * terminal), the pill becomes a dropdown trigger. Otherwise it
- * falls back to a simple link to the workspace page.
- */
 export const WorkspacePill: FC<WorkspacePillProps> = ({
 	name,
 	route,
@@ -163,11 +157,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	);
 };
 
-/**
- * Renders a dropdown item for a built-in VS Code family display
- * app. Generates an API key on click (like the dashboard does)
- * and navigates to the protocol URL with chatId attached.
- */
 const VSCodeMenuItem: FC<{
 	variant: "vscode" | "vscode-insiders";
 	label: string;
@@ -206,12 +195,6 @@ const VSCodeMenuItem: FC<{
 	);
 };
 
-/**
- * Renders a dropdown item for a user-configured external workspace
- * app. Uses the `useAppLink` hook for URL construction and token
- * handling, matching the same pattern used by the dashboard's
- * AgentRow.
- */
 const ExternalAppMenuItem: FC<{
 	app: WorkspaceApp;
 	workspace: Workspace;
@@ -238,9 +221,6 @@ const ExternalAppMenuItem: FC<{
 	);
 };
 
-/**
- * Renders a dropdown item for the built-in web terminal.
- */
 const TerminalMenuItem: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
