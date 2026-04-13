@@ -5036,16 +5036,27 @@ func (p *Server) runChat(
 			// completes.
 			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 		}
-		hasTemplates, templErr := p.orgHasVisibleChatTemplates(ctx, chat.OrganizationID, chat.OwnerID)
-		if templErr != nil {
+		hasTemplates, tmplErr := p.orgHasVisibleChatTemplates(ctx, chat.OrganizationID, chat.OwnerID)
+		if tmplErr != nil {
 			// Degrade gracefully: log and assume templates exist so the
 			// agent is not silently crippled by a transient DB error.
 			p.logger.Warn(ctx, "failed to check org template visibility, including provisioning tools",
 				slog.F("org_id", chat.OrganizationID),
-				slog.Error(templErr),
+				slog.Error(tmplErr),
 			)
 			hasTemplates = true
 		}
+		startWSOpts := chattool.StartWorkspaceOptions{
+			DB:            p.db,
+			OwnerID:       chat.OwnerID,
+			ChatID:        chat.ID,
+			StartFn:       p.startWorkspaceFn,
+			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:   &workspaceMu,
+			OnChatUpdated: onChatUpdated,
+			Logger:        p.logger,
+		}
+
 		if hasTemplates {
 			tools = append(tools,
 				chattool.ListTemplates(chattool.ListTemplatesOptions{
@@ -5072,34 +5083,23 @@ func (p *Server) runChat(
 					Logger:                         p.logger,
 					AllowedTemplateIDs:             p.chatTemplateAllowlist,
 				}),
-				chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-					DB:            p.db,
-					OwnerID:       chat.OwnerID,
-					ChatID:        chat.ID,
-					StartFn:       p.startWorkspaceFn,
-					AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-					WorkspaceMu:   &workspaceMu,
-					OnChatUpdated: onChatUpdated,
-					Logger:        p.logger,
-				}),
+				chattool.StartWorkspace(startWSOpts),
 			)
 		} else if chat.WorkspaceID.Valid {
-			// No visible templates but the chat has a workspace already
-			// bound — the user may need to restart it.
+			// No visible templates but the chat has a workspace
+			// already bound — the user may need to restart it.
 			ws, wsErr := p.db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
-			if wsErr == nil && !ws.Deleted {
-				tools = append(tools, chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-					DB:            p.db,
-					OwnerID:       chat.OwnerID,
-					ChatID:        chat.ID,
-					StartFn:       p.startWorkspaceFn,
-					AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-					WorkspaceMu:   &workspaceMu,
-					OnChatUpdated: onChatUpdated,
-					Logger:        p.logger,
-				}))
+			if wsErr != nil {
+				p.logger.Warn(ctx, "failed to look up chat workspace, including start_workspace tool",
+					slog.F("workspace_id", chat.WorkspaceID.UUID),
+					slog.Error(wsErr),
+				)
+			}
+			if wsErr != nil || !ws.Deleted {
+				tools = append(tools, chattool.StartWorkspace(startWSOpts))
 			}
 		}
+
 		// Plan presentation tool.
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,

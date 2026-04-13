@@ -5793,13 +5793,18 @@ func TestOmitsProvisioningToolsWhenOrgHasNoTemplates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	var chatResult database.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
+		chatResult = got
 		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
 
 	toolsMu.Lock()
 	tools := append([]string(nil), capturedTools...)
@@ -5910,13 +5915,18 @@ func TestIncludesStartWorkspaceWhenWorkspaceBoundButNoTemplates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	var chatResult database.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
+		chatResult = got
 		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
 
 	toolsMu.Lock()
 	tools := append([]string(nil), capturedTools...)
@@ -5995,13 +6005,18 @@ func TestOmitsProvisioningToolsWhenAllowlistExcludesAllOrgTemplates(t *testing.T
 	})
 	require.NoError(t, err)
 
+	var chatResult database.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
+		chatResult = got
 		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
 
 	toolsMu.Lock()
 	tools := append([]string(nil), capturedTools...)
