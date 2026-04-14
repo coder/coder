@@ -13,6 +13,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"golang.org/x/sync/singleflight"
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
@@ -39,6 +40,7 @@ const (
 	numHandshakerWorkers   = 5
 	dbMaxBackoff           = 10 * time.Second
 	cleanupPeriod          = time.Hour
+	mapperRefreshInterval  = 30 * time.Second
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
@@ -834,6 +836,10 @@ type querier struct {
 	mu      sync.Mutex
 	mappers map[mKey]*mapper
 	healthy bool
+
+	clock quartz.Clock
+
+	resyncGroup singleflight.Group
 }
 
 func newQuerier(ctx context.Context,
@@ -860,6 +866,7 @@ func newQuerier(ctx context.Context,
 		peerUpdateQ:      newWorkQ[uuid.UUID](ctx),
 		mappingQ:         newWorkQ[mKey](ctx),
 		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
+		clock:            clk,
 		mappers:          make(map[mKey]*mapper),
 		updates:          updates,
 		healthy:          true, // assume we start healthy
@@ -870,11 +877,12 @@ func newQuerier(ctx context.Context,
 	mappingWorkers := int(math.Ceil(float64(numWorkers) / 2))
 	peerWorkers := numWorkers - mappingWorkers
 
-	q.wg.Add(2 + mappingWorkers + peerWorkers)
+	q.wg.Add(3 + mappingWorkers + peerWorkers)
 	go func() {
 		<-firstHeartbeat
 		go q.handleIncoming()
 		go q.handleUpdates()
+		go q.periodicRefresh()
 		for range mappingWorkers {
 			go q.mappingWorker()
 		}
@@ -888,6 +896,22 @@ func newQuerier(ctx context.Context,
 func (q *querier) wait() {
 	q.wg.Wait()
 	q.heartbeats.wg.Wait()
+}
+
+func (q *querier) periodicRefresh() {
+	defer q.wg.Done()
+	tkr := q.clock.TickerFunc(q.ctx, mapperRefreshInterval, func() error {
+		q.mu.Lock()
+		defer q.mu.Unlock()
+		for mk := range q.mappers {
+			q.mappingQ.enqueue(mk)
+		}
+		return nil
+	}, "querier", "periodicRefresh")
+	err := tkr.Wait()
+	if err != nil && q.ctx.Err() == nil {
+		q.logger.Error(q.ctx, "periodic refresh ended unexpectedly", slog.Error(err))
+	}
 }
 
 func (q *querier) handleIncoming() {
