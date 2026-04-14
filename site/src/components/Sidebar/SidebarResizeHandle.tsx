@@ -6,9 +6,10 @@ interface SidebarResizeHandleProps {
 }
 
 /**
- * An invisible 8px hit area on the sidebar's right edge. On hover,
- * a 2px glow line appears centered on the cursor (300px tall, 150px
- * above and below) rather than spanning the full height.
+ * An invisible hit area on the sidebar's right edge. On hover,
+ * a 2px glow line appears centered on the cursor (300px tall).
+ * The glow stays visible while dragging even if the cursor
+ * leaves the handle area.
  */
 export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 	onDragStart,
@@ -16,6 +17,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [mouseY, setMouseY] = useState<number | null>(null);
 	const [hovered, setHovered] = useState(false);
+	const [dragging, setDragging] = useState(false);
 
 	const handleMouseMove = useCallback((e: React.MouseEvent) => {
 		const rect = containerRef.current?.getBoundingClientRect();
@@ -30,17 +32,46 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 
 	const handleMouseLeave = useCallback(() => {
 		setHovered(false);
-		setMouseY(null);
-	}, []);
+		if (!dragging) {
+			setMouseY(null);
+		}
+	}, [dragging]);
 
-	// Build a gradient mask centered on the cursor. When the mouse
-	// isn't hovering, use a fully transparent mask so there's no
-	// flash when leaving (avoids the brief full-line flicker that
-	// occurs if we switch to mask:none while opacity transitions).
+	const handlePointerDown = useCallback(
+		(e: React.PointerEvent) => {
+			setDragging(true);
+
+			// Track cursor position globally during drag so the
+			// glow line follows even outside the handle element.
+			const onPointerMove = (moveEvent: PointerEvent) => {
+				const rect = containerRef.current?.getBoundingClientRect();
+				if (rect) {
+					setMouseY(moveEvent.clientY - rect.top);
+				}
+			};
+
+			const onPointerUp = () => {
+				setDragging(false);
+				setHovered(false);
+				setMouseY(null);
+				document.removeEventListener("pointermove", onPointerMove);
+				document.removeEventListener("pointerup", onPointerUp);
+			};
+
+			document.addEventListener("pointermove", onPointerMove);
+			document.addEventListener("pointerup", onPointerUp);
+
+			onDragStart(e);
+		},
+		[onDragStart],
+	);
+
 	const maskGradient =
 		mouseY !== null
 			? `linear-gradient(to bottom, transparent ${mouseY - 150}px, white ${mouseY - 80}px, white ${mouseY + 80}px, transparent ${mouseY + 150}px)`
 			: "linear-gradient(transparent, transparent)";
+
+	const visible = hovered || dragging;
 
 	return (
 		<div
@@ -49,7 +80,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			aria-label="Resize sidebar"
 			aria-valuenow={0}
 			tabIndex={0}
-			onPointerDown={onDragStart}
+			onPointerDown={handlePointerDown}
 			onMouseMove={handleMouseMove}
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
@@ -62,7 +93,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			<div
 				className="h-full w-[2px] rounded-full bg-content-secondary"
 				style={{
-					opacity: hovered ? 0.4 : 0,
+					opacity: visible ? (dragging ? 0.7 : 0.4) : 0,
 					transition: "opacity 150ms",
 					maskImage: maskGradient,
 					WebkitMaskImage: maskGradient,
