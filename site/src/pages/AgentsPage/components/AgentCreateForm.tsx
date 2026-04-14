@@ -375,6 +375,20 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	});
 	const permittedOrgs = permittedOrgsQuery.data ?? [...organizations];
 
+	// Clear invalid selections when permission filtering removes the
+	// selected org. Uses the React render-time adjustment pattern
+	// (same as CreateTemplateForm) instead of useEffect.
+	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
+	if (permittedOrgs !== prevPermittedOrgs) {
+		setPrevPermittedOrgs(permittedOrgs);
+		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
+			const fallback = permittedOrgs[0] ?? null;
+			setSelectedOrg(fallback);
+			handleWorkspaceChange(null);
+			resetAttachments();
+		}
+	}
+
 	return (
 		<>
 			<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
