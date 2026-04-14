@@ -10,7 +10,7 @@
 
 Coder supports "Open in Coder" deeplinks that navigate users directly to the workspace creation page with pre-filled parameters. These URLs follow the pattern:
 
-```
+```text
 https://coder.example.com/templates/<org>/<template>/workspace?mode=auto&param.region=us-east&param.cpu=4&param.memory=8
 ```
 
@@ -53,7 +53,7 @@ This problem compounds with template version pinning. Presets are scoped to temp
 
 A preset with 5-10 parameters produces an unwieldy URL:
 
-```
+```text
 https://coder.example.com/templates/devops/k8s-workspace/workspace?mode=auto&param.region=us-east-1&param.cpu=8&param.memory=32&param.disk=100&param.gpu_type=nvidia-t4&param.gpu_count=1&param.image=ubuntu-22.04-cuda&param.namespace=ml-team&param.priority_class=high
 ```
 

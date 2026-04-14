@@ -11,7 +11,8 @@
 Add support for a `preset` query parameter in workspace creation deeplink URLs, allowing users to reference a template preset by name instead of manually encoding every parameter value.
 
 **Target URL**:
-```
+
+```text
 https://coder.example.com/templates/<org>/<template>/workspace?preset=<preset-name>
 ```
 
@@ -20,8 +21,8 @@ https://coder.example.com/templates/<org>/<template>/workspace?preset=<preset-na
 1. Allow deeplink URLs to reference a preset by name.
 2. Compose with existing query parameters (`mode`, `name`, `version`, `disable_params`).
 3. `preset` and `param.*` are mutually exclusive, matching the UI where preset parameters are disabled when a preset is selected.
-3. Work with `mode=auto` to enable zero-click preset-based workspace creation.
-4. Pass `template_version_preset_id` to the backend when a preset is selected via URL, enabling deterministic prebuild matching.
+4. Work with `mode=auto` to enable zero-click preset-based workspace creation.
+5. Pass `template_version_preset_id` to the backend when a preset is selected via URL, enabling deterministic prebuild matching.
 
 ## Non-Goals
 

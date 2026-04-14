@@ -19,13 +19,13 @@ needed.
 
 ### URL Syntax
 
-```
+```text
 /templates/<org>/<template>/workspace?preset=<preset-name>
 ```
 
 Composes with existing parameters:
 
-```
+```text
 ?preset=ml-large&mode=auto&name=my-ws
 ?preset=ml-large&version=<uuid>
 ```
@@ -36,7 +36,7 @@ values are ignored.
 
 ### Resolution Flow
 
-```
+```text
 URL parsed
   ├─ preset param present and non-empty?
   │   ├─ mode=duplicate? → ignore preset, proceed with duplicate flow
