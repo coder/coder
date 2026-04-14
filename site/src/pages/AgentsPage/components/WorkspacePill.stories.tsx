@@ -275,9 +275,11 @@ export const WithStoppedWorkspace: Story = {
 				.getByText("JetBrains Gateway")
 				.closest("[role=menuitem]");
 			expect(jetbrainsItem).toHaveAttribute("aria-disabled", "true");
+			expect(jetbrainsItem).not.toHaveAttribute("href");
 
 			const cursorItem = body.getByText("Cursor").closest("[role=menuitem]");
 			expect(cursorItem).toHaveAttribute("aria-disabled", "true");
+			expect(cursorItem).not.toHaveAttribute("href");
 
 			// View Workspace link should still be accessible.
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
