@@ -75,7 +75,7 @@ Or add directly to your `settings.json`:
 Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
 The `http.proxy` setting is used for both HTTP and HTTPS requests.
-Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your coder api token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your Coder API token.
 
 Restart VS Code for changes to take effect.
 
@@ -109,7 +109,7 @@ Configure the proxy in VS Code's remote settings:
 
 Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
-Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your coder api token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your Coder API token.
 
 #### CA certificate trust
 
@@ -132,7 +132,7 @@ Configure the proxy directly in JetBrains IDE settings:
 1. Enter the proxy hostname and port (default: 8888)
 1. Select `Proxy authentication` and enter:
    1. Login: `coder` (this value is ignored)
-   1. Password: Your Coder api token
+   1. Password: Your Coder API token
    1. Check `Remember` to save the password
 1. Restart the IDE for changes to take effect
 
