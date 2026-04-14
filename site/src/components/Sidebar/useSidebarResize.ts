@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 
 const EXPANDED_WIDTH = 240;
+// Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
+// Double that so the icon is horizontally centered when collapsed.
 const COLLAPSED_WIDTH = 64;
 
 function readCollapsed(key: string): boolean {
@@ -29,8 +31,8 @@ interface UseSidebarResizeReturn {
 
 /**
  * Two-state sidebar that drags smoothly by writing directly to the
- * DOM during pointermove (no React re-renders). State is synced
- * once on pointerup so collapsed mode and localStorage update.
+ * DOM during pointermove. A 3px dead zone distinguishes clicks from
+ * drags — clicks toggle, drags commit based on direction.
  */
 export function useSidebarResize(
 	storageKey = "sidebar-width",
@@ -56,19 +58,29 @@ export function useSidebarResize(
 			containerRef.current = container;
 			const startLeft = container.getBoundingClientRect().left;
 			const startWidth = container.getBoundingClientRect().width;
-			let moved = false;
+			const startX = e.clientX;
+
+			// Movement under 3px counts as a click, not a drag.
+			// Prevents accidental toggles from tiny jitters.
+			const CLICK_DEAD_ZONE = 3;
+			let dragging = false;
 
 			// Kill the CSS transition so DOM writes are instant.
 			container.style.transition = "none";
 
 			const handlePointerMove = (moveEvent: PointerEvent) => {
-				moved = true;
-				const rawWidth = moveEvent.clientX - startLeft;
-				const clamped = Math.max(
-					COLLAPSED_WIDTH,
-					Math.min(rawWidth, EXPANDED_WIDTH),
-				);
-				container.style.width = `${clamped}px`;
+				const dx = Math.abs(moveEvent.clientX - startX);
+				if (!dragging && dx >= CLICK_DEAD_ZONE) {
+					dragging = true;
+				}
+				if (dragging) {
+					const rawWidth = moveEvent.clientX - startLeft;
+					const clamped = Math.max(
+						COLLAPSED_WIDTH,
+						Math.min(rawWidth, EXPANDED_WIDTH),
+					);
+					container.style.width = `${clamped}px`;
+				}
 			};
 
 			const cleanup = () => {
@@ -77,19 +89,19 @@ export function useSidebarResize(
 				document.body.style.cursor = "";
 				document.body.style.userSelect = "";
 
-				const finalWidth = container.getBoundingClientRect().width;
-
-				// Any drag movement in the correct direction completes
-				// the transition. No large threshold needed.
 				let shouldCollapse: boolean;
-				if (!moved) {
-					// Click without drag — toggle.
+				if (!dragging) {
+					// Click (or movement < 3px) — toggle.
 					shouldCollapse = !collapsed;
 				} else {
+					// Any drag in the correct direction completes
+					// the transition.
+					const finalWidth = container.getBoundingClientRect().width;
 					shouldCollapse = finalWidth < startWidth;
 				}
 				const snapWidth = shouldCollapse ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
+				// Re-enable transition for the snap animation.
 				container.style.transition = "";
 				container.style.width = `${snapWidth}px`;
 
@@ -97,6 +109,7 @@ export function useSidebarResize(
 				persistCollapsed(storageKey, shouldCollapse);
 				containerRef.current = null;
 			};
+
 			document.body.style.cursor = "col-resize";
 			document.body.style.userSelect = "none";
 			document.addEventListener("pointermove", handlePointerMove);
