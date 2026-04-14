@@ -31,10 +31,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 
 	const handleMouseLeave = useCallback(() => {
 		setHovered(false);
-		if (!dragging) {
-			setMouseY(null);
-		}
-	}, [dragging]);
+	}, []);
 
 	const handlePointerDown = useCallback(
 		(e: React.PointerEvent) => {
