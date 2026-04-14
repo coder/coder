@@ -246,7 +246,8 @@ jobs:
     needs: changes
     # Only run this job if changes to CI workflow files are detected. This job
     # can flake as it reaches out to GitHub to check referenced actions.
-    if: needs.changes.outputs.ci == 'true'
+    # TODO(#24323): Re-enable once pre-existing zizmor findings are fixed.
+    if: false # needs.changes.outputs.ci == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
