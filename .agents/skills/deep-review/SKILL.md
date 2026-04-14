@@ -39,37 +39,27 @@ export REVIEW_DIR="/tmp/deep-review/$(date +%s)"
 mkdir -p "$REVIEW_DIR"
 ```
 
-**Re-review detection.** Check if you or a previous agent session already reviewed this PR:
+**Re-review detection.** Fetch the full PR context using the fetch script:
 
 ```sh
-gh pr view {number} --json reviews --jq '.reviews[] | select(.body | test("P[0-4]|\\*\\*Obs\\*\\*|\\*\\*Nit\\*\\*")) | .submittedAt' | head -1
+.agents/skills/deep-review/scripts/fetch-pr-context.sh \
+  --pr {number} --output "$REVIEW_DIR/pr-context.json"
 ```
 
-If a prior agent review exists, you must produce a prior-findings classification table before proceeding. This is not optional — the table is an input to step 3 (reviewer prompts). Without it, reviewers will re-discover resolved findings.
+Read `$REVIEW_DIR/pr-context.json` to detect prior agent reviews: scan `reviews[].body` for P0–P4/Obs/Nit patterns. The script skips resolved threads, so findings from a prior round that were addressed simply don't appear in the output.
 
-1. Read every author response since the last review (inline replies, PR comments, commit messages).
-2. Diff the branch to see what changed since the last review.
-3. Engage with any author questions before re-raising findings.
-4. Write `$REVIEW_DIR/prior-findings.md` with this format:
+Unresolved threads from prior agent reviews *are* the carry-forward findings. Author replies are threaded under them via `in_reply_to_id`. Classify each unresolved thread as:
 
-```markdown
-# Prior findings from round {N}
+- **Contested**: unresolved thread with an author reply. The author disagreed or raised a constraint — engage with their argument before re-raising.
+- **No response**: unresolved thread without an author reply.
 
-| Finding | Author response | Status |
-|---------|----------------|--------|
-| P1 `file.go:42` wire-format break | Acknowledged, pushed fix in abc123 | Resolved |
-| P2 `handler.go:15` missing auth check | "Middleware handles this" — see comment | Contested |
-| P3 `db.go:88` naming | Agreed, will fix | Acknowledged |
+Only **Contested** and **No response** findings carry forward to the new review. Resolved threads (addressed findings) are excluded by the script and must not be re-raised.
+
+Save the diff once for all reviewers:
+
+```sh
+gh pr diff {number} > "$REVIEW_DIR/pr.diff"
 ```
-
-Classify each finding as:
-
-- **Resolved**: author pushed a code fix. Verify the fix addresses the finding's specific concern — not just that code changed in the relevant area. Check that the fix doesn't introduce new issues.
-- **Acknowledged**: author agreed but deferred.
-- **Contested**: author disagreed or raised a constraint. Write their argument in the table.
-- **No response**: author didn't address it.
-
-Only **Contested** and **No response** findings carry forward to the new review. Resolved and Acknowledged findings must not be re-raised.
 
 **Scope the diff.** Get the file list from the diff, PR, or user. Skim for intent and note which layers are touched (frontend, backend, database, auth, concurrency, tests, docs).
 
@@ -120,9 +110,9 @@ Tier 2 file filters:
 
 ## 3. Spawn reviewers
 
-Each reviewer writes findings to `$REVIEW_DIR/{role-name}.md` where `{role-name}` is the kebab-cased role name (e.g. `test-auditor`, `go-architect`). For Modernization Reviewer instances, qualify with the language: `modernization-reviewer-go.md`, `modernization-reviewer-ts.md`, `modernization-reviewer-react.md`. The orchestrator does not read reviewer findings from the subagent return text — it reads the files in step 4.
+Each reviewer writes findings to `$REVIEW_DIR/{role-name}.json` where `{role-name}` is the kebab-cased role name (e.g. `test-auditor`, `go-architect`). For Modernization Reviewer instances, qualify with the language: `modernization-reviewer-go.json`, `modernization-reviewer-ts.json`, `modernization-reviewer-react.json`. The orchestrator does not read reviewer findings from the subagent return text — it reads the files in step 4.
 
-Spawn all Tier 1 and Tier 2 reviewers in parallel. Give each reviewer a reference (PR number, branch name), not the diff content. The reviewer fetches the diff itself. Reviewers are read-only — no worktrees needed.
+Spawn all Tier 1 and Tier 2 reviewers in parallel. Reviewers read the shared diff from `$REVIEW_DIR/pr.diff` and use `add-finding.sh` to produce structured JSON output. Reviewers are read-only — no worktrees needed.
 
 **Tier 1 prompt:**
 
@@ -135,8 +125,9 @@ You are the {Role Name} reviewer. Read your methodology in
 Follow the review instructions in
 `.agents/skills/deep-review/structural-reviewer-prompt.md`.
 
-Review: {PR number / branch / commit range}.
-Output file: {REVIEW_DIR}/{role-name}.md
+Review PR #{number}.
+Diff file: {REVIEW_DIR}/pr.diff
+Output file: {REVIEW_DIR}/{role-name}.json
 ```
 
 **Tier 2 prompt:**
@@ -150,9 +141,10 @@ You are the {Role Name} reviewer. Read your methodology in
 Follow the review instructions in
 `.agents/skills/deep-review/nit-reviewer-prompt.md`.
 
-Review: {PR number / branch / commit range}.
+Review PR #{number}.
+Diff file: {REVIEW_DIR}/pr.diff
 File scope: {filter from step 2}.
-Output file: {REVIEW_DIR}/{role-name}.md
+Output file: {REVIEW_DIR}/{role-name}.json
 ```
 
 For Modernization Reviewer instances, add the language reference after the methodology line:
@@ -163,21 +155,30 @@ For Modernization Reviewer instances, add the language reference after the metho
 
 For re-reviews, append to both Tier 1 and Tier 2 prompts:
 
-> Prior findings and author responses are in {REVIEW_DIR}/prior-findings.md. Read it before reviewing. Do not re-raise Resolved or Acknowledged findings.
+> Unresolved threads from prior agent reviews are in {REVIEW_DIR}/pr-context.json under `review_comments`. Scan for P0–P4/Obs/Nit patterns in comment bodies. Threads with author replies (check `in_reply_to_id` chains) are contested — engage with the author's argument. Threads without replies had no response. Do not re-raise findings whose threads were resolved (they are already excluded from the file).
 
 ## 4. Cross-check findings
 
 ### 4a. Read findings from files
 
-Read each reviewer's output file from `$REVIEW_DIR/` one at a time. One file per read — do not batch multiple reviewer files in parallel. Batching causes reviewer voices to blend in the context window, leading to misattribution (grabbing phrasing from one reviewer and attributing it to another).
+Compile all reviewer output into a single inventory:
 
-For each file:
+```sh
+.agents/skills/deep-review/scripts/compile-findings.sh \
+  --dir "$REVIEW_DIR" --output "$REVIEW_DIR/findings.json"
+```
+
+The orchestrator reads `findings.json` for cross-check work. Convergent findings are pre-identified and max severity is pre-computed. The orchestrator still does all the intellectual cross-check work in step 4b.
+
+The orchestrator should still read each reviewer's JSON file individually during cross-check (step 4b) when it needs the full evidence text. `findings.json` gives the inventory and convergence map; the individual files remain the source of record for quoting. Read one reviewer file at a time — do not batch multiple reviewer files in parallel. Batching causes reviewer voices to blend in the context window, leading to misattribution (grabbing phrasing from one reviewer and attributing it to another).
+
+For each reviewer file:
 
 1. Read the file.
 2. List each finding with its severity, location, and one-line summary.
 3. Note the reviewer's exact evidence line for each finding.
 
-If a file says "No findings," record that and move on. If a file is missing (reviewer crashed or timed out), note the gap and proceed — do not stall or silently drop the reviewer's perspective.
+If a file is an empty array (`[]`), record "No findings" and move on. If a file is missing (reviewer crashed or timed out), note the gap and proceed — do not stall or silently drop the reviewer's perspective.
 
 After reading all files, you have a finding inventory. Proceed to cross-check.
 
@@ -295,51 +296,47 @@ P3 findings and observations can be one-liners. Group multiple nits on the same 
 
 For P0 or P1 findings, add a note in the review body: "This review contains findings that may need attention before merge."
 
-**Posting via GitHub API.**
+**Posting via `post-review.sh`.**
 
-The `gh api` endpoint for posting reviews routes through GraphQL by default. Field names differ from the REST API docs:
-
-- Use `position` (diff-relative line number), not `line` + `side`. `side` is not a valid field in the GraphQL schema.
-- `subject_type: "file"` is not recognized. Pin file-level comments to `position: 1` instead.
-- Use `-X POST` with `--input` to force REST API routing.
-
-To compute positions: save the PR diff to a file, then count lines from the first `@@` hunk header of each file's diff section. For new files, position = line number + 1 (the hunk header is position 1, first content line is position 2).
-
-```sh
-gh pr diff {number} > /tmp/pr.diff
-```
-
-Submit:
-
-```sh
-gh api -X POST \
-  repos/{owner}/{repo}/pulls/{number}/reviews \
-  --input review.json
-```
-
-Where `review.json`:
+The orchestrator builds a review JSON matching the `post-review.sh` input schema, using source file line numbers (not diff positions):
 
 ```json
 {
-    "event": "COMMENT",
-    "body": "Summary of what's good and what to look at.\n1 P2, 1 P3 across 2 inline comments.",
-    "comments": [
-        {
-            "path": "file.go",
-            "position": 42,
-            "body": "**P1** Finding... *(Reviewer Role)*\n\n> Evidence..."
-        },
-        {
-            "path": "other.go",
-            "position": 1,
-            "body": "**P2** Cross-file finding... *(Reviewer Role)*\n\n> Evidence..."
-        }
-    ]
+  "event": "COMMENT",
+  "body": "Review summary...",
+  "comments": [
+    {
+      "path": "file.go",
+      "line": 42,
+      "body": "**P1** Finding... *(Reviewer Role)*\n\n> Evidence..."
+    }
+  ],
+  "replies": [
+    {
+      "in_reply_to_id": 456,
+      "body": "Response to existing comment..."
+    }
+  ],
+  "resolve_thread_ids": ["thread-ids-for-resolved-findings"]
 }
 ```
+
+Then post:
+
+```sh
+.agents/skills/deep-review/scripts/post-review.sh \
+  --pr {number} --input "$REVIEW_DIR/review.json" \
+  --diff "$REVIEW_DIR/pr.diff"
+```
+
+- `comments[].line` uses source file line numbers — the script handles diff position computation internally.
+- `replies` are for responding to existing review threads (e.g. answering author questions or acknowledging contested findings).
+- `resolve_thread_ids` resolves prior review threads for findings that are now addressed. Thread IDs come from `pr-context.json` review comments' `thread_id` field. Use this during re-reviews to close threads for findings the author has fixed.
 
 **Tone guidance.** Frame design concerns as questions: "Could we use X instead?" — be direct only for correctness issues. Hedge design, not bugs. Build concrete scenarios to make concerns tangible. When uncertain, say so. See `.claude/docs/PR_STYLE_GUIDE.md` for PR conventions.
 
 ## Follow-up
 
 After posting the review, monitor the PR for author responses. If the author pushes fixes or responds to findings, consider running a re-review (this skill, starting from step 1 with the re-review detection path). Allow time for the author to address multiple findings before re-reviewing — don't trigger on each individual response.
+
+During re-reviews, the orchestrator should resolve threads for findings that are now addressed by including their `thread_id` values in `resolve_thread_ids`. This keeps the PR conversation clean — resolved findings are collapsed on GitHub and excluded from future `fetch-pr-context.sh` output.
