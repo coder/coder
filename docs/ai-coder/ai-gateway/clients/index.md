@@ -66,6 +66,16 @@ while allowing individual users to bring their own.
 
 See individual client pages for configuration details.
 
+### Enabling or disabling BYOK
+
+BYOK is enabled by default. Administrators can disable it using `--ai-gateway-allow-byok=false` or `CODER_AI_GATEWAY_ALLOW_BYOK=false`:
+
+```sh
+coder server --ai-gateway-allow-byok=false
+```
+
+When disabled, BYOK requests are rejected with a `403 Forbidden` response and only centralized key authentication is permitted.
+
 ## Compatibility
 
 The table below shows tested AI clients and their compatibility with AI Gateway.
