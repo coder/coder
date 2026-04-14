@@ -1,12 +1,5 @@
 import { type FC, Suspense } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
 import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -37,33 +30,17 @@ const DeploymentSettingsLayout: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
-			<div>
-				<Breadcrumb>
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<BreadcrumbPage>Admin Settings</BreadcrumbPage>
-						</BreadcrumbItem>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							<BreadcrumbPage className="text-content-primary">
-								Deployment
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-					</BreadcrumbList>
-				</Breadcrumb>
-				<hr className="h-px border-none bg-border" />
-				<section className="px-6 max-w-screen-2xl mx-auto">
-					<div className="flex flex-row py-10">
-						<CollapsibleSidebar storageKey="deployment-sidebar-width">
-							<DeploymentSidebar />
-						</CollapsibleSidebar>
-						<div className="flex-1 min-w-0 pl-10">
-							<Suspense fallback={<Loader />}>
-								<Outlet />
-							</Suspense>
-						</div>
+			<div className="flex flex-row h-full">
+				<CollapsibleSidebar storageKey="deployment-sidebar-width">
+					<DeploymentSidebar />
+				</CollapsibleSidebar>
+				<div className="flex-1 min-w-0 py-10 px-10">
+					<div className="max-w-screen-2xl mx-auto">
+						<Suspense fallback={<Loader />}>
+							<Outlet />
+						</Suspense>
 					</div>
-				</section>
+				</div>
 			</div>
 		</RequirePermission>
 	);

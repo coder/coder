@@ -39,8 +39,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 						<button
 							type="button"
 							onClick={onToggle}
-							className="flex items-center justify-center p-2 rounded-md cursor-pointer hover:bg-surface-secondary"
+							className="flex items-center justify-center p-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 						>
+							{" "}
 							<Icon className="size-5 text-content-secondary" />
 						</button>
 					</TooltipTrigger>
@@ -55,8 +56,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 			<CollapsibleTrigger asChild>
 				<button
 					type="button"
-					className="flex w-full items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-surface-secondary transition-colors"
+					className="flex w-full items-center gap-2 px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
+					{" "}
 					<Icon className="size-4 text-content-secondary" />
 					<span
 						className={cn(
