@@ -34,9 +34,9 @@ const (
 	eventReadyForHandshake = "tailnet_ready_for_handshake"
 	HeartbeatPeriod        = time.Second * 2
 	MissedHeartbeats       = 3
-	numQuerierWorkers      = 40
+	numQuerierWorkers      = 10
 	numBinderWorkers       = 10
-	numTunnelerWorkers     = 20
+	numTunnelerWorkers     = 10
 	numHandshakerWorkers   = 5
 	dbMaxBackoff           = 10 * time.Second
 	cleanupPeriod          = time.Hour
@@ -1011,7 +1011,7 @@ func (q *querier) cleanupConn(c *connIO) {
 
 // maxBatchSize is the maximum number of keys to process in a single batch
 // query.
-const maxBatchSize = 200
+const maxBatchSize = 50
 
 func (q *querier) peerUpdateWorker() {
 	defer q.wg.Done()
