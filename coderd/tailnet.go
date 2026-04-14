@@ -19,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/tailcfg"
@@ -404,8 +403,6 @@ type MultiAgentController struct {
 	// connections to the destination
 	tickets      map[uuid.UUID]map[uuid.UUID]struct{}
 	coordination *tailnet.BasicCoordination
-	sendGroup    singleflight.Group
-
 	cancel              context.CancelFunc
 	expireOldAgentsDone chan struct{}
 }
@@ -434,48 +431,32 @@ func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.Clo
 
 func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, ok := m.connectionTimes[agentID]
-	if ok {
-		m.connectionTimes[agentID] = time.Now()
-		m.mu.Unlock()
-		return nil
-	}
-	m.mu.Unlock()
-
-	agentIP := tailnet.TailscaleServicePrefix.AddrFromUUID(agentID)
-	m.logger.Debug(context.Background(),
-		"subscribing to agent",
-		slog.F("agent_id", agentID),
-		slog.F("agent_ip", agentIP),
-	)
-
-	_, err, _ := m.sendGroup.Do(agentID.String(), func() (interface{}, error) {
-		m.mu.Lock()
-		coord := m.coordination
-		m.mu.Unlock()
-		if coord == nil {
-			return nil, xerrors.New("no active coordination")
+	// If we don't have the agent, subscribe.
+	if !ok {
+		agentIP := tailnet.TailscaleServicePrefix.AddrFromUUID(agentID)
+		m.logger.Debug(context.Background(),
+			"subscribing to agent",
+			slog.F("agent_id", agentID),
+			slog.F("agent_ip", agentIP),
+		)
+		if m.coordination != nil {
+			err := m.coordination.Client.Send(&proto.CoordinateRequest{
+				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
+			})
+			if err != nil {
+				err = xerrors.Errorf("subscribe agent: %w", err)
+				m.coordination.SendErr(err)
+				_ = m.coordination.Client.Close()
+				m.coordination = nil
+				return err
+			}
 		}
-		err := coord.Client.Send(&proto.CoordinateRequest{
-			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
-		})
-		if err != nil {
-			return nil, err
-		}
-		m.mu.Lock()
 		m.tickets[agentID] = map[uuid.UUID]struct{}{}
-		m.mu.Unlock()
-		return nil, nil
-	})
-	if err != nil {
-		m.logger.Error(context.Background(), "ensureAgent send failed",
-			slog.F("agent_id", agentID), slog.Error(err))
-		return xerrors.Errorf("send AddTunnel: %w", err)
 	}
-
-	m.mu.Lock()
 	m.connectionTimes[agentID] = time.Now()
-	m.mu.Unlock()
 	return nil
 }
 
