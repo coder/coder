@@ -9,3 +9,17 @@ vi.mock("#/contexts/useProxyLatency", async () => {
 		},
 	};
 });
+
+// Monaco editor relies on canvas and other browser APIs absent from JSDOM.
+// Mock the modules so no real Monaco code runs in unit tests.
+vi.mock("monaco-editor");
+vi.mock("@monaco-editor/react", () => {
+	const FakeEditor = () => null;
+	return {
+		default: FakeEditor,
+		Editor: FakeEditor,
+		DiffEditor: () => null,
+		loader: { config: () => {}, init: () => Promise.resolve() },
+		useMonaco: () => null,
+	};
+});
