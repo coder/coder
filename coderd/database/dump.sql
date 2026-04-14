@@ -1483,8 +1483,8 @@ CREATE TABLE chats (
     plan_mode chat_plan_mode,
     client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
     ancestor_chat_id uuid,
-    ancestor_message_id bigint
-
+    ancestor_message_id bigint,
+    CONSTRAINT chats_ancestor_message_requires_chat CHECK (((ancestor_message_id IS NULL) OR (ancestor_chat_id IS NOT NULL)))
 );
 
 CREATE TABLE connection_logs (
