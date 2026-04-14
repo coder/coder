@@ -1,6 +1,7 @@
 import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -39,6 +40,7 @@ interface ConnectionLogPageViewProps {
 	error?: unknown;
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
+	dataProtectionEnabled?: boolean;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
@@ -48,6 +50,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	error,
 	filterProps,
 	connectionLogsQuery: paginationResult,
+	dataProtectionEnabled,
 }) => {
 	const isLoading =
 		(connectionLogs === undefined ||
@@ -67,6 +70,8 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
 			</PageHeader>
+
+			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
 
 			<ChooseOne>
 				<Cond condition={isConnectionLogVisible}>

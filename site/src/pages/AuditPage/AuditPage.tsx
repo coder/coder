@@ -3,7 +3,6 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedAudits } from "#/api/queries/audits";
 import { deploymentConfig } from "#/api/queries/deployment";
-import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
@@ -85,8 +84,6 @@ const AuditPage: FC = () => {
 		<>
 			<title>{pageTitle("Audit")}</title>
 
-			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
-
 			<AuditPageView
 				auditLogs={auditsQuery.data?.audit_logs}
 				isNonInitialPage={isNonInitialPage(searchParams)}
@@ -104,6 +101,7 @@ const AuditPage: FC = () => {
 						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 				}}
+				dataProtectionEnabled={dataProtectionEnabled}
 			/>
 		</>
 	);
