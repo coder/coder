@@ -189,6 +189,7 @@ type sqlcQuerier interface {
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
 	// These were most likely created via 'coder login' as the prebuilds user.
 	ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error
+	FavoriteTemplate(ctx context.Context, arg FavoriteTemplateParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error)
@@ -661,6 +662,7 @@ type sqlcQuerier interface {
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
 	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
+	GetUserTemplateFavorites(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
@@ -933,6 +935,7 @@ type sqlcQuerier interface {
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
+	UnfavoriteTemplate(ctx context.Context, arg UnfavoriteTemplateParams) error
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error

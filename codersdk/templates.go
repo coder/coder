@@ -69,6 +69,10 @@ type Template struct {
 	// DisableModuleCache disables the use of cached Terraform modules during
 	// provisioning.
 	DisableModuleCache bool `json:"disable_module_cache"`
+
+	// Favorite indicates whether the requesting user has marked this
+	// template as a favorite.
+	Favorite bool `json:"favorite"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -545,4 +549,28 @@ func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UU
 
 	var response InvalidatePresetsResponse
 	return response, json.NewDecoder(res.Body).Decode(&response)
+}
+
+func (c *Client) FavoriteTemplate(ctx context.Context, templateID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/templates/%s/favorite", templateID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) UnfavoriteTemplate(ctx context.Context, templateID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/templates/%s/favorite", templateID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

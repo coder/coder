@@ -37,6 +37,8 @@ func (r *RootCmd) templates() *serpent.Command {
 			r.templateDelete(),
 			r.templatePull(),
 			r.archiveTemplateVersions(),
+			r.templateFavorite(),
+			r.templateUnfavorite(),
 		},
 	}
 
@@ -80,6 +82,7 @@ type templateTableRow struct {
 	Template codersdk.Template
 
 	// Used by table format:
+	Favorite         bool                     `json:"-" table:"favorite"`
 	Name             string                   `json:"-" table:"name,default_sort"`
 	CreatedAt        string                   `json:"-" table:"created at"`
 	LastUpdated      string                   `json:"-" table:"last updated"`
@@ -91,14 +94,19 @@ type templateTableRow struct {
 	DefaultTTL       time.Duration            `json:"-" table:"default ttl"`
 }
 
-// templateToRows converts a list of templates to a list of templateTableRow for
+// templatesToRows converts a list of templates to a list of templateTableRow for
 // outputting.
 func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 	rows := make([]templateTableRow, len(templates))
 	for i, template := range templates {
+		favIco := " "
+		if template.Favorite {
+			favIco = "★"
+		}
 		rows[i] = templateTableRow{
 			Template:         template,
-			Name:             template.Name,
+			Favorite:         template.Favorite,
+			Name:             favIco + " " + template.Name,
 			CreatedAt:        template.CreatedAt.Format("January 2, 2006"),
 			LastUpdated:      template.UpdatedAt.Format("January 2, 2006"),
 			OrganizationID:   template.OrganizationID,

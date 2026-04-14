@@ -840,6 +840,14 @@ func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.
 	return r0
 }
 
+func (m queryMetricsStore) FavoriteTemplate(ctx context.Context, arg database.FavoriteTemplateParams) error {
+	start := time.Now()
+	r0 := m.s.FavoriteTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("FavoriteTemplate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FavoriteTemplate").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, id)
@@ -2776,6 +2784,14 @@ func (m queryMetricsStore) GetUserTaskNotificationAlertDismissed(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserTemplateFavorites(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserTemplateFavorites(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserTemplateFavorites").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserTemplateFavorites").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserTerminalFont(ctx, userID)
@@ -4229,6 +4245,14 @@ func (m queryMetricsStore) UnarchiveTemplateVersion(ctx context.Context, arg dat
 	r0 := m.s.UnarchiveTemplateVersion(ctx, arg)
 	m.queryLatencies.WithLabelValues("UnarchiveTemplateVersion").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnarchiveTemplateVersion").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UnfavoriteTemplate(ctx context.Context, arg database.UnfavoriteTemplateParams) error {
+	start := time.Now()
+	r0 := m.s.UnfavoriteTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnfavoriteTemplate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnfavoriteTemplate").Inc()
 	return r0
 }
 

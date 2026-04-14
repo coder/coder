@@ -1,6 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { ArrowRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
+import {
+	ArrowRightIcon,
+	ChevronDownIcon,
+	ChevronUpIcon,
+	PlusIcon,
+	StarIcon,
+} from "lucide-react";
+import { type FC, useMemo, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
@@ -42,6 +48,7 @@ import {
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
+import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import {
@@ -51,6 +58,9 @@ import {
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";
+
+type SortField = "name" | "used_by" | "build_time" | "last_updated";
+type SortDirection = "asc" | "desc";
 
 const TemplateHelpPopover: FC = () => {
 	return (
@@ -71,6 +81,79 @@ const TemplateHelpPopover: FC = () => {
 		</HelpPopover>
 	);
 };
+
+interface SortableHeaderProps {
+	label: string;
+	field: SortField;
+	activeField: SortField;
+	direction: SortDirection;
+	onSort: (field: SortField) => void;
+	className?: string;
+}
+
+const SortableHeader: FC<SortableHeaderProps> = ({
+	label,
+	field,
+	activeField,
+	direction,
+	onSort,
+	className,
+}) => {
+	const isActive = activeField === field;
+	return (
+		<TableHead
+			className={cn("cursor-pointer select-none", className)}
+			onClick={() => onSort(field)}
+		>
+			<span className="inline-flex items-center gap-1">
+				{label}
+				{isActive &&
+					(direction === "asc" ? (
+						<ChevronUpIcon className="size-icon-xs" />
+					) : (
+						<ChevronDownIcon className="size-icon-xs" />
+					))}
+			</span>
+		</TableHead>
+	);
+};
+
+function sortTemplates(
+	templates: Template[],
+	field: SortField,
+	direction: SortDirection,
+): Template[] {
+	return [...templates].sort((a, b) => {
+		// Favorites always sort first.
+		if (a.favorite !== b.favorite) {
+			return a.favorite ? -1 : 1;
+		}
+
+		let cmp = 0;
+		switch (field) {
+			case "name": {
+				const aName = (a.display_name || a.name).toLowerCase();
+				const bName = (b.display_name || b.name).toLowerCase();
+				cmp = aName.localeCompare(bName);
+				break;
+			}
+			case "used_by":
+				cmp = a.active_user_count - b.active_user_count;
+				break;
+			case "build_time":
+				cmp =
+					(a.build_time_stats.start?.P50 ?? 0) -
+					(b.build_time_stats.start?.P50 ?? 0);
+				break;
+			case "last_updated":
+				cmp =
+					new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+				break;
+		}
+
+		return direction === "asc" ? cmp : -cmp;
+	});
+}
 
 interface TemplateActionsProps {
 	template: Template;
@@ -147,7 +230,12 @@ const TemplateRow: FC<TemplateRowProps> = ({
 		>
 			<TableCell>
 				<AvatarData
-					title={template.display_name || template.name}
+					title={
+						<div className="flex items-center gap-0.5">
+							<span>{template.display_name || template.name}</span>
+							{template.favorite && <StarIcon className="size-icon-xs" />}
+						</div>
+					}
 					subtitle={template.description}
 					avatar={
 						<Avatar
@@ -213,6 +301,23 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
 
+	const [sortField, setSortField] = useState<SortField>("name");
+	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+	const handleSort = (field: SortField) => {
+		if (field === sortField) {
+			setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+		} else {
+			setSortField(field);
+			setSortDirection("asc");
+		}
+	};
+
+	const sortedTemplates = useMemo(() => {
+		if (!templates) return undefined;
+		return sortTemplates(templates, sortField, sortDirection);
+	}, [templates, sortField, sortDirection]);
+
 	return (
 		<Margins className="pb-12">
 			<PageHeader
@@ -248,15 +353,45 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				<ErrorAlert error={error} />
 			)}
 
-			<Table>
+			<Table aria-label="Templates">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[35%]">Name</TableHead>
-						<TableHead className="w-[15%]">
-							{showOrganizations ? "Organization" : "Used by"}
-						</TableHead>
-						<TableHead className="w-[10%]">Build time</TableHead>
-						<TableHead className="w-[15%]">Last updated</TableHead>
+						<SortableHeader
+							label="Name"
+							field="name"
+							activeField={sortField}
+							direction={sortDirection}
+							onSort={handleSort}
+							className="w-[35%]"
+						/>
+						{showOrganizations ? (
+							<TableHead className="w-[15%]">Organization</TableHead>
+						) : (
+							<SortableHeader
+								label="Used by"
+								field="used_by"
+								activeField={sortField}
+								direction={sortDirection}
+								onSort={handleSort}
+								className="w-[15%]"
+							/>
+						)}
+						<SortableHeader
+							label="Build time"
+							field="build_time"
+							activeField={sortField}
+							direction={sortDirection}
+							onSort={handleSort}
+							className="w-[10%]"
+						/>
+						<SortableHeader
+							label="Last updated"
+							field="last_updated"
+							activeField={sortField}
+							direction={sortDirection}
+							onSort={handleSort}
+							className="w-[15%]"
+						/>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>
@@ -270,7 +405,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							isUsingFilter={filterState.filter.used}
 						/>
 					) : (
-						templates?.map((template) => (
+						sortedTemplates?.map((template) => (
 							<TemplateRow
 								key={template.id}
 								showOrganizations={showOrganizations}

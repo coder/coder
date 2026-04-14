@@ -5066,6 +5066,12 @@ type Template struct {
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
+type TemplateFavorite struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
 type TemplateTable struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`

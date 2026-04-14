@@ -7101,6 +7101,11 @@ export interface Template {
 	 * provisioning.
 	 */
 	readonly disable_module_cache: boolean;
+	/**
+	 * Favorite indicates whether the requesting user has marked this
+	 * template as a favorite.
+	 */
+	readonly favorite: boolean;
 }
 
 // From codersdk/templates.go

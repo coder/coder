@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -49,7 +48,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, api.isTemplateFavorite(ctx, r, template.ID)))
 }
 
 // @Summary Delete template by ID
@@ -515,7 +514,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		TemplateVersions: []telemetry.TemplateVersion{telemetry.ConvertTemplateVersion(templateVersion)},
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, api.convertTemplate(dbTemplate))
+	httpapi.Write(ctx, rw, http.StatusCreated, api.convertTemplate(dbTemplate, api.isTemplateFavorite(ctx, r, dbTemplate.ID)))
 }
 
 // @Summary Get templates by organization
@@ -601,7 +600,22 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
+		// Fetch the requesting user's template favorites to populate
+		// the favorite field on each template in the response.
+		favoriteIDs, err := api.Database.GetUserTemplateFavorites(ctx, key.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template favorites.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		favorites := make(map[uuid.UUID]bool, len(favoriteIDs))
+		for _, id := range favoriteIDs {
+			favorites[id] = true
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates, favorites))
 	}
 }
 
@@ -635,7 +649,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, api.isTemplateFavorite(ctx, r, template.ID)))
 }
 
 // @Summary Update template settings by ID
@@ -952,7 +966,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated, api.isTemplateFavorite(ctx, r, updated.ID)))
 }
 
 func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template database.Template) error {
@@ -1064,23 +1078,94 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
 
-func (api *API) convertTemplates(templates []database.Template) []codersdk.Template {
+// @Summary Favorite template by ID.
+// @ID favorite-template-by-id
+// @Security CoderSessionToken
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 204
+// @Router /templates/{template}/favorite [put]
+func (api *API) putFavoriteTemplate(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx      = r.Context()
+		template = httpmw.TemplateParam(r)
+		apiKey   = httpmw.APIKey(r)
+	)
+
+	err := api.Database.FavoriteTemplate(ctx, database.FavoriteTemplateParams{
+		UserID:     apiKey.UserID,
+		TemplateID: template.ID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting template as favorite",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Unfavorite template by ID.
+// @ID unfavorite-template-by-id
+// @Security CoderSessionToken
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 204
+// @Router /templates/{template}/favorite [delete]
+func (api *API) deleteFavoriteTemplate(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx      = r.Context()
+		template = httpmw.TemplateParam(r)
+		apiKey   = httpmw.APIKey(r)
+	)
+
+	err := api.Database.UnfavoriteTemplate(ctx, database.UnfavoriteTemplateParams{
+		UserID:     apiKey.UserID,
+		TemplateID: template.ID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error removing template from favorites",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// isTemplateFavorite checks whether the requesting user has favorited the
+// given template. It silently returns false on any error so callers can
+// treat it as best-effort.
+func (api *API) isTemplateFavorite(ctx context.Context, r *http.Request, templateID uuid.UUID) bool {
+	key := httpmw.APIKey(r)
+	favIDs, err := api.Database.GetUserTemplateFavorites(ctx, key.UserID)
+	if err != nil {
+		return false
+	}
+	for _, id := range favIDs {
+		if id == templateID {
+			return true
+		}
+	}
+	return false
+}
+
+func (api *API) convertTemplates(templates []database.Template, favorites map[uuid.UUID]bool) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 
 	for _, template := range templates {
-		apiTemplates = append(apiTemplates, api.convertTemplate(template))
+		apiTemplates = append(apiTemplates, api.convertTemplate(template, favorites[template.ID]))
 	}
-
-	// Sort templates by ActiveUserCount DESC
-	sort.SliceStable(apiTemplates, func(i, j int) bool {
-		return apiTemplates[i].ActiveUserCount > apiTemplates[j].ActiveUserCount
-	})
 
 	return apiTemplates
 }
 
 func (api *API) convertTemplate(
 	template database.Template,
+	favorite bool,
 ) codersdk.Template {
 	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
 
@@ -1142,6 +1227,7 @@ func (api *API) convertTemplate(
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
 		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 		DisableModuleCache:      template.DisableModuleCache,
+		Favorite:                favorite,
 	}
 }
 

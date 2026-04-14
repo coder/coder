@@ -21482,6 +21482,65 @@ func (q *sqlQuerier) InsertTelemetryLock(ctx context.Context, arg InsertTelemetr
 	return err
 }
 
+const favoriteTemplate = `-- name: FavoriteTemplate :exec
+INSERT INTO template_favorites (user_id, template_id, created_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT DO NOTHING
+`
+
+type FavoriteTemplateParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) FavoriteTemplate(ctx context.Context, arg FavoriteTemplateParams) error {
+	_, err := q.db.ExecContext(ctx, favoriteTemplate, arg.UserID, arg.TemplateID)
+	return err
+}
+
+const getUserTemplateFavorites = `-- name: GetUserTemplateFavorites :many
+SELECT template_id FROM template_favorites
+WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserTemplateFavorites(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getUserTemplateFavorites, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var template_id uuid.UUID
+		if err := rows.Scan(&template_id); err != nil {
+			return nil, err
+		}
+		items = append(items, template_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unfavoriteTemplate = `-- name: UnfavoriteTemplate :exec
+DELETE FROM template_favorites
+WHERE user_id = $1 AND template_id = $2
+`
+
+type UnfavoriteTemplateParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) UnfavoriteTemplate(ctx context.Context, arg UnfavoriteTemplateParams) error {
+	_, err := q.db.ExecContext(ctx, unfavoriteTemplate, arg.UserID, arg.TemplateID)
+	return err
+}
+
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT
@@ -21659,7 +21718,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 
 const getTemplates = `-- name: GetTemplates :many
 SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
-ORDER BY (name, id) ASC
+ORDER BY (LOWER(COALESCE(NULLIF(display_name, ''), name)), id) ASC
 `
 
 func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
@@ -21813,7 +21872,7 @@ WHERE
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
-ORDER BY (t.name, t.id) ASC
+ORDER BY (LOWER(COALESCE(NULLIF(t.display_name, ''), t.name)), t.id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {

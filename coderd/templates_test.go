@@ -2219,3 +2219,96 @@ func TestTemplateFilterHasExternalAgent(t *testing.T) {
 	require.Len(t, templates, 1)
 	require.Equal(t, templateWithoutExternalAgent.ID, templates[0].ID)
 }
+
+func TestTemplateFavorites(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FavoriteAndUnfavorite", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Template should not be favorited by default.
+		got, err := memberClient.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.False(t, got.Favorite)
+
+		// Favorite it.
+		err = memberClient.FavoriteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+
+		// Verify it is now favorited.
+		got, err = memberClient.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.True(t, got.Favorite)
+
+		// Unfavorite it.
+		err = memberClient.UnfavoriteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+
+		// Verify it is no longer favorited.
+		got, err = memberClient.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.False(t, got.Favorite)
+	})
+
+	t.Run("FavoriteIsPerUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient1, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		memberClient2, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Member 1 favorites the template.
+		err := memberClient1.FavoriteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+
+		// Member 1 sees it as favorited.
+		got, err := memberClient1.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.True(t, got.Favorite)
+
+		// Member 2 does not see it as favorited.
+		got, err = memberClient2.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.False(t, got.Favorite)
+	})
+
+	t.Run("FavoriteIdempotent", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Favoriting twice should not error (ON CONFLICT DO NOTHING).
+		err := memberClient.FavoriteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+		err = memberClient.FavoriteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+	})
+}

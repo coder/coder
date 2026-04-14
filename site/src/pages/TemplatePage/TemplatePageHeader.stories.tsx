@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MockTemplate, MockTemplateVersion } from "#/testHelpers/entities";
+import {
+	MockFavoriteTemplate,
+	MockTemplate,
+	MockTemplateVersion,
+} from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
@@ -48,5 +52,11 @@ export const Deprecated: Story = {
 			deprecation_message:
 				"This template is not going to be used anymore. [See details](#details).",
 		},
+	},
+};
+
+export const Favorited: Story = {
+	args: {
+		template: MockFavoriteTemplate,
 	},
 };
