@@ -397,6 +397,11 @@ func (api *API) postWorkspaceBuildsInternal(
 		provisionerDaemons     []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
+	// Track whether dormancy was unset so we can emit the audit
+	// entry after the transaction commits, avoiding duplicate
+	// audit logs on serialization retries.
+	var dormancyUnset bool
+
 	// Use ReadModifyUpdate to run at RepeatableRead isolation with
 	// retries on serialization errors. Build() also calls
 	// ReadModifyUpdate internally, but since InTx reuses the parent
@@ -404,6 +409,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	// and retry behavior are provided by this outer call.
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		var err error
+		dormancyUnset = false
 
 		// #20925: if the workspace is dormant and we are starting the workspace,
 		// we need to unset that status before inserting a new build.
@@ -420,23 +426,7 @@ func (api *API) postWorkspaceBuildsInternal(
 					Detail:  err.Error(),
 				})
 			}
-			// We need to audit this change separately.
-			updatedWorkspace := workspace.WorkspaceTable()
-			updatedWorkspace.DormantAt = sql.NullTime{Valid: false}
-			auditor := api.Auditor.Load()
-			bag := audit.BaggageFromContext(ctx)
-			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
-				Audit:          *auditor,
-				Old:            workspace.WorkspaceTable(),
-				New:            updatedWorkspace,
-				Log:            api.Logger,
-				UserID:         apiKey.UserID,
-				OrganizationID: workspace.OrganizationID,
-				RequestID:      workspace.ID,
-				IP:             bag.IP,
-				Action:         database.AuditActionWrite,
-				Status:         http.StatusOK,
-			})
+			dormancyUnset = true
 		}
 
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
@@ -491,6 +481,27 @@ func (api *API) postWorkspaceBuildsInternal(
 	})
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
+	}
+
+	// Emit the dormancy audit entry after the transaction commits
+	// so it is only recorded once, even if the transaction retried.
+	if dormancyUnset {
+		updatedWorkspace := workspace.WorkspaceTable()
+		updatedWorkspace.DormantAt = sql.NullTime{Valid: false}
+		auditor := api.Auditor.Load()
+		bag := audit.BaggageFromContext(ctx)
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
+			Audit:          *auditor,
+			Old:            workspace.WorkspaceTable(),
+			New:            updatedWorkspace,
+			Log:            api.Logger,
+			UserID:         apiKey.UserID,
+			OrganizationID: workspace.OrganizationID,
+			RequestID:      workspace.ID,
+			IP:             bag.IP,
+			Action:         database.AuditActionWrite,
+			Status:         http.StatusOK,
+		})
 	}
 
 	var queuePos database.GetProvisionerJobsByIDsWithQueuePositionRow
