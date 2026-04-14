@@ -3550,7 +3550,6 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
-	| "web-push"
 	| "workspace-build-updates"
 	| "workspace-usage";
 
@@ -3561,7 +3560,6 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
-	"web-push",
 	"workspace-build-updates",
 	"workspace-usage",
 ];

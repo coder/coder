@@ -21,10 +21,6 @@ on:
       - closed
       - labeled
 
-permissions:
-  contents: write
-  pull-requests: write
-
 # Prevent duplicate runs for the same PR when both 'closed' and 'labeled'
 # fire in quick succession.
 concurrency:
@@ -33,6 +29,8 @@ concurrency:
 jobs:
   detect:
     name: Detect target branches
+    permissions:
+      contents: read
     if: >
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'backport')
@@ -44,6 +42,7 @@ jobs:
         with:
           # Need all refs to discover release branches.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Find latest release branches
         id: find
@@ -73,6 +72,9 @@ jobs:
   backport:
     name: "Backport to ${{ matrix.branch }}"
     needs: detect
+    permissions:
+      contents: write
+      pull-requests: write
     if: needs.detect.outputs.branches != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -85,11 +87,13 @@ jobs:
       PR_URL: ${{ github.event.pull_request.html_url }}
       MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
       SENDER: ${{ github.event.sender.login }}
+      BRANCH: ${{ matrix.branch }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Full history required for cherry-pick.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Cherry-pick and open PR
         env:
@@ -97,7 +101,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          RELEASE_VERSION="${{ matrix.branch }}"
+          # Configure git to authenticate pushes with the job token
+          # since persist-credentials is disabled on checkout.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          RELEASE_VERSION="$BRANCH"
           # Strip the release/ prefix for naming.
           VERSION="${RELEASE_VERSION#release/}"
           BACKPORT_BRANCH="backport/${PR_NUMBER}-to-${VERSION}"

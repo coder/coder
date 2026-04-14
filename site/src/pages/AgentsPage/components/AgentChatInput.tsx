@@ -51,6 +51,7 @@ import {
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { formatProviderLabel } from "../utils/modelOptions";
@@ -286,6 +287,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onMCPAuthComplete,
 	attachedWorkspace,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -612,7 +614,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const content = (
 		<div
 			className={cn(
-				"mx-auto w-full max-w-3xl pb-0 sm:pb-4",
+				"mx-auto w-full pb-0 sm:pb-4",
+				chatWidthClass(chatFullWidth),
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>

@@ -600,6 +600,15 @@ func ChatDebugTerminalStatuses() []ChatDebugStatus {
 	}
 }
 
+// AllChatDebugStatuses contains every ChatDebugStatus value.
+// Update this when adding new constants above.
+var AllChatDebugStatuses = []ChatDebugStatus{
+	ChatDebugStatusInProgress,
+	ChatDebugStatusCompleted,
+	ChatDebugStatusError,
+	ChatDebugStatusInterrupted,
+}
+
 // ChatDebugRunKind labels the operation that produced the debug
 // run. Each value corresponds to a distinct call-site in chatd.
 type ChatDebugRunKind string
@@ -611,6 +620,15 @@ const (
 	ChatDebugRunKindCompaction      ChatDebugRunKind = "compaction"
 )
 
+// AllChatDebugRunKinds contains every ChatDebugRunKind value.
+// Update this when adding new constants above.
+var AllChatDebugRunKinds = []ChatDebugRunKind{
+	ChatDebugRunKindChatTurn,
+	ChatDebugRunKindTitleGeneration,
+	ChatDebugRunKindQuickgen,
+	ChatDebugRunKindCompaction,
+}
+
 // ChatDebugStepOperation labels the model interaction type for a
 // debug step.
 type ChatDebugStepOperation string
@@ -619,6 +637,13 @@ const (
 	ChatDebugStepOperationStream   ChatDebugStepOperation = "stream"
 	ChatDebugStepOperationGenerate ChatDebugStepOperation = "generate"
 )
+
+// AllChatDebugStepOperations contains every ChatDebugStepOperation
+// value. Update this when adding new constants above.
+var AllChatDebugStepOperations = []ChatDebugStepOperation{
+	ChatDebugStepOperationStream,
+	ChatDebugStepOperationGenerate,
+}
 
 // ChatDebugRunSummary is a lightweight run entry for list endpoints.
 type ChatDebugRunSummary struct {

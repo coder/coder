@@ -45,6 +45,7 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -552,6 +553,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	onToggleSidebarCollapsed,
 	showRightPanel,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	return (
 		<div
 			className={cn(
@@ -584,7 +586,12 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				/>
 				<div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
-						<div className="mx-auto w-full max-w-3xl py-6">
+						<div
+							className={cn(
+								"mx-auto w-full py-6",
+								chatWidthClass(chatFullWidth),
+							)}
+						>
 							<ChatConversationSkeleton />
 						</div>
 					</div>
