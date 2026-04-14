@@ -641,7 +641,7 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 		return nil, nil, xerrors.New("unexpected agent dial")
 	}
 
-	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
+	options := testCheckExistingWorkspaceOptions(chatID, connFn)
 	check := options.checkExistingWorkspace(context.Background(), db)
 
 	require.NoError(t, check.Err)
@@ -734,7 +734,7 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{}, nil)
 
-	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	options := testCheckExistingWorkspaceOptions(chatID, nil)
 	check := options.checkExistingWorkspace(context.Background(), db)
 
 	require.NoError(t, check.Err)
@@ -817,7 +817,7 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
 
-	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	options := testCheckExistingWorkspaceOptions(chatID, nil)
 	check := options.checkExistingWorkspace(context.Background(), db)
 
 	require.Error(t, check.Err)
@@ -865,7 +865,7 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
+	options := testCheckExistingWorkspaceOptions(chatID, connFn)
 	check := options.checkExistingWorkspace(context.Background(), db)
 
 	require.NoError(t, check.Err)
@@ -926,7 +926,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 				GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 				Return([]database.WorkspaceAgent{tc.agent}, nil)
 
-			options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+			options := testCheckExistingWorkspaceOptions(chatID, nil)
 			check := options.checkExistingWorkspace(context.Background(), db)
 
 			require.NoError(t, check.Err)
@@ -1041,7 +1041,7 @@ func TestCheckExistingWorkspace_StoppedWorkspace(t *testing.T) {
 		database.WorkspaceTransitionStop,
 	)
 
-	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	options := testCheckExistingWorkspaceOptions(chatID, nil)
 	check := options.checkExistingWorkspace(context.Background(), db)
 
 	require.True(t, check.Done)
@@ -1074,7 +1074,7 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 			Deleted: true,
 		}, nil)
 
-	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	options := testCheckExistingWorkspaceOptions(chatID, nil)
 	check := options.checkExistingWorkspace(context.Background(), db)
 
 	require.NoError(t, check.Err)
@@ -1083,7 +1083,6 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 }
 
 func testCheckExistingWorkspaceOptions(
-	db *dbmock.MockStore,
 	chatID uuid.UUID,
 	agentConnFn AgentConnFunc,
 ) CreateWorkspaceOptions {

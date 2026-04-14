@@ -5015,8 +5015,7 @@ func (p *Server) runChat(
 				OwnerID:            chat.OwnerID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
-			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 p.db,
+			chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
 				OwnerID:            chat.OwnerID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),

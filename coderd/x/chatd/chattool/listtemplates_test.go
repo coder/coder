@@ -39,7 +39,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "alpha",
 	})
-	dbgen.Template(t, db, database.Template{
+	tBeta := dbgen.Template(t, db, database.Template{
 		OrganizationID: orgB.ID,
 		CreatedBy:      user.ID,
 		Name:           "beta",
@@ -82,6 +82,42 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		templates := result["templates"].([]any)
 		require.Len(t, templates, 2)
+	})
+
+	t.Run("ReadTemplate_CrossOrgRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Tool scoped to orgA, but requesting a template in orgB.
+		tool := chattool.ReadTemplate(orgA.ID, db, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+
+		input := `{"template_id":"` + tBeta.ID.String() + `"}`
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "cross-org", Name: "read_template", Input: input})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "not found")
+	})
+
+	t.Run("ReadTemplate_SameOrgAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Tool scoped to orgA, requesting a template in orgA.
+		tool := chattool.ReadTemplate(orgA.ID, db, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+
+		input := `{"template_id":"` + tAlpha.ID.String() + `"}`
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "same-org", Name: "read_template", Input: input})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		tmplInfo := result["template"].(map[string]any)
+		require.Equal(t, tAlpha.ID.String(), tmplInfo["id"].(string))
 	})
 }
 
@@ -170,8 +206,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 	t.Run("ReadTemplate", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
-			tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 db,
+			tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
 			})
@@ -186,8 +221,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("Disallowed", func(t *testing.T) {
-			tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 db,
+			tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
 			})
@@ -199,8 +233,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("NoAllowlist", func(t *testing.T) {
-			tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:      db,
+			tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
 				OwnerID: user.ID,
 			})
 			input := `{"template_id":"` + t2.ID.String() + `"}`
