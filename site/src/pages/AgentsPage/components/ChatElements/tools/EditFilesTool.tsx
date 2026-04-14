@@ -81,16 +81,16 @@ export const EditFilesTool: React.FC<{
 			}
 		>
 			<div className="mt-1.5 space-y-1.5">
-				{diffs.map((diff, i) =>
-					diff ? (
+				{files.map((file, i) =>
+					diffs[i] ? (
 						<ScrollArea
-							key={files[i].path}
+							key={file.path}
 							className="rounded-md border border-solid border-border-default text-2xs"
 							viewportClassName="max-h-64"
 							scrollBarClassName="w-1.5"
 						>
 							<FileDiff
-								fileDiff={stripNoNewline(diff)}
+								fileDiff={stripNoNewline(diffs[i]!)}
 								options={getDiffViewerOptions(isDark)}
 								style={DIFFS_FONT_STYLE}
 							/>

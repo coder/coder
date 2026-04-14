@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 )
 
@@ -15,13 +16,15 @@ type API struct {
 	logger     slog.Logger
 	filesystem afero.Fs
 	pathStore  *agentgit.PathStore
+	execer     agentexec.Execer
 }
 
-func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore) *API {
+func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore, execer agentexec.Execer) *API {
 	api := &API{
 		logger:     logger,
 		filesystem: filesystem,
 		pathStore:  pathStore,
+		execer:     execer,
 	}
 	return api
 }

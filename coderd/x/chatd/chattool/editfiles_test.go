@@ -187,14 +187,14 @@ func TestEditFiles(t *testing.T) {
 		}{
 			{
 				name:                 "SingleHomeRootPlanPath",
-				input:                `{"files":[{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+				input:                `{"files":[{"path":"/Users/dev/plan.md","ed_script":"1,$s/old/new/g"}]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",
 			},
 			{
 				name: "MultiFileBatchWithHomeRootPlanPath",
 				input: `{"files":[` +
-					`{"path":"/Users/dev/subdir/plan.md","edits":[{"search":"old","replace":"new"}]},` +
-					`{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}` +
+					`{"path":"/Users/dev/subdir/plan.md","ed_script":"1,$s/old/new/g"},` +
+					`{"path":"/Users/dev/plan.md","ed_script":"1,$s/old/new/g"}` +
 					`]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",
 			},
@@ -252,7 +252,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/plan.md","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -277,7 +277,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"plan.md","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -291,13 +291,10 @@ func TestEditFiles(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		chatPlanPath := "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md"
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: chatPlanPath,
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     chatPlanPath,
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		resolvePlanPathCalled := false
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
@@ -313,7 +310,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chatPlanPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + chatPlanPath + `","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -325,13 +322,10 @@ func TestEditFiles(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: "/home/coder/myproject/plan.md",
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     "/home/coder/myproject/plan.md",
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -345,7 +339,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -356,13 +350,10 @@ func TestEditFiles(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: "/home/coder/myproject/plan.md",
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     "/home/coder/myproject/plan.md",
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		planPathCalled := false
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
@@ -378,7 +369,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -390,13 +381,10 @@ func TestEditFiles(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: "/home/dev/my-plan.md",
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     "/home/dev/my-plan.md",
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		resolvePlanPathCalled := false
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
@@ -412,7 +400,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/dev/my-plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/dev/my-plan.md","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -424,13 +412,10 @@ func TestEditFiles(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: chattool.LegacySharedPlanPath,
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     chattool.LegacySharedPlanPath,
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -441,9 +426,39 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chattool.LegacySharedPlanPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + chattool.LegacySharedPlanPath + `","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
+	})
+
+	t.Run("ReturnsDiffInResult", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).Return(workspacesdk.FileEditResponse{
+			Diffs: []workspacesdk.FileEditDiff{
+				{Path: "/a.go", Diff: "--- a/a.go\n+++ b/a.go\n@@ -1 +1 @@\n-old\n+new\n"},
+				{Path: "/b.go", Diff: "--- a/b.go\n+++ b/b.go\n@@ -1 +1 @@\n-x\n+y\n"},
+			},
+		}, nil)
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"/a.go","ed_script":"1s/old/new/"},{"path":"/b.go","ed_script":"1s/x/y/"}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Contains(t, resp.Content, "-old")
+		assert.Contains(t, resp.Content, "+new")
+		assert.Contains(t, resp.Content, "-x")
+		assert.Contains(t, resp.Content, "+y")
 	})
 }

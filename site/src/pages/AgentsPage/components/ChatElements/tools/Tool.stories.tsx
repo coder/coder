@@ -874,6 +874,42 @@ export const EditFilesError: Story = {
 	},
 };
 
+/**
+ * Exercises the ed_script rendering path where diffs come from the
+ * tool result (unified diff text) rather than search/replace args.
+ */
+export const EditFilesEdScript: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "/home/coder/project/main.go",
+					ed_script: "1,$s/hello/goodbye/g",
+				},
+			],
+		},
+		result: [
+			"--- a//home/coder/project/main.go",
+			"+++ b//home/coder/project/main.go",
+			"@@ -1,5 +1,5 @@",
+			" package main",
+			" ",
+			" func main() {",
+			'-\tfmt.Println("hello")',
+			'+\tfmt.Println("goodbye")',
+			" }",
+			"",
+		].join("\n"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited main\.go/)).toBeInTheDocument();
+		expect(canvas.getByText(/goodbye/)).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Computer tool stories
 // ---------------------------------------------------------------------------

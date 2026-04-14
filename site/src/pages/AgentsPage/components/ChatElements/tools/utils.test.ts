@@ -22,6 +22,7 @@ import {
 	normalizeStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseEditFilesResultDiffs,
 	shortDurationMs,
 	stripSvnIndexHeaders,
 	toProviderLabel,
@@ -638,6 +639,94 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed[0].path).toBe("src/app.ts");
 		expect(parsed[0].edits).toHaveLength(0);
 		expect(buildEditDiff(parsed[0].path, parsed[0].edits)).toBeNull();
+	});
+});
+
+describe("parseEditFilesArgs with ed_script entries", () => {
+	it("parses an ed_script entry correctly", () => {
+		const args = {
+			files: [{ path: "/x", ed_script: "1d" }],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].path).toBe("/x");
+		expect(result[0].ed_script).toBe("1d");
+		expect(result[0].edits).toEqual([]);
+	});
+
+	it("filters out ed_script entries with missing path", () => {
+		const args = {
+			files: [{ ed_script: "1d" }],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(0);
+	});
+
+	it("handles mixed formats in one request", () => {
+		const args = {
+			files: [
+				{ path: "/a", ed_script: "1d" },
+				{ path: "/b", edits: [{ search: "old", replace: "new" }] },
+				{ ed_script: "2d" }, // missing path, filtered
+				{ path: "/c", edits: [{ search: "x" }] }, // incomplete edit
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(3);
+		expect(result[0].path).toBe("/a");
+		expect(result[0].ed_script).toBe("1d");
+		expect(result[1].path).toBe("/b");
+		expect(result[1].edits).toHaveLength(1);
+		expect(result[2].path).toBe("/c");
+		expect(result[2].edits).toHaveLength(0);
+	});
+});
+
+describe("parseEditFilesResultDiffs", () => {
+	it("returns empty array for empty input", () => {
+		expect(parseEditFilesResultDiffs("")).toEqual([]);
+		expect(parseEditFilesResultDiffs("   ")).toEqual([]);
+	});
+
+	it("returns empty array for malformed text", () => {
+		expect(parseEditFilesResultDiffs("this is not a diff")).toEqual([]);
+	});
+
+	it("parses a valid single-file diff", () => {
+		const patch = [
+			"--- a/file.ts",
+			"+++ b/file.ts",
+			"@@ -1,3 +1,3 @@",
+			" line1",
+			"-old",
+			"+new",
+			" line3",
+			"",
+		].join("\n");
+		const result = parseEditFilesResultDiffs(patch);
+		expect(result).toHaveLength(1);
+		expect(result[0]).not.toBeNull();
+		expect(result[0]!.name).toContain("file.ts");
+	});
+
+	it("parses valid multi-file concatenated diffs", () => {
+		const patch = [
+			"--- a/one.ts",
+			"+++ b/one.ts",
+			"@@ -1,1 +1,1 @@",
+			"-old1",
+			"+new1",
+			"--- a/two.ts",
+			"+++ b/two.ts",
+			"@@ -1,1 +1,1 @@",
+			"-old2",
+			"+new2",
+			"",
+		].join("\n");
+		const result = parseEditFilesResultDiffs(patch);
+		expect(result.length).toBeGreaterThanOrEqual(2);
+		expect(result[0]!.name).toContain("one.ts");
+		expect(result[1]!.name).toContain("two.ts");
 	});
 });
 

@@ -396,7 +396,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, a.execer)
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory

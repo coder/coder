@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -730,18 +731,19 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceEditFile", func(t *testing.T) {
 		t.Parallel()
 
+		if _, err := exec.LookPath("red"); err != nil {
+			t.Skip("red not available")
+		}
+
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		fs := afero.NewMemMapFs()
-		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
-			opts.Filesystem = fs
-		})
+		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
-		tmpdir := os.TempDir()
-		filePath := filepath.Join(tmpdir, "edit")
-		err = afero.WriteFile(fs, filePath, []byte("foo bar"), 0o644)
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "edit")
+		err = os.WriteFile(filePath, []byte("foo bar"), 0o600)
 		require.NoError(t, err)
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
@@ -749,43 +751,39 @@ func TestTools(t *testing.T) {
 			Path:      filePath,
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "must specify at least one edit")
+		require.Contains(t, err.Error(), "must specify either edits or ed_script")
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
 			Workspace: workspace.Name,
 			Path:      filePath,
-			Edits: []workspacesdk.FileEdit{
-				{
-					Search:  "foo",
-					Replace: "bar",
-				},
-			},
+			EdScript:  "1,$s/foo/bar/g",
 		})
 		require.NoError(t, err)
-		b, err := afero.ReadFile(fs, filePath)
+		b, err := os.ReadFile(filePath)
 		require.NoError(t, err)
-		require.Equal(t, "bar bar", string(b))
+		require.Equal(t, "bar bar\n", string(b))
 	})
 
 	t.Run("WorkspaceEditFiles", func(t *testing.T) {
 		t.Parallel()
 
+		if _, err := exec.LookPath("red"); err != nil {
+			t.Skip("red not available")
+		}
+
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		fs := afero.NewMemMapFs()
-		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
-			opts.Filesystem = fs
-		})
+		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
-		tmpdir := os.TempDir()
-		filePath1 := filepath.Join(tmpdir, "edit1")
-		err = afero.WriteFile(fs, filePath1, []byte("foo1 bar1"), 0o644)
+		tmpDir := t.TempDir()
+		filePath1 := filepath.Join(tmpDir, "edit1")
+		err = os.WriteFile(filePath1, []byte("foo1 bar1"), 0o600)
 		require.NoError(t, err)
 
-		filePath2 := filepath.Join(tmpdir, "edit2")
-		err = afero.WriteFile(fs, filePath2, []byte("foo2 bar2"), 0o644)
+		filePath2 := filepath.Join(tmpDir, "edit2")
+		err = os.WriteFile(filePath2, []byte("foo2 bar2"), 0o600)
 		require.NoError(t, err)
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
@@ -798,34 +796,24 @@ func TestTools(t *testing.T) {
 			Workspace: workspace.Name,
 			Files: []workspacesdk.FileEdits{
 				{
-					Path: filePath1,
-					Edits: []workspacesdk.FileEdit{
-						{
-							Search:  "foo1",
-							Replace: "bar1",
-						},
-					},
+					Path:     filePath1,
+					EdScript: "1,$s/foo1/bar1/g",
 				},
 				{
-					Path: filePath2,
-					Edits: []workspacesdk.FileEdit{
-						{
-							Search:  "foo2",
-							Replace: "bar2",
-						},
-					},
+					Path:     filePath2,
+					EdScript: "1,$s/foo2/bar2/g",
 				},
 			},
 		})
 		require.NoError(t, err)
 
-		b, err := afero.ReadFile(fs, filePath1)
+		b, err := os.ReadFile(filePath1)
 		require.NoError(t, err)
-		require.Equal(t, "bar1 bar1", string(b))
+		require.Equal(t, "bar1 bar1\n", string(b))
 
-		b, err = afero.ReadFile(fs, filePath2)
+		b, err = os.ReadFile(filePath2)
 		require.NoError(t, err)
-		require.Equal(t, "bar2 bar2", string(b))
+		require.Equal(t, "bar2 bar2\n", string(b))
 	})
 
 	t.Run("WorkspacePortForward", func(t *testing.T) {

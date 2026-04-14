@@ -1660,15 +1660,15 @@ content you are trying to write, then re-encode it properly.
 }
 
 type WorkspaceEditFileArgs struct {
-	Workspace string                  `json:"workspace"`
-	Path      string                  `json:"path"`
-	Edits     []workspacesdk.FileEdit `json:"edits"`
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	EdScript  string `json:"ed_script"`
 }
 
 var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFile,
-		Description: `Edit a file in a workspace.`,
+		Description: `Edit a file in a workspace using ed commands.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1677,28 +1677,14 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 				},
 				"path": map[string]any{
 					"type":        "string",
-					"description": "The absolute path of the file to write in the workspace.",
+					"description": "The absolute path of the file to edit in the workspace.",
 				},
-				"edits": map[string]any{
-					"type":        "array",
-					"description": "An array of edit operations.",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"search": map[string]any{
-								"type":        "string",
-								"description": "The old string to replace.",
-							},
-							"replace": map[string]any{
-								"type":        "string",
-								"description": "The new string that replaces the old string.",
-							},
-						},
-						"required": []string{"search", "replace"},
-					},
+				"ed_script": map[string]any{
+					"type":        "string",
+					"description": "An ed script to apply to the file. Do not include w or q commands.",
 				},
 			},
-			Required: []string{"path", "workspace", "edits"},
+			Required: []string{"path", "workspace", "ed_script"},
 		},
 	},
 	MCPAnnotations:     mcpDestructiveAnnotations,
@@ -1710,11 +1696,11 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+		_, err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
 			Files: []workspacesdk.FileEdits{
 				{
-					Path:  args.Path,
-					Edits: args.Edits,
+					Path:     args.Path,
+					EdScript: args.EdScript,
 				},
 			},
 		})
@@ -1728,6 +1714,10 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 	},
 }
 
+// WorkspaceEditFilesArgs reuses the wire type FileEdits which
+// carries both Edits and EdScript fields. The JSON schema gates
+// LLM input to ed_script only; the Go type stays broad for
+// backwards compatibility with direct API callers.
 type WorkspaceEditFilesArgs struct {
 	Workspace string                   `json:"workspace"`
 	Files     []workspacesdk.FileEdits `json:"files"`
@@ -1736,7 +1726,7 @@ type WorkspaceEditFilesArgs struct {
 var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFiles,
-		Description: `Edit one or more files in a workspace.`,
+		Description: `Edit one or more files in a workspace using ed commands.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1751,32 +1741,14 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 						"properties": map[string]any{
 							"path": map[string]any{
 								"type":        "string",
-								"description": "The absolute path of the file to write in the workspace.",
+								"description": "The absolute path of the file to edit in the workspace.",
 							},
-							"edits": map[string]any{
-								"type":        "array",
-								"description": "An array of edit operations.",
-								"items": map[string]any{
-									"type": "object",
-									"properties": map[string]any{
-										"search": map[string]any{
-											"type":        "string",
-											"description": "The old string to replace. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
-										},
-										"replace": map[string]any{
-											"type":        "string",
-											"description": "The new string that replaces the old string.",
-										},
-										"replace_all": map[string]any{
-											"type":        "boolean",
-											"description": "When true, replaces all occurrences of the search string. Defaults to false, which requires the search string to match exactly once.",
-										},
-									},
-									"required": []string{"search", "replace"},
-								},
+							"ed_script": map[string]any{
+								"type":        "string",
+								"description": "An ed script to apply to the file. Do not include w or q commands.",
 							},
 						},
-						"required": []string{"path", "edits"},
+						"required": []string{"path", "ed_script"},
 					},
 				},
 			},
@@ -1792,7 +1764,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		_, err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
 		if err != nil {
 			return codersdk.Response{}, err
 		}

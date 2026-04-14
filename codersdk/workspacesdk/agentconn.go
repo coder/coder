@@ -86,7 +86,7 @@ type AgentConn interface {
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
-	EditFiles(ctx context.Context, edits FileEditRequest) error
+	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -1037,12 +1037,25 @@ type FileEdit struct {
 }
 
 type FileEdits struct {
-	Path  string     `json:"path"`
-	Edits []FileEdit `json:"edits"`
+	Path     string     `json:"path"`
+	Edits    []FileEdit `json:"edits,omitempty"`
+	EdScript string     `json:"ed_script,omitempty"`
 }
 
 type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
+}
+
+// FileEditResponse is the response from the agent's edit-files
+// endpoint. It carries per-file diffs back to the caller.
+type FileEditResponse struct {
+	Diffs []FileEditDiff `json:"diffs,omitempty"`
+}
+
+// FileEditDiff holds a unified diff for a single edited file.
+type FileEditDiff struct {
+	Path string `json:"path"`
+	Diff string `json:"diff"`
 }
 
 // ListMCPToolsResponse is the response from the agent's
@@ -1218,25 +1231,26 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 	return nil
 }
 
-// EditFiles performs search and replace edits on one or more files.
-func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error {
+// EditFiles performs edits on one or more files via the workspace
+// agent. Returns per-file diffs on success.
+func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
-		return xerrors.Errorf("decode response body: %w", err)
+	var resp FileEditResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return FileEditResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
-	return nil
+	return resp, nil
 }
 
 func agentAPIPath(path string, query neturl.Values) string {

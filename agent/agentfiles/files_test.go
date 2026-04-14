@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +25,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
@@ -121,7 +123,7 @@ func TestReadFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
 
 	dirPath := filepath.Join(tmpdir, "a-directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -301,7 +303,7 @@ func TestWriteFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -405,7 +407,7 @@ func TestWriteFile_ReportsIOError(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
 
 	tmpdir := os.TempDir()
 	path := filepath.Join(tmpdir, "write-io-error")
@@ -446,7 +448,7 @@ func TestWriteFile_PreservesPermissions(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, agentexec.DefaultExecer)
 
 	path := filepath.Join(dir, "script.sh")
 	err := afero.WriteFile(osFs, path, []byte("#!/bin/sh\necho hello\n"), 0o755)
@@ -496,7 +498,7 @@ func TestEditFiles(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -570,7 +572,7 @@ func TestEditFiles(t *testing.T) {
 				},
 			},
 			errCode: http.StatusBadRequest,
-			errors:  []string{"must specify at least one edit"},
+			errors:  []string{"must specify either edits or ed_script"},
 		},
 		{
 			name: "NonExistent",
@@ -1072,7 +1074,7 @@ func TestEditFiles_PreservesPermissions(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, agentexec.DefaultExecer)
 
 	path := filepath.Join(dir, "script.sh")
 	err := afero.WriteFile(osFs, path, []byte("#!/bin/sh\necho hello\n"), 0o755)
@@ -1129,7 +1131,7 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, agentexec.DefaultExecer)
 
 	testPath := filepath.Join(os.TempDir(), "test.txt")
 
@@ -1163,7 +1165,7 @@ func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, agentexec.DefaultExecer)
 
 	testPath := filepath.Join(os.TempDir(), "test.txt")
 
@@ -1187,7 +1189,7 @@ func TestHandleWriteFile_Failure_NoPathStoreUpdate(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, agentexec.DefaultExecer)
 
 	chatID := uuid.New()
 
@@ -1214,7 +1216,7 @@ func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, agentexec.DefaultExecer)
 
 	testPath := filepath.Join(os.TempDir(), "test.txt")
 
@@ -1254,7 +1256,7 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, agentexec.DefaultExecer)
 
 	chatID := uuid.New()
 
@@ -1286,6 +1288,45 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 	require.Empty(t, paths)
 }
 
+func TestHandleEditFiles_EdScript_UpdatesPathStore(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("red"); err != nil {
+		t.Skip("red (restricted ed) not available, install ed package")
+	}
+
+	pathStore := agentgit.NewPathStore()
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, fs, pathStore, agentexec.DefaultExecer)
+
+	dir := t.TempDir()
+	testPath := filepath.Join(dir, "ed-pathstore.txt")
+	require.NoError(t, os.WriteFile(testPath, []byte("hello\n"), 0o600))
+
+	chatID := uuid.New()
+	editReq := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{{
+			Path:     testPath,
+			EdScript: "1s/hello/world/",
+		}},
+	}
+	body, _ := json.Marshal(editReq)
+	req := httptest.NewRequest(http.MethodPost, "/edit-files", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/edit-files", api.HandleEditFiles)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	paths := pathStore.GetPaths(chatID)
+	require.Equal(t, []string{testPath}, paths)
+}
+
 func TestReadFileLines(t *testing.T) {
 	t.Parallel()
 
@@ -1299,7 +1340,7 @@ func TestReadFileLines(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
 
 	dirPath := filepath.Join(tmpdir, "a-directory-lines")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -1481,7 +1522,7 @@ func TestWriteFile_FollowsSymlinks(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, agentexec.DefaultExecer)
 
 	// Create a real file and a symlink pointing to it.
 	realPath := filepath.Join(dir, "real.txt")
@@ -1524,7 +1565,7 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, agentexec.DefaultExecer)
 
 	// Create a real file and a symlink pointing to it.
 	realPath := filepath.Join(dir, "real.txt")
@@ -1571,4 +1612,328 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	data, err := os.ReadFile(realPath)
 	require.NoError(t, err)
 	require.Equal(t, "goodbye world", string(data))
+}
+
+func TestEditFiles_EdScript(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("red"); err != nil {
+		t.Skip("red (restricted ed) not available, install ed package")
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
+
+	tmpdir := t.TempDir()
+
+	writeFile := func(t *testing.T, name, content string) string {
+		t.Helper()
+		p := filepath.Join(tmpdir, name)
+		err := os.WriteFile(p, []byte(content), 0o600)
+		require.NoError(t, err)
+		return p
+	}
+
+	readFile := func(t *testing.T, path string) string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		return string(data)
+	}
+
+	runEditFiles := func(t *testing.T, req workspacesdk.FileEditRequest) *httptest.ResponseRecorder {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		buf := bytes.NewBuffer(nil)
+		enc := json.NewEncoder(buf)
+		enc.SetEscapeHTML(false)
+		err := enc.Encode(req)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+		api.Routes().ServeHTTP(w, r)
+		return w
+	}
+
+	t.Run("Substitute", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "sub.txt", "hello world\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "1s/hello/goodbye/",
+			}},
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "goodbye world\n", readFile(t, path))
+
+		var resp workspacesdk.FileEditResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Diffs, 1)
+		require.Equal(t, path, resp.Diffs[0].Path)
+		require.Contains(t, resp.Diffs[0].Diff, "-hello world")
+		require.Contains(t, resp.Diffs[0].Diff, "+goodbye world")
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "del.txt", "line1\nline2\nline3\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "2d",
+			}},
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "line1\nline3\n", readFile(t, path))
+
+		var resp workspacesdk.FileEditResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Diffs, 1)
+		require.Contains(t, resp.Diffs[0].Diff, "-line2")
+	})
+
+	t.Run("Append", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "append.txt", "line1\nline2\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "2a\nline3\n.",
+			}},
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "line1\nline2\nline3\n", readFile(t, path))
+
+		var resp workspacesdk.FileEditResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Diffs, 1)
+		require.Contains(t, resp.Diffs[0].Diff, "+line3")
+	})
+
+	t.Run("Change", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "change.txt", "line1\nline2\nline3\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "2c\nreplaced\n.",
+			}},
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "line1\nreplaced\nline3\n", readFile(t, path))
+
+		var resp workspacesdk.FileEditResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Diffs, 1)
+		require.Contains(t, resp.Diffs[0].Diff, "-line2")
+		require.Contains(t, resp.Diffs[0].Diff, "+replaced")
+	})
+
+	t.Run("RegexAddress", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "regex.txt", "foo\nbar\nbaz\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "/bar/s/bar/BAR/",
+			}},
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "foo\nBAR\nbaz\n", readFile(t, path))
+
+		var resp workspacesdk.FileEditResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Diffs, 1)
+		require.Contains(t, resp.Diffs[0].Diff, "-bar")
+		require.Contains(t, resp.Diffs[0].Diff, "+BAR")
+	})
+
+	t.Run("BadLineNumber", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "badline.txt", "only one line\n")
+		original := readFile(t, path)
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "999d",
+			}},
+		})
+		require.Equal(t, http.StatusInternalServerError, w.Code)
+		// Original file untouched.
+		require.Equal(t, original, readFile(t, path))
+	})
+
+	t.Run("EmptyEdScript", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "empty.txt", "content\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: path,
+			}},
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("BothEditsAndEdScript", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "both.txt", "content\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     path,
+				EdScript: "1d",
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "content",
+					Replace: "replaced",
+				}},
+			}},
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		var got codersdk.Error
+		err := json.NewDecoder(w.Body).Decode(&got)
+		require.NoError(t, err)
+		require.Contains(t, got.Error(), "cannot specify both edits and ed_script")
+	})
+
+	t.Run("NonExistentFile", func(t *testing.T) {
+		t.Parallel()
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:     filepath.Join(tmpdir, "does-not-exist.txt"),
+				EdScript: "1d",
+			}},
+		})
+		require.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("MultiBatch", func(t *testing.T) {
+		t.Parallel()
+		path1 := writeFile(t, "batch1.txt", "aaa\n")
+		path2 := writeFile(t, "batch2.txt", "bbb\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{Path: path1, EdScript: "1s/aaa/AAA/"},
+				{Path: path2, EdScript: "1s/bbb/BBB/"},
+			},
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "AAA\n", readFile(t, path1))
+		require.Equal(t, "BBB\n", readFile(t, path2))
+
+		var resp workspacesdk.FileEditResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Len(t, resp.Diffs, 2)
+		require.Equal(t, path1, resp.Diffs[0].Path)
+		require.Equal(t, path2, resp.Diffs[1].Path)
+		require.Contains(t, resp.Diffs[0].Diff, "-aaa")
+		require.Contains(t, resp.Diffs[1].Diff, "-bbb")
+	})
+
+	t.Run("FirstFileFailureStops", func(t *testing.T) {
+		t.Parallel()
+		path1 := writeFile(t, "fail1.txt", "one line\n")
+		path2 := writeFile(t, "fail2.txt", "bbb\n")
+		original2 := readFile(t, path2)
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{Path: path1, EdScript: "999d"},
+				{Path: path2, EdScript: "1s/bbb/BBB/"},
+			},
+		})
+		// First file fails during ed execution, processing
+		// stops and the request returns an error.
+		require.NotEqual(t, http.StatusOK, w.Code)
+		// Both files untouched.
+		require.Equal(t, "one line\n", readFile(t, path1))
+		require.Equal(t, original2, readFile(t, path2))
+	})
+
+	t.Run("SecondFileFailureFirstCommitted", func(t *testing.T) {
+		t.Parallel()
+		path1 := writeFile(t, "commit1.txt", "aaa\n")
+		path2 := writeFile(t, "commit2.txt", "one line\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{Path: path1, EdScript: "1s/aaa/AAA/"},
+				{Path: path2, EdScript: "999d"},
+			},
+		})
+		// Second file fails; request returns error.
+		require.NotEqual(t, http.StatusOK, w.Code)
+		// First file IS committed (partial write, documented
+		// limitation matching search/replace behavior).
+		require.Equal(t, "AAA\n", readFile(t, path1))
+		// Second file untouched.
+		require.Equal(t, "one line\n", readFile(t, path2))
+	})
+
+	t.Run("DuplicateEdScriptPath", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "dup.txt", "content\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{Path: path, EdScript: "1s/content/a/"},
+				{Path: path, EdScript: "1s/content/b/"},
+			},
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		var got codersdk.Error
+		err := json.NewDecoder(w.Body).Decode(&got)
+		require.NoError(t, err)
+		require.Contains(t, got.Error(), "duplicate file path")
+		// File untouched.
+		require.Equal(t, "content\n", readFile(t, path))
+	})
+}
+
+func TestEditFiles_EdScript_PreservesPermissions(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("red"); err != nil {
+		t.Skip("red (restricted ed) not available, install ed package")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions are not reliably supported on Windows")
+	}
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, fs, nil, agentexec.DefaultExecer)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "perms.sh")
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\necho hello\n"), 0o755)) //nolint:gosec // Testing permission preservation requires non-0600 mode.
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	err := enc.Encode(workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{{
+			Path:     path,
+			EdScript: "1,$s/hello/goodbye/",
+		}},
+	})
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
 }

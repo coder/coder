@@ -1,4 +1,5 @@
 import { useTheme } from "@emotion/react";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
@@ -50,6 +51,7 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseEditFilesResultDiffs,
 	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
@@ -383,9 +385,29 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	const editDiffs = editFiles.map((file) =>
-		buildEditDiff(file.path, file.edits),
-	);
+
+	// Prefer diffs from the tool result (ed_script path) over
+	// synthetic diffs built from search/replace args.
+	const resultText = typeof result === "string" ? result : "";
+	const resultDiffs = parseEditFilesResultDiffs(resultText);
+	let editDiffs: (FileDiffMetadata | null)[];
+	if (resultDiffs.length > 0) {
+		// Match diffs to files by path. Diff headers use
+		// "b/<fullpath>" from --label flags.
+		const diffByPath = new Map<string, FileDiffMetadata>();
+		for (const d of resultDiffs) {
+			if (d) {
+				// name is "b//home/user/file.go" from --label
+				const path = d.name?.replace(/^b\//, "") ?? "";
+				if (path) diffByPath.set(path, d);
+			}
+		}
+		editDiffs = editFiles.map((file) => {
+			return diffByPath.get(file.path) ?? null;
+		});
+	} else {
+		editDiffs = editFiles.map((file) => buildEditDiff(file.path, file.edits));
+	}
 
 	return (
 		<EditFilesTool
@@ -393,7 +415,15 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 			diffs={editDiffs}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={
+				isError
+					? rec
+						? asString(rec.error || rec.message)
+						: typeof result === "string"
+							? result
+							: undefined
+					: undefined
+			}
 		/>
 	);
 };
@@ -406,6 +436,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	isError,
 }) => {
 	const rec = asRecord(result);
+
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
