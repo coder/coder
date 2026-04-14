@@ -12,7 +12,7 @@ coder secret update [flags] <name>
 ## Description
 
 ```console
-At least one of --value, --value-env, --description, --env, or --file must be specified. Provide the secret value by at most one of --value, --value-env, or non-interactive stdin (pipe or redirect).
+At least one of --value, --description, --env, or --file must be specified. Provide the secret value by at most one of --value or non-interactive stdin (pipe or redirect).
 ```
 
 ## Options
@@ -23,23 +23,7 @@ At least one of --value, --value-env, --description, --env, or --file must be sp
 |------|---------------------|
 | Type | <code>string</code> |
 
-Update the secret value. For security reasons, prefer --value-env or non-interactive stdin (pipe or redirect).
-
-### --value-env
-
-|      |                     |
-|------|---------------------|
-| Type | <code>string</code> |
-
-Read the updated secret value from the named environment variable.
-
-### --trim-trailing-newline
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Trim a single trailing newline from stdin-provided secret values.
+Update the secret value. For security reasons, prefer non-interactive stdin (pipe or redirect).
 
 ### --description
 
@@ -55,7 +39,7 @@ Update the secret description. Pass an empty string to clear it.
 |------|---------------------|
 | Type | <code>string</code> |
 
-Update the environment variable injection target. Pass an empty string to clear it.
+Name of the workspace environment variable that this secret will set. Pass an empty string to clear it.
 
 ### --file
 
@@ -63,4 +47,4 @@ Update the environment variable injection target. Pass an empty string to clear 
 |------|---------------------|
 | Type | <code>string</code> |
 
-Update the file injection target. Pass an empty string to clear it.
+Workspace file path where this secret will be written. Must start with ~/ or /. Pass an empty string to clear it.

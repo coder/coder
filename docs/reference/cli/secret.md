@@ -22,7 +22,7 @@ coder secret
 
   - Update a secret:
 
-     $ MYCLI_API_KEY="$NEW_SECRET_VALUE" coder secret update api-key --value-env MYCLI_API_KEY --description "Rotated API key" --env API_KEY --file "~/.api-key"
+     $ echo -n "$NEW_SECRET_VALUE" | coder secret update api-key --description "Rotated API key" --env API_KEY --file "~/.api-key"
 
   - List your secrets:
 
