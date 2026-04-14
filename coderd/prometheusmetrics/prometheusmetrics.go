@@ -298,7 +298,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "first_connection_seconds",
-		Help:      "Duration from agent creation to first connection in seconds.",
+		Help:      "Duration from agent creation to first connection to the control plane in seconds.",
 		Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
 	}, []string{agentmetrics.LabelTemplateName, agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName})
 	err = registerer.Register(agentsFirstConnectionHistogram)
@@ -365,7 +365,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					if _, alreadyObserved := observedFirstConnection[agent.WorkspaceAgent.ID]; !alreadyObserved {
 						duration := agent.WorkspaceAgent.FirstConnectedAt.Time.Sub(agent.WorkspaceAgent.CreatedAt).Seconds()
 						if duration < 0 {
-							logger.Warn(ctx, "negative agent first connection duration, possible clock skew",
+							logger.Warn(ctx, "negative agent first connection duration (possible clock skew); dropping sample",
 								slog.F("agent_id", agent.WorkspaceAgent.ID),
 								slog.F("created_at", agent.WorkspaceAgent.CreatedAt),
 								slog.F("first_connected_at", agent.WorkspaceAgent.FirstConnectedAt.Time),
