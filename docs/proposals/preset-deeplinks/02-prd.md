@@ -65,6 +65,7 @@ https://coder.example.com/templates/<org>/<template>/workspace?preset=<preset-na
 The workspace creation page (`/templates/<org>/<template>/workspace`) must accept an optional `preset` query parameter whose value is the preset name.
 
 **Behavior**:
+
 - When `preset=<name>` is present, the `CreateWorkspacePage` component resolves the preset by matching the URL value against the `Name` field of presets returned by `templateVersionPresetsQuery`.
 - Resolution must wait for `templateVersionPresetsQuery` to settle before proceeding.
 - The preset's parameters are applied as autofill values, identical to selecting the preset from the UI dropdown.
@@ -79,6 +80,7 @@ The workspace creation page (`/templates/<org>/<template>/workspace`) must accep
 `preset` and `param.*` cannot be combined in the same deeplink. This matches the frontend UI behavior: when a preset is selected, its parameters are **disabled** (read-only) and **hidden** by default. Users cannot override individual preset parameter values — they must either use the preset as-is or not use a preset at all.
 
 **Behavior when both are present**:
+
 - If `preset=<name>` and any `param.*` values are both present in the URL, `preset` takes precedence and all `param.*` values are **ignored**.
 - The form displays an inline notice: "Preset selected — `param.*` URL parameters have been ignored. Use either `preset` or `param.*`, not both."
 - `template_version_preset_id` is preserved on submission (the preset is not compromised).
@@ -129,6 +131,7 @@ The "Open in Coder" embed page update is deferred to a follow-up PR. Rationale:
 - The experimental embed page uses a WebSocket-based dynamic parameter system with no preset awareness, making integration nontrivial.
 
 When implemented, the embed page should:
+
 - Show a preset selector.
 - When a preset is selected, generate the URL with `preset=<name>` instead of individual `param.*` values.
 - Show a warning for preset names that require heavy URL encoding.
@@ -159,6 +162,7 @@ Preset names with spaces or special characters are handled via standard URL perc
 ### Preset Name Instability (High)
 
 Preset names are free-form text, not slugs, and are scoped to template versions. If a template author renames "ML Large" to "ML - Large" in a new version, every deeplink with `preset=ML%20Large` silently breaks. Mitigation:
+
 - Documentation guidance recommending stable, slug-like preset names for deeplink use.
 - Clear error messages when preset names are not found (R4).
 - Future work: optional slug/alias field on presets for URL-stable references.

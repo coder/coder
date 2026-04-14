@@ -80,6 +80,7 @@ configurations that are impossible to create through the UI.
 When a URL preset is resolved, its parameters are merged into the
 `autofillParameters` array (with `source: "url"`) before being passed to
 the view. This ensures:
+
 - Preset values are included in the initial `sendInitialParameters`
   WebSocket call, avoiding a flash of default values.
 - The data flow matches the existing `param.*` pipeline.
@@ -314,6 +315,7 @@ const shouldShowLoader =
 ```
 
 **Tests** (Storybook stories for `CreateWorkspacePageView`):
+
 - `preset=<valid-name>` → preset selected in dropdown, parameters applied
 - `preset=<invalid-name>` → error shown with version ID, no preset selected
 - `preset=<name>&param.cpu=16` → preset applied, `param.*` ignored, notice shown
@@ -445,6 +447,7 @@ Note: `URLSearchParams.get()` returns the first value when multiple
 without additional code.
 
 **Tests** (stories/integration tests for `CreateWorkspacePage`):
+
 - `mode=auto&preset=<valid>` → consent dialog shows preset name,
   auto-creates with preset ID in request
 - `mode=auto&preset=<invalid>` → falls back to form mode with error
@@ -486,6 +489,7 @@ avoids a new API surface.
 ### 2. Preset ID in URL instead of name
 
 Use `preset_id=<uuid>` instead of `preset=<name>`. Rejected because:
+
 - UUIDs are opaque and not human-readable in URLs.
 - Preset IDs change across template versions (new version = new preset
   rows).
@@ -494,6 +498,7 @@ Use `preset_id=<uuid>` instead of `preset=<name>`. Rejected because:
 ### 3. Case-insensitive matching
 
 Match preset names case-insensitively. Deferred because:
+
 - The database constraint is case-sensitive.
 - Introducing case-insensitive matching in the frontend but not the
   backend creates inconsistency.
@@ -503,6 +508,7 @@ Match preset names case-insensitively. Deferred because:
 
 Apply preset parameters only through the existing `useEffect` that fires
 when `selectedPresetIndex` changes. Rejected because:
+
 - Preset values would not be included in `sendInitialParameters`, causing
   a flash of default values before the effect runs.
 - The auto-create path would send empty `buildParameters` for
@@ -515,6 +521,7 @@ when `selectedPresetIndex` changes. Rejected because:
 
 Allow `param.*` URL values to override individual preset parameter values,
 clearing the preset ID from submission. Rejected because:
+
 - The UI does not allow this — when a preset is selected, its parameters
   are disabled (read-only) and hidden by default.
 - Allowing overrides in deeplinks but not in the UI creates an
@@ -530,6 +537,7 @@ This is a frontend-only change with no feature flag required. The `preset`
 query parameter is additive — existing URLs without it work unchanged.
 
 **Rollout sequence**:
+
 1. **PR 1**: Fix presets query version scoping. Land independently. Note
    behavioral change for `?version=<id>` users in PR description.
 2. **PR 2**: Core `preset` param + form mode. Covers R1, R2, R4, R5, R6,
