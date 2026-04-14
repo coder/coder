@@ -132,6 +132,12 @@ export const WithAllApps: Story = {
 			expect(body.getByText("Open Terminal")).toBeInTheDocument();
 			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
+
+			// Verify items are enabled on a running workspace.
+			const vscodeItem = body
+				.getByText("Open in VS Code")
+				.closest("[role=menuitem]");
+			expect(vscodeItem).not.toHaveAttribute("aria-disabled", "true");
 		});
 	},
 };

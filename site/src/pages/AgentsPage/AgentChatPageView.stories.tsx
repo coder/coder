@@ -363,7 +363,13 @@ export const NoModelOptions: Story = {
 };
 
 export const WithWorkspace: Story = {
-	render: () => <StoryAgentChatPageView sshCommand="ssh coder.workspace" />,
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
 };
 
 // ---------------------------------------------------------------------------
