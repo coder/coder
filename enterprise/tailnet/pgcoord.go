@@ -741,17 +741,28 @@ func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
 	resp := new(proto.CoordinateResponse)
 
+	skipped := 0
 	for k, mpng := range best {
 		var reason string
 		sm, ok := m.sent[k]
 		switch {
 		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
 			// we don't need to send a "lost" update if we've never sent an update about this peer
+			m.logger.Debug(m.ctx, "skipping peer update",
+				slog.F("peer_id", k),
+				slog.F("reason", "new_lost_skip"),
+			)
+			skipped++
 			continue
 		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			reason = "new"
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
 			// was lost and remains lost, no update needed
+			m.logger.Debug(m.ctx, "skipping peer update",
+				slog.F("peer_id", k),
+				slog.F("reason", "still_lost_skip"),
+			)
+			skipped++
 			continue
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			reason = "found"
@@ -761,9 +772,15 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			eq, err := sm.node.Equal(mpng.node)
 			if err != nil {
 				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.node))
+				skipped++
 				continue
 			}
 			if eq {
+				m.logger.Debug(m.ctx, "skipping peer update",
+					slog.F("peer_id", k),
+					slog.F("reason", "node_unchanged_skip"),
+				)
+				skipped++
 				continue
 			}
 			reason = "update"
@@ -776,6 +793,11 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 		})
 		m.sent[k] = mpng
 	}
+	m.logger.Debug(m.ctx, "bestToUpdate summary",
+		slog.F("total_best", len(best)),
+		slog.F("updates_sent", len(resp.PeerUpdates)),
+		slog.F("skipped", skipped),
+	)
 
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
