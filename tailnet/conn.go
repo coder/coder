@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -605,7 +606,9 @@ func (c *Conn) DERPMap() *tailcfg.DERPMap {
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 	c.logger.Debug(context.Background(), "awaiting reachable",
 		slog.F("target_ip", ip),
+		slog.F("node_key", c.Node().Key.ShortString()),
 	)
+	var pingAttempts atomic.Int32
 	result, _, _ := c.awaitReachableGroup.Do(ip.String(), func() (interface{}, error) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel() // Cancel all pending pings on exit.
@@ -614,6 +617,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		defer completed()
 
 		run := func() {
+			pingAttempts.Add(1)
 			// Safety timeout, initially we'll have around 10-20 goroutines
 			// running in parallel. The exponential backoff will converge
 			// around ~1 ping / 30s, this means we'll have around 10-20
@@ -663,6 +667,8 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 	c.logger.Debug(context.Background(), "await reachable complete",
 		slog.F("target_ip", ip),
 		slog.F("reachable", reachable),
+		slog.F("ping_attempts", pingAttempts.Load()),
+		slog.F("node_key", c.Node().Key.ShortString()),
 	)
 	return reachable
 }

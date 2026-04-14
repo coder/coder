@@ -465,7 +465,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lost:          false,
 		}
 		c.peers[id] = lc
-		logger.Debug(context.Background(), "adding new peer")
+		logger.Debug(context.Background(), "adding new peer", slog.F("addresses", lc.node.Addresses))
 		return lc.validForWireguard()
 	case peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
 		// update
