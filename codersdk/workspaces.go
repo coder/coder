@@ -624,7 +624,7 @@ func splitWorkspaceIdentifier(identifier string) (owner, name string, err error)
 	case 2:
 		return parts[0], parts[1], nil
 	default:
-		return "", "", xerrors.Errorf("invalid workspace identifier: %q", identifier)
+		return "", "", xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 }
 
