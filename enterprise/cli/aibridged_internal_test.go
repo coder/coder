@@ -14,22 +14,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-// builtinProviderNames are the providers that buildProviders always registers
-// unless explicitly overridden.
-var builtinProviderNames = []string{
-	aibridge.ProviderCopilot,
-	agplaibridge.ProviderCopilotBusiness,
-	agplaibridge.ProviderCopilotEnterprise,
-	agplaibridge.ProviderChatGPT,
-}
-
-func assertHasBuiltins(t *testing.T, names []string) {
-	t.Helper()
-	for _, b := range builtinProviderNames {
-		assert.Contains(t, names, b)
-	}
-}
-
 func TestBuildProviders(t *testing.T) {
 	t.Parallel()
 
@@ -37,10 +21,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		providers, err := buildProviders(codersdk.AIBridgeConfig{})
 		require.NoError(t, err)
-
-		names := providerNames(providers)
-		assertHasBuiltins(t, names)
-		assert.Len(t, names, len(builtinProviderNames))
+		assert.Empty(t, providers)
 	})
 
 	t.Run("LegacyOnly", func(t *testing.T) {
@@ -53,9 +34,9 @@ func TestBuildProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		names := providerNames(providers)
-		assertHasBuiltins(t, names)
 		assert.Contains(t, names, aibridge.ProviderOpenAI)
 		assert.Contains(t, names, aibridge.ProviderAnthropic)
+		assert.Len(t, names, 2)
 	})
 
 	t.Run("IndexedOnly", func(t *testing.T) {
@@ -71,11 +52,7 @@ func TestBuildProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		names := providerNames(providers)
-		assertHasBuiltins(t, names)
-		assert.Contains(t, names, "anthropic-zdr")
-		assert.Contains(t, names, "openai-azure")
-		assert.NotContains(t, names, aibridge.ProviderOpenAI)
-		assert.NotContains(t, names, aibridge.ProviderAnthropic)
+		assert.Equal(t, []string{"anthropic-zdr", "openai-azure"}, names)
 	})
 
 	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
@@ -104,25 +81,6 @@ func TestBuildProviders(t *testing.T) {
 		_, err := buildProviders(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "conflicts with indexed provider")
-	})
-
-	t.Run("IndexedOverridesBuiltin", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot, BaseURL: "https://custom.copilot.com"},
-			},
-		}
-
-		providers, err := buildProviders(cfg)
-		require.NoError(t, err)
-
-		for _, p := range providers {
-			if p.Name() == aibridge.ProviderCopilot {
-				assert.Equal(t, "https://custom.copilot.com", p.BaseURL())
-				break
-			}
-		}
 	})
 
 	t.Run("MixedLegacyAndIndexed", func(t *testing.T) {
@@ -156,7 +114,7 @@ func TestBuildProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		names := providerNames(providers)
-		assert.Contains(t, names, aibridge.ProviderAnthropic)
+		assert.Equal(t, []string{aibridge.ProviderAnthropic}, names)
 	})
 
 	t.Run("UnknownType", func(t *testing.T) {
@@ -170,6 +128,47 @@ func TestBuildProviders(t *testing.T) {
 		_, err := buildProviders(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown provider type")
+	})
+
+	t.Run("CopilotVariants", func(t *testing.T) {
+		t.Parallel()
+		// Copilot providers can target any of the three GitHub
+		// Copilot API hosts via an explicit BASE_URL.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot},
+				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
+				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotEnterprise, BaseURL: "https://" + agplaibridge.HostCopilotEnterprise},
+			},
+		}
+
+		providers, err := buildProviders(cfg)
+		require.NoError(t, err)
+		require.Len(t, providers, 3)
+
+		assert.Equal(t, aibridge.ProviderCopilot, providers[0].Name())
+		assert.Equal(t, agplaibridge.ProviderCopilotBusiness, providers[1].Name())
+		assert.Equal(t, "https://"+agplaibridge.HostCopilotBusiness, providers[1].BaseURL())
+		assert.Equal(t, agplaibridge.ProviderCopilotEnterprise, providers[2].Name())
+		assert.Equal(t, "https://"+agplaibridge.HostCopilotEnterprise, providers[2].BaseURL())
+	})
+
+	t.Run("ChatGPTProvider", func(t *testing.T) {
+		t.Parallel()
+		// ChatGPT is an OpenAI-compatible provider with a custom
+		// base URL. Admins configure it as an indexed openai provider.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderOpenAI, Name: agplaibridge.ProviderChatGPT, BaseURL: agplaibridge.BaseURLChatGPT},
+			},
+		}
+
+		providers, err := buildProviders(cfg)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+
+		assert.Equal(t, agplaibridge.ProviderChatGPT, providers[0].Name())
+		assert.Equal(t, agplaibridge.BaseURLChatGPT, providers[0].BaseURL())
 	})
 }
 

@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/config"
-	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -44,13 +43,11 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 }
 
 // buildProviders constructs the list of aibridge providers from config.
-// It merges legacy single-provider env vars, indexed provider configs, and
-// built-in providers (copilot variants, chatgpt):
+// It merges legacy single-provider env vars and indexed provider configs:
 //  1. Legacy providers (from CODER_AIBRIDGE_OPENAI_KEY, etc.) are added first.
 //     If a legacy name conflicts with an indexed provider, startup fails with
 //     a clear error asking the admin to remove one or the other.
 //  2. Indexed providers (from CODER_AIBRIDGE_PROVIDER_<N>_*) are added next.
-//  3. Built-in providers are always added unless their name is already claimed.
 func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	var cbConfig *config.CircuitBreaker
 	if cfg.CircuitBreakerEnabled.Value() {
@@ -65,8 +62,8 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	var providers []aibridge.Provider
 	usedNames := make(map[string]struct{})
 
-	// Collect names from indexed providers so we know which legacy/builtin
-	// providers to skip.
+	// Collect names from indexed providers so we can detect conflicts
+	// with legacy providers.
 	for _, p := range cfg.Providers {
 		name := p.Name
 		if name == "" {
@@ -138,27 +135,6 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 			return nil, xerrors.Errorf("unknown provider type %q for provider %q", p.Type, name)
 		}
 	}
-
-	// Always add built-in providers unless their name is already claimed.
-	addBuiltin := func(name string, p aibridge.Provider) {
-		if _, exists := usedNames[name]; !exists {
-			providers = append(providers, p)
-			usedNames[name] = struct{}{}
-		}
-	}
-	addBuiltin(aibridge.ProviderCopilot, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-		Name: aibridge.ProviderCopilot, CircuitBreaker: cbConfig,
-	}))
-	addBuiltin(agplaibridge.ProviderCopilotBusiness, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-		Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness, CircuitBreaker: cbConfig,
-	}))
-	addBuiltin(agplaibridge.ProviderCopilotEnterprise, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-		Name: agplaibridge.ProviderCopilotEnterprise, BaseURL: "https://" + agplaibridge.HostCopilotEnterprise, CircuitBreaker: cbConfig,
-	}))
-	addBuiltin(agplaibridge.ProviderChatGPT, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-		Name: agplaibridge.ProviderChatGPT, BaseURL: agplaibridge.BaseURLChatGPT, CircuitBreaker: cbConfig,
-		SendActorHeaders: cfg.SendActorHeaders.Value(),
-	}))
 
 	return providers, nil
 }
