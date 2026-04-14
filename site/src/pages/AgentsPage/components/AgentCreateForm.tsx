@@ -375,19 +375,33 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	});
 	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
 
-	// Clear invalid selections when permission filtering removes the
-	// selected org. Uses the React render-time adjustment pattern
-	// (same as CreateTemplateForm) instead of useEffect.
+	// Reconcile selectedOrg when permission filtering removes it.
+	// Only pure state setters run during render; side effects
+	// (localStorage, blob URL cleanup) run in the effect below.
 	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
+	const [orgWasAdjusted, setOrgWasAdjusted] = useState(false);
 	if (permittedOrgs !== prevPermittedOrgs) {
 		setPrevPermittedOrgs(permittedOrgs);
 		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
-			const fallback = permittedOrgs[0] ?? null;
-			setSelectedOrg(fallback);
-			handleWorkspaceChange(null);
-			resetAttachments();
+			setSelectedOrg(permittedOrgs[0] ?? null);
+			setOrgWasAdjusted(true);
 		}
 	}
+
+	// Clean up workspace and attachment state after a programmatic
+	// org change from permission filtering. These calls have side
+	// effects (localStorage, blob URL revocation) that must not
+	// run during render.
+	const onOrgAdjusted = useEffectEvent(() => {
+		handleWorkspaceChange(null);
+		resetAttachments();
+	});
+	useEffect(() => {
+		if (orgWasAdjusted) {
+			setOrgWasAdjusted(false);
+			onOrgAdjusted();
+		}
+	}, [orgWasAdjusted]);
 
 	return (
 		<>

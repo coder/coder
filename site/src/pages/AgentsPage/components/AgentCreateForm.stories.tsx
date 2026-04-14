@@ -337,28 +337,16 @@ export const WithOrganizationPicker: Story = {
 };
 
 /**
- * Regression test for an infinite render loop caused by an unstable
- * array reference in the `permittedOrgs` fallback. When
- * `permittedOrgsQuery.data` is undefined (single-org mode or while
- * loading), the fallback must be referentially stable — otherwise
- * the render-time adjustment pattern fires `setState` every render,
- * hitting React's maximum update depth limit.
- *
- * This story reproduces the conditions: multi-org enabled with the
- * permission query still loading (data = undefined), so the
- * fallback path is exercised. The `play` function types into the
- * input to trigger re-renders that surface the loop.
+ * Regression guard for the multi-org code path. Exercises
+ * AgentCreateForm with showOrganizations enabled and verifies the
+ * component renders the org picker and survives user interaction.
+ * The permittedOrganizations query is intentionally NOT mocked so
+ * the fallback to the unfiltered organizations list is exercised.
  */
 export const MultiOrgDoesNotInfiniteRender: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
-		queries: [
-			{
-				key: permittedOrgsKey,
-				data: [MockDefaultOrganization, MockOrganization2],
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

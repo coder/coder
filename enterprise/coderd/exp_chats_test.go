@@ -1256,7 +1256,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, secondOrg.ID, adminChat.OrganizationID)
 
-	// Admin lists chats — should only see their own chat.
+	// Admin lists chats -- should only see their own chat.
 	// TODO: The handler currently filters by OwnerID (the
 	// authenticated user), so org admins cannot see other
 	// users' chats even though RBAC would allow it. If the

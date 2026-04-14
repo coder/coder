@@ -62,7 +62,7 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
-			if organizationID != uuid.Nil && template.OrganizationID != organizationID {
+			if template.OrganizationID != organizationID {
 				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 

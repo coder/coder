@@ -153,7 +153,7 @@ describe("useEmptyStateDraft", () => {
 		});
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
 
-		// Simulate error recovery — re-enable persistence.
+		// Simulate error recovery -- re-enable persistence.
 		act(() => {
 			result.current.resetDraft();
 		});
@@ -545,7 +545,7 @@ describe("useFileAttachments persistence", () => {
 			fileName: "legacy.png",
 			fileType: "image/png",
 			lastModified: 1000,
-			// No organizationId field — simulates pre-org-scoping data.
+			// No organizationId field -- simulates pre-org-scoping data.
 		};
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,
@@ -570,9 +570,9 @@ describe("useFileAttachments persistence", () => {
 			useFileAttachments(undefined, { persist: true }),
 		);
 
-		// Should not restore — org not yet known.
+		// Should not restore -- org not yet known.
 		expect(result.current.attachments).toHaveLength(0);
-		// Should NOT prune — org unknown, so leave storage alone.
+		// Should NOT prune -- org unknown, so leave storage alone.
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).not.toBeNull();
 		unmount();
 	});
