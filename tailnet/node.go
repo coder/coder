@@ -57,12 +57,12 @@ func (u *nodeUpdater) updateLoop() {
 			u.logger.Debug(context.Background(), "closing nodeUpdater updateLoop")
 			return
 		}
-		u.dirty = false
 		u.phase = configuring
 		u.Broadcast()
 
 		callback := u.callback
 		if callback == nil {
+			u.dirty = false
 			u.logger.Debug(context.Background(), "skipped sending node; no node callback")
 			continue
 		}
@@ -75,6 +75,7 @@ func (u *nodeUpdater) updateLoop() {
 			u.logger.Debug(context.Background(), "skipped sending node; no PreferredDERP", slog.F("node", node))
 			continue
 		}
+		u.dirty = false
 
 		u.L.Unlock()
 		u.logger.Debug(context.Background(), "calling nodeUpdater callback", slog.F("node", node))
