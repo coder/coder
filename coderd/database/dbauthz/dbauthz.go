@@ -1687,16 +1687,16 @@ func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	return q.db.CleanTailnetCoordinators(ctx)
 }
 
-func (q *querier) CleanTailnetLostPeers(ctx context.Context) error {
+func (q *querier) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.CleanTailnetLostPeers(ctx)
 }
 
-func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
+func (q *querier) CleanTailnetTunnels(ctx context.Context) ([]database.CleanTailnetTunnelsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.CleanTailnetTunnels(ctx)
 }
@@ -1836,9 +1836,9 @@ func (q *querier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.U
 	return q.db.DeleteAllChatQueuedMessages(ctx, chatID)
 }
 
-func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) ([]database.DeleteAllTailnetTunnelsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.DeleteAllTailnetTunnels(ctx, arg)
 }
@@ -6493,9 +6493,9 @@ func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaP
 	return q.db.UpdateReplica(ctx, arg)
 }
 
-func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 }
