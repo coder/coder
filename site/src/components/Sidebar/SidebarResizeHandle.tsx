@@ -7,9 +7,8 @@ interface SidebarResizeHandleProps {
 
 /**
  * An invisible hit area on the sidebar's right edge. On hover,
- * a 2px glow line appears centered on the cursor (300px tall).
- * The glow stays visible while dragging even if the cursor
- * leaves the handle area.
+ * a 2px bar (150px tall) appears centered on the cursor.
+ * The bar stays visible while dragging.
  */
 export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 	onDragStart,
@@ -64,12 +63,8 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		[onDragStart],
 	);
 
-	const maskGradient =
-		mouseY !== null
-			? `linear-gradient(to bottom, transparent ${mouseY - 150}px, white ${mouseY - 80}px, white ${mouseY + 80}px, transparent ${mouseY + 150}px)`
-			: "linear-gradient(transparent, transparent)";
-
-	const visible = hovered || dragging;
+	const visible = (hovered || dragging) && mouseY !== null;
+	const BAR_HEIGHT = 150;
 
 	return (
 		<div
@@ -83,24 +78,17 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
 			className={cn(
-				// Hit area: 8px into the sidebar, 8px into the content.
-				// The glow line is positioned on the border, not centered
-				// in the hit area.
 				"absolute top-0 -right-2 h-full w-4 cursor-col-resize z-10",
 			)}
 		>
-			{/* Glow line pinned to the border (left edge of the
-			    content-side overhang = 8px from handle's left). */}
 			<div
-				className="absolute top-0 h-full w-[2px] rounded-full bg-content-secondary"
+				className="absolute w-[2px] rounded-full bg-content-secondary"
 				style={{
-					// 8px from handle left = the border position.
-					// Handle is 16px wide, border is at the midpoint.
-					left: "7px",
+					left: 7,
+					height: BAR_HEIGHT,
+					top: mouseY !== null ? mouseY - BAR_HEIGHT / 2 : 0,
 					opacity: visible ? (dragging ? 0.7 : 0.4) : 0,
 					transition: "opacity 150ms",
-					maskImage: maskGradient,
-					WebkitMaskImage: maskGradient,
 				}}
 			/>
 		</div>
