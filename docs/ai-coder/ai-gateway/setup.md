@@ -126,17 +126,25 @@ export CODER_AIBRIDGE_PROVIDER_2_NAME=azure-openai
 export CODER_AIBRIDGE_PROVIDER_2_KEY=azure-key-zzz
 export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://my-deployment.openai.azure.com/
 
+# Anthropic via AWS Bedrock
+export CODER_AIBRIDGE_PROVIDER_3_TYPE=anthropic
+export CODER_AIBRIDGE_PROVIDER_3_NAME=anthropic-bedrock
+export CODER_AIBRIDGE_PROVIDER_3_BEDROCK_REGION=us-west-2
+export CODER_AIBRIDGE_PROVIDER_3_BEDROCK_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+export CODER_AIBRIDGE_PROVIDER_3_BEDROCK_ACCESS_KEY_SECRET=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
 coder server
 ```
 
 Each provider instance gets a unique route based on its `NAME`. Clients send
 requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 
-| Instance name      | Route                                               |
-|--------------------|-----------------------------------------------------|
-| `anthropic-corp`   | `/api/v2/aibridge/anthropic-corp/v1/messages`       |
-| `anthropic-direct` | `/api/v2/aibridge/anthropic-direct/v1/messages`     |
-| `azure-openai`     | `/api/v2/aibridge/azure-openai/v1/chat/completions` |
+| Instance name       | Route                                               |
+|---------------------|-----------------------------------------------------|
+| `anthropic-corp`    | `/api/v2/aibridge/anthropic-corp/v1/messages`       |
+| `anthropic-direct`  | `/api/v2/aibridge/anthropic-direct/v1/messages`     |
+| `azure-openai`      | `/api/v2/aibridge/azure-openai/v1/chat/completions` |
+| `anthropic-bedrock` | `/api/v2/aibridge/anthropic-bedrock/v1/messages`    |
 
 **Supported keys per provider:**
 
