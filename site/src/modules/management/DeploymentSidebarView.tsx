@@ -64,7 +64,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	return (
 		<div className="flex flex-col gap-1">
 			{!collapsed && (
-				<span className="text-sm text-content-disabled uppercase tracking-wider px-3 mb-1">
+				<span className="text-sm text-content-disabled px-3 mb-1">
 					Deployment
 				</span>
 			)}
