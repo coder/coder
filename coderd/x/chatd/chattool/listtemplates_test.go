@@ -71,7 +71,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 
 		tool := chattool.ListTemplates(uuid.Nil, db, chattool.ListTemplatesOptions{
 			OwnerID: user.ID,
-			// OrganizationID left as uuid.Nil
+			// Pass uuid.Nil to skip org filtering.
 		})
 
 		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "nil-org", Name: "list_templates", Input: "{}"})

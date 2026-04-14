@@ -10353,10 +10353,10 @@ func TestGetPRInsights(t *testing.T) {
 	}
 
 	type chatParams struct {
-		Store  database.Store
-		UserID uuid.UUID
-		McID   uuid.UUID
-		OrgID  uuid.UUID
+		Store         database.Store
+		UserID        uuid.UUID
+		ModelConfigID uuid.UUID
+		OrgID         uuid.UUID
 	}
 
 	createChat := func(t *testing.T, p chatParams, title string) database.Chat {
@@ -10365,7 +10365,7 @@ func TestGetPRInsights(t *testing.T) {
 			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           p.UserID,
-			LastModelConfigID: p.McID,
+			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
 		})
 		require.NoError(t, err)
@@ -10424,7 +10424,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("MultipleChatsSamePR_CostSummed", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		chatA := createChat(t, p, "chat-A")
 		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000) // $5
@@ -10461,7 +10461,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("DifferentPRs_NoDuplication", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		chatA := createChat(t, p, "chat-A")
 		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000)
@@ -10502,7 +10502,7 @@ func TestGetPRInsights(t *testing.T) {
 			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           p.UserID,
-			LastModelConfigID: p.McID,
+			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
 			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: true},
@@ -10514,10 +10514,10 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("DuplicatePRUrl_CountedOnce", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		prURL := "https://github.com/org/repo/pull/99"
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			chat := createChat(t, p, fmt.Sprintf("chat-%d", i))
 			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
 			linkPR(t, store, chat.ID, prURL, "merged", "fix: same PR", 40, 10, 3)
@@ -10544,7 +10544,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("ChildChatCostsIncluded", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent chat with a $5 cost.
 		parent := createChat(t, p, "parent-chat")
@@ -10587,7 +10587,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("SiblingPRs_NoCrossContamination", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent chat with $10 orchestration cost.
 		parent := createChat(t, p, "parent")
@@ -10631,7 +10631,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("ParentAndChildDifferentPRs_NoCrossContamination", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent P ($10) creates PR1.
 		parent := createChat(t, p, "parent")
@@ -10677,7 +10677,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("EmptyURLNotCollapsed", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Two chats with empty-string URLs should be treated as
 		// separate PRs (NULLIF converts '' to NULL, falling back
@@ -10711,7 +10711,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("ParentAndChildSameURL_DedupedWithCombinedCost", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent P ($10) links to a PR.
 		parent := createChat(t, p, "parent")
@@ -10749,7 +10749,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("ZeroCostChat_StillCounted", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// A chat linked to a PR but with NO chat_messages at all.
 		// The PR should still appear with zero cost.
@@ -10794,7 +10794,7 @@ func TestGetPRInsights(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat := createChat(t, chatParams{Store: store, UserID: userID, McID: emptyDisplayModel.ID, OrgID: orgID}, "chat-empty-display-name")
+		chat := createChat(t, chatParams{Store: store, UserID: userID, ModelConfigID: emptyDisplayModel.ID, OrgID: orgID}, "chat-empty-display-name")
 		insertCostMessage(t, store, chat.ID, userID, emptyDisplayModel.ID, 1_000_000)
 		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/72", "merged", "fix: blank display name", 10, 2, 1)
 
@@ -10820,7 +10820,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("MergedCostMicros_OnlyCountsMerged", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Merged PR with $5 cost.
 		chatMerged := createChat(t, p, "chat-merged")
@@ -10847,7 +10847,7 @@ func TestGetPRInsights(t *testing.T) {
 	t.Run("AllPRsReturnedWithSafetyCap", func(t *testing.T) {
 		t.Parallel()
 		store, userID, mcID, orgID := setupChatInfra(t)
-		p := chatParams{Store: store, UserID: userID, McID: mcID, OrgID: orgID}
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Create 25 distinct PRs — more than the old LIMIT 20 — and
 		// verify all are returned.

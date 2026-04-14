@@ -1276,4 +1276,15 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	}
 	require.True(t, foundAdmin, "admin should see own chat")
 	require.False(t, foundMember, "admin should NOT see member chat (OwnerID filter)")
+
+	// Positive control: member can list their own chat.
+	memberChats, err := memberExp.ListChats(ctx, nil)
+	require.NoError(t, err)
+	var memberSeeOwn bool
+	for _, c := range memberChats {
+		if c.ID == memberChat.ID {
+			memberSeeOwn = true
+		}
+	}
+	require.True(t, memberSeeOwn, "member should see own chat")
 }

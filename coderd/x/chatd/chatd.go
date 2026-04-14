@@ -5014,15 +5014,16 @@ func (p *Server) runChat(
 			chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
 				OwnerID:            chat.OwnerID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}), chattool.ReadTemplate(chattool.ReadTemplateOptions{
+			}),
+			chattool.ReadTemplate(chattool.ReadTemplateOptions{
 				DB:                 p.db,
 				OwnerID:            chat.OwnerID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
 			chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
-				OwnerID: chat.OwnerID,
-				ChatID:  chat.ID, CreateFn: p.createWorkspaceFn,
-
+				OwnerID:                        chat.OwnerID,
+				ChatID:                         chat.ID,
+				CreateFn:                       p.createWorkspaceFn,
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
@@ -5030,6 +5031,7 @@ func (p *Server) runChat(
 				Logger:                         p.logger,
 				AllowedTemplateIDs:             p.chatTemplateAllowlist,
 			}),
+
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:            p.db,
 				OwnerID:       chat.OwnerID,
