@@ -31,13 +31,13 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 			    gets cropped. */}
 			<div
 				data-sidebar-container
-				className="relative flex-shrink-0 sticky top-0 h-screen overflow-hidden transition-[width] duration-150 ease-in-out"
+				className="relative flex-shrink-0 sticky top-0 h-screen overflow-hidden border-0 border-r border-solid border-border transition-[width] duration-150 ease-in-out"
 				style={{ width }}
 			>
 				<nav
 					className={cn(
 						"h-full w-[240px] overflow-y-auto",
-						"flex flex-col border-0 border-r border-solid border-border",
+						"flex flex-col",
 						"px-3 pt-6 pb-6",
 						className,
 					)}
