@@ -31,7 +31,7 @@ interface SidebarAccordionProps {
  * at the same vertical position regardless of state.
  *
  * In collapsed mode, clicking the icon navigates to the section's
- * first page (via href) which also triggers the sidebar to expand.
+ * first page (via href) and expands the sidebar.
  */
 export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	icon: Icon,
@@ -41,7 +41,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	onToggle,
 	href,
 }) => {
-	const { collapsed } = useSidebarContext();
+	const { collapsed, expand } = useSidebarContext();
 
 	if (collapsed) {
 		return (
@@ -51,6 +51,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 						{href ? (
 							<Link
 								to={href}
+								onClick={expand}
 								className="flex w-full items-center px-3 py-2 rounded-md no-underline hover:bg-surface-secondary"
 							>
 								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
@@ -58,7 +59,10 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 						) : (
 							<button
 								type="button"
-								onClick={onToggle}
+								onClick={() => {
+									expand();
+									onToggle();
+								}}
 								className="flex w-full items-center px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 							>
 								<Icon className="size-4 flex-shrink-0 text-content-secondary" />

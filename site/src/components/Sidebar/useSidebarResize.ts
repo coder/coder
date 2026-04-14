@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 const EXPANDED_WIDTH = 240;
 // Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
@@ -25,6 +25,8 @@ function persistCollapsed(key: string, collapsed: boolean): void {
 interface UseSidebarResizeReturn {
 	width: number;
 	collapsed: boolean;
+	/** Force the sidebar to expand (used when navigating via collapsed icons). */
+	expand: () => void;
 	onDragStart: (e: React.PointerEvent) => () => void;
 }
 
@@ -37,40 +39,32 @@ export function useSidebarResize(
 	storageKey = "sidebar-width",
 ): UseSidebarResizeReturn {
 	const [collapsed, setCollapsed] = useState(() => readCollapsed(storageKey));
-	const rafId = useRef<number | null>(null);
 
-	useEffect(() => {
-		return () => {
-			if (rafId.current !== null) {
-				cancelAnimationFrame(rafId.current);
-			}
-		};
-	}, []);
+	const expand = useCallback(() => {
+		setCollapsed(false);
+		persistCollapsed(storageKey, false);
+	}, [storageKey]);
 
 	const onDragStart = useCallback(
 		(e: React.PointerEvent): (() => void) => {
 			e.preventDefault();
 
-			const sidebarRect = (e.currentTarget as HTMLElement)
-				.closest("nav")
-				?.getBoundingClientRect();
-			const startLeft = sidebarRect?.left ?? 0;
+			// The handle sits on the outer wrapper div, not inside
+			// the nav. Walk up to find the positioned container.
+			const container =
+				(e.currentTarget as HTMLElement).closest("[data-sidebar-container]") ??
+				(e.currentTarget as HTMLElement).parentElement;
+			const startLeft = container?.getBoundingClientRect().left ?? 0;
 
 			const handlePointerMove = (moveEvent: PointerEvent) => {
-				if (rafId.current !== null) {
-					cancelAnimationFrame(rafId.current);
-				}
+				const rawWidth = moveEvent.clientX - startLeft;
+				const shouldCollapse = rawWidth < SNAP_THRESHOLD;
 
-				rafId.current = requestAnimationFrame(() => {
-					const rawWidth = moveEvent.clientX - startLeft;
-					const shouldCollapse = rawWidth < SNAP_THRESHOLD;
-
-					setCollapsed((prev) => {
-						if (prev !== shouldCollapse) {
-							persistCollapsed(storageKey, shouldCollapse);
-						}
-						return shouldCollapse;
-					});
+				setCollapsed((prev) => {
+					if (prev !== shouldCollapse) {
+						persistCollapsed(storageKey, shouldCollapse);
+					}
+					return shouldCollapse;
 				});
 			};
 
@@ -93,5 +87,5 @@ export function useSidebarResize(
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-	return { width, collapsed, onDragStart };
+	return { width, collapsed, expand, onDragStart };
 }

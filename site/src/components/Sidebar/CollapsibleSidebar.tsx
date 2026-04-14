@@ -15,17 +15,19 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 	className,
 	storageKey = "sidebar-width",
 }) => {
-	const { width, collapsed, onDragStart } = useSidebarResize(storageKey);
+	const { width, collapsed, expand, onDragStart } =
+		useSidebarResize(storageKey);
 
-	const contextValue = useMemo(() => ({ collapsed }), [collapsed]);
+	const contextValue = useMemo(
+		() => ({ collapsed, expand }),
+		[collapsed, expand],
+	);
 
 	return (
 		<SidebarContext.Provider value={contextValue}>
-			{/* Outer wrapper holds both the scrollable nav and the
-			    resize handle. The handle sits outside the nav's
-			    overflow so it's never clipped. */}
 			<div
-				className="relative flex-shrink-0 sticky top-0 h-screen"
+				data-sidebar-container
+				className="relative flex-shrink-0 sticky top-0 h-screen transition-[width] duration-150 ease-in-out"
 				style={{ width }}
 			>
 				<nav
@@ -35,7 +37,6 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 						// Nav pl-3 + button px-3 = 24px, matching navbar
 						// px-6 so icon left edges align with the Coder logo.
 						"pl-3 pt-6 pb-6 pr-6",
-						"transition-[width] duration-150 ease-in-out",
 						className,
 					)}
 				>
