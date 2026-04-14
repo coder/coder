@@ -3,12 +3,13 @@ package coderd
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -76,34 +77,34 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 func validateWebpushEndpoint(rawEndpoint string) error {
 	endpoint, err := url.Parse(rawEndpoint)
 	if err != nil {
-		return fmt.Errorf("parse endpoint URL: %w", err)
+		return xerrors.Errorf("parse endpoint URL: %w", err)
 	}
 	if !endpoint.IsAbs() {
-		return errors.New("endpoint must be an absolute URL")
+		return xerrors.New("endpoint must be an absolute URL")
 	}
 	if endpoint.Scheme != "https" {
-		return errors.New("endpoint URL scheme must be https")
+		return xerrors.New("endpoint URL scheme must be https")
 	}
 	if endpoint.Host == "" {
-		return errors.New("endpoint host is required")
+		return xerrors.New("endpoint host is required")
 	}
 	if endpoint.User != nil {
-		return errors.New("endpoint URL must not include userinfo")
+		return xerrors.New("endpoint URL must not include userinfo")
 	}
 
 	hostname := strings.ToLower(endpoint.Hostname())
 	if hostname == "" {
-		return errors.New("endpoint hostname is required")
+		return xerrors.New("endpoint hostname is required")
 	}
 	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
-		return errors.New("endpoint hostname must not resolve to localhost")
+		return xerrors.New("endpoint hostname must not resolve to localhost")
 	}
 
 	if ip, err := netip.ParseAddr(hostname); err == nil &&
 		(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
 			ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
 			ip.IsUnspecified()) {
-		return errors.New("endpoint IP must not be private, loopback, link-local, multicast, or unspecified")
+		return xerrors.New("endpoint IP must not be private, loopback, link-local, multicast, or unspecified")
 	}
 
 	return nil
