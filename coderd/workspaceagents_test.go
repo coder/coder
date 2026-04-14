@@ -3521,84 +3521,81 @@ func TestReinit(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	// Verifies the full disconnect-claim-reconnect flow: the
+	// prebuild agent connects to the reinit SSE endpoint, the
+	// connection drops, the prebuild is claimed while the SSE is
+	// down, and the new agent (from the claim build) receives the
+	// reinit event on its first connection via the durable claim
+	// check. This is the sequence that occurs in production when
+	// a network interruption coincides with a claim.
+	t.Run("agent receives claim on reconnect after SSE disconnect", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		pubsubSpy := pubsubReinitSpy{
+			Pubsub:           ps,
+			triedToSubscribe: make(chan string),
+		}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   &pubsubSpy,
 		})
+		user := coderdtest.CreateFirstUser(t, client)
 
+		// Create an unclaimed prebuild.
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
 
-		// Verifies the full disconnect-claim-reconnect flow: the
-		// prebuild agent connects to the reinit SSE endpoint, the
-		// connection drops, the prebuild is claimed while the SSE is
-		// down, and the new agent (from the claim build) receives the
-		// reinit event on its first connection via the durable claim
-		// check. This is the sequence that occurs in production when
-		// a network interruption coincides with a claim.
-		t.Run("agent receives claim on reconnect after SSE disconnect", func(t *testing.T) {
-			t.Parallel()
+		pubsubSpy.Lock()
+		pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+		pubsubSpy.Unlock()
 
-			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			pubsubSpy := pubsubReinitSpy{
-				Pubsub:           ps,
-				triedToSubscribe: make(chan string),
-			}
-			client := coderdtest.New(t, &coderdtest.Options{
-				Database: db,
-				Pubsub:   &pubsubSpy,
-			})
-			user := coderdtest.CreateFirstUser(t, client)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
-			// Create an unclaimed prebuild.
-			r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+		// Step 1: Prebuild agent connects to the reinit SSE
+		// endpoint (build 1 token, workspace is still unclaimed).
+		firstCtx, cancelFirst := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		firstDone := make(chan error, 1)
+		go func() {
+			_, err := agentClient.WaitForReinit(firstCtx)
+			firstDone <- err
+		}()
 
-			pubsubSpy.Lock()
-			pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
-			pubsubSpy.Unlock()
+		// Wait for the SSE subscription to be established.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
 
-			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		// Step 2: Disconnect the agent by canceling its request
+		// context, simulating a network interruption.
+		cancelFirst()
+		err := testutil.TryReceive(ctx, t, firstDone)
+		require.Error(t, err)
 
-			// Step 1: Prebuild agent connects to the reinit SSE
-			// endpoint (build 1 token, workspace is still unclaimed).
-			firstCtx, cancelFirst := context.WithCancel(testutil.Context(t, testutil.WaitShort))
-			firstDone := make(chan error, 1)
-			go func() {
-				_, err := agentClient.WaitForReinit(firstCtx)
-				firstDone <- err
-			}()
+		// Prevent the spy from panicking on the second subscribe.
+		pubsubSpy.Lock()
+		pubsubSpy.expectedEvent = ""
+		pubsubSpy.Unlock()
 
-			// Wait for the SSE subscription to be established.
-			ctx := testutil.Context(t, testutil.WaitShort)
-			testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+		// Step 3: Claim the prebuild while no SSE connection is
+		// active. The pubsub event fires but nobody is listening.
+		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
 
-			// Step 2: Disconnect the agent by canceling its request
-			// context, simulating a network interruption.
-			cancelFirst()
-			err := testutil.TryReceive(ctx, t, firstDone)
-			require.Error(t, err)
-
-			// Prevent the spy from panicking on the second subscribe.
-			pubsubSpy.Lock()
-			pubsubSpy.expectedEvent = ""
-			pubsubSpy.Unlock()
-
-			// Step 3: Claim the prebuild while no SSE connection is
-			// active. The pubsub event fires but nobody is listening.
-			claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
-
-			// Step 4: The new agent (from the claim build) connects.
-			// In production, provisionerd starts a new agent process
-			// with the claim build's token after the build completes.
-			// The handler's durable claim check detects the completed
-			// claim and delivers a one-shot reinit immediately.
-			reconnectCtx := testutil.Context(t, testutil.WaitShort)
-			newAgentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
-			reinitEvent, err := newAgentClient.WaitForReinit(reconnectCtx)
-			require.NoError(t, err)
-			require.NotNil(t, reinitEvent)
-			require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
-			require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
-			require.Equal(t, user.UserID, reinitEvent.OwnerID)
-		})
-	}
-
-
+		// Step 4: The new agent (from the claim build) connects.
+		// In production, provisionerd starts a new agent process
+		// with the claim build's token after the build completes.
+		// The handler's durable claim check detects the completed
+		// claim and delivers a one-shot reinit immediately.
+		reconnectCtx := testutil.Context(t, testutil.WaitShort)
+		newAgentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
+		reinitEvent, err := newAgentClient.WaitForReinit(reconnectCtx)
+		require.NoError(t, err)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+		require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
+		require.Equal(t, user.UserID, reinitEvent.OwnerID)
+	})
+}
 
 type pubsubReinitSpy struct {
 	pubsub.Pubsub
