@@ -655,6 +655,10 @@ type mapper struct {
 	// coordinators are added or removed
 	update chan struct{}
 
+	// resetSent is signaled when a coordinator recovers and mappers need to
+	// clear their sent cache so all peers are re-evaluated from scratch.
+	resetSent chan struct{}
+
 	mappings chan []mapping
 
 	c *connIO
@@ -675,6 +679,7 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 		logger:     logger,
 		c:          c,
 		update:     make(chan struct{}),
+		resetSent:  make(chan struct{}, 1),
 		mappings:   make(chan []mapping),
 		heartbeats: h,
 		sent:       make(map[uuid.UUID]mapping),
@@ -697,6 +702,15 @@ func (m *mapper) run() {
 			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
+			// Check if a reset was requested. The resetSent channel is
+			// buffered so the signal arrives before or concurrently with
+			// the update signal.
+			select {
+			case <-m.resetSent:
+				m.logger.Debug(m.ctx, "clearing sent cache due to coordinator recovery")
+				m.sent = make(map[uuid.UUID]mapping)
+			default:
+			}
 			best = m.bestMappings(m.c.getLatestMapping())
 		}
 		update := m.bestToUpdate(best)
@@ -1375,7 +1389,9 @@ func (q *querier) handleUpdates() {
 		case <-q.ctx.Done():
 			return
 		case u := <-q.updates:
-			if u.filter == filterUpdateUpdated {
+			if u.filter == filterUpdateReset {
+				q.resetAllSentAndUpdate()
+			} else if u.filter == filterUpdateUpdated {
 				q.updateAll()
 			}
 			if u.health == healthUpdateUnhealthy {
@@ -1400,6 +1416,27 @@ func (q *querier) updateAll() {
 		go func(m *mapper) {
 			// make sure we send on the _mapper_ context, not our own in case the mapper is
 			// shutting down or shut down.
+			_ = agpl.SendCtx(m.ctx, m.update, struct{}{})
+		}(mpr)
+	}
+}
+
+// resetAllSentAndUpdate signals all mappers to clear their sent cache and then
+// triggers an update. This is called when a coordinator recovers after being
+// expired, so that previously-skipped LOST peers get re-evaluated.
+func (q *querier) resetAllSentAndUpdate() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for _, mpr := range q.mappers {
+		go func(m *mapper) {
+			// Signal reset first (buffered channel, non-blocking).
+			select {
+			case m.resetSent <- struct{}{}:
+			default:
+			}
+			// Then trigger the update so the mapper picks up the reset
+			// signal when it processes the update.
 			_ = agpl.SendCtx(m.ctx, m.update, struct{}{})
 		}(mpr)
 	}
@@ -1586,6 +1623,7 @@ type filterUpdate int
 const (
 	filterUpdateNone filterUpdate = iota
 	filterUpdateUpdated
+	filterUpdateReset
 )
 
 type healthUpdate int
@@ -1736,9 +1774,12 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	defer h.lock.Unlock()
 	if _, ok := h.coordinators[id]; !ok {
 		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
-		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
+		// send on a separate goroutine to avoid holding lock.  Triggering update can be async.
+		// Use filterUpdateReset so that mappers clear their sent cache and re-evaluate all peers.
+		// This is needed because peers that were LOST-skipped during the coordinator's absence
+		// need to be re-sent now that the coordinator has recovered.
 		go func() {
-			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateReset})
 		}()
 	}
 	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
