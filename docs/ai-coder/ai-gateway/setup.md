@@ -92,9 +92,44 @@ proxy between AI Gateway and AWS Bedrock.
    coder server
    ```
 
-### Additional providers and Model Proxies
+### GitHub Copilot
 
-AI Gateway can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+Configure a `copilot` provider to route traffic through [GitHub Copilot](https://github.com/features/copilot).
+Copilot providers use OAuth app installations for authentication rather than static API keys.
+
+Use the [indexed provider format](#multiple-instances-of-the-same-provider) to
+add one or more Copilot instances:
+
+```sh
+# GitHub Copilot (Individual)
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_0_NAME=copilot
+
+# GitHub Copilot Business
+export CODER_AIBRIDGE_PROVIDER_1_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_1_NAME=copilot-business
+export CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
+
+# GitHub Copilot Enterprise
+export CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-enterprise
+export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
+```
+
+The default base URL targets the individual Copilot API
+(`api.individual.githubcopilot.com`). Override `BASE_URL` for Business or
+Enterprise tiers as shown above.
+
+### ChatGPT
+
+Configure a ChatGPT provider by creating an `openai`-typed instance with the
+ChatGPT Codex base URL:
+
+```sh
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=openai
+export CODER_AIBRIDGE_PROVIDER_0_NAME=chatgpt
+export CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://chatgpt.com/backend-api/codex
+```
 
 </div>
 
