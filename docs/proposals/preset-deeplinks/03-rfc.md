@@ -27,9 +27,12 @@ Composes with existing parameters:
 
 ```
 ?preset=ml-large&mode=auto&name=my-ws
-?preset=ml-large&param.region=eu-west-1
 ?preset=ml-large&version=<uuid>
 ```
+
+`preset` and `param.*` are **mutually exclusive** (see Key Design
+Decisions below). If both are present, `preset` wins and `param.*`
+values are ignored.
 
 ### Resolution Flow
 
@@ -40,10 +43,10 @@ URL parsed
   │   ├─ YES → wait for templateVersionPresetsQuery to settle
   │   │         ├─ query succeeded?
   │   │         │   ├─ YES → find preset by exact Name match (case-sensitive)
-  │   │         │   │         ├─ FOUND → merge preset params into autofill
-  │   │         │   │         │           ├─ param.* overrides present?
-  │   │         │   │         │           │   ├─ YES → overlay overrides, clear preset ID, show warning
-  │   │         │   │         │           │   └─ NO  → keep preset ID
+  │   │         │   │         ├─ FOUND → apply preset params as autofill
+  │   │         │   │         │           ├─ param.* also present?
+  │   │         │   │         │           │   ├─ YES → ignore param.*, show notice, keep preset ID
+  │   │         │   │         │           │   └─ NO  → proceed normally with preset ID
   │   │         │   │         │           └─ proceed (form or auto-create)
   │   │         │   │         └─ NOT FOUND → show error with version context, fallback mode=auto→form
   │   │         │   └─ NO (query error) → show query error, fallback mode=auto→form
@@ -54,8 +57,25 @@ URL parsed
 
 ### Key Design Decisions
 
-**1. Preset params merge into `autofillParameters` (not applied via effect
-only).**
+**1. `preset` and `param.*` are mutually exclusive.**
+
+In the UI, selecting a preset **disables** (locks) its parameter inputs
+and **hides** them by default. Users cannot override individual preset
+parameter values — they must either use the preset as-is or select
+"None." The deeplink behavior mirrors this:
+
+- If `preset=<name>` is present and any `param.*` values are also
+  present, `preset` takes precedence and all `param.*` values are
+  **ignored**.
+- An inline notice is shown: "Preset selected — `param.*` URL
+  parameters have been ignored."
+- `template_version_preset_id` is always preserved when `preset` is
+  specified.
+
+This avoids an inconsistency where deeplinks could produce workspace
+configurations that are impossible to create through the UI.
+
+**2. Preset params merge into `autofillParameters`.**
 
 When a URL preset is resolved, its parameters are merged into the
 `autofillParameters` array (with `source: "url"`) before being passed to
@@ -63,28 +83,8 @@ the view. This ensures:
 - Preset values are included in the initial `sendInitialParameters`
   WebSocket call, avoiding a flash of default values.
 - The data flow matches the existing `param.*` pipeline.
-- `param.*` overrides naturally take precedence (applied after preset
-  params in the merge).
 
-**2. Application order: preset first, then `param.*` overrides.**
-
-When both `preset=X` and `param.cpu=16` are present:
-1. Preset parameters are added to `autofillParameters`.
-2. `param.*` URL values are added, overwriting any preset params with the
-   same name.
-3. The merged list is passed to the view and to `sendInitialParameters`.
-4. `template_version_preset_id` is cleared from submission.
-
-**3. `param.*` that don't overlap with preset params still clear the preset
-ID.**
-
-Any `param.*` in the URL — even for parameters not in the preset —
-clears the preset ID. This is the simplest correct rule. Partial overlap
-detection would require comparing preset parameters against URL params,
-adding complexity for a rare edge case. Users who want preset + custom
-non-preset params should use the interactive form.
-
-**4. Backend resolves preset parameters from preset ID.**
+**3. Backend receives both preset ID and parameter values.**
 
 When `template_version_preset_id` is sent in `CreateWorkspaceRequest`,
 the backend already uses it for prebuild matching. The frontend also
@@ -209,7 +209,8 @@ const urlAutofillParameters = getAutofillParameters(searchParams);
 const autofillParameters = useMemo(() => {
     if (!urlPresetResult.preset) return urlAutofillParameters;
 
-    // Start with preset params (source: "url" so they're treated as URL-provided).
+    // When preset is specified, use only preset params.
+    // param.* values are ignored (preset and param.* are mutually exclusive).
     const presetParams: AutofillBuildParameter[] =
         urlPresetResult.preset.Parameters.map((p) => ({
             name: p.Name,
@@ -217,23 +218,10 @@ const autofillParameters = useMemo(() => {
             source: "url" as const,
         }));
 
-    // Overlay param.* URL values — they take precedence over preset values.
-    const overrideMap = new Map(urlAutofillParameters.map((p) => [p.name, p]));
-    const merged = presetParams.map((p) =>
-        overrideMap.get(p.name) ?? p
-    );
-
-    // Add any param.* values for parameters NOT in the preset.
-    for (const override of urlAutofillParameters) {
-        if (!presetParams.some((p) => p.name === override.name)) {
-            merged.push(override);
-        }
-    }
-
-    return merged;
+    return presetParams;
 }, [urlPresetResult.preset, urlAutofillParameters]);
 
-const hasUrlParamOverrides = urlAutofillParameters.length > 0 && !!effectivePresetName;
+const hasIgnoredUrlParams = urlAutofillParameters.length > 0 && !!effectivePresetName;
 ```
 
 #### 2e. Update view component props
@@ -247,7 +235,7 @@ interface CreateWorkspacePageViewProps {
     // ...existing props
     urlPreset?: TypesGen.Preset;
     urlPresetError?: string;
-    hasUrlParamOverrides?: boolean;
+    hasIgnoredUrlParams?: boolean;
 }
 ```
 
@@ -272,10 +260,7 @@ useEffect(() => {
     if (urlPreset) {
         const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
         setSelectedPresetIndex(idx);
-        form.setFieldValue(
-            "template_version_preset_id",
-            hasUrlParamOverrides ? undefined : urlPreset.ID,
-        );
+        form.setFieldValue("template_version_preset_id", urlPreset.ID);
         return;
     }
 
@@ -288,7 +273,7 @@ useEffect(() => {
         setSelectedPresetIndex(0);
         form.setFieldValue("template_version_preset_id", undefined);
     }
-}, [presets, form.setFieldValue, urlPreset, hasUrlParamOverrides]);
+}, [presets, form.setFieldValue, urlPreset]);
 ```
 
 The existing preset parameter application effect (lines 259-332) fires
@@ -298,7 +283,7 @@ happens automatically through the existing code path. React 18+ batches
 the `setPresetOptions` and `setSelectedPresetIndex` state updates, so
 the parameter application effect sees both in the same render cycle.
 
-#### 2g. Display errors and warnings
+#### 2g. Display errors and notices
 
 ```tsx
 {urlPresetError && (
@@ -307,10 +292,11 @@ the parameter application effect sees both in the same render cycle.
     </Alert>
 )}
 
-{hasUrlParamOverrides && urlPreset && (
+{hasIgnoredUrlParams && urlPreset && (
     <Alert severity="info" sx={{ mb: 2 }}>
-        Parameter overrides detected — this workspace will not use a
-        preset and may not match a prebuild.
+        Preset selected — <code>param.*</code> URL parameters have been
+        ignored. Use either <code>preset</code> or <code>param.*</code>,
+        not both.
     </Alert>
 )}
 ```
@@ -330,7 +316,7 @@ const shouldShowLoader =
 **Tests** (Storybook stories for `CreateWorkspacePageView`):
 - `preset=<valid-name>` → preset selected in dropdown, parameters applied
 - `preset=<invalid-name>` → error shown with version ID, no preset selected
-- `preset=<name>&param.cpu=16` → preset applied, override warning shown, preset ID cleared
+- `preset=<name>&param.cpu=16` → preset applied, `param.*` ignored, notice shown
 - `preset=<name>` with `is_default` preset → URL preset wins
 - `preset=` (empty string) → treated as absent, no error
 - `preset=GPU` does not match preset named `gpu` (case sensitivity)
@@ -392,18 +378,12 @@ interface AutoCreateConsentDialogProps {
 }
 ```
 
-Render preset name when present. When `param.*` overrides are also
-present, include the override warning in the dialog:
+Render preset name when present:
 
 ```tsx
-{presetName && !hasUrlParamOverrides && (
+{presetName && (
     <Box sx={{ mb: 2 }}>
         <strong>Preset:</strong> {presetName}
-    </Box>
-)}
-{presetName && hasUrlParamOverrides && (
-    <Box sx={{ mb: 2 }}>
-        <strong>Preset:</strong> {presetName} (overrides applied — prebuild matching disabled)
     </Box>
 )}
 ```
@@ -454,7 +434,7 @@ const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
     templateVersionId: realizedVersionId,
     match: searchParams.get("match"),
     templateVersionPresetId:                                // NEW
-        effectivePresetName && !hasUrlParamOverrides
+        effectivePresetName
             ? urlPresetResult.preset?.ID
             : undefined,
 });
@@ -468,8 +448,8 @@ without additional code.
 - `mode=auto&preset=<valid>` → consent dialog shows preset name,
   auto-creates with preset ID in request
 - `mode=auto&preset=<invalid>` → falls back to form mode with error
-- `mode=auto&preset=<valid>&param.cpu=16` → consent shows override
-  warning, auto-creates without preset ID
+- `mode=auto&preset=<valid>&param.cpu=16` → preset wins, `param.*`
+  ignored, consent shows preset name, auto-creates with preset ID
 - `mode=auto&preset=<valid>&match=<query>` → match takes precedence,
   navigates to existing workspace
 
@@ -531,6 +511,19 @@ when `selectedPresetIndex` changes. Rejected because:
 - Merging into `autofillParameters` keeps all parameters flowing through
   a single pipeline.
 
+### 5. Allow `param.*` overrides on top of presets
+
+Allow `param.*` URL values to override individual preset parameter values,
+clearing the preset ID from submission. Rejected because:
+- The UI does not allow this — when a preset is selected, its parameters
+  are disabled (read-only) and hidden by default.
+- Allowing overrides in deeplinks but not in the UI creates an
+  inconsistency between the two creation paths.
+- Clearing the preset ID on override silently disables prebuild matching,
+  which is a confusing failure mode.
+- Keeping `preset` and `param.*` mutually exclusive is simpler to
+  implement, test, and explain.
+
 ## Rollout
 
 This is a frontend-only change with no feature flag required. The `preset`
@@ -558,13 +551,7 @@ query parameter is additive — existing URLs without it work unchanged.
    is standard SPA behavior. Clearing the URL param on dropdown change is
    possible but adds complexity. Recommend accepting this as-is for MVP.
 
-3. **`mode=auto` + `preset` + `param.*` behavior**: The current design
-   allows auto-creation in this case (without preset ID). An alternative
-   would be to fall back to `form` mode when overrides are present,
-   forcing the user to review. Recommend allowing auto-create for MVP since
-   the consent dialog includes the override warning.
-
-4. **WebSocket settlement**: After preset parameters are applied, the
+3. **WebSocket settlement**: After preset parameters are applied, the
    dynamic parameters WebSocket may return modified values (server-side
    validation). Should `autoCreateReady` wait for the WebSocket response
    to settle? The existing `mode=auto` flow already has this issue with

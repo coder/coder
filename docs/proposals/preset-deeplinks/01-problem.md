@@ -71,7 +71,7 @@ The backend's prebuild system uses presets to determine which workspaces to pre-
 
 The following interactions represent ambiguities that any solution must address. They are stated here as open questions, not design decisions:
 
-- **`preset` + `param.*` overrides**: If a deeplink specifies both a preset name and individual `param.*` values, what is the expected behavior? Are explicit params layered on top of the preset (override), or is it an error?
+- **`preset` + `param.*` interaction**: The frontend disables (locks) parameters controlled by a preset. If a deeplink specifies both a preset name and `param.*` values for the same parameters, the deeplink must mirror the UI behavior — preset values take precedence and `param.*` values for preset-controlled parameters are ignored. `param.*` values for non-preset parameters are still applicable, since those remain editable in the UI.
 - **`preset` + `version` interaction**: Presets are scoped to a template version. If a deeplink provides a preset name without a `version`, it must resolve against the active version. If the active version is updated and the preset name is removed or renamed, the deeplink breaks silently.
 - **Default presets**: The data model supports `is_default` presets that auto-select in the UI. How does a deeplink-provided preset interact with the default? Does omitting a `preset` param still apply the default?
 - **Preset name encoding**: Preset names are free-form text in the database (e.g., "ML Large — 8 CPU / 32 GB"). URL query parameters require percent-encoding for spaces and special characters. Whether the solution should require URL-safe names or handle encoding transparently is a design question.

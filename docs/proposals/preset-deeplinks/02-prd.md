@@ -18,7 +18,8 @@ https://coder.example.com/templates/<org>/<template>/workspace?preset=<preset-na
 ## Goals
 
 1. Allow deeplink URLs to reference a preset by name.
-2. Compose with existing query parameters (`mode`, `name`, `version`, `param.*`, `disable_params`).
+2. Compose with existing query parameters (`mode`, `name`, `version`, `disable_params`).
+3. `preset` and `param.*` are mutually exclusive, matching the UI where preset parameters are disabled when a preset is selected.
 3. Work with `mode=auto` to enable zero-click preset-based workspace creation.
 4. Pass `template_version_preset_id` to the backend when a preset is selected via URL, enabling deterministic prebuild matching.
 
@@ -72,23 +73,16 @@ The workspace creation page (`/templates/<org>/<template>/workspace`) must accep
 
 **Prerequisite fix**: The presets query currently uses `templateQuery.data?.active_version_id` (line 80), ignoring the `version` URL param. It must be updated to use `realizedVersionId` so that `version=<id>` correctly scopes preset resolution.
 
-### R2: Parameter Override Composition
+### R2: `preset` and `param.*` Are Mutually Exclusive
 
-`param.*` query parameters compose with `preset`:
+`preset` and `param.*` cannot be combined in the same deeplink. This matches the frontend UI behavior: when a preset is selected, its parameters are **disabled** (read-only) and **hidden** by default. Users cannot override individual preset parameter values — they must either use the preset as-is or not use a preset at all.
 
-- `preset=<name>` applies the preset's parameters as the base.
-- Any `param.*` query parameters override the corresponding preset values.
-- Parameters not present in the preset or `param.*` use their template defaults.
+**Behavior when both are present**:
+- If `preset=<name>` and any `param.*` values are both present in the URL, `preset` takes precedence and all `param.*` values are **ignored**.
+- The form displays an inline notice: "Preset selected — `param.*` URL parameters have been ignored. Use either `preset` or `param.*`, not both."
+- `template_version_preset_id` is preserved on submission (the preset is not compromised).
 
-This enables URLs like:
-```
-?preset=ml-large&param.region=eu-west-1
-```
-which selects the "ml-large" preset but overrides the region.
-
-**Preset ID clearing rule**: If any `param.*` query parameters are present alongside `preset`, `template_version_preset_id` is cleared from the submission regardless of whether the override values match the preset. This simple rule avoids value-comparison complexity and ensures prebuild matching is never based on a modified preset.
-
-**UI warning**: When `param.*` overrides clear the preset ID, the form should display an inline notice: "Parameter overrides detected — this workspace will not use a preset and may not match a prebuild." This prevents users from being surprised when prebuild matching fails.
+**Rationale**: In the UI, selecting a preset disables its parameter inputs. Allowing `param.*` overrides in deeplinks but not in the UI would create an inconsistency between the two creation paths. Keeping them mutually exclusive is simpler, safer for prebuild matching, and avoids a class of subtle bugs where a deeplink silently produces a workspace that doesn't match any preset.
 
 ### R3: `mode=auto` Support
 
@@ -96,7 +90,7 @@ When `mode=auto` is combined with `preset=<name>`:
 
 - `autoCreateReady` must also require `templateVersionPresetsQuery` to be settled and the preset to be successfully resolved before firing.
 - The consent dialog displays the resolved preset name above the parameter list (add an optional `presetName` prop to `AutoCreateConsentDialog`).
-- Auto-creation sends `template_version_preset_id` in the `CreateWorkspaceRequest` (when no `param.*` overrides are present).
+- Auto-creation sends `template_version_preset_id` in the `CreateWorkspaceRequest`.
 - The `autoCreateWorkspace` mutation (`AutoCreateWorkspaceOptions` type) is updated to accept an optional `templateVersionPresetId` field, and the mutation passes it through to `CreateWorkspaceRequest`.
 
 ### R4: Version Interaction
@@ -119,8 +113,8 @@ When `mode=auto` is combined with `preset=<name>`:
 | **Preset name not found** | Show inline error with version context and case-sensitivity hint; fall back to no preset; `mode=auto` falls back to `form` |
 | **Preset name is empty (`preset=`)** | Ignored; treated as if `preset` param is absent |
 | **Multiple `preset` params** | Use the first value |
-| **`preset` + `param.*` overrides** | Apply preset as base, overlay `param.*` values, clear `template_version_preset_id`, show UI warning |
-| **`preset` + `disable_params`** | Preset parameters are applied first; `disable_params` disables the named parameters (locking them to the preset's values unless `param.*` also overrides them) |
+| **`preset` + `param.*`** | `preset` takes precedence; all `param.*` values are ignored; show inline notice explaining mutual exclusivity |
+| **`preset` + `disable_params`** | Preset parameters are applied first; `disable_params` disables the named parameters (locking them to the preset's values) |
 | **`preset` + `match`** | If `match` finds an existing workspace, the user is navigated to it and `preset` is ignored. If no match is found, `preset` applies to the create-new fallback path |
 | **`preset` + `mode=duplicate`** | `preset` is ignored; `mode=duplicate` copies parameters from the source workspace. The preset dropdown shows no selection |
 | **`preset` + `name`** | Both apply independently; `preset` sets parameters, `name` sets the workspace name |
