@@ -17,18 +17,20 @@ DELETE
 FROM tailnet_coordinators
 WHERE heartbeat_at < now() - INTERVAL '24 HOURS';
 
--- name: CleanTailnetLostPeers :exec
+-- name: CleanTailnetLostPeers :many
 DELETE
 FROM tailnet_peers
-WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status;
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
+RETURNING id;
 
--- name: CleanTailnetTunnels :exec
+-- name: CleanTailnetTunnels :many
 DELETE FROM tailnet_tunnels
 WHERE updated_at < now() - INTERVAL '24 HOURS' AND
       NOT EXISTS (
         SELECT 1 FROM tailnet_peers
         WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
-      );
+      )
+RETURNING src_id, dst_id;
 
 -- name: UpsertTailnetPeer :one
 INSERT INTO
@@ -50,13 +52,14 @@ DO UPDATE SET
 	updated_at = now() at time zone 'utc'
 RETURNING *;
 
--- name: UpdateTailnetPeerStatusByCoordinator :exec
+-- name: UpdateTailnetPeerStatusByCoordinator :many
 UPDATE
 	tailnet_peers
 SET
 	status = $2
 WHERE
-	coordinator_id = $1;
+	coordinator_id = $1
+RETURNING id;
 
 -- name: DeleteTailnetPeer :one
 DELETE
@@ -91,10 +94,11 @@ FROM tailnet_tunnels
 WHERE coordinator_id = $1 and src_id = $2 and dst_id = $3
 RETURNING coordinator_id, src_id, dst_id;
 
--- name: DeleteAllTailnetTunnels :exec
+-- name: DeleteAllTailnetTunnels :many
 DELETE
 FROM tailnet_tunnels
-WHERE coordinator_id = $1 and src_id = $2;
+WHERE coordinator_id = $1 and src_id = $2
+RETURNING src_id, dst_id;
 
 -- For PG Coordinator HTMLDebug
 

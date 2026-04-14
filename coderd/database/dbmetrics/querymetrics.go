@@ -256,20 +256,20 @@ func (m queryMetricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	return r0
 }
 
-func (m queryMetricsStore) CleanTailnetLostPeers(ctx context.Context) error {
+func (m queryMetricsStore) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.CleanTailnetLostPeers(ctx)
+	r0, r1 := m.s.CleanTailnetLostPeers(ctx)
 	m.queryLatencies.WithLabelValues("CleanTailnetLostPeers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanTailnetLostPeers").Inc()
-	return r0
+	return r0, r1
 }
 
-func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
+func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) ([]database.CleanTailnetTunnelsRow, error) {
 	start := time.Now()
-	r0 := m.s.CleanTailnetTunnels(ctx)
+	r0, r1 := m.s.CleanTailnetTunnels(ctx)
 	m.queryLatencies.WithLabelValues("CleanTailnetTunnels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanTailnetTunnels").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
@@ -392,12 +392,12 @@ func (m queryMetricsStore) DeleteAllChatQueuedMessages(ctx context.Context, chat
 	return r0
 }
 
-func (m queryMetricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+func (m queryMetricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) ([]database.DeleteAllTailnetTunnelsRow, error) {
 	start := time.Now()
-	r0 := m.s.DeleteAllTailnetTunnels(ctx, arg)
+	r0, r1 := m.s.DeleteAllTailnetTunnels(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteAllTailnetTunnels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAllTailnetTunnels").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteAllWebpushSubscriptions(ctx context.Context) error {
@@ -4712,12 +4712,12 @@ func (m queryMetricsStore) UpdateReplica(ctx context.Context, arg database.Updat
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+	r0, r1 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTailnetPeerStatusByCoordinator").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTailnetPeerStatusByCoordinator").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
