@@ -696,12 +696,16 @@ func Healthcheck(
 		return nil, err
 	}
 
-	// Use a dedicated HTTP client so connections don't pool in
-	// http.DefaultTransport and leak goroutines after shutdown.
+	// Use a dedicated transport so that healthcheck HTTP connections
+	// are not pooled in http.DefaultTransport. Each connection's
+	// readLoop/writeLoop goroutines only exit once the connection
+	// closes; without this, they outlive the healthcheck runner and
+	// trigger goleak failures in tests.
+	transport := &http.Transport{
+		DisableKeepAlives: true,
+	}
 	client := &http.Client{
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-		},
+		Transport: transport,
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -712,6 +716,7 @@ func Healthcheck(
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
+		defer transport.CloseIdleConnections()
 		for {
 			select {
 			case <-ctx.Done():
@@ -722,6 +727,9 @@ func Healthcheck(
 			checkCtx, checkCancel := context.WithTimeout(ctx, 30*time.Second)
 			report := healthcheckFunc(checkCtx, apiKey, client, nil)
 			checkCancel()
+			// Force-close connections that just finished so their
+			// transport goroutines exit promptly.
+			transport.CloseIdleConnections()
 
 			if report == nil {
 				logger.Warn(ctx, "healthcheck returned nil report")
@@ -748,6 +756,5 @@ func Healthcheck(
 	return func() {
 		cancelFunc()
 		<-done
-		client.CloseIdleConnections()
 	}, nil
 }
