@@ -43,7 +43,10 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		// Use a dedicated transport to avoid flakes from httptest.Server.Close()
+		// calling CloseIdleConnections on http.DefaultTransport.
+		client := &http.Client{Transport: &http.Transport{}}
+		t.Cleanup(func() { client.CloseIdleConnections() })
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -79,7 +82,10 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		// Use a dedicated transport to avoid flakes from httptest.Server.Close()
+		// calling CloseIdleConnections on http.DefaultTransport.
+		client := &http.Client{Transport: &http.Transport{}}
+		t.Cleanup(func() { client.CloseIdleConnections() })
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -113,7 +119,10 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		// Use a dedicated transport to avoid flakes from httptest.Server.Close()
+		// calling CloseIdleConnections on http.DefaultTransport.
+		client := &http.Client{Transport: &http.Transport{}}
+		t.Cleanup(func() { client.CloseIdleConnections() })
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
