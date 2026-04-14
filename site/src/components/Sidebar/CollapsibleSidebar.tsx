@@ -32,10 +32,9 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 					className={cn(
 						"h-full overflow-y-auto overflow-x-hidden",
 						"flex flex-col border-0 border-r border-solid border-border",
-						// Left padding tuned so sidebar icons center-align
-						// under the Coder logo (navbar px-6 + half of w-7
-						// = 38px).
-						"pl-[18px] pt-6 pb-6 pr-6",
+						// pl-6 (24px) matches navbar px-6 so the icon left
+						// edges align with the Coder logo left edge.
+						"pl-6 pt-6 pb-6 pr-6",
 						"transition-[width] duration-150 ease-in-out",
 						className,
 					)}

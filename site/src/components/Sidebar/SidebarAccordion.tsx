@@ -23,10 +23,9 @@ interface SidebarAccordionProps {
 }
 
 /**
- * A single accordion section in the sidebar. Renders as an icon-only
- * button when collapsed, or as a full header + expandable content
- * when expanded. Both states use the same vertical rhythm so icons
- * don't jump when toggling between collapsed and expanded.
+ * A single accordion section in the sidebar. Both collapsed and
+ * expanded states use identical left padding (0) so icons always
+ * sit at the nav's pl-6 boundary, aligned with the Coder logo.
  */
 export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	icon: Icon,
@@ -42,13 +41,10 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 			<TooltipProvider>
 				<Tooltip delayDuration={0}>
 					<TooltipTrigger asChild>
-						{/* Match the expanded button's px-3 py-2 and icon
-						    size so icons sit at the same vertical position
-						    regardless of collapsed state. */}
 						<button
 							type="button"
 							onClick={onToggle}
-							className="flex items-center px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
+							className="flex items-center py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 						>
 							<Icon className="size-4 flex-shrink-0 text-content-secondary" />
 						</button>
@@ -64,7 +60,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 			<CollapsibleTrigger asChild>
 				<button
 					type="button"
-					className="flex w-full items-center gap-2 px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
+					className="flex w-full items-center gap-2 py-2 pr-3 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
 					<Icon className="size-4 flex-shrink-0 text-content-secondary" />
 					<span
@@ -82,8 +78,8 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				</button>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{/* pl-6 aligns sub-item text with the section label
-				    text (past the icon + gap). */}
+				{/* Indent sub-items past the icon (16px) + gap (8px)
+				    so their text left-aligns with section label text. */}
 				<div className="pl-6">{children}</div>
 			</CollapsibleContent>
 		</Collapsible>
