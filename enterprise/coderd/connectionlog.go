@@ -50,6 +50,25 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
+	// Data Protection Mode: strip user-identity filters for
+	// non-auditors to prevent using filters to discover real
+	// usernames.
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg != nil && dpCfg.Enabled {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			filter.Username = ""
+			filter.UserEmail = ""
+			filter.WorkspaceOwner = ""
+			filter.WorkspaceOwnerEmail = ""
+			countFilter.Username = ""
+			countFilter.UserEmail = ""
+			countFilter.WorkspaceOwner = ""
+			countFilter.WorkspaceOwnerEmail = ""
+		}
+	}
+
 	count, err := api.Database.CountConnectionLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -84,7 +103,6 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// in connection logs. This layers on top of the existing RBAC
 	// auditor gating because an RBAC auditor may be a team manager
 	// who should not see individual user data.
-	dpCfg := api.AGPL.DataProtection
 	if dpCfg != nil && dpCfg.Enabled {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
@@ -94,14 +112,14 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 					u := logs[i].WebInfo.User
 					pid := dpCfg.ObfuscateUserID(u.ID)
 					u.ID = pid
-					u.Username = fmt.Sprintf("User %s", pid.String()[:8])
+					u.Username = fmt.Sprintf("Protected User %s", pid.String()[:8])
 					u.Name = ""
 					u.Email = ""
 					u.AvatarURL = ""
 				}
 				pid := dpCfg.ObfuscateUserID(logs[i].WorkspaceOwnerID)
 				logs[i].WorkspaceOwnerID = pid
-				logs[i].WorkspaceOwnerUsername = fmt.Sprintf("User %s", pid.String()[:8])
+				logs[i].WorkspaceOwnerUsername = fmt.Sprintf("Protected User %s", pid.String()[:8])
 			}
 		}
 	}

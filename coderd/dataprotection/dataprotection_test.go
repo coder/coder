@@ -229,7 +229,7 @@ func TestConfig_SuppressSmallGroups(t *testing.T) {
 			}
 		}
 		result := cfg.ObfuscateUserActivities(users)
-		require.Nil(t, result, "4 users with min_group_size=5 should be suppressed")
+		require.Empty(t, result, "4 users with min_group_size=5 should be suppressed")
 	})
 
 	t.Run("AtThresholdNotSuppressed", func(t *testing.T) {
@@ -268,7 +268,7 @@ func TestConfig_SuppressSmallGroups(t *testing.T) {
 		t.Parallel()
 		cfg := dataprotection.NewConfigForTest(true, nil, 5, fixedKey)
 		result := cfg.ObfuscateUserActivities(nil)
-		require.Nil(t, result)
+		require.Empty(t, result)
 	})
 }
 

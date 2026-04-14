@@ -5255,7 +5255,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	if api.shouldObfuscateInsights(r) {
 		for i := range prEntries {
 			if prEntries[i].AuthorLogin != nil {
-				obfuscated := fmt.Sprintf("User %s", prEntries[i].ChatID.String()[:8])
+				obfuscated := fmt.Sprintf("Protected User %s", prEntries[i].ChatID.String()[:8])
 				prEntries[i].AuthorLogin = &obfuscated
 			}
 			prEntries[i].AuthorAvatarURL = nil

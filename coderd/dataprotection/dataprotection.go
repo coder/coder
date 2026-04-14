@@ -89,9 +89,10 @@ func (c *Config) ObfuscateUserID(realID uuid.UUID) uuid.UUID {
 }
 
 // PseudoUsername returns a deterministic pseudonymous username derived
-// from a pseudonym UUID: "User <first 8 hex chars>".
+// from a pseudonym UUID. The prefix makes it visually clear that the
+// real identity is protected.
 func PseudoUsername(pseudoID uuid.UUID) string {
-	return fmt.Sprintf("User %s", pseudoID.String()[:8])
+	return fmt.Sprintf("Protected User %s", pseudoID.String()[:8])
 }
 
 // ObfuscateUserActivities replaces user identity fields with
@@ -99,7 +100,7 @@ func PseudoUsername(pseudoID uuid.UUID) string {
 // MinGroupSize (suppression).
 func (c *Config) ObfuscateUserActivities(users []codersdk.UserActivity) []codersdk.UserActivity {
 	if len(users) < c.MinGroupSize {
-		return nil
+		return []codersdk.UserActivity{}
 	}
 	result := make([]codersdk.UserActivity, len(users))
 	for i, u := range users {
@@ -120,7 +121,7 @@ func (c *Config) ObfuscateUserActivities(users []codersdk.UserActivity) []coders
 // MinGroupSize (suppression).
 func (c *Config) ObfuscateUserLatencies(users []codersdk.UserLatency) []codersdk.UserLatency {
 	if len(users) < c.MinGroupSize {
-		return nil
+		return []codersdk.UserLatency{}
 	}
 	result := make([]codersdk.UserLatency, len(users))
 	for i, u := range users {
@@ -141,7 +142,7 @@ func (c *Config) ObfuscateUserLatencies(users []codersdk.UserLatency) []codersdk
 // MinGroupSize (suppression).
 func (c *Config) ObfuscateChatCostUsers(users []codersdk.ChatCostUserRollup) []codersdk.ChatCostUserRollup {
 	if len(users) < c.MinGroupSize {
-		return nil
+		return []codersdk.ChatCostUserRollup{}
 	}
 	result := make([]codersdk.ChatCostUserRollup, len(users))
 	for i, u := range users {

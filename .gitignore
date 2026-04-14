@@ -103,3 +103,4 @@ PLAN.md
 
 # Ignore any dev licenses
 license.txt
+scripts/seed-dpm-testdata.sh

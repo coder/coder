@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -95,8 +96,25 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	alogs := api.convertAuditLogs(ctx, dblogs)
+
+	// Apply Data Protection Mode obfuscation to user identities
+	// in audit log entries.
+	if api.shouldObfuscateInsights(r) {
+		for i := range alogs {
+			if alogs[i].User != nil {
+				pid := api.DataProtection.ObfuscateUserID(alogs[i].User.ID)
+				alogs[i].User.ID = pid
+				alogs[i].User.Username = dataprotection.PseudoUsername(pid)
+				alogs[i].User.Name = ""
+				alogs[i].User.Email = ""
+				alogs[i].User.AvatarURL = ""
+			}
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-		AuditLogs: api.convertAuditLogs(ctx, dblogs),
+		AuditLogs: alogs,
 		Count:     count,
 	})
 }
