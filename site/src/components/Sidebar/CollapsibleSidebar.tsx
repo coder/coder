@@ -15,7 +15,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 	className,
 	storageKey = "sidebar-width",
 }) => {
-	const { width, collapsed, expand, onDragStart } =
+	const { width, collapsed, dragging, expand, onDragStart } =
 		useSidebarResize(storageKey);
 
 	const contextValue = useMemo(
@@ -27,15 +27,21 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 		<SidebarContext.Provider value={contextValue}>
 			<div
 				data-sidebar-container
-				className="relative flex-shrink-0 sticky top-0 h-screen transition-[width] duration-150 ease-in-out"
+				className={cn(
+					"relative flex-shrink-0 sticky top-0 h-screen",
+					// Disable transition during drag so the 1:1 lead-in
+					// tracks the cursor without lag. Re-enable after
+					// release so the snap animation plays.
+					!dragging && "transition-[width] duration-150 ease-in-out",
+				)}
 				style={{ width }}
 			>
 				<nav
 					className={cn(
 						"h-full overflow-y-auto overflow-x-hidden",
 						"flex flex-col border-0 border-r border-solid border-border",
-						// Nav pl-3 + button px-3 = 24px, matching navbar
-						// px-6 so icon left edges align with the Coder logo.
+						// Nav px-3 + button px-3 = 24px on each side,
+						// matching navbar px-6 for icon alignment.
 						"px-3 pt-6 pb-6",
 						className,
 					)}
