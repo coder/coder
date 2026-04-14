@@ -16,16 +16,18 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			tabIndex={0}
 			onPointerDown={onDragStart}
 			className={cn(
-				"absolute top-0 right-0 h-full w-2 cursor-col-resize",
+				// Positioned on the outer wrapper (not inside the nav)
+				// so overflow clipping doesn't hide it. Centered on the
+				// border line at right:0.
+				"absolute top-0 -right-1 h-full w-2 cursor-col-resize z-10",
 				"flex items-center justify-center",
 				"group",
 			)}
 		>
-			{/* Visible indicator line — uses a gradient mask to fade out at
-			    the top and bottom so it doesn't create hard visual edges. */}
+			{/* 2px glow line with gradient mask fading at top/bottom. */}
 			<div
 				className={cn(
-					"h-full w-[3px] rounded-full",
+					"h-full w-[2px] rounded-full",
 					"bg-content-secondary opacity-0",
 					"transition-opacity duration-150",
 					"group-hover:opacity-40 group-active:opacity-70",

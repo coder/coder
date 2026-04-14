@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useMemo, useRef } from "react";
+import { type FC, type ReactNode, useMemo } from "react";
 import { cn } from "#/utils/cn";
 import { SidebarContext } from "./SidebarContext";
 import { SidebarResizeHandle } from "./SidebarResizeHandle";
@@ -15,40 +15,35 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 	className,
 	storageKey = "sidebar-width",
 }) => {
-	const dragging = useRef(false);
 	const { width, collapsed, onDragStart } = useSidebarResize(storageKey);
 
 	const contextValue = useMemo(() => ({ collapsed }), [collapsed]);
 
-	const handleDragStart = (e: React.PointerEvent) => {
-		dragging.current = true;
-
-		const cleanup = onDragStart(e);
-
-		// Restore the transition once the drag ends so subsequent
-		// programmatic width changes still animate smoothly.
-		const onUp = () => {
-			dragging.current = false;
-			document.removeEventListener("pointerup", onUp);
-		};
-		document.addEventListener("pointerup", onUp);
-
-		return cleanup;
-	};
-
 	return (
 		<SidebarContext.Provider value={contextValue}>
-			<nav
+			{/* Outer wrapper holds both the scrollable nav and the
+			    resize handle. The handle sits outside the nav's
+			    overflow so it's never clipped. */}
+			<div
+				className="relative flex-shrink-0 sticky top-0 h-screen"
 				style={{ width }}
-				className={cn(
-					"relative flex-shrink-0 overflow-hidden pl-6 pt-6 pb-6",
-					!dragging.current && "transition-[width] duration-150 ease-in-out",
-					className,
-				)}
 			>
-				{children}
-				<SidebarResizeHandle onDragStart={handleDragStart} />
-			</nav>
+				<nav
+					className={cn(
+						"h-full overflow-y-auto overflow-x-hidden",
+						"flex flex-col border-0 border-r border-solid border-border",
+						// Left padding tuned so sidebar icons center-align
+						// under the Coder logo (navbar px-6 + half of w-7
+						// = 38px).
+						"pl-[18px] pt-6 pb-6 pr-6",
+						"transition-[width] duration-150 ease-in-out",
+						className,
+					)}
+				>
+					{children}
+				</nav>
+				<SidebarResizeHandle onDragStart={onDragStart} />
+			</div>
 		</SidebarContext.Provider>
 	);
 };
