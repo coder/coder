@@ -165,12 +165,15 @@ func TestResolveWorkspace(t *testing.T) {
 		t.Parallel()
 
 		wsID := uuid.New()
+		var uuidHits, nameHits atomic.Int64
 
 		r := chi.NewRouter()
 		r.Get("/api/v2/workspaces/{workspace}", func(w http.ResponseWriter, req *http.Request) {
+			uuidHits.Add(1)
 			writeJSON(w, http.StatusNotFound, errResponse("Resource not found."))
 		})
 		r.Get("/api/v2/users/{user}/workspace/{workspace}", func(w http.ResponseWriter, req *http.Request) {
+			nameHits.Add(1)
 			writeJSON(w, http.StatusNotFound, errResponse("Resource not found."))
 		})
 
@@ -187,6 +190,8 @@ func TestResolveWorkspace(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.EqualValues(t, 1, uuidHits.Load(), "UUID endpoint should have been called")
+		require.EqualValues(t, 1, nameHits.Load(), "name endpoint should have been called as fallback")
 	})
 
 	t.Run("NonNotFoundError", func(t *testing.T) {
@@ -226,12 +231,20 @@ func TestResolveWorkspace(t *testing.T) {
 	t.Run("InvalidIdentifier", func(t *testing.T) {
 		t.Parallel()
 
-		// No server needed — should fail before making any HTTP calls.
-		u, err := url.Parse("http://localhost:0")
+		var hits atomic.Int64
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			hits.Add(1)
+			t.Fatalf("unexpected HTTP request for invalid identifier: %s", req.URL.Path)
+		}))
+		defer srv.Close()
+
+		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
 		_, err = client.ResolveWorkspace(t.Context(), "a/b/c")
 		require.Error(t, err)
+		require.ErrorContains(t, err, "invalid workspace name: \"a/b/c\"")
+		require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
 	})
 }

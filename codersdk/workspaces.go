@@ -615,7 +615,8 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 // splitWorkspaceIdentifier splits an identifier into owner and
 // workspace name. A bare name defaults the owner to Me ("me"). An
-// "owner/name" pair splits on the first "/".
+// "owner/name" pair is accepted, and identifiers with more than one
+// "/" are rejected.
 func splitWorkspaceIdentifier(identifier string) (owner, name string, err error) {
 	parts := strings.Split(identifier, "/")
 	switch len(parts) {

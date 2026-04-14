@@ -955,9 +955,9 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 	return owner, workspaceName, nil
 }
 
-// namedWorkspace fetches and returns a workspace by an identifier, which may be either
-// a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
-// where user is either a username or UUID.
+// namedWorkspace fetches and returns a workspace by identifier, which may be
+// a workspace UUID, a bare name (for a workspace owned by the current user),
+// or a "user/workspace" combination where user is either a username or UUID.
 func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
 	return client.ResolveWorkspace(ctx, identifier)
 }

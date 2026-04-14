@@ -44,6 +44,14 @@ import (
 // nolint:gocritic // This is in a test package and does not end up in the build
 func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.Client, database.WorkspaceTable, string) {
 	t.Helper()
+	return setupWorkspaceForAgentWithName(t, opts, "myworkspace")
+}
+
+// setupWorkspaceForAgentWithName creates a workspace setup exactly like main
+// SSH tests, but with a caller-provided workspace name.
+// nolint:gocritic // This is in a test package and does not end up in the build
+func setupWorkspaceForAgentWithName(t *testing.T, opts *coderdtest.Options, workspaceName string) (*codersdk.Client, database.WorkspaceTable, string) {
+	t.Helper()
 
 	client, store := coderdtest.NewWithDatabase(t, opts)
 	client.SetLogger(testutil.Logger(t).Named("client"))
@@ -53,7 +61,7 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 	})
 	// nolint:gocritic // This is in a test package and does not end up in the build
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-		Name:           "myworkspace",
+		Name:           workspaceName,
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent().Do()
@@ -574,6 +582,24 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
 		require.Equal(t, "owner format works", result.Output)
+
+		// Regression test: agent-backed tools should also work when the
+		// workspace name is a valid dashless UUID.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		uuidClient, uuidWorkspace, uuidAgentToken := setupWorkspaceForAgentWithName(t, nil, uuidLikeName)
+		_ = agenttest.New(t, uuidClient.URL, uuidAgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, uuidClient, uuidWorkspace.ID).Wait()
+
+		uuidTB, err := toolsdk.NewDeps(uuidClient)
+		require.NoError(t, err)
+
+		result, err = testTool(t, toolsdk.WorkspaceBash, uuidTB, toolsdk.WorkspaceBashArgs{
+			Workspace: uuidWorkspace.Name,
+			Command:   "echo 'uuid-like name works'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "uuid-like name works", result.Output)
 	})
 
 	t.Run("WorkspaceLS", func(t *testing.T) {
