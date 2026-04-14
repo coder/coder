@@ -1653,14 +1653,14 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 	return scripts
 }
 
-// @Summary Get workspace agent metadata for the authenticated agent
-// @ID get-workspace-agent-metadata-me
+// @Summary Get current workspace agent metadata
+// @ID get-current-workspace-agent-metadata
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
 // @Success 200 {array} codersdk.WorkspaceAgentMetadata
 // @Router /workspaceagents/me/metadata [get]
-func (api *API) workspaceAgentMetadataMe(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 

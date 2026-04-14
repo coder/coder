@@ -10471,8 +10471,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get workspace agent metadata for the authenticated agent",
-                "operationId": "get-workspace-agent-metadata-me",
+                "summary": "Get current workspace agent metadata",
+                "operationId": "get-current-workspace-agent-metadata",
                 "responses": {
                     "200": {
                         "description": "OK",

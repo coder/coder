@@ -470,7 +470,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get workspace agent metadata for the authenticated agent
+## Get current workspace agent metadata
 
 ### Code samples
 
@@ -513,7 +513,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 |--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentMetadata](schemas.md#codersdkworkspaceagentmetadata) |
 
-<h3 id="get-workspace-agent-metadata-for-the-authenticated-agent-responseschema">Response Schema</h3>
+<h3 id="get-current-workspace-agent-metadata-responseschema">Response Schema</h3>
 
 Status Code **200**
 
