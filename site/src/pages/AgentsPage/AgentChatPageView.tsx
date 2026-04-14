@@ -45,6 +45,7 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -85,6 +86,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
@@ -176,6 +178,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	organizationId,
 	chatTitle,
 	parentChat,
 	persistedError,
@@ -417,6 +420,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
+								organizationId={organizationId}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
@@ -549,6 +553,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	onToggleSidebarCollapsed,
 	showRightPanel,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	return (
 		<div
 			className={cn(
@@ -581,7 +586,12 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				/>
 				<div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
-						<div className="mx-auto w-full max-w-3xl py-6">
+						<div
+							className={cn(
+								"mx-auto w-full py-6",
+								chatWidthClass(chatFullWidth),
+							)}
+						>
 							<ChatConversationSkeleton />
 						</div>
 					</div>

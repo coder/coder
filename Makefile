@@ -856,6 +856,7 @@ pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
 	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
+	test -d site/node_modules/.cache/storybook || (cd site/ && pnpm exec node scripts/warmup-storybook-cache.mjs)
 	echo "test + build site:"
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \

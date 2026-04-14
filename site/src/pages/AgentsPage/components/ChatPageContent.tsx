@@ -2,7 +2,8 @@ import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { cn } from "#/utils/cn";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -61,6 +62,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 
@@ -86,7 +88,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
 			<div
 				data-testid="chat-timeline-wrapper"
-				className="mx-auto flex w-full max-w-3xl flex-col gap-2 py-6"
+				className={cn(
+					"mx-auto flex w-full flex-col gap-2 py-6",
+					chatWidthClass(chatFullWidth),
+				)}
 			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
@@ -124,6 +129,8 @@ export type PendingAttachment = {
 };
 
 interface ChatPageInputProps {
+	// Organization that owns this chat. Used to scope file uploads.
+	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (
@@ -181,6 +188,7 @@ interface ChatPageInputProps {
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
+	organizationId,
 	store,
 	compressionThreshold,
 	onSend,
@@ -257,8 +265,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const { organizations } = useDashboard();
-	const organizationId = organizations[0]?.id;
 	const {
 		attachments,
 		textContents,

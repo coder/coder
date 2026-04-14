@@ -186,6 +186,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
+	const initialOrg =
+		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
@@ -207,8 +209,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			}
 			if (
 				showOrganizations &&
-				organizations[0] &&
-				workspace.organization_id !== organizations[0].id
+				initialOrg &&
+				workspace.organization_id !== initialOrg.id
 			) {
 				localStorage.removeItem(selectedWorkspaceIdStorageKey);
 				return null;
@@ -217,7 +219,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		},
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		organizations[0] ?? null,
+		initialOrg ?? null,
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
@@ -404,7 +406,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								id="organization"
 								required
 								value={selectedOrg}
-								options={[...organizations]}
+								options={organizations}
 								onChange={(newOrg) => {
 									const orgChanged = newOrg?.id !== selectedOrg?.id;
 									if (orgChanged && attachments.length > 0) {

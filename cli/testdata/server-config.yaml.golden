@@ -757,6 +757,10 @@ chat:
   # How many pending chats a worker should acquire per polling cycle.
   # (default: 10, type: int)
   acquireBatchSize: 10
+  # Force chat debug logging on for every chat, bypassing the runtime admin and user
+  # opt-in settings.
+  # (default: false, type: bool)
+  debugLoggingEnabled: false
 aibridge:
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)

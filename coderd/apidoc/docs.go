@@ -14739,6 +14739,9 @@ const docTemplate = `{
             "properties": {
                 "acquire_batch_size": {
                     "type": "integer"
+                },
+                "debug_logging_enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -16221,7 +16224,6 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push",
                 "oauth2",
                 "agents",
                 "mcp-server-http",
@@ -16234,7 +16236,6 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
-                "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
@@ -16243,7 +16244,6 @@ const docTemplate = `{
                 "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
-                "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables agent-powered chat functionality.",
                 "Enables the MCP HTTP server functionality.",
@@ -16254,7 +16254,6 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentAgents",
                 "ExperimentMCPServerHTTP",

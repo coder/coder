@@ -1285,7 +1285,8 @@
     "structured_logging": true
   },
   "chat": {
-    "acquire_batch_size": 0
+    "acquire_batch_size": 0,
+    "debug_logging_enabled": true
   }
 }
 ```
@@ -2066,15 +2067,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "acquire_batch_size": 0
+  "acquire_batch_size": 0,
+  "debug_logging_enabled": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size` | integer | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer | false    |              |             |
+| `debug_logging_enabled` | boolean | false    |              |             |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -3316,7 +3319,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "structured_logging": true
       },
       "chat": {
-        "acquire_batch_size": 0
+        "acquire_batch_size": 0,
+        "debug_logging_enabled": true
       }
     },
     "allow_workspace_renames": true,
@@ -3904,7 +3908,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "structured_logging": true
     },
     "chat": {
-      "acquire_batch_size": 0
+      "acquire_batch_size": 0,
+      "debug_logging_enabled": true
     }
   },
   "allow_workspace_renames": true,
@@ -4618,9 +4623,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                            |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                |
+|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

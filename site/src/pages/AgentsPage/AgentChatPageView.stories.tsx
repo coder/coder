@@ -113,6 +113,7 @@ type StoryProps = Omit<
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const props = {
 		agentId: AGENT_ID,
+		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,

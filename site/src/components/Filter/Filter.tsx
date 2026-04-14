@@ -1,8 +1,12 @@
-import { useTheme } from "@emotion/react";
-import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
-import type { Breakpoint } from "@mui/system/createTheme";
 import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
@@ -19,7 +23,9 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
 import { useDebouncedFunction } from "#/hooks/debounce";
+import { cn } from "#/utils/cn";
 
 type PresetFilter = {
 	name: string;
@@ -132,13 +138,9 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 	return (
 		<Skeleton
-			variant="rectangular"
 			height={36}
 			{...skeletonProps}
-			css={(theme) => ({
-				backgroundColor: theme.palette.background.paper,
-				borderRadius: "6px",
-			})}
+			className="bg-surface-tertiary rounded-md w-52"
 		>
 			{children}
 		</Skeleton>
@@ -149,7 +151,7 @@ export const MenuSkeleton: FC = () => {
 	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
-type FilterProps = {
+type FilterProps = ComponentProps<"div"> & {
 	filter: ReturnType<typeof useFilter>;
 	optionsSkeleton: ReactNode;
 	isLoading: boolean;
@@ -159,13 +161,6 @@ type FilterProps = {
 	error?: unknown;
 	options?: ReactNode;
 	presets: PresetFilter[];
-
-	/**
-	 * The CSS media query breakpoint that defines when the UI will try
-	 * displaying all options on one row, regardless of the number of options
-	 * present
-	 */
-	singleRowBreakpoint?: Breakpoint;
 };
 
 export const Filter: FC<FilterProps> = ({
@@ -178,9 +173,9 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	singleRowBreakpoint = "lg",
+	className,
+	...props
 }) => {
-	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
 	// aggressively without re-renders rippling out to the rest of the app every
 	// single time. Exists for performance reasons - not really a good way to
@@ -205,16 +200,8 @@ export const Filter: FC<FilterProps> = ({
 
 	return (
 		<div
-			css={{
-				display: "flex",
-				gap: 8,
-				marginBottom: 16,
-				flexWrap: "wrap",
-
-				[theme.breakpoints.up(singleRowBreakpoint)]: {
-					flexWrap: "nowrap",
-				},
-			}}
+			className={cn("flex gap-2 flex-wrap lg:flex-nowrap mb-4", className)}
+			{...props}
 		>
 			{isLoading ? (
 				<>
