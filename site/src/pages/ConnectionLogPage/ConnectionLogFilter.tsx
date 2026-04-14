@@ -60,7 +60,9 @@ interface ConnectionLogFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
-		user: UserFilterMenu;
+		// The user menu is hidden when data protection mode is active
+		// to prevent leaking real usernames via the users API.
+		user?: UserFilterMenu;
 		status: StatusFilterMenu;
 		type: TypeFilterMenu;
 		// The organization menu is only provided in a multi-org setup.
@@ -80,12 +82,18 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 				"/admin/monitoring/connection-logs#how-to-filter-connection-logs",
 			)}
 			presets={CONNECTION_LOG_PRESET_FILTERS}
-			isLoading={menus.user.isInitializing}
+			isLoading={menus.user?.isInitializing ?? false}
 			filter={filter}
 			error={error}
 			options={
 				<>
-					<UserMenu placeholder="All owners" menu={menus.user} width={width} />
+					{menus.user && (
+						<UserMenu
+							placeholder="All owners"
+							menu={menus.user}
+							width={width}
+						/>
+					)}
 					<StatusMenu menu={menus.status} width={width} />
 					<TypeMenu menu={menus.type} width={width} />
 					{menus.organization && (
@@ -95,7 +103,7 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 			}
 			optionsSkeleton={
 				<>
-					<MenuSkeleton />
+					{menus.user && <MenuSkeleton />}
 					<MenuSkeleton />
 					<MenuSkeleton />
 					{menus.organization && <MenuSkeleton />}

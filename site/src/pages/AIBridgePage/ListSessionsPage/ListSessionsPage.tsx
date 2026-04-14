@@ -1,6 +1,8 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -28,6 +30,10 @@ const AISessionListPage: FC = () => {
 	const hasPermission = permissions.viewAnyAIBridgeInterception;
 	const canViewSessions = isEntitled && hasPermission;
 
+	const configQuery = useQuery(deploymentConfig());
+	const dataProtectionEnabled =
+		configQuery.data?.config?.data_protection?.enabled;
+
 	const [searchParams, setSearchParams] = useSearchParams();
 	const sessionsQuery = usePaginatedQuery({
 		...paginatedSessions(searchParams),
@@ -46,6 +52,7 @@ const AISessionListPage: FC = () => {
 				...filter.values,
 				initiator: option?.value,
 			}),
+		enabled: !dataProtectionEnabled,
 	});
 
 	const providerMenu = useProviderFilterMenu({
@@ -84,7 +91,7 @@ const AISessionListPage: FC = () => {
 					filter,
 					error: sessionsQuery.error,
 					menus: {
-						user: userMenu,
+						user: dataProtectionEnabled ? undefined : userMenu,
 						provider: providerMenu,
 						client: clientMenu,
 					},

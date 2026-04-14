@@ -18,7 +18,9 @@ interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
-		user: UserFilterMenu;
+		// The user menu is hidden when data protection mode is active
+		// to prevent leaking real usernames via the users API.
+		user?: UserFilterMenu;
 		provider: ProviderFilterMenu;
 		client: ClientFilterMenu;
 	};
@@ -33,7 +35,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 		<Filter
 			filter={filter}
 			optionsSkeleton={<MenuSkeleton />}
-			isLoading={menus.user.isInitializing}
+			isLoading={menus.user?.isInitializing ?? false}
 			presets={[
 				{
 					name: "All sessions",
@@ -47,7 +49,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<UserMenu menu={menus.user} placeholder="All users" />
+					{menus.user && <UserMenu menu={menus.user} placeholder="All users" />}
 					<ProviderFilter menu={menus.provider} />
 					<ClientFilter menu={menus.client} />
 				</>

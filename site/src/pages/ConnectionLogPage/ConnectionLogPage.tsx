@@ -1,6 +1,8 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedConnectionLogs } from "#/api/queries/connectionlog";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
@@ -23,6 +25,10 @@ const ConnectionLogPage: FC = () => {
 
 	const { showOrganizations } = useDashboard();
 
+	const configQuery = useQuery(deploymentConfig());
+	const dataProtectionEnabled =
+		configQuery.data?.config?.data_protection?.enabled;
+
 	const [searchParams, setSearchParams] = useSearchParams();
 	const connectionlogsQuery = usePaginatedQuery(
 		paginatedConnectionLogs(searchParams),
@@ -40,6 +46,7 @@ const ConnectionLogPage: FC = () => {
 				...filter.values,
 				workspace_owner: option?.value,
 			}),
+		enabled: !dataProtectionEnabled,
 	});
 
 	const statusMenu = useStatusFilterMenu({
@@ -83,7 +90,7 @@ const ConnectionLogPage: FC = () => {
 					filter,
 					error: connectionlogsQuery.error,
 					menus: {
-						user: userMenu,
+						user: dataProtectionEnabled ? undefined : userMenu,
 						status: statusMenu,
 						type: typeMenu,
 						organization: showOrganizations ? organizationsMenu : undefined,
