@@ -23,16 +23,10 @@ interface SidebarAccordionProps {
 	onToggle: () => void;
 	/** URL to navigate to when clicking the icon in collapsed mode. */
 	href?: string;
+	/** Whether this section contains the current route. */
+	active?: boolean;
 }
 
-/**
- * A single accordion section in the sidebar. Both collapsed and
- * expanded states use identical px-3 py-2 padding so icons stay
- * at the same vertical position regardless of state.
- *
- * In collapsed mode, clicking the icon navigates to the section's
- * first page (via href) and expands the sidebar.
- */
 export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	icon: Icon,
 	label,
@@ -40,8 +34,20 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	open,
 	onToggle,
 	href,
+	active = false,
 }) => {
 	const { collapsed, expand } = useSidebarContext();
+
+	// Icon and label highlight when this section owns the current
+	// route, regardless of whether the accordion is expanded.
+	const iconClass = cn(
+		"size-4 flex-shrink-0 text-content-secondary",
+		active && "text-content-primary",
+	);
+	const labelClass = cn(
+		"text-sm font-medium text-content-secondary whitespace-nowrap",
+		active && "text-content-primary",
+	);
 
 	if (collapsed) {
 		return (
@@ -54,13 +60,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 								onClick={expand}
 								className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
 							>
-								{" "}
-								<Icon
-									className={cn(
-										"size-4 flex-shrink-0 text-content-secondary",
-										open && "text-content-primary",
-									)}
-								/>
+								<Icon className={iconClass} />
 							</Link>
 						) : (
 							<button
@@ -71,13 +71,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 								}}
 								className="flex items-center justify-center w-10 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 							>
-								{" "}
-								<Icon
-									className={cn(
-										"size-4 flex-shrink-0 text-content-secondary",
-										open && "text-content-primary",
-									)}
-								/>
+								<Icon className={iconClass} />
 							</button>
 						)}
 					</TooltipTrigger>
@@ -94,20 +88,8 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 					type="button"
 					className="flex w-full items-center gap-2 px-3 py-2 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
-					<Icon
-						className={cn(
-							"size-4 flex-shrink-0 text-content-secondary",
-							open && "text-content-primary",
-						)}
-					/>
-					<span
-						className={cn(
-							"text-sm font-medium text-content-secondary whitespace-nowrap",
-							open && "text-content-primary",
-						)}
-					>
-						{label}
-					</span>
+					<Icon className={iconClass} />
+					<span className={labelClass}>{label}</span>
 					<ChevronDownIcon
 						open={open}
 						className="size-4 text-content-secondary ml-auto flex-shrink-0"
@@ -115,8 +97,6 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				</button>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{/* Indent sub-items past the icon (16px) + gap (8px)
-				    so their text left-aligns with section label text. */}
 				<div className="pl-6">{children}</div>
 			</CollapsibleContent>
 		</Collapsible>

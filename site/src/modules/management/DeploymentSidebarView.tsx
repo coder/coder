@@ -67,6 +67,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				href="/deployment/overview"
 				open={openSections.has("general")}
 				onToggle={() => toggle("general")}
+				active={activeSection === "general"}
 			>
 				<div className="flex flex-col gap-1">
 					{permissions.viewDeploymentConfig && (
@@ -109,6 +110,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				href="/deployment/security"
 				open={openSections.has("infrastructure")}
 				onToggle={() => toggle("infrastructure")}
+				active={activeSection === "infrastructure"}
 			>
 				<div className="flex flex-col gap-1">
 					{permissions.viewDeploymentConfig && (
@@ -141,6 +143,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				href="/deployment/userauth"
 				open={openSections.has("authentication")}
 				onToggle={() => toggle("authentication")}
+				active={activeSection === "authentication"}
 			>
 				<div className="flex flex-col gap-1">
 					{permissions.viewDeploymentConfig && (
@@ -174,6 +177,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				href="/deployment/ai-settings/usage-stats"
 				open={openSections.has("ai-settings")}
 				onToggle={() => toggle("ai-settings")}
+				active={activeSection === "ai-settings"}
 			>
 				<div className="flex flex-col gap-1">
 					<BaseSidebarNavItem href="/deployment/ai-settings/usage-stats">
@@ -198,6 +202,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				href="/deployment/ai-governance"
 				open={openSections.has("ai-governance")}
 				onToggle={() => toggle("ai-governance")}
+				active={activeSection === "ai-governance"}
 			>
 				<div className="flex flex-col gap-1">
 					{permissions.viewDeploymentConfig && (
