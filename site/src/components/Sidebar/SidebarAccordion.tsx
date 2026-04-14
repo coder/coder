@@ -52,8 +52,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 							<Link
 								to={href}
 								onClick={expand}
-								className="flex w-full items-center px-3 py-2 h-10 rounded-md no-underline hover:bg-surface-secondary"
+								className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
 							>
+								{" "}
 								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
 							</Link>
 						) : (
@@ -63,8 +64,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 									expand();
 									onToggle();
 								}}
-								className="flex w-full items-center px-3 py-2 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
+								className="flex items-center justify-center w-10 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 							>
+								{" "}
 								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
 							</button>
 						)}
