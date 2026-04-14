@@ -30,6 +30,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -74,12 +75,9 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
 
-	const hasItemsAboveSeparator =
-		hasVSCode ||
-		hasVSCodeInsiders ||
-		userApps.length > 0 ||
-		hasTerminal ||
-		!!sshCommand;
+	// Cursor is always shown (unconditional), so there are always
+	// items above the separator.
+	const hasItemsAboveSeparator = true;
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -143,6 +141,17 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						isGeneratingKey={isGeneratingKey}
 					/>
 				)}
+				<VSCodeMenuItem
+					variant="cursor"
+					label="Cursor"
+					workspace={workspace}
+					agent={agent}
+					chatId={chatId}
+					folder={folder}
+					isRunning={isRunning}
+					generateKey={generateKey}
+					isGeneratingKey={isGeneratingKey}
+				/>
 				{userApps.map((app) => (
 					<AppMenuItem
 						key={app.id}
@@ -173,7 +182,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 };
 
 const VSCodeMenuItem: FC<{
-	variant: "vscode" | "vscode-insiders";
+	variant: "vscode" | "vscode-insiders" | "cursor";
 	label: string;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
@@ -289,17 +298,16 @@ const TerminalMenuItem: FC<{
 const CopySSHMenuItem: FC<{
 	sshCommand: string;
 }> = ({ sshCommand }) => {
-	const handleCopySSH = async () => {
-		try {
-			await navigator.clipboard.writeText(sshCommand);
-			toast.success("SSH command copied to clipboard");
-		} catch {
-			toast.error("Failed to copy SSH command");
-		}
-	};
+	const { copyToClipboard } = useClipboard();
 
 	return (
-		<DropdownMenuItem onSelect={() => void handleCopySSH()}>
+		<DropdownMenuItem
+			onSelect={() => {
+				void copyToClipboard(sshCommand).then(() => {
+					toast.success("SSH command copied to clipboard");
+				});
+			}}
+		>
 			<CopyIcon className="size-3.5" />
 			Copy SSH Command
 		</DropdownMenuItem>

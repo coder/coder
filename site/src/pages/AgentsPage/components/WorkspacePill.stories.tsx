@@ -102,6 +102,7 @@ const meta: Meta<typeof WorkspacePill> = {
 	decorators: [withProxyProvider()],
 	parameters: {
 		layout: "centered",
+		queries: [{ key: ["me", "apiKey"], data: { key: "mock-api-key" } }],
 	},
 };
 export default meta;
@@ -129,6 +130,7 @@ export const WithAllApps: Story = {
 			expect(body.getByText("Open in VS Code Insiders")).toBeInTheDocument();
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
+			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("Open Terminal")).toBeInTheDocument();
 			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
@@ -138,6 +140,15 @@ export const WithAllApps: Story = {
 				.getByText("Open in VS Code")
 				.closest("[role=menuitem]");
 			expect(vscodeItem).not.toHaveAttribute("aria-disabled", "true");
+
+			// External apps should be enabled with API key mock.
+			const jetbrainsItem = body
+				.getByText("JetBrains Gateway")
+				.closest("[role=menuitem]");
+			expect(jetbrainsItem).not.toHaveAttribute("aria-disabled", "true");
+
+			const cursorItem = body.getByText("Cursor").closest("[role=menuitem]");
+			expect(cursorItem).not.toHaveAttribute("aria-disabled", "true");
 		});
 	},
 };
@@ -156,6 +167,7 @@ export const WithBuiltinAppsOnly: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Open in VS Code")).toBeInTheDocument();
+			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("Open Terminal")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 			// No external apps or VS Code Insiders.
@@ -181,8 +193,9 @@ export const WithExternalAppsOnly: Story = {
 			const body = within(document.body);
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
+			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			// No built-in apps.
+			// No built-in VS Code or terminal apps.
 			expect(body.queryByText("Open in VS Code")).not.toBeInTheDocument();
 			expect(body.queryByText("Open Terminal")).not.toBeInTheDocument();
 		});
@@ -202,6 +215,8 @@ export const NoApps: Story = {
 
 		await waitFor(() => {
 			const body = within(document.body);
+			// Cursor is always shown even with no other apps.
+			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 		});
 	},
@@ -259,6 +274,12 @@ export const WithStoppedWorkspace: Story = {
 				.getByText("Open Terminal")
 				.closest("[role=menuitem]");
 			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
+
+			// Built-in Cursor should be disabled.
+			const cursorBuiltinItem = body
+				.getByText("Open in Cursor")
+				.closest("[role=menuitem]");
+			expect(cursorBuiltinItem).toHaveAttribute("aria-disabled", "true");
 
 			// External app items should be disabled.
 			const jetbrainsItem = body
