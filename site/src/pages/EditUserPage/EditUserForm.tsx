@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { UserIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
 import type {
@@ -12,7 +12,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
@@ -25,6 +24,7 @@ import {
 	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { RoleOption } from "#/modules/users/RoleOption";
 import { roleDescriptions } from "#/modules/users/roleDescriptions";
 import {
 	displayNameValidator,
@@ -155,9 +155,7 @@ const RolesSection: FC<RolesSectionProps> = ({
 	onUpdateRoles,
 }) => {
 	const selectedRoleNames = new Set(userRoles.map((r) => r.name));
-	const canSetRoles =
-		userLoginType !== "oidc" ||
-		(userLoginType === "oidc" && !oidcRoleSyncEnabled);
+	const canSetRoles = userLoginType !== "oidc" || !oidcRoleSyncEnabled;
 
 	const handleChange = (roleName: string) => {
 		const next = new Set(selectedRoleNames);
@@ -178,12 +176,12 @@ const RolesSection: FC<RolesSectionProps> = ({
 		(role) => role.name === "organization-workspace-creation-ban",
 	);
 
-	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-	useEffect(() => {
-		if (selectedRoleNames.has("organization-workspace-creation-ban")) {
-			setIsAdvancedOpen(true);
-		}
-	}, [selectedRoleNames]);
+	// Compute initial open state synchronously so CollapsibleSummary
+	// mounts with the correct value. Using useEffect would fire after
+	// mount, but CollapsibleSummary only reads defaultOpen on mount.
+	const [isAdvancedOpen] = useState(() =>
+		userRoles.some((r) => r.name === "organization-workspace-creation-ban"),
+	);
 
 	return (
 		<div className="mt-10 border-0 border-t border-solid border-border pt-8">
@@ -255,39 +253,5 @@ const RolesSection: FC<RolesSectionProps> = ({
 				</p>
 			)}
 		</div>
-	);
-};
-
-interface RoleOptionProps {
-	value: string;
-	name: string;
-	description: string;
-	isChecked: boolean;
-	onChange: (roleName: string) => void;
-}
-
-const RoleOption: FC<RoleOptionProps> = ({
-	value,
-	name,
-	description,
-	isChecked,
-	onChange,
-}) => {
-	return (
-		<label htmlFor={name} className="cursor-pointer">
-			<div className="flex items-start gap-4">
-				<Checkbox
-					id={name}
-					checked={isChecked}
-					onCheckedChange={() => {
-						onChange(value);
-					}}
-				/>
-				<div className="flex flex-col">
-					<strong className="text-sm">{name}</strong>
-					<span className="text-xs text-content-secondary">{description}</span>
-				</div>
-			</div>
-		</label>
 	);
 };

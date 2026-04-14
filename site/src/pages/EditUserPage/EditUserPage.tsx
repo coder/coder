@@ -40,24 +40,22 @@ const EditUserPage: FC = () => {
 	const userData = userQuery.data;
 
 	// Indicates if OIDC roles are synced from the OIDC IdP.
-	// Defaults to false if the deployment config is not available.
+	// Defaults to false when deployment config has not loaded yet.
 	const oidcRoleSyncEnabled =
 		viewDeploymentConfig &&
-		deploymentValues?.config.oidc?.user_role_field !== "";
+		(deploymentValues?.config.oidc?.user_role_field ?? "") !== "";
 
 	const handleSubmit = async (values: UpdateUserProfileRequest) => {
 		const mutation = updateProfileMutation.mutateAsync(values, {
 			onSuccess: (updatedUser) => {
-				// Invalidate the user cache so other parts of the UI
-				// reflect the change.
+				// Invalidate the user cache so other parts of the UI reflect the change.
 				void queryClient.invalidateQueries({
 					queryKey: ["user", usernameOrId],
 				});
 				void queryClient.invalidateQueries({ queryKey: ["users"] });
 
-				// If the URL currently uses the username (not a UUID) and
-				// the username has changed, rewrite the URL so the page
-				// doesn't 404 on refresh.
+				// If the URL currently uses the username (not a UUID) and the username
+				// has changed, rewrite the URL so the page doesn't 404 on refresh.
 				if (!isUUID(usernameOrId) && updatedUser.username !== usernameOrId) {
 					navigate(`../${updatedUser.username}`, {
 						relative: "path",

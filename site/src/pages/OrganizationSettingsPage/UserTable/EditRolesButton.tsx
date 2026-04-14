@@ -2,7 +2,6 @@ import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import type { SlimRole } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
 	HelpPopover,
@@ -22,41 +21,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { RoleOption } from "#/modules/users/RoleOption";
 import { roleDescriptions } from "#/modules/users/roleDescriptions";
-
-interface OptionProps {
-	value: string;
-	name: string;
-	description: string;
-	isChecked: boolean;
-	onChange: (roleName: string) => void;
-}
-
-const Option: FC<OptionProps> = ({
-	value,
-	name,
-	description,
-	isChecked,
-	onChange,
-}) => {
-	return (
-		<label htmlFor={name} className="cursor-pointer">
-			<div className="flex items-start gap-4">
-				<Checkbox
-					id={name}
-					checked={isChecked}
-					onCheckedChange={() => {
-						onChange(value);
-					}}
-				/>
-				<div className="flex flex-col">
-					<strong className="text-sm">{name}</strong>
-					<span className="text-xs text-content-secondary">{description}</span>
-				</div>
-			</div>
-		</label>
-	);
-};
 
 interface EditRolesButtonProps {
 	isLoading: boolean;
@@ -149,7 +115,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 				>
 					<div className="flex flex-col gap-4 p-6 w-full">
 						{filteredRoles.map((role) => (
-							<Option
+							<RoleOption
 								key={role.name}
 								onChange={handleChange}
 								isChecked={selectedRoleNames.has(role.name)}
@@ -161,7 +127,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 						{advancedRoles.length > 0 && (
 							<CollapsibleSummary label="advanced" defaultOpen={isAdvancedOpen}>
 								{advancedRoles.map((role) => (
-									<Option
+									<RoleOption
 										key={role.name}
 										onChange={handleChange}
 										isChecked={selectedRoleNames.has(role.name)}

@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import {
 	MockAssignableSiteRoles,
+	MockAuditorRole,
 	MockOwnerRole,
+	MockUserAdminRole,
 	MockUserMember,
 	MockUserOwner,
 	mockApiError,
@@ -63,7 +65,10 @@ export const Loading: Story = {
 
 export const WithRoles: Story = {
 	args: {
-		user: MockUserOwner,
+		user: {
+			...MockUserOwner,
+			roles: [MockUserAdminRole, MockAuditorRole],
+		},
 		availableRoles: MockAssignableSiteRoles,
 		canEditRoles: true,
 		oidcRoleSyncEnabled: false,
