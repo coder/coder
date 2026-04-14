@@ -908,7 +908,10 @@ func (q *querier) newConn(c *connIO) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if !q.healthy {
-		_ = c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy})
+		if err := c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy}); err != nil {
+			q.logger.Warn(q.ctx, "enqueue unhealthy close response failed",
+				slog.F("peer_id", c.UniqueID()), slog.Error(err))
+		}
 		err := c.Close()
 		// This can only happen during a narrow window where we were healthy
 		// when pgCoord checked before accepting the connection, but now are
@@ -1319,12 +1322,15 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 		return
 	}
 
-	_ = mpr.c.Enqueue(&proto.CoordinateResponse{
+	if err := mpr.c.Enqueue(&proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
 			Id:   from[:],
 			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
 		}},
-	})
+	}); err != nil {
+		q.logger.Warn(q.ctx, "enqueue ready for handshake failed",
+			slog.F("peer_id", to), slog.F("from_peer_id", from), slog.Error(err))
+	}
 }
 
 func (q *querier) resyncPeerMappings() {
@@ -1381,7 +1387,10 @@ func (q *querier) unhealthyCloseAll() {
 	for _, mpr := range q.mappers {
 		// close connections async so that we don't block the querier routine that responds to updates
 		go func(c *connIO) {
-			_ = c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy})
+			if err := c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy}); err != nil {
+				q.logger.Warn(q.ctx, "enqueue unhealthy close response failed",
+					slog.F("peer_id", c.UniqueID()), slog.Error(err))
+			}
 			err := c.Close()
 			if err != nil {
 				q.logger.Debug(q.ctx, "error closing conn while unhealthy", slog.Error(err))
