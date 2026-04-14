@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -170,6 +171,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.
 			var closeErr error
+			watchdogErr := make(chan error, 1)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -180,7 +182,15 @@ func (r *RootCmd) portForward() *serpent.Command {
 				select {
 				case <-ctx.Done():
 					logger.Debug(ctx, "command context expired waiting for signal", slog.Error(ctx.Err()))
-					closeErr = ctx.Err()
+					// If the watchdog triggered the cancellation, use
+					// its error so callers can distinguish agent
+					// failure from user-initiated cancellation.
+					select {
+					case err := <-watchdogErr:
+						closeErr = err
+					default:
+						closeErr = ctx.Err()
+					}
 				case sig := <-sigs:
 					logger.Debug(ctx, "received signal", slog.F("signal", sig))
 					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
@@ -192,49 +202,23 @@ func (r *RootCmd) portForward() *serpent.Command {
 			}()
 
 			conn.AwaitReachable(ctx)
-			logger.Debug(ctx, "read to accept connections to forward")
+			logger.Debug(ctx, "ready to accept connections to forward")
 			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
 
-			// Watchdog: periodically verify the agent is still reachable. If
-			// the tailnet connection drops and does not recover (e.g. after a
-			// laptop sleep or network change), cancel the command context so
-			// the listeners close and the process exits instead of accepting
-			// connections into a dead backend. See coder/coder#10626.
+			// Watchdog: periodically ping the agent to verify it is
+			// still reachable. If the connection drops and does not
+			// recover (e.g. after a laptop sleep or network change),
+			// cancel the command so the listeners close and the
+			// process exits instead of forwarding into a dead
+			// backend. See coder/coder#10626.
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				const (
-					interval    = 5 * time.Second
-					timeout     = 10 * time.Second
-					maxFailures = 3
-				)
-				ticker := time.NewTicker(interval)
-				defer ticker.Stop()
-				failures := 0
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-					}
-					pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
-					reachable := conn.AwaitReachable(pingCtx)
-					pingCancel()
-					if reachable {
-						failures = 0
-						continue
-					}
-					if ctx.Err() != nil {
-						return
-					}
-					failures++
-					logger.Warn(ctx, "workspace agent unreachable",
-						slog.F("failures", failures), slog.F("max_failures", maxFailures))
-					if failures >= maxFailures {
-						_, _ = fmt.Fprintln(inv.Stderr, "Workspace agent unreachable, closing port-forward")
-						cancel()
-						return
-					}
+				err := agentHeartbeat(ctx, conn, logger, quartz.NewReal(), watchdogInterval, watchdogTimeout, watchdogMaxFailures)
+				if err != nil {
+					_, _ = fmt.Fprintln(inv.Stderr, "Workspace agent unreachable, closing port-forward")
+					watchdogErr <- err
+					cancel()
 				}
 			}()
 
@@ -328,6 +312,66 @@ func listenAndPortForward(
 	}(spec)
 
 	return l, nil
+}
+
+const (
+	// watchdogInterval is how often the watchdog pings the agent.
+	watchdogInterval = 5 * time.Second
+	// watchdogTimeout is the per-ping timeout.
+	watchdogTimeout = 10 * time.Second
+	// watchdogMaxFailures is how many consecutive ping failures
+	// trigger a shutdown.
+	watchdogMaxFailures = 3
+)
+
+// agentHeartbeat periodically pings the workspace agent and returns
+// an error after maxFailures consecutive failures. It returns nil
+// when ctx is canceled for any other reason.
+func agentHeartbeat(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	logger slog.Logger,
+	clk quartz.Clock,
+	interval, timeout time.Duration,
+	maxFailures int,
+) error {
+	failures := 0
+	var lastErr error
+	w := clk.TickerFunc(ctx, interval, func() error {
+		pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
+		_, _, _, err := conn.Ping(pingCtx)
+		pingCancel()
+		if err == nil {
+			failures = 0
+			return nil
+		}
+		// If the parent context was canceled, this isn't an agent
+		// reachability failure — just a normal shutdown.
+		if ctx.Err() != nil {
+			return nil
+		}
+		failures++
+		logger.Debug(ctx, "agent ping failed",
+			slog.F("failures", failures),
+			slog.F("max_failures", maxFailures),
+			slog.Error(err),
+		)
+		if failures >= maxFailures {
+			logger.Warn(ctx, "agent unreachable, shutting down",
+				slog.F("failures", failures),
+				slog.Error(err),
+			)
+			lastErr = err
+			return xerrors.Errorf("agent unreachable after %d consecutive failed pings: %w", maxFailures, err)
+		}
+		return nil
+	}, "agentHeartbeat")
+	err := w.Wait()
+	if lastErr != nil {
+		return err
+	}
+	// Context cancellation — normal shutdown.
+	return nil
 }
 
 type portForwardSpec struct {

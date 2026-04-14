@@ -1,9 +1,20 @@
 package cli
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	ipnstate "tailscale.com/ipn/ipnstate"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func Test_parsePortForwards(t *testing.T) {
@@ -114,4 +125,155 @@ func Test_parsePortForwards(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func Test_agentHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	const (
+		interval    = 5 * time.Second
+		timeout     = 10 * time.Second
+		maxFailures = 3
+	)
+
+	// startHeartbeat launches agentHeartbeat in a goroutine and waits
+	// for the TickerFunc to be registered with the mock clock before
+	// returning. This ensures AdvanceNext will find the ticker.
+	startHeartbeat := func(
+		ctx context.Context,
+		mock *agentconnmock.MockAgentConn,
+		logger slog.Logger,
+		mClock *quartz.Mock,
+	) <-chan error {
+		trap := mClock.Trap().TickerFunc("agentHeartbeat")
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- agentHeartbeat(ctx, mock, logger, mClock, interval, timeout, maxFailures)
+		}()
+		trap.MustWait(ctx).Release(ctx)
+		trap.Close()
+		return errCh
+	}
+
+	t.Run("ReturnsErrAfterConsecutiveFailures", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mock := agentconnmock.NewMockAgentConn(ctrl)
+		logger := slogtest.Make(t, nil)
+		mClock := quartz.NewMock(t)
+
+		mock.EXPECT().
+			Ping(gomock.Any()).
+			Return(time.Duration(0), false, &ipnstate.PingResult{}, assert.AnError).
+			Times(maxFailures)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		errCh := startHeartbeat(ctx, mock, logger, mClock)
+
+		for range maxFailures {
+			_, w := mClock.AdvanceNext()
+			w.MustWait(ctx)
+		}
+
+		err := testutil.TryReceive(ctx, t, errCh)
+		require.ErrorIs(t, err, assert.AnError)
+		require.Contains(t, err.Error(), "consecutive failed pings")
+	})
+
+	t.Run("ResetsCounterOnSuccess", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mock := agentconnmock.NewMockAgentConn(ctrl)
+		logger := slogtest.Make(t, nil)
+		mClock := quartz.NewMock(t)
+
+		// Fail twice, succeed once (resets counter), then fail three
+		// more times to trigger the error.
+		gomock.InOrder(
+			mock.EXPECT().Ping(gomock.Any()).
+				Return(time.Duration(0), false, &ipnstate.PingResult{}, assert.AnError).
+				Times(2),
+			mock.EXPECT().Ping(gomock.Any()).
+				Return(time.Millisecond, true, &ipnstate.PingResult{}, nil).
+				Times(1),
+			mock.EXPECT().Ping(gomock.Any()).
+				Return(time.Duration(0), false, &ipnstate.PingResult{}, assert.AnError).
+				Times(maxFailures),
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		errCh := startHeartbeat(ctx, mock, logger, mClock)
+
+		// 2 failures + 1 success + 3 failures = 6 ticks.
+		for range 2 + 1 + maxFailures {
+			_, w := mClock.AdvanceNext()
+			w.MustWait(ctx)
+		}
+
+		err := testutil.TryReceive(ctx, t, errCh)
+		require.ErrorIs(t, err, assert.AnError)
+		require.Contains(t, err.Error(), "consecutive failed pings")
+	})
+
+	t.Run("ReturnsNilOnContextCancel", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mock := agentconnmock.NewMockAgentConn(ctrl)
+		logger := slogtest.Make(t, nil)
+		mClock := quartz.NewMock(t)
+
+		testCtx := testutil.Context(t, testutil.WaitShort)
+		ctx, cancel := context.WithCancel(testCtx)
+
+		mock.EXPECT().
+			Ping(gomock.Any()).
+			Return(time.Millisecond, true, &ipnstate.PingResult{}, nil).
+			AnyTimes()
+
+		errCh := startHeartbeat(ctx, mock, logger, mClock)
+
+		// A few successful pings, then cancel.
+		for range 3 {
+			_, w := mClock.AdvanceNext()
+			w.MustWait(testCtx)
+		}
+		cancel()
+
+		err := testutil.TryReceive(testCtx, t, errCh)
+		require.NoError(t, err)
+	})
+
+	t.Run("ContextCancelDuringFailureIsNotError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mock := agentconnmock.NewMockAgentConn(ctrl)
+		logger := slogtest.Make(t, nil)
+		mClock := quartz.NewMock(t)
+
+		testCtx := testutil.Context(t, testutil.WaitShort)
+		ctx, cancel := context.WithCancel(testCtx)
+
+		callCount := 0
+		mock.EXPECT().
+			Ping(gomock.Any()).
+			DoAndReturn(func(_ context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
+				callCount++
+				if callCount >= 2 {
+					cancel()
+				}
+				return time.Duration(0), false, &ipnstate.PingResult{}, assert.AnError
+			}).
+			AnyTimes()
+
+		errCh := startHeartbeat(ctx, mock, logger, mClock)
+
+		// Advance twice — second ping cancels the context.
+		for range 2 {
+			_, w := mClock.AdvanceNext()
+			w.MustWait(testCtx)
+		}
+
+		err := testutil.TryReceive(testCtx, t, errCh)
+		require.NoError(t, err)
+	})
 }
