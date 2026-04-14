@@ -77,11 +77,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const userApps = agent.apps.filter((app) => !app.hidden);
 
 	const hasItemsAboveSeparator =
-		hasVSCode ||
-		hasVSCodeInsiders ||
-		userApps.length > 0 ||
-		hasTerminal ||
-		!!sshCommand;
+		hasVSCode || hasVSCodeInsiders || userApps.length > 0 || hasTerminal;
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -161,8 +157,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						isRunning={isRunning}
 					/>
 				)}
-				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
 				{hasItemsAboveSeparator && <DropdownMenuSeparator className="my-1" />}
+				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
 				<DropdownMenuItem asChild>
 					<Link to={route} target="_blank" rel="noreferrer">
 						<MonitorIcon className="size-3.5" />
