@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -30,6 +31,45 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/websocket"
 )
+
+// AgentConnectionMetrics holds Prometheus metrics for the agent
+// connection monitor. It is nil when Prometheus is not enabled.
+type AgentConnectionMetrics struct {
+	FirstConnectionDuration *prometheus.HistogramVec
+}
+
+// NewAgentConnectionMetrics creates and registers agent connection
+// metrics.
+func NewAgentConnectionMetrics(reg prometheus.Registerer) *AgentConnectionMetrics {
+	m := &AgentConnectionMetrics{
+		FirstConnectionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Subsystem: "agents",
+			Name:      "first_connection_seconds",
+			Help:      "Duration from agent creation to first connection in seconds.",
+			Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
+		}, []string{"template_name", "agent_name", "username", "workspace_name"}),
+	}
+	reg.MustRegister(m.FirstConnectionDuration)
+	return m
+}
+
+// EmitAgentFirstConnection records the duration from agent creation
+// to first connection.
+func (m *AgentConnectionMetrics) EmitAgentFirstConnection(
+	duration time.Duration,
+	templateName string,
+	agentName string,
+	username string,
+	workspaceName string,
+) {
+	m.FirstConnectionDuration.WithLabelValues(
+		templateName,
+		agentName,
+		username,
+		workspaceName,
+	).Observe(duration.Seconds())
+}
 
 // @Summary Workspace agent RPC API
 // @ID workspace-agent-rpc-api
@@ -258,6 +298,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 		replicaID:         api.ID,
 		updater:           api,
 		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
+		metrics:           api.agentConnectionMetrics,
 		logger: api.Logger.With(
 			slog.F("workspace_id", workspaceBuild.WorkspaceID),
 			slog.F("agent_id", workspaceAgent.ID),
@@ -291,6 +332,7 @@ type agentConnectionMonitor struct {
 	updater        workspaceUpdater
 	logger         slog.Logger
 	pingPeriod     time.Duration
+	metrics        *AgentConnectionMetrics
 
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
@@ -355,6 +397,26 @@ func (m *agentConnectionMonitor) init() {
 		m.firstConnectedAt = sql.NullTime{
 			Time:  now,
 			Valid: true,
+		}
+		if m.metrics != nil {
+			duration := now.Sub(m.workspaceAgent.CreatedAt)
+			if duration < 0 {
+				m.logger.Warn(context.Background(),
+					"negative agent first connection duration, possible clock skew",
+					slog.F("agent_id", m.workspaceAgent.ID),
+					slog.F("created_at", m.workspaceAgent.CreatedAt),
+					slog.F("first_connected_at", now),
+					slog.F("duration", duration),
+				)
+			} else {
+				m.metrics.EmitAgentFirstConnection(
+					duration,
+					m.workspace.TemplateName,
+					m.workspaceAgent.Name,
+					m.workspace.OwnerUsername,
+					m.workspace.Name,
+				)
+			}
 		}
 	}
 	m.lastConnectedAt = sql.NullTime{

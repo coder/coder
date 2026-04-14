@@ -814,6 +814,7 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
+		api.agentConnectionMetrics = NewAgentConnectionMetrics(options.PrometheusRegistry)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -2152,6 +2153,7 @@ type API struct {
 	statsReporter    *workspacestats.Reporter
 	metadataBatcher  *metadatabatcher.Batcher
 	lifecycleMetrics *agentapi.LifecycleMetrics
+	agentConnectionMetrics *AgentConnectionMetrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
