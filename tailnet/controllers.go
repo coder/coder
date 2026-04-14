@@ -192,7 +192,7 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 	})
 	// Send current node immediately so the coordinator has it before
 	// any AddTunnel requests that follow.
-	if node := c.Coordinatee.Node(); node != nil && node.PreferredDERP != 0 {
+	if node := c.Coordinatee.Node(); node != nil {
 		pn, err := NodeToProto(node)
 		if err == nil {
 			_ = b.SendRequest(&proto.CoordinateRequest{
