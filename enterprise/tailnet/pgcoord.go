@@ -1619,6 +1619,10 @@ func newHeartbeats(
 		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
 		clock:           clk,
 	}
+	// Start the expiry timer so checkExpiry runs even if no pubsub
+	// heartbeat is ever received. This enables DB-based discovery of
+	// coordinators whose pubsub notifications are permanently lost.
+	h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "newHeartbeats")
 	h.wg.Add(3)
 	h.subscribe()
 	go h.sendBeats()
@@ -1715,12 +1719,6 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	}
 	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
 
-	if h.timer == nil {
-		// this can only happen for the very first beat
-		h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "recvBeat")
-		h.logger.Debug(h.ctx, "set initial heartbeat timeout")
-		return
-	}
 	h.resetExpiryTimerWithLock()
 }
 
@@ -1736,6 +1734,12 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 		"heartbeats", "resetExpiryTimerWithLock",
 	)
 	if len(h.coordinators) == 0 {
+		// Even with no known coordinators, schedule a fallback timer so
+		// checkExpiry runs periodically and can discover coordinators
+		// from the database whose pubsub heartbeats were never received.
+		fallback := MissedHeartbeats * HeartbeatPeriod
+		h.logger.Debug(h.ctx, "no coordinators known, setting fallback expiry timer", slog.F("fallback_duration", fallback))
+		h.timer.Reset(fallback, "heartbeats", "resetExpiryTimerWithLock")
 		return
 	}
 	h.logger.Debug(h.ctx, "computed oldest heartbeat", slog.F("oldest", oldestTime), slog.F("time_to_expiry", d))
@@ -1746,6 +1750,9 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 }
 
 func (h *heartbeats) checkExpiry() {
+	if h.ctx.Err() != nil {
+		return
+	}
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
 	h.lock.Lock()
 	defer h.lock.Unlock()
@@ -1762,52 +1769,102 @@ func (h *heartbeats) checkExpiry() {
 		}
 	}
 
-	// Before expiring, check the database for fresh heartbeats. Pubsub
-	// delivery can be delayed under load, causing false expirations even
-	// though the coordinator is still writing heartbeats to the database.
-	if len(candidates) > 0 {
-		dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
-		if err != nil {
-			h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
-			// Fall through — expire based on pubsub data only.
-		} else {
-			dbMap := make(map[uuid.UUID]time.Time, len(dbCoords))
-			for _, c := range dbCoords {
-				dbMap[c.ID] = c.HeartbeatAt
+	// Query the database for fresh heartbeats. This serves two purposes:
+	// 1. Prevent false expiry of known coordinators whose pubsub heartbeats
+	//    were delayed (the original DB fallback logic).
+	// 2. Discover coordinators that were NEVER seen via pubsub. At scale,
+	//    pubsub notifications can be permanently lost, leaving coordinators
+	//    invisible to other pods.
+	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
+	if err != nil {
+		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
+		// Fall through — expire based on pubsub data only, no discovery.
+	} else {
+		dbMap := make(map[uuid.UUID]time.Time, len(dbCoords))
+		for _, c := range dbCoords {
+			dbMap[c.ID] = c.HeartbeatAt
+		}
+
+		// Check candidates (known coordinators that appear expired) against
+		// the database to prevent false expiry.
+		for id := range candidates {
+			dbTime, inDB := dbMap[id]
+			if !inDB {
+				continue
 			}
-			for id := range candidates {
-				dbTime, inDB := dbMap[id]
-				if !inDB {
-					continue
-				}
-				prevDBTime, hasPrev := h.lastDBHeartbeat[id]
-				// Record the DB heartbeat time for future comparisons.
+			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+			// Record the DB heartbeat time for future comparisons.
+			h.lastDBHeartbeat[id] = dbTime
+			if !hasPrev {
+				// First DB check for this coordinator. Record the
+				// baseline but don't recover — we have no previous
+				// value to compare against.
+				continue
+			}
+			if dbTime.After(prevDBTime) {
+				// The database shows a heartbeat newer than our
+				// last known DB value. The coordinator is still
+				// alive; pubsub delivery was delayed.
+				h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
+					slog.F("other_coordinator_id", id),
+					slog.F("db_heartbeat_at", dbTime),
+				)
+				h.coordinators[id] = now
+				delete(candidates, id)
+			}
+		}
+
+		// Update lastDBHeartbeat for non-candidate coordinators too,
+		// so we have a baseline for future comparisons.
+		for id := range h.coordinators {
+			if dbTime, ok := dbMap[id]; ok {
 				h.lastDBHeartbeat[id] = dbTime
-				if !hasPrev {
-					// First DB check for this coordinator. Record the
-					// baseline but don't recover — we have no previous
-					// value to compare against.
-					continue
-				}
-				if dbTime.After(prevDBTime) {
-					// The database shows a heartbeat newer than our
-					// last known DB value. The coordinator is still
-					// alive; pubsub delivery was delayed.
-					h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
-						slog.F("other_coordinator_id", id),
-						slog.F("db_heartbeat_at", dbTime),
-					)
-					h.coordinators[id] = now
-					delete(candidates, id)
-				}
 			}
-			// Update lastDBHeartbeat for non-candidate coordinators too,
-			// so we have a baseline for future comparisons.
-			for id := range h.coordinators {
-				if dbTime, ok := dbMap[id]; ok {
-					h.lastDBHeartbeat[id] = dbTime
-				}
+		}
+
+		// Discover coordinators from the database that were never seen
+		// via pubsub. This handles the case where pubsub notifications
+		// are permanently lost for a coordinator.
+		discovered := false
+		for id, dbTime := range dbMap {
+			if id == h.self {
+				continue
 			}
+			if _, known := h.coordinators[id]; known {
+				continue
+			}
+			if _, isCandidate := candidates[id]; isCandidate {
+				// Already being handled as an expiry candidate.
+				continue
+			}
+			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+			h.lastDBHeartbeat[id] = dbTime
+			if !hasPrev {
+				// First sighting — store baseline, don't add yet.
+				// We need a second observation to confirm liveness.
+				h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
+					slog.F("other_coordinator_id", id),
+					slog.F("db_heartbeat_at", dbTime),
+				)
+				continue
+			}
+			if dbTime.After(prevDBTime) {
+				// The coordinator's heartbeat_at has advanced since
+				// our last check — it is alive. Add it to the map.
+				h.logger.Info(h.ctx, "discovered unknown coordinator from database",
+					slog.F("other_coordinator_id", id),
+					slog.F("db_heartbeat_at", dbTime),
+				)
+				h.coordinators[id] = now
+				discovered = true
+			}
+		}
+		if discovered {
+			// Use filterUpdateReset so mappers clear their sent cache
+			// and re-evaluate peers that were previously marked LOST.
+			go func() {
+				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateReset})
+			}()
 		}
 	}
 

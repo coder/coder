@@ -242,8 +242,6 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	defer cancel()
 	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
-	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
-	defer afTrap.Close()
 	rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
 	defer rstTrap.Close()
 
@@ -272,7 +270,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	}
 
 	fCoord2.heartbeat()
-	afTrap.MustWait(ctx).MustRelease(ctx) // heartbeat timeout started
+	rstTrap.MustWait(ctx).MustRelease(ctx) // heartbeat timeout reset
 
 	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
 	client.AssertEventuallyHasDERP(agent.ID, 12)
@@ -303,8 +301,11 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 	// one more heartbeat period will result in fCoord2 being expired, which should cause us to
 	// revert to the original agent mapping
-	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-	// note that the timeout doesn't get reset because both fCoord2 and fCoord3 are expired
+	w = mClock.Advance(tailnet.HeartbeatPeriod)
+	// The fallback timer gets reset even when all coordinators are expired,
+	// so that checkExpiry can discover coordinators from the database.
+	rstTrap.MustWait(ctx).MustRelease(ctx)
+	w.MustWait(ctx)
 	client.AssertEventuallyHasDERP(agent.ID, 10)
 
 	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
@@ -331,8 +332,6 @@ func TestPGCoordinatorSingle_ResetSentCacheOnRecovery(t *testing.T) {
 	defer cancel()
 	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
-	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
-	defer afTrap.Close()
 	rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
 	defer rstTrap.Close()
 
@@ -359,7 +358,7 @@ func TestPGCoordinatorSingle_ResetSentCacheOnRecovery(t *testing.T) {
 	}
 
 	fCoord2.heartbeat()
-	afTrap.MustWait(ctx).MustRelease(ctx)
+	rstTrap.MustWait(ctx).MustRelease(ctx)
 
 	// fCoord2 publishes the agent with DERP 12.
 	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
@@ -371,7 +370,11 @@ func TestPGCoordinatorSingle_ResetSentCacheOnRecovery(t *testing.T) {
 	// ticker that must fire at each step.
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx) // 1st period
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx) // 2nd period
-	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx) // 3rd: AfterFunc fires checkExpiry
+	w := mClock.Advance(tailnet.HeartbeatPeriod)          // 3rd: AfterFunc fires checkExpiry
+	// checkExpiry expires fCoord2, then resets the fallback timer since
+	// the coordinators map is now empty.
+	rstTrap.MustWait(ctx).MustRelease(ctx)
+	w.MustWait(ctx)
 	client.AssertEventuallyHasDERP(agent.ID, 10)
 
 	// Now fCoord2 recovers with the same DERP 12 node. Without the
@@ -500,6 +503,161 @@ func TestPGCoordinatorSingle_MissedHeartbeats_DBFallback(t *testing.T) {
 	// The coordinator should still be considered alive because the DB
 	// fallback detected a newer heartbeat_at than the baseline.
 	client.AssertEventuallyHasDERP(agentID, 12)
+
+	client.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, client.ID)
+}
+
+// TestPGCoordinatorSingle_MissedHeartbeats_DBDiscovery verifies that
+// checkExpiry discovers a coordinator from the database even when its
+// pubsub heartbeats are NEVER delivered. The coordinator is invisible
+// via pubsub but alive in the DB. After two checkExpiry cycles (first
+// stores baseline, second sees advancement), the coordinator should be
+// added to the known set and its mappings should not be rewritten to LOST.
+func TestPGCoordinatorSingle_MissedHeartbeats_DBDiscovery(t *testing.T) {
+	t.Parallel()
+
+	store, realPS := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+
+	// Drop ALL heartbeat pubsub notifications from the start.
+	wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
+	wrappedPS.setDropHeartbeat(true)
+
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, wrappedPS, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agentID := uuid.New()
+
+	client := agpltest.NewPeer(ctx, t, coordinator, "client")
+	defer client.Close(ctx)
+	client.AddTunnel(agentID)
+	client.UpdateDERP(11)
+
+	// Create a fake coordinator that ONLY heartbeats to the DB.
+	// Its pubsub heartbeats are dropped, so it's never seen via pubsub.
+	fCoord := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		id:    uuid.New(),
+	}
+
+	// Start DB heartbeats.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		ticker := time.NewTicker(tailnet.HeartbeatPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+			}
+		}
+	}()
+
+	// Initial heartbeat + agent node via DB only.
+	fCoord.heartbeat()
+	fCoord.agentNode(agentID, &agpl.Node{PreferredDERP: 12})
+
+	// Wait for at least 2 checkExpiry cycles to fire:
+	// - First cycle: stores DB heartbeat baseline for the unknown coordinator.
+	// - Second cycle: sees heartbeat_at has advanced → discovers and adds it.
+	time.Sleep(2*tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 3*time.Second)
+
+	// The coordinator should have been discovered from the DB, and
+	// its agent node mapping should be delivered (not rewritten to LOST).
+	client.AssertEventuallyHasDERP(agentID, 12)
+
+	client.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, client.ID)
+}
+
+// TestPGCoordinatorSingle_MissedHeartbeats_EmptyMapFallbackTimer verifies
+// that when all known coordinators expire, the fallback timer in
+// resetExpiryTimerWithLock ensures checkExpiry continues running and can
+// discover new coordinators from the database.
+func TestPGCoordinatorSingle_MissedHeartbeats_EmptyMapFallbackTimer(t *testing.T) {
+	t.Parallel()
+
+	store, realPS := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+
+	wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
+
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, wrappedPS, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agentID := uuid.New()
+
+	client := agpltest.NewPeer(ctx, t, coordinator, "client")
+	defer client.Close(ctx)
+	client.AddTunnel(agentID)
+	client.UpdateDERP(11)
+
+	// Create first coordinator that heartbeats normally, then expires.
+	fCoord1 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		id:    uuid.New(),
+	}
+	fCoord1.heartbeat()
+	fCoord1.agentNode(agentID, &agpl.Node{PreferredDERP: 12})
+	client.AssertEventuallyHasDERP(agentID, 12)
+
+	// Let fCoord1 expire (no more heartbeats). Now coordinators map is empty.
+	time.Sleep(tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 2*time.Second)
+	client.AssertEventuallyLost(agentID)
+
+	// Now drop pubsub heartbeats and create a NEW coordinator that only
+	// heartbeats to the DB.
+	wrappedPS.setDropHeartbeat(true)
+
+	fCoord2 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		id:    uuid.New(),
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		ticker := time.NewTicker(tailnet.HeartbeatPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = store.UpsertTailnetCoordinator(ctx, fCoord2.id)
+			}
+		}
+	}()
+
+	fCoord2.heartbeat()
+	fCoord2.agentNode(agentID, &agpl.Node{PreferredDERP: 13})
+
+	// The fallback timer should fire checkExpiry even though the
+	// coordinators map is empty, allowing DB discovery of fCoord2.
+	// Wait for 2 cycles.
+	time.Sleep(2*tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 3*time.Second)
+
+	client.AssertEventuallyHasDERP(agentID, 13)
 
 	client.UngracefulDisconnect(ctx)
 	assertEventuallyLost(ctx, t, store, client.ID)
@@ -783,6 +941,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
 	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
@@ -843,6 +1002,7 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
