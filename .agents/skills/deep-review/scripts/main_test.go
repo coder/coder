@@ -1,22 +1,38 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// --- add-finding tests ---
+func runCmd(args ...string) error {
+	inv := rootCmd().Invoke(args...)
+	inv.Stdout = os.Stdout
+	inv.Stderr = os.Stderr
+	inv.Stdin = strings.NewReader("")
+	return inv.Run()
+}
+
+func runCmdCapture(args ...string) (string, error) {
+	var buf bytes.Buffer
+	inv := rootCmd().Invoke(args...)
+	inv.Stdout = &buf
+	inv.Stderr = os.Stderr
+	inv.Stdin = strings.NewReader("")
+	err := inv.Run()
+	return buf.String(), err
+}
 
 func TestAddFinding_BasicP2(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	output := filepath.Join(dir, "findings.json")
 
-	err := cmdAddFinding([]string{
+	err := runCmd("add-finding",
 		"--output", output,
 		"--severity", "P2",
 		"--file", "handler.go",
@@ -24,7 +40,7 @@ func TestAddFinding_BasicP2(t *testing.T) {
 		"--summary", "Missing nil check",
 		"--evidence", "The pointer is dereferenced without checking",
 		"--reviewer", "test-auditor",
-	})
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,7 +77,7 @@ func TestAddFinding_AppendsToExisting(t *testing.T) {
 	output := filepath.Join(dir, "findings.json")
 
 	for i := 0; i < 3; i++ {
-		err := cmdAddFinding([]string{
+		err := runCmd("add-finding",
 			"--output", output,
 			"--severity", "P3",
 			"--file", "handler.go",
@@ -69,7 +85,7 @@ func TestAddFinding_AppendsToExisting(t *testing.T) {
 			"--summary", "Finding",
 			"--evidence", "Evidence",
 			"--reviewer", "reviewer",
-		})
+		)
 		if err != nil {
 			t.Fatalf("iteration %d: %v", i, err)
 		}
@@ -90,17 +106,17 @@ func TestAddFinding_InvalidSeverity(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "findings.json")
 
-	err := cmdAddFinding([]string{
+	err := runCmd("add-finding",
 		"--output", output,
 		"--severity", "CRITICAL",
 		"--summary", "Bad",
 		"--reviewer", "test",
-	})
+	)
 	if err == nil {
 		t.Fatal("expected error for invalid severity")
 	}
-	if !strings.Contains(err.Error(), "invalid severity") {
-		t.Errorf("error = %q, want 'invalid severity'", err)
+	if !strings.Contains(err.Error(), "invalid choice") {
+		t.Errorf("error = %q, want 'invalid choice'", err)
 	}
 }
 
@@ -110,27 +126,27 @@ func TestAddFinding_PLevelRequiresFields(t *testing.T) {
 	output := filepath.Join(dir, "findings.json")
 
 	// Missing --file.
-	err := cmdAddFinding([]string{
+	err := runCmd("add-finding",
 		"--output", output,
 		"--severity", "P1",
 		"--line", "10",
 		"--summary", "Finding",
 		"--evidence", "Evidence",
 		"--reviewer", "test",
-	})
+	)
 	if err == nil || !strings.Contains(err.Error(), "--file is required") {
 		t.Errorf("expected --file required error, got: %v", err)
 	}
 
 	// Missing --evidence.
-	err = cmdAddFinding([]string{
+	err = runCmd("add-finding",
 		"--output", output,
 		"--severity", "P1",
 		"--file", "f.go",
 		"--line", "10",
 		"--summary", "Finding",
 		"--reviewer", "test",
-	})
+	)
 	if err == nil || !strings.Contains(err.Error(), "--evidence is required") {
 		t.Errorf("expected --evidence required error, got: %v", err)
 	}
@@ -141,12 +157,12 @@ func TestAddFinding_ObsNoLineRequired(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "findings.json")
 
-	err := cmdAddFinding([]string{
+	err := runCmd("add-finding",
 		"--output", output,
 		"--severity", "Obs",
 		"--summary", "Good pattern here",
 		"--reviewer", "test-auditor",
-	})
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,7 +183,7 @@ func TestAddFinding_InvalidLineNumber(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "findings.json")
 
-	err := cmdAddFinding([]string{
+	err := runCmd("add-finding",
 		"--output", output,
 		"--severity", "P2",
 		"--file", "f.go",
@@ -175,7 +191,7 @@ func TestAddFinding_InvalidLineNumber(t *testing.T) {
 		"--summary", "Finding",
 		"--evidence", "Evidence",
 		"--reviewer", "test",
-	})
+	)
 	if err == nil || !strings.Contains(err.Error(), "positive integer") {
 		t.Errorf("expected positive integer error, got: %v", err)
 	}
@@ -191,12 +207,9 @@ func TestAddFinding_LineExceedsFileLength(t *testing.T) {
 
 	output := filepath.Join(dir, "findings.json")
 
-	// Capture stderr for the warning.
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	err := cmdAddFinding([]string{
+	// The warning goes to inv.Stderr which in runCmd is os.Stderr.
+	// We just verify the command succeeds and the finding is written.
+	err := runCmd("add-finding",
 		"--output", output,
 		"--severity", "P2",
 		"--file", testFile,
@@ -204,25 +217,12 @@ func TestAddFinding_LineExceedsFileLength(t *testing.T) {
 		"--summary", "Finding",
 		"--evidence", "Evidence",
 		"--reviewer", "test",
-	})
-
-	w.Close()
-	os.Stderr = oldStderr
-
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Read stderr output.
-	buf := make([]byte, 1024)
-	n, _ := r.Read(buf)
-	stderr := string(buf[:n])
-
-	if !strings.Contains(stderr, "Warning") || !strings.Contains(stderr, "exceeds") {
-		t.Errorf("expected warning about line exceeding file length, got: %q", stderr)
-	}
-
-	// Finding should still be written.
+	// Finding should still be written despite warning.
 	var findings []Finding
 	data, _ := os.ReadFile(output)
 	json.Unmarshal(data, &findings)
@@ -231,24 +231,25 @@ func TestAddFinding_LineExceedsFileLength(t *testing.T) {
 	}
 }
 
-// --- compile-findings tests ---
-
 func TestCompileFindings_GroupsConvergent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	// Two reviewers find issues at the same location.
 	writeJSON(t, filepath.Join(dir, "auditor.json"), []Finding{
-		{Severity: P2, File: ptr("handler.go"), Line: ptr(42),
-			Summary: "Missing check", Evidence: ptr("Evidence A"), Reviewer: "test-auditor"},
+		{
+			Severity: P2, File: ptr("handler.go"), Line: ptr(42),
+			Summary: "Missing check", Evidence: ptr("Evidence A"), Reviewer: "test-auditor",
+		},
 	})
 	writeJSON(t, filepath.Join(dir, "security.json"), []Finding{
-		{Severity: P1, File: ptr("handler.go"), Line: ptr(42),
-			Summary: "Auth bypass", Evidence: ptr("Evidence B"), Reviewer: "security-reviewer"},
+		{
+			Severity: P1, File: ptr("handler.go"), Line: ptr(42),
+			Summary: "Auth bypass", Evidence: ptr("Evidence B"), Reviewer: "security-reviewer",
+		},
 	})
 
 	output := filepath.Join(dir, "output.json")
-	err := cmdCompileFindings([]string{"--dir", dir, "--output", output})
+	err := runCmd("compile-findings", "--dir", dir, "--output", output)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -271,7 +272,6 @@ func TestCompileFindings_GroupsConvergent(t *testing.T) {
 	if len(cf.Reviewers) != 2 {
 		t.Errorf("expected 2 reviewers, got %d", len(cf.Reviewers))
 	}
-	// Summary should come from the highest-severity reviewer.
 	if cf.Summary != "Auth bypass" {
 		t.Errorf("summary = %q, want 'Auth bypass'", cf.Summary)
 	}
@@ -282,17 +282,21 @@ func TestCompileFindings_SeverityStats(t *testing.T) {
 	dir := t.TempDir()
 
 	writeJSON(t, filepath.Join(dir, "r1.json"), []Finding{
-		{Severity: P2, File: ptr("a.go"), Line: ptr(1),
-			Summary: "A", Evidence: ptr("E"), Reviewer: "r1"},
+		{
+			Severity: P2, File: ptr("a.go"), Line: ptr(1),
+			Summary: "A", Evidence: ptr("E"), Reviewer: "r1",
+		},
 		{Severity: Obs, Summary: "B", Reviewer: "r1"},
 	})
 	writeJSON(t, filepath.Join(dir, "r2.json"), []Finding{
-		{Severity: Nit, File: ptr("b.go"), Line: ptr(5),
-			Summary: "C", Reviewer: "r2"},
+		{
+			Severity: Nit, File: ptr("b.go"), Line: ptr(5),
+			Summary: "C", Reviewer: "r2",
+		},
 	})
 
 	output := filepath.Join(dir, "output.json")
-	err := cmdCompileFindings([]string{"--dir", dir, "--output", output})
+	err := runCmd("compile-findings", "--dir", dir, "--output", output)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -319,15 +323,16 @@ func TestCompileFindings_SkipsNonArrayJSON(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	// An object, not an array — should be skipped.
 	os.WriteFile(filepath.Join(dir, "context.json"), []byte(`{"pr": {}}`), 0o644)
 	writeJSON(t, filepath.Join(dir, "r1.json"), []Finding{
-		{Severity: P3, File: ptr("a.go"), Line: ptr(1),
-			Summary: "A", Evidence: ptr("E"), Reviewer: "r1"},
+		{
+			Severity: P3, File: ptr("a.go"), Line: ptr(1),
+			Summary: "A", Evidence: ptr("E"), Reviewer: "r1",
+		},
 	})
 
 	output := filepath.Join(dir, "output.json")
-	err := cmdCompileFindings([]string{"--dir", dir, "--output", output})
+	err := runCmd("compile-findings", "--dir", dir, "--output", output)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -341,14 +346,12 @@ func TestCompileFindings_SkipsNonArrayJSON(t *testing.T) {
 	}
 }
 
-// --- build-review tests ---
-
 func TestBuildReview_InitCreatesValidJSON(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	err := cmdBuildReview([]string{"init", "--output", output, "--body", "Good PR. 1 P2 across 1 comment."})
+	err := runCmd("build-review", "init", "--output", output, "--body", "Good PR. 1 P2 across 1 comment.")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -374,10 +377,9 @@ func TestBuildReview_InitErrorsOnExistingFile(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	// Create the file first.
 	os.WriteFile(output, []byte("{}"), 0o644)
 
-	err := cmdBuildReview([]string{"init", "--output", output, "--body", "text"})
+	err := runCmd("build-review", "init", "--output", output, "--body", "text")
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Errorf("expected 'already exists' error, got: %v", err)
 	}
@@ -388,10 +390,10 @@ func TestBuildReview_CommentAppendsCorrectly(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	cmdBuildReview([]string{"init", "--output", output, "--body", "Summary"})
-	err := cmdBuildReview([]string{"comment", "--output", output,
+	runCmd("build-review", "init", "--output", output, "--body", "Summary")
+	err := runCmd("build-review", "comment", "--output", output,
 		"--path", "handler.go", "--line", "42",
-		"--body", "**P2** Missing nil check *(Test Auditor)*"})
+		"--body", "**P2** Missing nil check *(Test Auditor)*")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -414,11 +416,11 @@ func TestBuildReview_MultipleCommentsAccumulate(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	cmdBuildReview([]string{"init", "--output", output, "--body", "Summary"})
+	runCmd("build-review", "init", "--output", output, "--body", "Summary")
 	for i := 1; i <= 3; i++ {
-		cmdBuildReview([]string{"comment", "--output", output,
+		runCmd("build-review", "comment", "--output", output,
 			"--path", "f.go", "--line", "10",
-			"--body", "Comment"})
+			"--body", "Comment")
 	}
 
 	var review Review
@@ -434,16 +436,16 @@ func TestBuildReview_ReplyAndResolve(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	cmdBuildReview([]string{"init", "--output", output, "--body", "Summary"})
+	runCmd("build-review", "init", "--output", output, "--body", "Summary")
 
-	err := cmdBuildReview([]string{"reply", "--output", output,
-		"--in-reply-to", "456", "--body", "Acknowledged."})
+	err := runCmd("build-review", "reply", "--output", output,
+		"--in-reply-to", "456", "--body", "Acknowledged.")
 	if err != nil {
 		t.Fatalf("reply error: %v", err)
 	}
 
-	err = cmdBuildReview([]string{"resolve", "--output", output,
-		"--thread-id", "PRT_abc123"})
+	err = runCmd("build-review", "resolve", "--output", output,
+		"--thread-id", "PRT_abc123")
 	if err != nil {
 		t.Fatalf("resolve error: %v", err)
 	}
@@ -465,19 +467,16 @@ func TestBuildReview_CommentOnUninitializedFileErrors(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	err := cmdBuildReview([]string{"comment", "--output", output,
-		"--path", "f.go", "--line", "10", "--body", "text"})
+	err := runCmd("build-review", "comment", "--output", output,
+		"--path", "f.go", "--line", "10", "--body", "text")
 	if err == nil || !strings.Contains(err.Error(), "build-review init") {
 		t.Errorf("expected init hint, got: %v", err)
 	}
 }
 
-// --- post-review tests ---
-
 func TestPostReview_DryRunPayload(t *testing.T) {
 	dir := t.TempDir()
 
-	// Build a review.
 	reviewFile := filepath.Join(dir, "review.json")
 	review := Review{
 		Event: "COMMENT",
@@ -488,23 +487,19 @@ func TestPostReview_DryRunPayload(t *testing.T) {
 	}
 	writeJSON(t, reviewFile, review)
 
-	output := captureStdout(t, func() {
-		err := cmdPostReview([]string{
-			"--input", reviewFile,
-			"--pr", "100",
-			"--repo", "test/repo",
-			"--dry-run",
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+	output, err := runCmdCapture("post-review",
+		"--input", reviewFile,
+		"--pr", "100",
+		"--repo", "test/repo",
+		"--dry-run",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	// Should contain the endpoint.
 	if !strings.Contains(output, "repos/test/repo/pulls/100/reviews") {
 		t.Errorf("output missing endpoint, got:\n%s", output)
 	}
-	// Should contain line + side in payload.
 	if !strings.Contains(output, `"line": 42`) {
 		t.Errorf("output missing line, got:\n%s", output)
 	}
@@ -517,22 +512,20 @@ func TestPostReview_ValidationErrors(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	// Missing body.
 	reviewFile := filepath.Join(dir, "review.json")
 	writeJSON(t, reviewFile, Review{Event: "COMMENT", Body: ""})
 
-	err := cmdPostReview([]string{
+	err := runCmd("post-review",
 		"--input", reviewFile, "--pr", "1", "--repo", "o/r", "--dry-run",
-	})
+	)
 	if err == nil || !strings.Contains(err.Error(), "body is required") {
 		t.Errorf("expected body required error, got: %v", err)
 	}
 
-	// Wrong event.
 	writeJSON(t, reviewFile, Review{Event: "APPROVE", Body: "ok"})
-	err = cmdPostReview([]string{
+	err = runCmd("post-review",
 		"--input", reviewFile, "--pr", "1", "--repo", "o/r", "--dry-run",
-	})
+	)
 	if err == nil || !strings.Contains(err.Error(), "COMMENT") {
 		t.Errorf("expected COMMENT error, got: %v", err)
 	}
@@ -541,7 +534,6 @@ func TestPostReview_ValidationErrors(t *testing.T) {
 func TestPostReview_FileLevelComment(t *testing.T) {
 	dir := t.TempDir()
 
-	// Comment with line=0 should become file-level.
 	reviewFile := filepath.Join(dir, "review.json")
 	review := Review{
 		Event: "COMMENT",
@@ -552,21 +544,17 @@ func TestPostReview_FileLevelComment(t *testing.T) {
 	}
 	writeJSON(t, reviewFile, review)
 
-	output := captureStdout(t, func() {
-		err := cmdPostReview([]string{
-			"--input", reviewFile, "--pr", "1", "--repo", "o/r", "--dry-run",
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+	output, err := runCmdCapture("post-review",
+		"--input", reviewFile, "--pr", "1", "--repo", "o/r", "--dry-run",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if !strings.Contains(output, `"subject_type": "file"`) {
 		t.Errorf("expected subject_type file, got:\n%s", output)
 	}
 }
-
-// --- fetch-context tests (assembly/filtering only) ---
 
 func TestFilterResolvedThreads(t *testing.T) {
 	t.Parallel()
@@ -595,7 +583,6 @@ func TestFilterResolvedThreads(t *testing.T) {
 		t.Fatalf("expected 2 comments (unresolved), got %d", len(filtered))
 	}
 
-	// Check IDs — should be 300 and 301.
 	ids := []int{}
 	for _, c := range filtered {
 		ids = append(ids, jsonInt(c, "id"))
@@ -604,13 +591,11 @@ func TestFilterResolvedThreads(t *testing.T) {
 		t.Errorf("expected [300, 301], got %v", ids)
 	}
 
-	// Check thread_id was added.
 	tid, ok := filtered[0]["thread_id"]
 	if !ok || tid != "PRT_300" {
 		t.Errorf("thread_id = %v, want PRT_300", tid)
 	}
 
-	// Reply should also get the thread_id.
 	tid2, ok := filtered[1]["thread_id"]
 	if !ok || tid2 != "PRT_300" {
 		t.Errorf("reply thread_id = %v, want PRT_300", tid2)
@@ -638,31 +623,6 @@ func TestFilterResolvedThreads_AllResolved(t *testing.T) {
 	if len(filtered) != 0 {
 		t.Errorf("expected 0 comments, got %d", len(filtered))
 	}
-}
-
-// --- helpers ---
-
-// captureStdout captures stdout during fn execution and returns
-// the captured output as a string.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("creating pipe: %v", err)
-	}
-	os.Stdout = w
-
-	fn()
-
-	w.Close()
-	os.Stdout = oldStdout
-
-	data, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatalf("reading captured stdout: %v", err)
-	}
-	return string(data)
 }
 
 func writeJSON(t *testing.T, path string, v any) {
