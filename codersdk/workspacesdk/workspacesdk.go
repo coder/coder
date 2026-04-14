@@ -2,7 +2,6 @@ package workspacesdk
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -188,8 +187,6 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
-	// DERPTLSConfig is an optional TLS config for DERP connections.
-	DERPTLSConfig *tls.Config
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -252,17 +249,12 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		controller.TelemetryCtrl = basicTel
 	}
 
-	derpTLSConfig := options.DERPTLSConfig
-	if derpTLSConfig == nil {
-		derpTLSConfig = c.client.DERPTLSConfig()
-	}
-
 	c.RewriteDERPMap(connInfo.DERPMap)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &header,
-		DERPTLSConfig:       derpTLSConfig,
+		DERPTLSConfig:       c.client.DERPTLSConfig(),
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
