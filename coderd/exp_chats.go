@@ -804,7 +804,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
 	}
 
-	// TODO(coder/internal#1466): pass real organization ID
+	// TODO(CODAGT-161): pass real organization ID
 	// when the HTTP endpoint supports org-scoped queries.
 	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, uuid.NullUUID{}, time.Now())
 	if err != nil {
@@ -1107,7 +1107,7 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// TODO(coder/internal#1466): pass real organization ID
+	// TODO(CODAGT-161): pass real organization ID
 	// when the HTTP endpoint supports org-scoped queries.
 	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, uuid.NullUUID{}, time.Now())
 	if err != nil {
