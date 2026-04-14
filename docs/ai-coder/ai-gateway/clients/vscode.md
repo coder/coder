@@ -15,7 +15,7 @@ VS Code's native chat can be configured to use AI Gateway with the GitHub Copilo
     {
         "name": "Coder",
         "vendor": "customoai",
-        "apiKey": "your-coder-api-token>",
+        "apiKey": "<your-coder-api-token>",
         "models": [
             {
                 "name": "GPT 5.2",
