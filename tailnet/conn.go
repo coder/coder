@@ -13,8 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/singleflight"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/tailscale/wireguard-go/tun"
@@ -466,8 +464,6 @@ type Conn struct {
 
 	trafficStats *connstats.Statistics
 	lastNetInfo  *tailcfg.NetInfo
-
-	awaitReachableGroup singleflight.Group
 }
 
 func (c *Conn) GetNetInfo() *tailcfg.NetInfo {
@@ -609,68 +605,73 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		slog.F("node_key", c.Node().Key.ShortString()),
 	)
 	var pingAttempts atomic.Int32
-	result, _, _ := c.awaitReachableGroup.Do(ip.String(), func() (interface{}, error) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel() // Cancel all pending pings on exit.
 
-		completedCtx, completed := context.WithCancel(context.Background())
-		defer completed()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // Cancel all pending pings on exit.
 
-		run := func() {
-			pingAttempts.Add(1)
-			// Safety timeout, initially we'll have around 10-20 goroutines
-			// running in parallel. The exponential backoff will converge
-			// around ~1 ping / 30s, this means we'll have around 10-20
-			// goroutines pending towards the end as well.
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			defer cancel()
+	completedCtx, completed := context.WithCancel(context.Background())
+	defer completed()
 
-			// For reachability, we use TSMP ping, which pings at the IP layer,
-			// and therefore requires that wireguard and the netstack are up.
-			// If we don't wait for wireguard to be up, we could miss a
-			// handshake, and it might take 5 seconds for the handshake to be
-			// retried. A 5s initial round trip can set us up for poor TCP
-			// performance, since the initial round-trip-time sets the initial
-			// retransmit timeout.
-			_, _, _, err := c.pingWithType(ctx, ip, tailcfg.PingTSMP)
-			if err == nil {
-				completed()
-			}
+	run := func() {
+		pingAttempts.Add(1)
+		// Safety timeout, initially we'll have around 10-20 goroutines
+		// running in parallel. The exponential backoff will converge
+		// around ~1 ping / 30s, this means we'll have around 10-20
+		// goroutines pending towards the end as well.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
+		// For reachability, we use TSMP ping, which pings at the IP layer,
+		// and therefore requires that wireguard and the netstack are up.
+		// If we don't wait for wireguard to be up, we could miss a
+		// handshake, and it might take 5 seconds for the handshake to be
+		// retried. A 5s initial round trip can set us up for poor TCP
+		// performance, since the initial round-trip-time sets the initial
+		// retransmit timeout.
+		_, _, _, err := c.pingWithType(ctx, ip, tailcfg.PingTSMP)
+		if err == nil {
+			completed()
 		}
+	}
 
-		eb := backoff.NewExponentialBackOff()
-		eb.MaxElapsedTime = 0
-		eb.InitialInterval = 50 * time.Millisecond
-		eb.MaxInterval = 5 * time.Second
-		// Consume the first interval since
-		// we'll fire off a ping immediately.
-		_ = eb.NextBackOff()
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = 0
+	eb.InitialInterval = 50 * time.Millisecond
+	eb.MaxInterval = 5 * time.Second
+	// Consume the first interval since
+	// we'll fire off a ping immediately.
+	_ = eb.NextBackOff()
 
-		t := backoff.NewTicker(eb)
-		defer t.Stop()
+	t := backoff.NewTicker(eb)
+	defer t.Stop()
 
-		go run()
-		for {
-			select {
-			case <-completedCtx.Done():
-				return true, nil
-			case <-t.C:
-				// Pings can take a while, so we can run multiple
-				// in parallel to return ASAP.
-				go run()
-			case <-ctx.Done():
-				return false, nil
-			}
+	go run()
+	for {
+		select {
+		case <-completedCtx.Done():
+			reachable := true
+			c.logger.Debug(context.Background(), "await reachable complete",
+				slog.F("target_ip", ip),
+				slog.F("reachable", reachable),
+				slog.F("ping_attempts", pingAttempts.Load()),
+				slog.F("node_key", c.Node().Key.ShortString()),
+			)
+			return reachable
+		case <-t.C:
+			// Pings can take a while, so we can run multiple
+			// in parallel to return ASAP.
+			go run()
+		case <-ctx.Done():
+			reachable := false
+			c.logger.Debug(context.Background(), "await reachable complete",
+				slog.F("target_ip", ip),
+				slog.F("reachable", reachable),
+				slog.F("ping_attempts", pingAttempts.Load()),
+				slog.F("node_key", c.Node().Key.ShortString()),
+			)
+			return reachable
 		}
-	})
-	reachable := result.(bool)
-	c.logger.Debug(context.Background(), "await reachable complete",
-		slog.F("target_ip", ip),
-		slog.F("reachable", reachable),
-		slog.F("ping_attempts", pingAttempts.Load()),
-		slog.F("node_key", c.Node().Key.ShortString()),
-	)
-	return reachable
+	}
 }
 
 // Closed is a channel that ends when the connection has
