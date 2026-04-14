@@ -61,9 +61,9 @@ type testServerOptions struct {
 	allowBYOK bool
 }
 
-func withAllowBYOK(v bool) func(*testServerOptions) {
+func withAllowBYOK(val bool) func(*testServerOptions) {
 	return func(o *testServerOptions) {
-		o.allowBYOK = v
+		o.allowBYOK = val
 	}
 }
 
