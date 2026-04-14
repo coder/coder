@@ -356,3 +356,125 @@ export const WithPresets: Story = {
 		parameters: [parameterInput, parameterDropdown],
 	},
 };
+
+export const WithUrlPreset: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "GPU Large",
+				Description: "GPU Large preset",
+				Parameters: [
+					{ Name: "instance_type", Value: "t3.large" },
+					{ Name: "enable_gpu", Value: "true" },
+				],
+				Default: false,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f4bb.png",
+			},
+			{
+				ID: "preset-2",
+				Name: "CPU Small",
+				Description: "CPU Small preset",
+				Parameters: [{ Name: "instance_type", Value: "t3.micro" }],
+				Default: false,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f4bc.png",
+			},
+		],
+		urlPreset: {
+			ID: "preset-1",
+			Name: "GPU Large",
+			Description: "GPU Large preset",
+			Parameters: [
+				{ Name: "instance_type", Value: "t3.large" },
+				{ Name: "enable_gpu", Value: "true" },
+			],
+			Default: false,
+			DesiredPrebuildInstances: null,
+			Icon: "/emojis/1f4bb.png",
+		},
+		parameters: [parameterDropdown, parameterSwitch],
+	},
+};
+
+export const WithUrlPresetNotFound: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "GPU Large",
+				Description: "GPU Large preset",
+				Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+				Default: false,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f4bb.png",
+			},
+		],
+		urlPresetError:
+			'Preset "gpu-large" not found on template version abc-123. Check that the preset name matches exactly (names are case-sensitive).',
+		parameters: [parameterDropdown],
+	},
+};
+
+export const WithUrlPresetAndIgnoredParams: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "GPU Large",
+				Description: "GPU Large preset",
+				Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+				Default: false,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f4bb.png",
+			},
+		],
+		urlPreset: {
+			ID: "preset-1",
+			Name: "GPU Large",
+			Description: "GPU Large preset",
+			Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+			Default: false,
+			DesiredPrebuildInstances: null,
+			Icon: "/emojis/1f4bb.png",
+		},
+		hasIgnoredUrlParams: true,
+		parameters: [parameterDropdown],
+	},
+};
+
+export const WithUrlPresetOverridesDefault: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-default",
+				Name: "Default Preset",
+				Description: "The default preset",
+				Parameters: [{ Name: "instance_type", Value: "t3.micro" }],
+				Default: true,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f7e2.png",
+			},
+			{
+				ID: "preset-url",
+				Name: "URL Preset",
+				Description: "The URL-specified preset",
+				Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+				Default: false,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f534.png",
+			},
+		],
+		urlPreset: {
+			ID: "preset-url",
+			Name: "URL Preset",
+			Description: "The URL-specified preset",
+			Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+			Default: false,
+			DesiredPrebuildInstances: null,
+			Icon: "/emojis/1f534.png",
+		},
+		parameters: [parameterDropdown],
+	},
+};
