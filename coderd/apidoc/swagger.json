@@ -9270,6 +9270,30 @@
 				]
 			}
 		},
+		"/workspaceagents/me/metadata": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Get workspace agent metadata for the authenticated agent",
+				"operationId": "get-workspace-agent-metadata-me",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.WorkspaceAgentMetadata"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/workspaceagents/me/reinit": {
 			"get": {
 				"produces": ["application/json"],
@@ -20916,6 +20940,56 @@
 				"workspace_agent_id": {
 					"type": "string",
 					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.WorkspaceAgentMetadata": {
+			"type": "object",
+			"properties": {
+				"description": {
+					"$ref": "#/definitions/codersdk.WorkspaceAgentMetadataDescription"
+				},
+				"result": {
+					"$ref": "#/definitions/codersdk.WorkspaceAgentMetadataResult"
+				}
+			}
+		},
+		"codersdk.WorkspaceAgentMetadataDescription": {
+			"type": "object",
+			"properties": {
+				"display_name": {
+					"type": "string"
+				},
+				"interval": {
+					"type": "integer"
+				},
+				"key": {
+					"type": "string"
+				},
+				"script": {
+					"type": "string"
+				},
+				"timeout": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.WorkspaceAgentMetadataResult": {
+			"type": "object",
+			"properties": {
+				"age": {
+					"description": "Age is the number of seconds since the metadata was collected.\nIt is provided in addition to CollectedAt to protect against clock skew.",
+					"type": "integer"
+				},
+				"collected_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"error": {
+					"type": "string"
+				},
+				"value": {
+					"type": "string"
 				}
 			}
 		},

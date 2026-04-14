@@ -2407,6 +2407,94 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	post(ctx, "unknown", unknownKeyMetadata)
 }
 
+func TestWorkspaceAgentMetadataMe(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		MetadataBatcherOptions: []metadatabatcher.Option{
+			metadatabatcher.WithInterval(100 * time.Millisecond),
+		},
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Metadata = []*proto.Agent_Metadata{
+			{
+				DisplayName: "First Meta",
+				Key:         "foo1",
+				Script:      "echo hi",
+				Interval:    10,
+				Timeout:     3,
+			},
+			{
+				DisplayName: "Second Meta",
+				Key:         "foo2",
+				Script:      "echo howdy",
+				Interval:    10,
+				Timeout:     3,
+			},
+		}
+		return agents
+	}).Do()
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	conn, err := agentClient.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
+
+	// Post metadata values so there is something to read.
+	wantValue := codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: time.Now(),
+		Value:       "bar",
+	}
+	_, err = aAPI.BatchUpdateMetadata(ctx, &agentproto.BatchUpdateMetadataRequest{
+		Metadata: []*agentproto.Metadata{
+			{
+				Key:    "foo1",
+				Result: agentsdk.ProtoFromMetadataResult(wantValue),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Query the /me/metadata endpoint using the agent client.
+	var md []codersdk.WorkspaceAgentMetadata
+	require.Eventually(t, func() bool {
+		md, err = agentClient.Metadata(ctx)
+		if err != nil {
+			return false
+		}
+		if len(md) != 2 {
+			return false
+		}
+		// Wait until the posted value has propagated.
+		return md[0].Result.Value == "bar"
+	}, testutil.WaitMedium, testutil.IntervalMedium)
+
+	// Verify descriptions are returned correctly.
+	require.Equal(t, "First Meta", md[0].Description.DisplayName)
+	require.Equal(t, "foo1", md[0].Description.Key)
+	require.Equal(t, "echo hi", md[0].Description.Script)
+	require.EqualValues(t, 10, md[0].Description.Interval)
+	require.EqualValues(t, 3, md[0].Description.Timeout)
+
+	// Verify the result value we posted.
+	require.Equal(t, "bar", md[0].Result.Value)
+	require.Empty(t, md[0].Result.Error)
+
+	// Second key should be present but not yet collected.
+	require.Equal(t, "Second Meta", md[1].Description.DisplayName)
+	require.Equal(t, "foo2", md[1].Description.Key)
+}
+
 func TestWorkspaceAgent_Metadata_DisplayOrder(t *testing.T) {
 	t.Parallel()
 

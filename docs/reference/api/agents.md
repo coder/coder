@@ -470,6 +470,70 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace agent metadata for the authenticated agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/metadata`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "description": {
+      "display_name": "string",
+      "interval": 0,
+      "key": "string",
+      "script": "string",
+      "timeout": 0
+    },
+    "result": {
+      "age": 0,
+      "collected_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "value": "string"
+    }
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentMetadata](schemas.md#codersdkworkspaceagentmetadata) |
+
+<h3 id="get-workspace-agent-metadata-for-the-authenticated-agent-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name              | Type                                                                                               | Required | Restrictions | Description                                                                                                                             |
+|-------------------|----------------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`    | array                                                                                              | false    |              |                                                                                                                                         |
+| `» description`   | [codersdk.WorkspaceAgentMetadataDescription](schemas.md#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                         |
+| `»» display_name` | string                                                                                             | false    |              |                                                                                                                                         |
+| `»» interval`     | integer                                                                                            | false    |              |                                                                                                                                         |
+| `»» key`          | string                                                                                             | false    |              |                                                                                                                                         |
+| `»» script`       | string                                                                                             | false    |              |                                                                                                                                         |
+| `»» timeout`      | integer                                                                                            | false    |              |                                                                                                                                         |
+| `» result`        | [codersdk.WorkspaceAgentMetadataResult](schemas.md#codersdkworkspaceagentmetadataresult)           | false    |              |                                                                                                                                         |
+| `»» age`          | integer                                                                                            | false    |              | Age is the number of seconds since the metadata was collected. It is provided in addition to CollectedAt to protect against clock skew. |
+| `»» collected_at` | string(date-time)                                                                                  | false    |              |                                                                                                                                         |
+| `»» error`        | string                                                                                             | false    |              |                                                                                                                                         |
+| `»» value`        | string                                                                                             | false    |              |                                                                                                                                         |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent reinitialization
 
 ### Code samples

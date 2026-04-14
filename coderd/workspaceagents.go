@@ -1653,6 +1653,32 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 	return scripts
 }
 
+// @Summary Get workspace agent metadata for the authenticated agent
+// @ID get-workspace-agent-metadata-me
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {array} codersdk.WorkspaceAgentMetadata
+// @Router /workspaceagents/me/metadata [get]
+func (api *API) workspaceAgentMetadataMe(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: workspaceAgent.ID,
+		Keys:             nil,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentMetadata(md))
+}
+
 // @Summary Watch for workspace agent metadata updates
 // @ID watch-for-workspace-agent-metadata-updates
 // @Security CoderSessionToken

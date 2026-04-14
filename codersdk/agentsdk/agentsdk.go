@@ -88,6 +88,23 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
+// Metadata returns the current agent's metadata descriptions and
+// collected results.
+func (c *Client) Metadata(ctx context.Context) ([]codersdk.WorkspaceAgentMetadata, error) {
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+
+	var md []codersdk.WorkspaceAgentMetadata
+	return md, json.NewDecoder(res.Body).Decode(&md)
+}
+
 type Metadata struct {
 	Key string `json:"key"`
 	codersdk.WorkspaceAgentMetadataResult

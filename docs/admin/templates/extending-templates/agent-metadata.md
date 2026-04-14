@@ -142,6 +142,60 @@ You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
 One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the
 other to the `NOTIFY` query that enables live stats streaming in the UI.
 
+## Querying metadata from a workspace
+
+You can query agent metadata from within a running workspace using the
+`GET /api/v2/workspaceagents/me/metadata` endpoint. This is useful for scripts
+or tools inside the workspace that need to read collected metrics
+programmatically.
+
+The Coder agent automatically sets `CODER_AGENT_URL` in the workspace
+environment. To authenticate, expose the agent token as an environment variable
+using the
+[`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
+resource:
+
+```tf
+resource "coder_env" "agent_token" {
+  agent_id = coder_agent.main.id
+  name     = "CODER_AGENT_TOKEN"
+  value    = coder_agent.main.token
+}
+```
+
+Then query the endpoint from inside the workspace:
+
+```sh
+curl -s \
+  -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
+  "$CODER_AGENT_URL/api/v2/workspaceagents/me/metadata"
+```
+
+The endpoint returns a JSON array of metadata entries:
+
+```json
+[
+  {
+    "result": {
+      "collected_at": "2025-01-01T00:00:00Z",
+      "age": 5,
+      "value": "3.14",
+      "error": ""
+    },
+    "description": {
+      "display_name": "CPU Usage",
+      "key": "cpu",
+      "script": "coder stat cpu",
+      "interval": 10,
+      "timeout": 1
+    }
+  }
+]
+```
+
+Each entry contains a `result` object with the latest collected value and a
+`description` object with the metadata configuration from the template.
+
 ## Next Steps
 
 - [Resource metadata](./resource-metadata.md)
