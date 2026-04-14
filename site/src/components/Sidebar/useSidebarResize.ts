@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const EXPANDED_WIDTH = 240;
-const COLLAPSED_WIDTH = 56;
+// Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
+// Double that so the icon is horizontally centered when collapsed.
+const COLLAPSED_WIDTH = 64;
 const SNAP_THRESHOLD = 148;
 
 function readCollapsed(key: string): boolean {
