@@ -2,7 +2,7 @@
 
 Kilo Code allows you to configure providers via the UI and can be set up to use AI Gateway.
 
-## Configuration
+## Centralized API Key
 
 <div class="tabs">
 
@@ -29,5 +29,10 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 ![Kilo Code Anthropic Settings](../../../images/aibridge/clients/kilo-code-anthropic.png)
 
 </div>
+
+## BYOK (Personal API Key)
+
+> [!NOTE]
+> Kilo Code supports sending custom headers, but the integration does not currently work reliably with AI Gateway.
 
 **References:** [Kilo Code Configuration](https://kilocode.ai/docs/ai-providers/openai-compatible)

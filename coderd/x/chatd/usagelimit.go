@@ -43,7 +43,10 @@ func ComputeUsagePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPerio
 	return start, end
 }
 
-// ResolveUsageLimitStatus resolves the current usage-limit status for userID.
+// ResolveUsageLimitStatus resolves the current usage-limit status for
+// userID within organizationID. When organizationID is invalid (Valid
+// == false), limits and spend are computed globally across all
+// organizations (legacy behavior).
 //
 // Note: There is a potential race condition where two concurrent messages
 // from the same user can both pass the limit check if processed in
@@ -60,7 +63,7 @@ func ComputeUsagePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPerio
 // Then scan spend once over the widest active window with conditional SUMs
 // for each period and compare each spend/limit pair Go-side, blocking on
 // whichever period is tightest.
-func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
+func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, organizationID uuid.NullUUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
 	//nolint:gocritic // AsChatd provides narrowly-scoped daemon access for
 	// deployment config reads and cross-user chat spend aggregation.
 	authCtx := dbauthz.AsChatd(ctx)
@@ -83,27 +86,41 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 
 	// Resolve effective limit in a single query:
 	// individual override > group limit > global default.
-	effectiveLimit, err := db.ResolveUserChatSpendLimit(authCtx, userID)
+	limitResult, err := db.ResolveUserChatSpendLimit(authCtx, database.ResolveUserChatSpendLimitParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	// -1 means limits are disabled (shouldn't happen since we checked above,
-	// but handle gracefully).
-	if effectiveLimit < 0 {
+	// -1 means limits are disabled (shouldn't happen since we checked
+	// above, but handle gracefully).
+	if limitResult.EffectiveLimitMicros < 0 {
 		return nil, nil //nolint:nilnil // Nil status cleanly signals disabled limits.
 	}
 
 	start, end := ComputeUsagePeriodBounds(now, period)
 
+	// When the winning limit tier is org-scoped (group), scope spend
+	// to the same org. When the limit is global (user override or
+	// deployment default), check spend globally to prevent a user
+	// from exceeding their limit by spreading spend across orgs.
+	spendOrgID := organizationID
+	if limitResult.LimitSource != limitSourceGroup {
+		spendOrgID = uuid.NullUUID{}
+	}
+
 	spendTotal, err := db.GetUserChatSpendInPeriod(authCtx, database.GetUserChatSpendInPeriodParams{
-		UserID:    userID,
-		StartTime: start,
-		EndTime:   end,
+		UserID:         userID,
+		OrganizationID: spendOrgID,
+		StartTime:      start,
+		EndTime:        end,
 	})
 	if err != nil {
 		return nil, err
 	}
 
+	effectiveLimit := limitResult.EffectiveLimitMicros
 	return &codersdk.ChatUsageLimitStatus{
 		IsLimited:        true,
 		Period:           period,
@@ -113,6 +130,13 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 		PeriodEnd:        end,
 	}, nil
 }
+
+// Limit source constants returned by ResolveUserChatSpendLimit.
+const (
+	limitSourceUser    = "user"
+	limitSourceGroup   = "group"
+	limitSourceDefault = "default"
+)
 
 func mapDBPeriodToSDK(dbPeriod string) (codersdk.ChatUsageLimitPeriod, bool) {
 	switch dbPeriod {

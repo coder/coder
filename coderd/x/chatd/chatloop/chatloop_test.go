@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -41,9 +42,9 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	t.Parallel()
 
 	var capturedCall fantasy.Call
-	model := &loopTestModel{
-		provider: fantasyanthropic.Name,
-		streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 			capturedCall = call
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
@@ -103,9 +104,9 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	t.Parallel()
 
-	model := &loopTestModel{
-		provider: fantasyanthropic.Name,
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "cached response"},
@@ -160,9 +161,9 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 
 	var records []retryRecord
 	calls := 0
-	model := &loopTestModel{
-		provider: "openai",
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			calls++
 			if calls == 1 {
 				return nil, xerrors.New("received status 429 from upstream")
@@ -286,9 +287,9 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	attempts := 0
 	attemptCause := make(chan error, 1)
 	var retries []chatretry.ClassifiedError
-	model := &loopTestModel{
-		provider: "openai",
-		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			attempts++
 			if attempts == 1 {
 				<-ctx.Done()
@@ -364,9 +365,9 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	attempts := 0
 	attemptCause := make(chan error, 1)
 	var retries []chatretry.ClassifiedError
-	model := &loopTestModel{
-		provider: "openai",
-		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			attempts++
 			if attempts == 1 {
 				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
@@ -447,9 +448,9 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 	retried := false
 	firstPartYielded := make(chan struct{}, 1)
 	continueStream := make(chan struct{})
-	model := &loopTestModel{
-		provider: "openai",
-		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			attempts++
 			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
 				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"}) {
@@ -526,9 +527,9 @@ func TestRun_PanicInPublishMessagePartReleasesAttempt(t *testing.T) {
 	t.Parallel()
 
 	attemptReleased := make(chan struct{})
-	model := &loopTestModel{
-		provider: "openai",
-		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			go func() {
 				<-ctx.Done()
 				close(attemptReleased)
@@ -583,9 +584,9 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	attempts := 0
 	attemptCause := make(chan error, 1)
 	var retries []chatretry.ClassifiedError
-	model := &loopTestModel{
-		provider: "openai",
-		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			attempts++
 			if attempts == 1 {
 				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
@@ -648,9 +649,9 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	t.Parallel()
 
 	started := make(chan struct{})
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
 				parts := []fantasy.StreamPart{
 					{
@@ -762,52 +763,6 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		"interrupted tool should have no call timestamp (never reached StreamPartTypeToolCall)")
 }
 
-type loopTestModel struct {
-	provider   string
-	model      string
-	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
-	streamFn   func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)
-}
-
-func (m *loopTestModel) Provider() string {
-	if m.provider != "" {
-		return m.provider
-	}
-	return "fake"
-}
-
-func (m *loopTestModel) Model() string {
-	if m.model != "" {
-		return m.model
-	}
-	return "fake"
-}
-
-func (m *loopTestModel) Generate(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
-	if m.generateFn != nil {
-		return m.generateFn(ctx, call)
-	}
-	return &fantasy.Response{}, nil
-}
-
-func (m *loopTestModel) Stream(ctx context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-	if m.streamFn != nil {
-		return m.streamFn(ctx, call)
-	}
-	return streamFromParts([]fantasy.StreamPart{{
-		Type:         fantasy.StreamPartTypeFinish,
-		FinishReason: fantasy.FinishReasonStop,
-	}}), nil
-}
-
-func (*loopTestModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-	return nil, xerrors.New("not implemented")
-}
-
-func (*loopTestModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-	return nil, xerrors.New("not implemented")
-}
-
 func streamFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {
 	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
 		for _, part := range parts {
@@ -860,9 +815,9 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 	var streamCalls int
 	var secondCallPrompt []fantasy.Message
 
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 			mu.Lock()
 			step := streamCalls
 			streamCalls++
@@ -972,9 +927,9 @@ func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
 	var mu sync.Mutex
 	var streamCalls int
 
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 			mu.Lock()
 			step := streamCalls
 			streamCalls++
@@ -1064,9 +1019,9 @@ func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
 func TestRun_PersistStepErrorPropagates(t *testing.T) {
 	t.Parallel()
 
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello"},
@@ -1103,9 +1058,9 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	toolStarted := make(chan struct{})
 
 	// Model returns a single tool call, then finishes.
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-block", ToolCallName: "blocking_tool"},
 				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-block", Delta: `{}`},
@@ -1361,9 +1316,9 @@ func TestRun_InterruptedDuringToolExecutionPersistsStep(t *testing.T) {
 	toolStarted := make(chan struct{})
 
 	// Model returns a completed tool call in the stream.
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "calling tool"},
@@ -1471,9 +1426,9 @@ func TestRun_InterruptedDuringToolExecutionPersistsStep(t *testing.T) {
 func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 	t.Parallel()
 
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			// Simulate a provider-executed tool call and result
 			// (e.g. Anthropic web search) followed by a text
 			// response — all in a single stream.
@@ -1541,9 +1496,9 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 func TestRun_PersistStepInterruptedFallback(t *testing.T) {
 	t.Parallel()
 
-	model := &loopTestModel{
-		provider: "fake",
-		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello world"},
