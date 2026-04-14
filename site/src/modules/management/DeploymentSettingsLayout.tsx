@@ -8,6 +8,7 @@ import {
 	BreadcrumbSeparator,
 } from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
+import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { canViewDeploymentSettings } from "#/modules/permissions";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -51,10 +52,12 @@ const DeploymentSettingsLayout: FC = () => {
 					</BreadcrumbList>
 				</Breadcrumb>
 				<hr className="h-px border-none bg-border" />
-				<section className="px-10 max-w-screen-2xl mx-auto">
-					<div className="flex flex-row gap-28 py-10">
-						<DeploymentSidebar />
-						<div className="grow">
+				<section className="px-6 max-w-screen-2xl mx-auto">
+					<div className="flex flex-row py-10">
+						<CollapsibleSidebar storageKey="deployment-sidebar-width">
+							<DeploymentSidebar />
+						</CollapsibleSidebar>
+						<div className="flex-1 min-w-0 pl-10">
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>

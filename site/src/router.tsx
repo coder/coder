@@ -172,6 +172,52 @@ const AIGovernanceSettingsPage = lazy(
 			"./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceSettingsPage"
 		),
 );
+const AIGovernanceAccessSpeedPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceAccessSpeedPage"
+		),
+);
+const AIGovernanceSettingsSubPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceSettingsSubPage"
+		),
+);
+const AIGovernanceAnalyticsPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceAnalyticsPage"
+		),
+);
+const AIGovernanceDataControlsPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceDataControlsPage"
+		),
+);
+const AISettingsUsageStatsPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AISettingsPage/AISettingsUsageStatsPage"
+		),
+);
+const AISettingsModelsPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AISettingsPage/AISettingsModelsPage"
+		),
+);
+const AISettingsProvidersPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AISettingsPage/AISettingsProvidersPage"
+		),
+);
+const AISettingsKeysPage = lazy(
+	() =>
+		import("./pages/DeploymentSettingsPage/AISettingsPage/AISettingsKeysPage"),
+);
 const ExternalAuthPage = lazy(
 	() => import("./pages/ExternalAuthPage/ExternalAuthPage"),
 );
@@ -562,17 +608,31 @@ export const router = createBrowserRouter(
 								path="observability"
 								element={<ObservabilitySettingsPage />}
 							/>
-							<Route
-								path="ai-governance"
-								element={<AIGovernanceSettingsPage />}
-							/>
+							<Route path="ai-governance">
+								<Route index element={<AIGovernanceSettingsPage />} />
+								<Route
+									path="access-speed"
+									element={<AIGovernanceAccessSpeedPage />}
+								/>
+								<Route
+									path="settings"
+									element={<AIGovernanceSettingsSubPage />}
+								/>
+								<Route
+									path="analytics"
+									element={<AIGovernanceAnalyticsPage />}
+								/>
+								<Route
+									path="data-controls"
+									element={<AIGovernanceDataControlsPage />}
+								/>
+							</Route>
 							<Route path="network" element={<NetworkSettingsPage />} />
-							<Route path="userauth" element={<UserAuthSettingsPage />} />
+							<Route path="userauth" element={<UserAuthSettingsPage />} />{" "}
 							<Route
 								path="external-auth"
 								element={<ExternalAuthSettingsPage />}
 							/>
-
 							<Route
 								path="notifications"
 								element={<DeploymentNotificationsPage />}
@@ -604,8 +664,18 @@ export const router = createBrowserRouter(
 
 						<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
 						<Route path="premium" element={<PremiumPage />} />
-					</Route>
 
+						{/* AI Settings sub-routes */}
+						<Route path="ai-settings">
+							<Route
+								path="usage-stats"
+								element={<AISettingsUsageStatsPage />}
+							/>
+							<Route path="models" element={<AISettingsModelsPage />} />
+							<Route path="providers" element={<AISettingsProvidersPage />} />
+							<Route path="keys" element={<AISettingsKeysPage />} />
+						</Route>
+					</Route>
 					<Route path="/settings" element={<UserSettingsLayout />}>
 						<Route path="account" element={<AccountPage />} />
 						<Route path="appearance" element={<AppearancePage />} />

@@ -16,26 +16,44 @@ const meta: Meta<typeof DeploymentSidebarView> = {
 		permissions: MockPermissions,
 		experiments: [],
 		buildInfo: MockBuildInfo,
+		activeSection: "general",
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof DeploymentSidebarView>;
 
+export const GeneralOpen: Story = {};
+
+export const InfrastructureOpen: Story = {
+	args: {
+		activeSection: "infrastructure",
+	},
+};
+
+export const AuthenticationOpen: Story = {
+	args: {
+		activeSection: "authentication",
+	},
+};
+
+export const AISettingsOpen: Story = {
+	args: {
+		activeSection: "ai-settings",
+	},
+};
+
+export const AIGovernanceOpen: Story = {
+	args: {
+		activeSection: "ai-governance",
+	},
+};
+
 export const NoViewUsers: Story = {
 	args: {
 		permissions: {
 			...MockPermissions,
 			viewAllUsers: false,
-		},
-	},
-};
-
-export const NoAuditLog: Story = {
-	args: {
-		permissions: {
-			...MockPermissions,
-			viewAnyAuditLog: false,
 		},
 	},
 };
