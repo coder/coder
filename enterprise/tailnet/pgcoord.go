@@ -1262,6 +1262,7 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 }
 
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
+	receivedAt := time.Now()
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
 		// Schedule a full resync asynchronously so we don't block the
@@ -1282,7 +1283,7 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		q.logger.Error(q.ctx, "failed to parse tunnel update", slog.F("msg", string(msg)), slog.Error(err))
 		return
 	}
-	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers))
+	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers), slog.F("received_at", receivedAt))
 	for _, peer := range peers {
 		mk := mKey(peer)
 		q.mu.Lock()
