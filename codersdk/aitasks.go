@@ -16,9 +16,11 @@ import (
 type CreateTaskRequest struct {
 	TemplateVersionID       uuid.UUID `json:"template_version_id" format:"uuid"`
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
-	Input                   string    `json:"input"`
-	Name                    string    `json:"name,omitempty"`
-	DisplayName             string    `json:"display_name,omitempty"`
+	// RichParameterValues allows passing template parameter values for task workspace creation.
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	Input               string                    `json:"input"`
+	Name                string                    `json:"name,omitempty"`
+	DisplayName         string                    `json:"display_name,omitempty"`
 }
 
 // CreateTask creates a new task.

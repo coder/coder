@@ -138,6 +138,20 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
+		RichParameterValues:     req.RichParameterValues,
+	}
+
+	templateParameters := map[string]string{}
+	for _, param := range req.RichParameterValues {
+		templateParameters[param.Name] = param.Value
+	}
+	templateParametersJSON, err := json.Marshal(templateParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing task parameters.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	var owner workspaceOwner
@@ -206,7 +220,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 				DisplayName:        taskDisplayName,
 				WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
 				TemplateVersionID:  templateVersion.ID,
-				TemplateParameters: []byte("{}"),
+				TemplateParameters: templateParametersJSON,
 				Prompt:             req.Input,
 				CreatedAt:          dbtime.Time(api.Clock.Now()),
 			})
