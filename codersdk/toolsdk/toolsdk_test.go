@@ -227,10 +227,10 @@ func TestTools(t *testing.T) {
 	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a workspace whose name is a valid dashless UUID.
-		// The GetWorkspace handler parses the input as a UUID first,
-		// so it will never fall back to name-based lookup for this
-		// workspace. This test documents that bug.
+		// Regression test: a workspace whose name is a valid dashless
+		// UUID should resolve correctly. Previously, the handler would
+		// parse the name as a UUID, get a 404 from the ID-based lookup,
+		// and never fall back to name-based lookup.
 		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
 		// nolint:gocritic // This is in a test package and does not end up in the build
 		uuidWorkspace := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{

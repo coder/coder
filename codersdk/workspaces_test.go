@@ -1,7 +1,6 @@
 package codersdk_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +55,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		ws, err := client.ResolveWorkspace(context.Background(), wsID.String())
+		ws, err := client.ResolveWorkspace(t.Context(), wsID.String())
 		require.NoError(t, err)
 		require.Equal(t, expected.ID, ws.ID)
 		require.Equal(t, expected.Name, ws.Name)
@@ -87,7 +86,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		ws, err := client.ResolveWorkspace(context.Background(), "my-workspace")
+		ws, err := client.ResolveWorkspace(t.Context(), "my-workspace")
 		require.NoError(t, err)
 		require.Equal(t, expected.ID, ws.ID)
 		require.Equal(t, expected.Name, ws.Name)
@@ -117,7 +116,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		ws, err := client.ResolveWorkspace(context.Background(), "alice/my-workspace")
+		ws, err := client.ResolveWorkspace(t.Context(), "alice/my-workspace")
 		require.NoError(t, err)
 		require.Equal(t, expected.ID, ws.ID)
 		require.Equal(t, expected.Name, ws.Name)
@@ -129,7 +128,7 @@ func TestResolveWorkspace(t *testing.T) {
 		// 32 hex chars — a dashless UUID that is also a valid workspace
 		// name (≤32 alphanumeric characters).
 		const identifier = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
-		parsedUUID := uuid.MustParse(identifier)
+		uuid.MustParse(identifier)
 
 		expected := codersdk.Workspace{
 			ID:   uuid.New(),
@@ -141,7 +140,6 @@ func TestResolveWorkspace(t *testing.T) {
 		r := chi.NewRouter()
 		r.Get("/api/v2/workspaces/{workspace}", func(w http.ResponseWriter, req *http.Request) {
 			uuidHits.Add(1)
-			_ = parsedUUID // ensure it parses
 			writeJSON(w, http.StatusNotFound, errResponse("Resource not found."))
 		})
 		r.Get("/api/v2/users/{user}/workspace/{workspace}", func(w http.ResponseWriter, req *http.Request) {
@@ -156,7 +154,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		ws, err := client.ResolveWorkspace(context.Background(), identifier)
+		ws, err := client.ResolveWorkspace(t.Context(), identifier)
 		require.NoError(t, err)
 		require.Equal(t, expected.ID, ws.ID)
 		require.EqualValues(t, 1, uuidHits.Load(), "UUID endpoint should have been tried first")
@@ -183,7 +181,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		_, err = client.ResolveWorkspace(context.Background(), wsID.String())
+		_, err = client.ResolveWorkspace(t.Context(), wsID.String())
 		require.Error(t, err)
 
 		var sdkErr *codersdk.Error
@@ -215,7 +213,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		_, err = client.ResolveWorkspace(context.Background(), wsID.String())
+		_, err = client.ResolveWorkspace(t.Context(), wsID.String())
 		require.Error(t, err)
 
 		var sdkErr *codersdk.Error
@@ -233,7 +231,7 @@ func TestResolveWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(u)
 
-		_, err = client.ResolveWorkspace(context.Background(), "a/b/c")
+		_, err = client.ResolveWorkspace(t.Context(), "a/b/c")
 		require.Error(t, err)
 	})
 }
