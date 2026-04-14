@@ -24,6 +24,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -1093,8 +1094,8 @@ func TestHealthcheck(t *testing.T) {
 		Name   string
 		Report healthsdk.HealthcheckReport
 		// Expected metric values keyed by category label.
-		ExpectedStatus map[string]float64
-		ExpectedDBMS   int64
+		ExpectedStatus    map[string]int
+		ExpectedDBLatency float64
 	}{
 		{
 			Name: "AllHealthy",
@@ -1110,11 +1111,11 @@ func TestHealthcheck(t *testing.T) {
 				WorkspaceProxy:     healthsdk.WorkspaceProxyReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
 				ProvisionerDaemons: healthsdk.ProvisionerDaemonsReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
 			},
-			ExpectedStatus: map[string]float64{
+			ExpectedStatus: map[string]int{
 				"derp": 0, "access_url": 0, "websocket": 0,
 				"database": 0, "workspace_proxy": 0, "provisioner_daemons": 0,
 			},
-			ExpectedDBMS: 5,
+			ExpectedDBLatency: 0.005,
 		},
 		{
 			Name: "MixedSeverities",
@@ -1130,11 +1131,11 @@ func TestHealthcheck(t *testing.T) {
 				WorkspaceProxy:     healthsdk.WorkspaceProxyReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
 				ProvisionerDaemons: healthsdk.ProvisionerDaemonsReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityWarning}},
 			},
-			ExpectedStatus: map[string]float64{
+			ExpectedStatus: map[string]int{
 				"derp": 1, "access_url": 0, "websocket": 2,
 				"database": 2, "workspace_proxy": 0, "provisioner_daemons": 1,
 			},
-			ExpectedDBMS: 300,
+			ExpectedDBLatency: 0.3,
 		},
 	} {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -1161,58 +1162,24 @@ func TestHealthcheck(t *testing.T) {
 			t.Cleanup(closeFunc)
 
 			require.Eventually(t, func() bool {
-				metrics, err := registry.Gather()
-				if err != nil {
-					return false
-				}
-
-				// We expect 3 metric families: status, db latency,
-				// last run.
-				if len(metrics) < 3 {
-					return false
-				}
-
-				// Verify the status gauge values.
-				for _, mf := range metrics {
-					if mf.GetName() != "coderd_healthcheck_status" {
-						continue
-					}
-					for _, m := range mf.GetMetric() {
-						category := m.GetLabel()[0].GetValue()
-						expected, ok := tc.ExpectedStatus[category]
-						if !ok {
-							return false
-						}
-						if m.GetGauge().GetValue() != expected {
-							return false
-						}
-					}
-				}
-
-				return true
+				// Wait until the cache is populated, indicating at
+				// least one healthcheck has completed.
+				return cache.Load() != nil
 			}, testutil.WaitShort, testutil.IntervalFast)
 
-			// Verify the cache was populated.
-			cached := cache.Load()
-			require.NotNil(t, cached)
-
-			// Verify database latency metric.
-			metrics, err := registry.Gather()
-			require.NoError(t, err)
-
-			for _, mf := range metrics {
-				switch mf.GetName() {
-				case "coderd_healthcheck_database_latency_seconds":
-					got := mf.GetMetric()[0].GetGauge().GetValue()
-					expected := float64(tc.ExpectedDBMS) / 1000.0
-					require.InDelta(t, expected, got, 0.0001,
-						"database latency mismatch")
-				case "coderd_healthcheck_last_run_seconds":
-					got := mf.GetMetric()[0].GetGauge().GetValue()
-					require.Greater(t, got, float64(0),
-						"last run timestamp should be positive")
-				}
+			for category, expected := range tc.ExpectedStatus {
+				require.Equal(t, expected,
+					promhelp.GaugeValue(t, registry, "coderd_healthcheck_status", prometheus.Labels{"category": category}),
+					"severity mismatch for %s", category)
 			}
+
+			dbLatency := promhelp.MetricValue(t, registry, "coderd_healthcheck_database_latency_seconds", nil)
+			require.NotNil(t, dbLatency)
+			require.InDelta(t, tc.ExpectedDBLatency, dbLatency.GetGauge().GetValue(), 1e-9)
+
+			lastRun := promhelp.MetricValue(t, registry, "coderd_healthcheck_last_run_seconds", nil)
+			require.NotNil(t, lastRun)
+			require.Greater(t, lastRun.GetGauge().GetValue(), float64(0))
 		})
 	}
 }

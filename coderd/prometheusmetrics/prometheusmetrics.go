@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -674,27 +675,17 @@ func Healthcheck(
 		Name:      "healthcheck_status",
 		Help:      "Healthcheck status by category. 0 = ok, 1 = warning, 2 = error.",
 	}, []string{"category"})
-	if err := registerer.Register(statusGauge); err != nil {
-		return nil, err
-	}
-
 	dbLatencyGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "healthcheck_database_latency_seconds",
 		Help:      "Median database ping latency in seconds from the last healthcheck.",
 	})
-	if err := registerer.Register(dbLatencyGauge); err != nil {
-		return nil, err
-	}
-
 	lastRunGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "healthcheck_last_run_seconds",
 		Help:      "Unix timestamp of the last healthcheck run.",
 	})
-	if err := registerer.Register(lastRunGauge); err != nil {
-		return nil, err
-	}
+	var registerOnce sync.Once
 
 	// Use a dedicated transport so that healthcheck HTTP connections
 	// are not pooled in http.DefaultTransport. Each connection's
@@ -710,9 +701,7 @@ func Healthcheck(
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-	// Use a nanosecond ticker to force an initial collection, then
-	// reset to the configured interval after the first tick.
-	ticker := time.NewTicker(time.Nanosecond)
+	ticker := time.NewTicker(duration)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -733,11 +722,16 @@ func Healthcheck(
 
 			if report == nil {
 				logger.Warn(ctx, "healthcheck returned nil report")
-				ticker.Reset(duration)
 				continue
 			}
 
 			healthCheckCache.Store(report)
+
+			registerOnce.Do(func() {
+				registerer.MustRegister(statusGauge)
+				registerer.MustRegister(dbLatencyGauge)
+				registerer.MustRegister(lastRunGauge)
+			})
 
 			statusGauge.WithLabelValues("derp").Set(float64(report.DERP.Severity.Value()))
 			statusGauge.WithLabelValues("access_url").Set(float64(report.AccessURL.Severity.Value()))
@@ -745,11 +739,8 @@ func Healthcheck(
 			statusGauge.WithLabelValues("database").Set(float64(report.Database.Severity.Value()))
 			statusGauge.WithLabelValues("workspace_proxy").Set(float64(report.WorkspaceProxy.Severity.Value()))
 			statusGauge.WithLabelValues("provisioner_daemons").Set(float64(report.ProvisionerDaemons.Severity.Value()))
-
 			dbLatencyGauge.Set(float64(report.Database.LatencyMS) / 1000.0)
 			lastRunGauge.Set(float64(report.Time.Unix()))
-
-			ticker.Reset(duration)
 		}
 	}()
 
