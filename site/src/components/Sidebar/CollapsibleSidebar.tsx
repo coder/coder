@@ -25,25 +25,28 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 
 	return (
 		<SidebarContext.Provider value={contextValue}>
-			{/* Outer container controls the visible width and clips
-			    overflow. The inner nav always renders at full expanded
-			    width so content never reflows during drag — it just
-			    gets cropped. */}
+			{/* Non-clipping wrapper for positioning. The resize handle
+			    lives here so it isn't clipped by overflow-hidden. */}
 			<div
 				data-sidebar-container
-				className="relative flex-shrink-0 sticky top-0 h-screen overflow-hidden border-0 border-r border-solid border-border transition-[width] duration-150 ease-in-out"
+				className="relative flex-shrink-0 sticky top-0 h-screen transition-[width] duration-150 ease-in-out"
 				style={{ width }}
 			>
-				<nav
-					className={cn(
-						"h-full w-[240px] overflow-y-auto",
-						"flex flex-col",
-						"px-3 pt-6 pb-6",
-						className,
-					)}
-				>
-					{children}
-				</nav>
+				{/* Clipping container for the nav content. */}
+				<div className="h-full overflow-hidden border-0 border-r border-solid border-border">
+					<nav
+						className={cn(
+							"h-full w-[240px] overflow-y-auto",
+							"flex flex-col",
+							"px-3 pt-6 pb-6",
+							className,
+						)}
+					>
+						{children}
+					</nav>
+				</div>
+				{/* Handle sits outside the overflow-hidden div so
+				    its right half isn't clipped. */}
 				<SidebarResizeHandle onDragStart={onDragStart} />
 			</div>
 		</SidebarContext.Provider>
