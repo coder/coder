@@ -1,4 +1,5 @@
 import type { ElementType, FC, ReactNode } from "react";
+import { Link } from "react-router";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Collapsible,
@@ -20,12 +21,17 @@ interface SidebarAccordionProps {
 	children: ReactNode;
 	open: boolean;
 	onToggle: () => void;
+	/** URL to navigate to when clicking the icon in collapsed mode. */
+	href?: string;
 }
 
 /**
  * A single accordion section in the sidebar. Both collapsed and
  * expanded states use identical px-3 py-2 padding so icons stay
  * at the same vertical position regardless of state.
+ *
+ * In collapsed mode, clicking the icon navigates to the section's
+ * first page (via href) which also triggers the sidebar to expand.
  */
 export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	icon: Icon,
@@ -33,6 +39,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	children,
 	open,
 	onToggle,
+	href,
 }) => {
 	const { collapsed } = useSidebarContext();
 
@@ -41,13 +48,22 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 			<TooltipProvider>
 				<Tooltip delayDuration={0}>
 					<TooltipTrigger asChild>
-						<button
-							type="button"
-							onClick={onToggle}
-							className="flex items-center px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
-						>
-							<Icon className="size-4 flex-shrink-0 text-content-secondary" />
-						</button>
+						{href ? (
+							<Link
+								to={href}
+								className="flex items-center px-3 py-2 rounded-md no-underline hover:bg-surface-secondary"
+							>
+								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+							</Link>
+						) : (
+							<button
+								type="button"
+								onClick={onToggle}
+								className="flex items-center px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
+							>
+								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+							</button>
+						)}
 					</TooltipTrigger>
 					<TooltipContent side="right">{label}</TooltipContent>
 				</Tooltip>

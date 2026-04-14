@@ -64,6 +64,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 			<SidebarAccordion
 				icon={Settings}
 				label="General"
+				href="/deployment/overview"
 				open={openSections.has("general")}
 				onToggle={() => toggle("general")}
 			>
@@ -105,6 +106,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 			<SidebarAccordion
 				icon={Container}
 				label="Infrastructure"
+				href="/deployment/security"
 				open={openSections.has("infrastructure")}
 				onToggle={() => toggle("infrastructure")}
 			>
@@ -136,6 +138,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 			<SidebarAccordion
 				icon={KeyRound}
 				label="Authentication"
+				href="/deployment/userauth"
 				open={openSections.has("authentication")}
 				onToggle={() => toggle("authentication")}
 			>
@@ -168,6 +171,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 			<SidebarAccordion
 				icon={Sparkles}
 				label="AI Settings"
+				href="/deployment/ai-settings/usage-stats"
 				open={openSections.has("ai-settings")}
 				onToggle={() => toggle("ai-settings")}
 			>
@@ -191,6 +195,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 			<SidebarAccordion
 				icon={Scale}
 				label="AI Governance"
+				href="/deployment/ai-governance"
 				open={openSections.has("ai-governance")}
 				onToggle={() => toggle("ai-governance")}
 			>
