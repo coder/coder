@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedInterceptions } from "#/api/queries/aiBridge";
 import { deploymentConfig } from "#/api/queries/deployment";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -85,6 +86,8 @@ const RequestLogsPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
+
+			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}

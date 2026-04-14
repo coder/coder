@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedConnectionLogs } from "#/api/queries/connectionlog";
 import { deploymentConfig } from "#/api/queries/deployment";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
@@ -79,6 +80,8 @@ const ConnectionLogPage: FC = () => {
 	return (
 		<>
 			<title>{pageTitle("Connection Log")}</title>
+
+			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
 
 			<ConnectionLogPageView
 				connectionLogs={connectionlogsQuery.data?.connection_logs}

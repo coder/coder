@@ -12,7 +12,7 @@ export const DataProtectionBanner: FC<DataProtectionBannerProps> = ({
 		return null;
 	}
 	return (
-		<Alert severity="info">
+		<Alert severity="info" css={{ marginBottom: 16 }}>
 			Data Protection Mode is active. Individual user identifiers are obfuscated
 			in reports to comply with employee data protection regulations.
 		</Alert>

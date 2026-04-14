@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
 import { deploymentConfig } from "#/api/queries/deployment";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -76,6 +77,8 @@ const AISessionListPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Bridge")}</title>
+
+			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
