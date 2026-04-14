@@ -961,7 +961,17 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 // where user is either a username or UUID.
 func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
 	if uid, err := uuid.Parse(identifier); err == nil {
-		return client.Workspace(ctx, uid)
+		ws, err := client.Workspace(ctx, uid)
+		if err == nil {
+			return ws, nil
+		}
+		// A workspace name might be a valid UUID string. If the
+		// ID-based lookup returned 404, fall through to name-based
+		// lookup below.
+		var sdkErr *codersdk.Error
+		if !errors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
+			return codersdk.Workspace{}, err
+		}
 	}
 	owner, name, err := splitNamedWorkspace(identifier)
 	if err != nil {

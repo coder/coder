@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -373,10 +375,20 @@ This returns more data than list_workspaces to reduce token usage.`,
 	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
 		wsID, err := uuid.Parse(args.WorkspaceID)
-		if err != nil {
-			return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
+		if err == nil {
+			ws, wsErr := deps.coderClient.Workspace(ctx, wsID)
+			if wsErr == nil {
+				return ws, nil
+			}
+			// Fall through to name-based lookup if the UUID
+			// was not found — the identifier may be a workspace
+			// name that happens to be a valid UUID string.
+			var sdkErr *codersdk.Error
+			if !errors.As(wsErr, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
+				return codersdk.Workspace{}, wsErr
+			}
 		}
-		return deps.coderClient.Workspace(ctx, wsID)
+		return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
 	},
 }
 

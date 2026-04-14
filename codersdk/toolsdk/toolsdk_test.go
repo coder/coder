@@ -224,6 +224,31 @@ func TestTools(t *testing.T) {
 		}
 	})
 
+	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a workspace whose name is a valid dashless UUID.
+		// The GetWorkspace handler parses the input as a UUID first,
+		// so it will never fall back to name-based lookup for this
+		// workspace. This test documents that bug.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		uuidWorkspace := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			Name:           uuidLikeName,
+		}).Do()
+
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+			WorkspaceID: uuidLikeName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuidWorkspace.Workspace.ID, result.ID)
+	})
+
 	t.Run("ListTemplates", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
