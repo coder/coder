@@ -129,7 +129,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 											{groupLink ? (
 												<Link
 													to={groupLink}
-													className="inline-flex no-underline hover:underline"
+													className="inline-flex rounded-md no-underline text-inherit -m-1.5 p-1.5 transition-colors hover:bg-surface-secondary"
 												>
 													{avatar}
 												</Link>
