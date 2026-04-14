@@ -406,6 +406,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.Error(err),
 		)
 	case tun.active:
+		upsertStart := time.Now()
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
 			SrcID:         tun.src,
@@ -414,6 +415,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		t.logger.Debug(t.ctx, "upserted tunnel",
 			slog.F("src_id", tun.src),
 			slog.F("dst_id", tun.dst),
+			slog.F("upsert_ms", time.Since(upsertStart).Milliseconds()),
 			slog.Error(err),
 		)
 	case !tun.active:
@@ -684,7 +686,9 @@ func (m *mapper) run() {
 		case <-m.ctx.Done():
 			return
 		case mappings := <-m.mappings:
-			m.logger.Debug(m.ctx, "got new mappings")
+			m.logger.Debug(m.ctx, "got new mappings",
+				slog.F("num_mappings", len(mappings)),
+			)
 			m.c.setLatestMapping(mappings)
 			best = m.bestMappings(mappings)
 		case <-m.update:
@@ -998,10 +1002,15 @@ func (q *querier) mappingWorker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
+		waitStart := time.Now()
 		allKeys, err := q.mappingQ.acquireBatch(maxBatchSize)
 		if err != nil {
 			return
 		}
+		q.logger.Debug(q.ctx, "mapping worker acquired batch",
+			slog.F("batch_size", len(allKeys)),
+			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
+		)
 		mkeys := make([]mKey, 0, len(allKeys))
 		mkeys = append(mkeys, allKeys...)
 		err = backoff.Retry(func() error {
@@ -1060,12 +1069,15 @@ func (q *querier) mappingQuery(peers []mKey) error {
 
 	q.logger.Debug(q.ctx, "batch querying mappings",
 		slog.F("num_peers", len(active)))
+	queryStart := time.Now()
 	bindings, err := q.store.GetTailnetTunnelPeerBindingsBatch(q.ctx, active)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("get tunnel peer bindings batch: %w", err)
 	}
 	q.logger.Debug(q.ctx, "batch queried mappings",
-		slog.F("num_bindings", len(bindings)))
+		slog.F("num_bindings", len(bindings)),
+		slog.F("query_ms", time.Since(queryStart).Milliseconds()),
+	)
 
 	// Group bindings by lookup_id (the peer that needs the mapping).
 	grouped := make(map[uuid.UUID][]database.GetTailnetTunnelPeerBindingsBatchRow)
@@ -1275,6 +1287,9 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 			continue
 		}
 		q.mappingQ.enqueue(mk)
+		q.logger.Debug(q.ctx, "tunnel update received, enqueueing mapping",
+			slog.F("peer_id", peer),
+		)
 	}
 }
 

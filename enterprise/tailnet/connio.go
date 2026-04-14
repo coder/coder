@@ -170,10 +170,15 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			},
 			active: true,
 		}
+		sendStart := time.Now()
 		if err := agpl.SendCtx(c.coordCtx, c.tunnels, t); err != nil {
 			c.logger.Debug(c.peerCtx, "failed to send add tunnel", slog.Error(err))
 			return err
 		}
+		c.logger.Debug(c.peerCtx, "sent tunnel to tunneler",
+			slog.F("dst_id", dst),
+			slog.F("blocked_ms", time.Since(sendStart).Milliseconds()),
+		)
 	}
 	if req.RemoveTunnel != nil {
 		c.logger.Debug(c.peerCtx, "got remove tunnel", slog.F("tunnel", req.RemoveTunnel))
@@ -264,9 +269,14 @@ func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 	case <-c.peerCtx.Done():
 		return c.peerCtx.Err()
 	case c.responses <- resp:
-		c.logger.Debug(c.peerCtx, "wrote response")
+		c.logger.Debug(c.peerCtx, "wrote response",
+			slog.F("num_updates", len(resp.GetPeerUpdates())),
+		)
 		return nil
 	default:
+		c.logger.Debug(c.peerCtx, "response dropped (would block)",
+			slog.F("num_updates", len(resp.GetPeerUpdates())),
+		)
 		return agpl.ErrWouldBlock
 	}
 }
