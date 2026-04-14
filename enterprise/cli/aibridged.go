@@ -87,8 +87,10 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		usedNames[aibridge.ProviderOpenAI] = struct{}{}
 	}
 
-	// Add legacy Anthropic provider if configured.
-	if cfg.LegacyAnthropic.Key.String() != "" {
+	// Add legacy Anthropic provider if configured. Bedrock credentials
+	// alone are sufficient — an Anthropic API key is not required when
+	// using AWS Bedrock.
+	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
 			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}

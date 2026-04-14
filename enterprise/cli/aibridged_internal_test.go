@@ -117,6 +117,24 @@ func TestBuildProviders(t *testing.T) {
 		assert.Equal(t, []string{aibridge.ProviderAnthropic}, names)
 	})
 
+	t.Run("LegacyBedrockWithoutAnthropicKey", func(t *testing.T) {
+		t.Parallel()
+		// Bedrock credentials alone should be enough to create an
+		// Anthropic provider — no CODER_AIBRIDGE_ANTHROPIC_KEY needed.
+		cfg := codersdk.AIBridgeConfig{}
+		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
+		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
+		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+
+		providers, err := buildProviders(cfg)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+
+		p := providers[0]
+		assert.Equal(t, aibridge.ProviderAnthropic, p.Type())
+		assert.Equal(t, aibridge.ProviderAnthropic, p.Name())
+	})
+
 	t.Run("UnknownType", func(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
