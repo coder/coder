@@ -64,7 +64,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 	);
 
 	const visible = (hovered || dragging) && mouseY !== null;
-	const BAR_HEIGHT = 150;
+	const BAR_HEIGHT = 100;
 
 	return (
 		<div
