@@ -36,7 +36,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 						"flex flex-col border-0 border-r border-solid border-border",
 						// Nav pl-3 + button px-3 = 24px, matching navbar
 						// px-6 so icon left edges align with the Coder logo.
-						"pl-3 pt-6 pb-6",
+						"px-3 pt-6 pb-6",
 						className,
 					)}
 				>
