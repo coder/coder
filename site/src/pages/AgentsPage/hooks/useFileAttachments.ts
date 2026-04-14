@@ -211,7 +211,7 @@ export function useFileAttachments(
 			return;
 		}
 
-		const shouldPersist = persist && !!organizationId;
+		const shouldPersist = persist && Boolean(organizationId);
 		const isImage = file.type.startsWith("image/");
 
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));

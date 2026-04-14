@@ -416,6 +416,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{permittedOrgsQuery.error != null && (
+						<ErrorAlert error={permittedOrgsQuery.error} />
+					)}
 					{showOrganizations &&
 						!permittedOrgsQuery.isLoading &&
 						permittedOrgs.length > 1 && (
