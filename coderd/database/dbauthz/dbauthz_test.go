@@ -2809,6 +2809,25 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		check.Args(authInstanceID).Asserts(w, policy.ActionRead).Returns(agt)
 	}))
+	s.Run("GetWorkspaceAgentByInstanceIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.GetWorkspaceAgentByInstanceIDAndNameParams{
+			AuthInstanceID: "instance-id",
+			Name:           "agent-name",
+		}
+		dbm.EXPECT().GetWorkspaceAgentByInstanceIDAndName(gomock.Any(), arg).Return(agt, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionRead).Returns(agt)
+	}))
+	s.Run("GetWorkspaceAgentsByInstanceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		authInstanceID := "instance-id"
+		dbm.EXPECT().GetWorkspaceAgentsByInstanceID(gomock.Any(), authInstanceID).Return([]database.WorkspaceAgent{agt}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		check.Args(authInstanceID).Asserts(w, policy.ActionRead).Returns([]database.WorkspaceAgent{agt})
+	}))
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
