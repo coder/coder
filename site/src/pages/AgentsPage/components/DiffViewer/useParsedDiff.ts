@@ -1,6 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
-import { useMemo } from "react";
 
 /**
  * Parse a unified diff string into an array of per-file metadata.
@@ -19,15 +18,14 @@ export function useParsedDiff(
 	diffString: string | undefined | null,
 	cacheKeyPrefix?: string,
 ): FileDiffMetadata[] {
-	return useMemo(() => {
-		if (!diffString) {
-			return [] as FileDiffMetadata[];
-		}
-		try {
-			const patches = parsePatchFiles(diffString, cacheKeyPrefix);
-			return patches.flatMap((p) => p.files);
-		} catch {
-			return [] as FileDiffMetadata[];
-		}
-	}, [diffString, cacheKeyPrefix]);
+	if (!diffString) {
+		return [];
+	}
+	try {
+		const patches = parsePatchFiles(diffString, cacheKeyPrefix);
+		return patches.flatMap((p) => p.files);
+	} catch (e) {
+		console.error("Failed to parse diff:", e);
+		return [];
+	}
 }

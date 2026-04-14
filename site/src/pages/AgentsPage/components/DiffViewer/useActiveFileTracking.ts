@@ -1,12 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
-import {
-	type MutableRefObject,
-	type RefObject,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 interface UseActiveFileTrackingOptions {
 	/** Ref to the scrollable diff viewport element. */
@@ -27,11 +20,6 @@ interface UseActiveFileTrackingOptions {
 interface UseActiveFileTrackingReturn {
 	/** State value for the tree sidebar highlight. */
 	treeActiveFile: string | null;
-	/** Ref that always holds the current active file name (for
-	 *  synchronous reads outside React renders). */
-	activeFileRef: MutableRefObject<string | null>;
-	/** Mutable map from file name → wrapper DOM element. */
-	fileRefs: MutableRefObject<Map<string, HTMLDivElement>>;
 	/** Ref callback to register/unregister a file wrapper element. */
 	setFileRef: (name: string, el: HTMLDivElement | null) => void;
 	/** Click handler for the file tree – scrolls to the file and
@@ -115,14 +103,14 @@ export function useActiveFileTracking({
 		return () => observer.disconnect();
 	}, [enabled, sortedFiles, viewportRef]);
 
-	const handleFileClick = useCallback((name: string) => {
+	const handleFileClick = (name: string) => {
 		const el = fileRefs.current.get(name);
 		if (el) {
 			el.scrollIntoView({ block: "start" });
 			activeFileRef.current = name;
 			setTreeActiveFile(name);
 		}
-	}, []);
+	};
 
 	// Scroll to a file programmatically when the parent sets
 	// scrollToFile. This enables external navigation (e.g. clicking
@@ -141,8 +129,6 @@ export function useActiveFileTracking({
 
 	return {
 		treeActiveFile,
-		activeFileRef,
-		fileRefs,
 		setFileRef,
 		handleFileClick,
 	};
