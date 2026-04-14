@@ -9,6 +9,12 @@ Create a secret
 coder secret create [flags] <name>
 ```
 
+## Description
+
+```console
+Provide the secret value with --value, --value-env, or non-interactive stdin (pipe or redirect).
+```
+
 ## Options
 
 ### --value
@@ -17,7 +23,23 @@ coder secret create [flags] <name>
 |------|---------------------|
 | Type | <code>string</code> |
 
-Set the secret value. This flag is required.
+Set the secret value. For security reasons, prefer --value-env or non-interactive stdin (pipe or redirect).
+
+### --value-env
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Read the secret value from the named environment variable.
+
+### --trim-trailing-newline
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Trim a single trailing newline from stdin-provided secret values.
 
 ### --description
 
@@ -27,7 +49,7 @@ Set the secret value. This flag is required.
 
 Set the secret description.
 
-### --inject-env
+### --env
 
 |      |                     |
 |------|---------------------|
@@ -35,7 +57,7 @@ Set the secret description.
 
 Inject the secret into workspaces as an environment variable.
 
-### --inject-file
+### --file
 
 |      |                     |
 |------|---------------------|

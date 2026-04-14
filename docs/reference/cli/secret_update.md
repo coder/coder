@@ -12,7 +12,7 @@ coder secret update [flags] <name>
 ## Description
 
 ```console
-At least one of --value, --description, --inject-env, or --inject-file must be specified.
+At least one of --value, --value-env, --description, --env, or --file must be specified. Provide the secret value by at most one of --value, --value-env, or non-interactive stdin (pipe or redirect).
 ```
 
 ## Options
@@ -23,7 +23,23 @@ At least one of --value, --description, --inject-env, or --inject-file must be s
 |------|---------------------|
 | Type | <code>string</code> |
 
-Update the secret value.
+Update the secret value. For security reasons, prefer --value-env or non-interactive stdin (pipe or redirect).
+
+### --value-env
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Read the updated secret value from the named environment variable.
+
+### --trim-trailing-newline
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Trim a single trailing newline from stdin-provided secret values.
 
 ### --description
 
@@ -33,7 +49,7 @@ Update the secret value.
 
 Update the secret description. Pass an empty string to clear it.
 
-### --inject-env
+### --env
 
 |      |                     |
 |------|---------------------|
@@ -41,7 +57,7 @@ Update the secret description. Pass an empty string to clear it.
 
 Update the environment variable injection target. Pass an empty string to clear it.
 
-### --inject-file
+### --file
 
 |      |                     |
 |------|---------------------|

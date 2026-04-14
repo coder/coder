@@ -18,11 +18,11 @@ coder secret
 ```console
   - Create a secret:
 
-     $ coder secret create api-key --value "$SECRET_VALUE" --description "API key for workspace tools" --inject-env API_KEY --inject-file "~/.api-key"
+     $ printf %s "$MYCLI_API_KEY" | coder secret create api-key --description "API key for workspace tools" --env API_KEY --file "~/.api-key"
 
   - Update a secret:
 
-     $ coder secret update api-key --value "$NEW_SECRET_VALUE" --description "Rotated API key" --inject-env API_KEY --inject-file "~/.api-key"
+     $ MYCLI_API_KEY="$NEW_SECRET_VALUE" coder secret update api-key --value-env MYCLI_API_KEY --description "Rotated API key" --env API_KEY --file "~/.api-key"
 
   - List your secrets:
 

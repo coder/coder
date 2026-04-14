@@ -319,14 +319,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	cmd.Walk(func(cmd *serpent.Command) {
 		// TODO: we should really be consistent about naming.
 		if cmd.Name() == "delete" || cmd.Name() == "remove" {
-			if slices.Contains(cmd.Aliases, "rm") {
-				merr = errors.Join(
-					merr,
-					xerrors.Errorf("command %q shouldn't have alias %q since it's added automatically", cmd.FullName(), "rm"),
-				)
-				return
+			if !slices.Contains(cmd.Aliases, "rm") {
+				cmd.Aliases = append(cmd.Aliases, "rm")
 			}
-			cmd.Aliases = append(cmd.Aliases, "rm")
 		}
 	})
 
