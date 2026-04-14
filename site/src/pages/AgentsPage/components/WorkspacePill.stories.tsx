@@ -60,35 +60,30 @@ const hiddenApp: WorkspaceApp = {
 	statuses: [],
 };
 
-/** Agent with all built-in display apps and user-configured external apps. */
 const agentWithApps = {
 	...MockWorkspaceAgent,
 	display_apps: ["vscode", "vscode_insiders", "web_terminal"] as const,
 	apps: [externalApp, cursorApp],
 };
 
-/** Agent with only built-in display apps (no user-configured external apps). */
 const agentWithBuiltinsOnly = {
 	...MockWorkspaceAgent,
 	display_apps: ["vscode", "web_terminal"] as const,
 	apps: [],
 };
 
-/** Agent with no display apps and no user apps. */
 const agentWithNoApps = {
 	...MockWorkspaceAgent,
 	display_apps: [] as const,
 	apps: [],
 };
 
-/** Agent with only user-configured external apps (no built-in display apps). */
 const agentWithExternalOnly = {
 	...MockWorkspaceAgent,
 	display_apps: [] as const,
 	apps: [externalApp, cursorApp],
 };
 
-/** Agent with a hidden app mixed in to verify filtering. */
 const agentWithHiddenApp = {
 	...MockWorkspaceAgent,
 	display_apps: ["vscode"] as const,
@@ -116,9 +111,6 @@ type Story = StoryObj<typeof WorkspacePill>;
 // Stories
 // ---------------------------------------------------------------------------
 
-/** Pill with all app types: built-in VS Code, VS Code Insiders, external
- *  apps (JetBrains, Cursor), terminal, and SSH command. Clicking the pill
- *  opens the dropdown. */
 export const WithAllApps: Story = {
 	args: {
 		...defaultProps,
@@ -144,8 +136,6 @@ export const WithAllApps: Story = {
 	},
 };
 
-/** Pill with only built-in display apps (VS Code and terminal). No
- *  user-configured external apps. */
 export const WithBuiltinAppsOnly: Story = {
 	args: {
 		...defaultProps,
@@ -170,7 +160,6 @@ export const WithBuiltinAppsOnly: Story = {
 	},
 };
 
-/** Pill with only user-configured external apps, no built-in display apps. */
 export const WithExternalAppsOnly: Story = {
 	args: {
 		...defaultProps,
@@ -194,8 +183,6 @@ export const WithExternalAppsOnly: Story = {
 	},
 };
 
-/** When the agent has no apps at all, the pill still renders with
- *  a "View Workspace" link in the dropdown. */
 export const NoApps: Story = {
 	args: {
 		...defaultProps,
@@ -214,7 +201,6 @@ export const NoApps: Story = {
 	},
 };
 
-/** Hidden apps should be filtered out and not appear in the dropdown. */
 export const WithHiddenApp: Story = {
 	args: {
 		...defaultProps,
@@ -237,7 +223,6 @@ export const WithHiddenApp: Story = {
 	},
 };
 
-/** Stopped workspace — VS Code and terminal items should be disabled. */
 export const WithStoppedWorkspace: Story = {
 	args: {
 		...defaultProps,
@@ -268,6 +253,15 @@ export const WithStoppedWorkspace: Story = {
 				.getByText("Open Terminal")
 				.closest("[role=menuitem]");
 			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
+
+			// External app items should be disabled.
+			const jetbrainsItem = body
+				.getByText("JetBrains Gateway")
+				.closest("[role=menuitem]");
+			expect(jetbrainsItem).toHaveAttribute("aria-disabled", "true");
+
+			const cursorItem = body.getByText("Cursor").closest("[role=menuitem]");
+			expect(cursorItem).toHaveAttribute("aria-disabled", "true");
 
 			// View Workspace link should still be accessible.
 			expect(body.getByText("View Workspace")).toBeInTheDocument();

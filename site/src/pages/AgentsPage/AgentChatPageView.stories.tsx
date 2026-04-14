@@ -362,7 +362,6 @@ export const NoModelOptions: Story = {
 	),
 };
 
-/** Chat with an attached workspace. */
 export const WithWorkspace: Story = {
 	render: () => <StoryAgentChatPageView sshCommand="ssh coder.workspace" />,
 };
