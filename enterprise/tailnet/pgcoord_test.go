@@ -317,6 +317,77 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	assertEventuallyLost(ctx, t, store, client.ID)
 }
 
+// TestPGCoordinatorSingle_ResetSentCacheOnRecovery verifies that when a
+// coordinator recovers after expiry, previously-skipped LOST mappings are
+// re-sent as NODE. This exercises the sent-cache reset path: a peer's node
+// is sent, then the coordinator expires (peer goes LOST but is skipped as
+// node_unchanged_skip on recovery without the reset), and after recovery
+// the mapper clears its sent cache so the peer is treated as new.
+func TestPGCoordinatorSingle_ResetSentCacheOnRecovery(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+	mClock := quartz.NewMock(t)
+	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
+	defer afTrap.Close()
+	rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
+	defer rstTrap.Close()
+
+	coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent.Close(ctx)
+	agent.UpdateDERP(10)
+
+	client := agpltest.NewClient(ctx, t, coordinator, "client", agent.ID)
+	defer client.Close(ctx)
+
+	// Client receives agent's initial DERP.
+	client.AssertEventuallyHasDERP(agent.ID, 10)
+
+	// Simulate a second coordinator that publishes the same agent.
+	fCoord2 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		id:    uuid.New(),
+	}
+
+	fCoord2.heartbeat()
+	afTrap.MustWait(ctx).MustRelease(ctx)
+
+	// fCoord2 publishes the agent with DERP 12.
+	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
+	client.AssertEventuallyHasDERP(agent.ID, 12)
+
+	// Expire fCoord2 by advancing past the missed heartbeat threshold
+	// (MissedHeartbeats * HeartbeatPeriod = 3 periods). We must advance
+	// one period at a time because the mock clock has a 2s sendBeats
+	// ticker that must fire at each step.
+	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx) // 1st period
+	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx) // 2nd period
+	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx) // 3rd: AfterFunc fires checkExpiry
+	client.AssertEventuallyHasDERP(agent.ID, 10)
+
+	// Now fCoord2 recovers with the same DERP 12 node. Without the
+	// sent-cache reset, the mapper would see the peer as unchanged
+	// (node_unchanged_skip) and never re-send it. With the reset, the
+	// mapper treats it as new and sends DERP 12.
+	fCoord2.heartbeat()
+	rstTrap.MustWait(ctx).MustRelease(ctx)
+	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
+	client.AssertEventuallyHasDERP(agent.ID, 12)
+
+	agent.UngracefulDisconnect(ctx)
+	client.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, client.ID)
+}
+
 func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 	t.Parallel()
 
