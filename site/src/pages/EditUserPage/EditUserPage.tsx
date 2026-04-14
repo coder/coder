@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { updateProfile, user } from "#/api/queries/users";
+import { deploymentConfig } from "#/api/queries/deployment";
+import { roles } from "#/api/queries/roles";
+import { updateProfile, updateRoles, user } from "#/api/queries/users";
 import type { UpdateUserProfileRequest } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { isUUID } from "#/utils/uuid";
 import { EditUserForm } from "./EditUserForm";
@@ -16,10 +19,19 @@ const EditUserPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
+	const { permissions } = useAuthenticated();
+	const { updateUsers: canEditRoles, viewDeploymentConfig } = permissions;
+
 	const userQuery = useQuery(user(usernameOrId));
+	const rolesQuery = useQuery(roles());
+	const { data: deploymentValues } = useQuery({
+		...deploymentConfig(),
+		enabled: viewDeploymentConfig,
+	});
 	const updateProfileMutation = useMutation(
 		updateProfile(userQuery.data?.id ?? ""),
 	);
+	const updateRolesMutation = useMutation(updateRoles(queryClient));
 
 	if (!userQuery.data) {
 		return <Loader />;
@@ -27,17 +39,25 @@ const EditUserPage: FC = () => {
 
 	const userData = userQuery.data;
 
+	// Indicates if OIDC roles are synced from the OIDC IdP.
+	// Defaults to false if the deployment config is not available.
+	const oidcRoleSyncEnabled =
+		viewDeploymentConfig &&
+		deploymentValues?.config.oidc?.user_role_field !== "";
+
 	const handleSubmit = async (values: UpdateUserProfileRequest) => {
 		const mutation = updateProfileMutation.mutateAsync(values, {
 			onSuccess: (updatedUser) => {
-				// Invalidate the user cache so other parts of the UI reflect the change.
+				// Invalidate the user cache so other parts of the UI
+				// reflect the change.
 				void queryClient.invalidateQueries({
 					queryKey: ["user", usernameOrId],
 				});
 				void queryClient.invalidateQueries({ queryKey: ["users"] });
 
-				// If the URL currently uses the username (not a UUID) and the username
-				// has changed, rewrite the URL so the page doesn't 404 on refresh.
+				// If the URL currently uses the username (not a UUID) and
+				// the username has changed, rewrite the URL so the page
+				// doesn't 404 on refresh.
 				if (!isUUID(usernameOrId) && updatedUser.username !== usernameOrId) {
 					navigate(`../${updatedUser.username}`, {
 						relative: "path",
@@ -60,6 +80,24 @@ const EditUserPage: FC = () => {
 		});
 	};
 
+	const handleUpdateRoles = async (newRoles: string[]) => {
+		try {
+			await updateRolesMutation.mutateAsync({
+				userId: userData.id,
+				roles: newRoles,
+			});
+			// Refetch the user so role pills update immediately.
+			void queryClient.invalidateQueries({
+				queryKey: ["user", usernameOrId],
+			});
+			toast.success("User roles updated successfully.");
+		} catch (e) {
+			toast.error(getErrorMessage(e, "Error updating user roles."), {
+				description: getErrorDetail(e),
+			});
+		}
+	};
+
 	return (
 		<Margins>
 			<title>{pageTitle("Edit User", `${userData.username}`)}</title>
@@ -75,6 +113,12 @@ const EditUserPage: FC = () => {
 				onCancel={() => {
 					navigate("..", { relative: "path" });
 				}}
+				user={userData}
+				availableRoles={rolesQuery.data}
+				canEditRoles={canEditRoles}
+				oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+				isUpdatingRoles={updateRolesMutation.isPending}
+				onUpdateRoles={handleUpdateRoles}
 			/>
 		</Margins>
 	);

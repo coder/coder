@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import {
+	MockAgentsAccessRole,
 	MockOwnerRole,
 	MockSiteRoles,
 	MockUserAdminRole,
@@ -51,6 +52,20 @@ export const CannotSetRoles: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.hover(canvas.getByLabelText("More info"));
+	},
+};
+
+export const WithAgentsAccess: Story = {
+	args: {
+		selectedRoleNames: new Set([
+			MockUserAdminRole.name,
+			MockAgentsAccessRole.name,
+		]),
+		roles: MockSiteRoles,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
 	},
 };
 

@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { mockApiError } from "#/testHelpers/entities";
+import {
+	MockAssignableSiteRoles,
+	MockOwnerRole,
+	MockUserMember,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { EditUserForm } from "./EditUserForm";
 
 const meta: Meta<typeof EditUserForm> = {
@@ -52,5 +58,66 @@ export const GeneralError: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
+	},
+};
+
+export const WithRoles: Story = {
+	args: {
+		user: MockUserOwner,
+		availableRoles: MockAssignableSiteRoles,
+		canEditRoles: true,
+		oidcRoleSyncEnabled: false,
+		isUpdatingRoles: false,
+		onUpdateRoles: action("updateRoles"),
+		initialValues: {
+			username: MockUserOwner.username,
+			name: MockUserOwner.name ?? "",
+		},
+	},
+};
+
+export const WithRolesMemberOnly: Story = {
+	args: {
+		user: MockUserMember,
+		availableRoles: MockAssignableSiteRoles,
+		canEditRoles: true,
+		oidcRoleSyncEnabled: false,
+		isUpdatingRoles: false,
+		onUpdateRoles: action("updateRoles"),
+		initialValues: {
+			username: MockUserMember.username,
+			name: MockUserMember.name ?? "",
+		},
+	},
+};
+
+export const WithRolesOIDCSync: Story = {
+	args: {
+		user: {
+			...MockUserMember,
+			login_type: "oidc",
+			roles: [MockOwnerRole],
+		},
+		availableRoles: MockAssignableSiteRoles,
+		canEditRoles: true,
+		oidcRoleSyncEnabled: true,
+		isUpdatingRoles: false,
+		onUpdateRoles: action("updateRoles"),
+		initialValues: {
+			username: MockUserMember.username,
+			name: MockUserMember.name ?? "",
+		},
+	},
+};
+
+export const WithRolesNoPermission: Story = {
+	args: {
+		user: MockUserOwner,
+		availableRoles: MockAssignableSiteRoles,
+		canEditRoles: false,
+		initialValues: {
+			username: MockUserOwner.username,
+			name: MockUserOwner.name ?? "",
+		},
 	},
 };

@@ -470,4 +470,13 @@ export const MockRoles: (AssignableRoles | Role)[] = [
 		organization_member_permissions: [],
 		built_in: true,
 	},
+	{
+		name: "agents-access",
+		display_name: "Agents Access",
+		site_permissions: [],
+		user_permissions: [],
+		organization_permissions: [],
+		organization_member_permissions: [],
+		built_in: true,
+	},
 ];

@@ -327,6 +327,16 @@ export const MockWorkspaceCreationBanRole: TypesGen.Role = {
 	organization_member_permissions: [],
 };
 
+export const MockAgentsAccessRole: TypesGen.Role = {
+	name: "agents-access",
+	display_name: "Agents Access",
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
 export const MockMemberRole: TypesGen.SlimRole = {
 	name: "member",
 	display_name: "Member",
@@ -500,11 +510,13 @@ export const MockSiteRoles = [
 	MockUserAdminRole,
 	MockAuditorRole,
 	MockWorkspaceCreationBanRole,
+	MockAgentsAccessRole,
 ];
 export const MockAssignableSiteRoles = [
 	assignableRole(MockUserAdminRole, true),
 	assignableRole(MockAuditorRole, true),
 	assignableRole(MockWorkspaceCreationBanRole, true),
+	assignableRole(MockAgentsAccessRole, true),
 ];
 
 export const MockUserOwner: TypesGen.User = {

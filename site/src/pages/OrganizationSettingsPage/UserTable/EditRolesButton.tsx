@@ -1,8 +1,8 @@
-import Checkbox from "@mui/material/Checkbox";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import type { SlimRole } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
 	HelpPopover,
@@ -22,17 +22,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-
-const roleDescriptions: Record<string, string> = {
-	owner:
-		"Owner can manage all resources, including users, groups, templates, and workspaces.",
-	"user-admin": "User admin can manage all users and groups.",
-	"template-admin": "Template admin can manage all templates and workspaces.",
-	auditor: "Auditor can access the audit logs.",
-	"agents-access": "Coder Agents User allows creating and using Coder Agents.",
-	member:
-		"Everybody is a member. This is a shared and default role for all users.",
-};
+import { roleDescriptions } from "#/modules/users/roleDescriptions";
 
 interface OptionProps {
 	value: string;
@@ -54,12 +44,9 @@ const Option: FC<OptionProps> = ({
 			<div className="flex items-start gap-4">
 				<Checkbox
 					id={name}
-					size="small"
-					className="p-0 relative top-px"
-					value={value}
 					checked={isChecked}
-					onChange={(e) => {
-						onChange(e.currentTarget.value);
+					onCheckedChange={() => {
+						onChange(value);
 					}}
 				/>
 				<div className="flex flex-col">
