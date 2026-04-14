@@ -95,7 +95,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	// Assign 'false' if unknown.
 	const oidcRoleSyncEnabled =
 		viewDeploymentConfig &&
-		deploymentValues?.config.oidc?.user_role_field !== "";
+		(deploymentValues?.config.oidc?.user_role_field ?? "") !== "";
 
 	const isLoading =
 		usersQuery.isLoading ||
