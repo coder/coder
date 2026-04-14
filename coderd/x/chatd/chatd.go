@@ -56,6 +56,7 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
+	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
@@ -877,7 +878,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -1046,7 +1047,7 @@ func (p *Server) SendMessage(
 		}
 
 		// Enforce usage limits before queueing or inserting.
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -1168,8 +1169,8 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID) error {
-	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, time.Now())
+func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID, organizationID uuid.NullUUID) error {
+	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, organizationID, time.Now())
 	if err != nil {
 		// Fail open: never block chat due to a limit-resolution failure.
 		p.logger.Warn(ctx, "usage limit check failed, allowing message",
@@ -1222,7 +1223,7 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -2027,7 +2028,7 @@ func (p *Server) regenerateChatTitleWithStore(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
-	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID); limitErr != nil {
+	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
 		return database.Chat{}, limitErr
 	}
 
@@ -4475,6 +4476,50 @@ func (p *Server) runChat(
 	}
 	defer workspaceCtx.close()
 
+	planPathFn := func(ctx context.Context) (string, string, error) {
+		conn, err := workspaceCtx.getWorkspaceConn(ctx)
+		if err != nil {
+			return "", "", err
+		}
+		home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+		if err != nil {
+			return "", "", err
+		}
+		return chattool.PlanPathForChat(home, chat.ID), home, nil
+	}
+	resolvePlanPathForTools := func(ctx context.Context) (string, string, error) {
+		ctx, cancel := context.WithTimeout(ctx, planPathLookupTimeout)
+		defer cancel()
+		return planPathFn(ctx)
+	}
+	resolvePlanPathBlock := func(resolveCtx context.Context) string {
+		if chat.ParentChatID.Valid {
+			return ""
+		}
+
+		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
+		defer cancel()
+
+		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
+			p.logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
+			return ""
+		}
+
+		planPath, home, err := planPathFn(planCtx)
+		if err != nil {
+			p.logger.Debug(resolveCtx, "plan path instruction: failed to resolve plan path",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
+			return ""
+		}
+
+		return formatPlanPathBlock(planPath, home)
+	}
+
 	// Connect to MCP servers in parallel with instruction
 	// resolution. ConnectAll only depends on mcpConfigs and
 	// mcpTokens which are available after g.Wait() above.
@@ -4668,6 +4713,7 @@ func (p *Server) runChat(
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
+	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
 	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
@@ -4980,9 +5026,11 @@ func (p *Server) runChat(
 		}),
 		chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5049,6 +5097,7 @@ func (p *Server) runChat(
 		// Plan presentation tool.
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
 				workspaceCtx.chatStateMu.Lock()
 				chatSnapshot := *workspaceCtx.currentChat
@@ -5241,6 +5290,7 @@ func (p *Server) runChat(
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
 			}
+			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
@@ -5910,6 +5960,89 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 		return ""
 	}
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+}
+
+// renderPlanPathPrompt fills the plan-path placeholder when it is
+// present in the prompt.
+func renderPlanPathPrompt(prompt []fantasy.Message, planPathBlock string) []fantasy.Message {
+	prompt, _ = replacePlanPathPlaceholder(prompt, planPathBlock)
+	return prompt
+}
+
+func replacePlanPathPlaceholder(
+	prompt []fantasy.Message,
+	planPathBlock string,
+) ([]fantasy.Message, bool) {
+	var updatedPrompt []fantasy.Message
+	replaced := false
+	for i, message := range prompt {
+		updatedMessage, ok := replacePlanPathPlaceholderInMessage(message, planPathBlock)
+		if !ok {
+			continue
+		}
+		if updatedPrompt == nil {
+			updatedPrompt = slices.Clone(prompt)
+		}
+		updatedPrompt[i] = updatedMessage
+		replaced = true
+	}
+	if !replaced {
+		return prompt, false
+	}
+	return updatedPrompt, true
+}
+
+func replacePlanPathPlaceholderInMessage(
+	message fantasy.Message,
+	planPathBlock string,
+) (fantasy.Message, bool) {
+	if message.Role != fantasy.MessageRoleSystem {
+		return message, false
+	}
+
+	content := slices.Clone(message.Content)
+	replaced := false
+	for i, part := range content {
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+		if !ok || !strings.Contains(textPart.Text, defaultSystemPromptPlanPathBlockPlaceholder) {
+			continue
+		}
+		replaced = true
+		content[i] = fantasy.TextPart{Text: strings.ReplaceAll(
+			textPart.Text,
+			defaultSystemPromptPlanPathBlockPlaceholder,
+			planPathBlock,
+		)}
+	}
+	if !replaced {
+		return message, false
+	}
+	message.Content = content
+	return message, true
+}
+
+func formatPlanPathBlock(chatPath, home string) string {
+	chatPath = strings.TrimSpace(chatPath)
+	if chatPath == "" {
+		return ""
+	}
+
+	avoidPlanPath := chattool.LegacySharedPlanPath
+	home = strings.TrimSpace(home)
+	if home != "" {
+		avoidPlanPath = strings.TrimRight(home, "/") + "/PLAN.md"
+	}
+
+	var b strings.Builder
+	_, _ = b.WriteString("<plan-file-path>\n")
+	_, _ = b.WriteString("Your plan file path for this chat is: ")
+	_, _ = b.WriteString(chatPath)
+	_, _ = b.WriteString("\n")
+	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
+	_, _ = b.WriteString(avoidPlanPath)
+	_, _ = b.WriteString(".\n")
+	_, _ = b.WriteString("</plan-file-path>")
+	return b.String()
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {

@@ -405,3 +405,21 @@ func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Sto
 
 	return manager, db, server.URL
 }
+
+func TestNoopWebpusher(t *testing.T) {
+	t.Parallel()
+
+	noop := &webpush.NoopWebpusher{
+		Msg: "push disabled",
+	}
+
+	dispatchErr := noop.Dispatch(context.Background(), uuid.New(), codersdk.WebpushMessage{})
+	require.Error(t, dispatchErr)
+	require.Contains(t, dispatchErr.Error(), "push disabled")
+
+	testErr := noop.Test(context.Background(), codersdk.WebpushSubscription{})
+	require.Error(t, testErr)
+	require.Contains(t, testErr.Error(), "push disabled")
+
+	require.Empty(t, noop.PublicKey())
+}

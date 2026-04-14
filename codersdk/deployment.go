@@ -4355,7 +4355,6 @@ const (
 	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
-	ExperimentWebPush               Experiment = "web-push"                // Enables web push notifications through the browser.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
 	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
@@ -4372,8 +4371,6 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentWebPush:
-		return "Browser Push Notifications"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
 	case ExperimentAgents:
@@ -4384,7 +4381,7 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
-		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		// e.g. "mcp-server-http" -> "Mcp Server Http"
 		caser := cases.Title(language.English)
 		return caser.String(strings.ReplaceAll(string(e), "-", " "))
 	}
@@ -4396,7 +4393,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentWebPush,
 	ExperimentOAuth2,
 	ExperimentAgents,
 	ExperimentMCPServerHTTP,

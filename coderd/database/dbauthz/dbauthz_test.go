@@ -1125,7 +1125,9 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetUserChatSpendInPeriod", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetUserChatSpendInPeriodParams{
-			UserID:    uuid.New(),
+			UserID:         uuid.New(),
+			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+
 			StartTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 			EndTime:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
 		}
@@ -1134,17 +1136,25 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.UserID.String()), policy.ActionRead).Returns(spend)
 	}))
 	s.Run("GetUserGroupSpendLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		userID := uuid.New()
+		arg := database.GetUserGroupSpendLimitParams{
+			UserID:         uuid.New(),
+			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}
 		limit := int64(456)
-		dbm.EXPECT().GetUserGroupSpendLimit(gomock.Any(), userID).Return(limit, nil).AnyTimes()
-		check.Args(userID).Asserts(rbac.ResourceChat.WithOwner(userID.String()), policy.ActionRead).Returns(limit)
+		dbm.EXPECT().GetUserGroupSpendLimit(gomock.Any(), arg).Return(limit, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.UserID.String()), policy.ActionRead).Returns(limit)
 	}))
+
 	s.Run("ResolveUserChatSpendLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		userID := uuid.New()
-		limit := int64(789)
-		dbm.EXPECT().ResolveUserChatSpendLimit(gomock.Any(), userID).Return(limit, nil).AnyTimes()
-		check.Args(userID).Asserts(rbac.ResourceChat.WithOwner(userID.String()), policy.ActionRead).Returns(limit)
+		arg := database.ResolveUserChatSpendLimitParams{
+			UserID:         uuid.New(),
+			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}
+		row := database.ResolveUserChatSpendLimitRow{EffectiveLimitMicros: 789, LimitSource: "group"}
+		dbm.EXPECT().ResolveUserChatSpendLimit(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.UserID.String()), policy.ActionRead).Returns(row)
 	}))
+
 	s.Run("GetChatUsageLimitConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		now := dbtime.Now()
 		config := database.ChatUsageLimitConfig{

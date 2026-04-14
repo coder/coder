@@ -5738,10 +5738,38 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	require.Contains(t, allSystemContent, "AGENTS.md",
 		"system prompt should reference the source file")
 
+	planBlockCount := 0
+	standalonePlanBlockCount := 0
+	for _, msg := range recordedCalls[0] {
+		if msg.Role != "system" {
+			continue
+		}
+		planBlockCount += strings.Count(
+			msg.Content,
+			"<plan-file-path>\nYour plan file path for this chat is:",
+		)
+		trimmed := strings.TrimSpace(msg.Content)
+		if strings.HasPrefix(trimmed, "<plan-file-path>") &&
+			strings.HasSuffix(trimmed, "</plan-file-path>") {
+			standalonePlanBlockCount++
+		}
+	}
+
 	require.Contains(t, allSystemContent, "<available-skills>",
 		"system prompt should contain available-skills block")
 	require.Contains(t, allSystemContent, "my-cool-skill",
 		"system prompt should list the discovered skill")
 	require.Contains(t, allSystemContent, "A test skill",
 		"system prompt should include the skill description")
+	require.Contains(t, allSystemContent, "<plan-file-path>",
+		"system prompt should contain the plan-file-path block")
+	require.Contains(t, allSystemContent, "PLAN-"+chat.ID.String()+".md",
+		"system prompt should use the chat-specific plan path")
+	require.Contains(t, allSystemContent,
+		"Do not use "+strings.TrimRight(fakeHome, "/")+"/PLAN.md.",
+		"system prompt should warn against the home-root plan path")
+	require.Equal(t, 1, planBlockCount,
+		"system prompt should contain a single plan-file-path block")
+	require.Zero(t, standalonePlanBlockCount,
+		"plan-file-path block should be part of the main system prompt, not a standalone message")
 }

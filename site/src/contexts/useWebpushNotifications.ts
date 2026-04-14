@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { buildInfo } from "#/api/queries/buildInfo";
-import { experiments } from "#/api/queries/experiments";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 
 interface WebpushNotifications {
@@ -17,11 +16,12 @@ interface WebpushNotifications {
 export const useWebpushNotifications = (): WebpushNotifications => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
-
 	const [subscribed, setSubscribed] = useState<boolean>(false);
 	const [loading, setLoading] = useState<boolean>(true);
-	const enabled = enabledExperimentsQuery.data?.includes("web-push") ?? false;
+	const enabled =
+		"Notification" in window &&
+		"serviceWorker" in navigator &&
+		!!buildInfoQuery.data?.webpush_public_key;
 
 	useEffect(() => {
 		// Check if browser supports push notifications

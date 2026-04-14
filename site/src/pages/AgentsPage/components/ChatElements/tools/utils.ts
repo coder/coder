@@ -2,7 +2,8 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
 import type React from "react";
-import { asRecord, asString } from "../runtimeTypeUtils";
+import * as Yup from "yup";
+import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
 
@@ -10,6 +11,20 @@ export interface EditFilesFileEntry {
 	path: string;
 	edits: Array<{ search: string; replace: string }>;
 }
+
+const searchReplaceSchema = Yup.object({
+	search: Yup.string().required(),
+	replace: Yup.string().defined(),
+}).required();
+
+type SearchReplace = Yup.InferType<typeof searchReplaceSchema>;
+
+const fileEntrySchema = Yup.object({
+	path: Yup.string().required(),
+	edits: Yup.array().defined(),
+}).required();
+
+type FileEntry = Yup.InferType<typeof fileEntrySchema>;
 
 export const toProviderLabel = (
 	providerDisplayName: string,
@@ -515,13 +530,14 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	if (!parsed) return [];
 	const files = parsed.files;
 	if (!Array.isArray(files)) return [];
-	return files.filter(
-		(f): f is EditFilesFileEntry =>
-			f !== null &&
-			typeof f === "object" &&
-			typeof (f as Record<string, unknown>).path === "string" &&
-			Array.isArray((f as Record<string, unknown>).edits),
-	);
+	return files
+		.filter((f): f is FileEntry => isValid(fileEntrySchema, f))
+		.map((f) => ({
+			path: f.path,
+			edits: f.edits.filter((e): e is SearchReplace =>
+				isValid(searchReplaceSchema, e),
+			),
+		}));
 };
 
 /**
