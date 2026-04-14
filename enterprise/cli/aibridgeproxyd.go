@@ -65,9 +65,9 @@ func domainsFromProviders(providers []aibridge.Provider) ([]string, func(string)
 		}
 		host := strings.ToLower(u.Hostname())
 		if _, exists := hostToProvider[host]; exists {
-			// First provider wins; duplicates are expected for
-			// providers that share a host (e.g. copilot variants
-			// pointing at the same endpoint).
+			// First provider wins; duplicates are expected when
+			// multiple providers share a base URL host (e.g. two
+			// OpenAI providers using the same proxy).
 			continue
 		}
 		hostToProvider[host] = p.Name()
