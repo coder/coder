@@ -44,6 +44,24 @@ const (
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
+func publishPeerUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, peerID uuid.UUID) {
+	if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
+	}
+}
+
+func publishTunnelUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, srcID, dstID uuid.UUID) {
+	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish tunnel update", slog.Error(err))
+	}
+}
+
+func publishCoordinatorHeartbeat(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, id uuid.UUID) {
+	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
+		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.Error(err))
+	}
+}
+
 // pgCoord is a postgres-backed coordinator
 //
 //	                 ┌────────────┐
@@ -154,11 +172,11 @@ func newPGCoordInternal(
 		logger:           logger,
 		pubsub:           ps,
 		store:            store,
-		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
+		binder:           newBinder(ctx, logger, id, store, ps, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, ps, sCh, fHB),
 		tunnelerCh:       sCh,
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
@@ -275,6 +293,7 @@ type tunneler struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	updates       <-chan tunnel
 
 	mu     sync.Mutex
@@ -288,6 +307,7 @@ func newTunneler(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	updates <-chan tunnel,
 	startWorkers <-chan struct{},
 ) *tunneler {
@@ -296,6 +316,7 @@ func newTunneler(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		updates:       updates,
 		latest:        make(map[uuid.UUID]map[uuid.UUID]tunnel),
 		workQ:         newWorkQ[tKey](ctx),
@@ -402,7 +423,8 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	var err error
 	switch {
 	case tun.dst == uuid.Nil:
-		err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
+		var deleted []database.DeleteAllTailnetTunnelsRow
+		deleted, err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
 			SrcID:         tun.src,
 			CoordinatorID: t.coordinatorID,
 		})
@@ -410,6 +432,11 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("src_id", tun.src),
 			slog.Error(err),
 		)
+		if err == nil {
+			for _, row := range deleted {
+				publishTunnelUpdate(t.pubsub, t.logger, t.ctx, row.SrcID, row.DstID)
+			}
+		}
 	case tun.active:
 		upsertStart := time.Now()
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
@@ -448,6 +475,11 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("active", tun.active),
 			slog.Error(err))
 	}
+	// Publish for upsert/delete single tunnel cases. The DeleteAll case
+	// publishes its own updates above since it returns multiple rows.
+	if err == nil && tun.dst != uuid.Nil {
+		publishTunnelUpdate(t.pubsub, t.logger, t.ctx, tun.src, tun.dst)
+	}
 	return err
 }
 
@@ -467,6 +499,7 @@ type binder struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	bindings      <-chan binding
 
 	mu     sync.Mutex
@@ -481,6 +514,7 @@ func newBinder(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	bindings <-chan binding,
 	startWorkers <-chan struct{},
 ) *binder {
@@ -489,6 +523,7 @@ func newBinder(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		bindings:      bindings,
 		latest:        make(map[bKey]binding),
 		workQ:         newWorkQ[bKey](ctx),
@@ -516,12 +551,15 @@ func newBinder(ctx context.Context,
 
 		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
-		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+		peerIDs, err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,
 			Status:        database.TailnetStatusLost,
 		})
 		if err != nil {
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
+		}
+		for _, peerID := range peerIDs {
+			publishPeerUpdate(b.pubsub, b.logger, ctx, peerID)
 		}
 	}()
 	return b
@@ -600,6 +638,9 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.F("binding_id", bnd.bKey),
 			slog.F("node", bnd.node),
 			slog.Error(err))
+	}
+	if err == nil {
+		publishPeerUpdate(b.pubsub, b.logger, b.ctx, uuid.UUID(bnd.bKey))
 	}
 	return err
 }
@@ -2004,6 +2045,7 @@ func (h *heartbeats) sendBeat() {
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
+	publishCoordinatorHeartbeat(h.pubsub, h.logger, h.ctx, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
@@ -2031,13 +2073,19 @@ func (h *heartbeats) cleanup() {
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
 	}
-	err = h.store.CleanTailnetLostPeers(h.ctx)
+	deletedPeers, err := h.store.CleanTailnetLostPeers(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
-	err = h.store.CleanTailnetTunnels(h.ctx)
+	for _, peerID := range deletedPeers {
+		publishPeerUpdate(h.pubsub, h.logger, h.ctx, peerID)
+	}
+	deletedTunnels, err := h.store.CleanTailnetTunnels(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
+	}
+	for _, tun := range deletedTunnels {
+		publishTunnelUpdate(h.pubsub, h.logger, h.ctx, tun.SrcID, tun.DstID)
 	}
 	h.logger.Debug(h.ctx, "completed cleanup")
 }

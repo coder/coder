@@ -322,11 +322,12 @@ func (mr *MockStoreMockRecorder) CleanTailnetCoordinators(ctx any) *gomock.Call 
 }
 
 // CleanTailnetLostPeers mocks base method.
-func (m *MockStore) CleanTailnetLostPeers(ctx context.Context) error {
+func (m *MockStore) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanTailnetLostPeers", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CleanTailnetLostPeers indicates an expected call of CleanTailnetLostPeers.
@@ -336,11 +337,12 @@ func (mr *MockStoreMockRecorder) CleanTailnetLostPeers(ctx any) *gomock.Call {
 }
 
 // CleanTailnetTunnels mocks base method.
-func (m *MockStore) CleanTailnetTunnels(ctx context.Context) error {
+func (m *MockStore) CleanTailnetTunnels(ctx context.Context) ([]database.CleanTailnetTunnelsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanTailnetTunnels", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]database.CleanTailnetTunnelsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CleanTailnetTunnels indicates an expected call of CleanTailnetTunnels.
@@ -616,11 +618,12 @@ func (mr *MockStoreMockRecorder) DeleteAllChatQueuedMessages(ctx, chatID any) *g
 }
 
 // DeleteAllTailnetTunnels mocks base method.
-func (m *MockStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+func (m *MockStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) ([]database.DeleteAllTailnetTunnelsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAllTailnetTunnels", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]database.DeleteAllTailnetTunnelsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteAllTailnetTunnels indicates an expected call of DeleteAllTailnetTunnels.
@@ -8437,11 +8440,12 @@ func (mr *MockStoreMockRecorder) UpdateReplica(ctx, arg any) *gomock.Call {
 }
 
 // UpdateTailnetPeerStatusByCoordinator mocks base method.
-func (m *MockStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+func (m *MockStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTailnetPeerStatusByCoordinator", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateTailnetPeerStatusByCoordinator indicates an expected call of UpdateTailnetPeerStatusByCoordinator.

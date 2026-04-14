@@ -266,6 +266,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 
@@ -279,6 +280,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 	fCoord3.heartbeat()
@@ -354,6 +356,7 @@ func TestPGCoordinatorSingle_ResetSentCacheOnRecovery(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 
@@ -447,6 +450,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_DBFallback(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    realPS,
 		id:    uuid.New(),
 	}
 
@@ -543,6 +547,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_DBDiscovery(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    realPS,
 		id:    uuid.New(),
 	}
 
@@ -611,6 +616,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_EmptyMapFallbackTimer(t *testing.T
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    realPS,
 		id:    uuid.New(),
 	}
 	fCoord1.heartbeat()
@@ -629,6 +635,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_EmptyMapFallbackTimer(t *testing.T
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    realPS,
 		id:    uuid.New(),
 	}
 
@@ -689,6 +696,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 	// simulate a single heartbeat, the coordinator is healthy
@@ -934,15 +942,15 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		Return(database.TailnetCoordinator{}, nil)
 	// extra calls we don't particularly care about for this test
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetTailnetTunnelPeerIDsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetTailnetTunnelPeerBindingsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
-	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
-	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -1000,10 +1008,10 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 		AnyTimes().
 		Return(database.TailnetCoordinator{}, nil)
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
-	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1).Return(nil, nil)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -1296,12 +1304,15 @@ type fakeCoordinator struct {
 	ctx   context.Context
 	t     *testing.T
 	store database.Store
+	ps    pubsub.Pubsub
 	id    uuid.UUID
 }
 
 func (c *fakeCoordinator) heartbeat() {
 	c.t.Helper()
 	_, err := c.store.UpsertTailnetCoordinator(c.ctx, c.id)
+	require.NoError(c.t, err)
+	err = c.ps.Publish(tailnet.EventHeartbeats, []byte(c.id.String()))
 	require.NoError(c.t, err)
 }
 
@@ -1317,5 +1328,7 @@ func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 		Node:          nodeRaw,
 		Status:        database.TailnetStatusOk,
 	})
+	require.NoError(c.t, err)
+	err = c.ps.Publish("tailnet_peer_update", []byte(agentID.String()))
 	require.NoError(c.t, err)
 }
