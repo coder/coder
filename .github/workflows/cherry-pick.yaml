@@ -56,6 +56,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Configure git to authenticate pushes with the job token
+          # since persist-credentials is disabled on checkout.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
           # Find the latest release branch matching the exact release/2.X
           # pattern (no suffixes like release/2.31_hotfix).
           RELEASE_BRANCH=$(

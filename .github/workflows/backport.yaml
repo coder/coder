@@ -101,6 +101,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Configure git to authenticate pushes with the job token
+          # since persist-credentials is disabled on checkout.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
           RELEASE_VERSION="$BRANCH"
           # Strip the release/ prefix for naming.
           VERSION="${RELEASE_VERSION#release/}"
@@ -129,6 +133,10 @@ jobs:
             # explaining the situation.
             git cherry-pick --abort
             git commit --allow-empty -m "Cherry-pick of #${PR_NUMBER} requires manual resolution
+
+          # Configure git to authenticate pushes with the job token
+          # since persist-credentials is disabled on checkout.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
           The automatic cherry-pick of ${MERGE_SHA} to ${RELEASE_VERSION} had conflicts.
           Please cherry-pick manually:
