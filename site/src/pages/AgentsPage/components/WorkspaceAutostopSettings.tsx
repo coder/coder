@@ -121,7 +121,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
-					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						Workspace Autostop Fallback
 					</h3>
 					<AdminBadge />

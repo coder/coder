@@ -146,10 +146,7 @@ export const AgentSettingsBehaviorPageView: FC<
 				isSaveUserPromptError={isSaveUserPromptError}
 				isAnyPromptSaving={isAnyPromptSaving}
 			/>
-			<hr className="my-5 border-0 border-t border-solid border-border" />
 			<ChatFullWidthSettings />
-
-			<hr className="my-5 border-0 border-t border-solid border-border" />
 			<UserCompactionThresholdSettings
 				modelConfigs={modelConfigsData ?? []}
 				modelConfigsError={modelConfigsError}

@@ -57,7 +57,7 @@ const parseThresholdDraft = (value: string): number | null => {
 
 const ContextCompactionHeader: FC = () => (
 	<div className="flex flex-col gap-2">
-		<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+		<h3 className="m-0 text-sm font-semibold text-content-primary">
 			Context Compaction
 		</h3>
 		<p className="!mt-0.5 m-0 text-xs text-content-secondary">
@@ -277,7 +277,7 @@ export const UserCompactionThresholdSettings: FC<
 
 							return (
 								<TableRow key={modelConfig.id}>
-									<TableCell className="text-[13px] font-medium text-content-primary">
+									<TableCell className="text-sm font-medium text-content-primary">
 										<Badge size="sm" variant="default" className="w-fit">
 											<ProviderIcon
 												provider={modelConfig.provider}

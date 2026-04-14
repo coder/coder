@@ -76,7 +76,7 @@ export const SystemInstructionsSettings: FC<
 		<>
 			<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 				<div className="flex items-center gap-2">
-					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						System Instructions
 					</h3>
 					<AdminBadge />
@@ -111,7 +111,7 @@ export const SystemInstructionsSettings: FC<
 				</p>
 				<TextareaAutosize
 					className={cn(
-						"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+						"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
 						isSystemPromptOverflowing &&
 							"overflow-y-auto [scrollbar-width:thin]",
 					)}
