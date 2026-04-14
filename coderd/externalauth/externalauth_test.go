@@ -2,12 +2,14 @@ package externalauth_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
@@ -378,6 +381,148 @@ func TestRefreshToken(t *testing.T) {
 		mapping, ok := extra["authed_user"].(map[string]interface{})
 		require.True(t, ok)
 		require.Equal(t, updated.OAuthAccessToken, mapping["access_token"])
+	})
+
+	// SaveBeforeValidate tests that a successfully refreshed token is
+	// persisted to the DB even when post-refresh validation fails. This
+	// prevents the data-loss scenario where GitHub rotates the refresh
+	// token on use but the new token is silently discarded because a
+	// rate-limited validation endpoint returns 403.
+	t.Run("SaveBeforeValidate", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		// simulateRateLimit controls whether the validate endpoint
+		// returns 403 (true) or 200 (false).
+		var simulateRateLimit atomic.Bool
+		simulateRateLimit.Store(true)
+
+		var refreshCalls atomic.Int64
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return nil
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					if simulateRateLimit.Load() {
+						return jwt.MapClaims{}, oidctest.StatusError(http.StatusForbidden, xerrors.New("rate limit exceeded"))
+					}
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// --- First call: refresh succeeds, validation fails (403). ---
+		_, err := config.RefreshToken(ctx, db, link)
+		require.Error(t, err, "expected error because validation returned 403")
+		require.True(t, externalauth.IsInvalidTokenError(err))
+		require.Equal(t, int64(1), refreshCalls.Load(), "IDP refresh should have been called exactly once")
+
+		// Critical assertion: the DB must contain the NEW tokens from the
+		// successful refresh, not the old (now-stale) ones.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the new access token from the successful refresh")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token (old one was rotated by the IDP)")
+
+		// --- Second call: uses the saved token from DB, no re-refresh. ---
+		// The saved token has a future expiry, so TokenSource should return
+		// it without contacting the IDP. Validation should succeed now.
+		simulateRateLimit.Store(false)
+		updated, err := config.RefreshToken(ctx, db, dbLink)
+		require.NoError(t, err, "second call should succeed because rate limit lifted")
+		require.Equal(t, int64(1), refreshCalls.Load(),
+			"IDP refresh should NOT have been called again; the saved token is not expired")
+		require.Equal(t, dbLink.OAuthAccessToken, updated.OAuthAccessToken,
+			"returned token should match what was saved in the DB")
+	})
+
+	// ConcurrentRefreshOptimisticLock verifies that when caller A saves
+	// a successfully refreshed token (early save), caller B's subsequent
+	// attempt to destroy the refresh token via
+	// UpdateExternalAuthLinkRefreshToken is a no-op. The optimistic lock
+	// (WHERE oauth_refresh_token = @old) prevents B from overwriting
+	// A's valid token.
+	t.Run("ConcurrentRefreshOptimisticLock", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return nil
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+
+		// Snapshot the original tokens before any refresh.
+		oldRefreshToken := link.OAuthRefreshToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// Caller A: refresh and save successfully.
+		updated, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err)
+		require.NotEqual(t, oldRefreshToken, updated.OAuthRefreshToken,
+			"caller A should have a new refresh token")
+
+		// Caller B had a stale read of the original link. It tries to
+		// destroy the refresh token using the OLD refresh token in the
+		// optimistic lock. Because caller A already wrote a different
+		// refresh token, this WHERE clause matches nothing.
+		err = db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
+			OauthRefreshFailureReason: "simulated failure from stale caller B",
+			OAuthRefreshToken:         "",
+			OAuthRefreshTokenKeyID:    sql.NullString{}.String,
+			UpdatedAt:                 dbtime.Now(),
+			ProviderID:                link.ProviderID,
+			UserID:                    link.UserID,
+			OldOauthRefreshToken:      oldRefreshToken,
+		})
+		require.NoError(t, err, "optimistic lock write should not error, it is a no-op")
+
+		// Verify DB still has caller A's valid token.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken,
+			"caller A's access token should still be in DB")
+		require.Equal(t, updated.OAuthRefreshToken, dbLink.OAuthRefreshToken,
+			"caller A's refresh token should still be in DB")
+		require.Empty(t, dbLink.OauthRefreshFailureReason,
+			"caller B's failure reason should not have been written")
 	})
 }
 
