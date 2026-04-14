@@ -55,7 +55,12 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 								className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
 							>
 								{" "}
-								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+								<Icon
+									className={cn(
+										"size-4 flex-shrink-0 text-content-secondary",
+										open && "text-content-primary",
+									)}
+								/>
 							</Link>
 						) : (
 							<button
@@ -67,7 +72,12 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 								className="flex items-center justify-center w-10 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 							>
 								{" "}
-								<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+								<Icon
+									className={cn(
+										"size-4 flex-shrink-0 text-content-secondary",
+										open && "text-content-primary",
+									)}
+								/>
 							</button>
 						)}
 					</TooltipTrigger>
@@ -84,7 +94,12 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 					type="button"
 					className="flex w-full items-center gap-2 px-3 py-2 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
-					<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+					<Icon
+						className={cn(
+							"size-4 flex-shrink-0 text-content-secondary",
+							open && "text-content-primary",
+						)}
+					/>
 					<span
 						className={cn(
 							"text-sm font-medium text-content-secondary whitespace-nowrap",
