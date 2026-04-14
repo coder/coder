@@ -3918,7 +3918,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		appID := uuid.New()
 		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{WorkspaceID: w.ID}, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
-		check.Args(appID).Asserts(w, policy.ActionRead)
+		// System-actor short-circuit: authorized actors hit ResourceSystem
+		// before the workspace slow path.
+		check.Args(appID).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
@@ -4251,7 +4253,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		arg := database.InsertWorkspaceAppStatusParams{ID: uuid.New(), WorkspaceID: w.ID, State: "working"}
 		dbm.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), arg).Return(testutil.Fake(s.T(), gofakeit.New(0), database.WorkspaceAppStatus{ID: arg.ID, State: arg.State}), nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate)
+		// System-actor short-circuit: authorized actors hit ResourceSystem
+		// before the workspace slow path.
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceResourceParams{ID: uuid.New(), Transition: database.WorkspaceTransitionStart}
@@ -4436,13 +4440,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceUniqueOwnerCountByTemplateIDs(gomock.Any(), ids).Return([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		w := testutil.Fake(s.T(), faker, database.Workspace{})
+	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		agentID := uuid.New()
 		ids := []uuid.UUID{agentID}
 		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentScript{}, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(w, nil).AnyTimes()
-		check.Args(ids).Asserts(w, policy.ActionRead)
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(database.Workspace{}, nil).AnyTimes()
+		// System-actor short-circuit: authorized actors hit ResourceSystem
+		// before the per-agent slow path.
+		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentLogSourcesByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
@@ -5998,6 +6003,22 @@ func (*fastPathTestFixtures) denyAuthorizer() *coderdtest.RecordingAuthorizer {
 	}
 }
 
+// nonSystemAuthorizer returns an authorizer that allows everything
+// except ResourceSystem reads, forcing the slow path for non-system
+// actors.
+func (*fastPathTestFixtures) nonSystemAuthorizer() *coderdtest.RecordingAuthorizer {
+	return &coderdtest.RecordingAuthorizer{
+		Wrapped: &coderdtest.FakeAuthorizer{
+			ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, obj rbac.Object) error {
+				if obj.Type == rbac.ResourceSystem.Type {
+					return xerrors.New("not a system actor")
+				}
+				return nil
+			},
+		},
+	}
+}
+
 // newQuerier creates a gomock store and dbauthz querier. The mock
 // already expects Wrappers().
 func (*fastPathTestFixtures) newQuerier(
@@ -6032,7 +6053,7 @@ func TestInsertWorkspaceAppStatus_FastPath(t *testing.T) {
 	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
 		t.Parallel()
 		ctx := f.authorizedCtx()
-		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+		mockDB, q := f.newQuerier(t, f.nonSystemAuthorizer(), &slogtest.Options{IgnoreErrors: true})
 
 		// GetWorkspaceByID SHOULD be called (slow path).
 		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), f.wsID).Return(f.workspace, nil)
@@ -6077,7 +6098,7 @@ func TestGetWorkspaceAgentScriptsByAgentIDs_FastPath(t *testing.T) {
 	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
 		t.Parallel()
 		ctx := f.authorizedCtx()
-		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+		mockDB, q := f.newQuerier(t, f.nonSystemAuthorizer(), &slogtest.Options{IgnoreErrors: true})
 
 		// GetWorkspaceByAgentID SHOULD be called (slow path).
 		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(f.workspace, nil)
@@ -6127,7 +6148,7 @@ func TestGetLatestWorkspaceAppStatusByAppID_FastPath(t *testing.T) {
 	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
 		t.Parallel()
 		ctx := f.authorizedCtx()
-		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+		mockDB, q := f.newQuerier(t, f.nonSystemAuthorizer(), &slogtest.Options{IgnoreErrors: true})
 
 		// Slow path: fetch status first, then look up workspace.
 		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
@@ -6149,6 +6170,145 @@ func TestGetLatestWorkspaceAppStatusByAppID_FastPath(t *testing.T) {
 		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), f.wsID).Return(f.workspace, nil)
 
 		_, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
+	})
+}
+
+func TestGetWorkspaceAgentScriptsByAgentIDs_SystemActor(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+	agentID := uuid.New()
+
+	t.Run("SystemActorSkipsSlowPath", func(t *testing.T) {
+		t.Parallel()
+		// AsSystemRestricted should authorize via system:read, NOT call
+		// GetWorkspaceByAgentID.
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByAgentID must NOT be called.
+		mockDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agentID}).
+			Return([]database.WorkspaceAgentScript{}, nil)
+
+		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+}
+
+func TestGetLatestWorkspaceAppStatusByAppID_SystemActor(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+	appID := uuid.New()
+	status := database.WorkspaceAppStatus{
+		ID:          uuid.New(),
+		WorkspaceID: f.wsID,
+	}
+
+	t.Run("SystemActorSkipsSlowPath", func(t *testing.T) {
+		t.Parallel()
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		// GetWorkspaceByID must NOT be called.
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).
+			Return(status, nil)
+
+		result, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, status, result)
+	})
+}
+
+func TestInsertWorkspaceAppStatus_SystemActor(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+
+	t.Run("SystemActorSkipsSlowPath", func(t *testing.T) {
+		t.Parallel()
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		mockDB, q := f.newQuerier(t, f.authorizer, nil)
+
+		arg := database.InsertWorkspaceAppStatusParams{WorkspaceID: f.wsID}
+
+		// GetWorkspaceByID must NOT be called.
+		mockDB.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), arg).
+			Return(database.WorkspaceAppStatus{}, nil)
+
+		_, err := q.InsertWorkspaceAppStatus(ctx, arg)
+		require.NoError(t, err)
+	})
+}
+
+func TestGetWorkspaceAgentScriptsByAgentIDs_MultiAgent(t *testing.T) {
+	t.Parallel()
+	f := newFastPathTestFixtures()
+	agent1 := uuid.New()
+	agent2 := uuid.New()
+
+	t.Run("DeduplicatesSameWorkspace", func(t *testing.T) {
+		t.Parallel()
+		// Two agents in the same workspace: GetWorkspaceByAgentID called
+		// twice (once per agent), but authorizeContext called once (dedup).
+		// Use an authorizer that denies ResourceSystem so the slow path
+		// is actually exercised.
+		workspaceOnlyAuth := &coderdtest.RecordingAuthorizer{
+			Wrapped: &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, obj rbac.Object) error {
+					if obj.Type == rbac.ResourceSystem.Type {
+						return xerrors.New("not a system actor")
+					}
+					return nil
+				},
+			},
+		}
+
+		ctx := f.authorizedCtx()
+		mockDB, q := f.newQuerier(t, workspaceOnlyAuth, &slogtest.Options{IgnoreErrors: true})
+
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent1).Return(f.workspace, nil)
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent2).Return(f.workspace, nil)
+		mockDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent1, agent2}).
+			Return([]database.WorkspaceAgentScript{}, nil)
+
+		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agent1, agent2})
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+
+	t.Run("SecondWorkspaceDenied", func(t *testing.T) {
+		t.Parallel()
+		// Two agents in different workspaces. Second workspace denied.
+		otherWS := database.Workspace{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			OrganizationID: f.orgID,
+		}
+
+		// Use an authorizer that denies ResourceSystem (to force slow
+		// path) and denies the second workspace.
+		selectiveAuth := &coderdtest.RecordingAuthorizer{
+			Wrapped: &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, obj rbac.Object) error {
+					if obj.Type == rbac.ResourceSystem.Type {
+						return xerrors.New("not a system actor")
+					}
+					if obj.ID == otherWS.ID.String() {
+						return xerrors.New("unauthorized")
+					}
+					return nil
+				},
+			},
+		}
+
+		ctx := f.authorizedCtx()
+		mockDB, q := f.newQuerier(t, selectiveAuth, &slogtest.Options{IgnoreErrors: true})
+
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent1).Return(f.workspace, nil)
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent2).Return(otherWS, nil)
+
+		_, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agent1, agent2})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unauthorized")
 	})
@@ -6210,5 +6370,75 @@ func TestAsChatd(t *testing.T) {
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
+	})
+}
+
+func TestAsWorkspaceBatchFlusher(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.AsWorkspaceBatchFlusher(context.Background())
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	t.Run("AllowedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// Workspace update (batch update last_used_at).
+		err := auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceWorkspace)
+		require.NoError(t, err, "workspace update should be allowed")
+
+		// System create (insert agent/app stats).
+		err = auth.Authorize(ctx, actor, policy.ActionCreate, rbac.ResourceSystem)
+		require.NoError(t, err, "system create should be allowed")
+	})
+
+	t.Run("DeniedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// Cannot delete workspaces.
+		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceWorkspace)
+		require.Error(t, err, "workspace delete should be denied")
+
+		// Cannot read users.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUser)
+		require.Error(t, err, "user read should be denied")
+
+		// Cannot access provisioner daemons.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
+		require.Error(t, err, "provisioner daemon read should be denied")
+
+		// Cannot read workspaces (only update).
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspace)
+		require.Error(t, err, "workspace read should be denied")
+	})
+}
+
+func TestWorkspaceRBACFromContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		_, ok := dbauthz.WorkspaceRBACFromContext(ctx)
+		require.False(t, ok)
+	})
+
+	t.Run("ValidValue", func(t *testing.T) {
+		t.Parallel()
+		wsID := uuid.New()
+		ownerID := uuid.New()
+		orgID := uuid.New()
+		identity := database.WorkspaceIdentity{
+			ID:             wsID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		}
+		ctx, err := dbauthz.WithWorkspaceRBAC(context.Background(), identity.RBACObject())
+		require.NoError(t, err)
+		obj, ok := dbauthz.WorkspaceRBACFromContext(ctx)
+		require.True(t, ok)
+		require.Equal(t, wsID.String(), obj.ID)
 	})
 }

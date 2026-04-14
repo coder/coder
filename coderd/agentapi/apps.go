@@ -157,17 +157,14 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
-	ws, ok := a.Workspace.AsWorkspaceIdentity()
+	// Atomically read workspace identity and inject RBAC context
+	// under a single lock to avoid TOCTOU between the two reads.
+	ws, ctx, ok, ctxErr := a.Workspace.AsIdentityAndInject(ctx)
 	if !ok {
 		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Workspace identity not cached.",
 		})
 	}
-
-	// Inject workspace RBAC into context so dbauthz can use the
-	// fast path instead of requiring system-level escalation.
-	var ctxErr error
-	ctx, ctxErr = a.Workspace.ContextInject(ctx)
 	if ctxErr != nil {
 		a.Log.Error(ctx, "failed to inject workspace RBAC, falling back to slow path",
 			slog.Error(ctxErr))

@@ -62,14 +62,10 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil
 	})
 	eg.Go(func() (err error) {
-		scriptCtx := ctx
-		if a.Workspace != nil {
-			var ctxErr error
-			scriptCtx, ctxErr = a.Workspace.ContextInject(ctx)
-			if ctxErr != nil {
-				a.Log.Error(ctx, "failed to inject workspace RBAC for scripts, falling back to slow path",
-					slog.Error(ctxErr))
-			}
+		scriptCtx, ctxErr := a.Workspace.ContextInject(ctx)
+		if ctxErr != nil {
+			a.Log.Error(ctx, "failed to inject workspace RBAC for scripts, falling back to slow path",
+				slog.Error(ctxErr))
 		}
 		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(scriptCtx, []uuid.UUID{workspaceAgent.ID})
 		return err

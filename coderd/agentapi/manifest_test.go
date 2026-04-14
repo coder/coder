@@ -16,9 +16,12 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -46,10 +49,11 @@ func TestGetManifest(t *testing.T) {
 			Username: "cool-user",
 		}
 		workspace = database.Workspace{
-			ID:            uuid.New(),
-			OwnerID:       owner.ID,
-			OwnerUsername: owner.Username,
-			Name:          "cool-workspace",
+			ID:             uuid.New(),
+			OwnerID:        owner.ID,
+			OwnerUsername:  owner.Username,
+			OrganizationID: uuid.New(),
+			Name:           "cool-workspace",
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -311,6 +315,9 @@ func TestGetManifest(t *testing.T) {
 
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 
+		cachedWS := &agentapi.CachedWorkspaceFields{}
+		cachedWS.UpdateValues(workspace)
+
 		api := &agentapi.ManifestAPI{
 			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
 			AppHostname: "*--apps.example.com",
@@ -324,6 +331,8 @@ func TestGetManifest(t *testing.T) {
 
 			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
 			WorkspaceID: workspace.ID,
+			Workspace:   cachedWS,
+			Log:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
 		}
@@ -376,6 +385,9 @@ func TestGetManifest(t *testing.T) {
 
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 
+		cachedWS := &agentapi.CachedWorkspaceFields{}
+		cachedWS.UpdateValues(workspace)
+
 		api := &agentapi.ManifestAPI{
 			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
 			AppHostname: "*--apps.example.com",
@@ -389,6 +401,8 @@ func TestGetManifest(t *testing.T) {
 
 			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
 			WorkspaceID: workspace.ID,
+			Workspace:   cachedWS,
+			Log:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
 		}
@@ -497,6 +511,9 @@ func TestGetManifest(t *testing.T) {
 
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 
+		cachedWS := &agentapi.CachedWorkspaceFields{}
+		cachedWS.UpdateValues(workspace)
+
 		api := &agentapi.ManifestAPI{
 			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
 			AppHostname: "",
@@ -510,6 +527,8 @@ func TestGetManifest(t *testing.T) {
 
 			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
 			WorkspaceID: workspace.ID,
+			Workspace:   cachedWS,
+			Log:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
 		}
@@ -555,4 +574,74 @@ func TestGetManifest(t *testing.T) {
 
 		require.Equal(t, expected, got)
 	})
+}
+
+func TestGetManifest_WorkspaceRBACInjection(t *testing.T) {
+	t.Parallel()
+
+	var (
+		owner = database.User{
+			ID:       uuid.New(),
+			Username: "rbac-user",
+		}
+		workspace = database.Workspace{
+			ID:             uuid.New(),
+			OwnerID:        owner.ID,
+			OwnerUsername:  owner.Username,
+			OrganizationID: uuid.New(),
+			Name:           "rbac-workspace",
+		}
+		agent = database.WorkspaceAgent{
+			ID:   uuid.New(),
+			Name: "rbac-agent",
+		}
+	)
+
+	cachedWS := &agentapi.CachedWorkspaceFields{}
+	cachedWS.UpdateValues(workspace)
+
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+	api := &agentapi.ManifestAPI{
+		AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+		AppHostname: "",
+		AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+		WorkspaceID: workspace.ID,
+		Workspace:   cachedWS,
+		Log:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Database:    mDB,
+		DerpMapFn:   func() *tailcfg.DERPMap { return &tailcfg.DERPMap{} },
+	}
+
+	mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).
+		Return([]database.WorkspaceApp{}, nil)
+
+	// Capture the context passed to GetWorkspaceAgentScriptsByAgentIDs
+	// to verify workspace RBAC was injected.
+	var capturedCtx context.Context
+	mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).
+		DoAndReturn(func(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+			capturedCtx = ctx
+			return []database.WorkspaceAgentScript{}, nil
+		})
+
+	mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: agent.ID,
+		Keys:             nil,
+	}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+	mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).
+		Return([]database.WorkspaceAgentDevcontainer{}, nil)
+	mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).
+		Return(workspace, nil)
+
+	_, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+
+	// Verify workspace RBAC object was injected into the scripts context.
+	require.NotNil(t, capturedCtx, "scripts call must have been made")
+	obj, ok := dbauthz.WorkspaceRBACFromContext(capturedCtx)
+	require.True(t, ok, "workspace RBAC should be present in context")
+	require.Equal(t, workspace.ID.String(), obj.ID)
+	require.Equal(t, workspace.OwnerID.String(), obj.Owner)
+	require.Equal(t, workspace.OrganizationID.String(), obj.OrgID)
 }

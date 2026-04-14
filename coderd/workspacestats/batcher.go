@@ -180,8 +180,8 @@ func (b *DBBatcher) Add(
 
 // Run runs the batcher.
 func (b *DBBatcher) run(ctx context.Context) {
-	//nolint:gocritic // workspace stats flusher actor
-	authCtx := dbauthz.AsWorkspaceStatsFlusher(ctx)
+	//nolint:gocritic // Workspace batch flusher actor.
+	authCtx := dbauthz.AsWorkspaceBatchFlusher(ctx)
 	for {
 		select {
 		case <-b.tickCh:
@@ -196,8 +196,8 @@ func (b *DBBatcher) run(ctx context.Context) {
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel() //nolint:revive // We're returning, defer is fine.
 
-			//nolint:gocritic // workspace stats flusher actor
-			b.flush(dbauthz.AsWorkspaceStatsFlusher(ctxTimeout), true, "exit")
+			//nolint:gocritic // Workspace batch flusher actor.
+			b.flush(dbauthz.AsWorkspaceBatchFlusher(ctxTimeout), true, "exit")
 			return
 		}
 	}

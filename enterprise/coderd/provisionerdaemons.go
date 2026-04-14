@@ -19,7 +19,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -239,12 +238,16 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		slog.F("tags", tags),
 	)
 
+	// The ExtractProvisionerDaemonAuthenticated middleware sets the
+	// provisionerd actor for PSK/key-authenticated requests. For
+	// user-authenticated requests, ctx carries the user's session actor.
+	//
+	// Security note: before this change, any non-empty PSK header (even
+	// incorrect) caused the handler to use AsSystemRestricted. Now the
+	// middleware validates PSK via constant-time compare before setting
+	// the provisionerd actor, so invalid PSKs are rejected at the
+	// middleware layer.
 	authCtx := ctx
-	if httpmw.ProvisionerDaemonAuthenticated(r) {
-		//nolint:gocritic // Validated PSK/key auth means no user actor;
-		// use provisionerd for daemon registration.
-		authCtx = dbauthz.AsProvisionerd(ctx)
-	}
 
 	versionHdrVal := r.Header.Get(codersdk.BuildVersionHeader)
 

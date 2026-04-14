@@ -262,8 +262,8 @@ func (b *Batcher) processUpdate(update update) {
 // run runs the batcher loop, reading from the update channel and flushing
 // periodically or when the batch reaches capacity.
 func (b *Batcher) run(ctx context.Context) {
-	// nolint:gocritic // Metadata batcher flushes across workspaces.
-	authCtx := dbauthz.AsWorkspaceStatsFlusher(ctx)
+	//nolint:gocritic // Metadata batcher flushes across workspaces.
+	authCtx := dbauthz.AsWorkspaceBatchFlusher(ctx)
 	for {
 		select {
 		case update := <-b.updateCh:
@@ -289,8 +289,8 @@ func (b *Batcher) run(ctx context.Context) {
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
 			defer cancel() //nolint:revive // We're returning, defer is fine.
 
-			// nolint:gocritic // Metadata batcher flushes across workspaces.
-			b.flush(dbauthz.AsWorkspaceStatsFlusher(ctxTimeout), flushExit)
+			//nolint:gocritic // Metadata batcher flushes across workspaces.
+			b.flush(dbauthz.AsWorkspaceBatchFlusher(ctxTimeout), flushExit)
 			return
 		}
 	}

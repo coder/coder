@@ -307,8 +307,8 @@ func (sc *StatsCollector) start() {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		//nolint:gocritic // workspace stats flusher actor
-		_ = sc.flush(dbauthz.AsWorkspaceStatsFlusher(ctx))
+		//nolint:gocritic // Workspace batch flusher actor.
+		_ = sc.flush(dbauthz.AsWorkspaceBatchFlusher(ctx))
 		cancel()
 
 		if !done {

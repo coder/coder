@@ -2,6 +2,7 @@ package dbauthz
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -36,6 +37,13 @@ func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) (context.Contex
 
 // WorkspaceRBACFromContext attempts to retrieve the workspace RBAC object from context.
 func WorkspaceRBACFromContext(ctx context.Context) (rbac.Object, bool) {
-	obj, ok := ctx.Value(workspaceRBACContextKey{}).(rbac.Object)
-	return obj, ok
+	v := ctx.Value(workspaceRBACContextKey{})
+	if v == nil {
+		return rbac.Object{}, false
+	}
+	obj, ok := v.(rbac.Object)
+	if !ok {
+		panic(fmt.Sprintf("WorkspaceRBACFromContext: unexpected type %T stored in context", v))
+	}
+	return obj, true
 }

@@ -80,3 +80,20 @@ func (cws *CachedWorkspaceFields) ContextInject(ctx context.Context) (context.Co
 	}
 	return rbacCtx, nil
 }
+
+// AsIdentityAndInject atomically reads the cached workspace identity
+// and injects the corresponding RBAC object into the context under a
+// single lock acquisition, eliminating the TOCTOU window that exists
+// when calling AsWorkspaceIdentity and ContextInject separately.
+func (cws *CachedWorkspaceFields) AsIdentityAndInject(ctx context.Context) (database.WorkspaceIdentity, context.Context, bool, error) {
+	cws.lock.RLock()
+	defer cws.lock.RUnlock()
+	if cws.identity.Equal(database.WorkspaceIdentity{}) {
+		return database.WorkspaceIdentity{}, ctx, false, nil
+	}
+	newCtx, err := dbauthz.WithWorkspaceRBAC(ctx, cws.identity.RBACObject())
+	if err != nil {
+		return cws.identity, ctx, true, xerrors.Errorf("inject RBAC: %w", err)
+	}
+	return cws.identity, newCtx, true, nil
+}
