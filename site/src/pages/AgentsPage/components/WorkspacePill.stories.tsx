@@ -130,7 +130,6 @@ export const WithAllApps: Story = {
 			expect(body.getByText("Open in VS Code Insiders")).toBeInTheDocument();
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
-			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("Open Terminal")).toBeInTheDocument();
 			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
@@ -167,7 +166,6 @@ export const WithBuiltinAppsOnly: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Open in VS Code")).toBeInTheDocument();
-			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("Open Terminal")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 			// No external apps or VS Code Insiders.
@@ -193,9 +191,8 @@ export const WithExternalAppsOnly: Story = {
 			const body = within(document.body);
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
-			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			// No built-in VS Code or terminal apps.
+			// No built-in apps.
 			expect(body.queryByText("Open in VS Code")).not.toBeInTheDocument();
 			expect(body.queryByText("Open Terminal")).not.toBeInTheDocument();
 		});
@@ -215,8 +212,6 @@ export const NoApps: Story = {
 
 		await waitFor(() => {
 			const body = within(document.body);
-			// Cursor is always shown even with no other apps.
-			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 		});
 	},
@@ -274,12 +269,6 @@ export const WithStoppedWorkspace: Story = {
 				.getByText("Open Terminal")
 				.closest("[role=menuitem]");
 			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
-
-			// Built-in Cursor should be disabled.
-			const cursorBuiltinItem = body
-				.getByText("Open in Cursor")
-				.closest("[role=menuitem]");
-			expect(cursorBuiltinItem).toHaveAttribute("aria-disabled", "true");
 
 			// External app items should be disabled.
 			const jetbrainsItem = body

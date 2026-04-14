@@ -12,6 +12,7 @@ import { useMutation } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { API } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -75,9 +76,12 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
 
-	// Cursor is always shown (unconditional), so there are always
-	// items above the separator.
-	const hasItemsAboveSeparator = true;
+	const hasItemsAboveSeparator =
+		hasVSCode ||
+		hasVSCodeInsiders ||
+		userApps.length > 0 ||
+		hasTerminal ||
+		!!sshCommand;
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -141,17 +145,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						isGeneratingKey={isGeneratingKey}
 					/>
 				)}
-				<VSCodeMenuItem
-					variant="cursor"
-					label="Cursor"
-					workspace={workspace}
-					agent={agent}
-					chatId={chatId}
-					folder={folder}
-					isRunning={isRunning}
-					generateKey={generateKey}
-					isGeneratingKey={isGeneratingKey}
-				/>
 				{userApps.map((app) => (
 					<AppMenuItem
 						key={app.id}
@@ -182,7 +175,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 };
 
 const VSCodeMenuItem: FC<{
-	variant: "vscode" | "vscode-insiders" | "cursor";
+	variant: "vscode" | "vscode-insiders";
 	label: string;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
@@ -193,7 +186,7 @@ const VSCodeMenuItem: FC<{
 		variables: undefined,
 		options: {
 			onSuccess: (data: { key: string }) => void;
-			onError: () => void;
+			onError: (error: unknown) => void;
 		},
 	) => void;
 	isGeneratingKey: boolean;
@@ -220,8 +213,8 @@ const VSCodeMenuItem: FC<{
 					chatId,
 				});
 			},
-			onError: () => {
-				toast.error(`Failed to open ${label}.`);
+			onError: (error: unknown) => {
+				toast.error(getErrorMessage(error, `Failed to open ${label}.`));
 			},
 		});
 	};
@@ -251,7 +244,7 @@ const AppMenuItem: FC<{
 	return (
 		<DropdownMenuItem asChild disabled={!canClick || !isRunning}>
 			<a
-				href={canClick ? link.href : undefined}
+				href={canClick && isRunning ? link.href : undefined}
 				onClick={link.onClick}
 				target="_blank"
 				rel="noreferrer"
@@ -303,9 +296,7 @@ const CopySSHMenuItem: FC<{
 	return (
 		<DropdownMenuItem
 			onSelect={() => {
-				void copyToClipboard(sshCommand).then(() => {
-					toast.success("SSH command copied to clipboard");
-				});
+				void copyToClipboard(sshCommand);
 			}}
 		>
 			<CopyIcon className="size-3.5" />
