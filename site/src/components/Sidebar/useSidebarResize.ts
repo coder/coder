@@ -32,7 +32,8 @@ interface UseSidebarResizeReturn {
 /**
  * Two-state sidebar that drags smoothly by writing directly to the
  * DOM during pointermove. A 3px dead zone distinguishes clicks from
- * drags — clicks toggle, drags commit based on direction.
+ * drags — clicks toggle via React state (CSS transition animates),
+ * drags manipulate the DOM directly then snap on release.
  */
 export function useSidebarResize(
 	storageKey = "sidebar-width",
@@ -60,19 +61,20 @@ export function useSidebarResize(
 			const startWidth = container.getBoundingClientRect().width;
 			const startX = e.clientX;
 
-			// Movement under 3px counts as a click, not a drag.
-			// Prevents accidental toggles from tiny jitters.
 			const CLICK_DEAD_ZONE = 3;
 			let dragging = false;
 
-			// Kill the CSS transition so DOM writes are instant.
-			container.style.transition = "none";
-
 			const handlePointerMove = (moveEvent: PointerEvent) => {
 				const dx = Math.abs(moveEvent.clientX - startX);
+
 				if (!dragging && dx >= CLICK_DEAD_ZONE) {
 					dragging = true;
+					// Only kill the transition once we know it's a real
+					// drag, not a click. This keeps the CSS transition
+					// intact for click-to-toggle.
+					container.style.transition = "none";
 				}
+
 				if (dragging) {
 					const rawWidth = moveEvent.clientX - startLeft;
 					const clamped = Math.max(
@@ -89,24 +91,26 @@ export function useSidebarResize(
 				document.body.style.cursor = "";
 				document.body.style.userSelect = "";
 
-				let shouldCollapse: boolean;
 				if (!dragging) {
-					// Click (or movement < 3px) — toggle.
-					shouldCollapse = !collapsed;
+					// Click — toggle via React state. The existing CSS
+					// transition on the container animates the change.
+					const next = !collapsed;
+					setCollapsed(next);
+					persistCollapsed(storageKey, next);
 				} else {
-					// Any drag in the correct direction completes
-					// the transition.
+					// Drag — snap based on direction.
 					const finalWidth = container.getBoundingClientRect().width;
-					shouldCollapse = finalWidth < startWidth;
+					const shouldCollapse = finalWidth < startWidth;
+					const snapWidth = shouldCollapse ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
+
+					// Re-enable transition for the snap animation.
+					container.style.transition = "";
+					container.style.width = `${snapWidth}px`;
+
+					setCollapsed(shouldCollapse);
+					persistCollapsed(storageKey, shouldCollapse);
 				}
-				const snapWidth = shouldCollapse ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-				// Re-enable transition for the snap animation.
-				container.style.transition = "";
-				container.style.width = `${snapWidth}px`;
-
-				setCollapsed(shouldCollapse);
-				persistCollapsed(storageKey, shouldCollapse);
 				containerRef.current = null;
 			};
 
