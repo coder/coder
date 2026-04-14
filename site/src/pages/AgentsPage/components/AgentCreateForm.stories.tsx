@@ -340,13 +340,17 @@ export const WithOrganizationPicker: Story = {
  * Regression guard for the multi-org code path. Exercises
  * AgentCreateForm with showOrganizations enabled and verifies the
  * component renders the org picker and survives user interaction.
- * The permittedOrganizations query is intentionally NOT mocked so
- * the fallback to the unfiltered organizations list is exercised.
  */
 export const MultiOrgDoesNotInfiniteRender: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
