@@ -1111,9 +1111,11 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:                       db,
-		logger:                   logger,
-		instructionLookupTimeout: 5 * time.Second,
+		db:                             db,
+		logger:                         logger,
+		instructionLookupTimeout:       5 * time.Second,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -1276,9 +1278,11 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:                       db,
-		logger:                   logger,
-		instructionLookupTimeout: 5 * time.Second,
+		db:                             db,
+		logger:                         logger,
+		instructionLookupTimeout:       5 * time.Second,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -1361,9 +1365,11 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 	}, nil).AnyTimes()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:                       db,
-		logger:                   logger,
-		instructionLookupTimeout: 5 * time.Second,
+		db:                             db,
+		logger:                         logger,
+		instructionLookupTimeout:       5 * time.Second,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -1589,7 +1595,11 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
 
 	var dialed []uuid.UUID
-	server := &Server{db: db}
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
+	}
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		dialed = append(dialed, agentID)
 		if agentID == staleAgentID {
@@ -1649,7 +1659,11 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 		Return([]database.WorkspaceAgent{}, nil).
 		Times(1)
 
-	server := &Server{db: db}
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
+	}
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		return nil, nil, xerrors.New("dial failed")
 	}
@@ -3687,4 +3701,448 @@ func TestSafeSweepIdleStreams_RecoversFromPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		server.safeSweepIdleStreams(context.Background())
 	}, "safeSweepIdleStreams must recover panics so the janitor loop keeps running")
+}
+
+func TestGetWorkspaceConn_DisconnectedAgentCacheMiss(t *testing.T) {
+	// Stage 1 red test: when ensureWorkspaceAgent returns a
+	// disconnected agent (cache miss), getWorkspaceConn should
+	// return errChatAgentDisconnected without attempting to dial.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// Agent with LastConnectedAt far in the past triggers
+	// disconnected status.
+	disconnectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(disconnectedAgent, nil).
+		Times(1)
+
+	var dialCalled bool
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		dialCalled = true
+		return nil, nil, xerrors.New("should not be called")
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatAgentDisconnected)
+	require.False(t, dialCalled, "dial should not be attempted for a disconnected agent")
+
+	// Cache should be cleared.
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.False(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+}
+
+func TestGetWorkspaceConn_DisconnectedAgentCacheHit(t *testing.T) {
+	// Stage 1 red test: when a cached connection exists but the
+	// agent's status has become disconnected (time elapsed past
+	// inactiveTimeout), getWorkspaceConn should detect this,
+	// release the cached connection, and return
+	// errChatAgentDisconnected.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// Agent was connected but LastConnectedAt is now stale.
+	disconnectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	cachedConn := agentconnmock.NewMockAgentConn(ctrl)
+	var releaseCalled bool
+
+	server := &Server{
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, xerrors.New("should not be called")
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+	}
+	// Pre-populate cache to simulate a previously working connection.
+	workspaceCtx.agent = disconnectedAgent
+	workspaceCtx.agentLoaded = true
+	workspaceCtx.conn = cachedConn
+	workspaceCtx.releaseConn = func() { releaseCalled = true }
+	workspaceCtx.cachedWorkspaceID = chat.WorkspaceID
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatAgentDisconnected)
+	require.True(t, releaseCalled, "stale connection should be released")
+
+	// Cache should be fully cleared.
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.False(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+}
+
+func TestGetWorkspaceConn_ConnectingAgentProceeds(t *testing.T) {
+	// Stage 1 red test: a "connecting" agent (never connected,
+	// normal after fresh build) must NOT be blocked by the
+	// status check. The dial should proceed.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// Agent that has never connected: FirstConnectedAt is not valid.
+	connectingAgent := database.WorkspaceAgent{
+		ID: agentID,
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(connectingAgent, nil).
+		Times(1)
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
+	}
+	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		if id != agentID {
+			return nil, nil, xerrors.Errorf("unexpected agent ID %q", id)
+		}
+		return conn, func() {}, nil
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, conn, gotConn)
+}
+
+func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
+	// Stage 2 red test: when dialWithLazyValidation blocks
+	// beyond the dial timeout, getWorkspaceConn should return
+	// errChatDialTimeout instead of hanging indefinitely.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// Agent appears connected so the status check passes.
+	connectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-1 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(connectedAgent, nil).
+		Times(1)
+
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    10 * time.Millisecond,
+	}
+	// Dial blocks forever (simulates unreachable agent).
+	server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		<-ctx.Done()
+		return nil, nil, ctx.Err()
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatDialTimeout)
+}
+
+func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
+	// Stage 2 red test: when the parent context is canceled,
+	// the parent's error must propagate unchanged (not wrapped
+	// as a dial timeout). This is critical because the chatloop
+	// checks context.Cause(ctx) for ErrInterrupted.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	connectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-1 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(connectedAgent, nil).
+		Times(1)
+
+	parentErr := xerrors.New("parent canceled")
+	ctx, cancel := context.WithCancelCause(context.Background())
+
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		// Use a very long dial timeout so the parent cancel fires
+		// first.
+		dialTimeout: 10 * time.Minute,
+	}
+	// Signal when the dial goroutine has started so we can
+	// cancel the parent at the right time without time.Sleep.
+	dialStarted := make(chan struct{})
+	server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		close(dialStarted)
+		<-ctx.Done()
+		return nil, nil, ctx.Err()
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	// Cancel the parent after the dial starts.
+	go func() {
+		<-dialStarted
+		cancel(parentErr)
+	}()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	// The error must NOT be errChatDialTimeout.
+	require.NotErrorIs(t, err, errChatDialTimeout)
+	// The parent context's error should propagate.
+	require.Error(t, err)
+}
+
+func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
+	// Regression test: a non-timeout dial error (e.g. auth
+	// failure) with the parent context still alive must NOT be
+	// converted to errChatDialTimeout. Before the fix,
+	// dialCancel() poisoned dialCtx.Err(), causing all errors
+	// to be misclassified.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	connectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-1 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(connectedAgent, nil).
+		Times(1)
+	// When the initial dial fails immediately, dialWithLazyValidation
+	// calls resolveFastFailure which validates the binding. Mock the
+	// validation to return the same agent, triggering a synchronous
+	// redial that also returns the error.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{connectedAgent}, nil).
+		AnyTimes()
+
+	dialErr := xerrors.New("authentication failed")
+	server := &Server{
+		db:                             db,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		// Generous timeout so the dial error fires well before
+		// the timeout.
+		dialTimeout: 30 * time.Second,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		// Return an error immediately (not a timeout).
+		return nil, nil, dialErr
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	// Must NOT be misclassified as a dial timeout.
+	require.NotErrorIs(t, err, errChatDialTimeout)
+	// The original dial error should propagate.
+	require.ErrorContains(t, err, "authentication failed")
 }

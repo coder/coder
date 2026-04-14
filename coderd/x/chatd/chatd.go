@@ -64,6 +64,7 @@ const (
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	defaultDialTimeout           = 30 * time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -116,7 +117,19 @@ const (
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
-var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+var (
+	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatAgentDisconnected   = xerrors.New(
+		"workspace agent is disconnected and cannot execute tools. " +
+			"Inform the user that the workspace agent has disconnected " +
+			"and the workspace may need to be restarted from the Coder dashboard",
+	)
+	errChatDialTimeout = xerrors.New(
+		"connection to the workspace agent timed out. " +
+			"Inform the user that the workspace agent could not be reached " +
+			"and the workspace may need to be restarted from the Coder dashboard",
+	)
+)
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -133,6 +146,7 @@ type Server struct {
 
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
+	dialTimeout                    time.Duration
 	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
@@ -547,6 +561,17 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 	return nil, agentRelease
 }
 
+// isAgentDisconnected reports whether the cached agent row's
+// status is disconnected or timed out. It uses timestamp
+// arithmetic on the cached row (no DB re-fetch). The
+// "connecting" state is allowed through because it is normal
+// after a fresh workspace build.
+func (c *turnWorkspaceContext) isAgentDisconnected() bool {
+	status := c.agent.Status(c.server.agentInactiveDisconnectTimeout)
+	return status.Status == database.WorkspaceAgentStatusDisconnected ||
+		status.Status == database.WorkspaceAgentStatusTimeout
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -556,7 +581,16 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
 		c.mu.Unlock()
+
+		// Status check on cache hit: the agent may have
+		// disconnected since the connection was cached.
+		// Status() uses timestamp arithmetic on the cached
+		// row, no DB re-fetch needed.
 		if currentConn != nil {
+			if c.agentLoaded && c.isAgentDisconnected() {
+				c.clearCachedWorkspaceState()
+				return nil, errChatAgentDisconnected
+			}
 			return currentConn, nil
 		}
 		if staleRelease != nil {
@@ -568,8 +602,20 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			return nil, err
 		}
 
+		// Status check on cache miss: the freshly fetched
+		// agent row may already show disconnected.
+		if c.isAgentDisconnected() {
+			c.clearCachedWorkspaceState()
+			return nil, errChatAgentDisconnected
+		}
+
+		// Wrap the dial in a timeout to bound the time spent
+		// waiting for an unreachable agent. The timeout scopes
+		// only dialWithLazyValidation, not ensureWorkspaceAgent
+		// or the post-dial binding steps.
+		dialCtx, dialCancel := context.WithTimeout(ctx, c.server.dialTimeout)
 		dialResult, err := dialWithLazyValidation(
-			ctx,
+			dialCtx,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
@@ -578,13 +624,24 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			},
 			workspaceDialValidationDelay,
 		)
+		dialTimedOut := dialCtx.Err() != nil
+		dialCancel()
 		if err != nil {
 			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
 				c.clearCachedWorkspaceState()
+				return nil, err
+			}
+			// Convert dial timeout to a sentinel only when the
+			// parent context is still alive. If the parent was
+			// canceled (e.g. ErrInterrupted), its error must
+			// propagate unchanged so the chatloop can detect it.
+			// Check dialTimedOut (captured before dialCancel) to
+			// avoid misclassifying non-timeout dial errors.
+			if ctx.Err() == nil && dialTimedOut {
+				return nil, errChatDialTimeout
 			}
 			return nil, err
 		}
-
 		agentConn := dialResult.Conn
 		agentRelease := dialResult.Release
 		if dialResult.WasSwitched {
@@ -3353,6 +3410,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                    cfg.SubscribeFn,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		dialTimeout:                    defaultDialTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
