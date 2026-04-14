@@ -294,6 +294,18 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		return nil, err
 	}
 
+	agentsFirstConnectionHistogram := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "agents",
+		Name:      "first_connection_seconds",
+		Help:      "Duration from agent creation to first connection to the control plane in seconds.",
+		Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
+	}, []string{agentmetrics.LabelTemplateName, agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName})
+	err = registerer.Register(agentsFirstConnectionHistogram)
+	if err != nil {
+		return nil, err
+	}
+
 	metricsCollectorAgents := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "prometheusmetrics",
@@ -305,6 +317,12 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	if err != nil {
 		return nil, err
 	}
+
+	// observedFirstConnection tracks which agents have already had
+	// their first-connection duration recorded in the histogram.
+	// Each agent is observed exactly once; the map is pruned every
+	// tick to remove agents that no longer appear in the query.
+	observedFirstConnection := make(map[uuid.UUID]struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
@@ -342,6 +360,28 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				}
 				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, templateVersionName)
 
+				// Record first connection duration exactly once per agent.
+				if agent.WorkspaceAgent.FirstConnectedAt.Valid {
+					if _, alreadyObserved := observedFirstConnection[agent.WorkspaceAgent.ID]; !alreadyObserved {
+						duration := agent.WorkspaceAgent.FirstConnectedAt.Time.Sub(agent.WorkspaceAgent.CreatedAt).Seconds()
+						if duration < 0 {
+							logger.Warn(ctx, "negative agent first connection duration (possible clock skew); dropping sample",
+								slog.F("agent_id", agent.WorkspaceAgent.ID),
+								slog.F("created_at", agent.WorkspaceAgent.CreatedAt),
+								slog.F("first_connected_at", agent.WorkspaceAgent.FirstConnectedAt.Time),
+								slog.F("duration_s", duration),
+							)
+						} else {
+							agentsFirstConnectionHistogram.WithLabelValues(
+								agent.TemplateName,
+								agent.WorkspaceAgent.Name,
+								agent.OwnerUsername,
+								agent.WorkspaceName,
+							).Observe(duration)
+						}
+						observedFirstConnection[agent.WorkspaceAgent.ID] = struct{}{}
+					}
+				}
 				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
 				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
 
@@ -388,6 +428,20 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 				for _, app := range apps {
 					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, app.DisplayName, string(app.Health))
+				}
+			}
+
+			// Prune observed agents that are no longer in the
+			// current fetch to prevent unbounded memory growth.
+			{
+				currentAgentIDs := make(map[uuid.UUID]struct{}, len(workspaceAgents))
+				for _, agent := range workspaceAgents {
+					currentAgentIDs[agent.WorkspaceAgent.ID] = struct{}{}
+				}
+				for id := range observedFirstConnection {
+					if _, exists := currentAgentIDs[id]; !exists {
+						delete(observedFirstConnection, id)
+					}
 				}
 			}
 

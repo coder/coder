@@ -878,7 +878,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -1047,7 +1047,7 @@ func (p *Server) SendMessage(
 		}
 
 		// Enforce usage limits before queueing or inserting.
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -1169,8 +1169,8 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID) error {
-	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, time.Now())
+func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID, organizationID uuid.NullUUID) error {
+	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, organizationID, time.Now())
 	if err != nil {
 		// Fail open: never block chat due to a limit-resolution failure.
 		p.logger.Warn(ctx, "usage limit check failed, allowing message",
@@ -1223,7 +1223,7 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -2028,7 +2028,7 @@ func (p *Server) regenerateChatTitleWithStore(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
-	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID); limitErr != nil {
+	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
 		return database.Chat{}, limitErr
 	}
 

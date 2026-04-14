@@ -157,6 +157,9 @@ coderd_agents_connection_latencies_seconds{agent_name="",username="",workspace_n
 # HELP coderd_agents_connections Agent connections with statuses.
 # TYPE coderd_agents_connections gauge
 coderd_agents_connections{agent_name="",username="",workspace_name="",status="",lifecycle_state="",tailnet_node=""} 0
+# HELP coderd_agents_first_connection_seconds Duration from agent creation to first connection to the control plane in seconds.
+# TYPE coderd_agents_first_connection_seconds histogram
+coderd_agents_first_connection_seconds{template_name="",agent_name="",username="",workspace_name=""} 0
 # HELP coderd_agents_up The number of active agents per workspace.
 # TYPE coderd_agents_up gauge
 coderd_agents_up{username="",workspace_name="",template_name="",template_version=""} 0
