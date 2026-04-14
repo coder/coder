@@ -416,28 +416,30 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
-					{showOrganizations && permittedOrgs.length > 1 && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="organization">Organization</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								options={permittedOrgs}
-								onChange={(newOrg) => {
-									const orgChanged = newOrg?.id !== selectedOrg?.id;
-									if (orgChanged && attachments.length > 0) {
-										setPendingOrgChange(newOrg);
-										return;
-									}
-									if (orgChanged) {
-										handleWorkspaceChange(null);
-									}
-									setSelectedOrg(newOrg);
-								}}
-							/>
-						</div>
-					)}
+					{showOrganizations &&
+						!permittedOrgsQuery.isLoading &&
+						permittedOrgs.length > 1 && (
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="organization">Organization</Label>
+								<OrganizationAutocomplete
+									id="organization"
+									required
+									value={selectedOrg}
+									options={permittedOrgs}
+									onChange={(newOrg) => {
+										const orgChanged = newOrg?.id !== selectedOrg?.id;
+										if (orgChanged && attachments.length > 0) {
+											setPendingOrgChange(newOrg);
+											return;
+										}
+										if (orgChanged) {
+											handleWorkspaceChange(null);
+										}
+										setSelectedOrg(newOrg);
+									}}
+								/>
+							</div>
+						)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."

@@ -182,19 +182,9 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 				TTLMillis:  ttlMs,
 			}
 
-			// Resolve workspace name. This does a second
-			// GetTemplateByID when no name is provided; the first
-			// is the org-validation check above. Consolidating
-			// them would couple the security gate to the
-			// name-fallback path, and the cost is negligible next
-			// to the workspace build that follows.
 			name := strings.TrimSpace(args.Name)
 			if name == "" {
-				seed := "workspace"
-				if t, lookupErr := db.GetTemplateByID(ctx, templateID); lookupErr == nil {
-					seed = t.Name
-				}
-				name = generatedWorkspaceName(seed)
+				name = generatedWorkspaceName(tmpl.Name)
 			} else if err := codersdk.NameValid(name); err != nil {
 				name = generatedWorkspaceName(name)
 			}

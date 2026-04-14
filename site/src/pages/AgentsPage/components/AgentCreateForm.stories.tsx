@@ -9,6 +9,13 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
 
+// Query key used by permittedOrganizations() in the form.
+const permittedOrgsKey = [
+	"organizations",
+	"permitted",
+	{ object: { resource_type: "chat" }, action: "create" },
+];
+
 const modelConfigID = "model-config-1";
 
 const modelOptions = [
@@ -320,6 +327,12 @@ export const WithOrganizationPicker: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
 	},
 };
 
@@ -340,6 +353,12 @@ export const MultiOrgDoesNotInfiniteRender: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
