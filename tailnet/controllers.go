@@ -190,6 +190,16 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 			b.SendErr(xerrors.Errorf("write: %w", err))
 		}
 	})
+	// Send current node immediately so the coordinator has it before
+	// any AddTunnel requests that follow.
+	if node := c.Coordinatee.Node(); node != nil && node.PreferredDERP != 0 {
+		pn, err := NodeToProto(node)
+		if err == nil {
+			_ = b.SendRequest(&proto.CoordinateRequest{
+				UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn},
+			})
+		}
+	}
 	go b.respLoop()
 
 	return b
@@ -211,6 +221,17 @@ type BasicCoordination struct {
 	Client       CoordinatorClient
 	respLoopDone chan struct{}
 	sendAcks     bool
+}
+
+// SendRequest sends a coordinate request on the client connection, holding
+// the coordination lock to prevent concurrent writes on the dRPC stream.
+func (c *BasicCoordination) SendRequest(req *proto.CoordinateRequest) error {
+	c.Lock()
+	defer c.Unlock()
+	if c.closed {
+		return xerrors.New("coordination is closed")
+	}
+	return c.Client.Send(req)
 }
 
 // Close the coordination gracefully. If the context expires before the remote API server has hung
@@ -361,7 +382,7 @@ func (c *TunnelSrcCoordController) New(client CoordinatorClient) CloserWaiter {
 	c.coordination = b
 	// resync destinations on reconnect
 	for dest := range c.dests {
-		err := client.Send(&proto.CoordinateRequest{
+		err := b.SendRequest(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 		})
 		if err != nil {
@@ -389,7 +410,7 @@ func (c *TunnelSrcCoordController) AddDestination(dest uuid.UUID) {
 	if c.coordination == nil {
 		return
 	}
-	err := c.coordination.Client.Send(
+	err := c.coordination.SendRequest(
 		&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 		})
@@ -412,7 +433,7 @@ func (c *TunnelSrcCoordController) RemoveDestination(dest uuid.UUID) {
 	if c.coordination == nil {
 		return
 	}
-	err := c.coordination.Client.Send(
+	err := c.coordination.SendRequest(
 		&proto.CoordinateRequest{
 			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 		})
@@ -460,7 +481,7 @@ func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
 	}()
 	for dest := range toAdd {
 		c.Coordinatee.SetTunnelDestination(dest)
-		err = c.coordination.Client.Send(
+		err = c.coordination.SendRequest(
 			&proto.CoordinateRequest{
 				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 			})
@@ -469,7 +490,7 @@ func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
 		}
 	}
 	for dest := range toRemove {
-		err = c.coordination.Client.Send(
+		err = c.coordination.SendRequest(
 			&proto.CoordinateRequest{
 				RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 			})
