@@ -71,11 +71,11 @@ func (u *nodeUpdater) updateLoop() {
 		// the node without this, and we can save ourselves from churn in the tailscale/wireguard
 		// layer.
 		node := u.nodeLocked()
+		u.dirty = false
 		if node.PreferredDERP == 0 {
 			u.logger.Debug(context.Background(), "skipped sending node; no PreferredDERP", slog.F("node", node))
 			continue
 		}
-		u.dirty = false
 
 		u.L.Unlock()
 		u.logger.Debug(context.Background(), "calling nodeUpdater callback", slog.F("node", node))
