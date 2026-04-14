@@ -26,8 +26,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
+func newTestServer(t *testing.T, opts ...func(*testServerOptions)) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
+
+	o := testServerOptions{allowBYOK: true}
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
@@ -43,13 +48,23 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 		pool,
 		func(ctx context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
-		}, logger, testTracer, true)
+		}, logger, testTracer, o.allowBYOK)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
 	})
 
 	return srv, client, pool
+}
+
+type testServerOptions struct {
+	allowBYOK bool
+}
+
+func withAllowBYOK(v bool) func(*testServerOptions) {
+	return func(o *testServerOptions) {
+		o.allowBYOK = v
+	}
 }
 
 // mockDRPCConn is a mock implementation of drpc.Conn
@@ -273,6 +288,89 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			// HeaderCoderToken should always be stripped
 			require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderToken),
 				"header %q should be stripped", agplaibridge.HeaderCoderToken)
+		})
+	}
+}
+
+func TestServeHTTP_AllowBYOKOption(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		allowBYOK      bool
+		reqHeaders     map[string]string
+		expectedStatus int
+	}{
+		{
+			name:      "byok_enabled/centralized_request",
+			allowBYOK: true,
+			reqHeaders: map[string]string{
+				"Authorization": "Bearer coder-token",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "byok_enabled/byok_request",
+			allowBYOK: true,
+			reqHeaders: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer user-llm-key",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "byok_disabled/centralized_request",
+			allowBYOK: false,
+			reqHeaders: map[string]string{
+				"Authorization": "Bearer coder-token",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "byok_disabled/byok_request",
+			allowBYOK: false,
+			reqHeaders: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer user-llm-key",
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockH := &mockHandler{}
+
+			srv, client, pool := newTestServer(t, withAllowBYOK(tc.allowBYOK))
+			conn := &mockDRPCConn{}
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
+
+			httpSrv := httptest.NewServer(srv)
+			t.Cleanup(httpSrv.Close)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/openai/v1/chat/completions", nil)
+			require.NoError(t, err)
+
+			for k, v := range tc.reqHeaders {
+				req.Header.Set(k, v)
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tc.expectedStatus, resp.StatusCode)
+
+			if tc.expectedStatus == http.StatusForbidden {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				assert.Contains(t, string(body), aibridged.ErrBYOKNotAllowed.Error())
+			}
 		})
 	}
 }
