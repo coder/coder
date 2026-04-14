@@ -15,7 +15,6 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -529,70 +528,62 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 
-	const diffOptions = useMemo(() => {
-		const base = getDiffViewerOptions(isDark);
-		return {
-			...base,
-			diffStyle,
-			// Extend the base CSS to make file headers sticky so they
-			// remain visible while scrolling through long diffs.
-			unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
-		};
-	}, [isDark, diffStyle]);
+	const base = getDiffViewerOptions(isDark);
+	const diffOptions = {
+		...base,
+		diffStyle,
+		// Extend the base CSS to make file headers sticky so they
+		// remain visible while scrolling through long diffs.
+		unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
+	};
 
-	const fileOptions = useMemo(
-		() => ({
-			...diffOptions,
-			overflow: "wrap" as const,
-			enableLineSelection: true,
-			enableHoverUtility: true,
-			onLineSelected() {
-				// TODO: Make this add context to the input so the
-				// user can type.
-			},
-		}),
-		[diffOptions],
-	);
+	const fileOptions = {
+		...diffOptions,
+		overflow: "wrap" as const,
+		enableLineSelection: true,
+		enableHoverUtility: true,
+		onLineSelected() {
+			// TODO: Make this add context to the input so the
+			// user can type.
+		},
+	};
 
 	// When the parent provides per-file callbacks (e.g. line click
 	// handlers for comment inputs), build options per file. Otherwise
 	// share a single stable object to avoid unnecessary re-highlights.
 	const hasPerFileCallbacks = Boolean(onLineNumberClick || onLineSelected);
 
-	const getOptionsForFile = useCallback(
-		(fileName: string) => ({
-			...diffOptions,
-			overflow: "wrap" as const,
-			enableLineSelection: true,
-			enableHoverUtility: true,
-			...(onLineNumberClick && {
-				onLineNumberClick: (props: {
-					lineNumber: number;
-					annotationSide: "additions" | "deletions";
-				}) => onLineNumberClick(fileName, props),
-			}),
-			onLineSelected: onLineSelected
-				? (
-						range: {
-							start: number;
-							end: number;
-							side?: "additions" | "deletions";
-							endSide?: "additions" | "deletions";
-						} | null,
-					) => onLineSelected(fileName, range)
-				: () => {
-						// TODO: Make this add context to the input.
-					},
+	const getOptionsForFile = (fileName: string) => ({
+		...diffOptions,
+		overflow: "wrap" as const,
+		enableLineSelection: true,
+		enableHoverUtility: true,
+		...(onLineNumberClick && {
+			onLineNumberClick: (props: {
+				lineNumber: number;
+				annotationSide: "additions" | "deletions";
+			}) => onLineNumberClick(fileName, props),
 		}),
-		[diffOptions, onLineNumberClick, onLineSelected],
-	);
+		onLineSelected: onLineSelected
+			? (
+					range: {
+						start: number;
+						end: number;
+						side?: "additions" | "deletions";
+						endSide?: "additions" | "deletions";
+					} | null,
+				) => onLineSelected(fileName, range)
+			: () => {
+					// TODO: Make this add context to the input.
+				},
+	});
 
-	const fileTree = useMemo(() => buildFileTree(parsedFiles), [parsedFiles]);
+	const fileTree = buildFileTree(parsedFiles);
 
 	// Sort diff blocks in the same order the file tree displays them
 	// (directories first, then alphabetical) so the rendering is
 	// consistent regardless of whether the sidebar is visible.
-	const sortedFiles = useMemo(() => {
+	const sortedFiles = (() => {
 		const order = new Map<string, number>();
 		const walk = (nodes: FileTreeNode[]) => {
 			for (const node of nodes) {
@@ -607,21 +598,21 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		return [...parsedFiles].sort(
 			(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
 		);
-	}, [parsedFiles, fileTree]);
+	})();
 
 	// Pre-compute per-file options so each LazyFileDiff receives a
 	// stable reference and avoids re-highlighting on parent re-render.
-	const perFileOptions = useMemo(() => {
+	const perFileOptions = (() => {
 		if (!hasPerFileCallbacks) return null;
 		const map = new Map<string, ComponentProps<typeof FileDiff>["options"]>();
 		for (const file of sortedFiles) {
 			map.set(file.name, getOptionsForFile(file.name));
 		}
 		return map;
-	}, [hasPerFileCallbacks, sortedFiles, getOptionsForFile]);
+	})();
 
 	// Pre-compute per-file line annotations for the same reason.
-	const perFileAnnotations = useMemo(() => {
+	const perFileAnnotations = (() => {
 		if (!getLineAnnotations) return null;
 		return new Map(
 			sortedFiles
@@ -631,14 +622,14 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 						entry[1].length > 0,
 				),
 		);
-	}, [sortedFiles, getLineAnnotations]);
+	})();
 
 	// Pre-compute per-file selected lines so each LazyFileDiff
 	// receives a stable reference. Without this, calling
 	// getSelectedLines during render returns a new object every
 	// time, which busts the memo comparator and forces an
 	// expensive Shadow DOM + shiki re-highlight.
-	const perFileSelectedLines = useMemo(() => {
+	const perFileSelectedLines = (() => {
 		if (!getSelectedLines) return null;
 		return new Map(
 			sortedFiles
@@ -647,7 +638,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 					(entry): entry is [string, SelectedLineRange] => entry[1] != null,
 				),
 		);
-	}, [sortedFiles, getSelectedLines]);
+	})();
 
 	// ---------------------------------------------------------------
 	// Container width measurement via ResizeObserver so we can decide
@@ -761,6 +752,8 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 					>
 						{sortedFiles.map((fileDiff, i) => {
 							const isLast = i === sortedFiles.length - 1;
+							// CSS containment: isolates layout/style per file
+							// to prevent cross-block recalculation during scroll.
 							return (
 								<div
 									key={fileDiff.name}

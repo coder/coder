@@ -7,7 +7,6 @@ import { ArrowUpIcon } from "lucide-react";
 import {
 	type FC,
 	type RefObject,
-	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -212,121 +211,131 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	const [activeCommentBox, setActiveCommentBox] =
 		useState<CommentBoxState | null>(null);
 
+	// Ref mirrors activeCommentBox for event-handler-only functions
+	// (handleSubmitComment, renderAnnotation) so the React Compiler
+	// gives them a stable identity and LazyFileDiff's React.memo()
+	// isn't busted when a comment box is toggled on a different file.
+	// The ref is synced in every setter call — never during render —
+	// so the compiler sees no ref access in the render phase.
+	const activeCommentBoxRef = useRef<CommentBoxState | null>(null);
+
+	const updateCommentBox = (box: CommentBoxState | null) => {
+		activeCommentBoxRef.current = box;
+		setActiveCommentBox(box);
+	};
+
 	// ---------------------------------------------------------------
 	// Line interaction callbacks
 	// ---------------------------------------------------------------
-	const handleLineNumberClick = useCallback(
-		(
-			fileName: string,
-			props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			},
-		) => {
-			setActiveCommentBox({
-				fileName,
-				start: props.lineNumber,
-				startSide: props.annotationSide,
-				end: props.lineNumber,
-				endSide: props.annotationSide,
-			});
+	const handleLineNumberClick = (
+		fileName: string,
+		props: {
+			lineNumber: number;
+			annotationSide: "additions" | "deletions";
 		},
-		[],
-	);
+	) => {
+		updateCommentBox({
+			fileName,
+			start: props.lineNumber,
+			startSide: props.annotationSide,
+			end: props.lineNumber,
+			endSide: props.annotationSide,
+		});
+	};
 
-	const handleLineSelected = useCallback(
-		(
-			fileName: string,
-			range: {
-				start: number;
-				end: number;
-				side?: "additions" | "deletions";
-				endSide?: "additions" | "deletions";
-			} | null,
-		) => {
-			const result = commentBoxFromRange(fileName, range);
-			if (result === "ignore") return;
-			setActiveCommentBox(result);
-		},
-		[],
-	);
+	const handleLineSelected = (
+		fileName: string,
+		range: {
+			start: number;
+			end: number;
+			side?: "additions" | "deletions";
+			endSide?: "additions" | "deletions";
+		} | null,
+	) => {
+		const result = commentBoxFromRange(fileName, range);
+		if (result === "ignore") return;
+		updateCommentBox(result);
+	};
 
 	// ---------------------------------------------------------------
 	// Annotation helpers
+	//
+	// getLineAnnotations / getSelectedLines read from state so the
+	// compiler correctly re-computes per-file Maps in DiffViewer when
+	// activeCommentBox changes.
 	// ---------------------------------------------------------------
-	const getLineAnnotations = useCallback(
-		(fileName: string): DiffLineAnnotation<string>[] => {
-			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return [
-					{
-						side: annotationSideForBox(activeCommentBox),
-						lineNumber: annotationLineForBox(activeCommentBox),
-						metadata: "active-input",
-					},
-				];
-			}
-			return [];
-		},
-		[activeCommentBox],
-	);
+	const getLineAnnotations = (
+		fileName: string,
+	): DiffLineAnnotation<string>[] => {
+		if (activeCommentBox && activeCommentBox.fileName === fileName) {
+			return [
+				{
+					side: annotationSideForBox(activeCommentBox),
+					lineNumber: annotationLineForBox(activeCommentBox),
+					metadata: "active-input",
+				},
+			];
+		}
+		return [];
+	};
 
-	const getSelectedLines = useCallback(
-		(fileName: string): SelectedLineRange | null => {
-			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return selectedLinesForBox(activeCommentBox);
-			}
-			return null;
-		},
-		[activeCommentBox],
-	);
+	const getSelectedLines = (fileName: string): SelectedLineRange | null => {
+		if (activeCommentBox && activeCommentBox.fileName === fileName) {
+			return selectedLinesForBox(activeCommentBox);
+		}
+		return null;
+	};
 
-	const handleCancelComment = useCallback(() => {
-		setActiveCommentBox(null);
-	}, []);
+	// ---------------------------------------------------------------
+	// Event-handler-only callbacks — read from ref so the compiler
+	// gives them stable identities (ref is not a reactive dep).
+	// ---------------------------------------------------------------
+	const handleCancelComment = () => {
+		updateCommentBox(null);
+	};
 
-	const handleSubmitComment = useCallback(
-		(text: string) => {
-			if (!activeCommentBox) return;
-			const { startLine, endLine, side } = contentRangeForBox(activeCommentBox);
-			const content = extractDiffContent(
-				parsedFiles,
-				activeCommentBox.fileName,
-				startLine,
-				endLine,
-				side,
+	const handleSubmitComment = (text: string) => {
+		const box = activeCommentBoxRef.current;
+		if (!box) return;
+		const { startLine, endLine, side } = contentRangeForBox(box);
+		const content = extractDiffContent(
+			parsedFiles,
+			box.fileName,
+			startLine,
+			endLine,
+			side,
+		);
+		// Single imperative call — chip inserted atomically
+		// in one Lexical update. No rAF hack needed.
+		chatInputRef?.current?.addFileReference({
+			fileName: box.fileName,
+			startLine,
+			endLine,
+			content,
+		});
+		if (text.trim()) {
+			chatInputRef?.current?.insertText(text);
+		}
+		chatInputRef?.current?.focus();
+		updateCommentBox(null);
+	};
+
+	// renderAnnotation is only invoked by the diff library when
+	// getLineAnnotations returned a non-empty array, so the
+	// activeCommentBox guard is unnecessary here. Keeping the
+	// function free of activeCommentBox lets the compiler give it
+	// a stable identity across comment-box toggles.
+	const renderAnnotation = (annotation: DiffLineAnnotation<string>) => {
+		if (annotation.metadata === "active-input") {
+			return (
+				<InlinePromptInput
+					onSubmit={handleSubmitComment}
+					onCancel={handleCancelComment}
+				/>
 			);
-			// Single imperative call — chip inserted atomically
-			// in one Lexical update. No rAF hack needed.
-			chatInputRef?.current?.addFileReference({
-				fileName: activeCommentBox.fileName,
-				startLine,
-				endLine,
-				content,
-			});
-			if (text.trim()) {
-				chatInputRef?.current?.insertText(text);
-			}
-			chatInputRef?.current?.focus();
-			setActiveCommentBox(null);
-		},
-		[activeCommentBox, parsedFiles, chatInputRef],
-	);
-
-	const renderAnnotation = useCallback(
-		(annotation: DiffLineAnnotation<string>) => {
-			if (annotation.metadata === "active-input") {
-				if (!activeCommentBox) return null;
-				return (
-					<InlinePromptInput
-						onSubmit={handleSubmitComment}
-						onCancel={handleCancelComment}
-					/>
-				);
-			}
-			return null;
-		},
-		[activeCommentBox, handleSubmitComment, handleCancelComment],
-	);
+		}
+		return null;
+	};
 
 	// ---------------------------------------------------------------
 	// Render
