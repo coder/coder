@@ -2731,6 +2731,7 @@ export interface CreateProvisionerKeyResponse {
 export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
+	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly input: string;
 	readonly name?: string;
 	readonly display_name?: string;

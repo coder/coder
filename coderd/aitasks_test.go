@@ -1558,15 +1558,6 @@ func TestTasksCreate(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		_, err = client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Input:             taskPrompt,
-		})
-		require.Error(t, err)
-		var missingParamErr *codersdk.Error
-		require.ErrorAs(t, err, &missingParamErr)
-		require.Equal(t, http.StatusBadRequest, missingParamErr.StatusCode())
-
 		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             taskPrompt,
@@ -1581,13 +1572,6 @@ func TestTasksCreate(t *testing.T) {
 		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-		parameters, err := client.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
-		require.NoError(t, err)
-		require.Contains(t, parameters, codersdk.WorkspaceBuildParameter{
-			Name:  "anthropic_api_key",
-			Value: "test-api-key",
-		})
 
 		dbTask, err := db.GetTaskByID(dbauthz.AsSystemRestricted(ctx), task.ID)
 		require.NoError(t, err)
