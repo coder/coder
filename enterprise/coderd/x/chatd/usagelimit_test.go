@@ -204,24 +204,44 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 	t.Run("Spend_scoped_to_org", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		insertChatWithSpend(t, user.ID, orgA.ID, modelConfig.ID, 3_000_000)
+
+		// Dedicated user so spend insertion doesn't affect sibling subtests.
+		spendUser := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         spendUser.ID,
+			OrganizationID: orgA.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         spendUser.ID,
+			OrganizationID: orgB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  spendUser.ID,
+			GroupID: groupA.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  spendUser.ID,
+			GroupID: groupB.ID,
+		})
+
+		insertChatWithSpend(t, spendUser.ID, orgA.ID, modelConfig.ID, 3_000_000)
 
 		// Resolve for orgB: should see zero spend (orgA's $3 not counted).
-		statusB, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, uuid.NullUUID{UUID: orgB.ID, Valid: true}, now)
+		statusB, err := chatd.ResolveUsageLimitStatus(ctx, db, spendUser.ID, uuid.NullUUID{UUID: orgB.ID, Valid: true}, now)
 		require.NoError(t, err)
 		require.NotNil(t, statusB)
 		require.Equal(t, int64(0), statusB.CurrentSpend,
 			"orgB should not include orgA's spend")
 
 		// Resolve for orgA: should see $3 spend.
-		statusA, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, uuid.NullUUID{UUID: orgA.ID, Valid: true}, now)
+		statusA, err := chatd.ResolveUsageLimitStatus(ctx, db, spendUser.ID, uuid.NullUUID{UUID: orgA.ID, Valid: true}, now)
 		require.NoError(t, err)
 		require.NotNil(t, statusA)
 		require.Equal(t, int64(3_000_000), statusA.CurrentSpend,
 			"orgA should include its own spend")
 
 		// Nil org: should see $3 (global).
-		statusNil, err := chatd.ResolveUsageLimitStatus(ctx, db, user.ID, uuid.NullUUID{}, now)
+		statusNil, err := chatd.ResolveUsageLimitStatus(ctx, db, spendUser.ID, uuid.NullUUID{}, now)
 		require.NoError(t, err)
 		require.NotNil(t, statusNil)
 		require.Equal(t, int64(3_000_000), statusNil.CurrentSpend,
