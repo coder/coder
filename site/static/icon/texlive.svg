@@ -1,4 +1,5 @@
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" style="display: block;" viewBox="0 0 1024 1024" width="256" height="256" preserveAspectRatio="none">
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g transform="scale(0.25)">
 <defs>
 	<linearGradient id="Gradient1" gradientUnits="userSpaceOnUse" x1="874.313" y1="395.088" x2="877.337" y2="360.881">
 		<stop class="stop0" offset="0" stop-opacity="1" stop-color="rgb(1,33,54)"/>
@@ -312,4 +313,5 @@
 <path transform="translate(0,0)" fill="rgb(0,120,185)" fill-opacity="0.988235" d="M 796.531 425.808 L 802.12 425.571 C 797.522 426.978 796.824 426.454 794.618 431.249 C 792.147 432.934 788.952 432.292 785.738 432.14 C 786.544 429.441 786.868 429.076 788.594 426.829 C 792.349 426.926 792.927 426.934 796.531 425.808 z"/>
 <path transform="translate(0,0)" fill="rgb(0,120,185)" fill-opacity="0.984314" d="M 742.751 574.391 C 745.829 574.876 748.649 575.033 751.184 576.808 L 751.11 579.26 C 747.059 580.888 745.23 581.555 741.364 580.274 L 742.751 574.391 z"/>
 <path transform="translate(0,0)" fill="rgb(1,63,102)" d="M 739.847 572.753 C 745.987 569.781 748.117 571.67 754.125 574.417 L 751.184 576.808 C 748.649 575.033 745.829 574.876 742.751 574.391 L 739.847 572.753 z"/>
+</g>
 </svg>

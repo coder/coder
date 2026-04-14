@@ -74,6 +74,9 @@ jobs:
               - "**.gotpl"
               - "Makefile"
               - "site/static/error.html"
+              # Icon and theme files tested by Go (scripts/gensite):
+              - "site/static/icon/**"
+              - "site/src/theme/**"
               # Main repo directories for completeness in case other files are
               # touched:
               - "agent/**"
