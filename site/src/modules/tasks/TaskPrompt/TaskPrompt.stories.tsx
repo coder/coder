@@ -168,6 +168,7 @@ export const OnSuccess: Story = {
 		await step("Uses latest template version", () => {
 			expect(API.createTask).toHaveBeenCalledWith(MockUserOwner.id, {
 				input: MockNewTaskData.initial_prompt,
+				rich_parameter_values: [],
 				template_version_id: `${MockTemplate.active_version_id}-latest`,
 				template_version_preset_id: undefined,
 			});
@@ -293,6 +294,7 @@ export const SelectTemplateVersion: Story = {
 		await step("Uses selected version", () => {
 			expect(API.createTask).toHaveBeenCalledWith(MockUserOwner.id, {
 				input: MockNewTaskData.initial_prompt,
+				rich_parameter_values: [],
 				template_version_id: "test-template-version-2",
 				template_version_preset_id: undefined,
 			});

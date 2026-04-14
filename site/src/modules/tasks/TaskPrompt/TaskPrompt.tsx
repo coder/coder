@@ -14,6 +14,7 @@ import type {
 	Task,
 	Template,
 	TemplateVersionExternalAuth,
+	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
@@ -173,6 +174,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		const defaultPreset = presets?.find((p) => p.Default);
 		setSelectedPresetId(defaultPreset?.ID ?? presets?.[0]?.ID);
 	}, [presets]);
+	const selectedPreset = presets?.find((preset) => preset.ID === selectedPresetId);
+	const selectedPresetParameters: WorkspaceBuildParameter[] =
+		selectedPreset?.Parameters.map((parameter) => ({
+			name: parameter.Name,
+			value: parameter.Value,
+		})) ?? [];
 	// External Auth
 	const {
 		externalAuth,
@@ -193,6 +200,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			if (permissions.updateTemplates) {
 				return API.createTask(user.id, {
 					input: prompt,
+					rich_parameter_values: selectedPresetParameters,
 					template_version_id: selectedVersionId,
 					template_version_preset_id: selectedPresetId,
 				});
@@ -205,6 +213,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				prompt,
 				user.id,
 				selectedTemplate.id,
+				selectedPresetParameters,
 				selectedPresetId,
 			);
 		},
@@ -503,11 +512,13 @@ async function createTaskWithLatestTemplateVersion(
 	input: string,
 	userId: string,
 	templateId: string,
+	buildParameters: WorkspaceBuildParameter[],
 	presetId: string | undefined,
 ): Promise<Task> {
 	const template = await API.getTemplate(templateId);
 	return API.createTask(userId, {
 		input,
+		rich_parameter_values: buildParameters,
 		template_version_id: template.active_version_id,
 		template_version_preset_id: presetId,
 	});
