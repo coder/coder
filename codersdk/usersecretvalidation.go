@@ -114,12 +114,6 @@ var (
 		"XDG_DATA_HOME":   {},
 		"XDG_CACHE_HOME":  {},
 		"XDG_STATE_HOME":  {},
-
-		// OIDC token. The Coder agent injects a short-lived
-		// OIDC token for cloud auth flows (e.g. GCP workload
-		// identity). Overriding it could break provisioner and
-		// agent authentication.
-		"OIDC_TOKEN": {},
 	}
 
 	// aiGatewayReservedEnvNames are reserved only when AI Gateway

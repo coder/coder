@@ -88,9 +88,6 @@ func TestUserSecretEnvNameValid(t *testing.T) {
 		{name: "ReservedXDG_CACHE_HOME", input: "XDG_CACHE_HOME", opts: noAIGateway, wantErr: true, errMsg: "reserved"},
 		{name: "ReservedXDG_STATE_HOME", input: "XDG_STATE_HOME", opts: noAIGateway, wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — OIDC.
-		{name: "ReservedOIDC_TOKEN", input: "OIDC_TOKEN", opts: noAIGateway, wantErr: true, errMsg: "reserved"},
-
 		// AI Gateway vars — blocked when AI Gateway is enabled.
 		{name: "AIGateway/OPENAI_API_KEY/Enabled", input: "OPENAI_API_KEY", opts: withAIGateway, wantErr: true, errMsg: "AI Gateway"},
 		{name: "AIGateway/OPENAI_BASE_URL/Enabled", input: "OPENAI_BASE_URL", opts: withAIGateway, wantErr: true, errMsg: "AI Gateway"},
