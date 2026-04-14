@@ -622,6 +622,107 @@ func TestRefreshToken(t *testing.T) {
 	})
 }
 
+func TestValidateToken(t *testing.T) {
+	t.Parallel()
+
+	// These tests use httptest.NewServer to control response headers
+	// (X-RateLimit-Remaining, Retry-After) that the FakeIDP's
+	// WithDynamicUserInfo hook does not expose.
+
+	newValidateConfig := func(t *testing.T, validateURL string) *externalauth.Config {
+		t.Helper()
+		f := promoauth.NewFactory(prometheus.NewRegistry())
+		return &externalauth.Config{
+			InstrumentedOAuth2Config: f.New("test-validate", &oauth2.Config{}),
+			ID:                       "test-validate",
+			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			ValidateURL:              validateURL,
+		}
+	}
+
+	newToken := func() *oauth2.Token {
+		return &oauth2.Token{
+			AccessToken: "test-access-token",
+			Expiry:      time.Now().Add(time.Hour),
+		}
+	}
+
+	// RateLimitRemaining: 403 with X-RateLimit-Remaining: 0 should be
+	// treated as rate-limited, not as an invalid token.
+	t.Run("RateLimitRemaining", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "rate-limited 403 should be treated as optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// RetryAfter: 403 with Retry-After header (secondary rate limit)
+	// should be treated as rate-limited.
+	t.Run("RetryAfter", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// Forbidden_NoRateLimitHeaders: a plain 403 without rate-limit
+	// headers is a genuine token revocation / permission error.
+	t.Run("Forbidden_NoRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "plain 403 without rate-limit headers means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Unauthorized: 401 is always a token revocation regardless of
+	// rate-limit headers.
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "401 always means token is invalid")
+		assert.Nil(t, user)
+	})
+}
+
 func TestRevokeToken(t *testing.T) {
 	t.Parallel()
 
