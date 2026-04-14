@@ -76,14 +76,14 @@ jobs:
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
         with:
           role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
           aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
@@ -95,7 +95,7 @@ jobs:
           AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@871be9b40d53627786d3a3835a3ddba1e3234bd2 # v2.8.3
+        uses: fluxcd/flux2/action@5adad89dcce7b79f20274ae8e112bcec7bd46764 # v2.8.5
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.8.2"
