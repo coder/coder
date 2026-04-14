@@ -41,8 +41,6 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		(e: React.PointerEvent) => {
 			setDragging(true);
 
-			// Track cursor position globally during drag so the
-			// glow line follows even outside the handle element.
 			const onPointerMove = (moveEvent: PointerEvent) => {
 				const rect = containerRef.current?.getBoundingClientRect();
 				if (rect) {
@@ -85,14 +83,20 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
 			className={cn(
-				// 8px on the sidebar side, 3px into the content side.
-				"absolute top-0 -right-[3px] h-full w-[11px] cursor-col-resize z-10",
-				"flex items-center justify-center",
+				// Hit area: 8px into the sidebar, 8px into the content.
+				// The glow line is positioned on the border, not centered
+				// in the hit area.
+				"absolute top-0 -right-2 h-full w-4 cursor-col-resize z-10",
 			)}
 		>
+			{/* Glow line pinned to the border (left edge of the
+			    content-side overhang = 8px from handle's left). */}
 			<div
-				className="h-full w-[2px] rounded-full bg-content-secondary"
+				className="absolute top-0 h-full w-[2px] rounded-full bg-content-secondary"
 				style={{
+					// 8px from handle left = the border position.
+					// Handle is 16px wide, border is at the midpoint.
+					left: "7px",
 					opacity: visible ? (dragging ? 0.7 : 0.4) : 0,
 					transition: "opacity 150ms",
 					maskImage: maskGradient,
