@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -610,6 +611,47 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// splitWorkspaceIdentifier splits an identifier into owner and
+// workspace name. A bare name defaults the owner to Me ("me"). An
+// "owner/name" pair splits on the first "/".
+func splitWorkspaceIdentifier(identifier string) (owner, name string, err error) {
+	parts := strings.Split(identifier, "/")
+	switch len(parts) {
+	case 1:
+		return Me, parts[0], nil
+	case 2:
+		return parts[0], parts[1], nil
+	default:
+		return "", "", xerrors.Errorf("invalid workspace identifier: %q", identifier)
+	}
+}
+
+// ResolveWorkspace fetches a workspace by identifier, which may be a
+// UUID, a bare name (owned by the current user), or an "owner/name"
+// pair. When the identifier parses as a valid UUID but no workspace
+// exists with that ID, the function falls back to a name-based
+// lookup because workspace names can be valid UUID strings.
+func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Workspace, error) {
+	if uid, err := uuid.Parse(identifier); err == nil {
+		ws, err := c.Workspace(ctx, uid)
+		if err == nil {
+			return ws, nil
+		}
+		// A workspace name might be a valid UUID string. If the
+		// ID-based lookup returned 404, fall through to name-based
+		// lookup below.
+		var sdkErr *Error
+		if !errors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
+			return Workspace{}, err
+		}
+	}
+	owner, name, err := splitWorkspaceIdentifier(identifier)
+	if err != nil {
+		return Workspace{}, err
+	}
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, WorkspaceOptions{})
 }
 
 type WorkspaceQuota struct {

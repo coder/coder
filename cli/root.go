@@ -25,7 +25,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -960,24 +959,7 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
 // where user is either a username or UUID.
 func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	if uid, err := uuid.Parse(identifier); err == nil {
-		ws, err := client.Workspace(ctx, uid)
-		if err == nil {
-			return ws, nil
-		}
-		// A workspace name might be a valid UUID string. If the
-		// ID-based lookup returned 404, fall through to name-based
-		// lookup below.
-		var sdkErr *codersdk.Error
-		if !errors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
-			return codersdk.Workspace{}, err
-		}
-	}
-	owner, name, err := splitNamedWorkspace(identifier)
-	if err != nil {
-		return codersdk.Workspace{}, err
-	}
-	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
+	return client.ResolveWorkspace(ctx, identifier)
 }
 
 func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
