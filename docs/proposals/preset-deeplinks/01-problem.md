@@ -16,14 +16,14 @@ https://coder.example.com/templates/<org>/<template>/workspace?mode=auto&param.r
 
 The deeplink system supports several query parameters:
 
-| Parameter | Purpose |
-|---|---|
-| `param.<name>=<value>` | Pre-fill individual template parameters |
-| `mode=auto\|duplicate` | Control creation behavior (automatic creation or workspace duplication; defaults to interactive form) |
-| `name=<workspace-name>` | Pre-fill the workspace name |
-| `version=<id>` | Target a specific template version |
-| `disable_params=<csv>` | Make specific parameters read-only |
-| `match=<query>` | Find an existing workspace instead of creating (used with `mode=auto`) |
+| Parameter               | Purpose                                                                                               |
+|-------------------------|-------------------------------------------------------------------------------------------------------|
+| `param.<name>=<value>`  | Pre-fill individual template parameters                                                               |
+| `mode=auto\|duplicate`  | Control creation behavior (automatic creation or workspace duplication; defaults to interactive form) |
+| `name=<workspace-name>` | Pre-fill the workspace name                                                                           |
+| `version=<id>`          | Target a specific template version                                                                    |
+| `disable_params=<csv>`  | Make specific parameters read-only                                                                    |
+| `match=<query>`         | Find an existing workspace instead of creating (used with `mode=auto`)                                |
 
 Separately, Coder has a **presets** system that bundles a named set of parameter values together. Presets are defined in templates and are selectable via a dropdown in the workspace creation UI. They allow template authors to define curated configurations (e.g., "Small - 2 CPU / 4 GB", "Large - 8 CPU / 32 GB") that users can choose instead of manually configuring each parameter.
 
@@ -81,14 +81,14 @@ The following interactions represent ambiguities that any solution must address.
 
 ## Impact
 
-| Workflow | Severity | Frequency | Impact |
-|---|---|---|---|
-| **README "Open in Coder" badges** | High | Every template with presets | URLs break when preset changes; manual sync required |
-| **CI/CD pipeline links** | High | Every CI-integrated deployment | Hardcoded param values drift from preset definitions |
-| **`mode=auto` + prebuilds** | High | Every auto-create with prebuilds | Heuristic preset matching fails on parameter drift |
-| **Internal documentation** | Medium | Ongoing maintenance | Long URLs are unreadable and hard to maintain |
-| **Template embed page** | Medium | Template configuration | Cannot generate a compact deeplink for a preset config |
-| **Self-service onboarding** | High | Enterprise onboarding flows | Broken deeplinks delay developer onboarding |
+| Workflow                          | Severity | Frequency                        | Impact                                                 |
+|-----------------------------------|----------|----------------------------------|--------------------------------------------------------|
+| **README "Open in Coder" badges** | High     | Every template with presets      | URLs break when preset changes; manual sync required   |
+| **CI/CD pipeline links**          | High     | Every CI-integrated deployment   | Hardcoded param values drift from preset definitions   |
+| **`mode=auto` + prebuilds**       | High     | Every auto-create with prebuilds | Heuristic preset matching fails on parameter drift     |
+| **Internal documentation**        | Medium   | Ongoing maintenance              | Long URLs are unreadable and hard to maintain          |
+| **Template embed page**           | Medium   | Template configuration           | Cannot generate a compact deeplink for a preset config |
+| **Self-service onboarding**       | High     | Enterprise onboarding flows      | Broken deeplinks delay developer onboarding            |
 
 ## Business Impact
 

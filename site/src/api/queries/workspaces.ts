@@ -150,15 +150,16 @@ type AutoCreateWorkspaceOptions = {
 
 export const autoCreateWorkspace = (queryClient: QueryClient) => {
 	return {
-			mutationFn: async ({
-				organizationId,
-				templateName,
-				workspaceName,
-				templateVersionId,
-				buildParameters,
-				templateVersionPresetId,
-				match,
-			}: AutoCreateWorkspaceOptions) => {			if (match) {
+		mutationFn: async ({
+			organizationId,
+			templateName,
+			workspaceName,
+			templateVersionId,
+			buildParameters,
+			templateVersionPresetId,
+			match,
+		}: AutoCreateWorkspaceOptions) => {
+			if (match) {
 				const matchWorkspace = await findMatchWorkspace(
 					`owner:me template:${templateName} ${match}`,
 				);
@@ -179,12 +180,13 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 				templateVersionParameters = { template_id: template.id };
 			}
 
-				return API.createWorkspace("me", {
-					...templateVersionParameters,
-					name: workspaceName,
-					rich_parameter_values: buildParameters,
-					template_version_preset_id: templateVersionPresetId,
-				});		},
+			return API.createWorkspace("me", {
+				...templateVersionParameters,
+				name: workspaceName,
+				rich_parameter_values: buildParameters,
+				template_version_preset_id: templateVersionPresetId,
+			});
+		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},

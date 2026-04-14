@@ -455,24 +455,24 @@ without additional code.
 
 ## Files Changed
 
-| File | Change | PR |
-|---|---|---|
-| `CreateWorkspacePage.tsx` | Reorder `realizedVersionId` above presets query | PR 1 |
-| `CreateWorkspacePage.tsx` | Parse `preset`, resolve, merge autofill, gate auto-create | PR 2, 3 |
-| `CreateWorkspacePageView.tsx` | New props, URL preset effect, error/warning display | PR 2 |
-| `AutoCreateConsentDialog.tsx` | Add `presetName` prop | PR 3 |
-| `workspaces.ts` | Add `templateVersionPresetId` to auto-create options | PR 3 |
-| `CreateWorkspacePageView.stories.tsx` | New stories for preset deeplink scenarios | PR 2 |
-| `CreateWorkspacePage.test.tsx` | Auto-create + preset integration tests | PR 3 |
+| File                                  | Change                                                    | PR      |
+|---------------------------------------|-----------------------------------------------------------|---------|
+| `CreateWorkspacePage.tsx`             | Reorder `realizedVersionId` above presets query           | PR 1    |
+| `CreateWorkspacePage.tsx`             | Parse `preset`, resolve, merge autofill, gate auto-create | PR 2, 3 |
+| `CreateWorkspacePageView.tsx`         | New props, URL preset effect, error/warning display       | PR 2    |
+| `AutoCreateConsentDialog.tsx`         | Add `presetName` prop                                     | PR 3    |
+| `workspaces.ts`                       | Add `templateVersionPresetId` to auto-create options      | PR 3    |
+| `CreateWorkspacePageView.stories.tsx` | New stories for preset deeplink scenarios                 | PR 2    |
+| `CreateWorkspacePage.test.tsx`        | Auto-create + preset integration tests                    | PR 3    |
 
 ## Files NOT Changed
 
-| File | Reason |
-|---|---|
+| File                  | Reason                                                                                                                             |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
 | Backend API endpoints | Existing `GET /templateversions/{id}/presets` is sufficient; `CreateWorkspaceRequest` already accepts `template_version_preset_id` |
-| Database schema | No model changes |
-| `typesGenerated.ts` | Already has `Preset`, `PresetParameter`, `CreateWorkspaceRequest.template_version_preset_id` |
-| Embed pages | Deferred to fast-follow (PRD R7) |
+| Database schema       | No model changes                                                                                                                   |
+| `typesGenerated.ts`   | Already has `Preset`, `PresetParameter`, `CreateWorkspaceRequest.template_version_preset_id`                                       |
+| Embed pages           | Deferred to fast-follow (PRD R7)                                                                                                   |
 
 ## Alternatives Considered
 

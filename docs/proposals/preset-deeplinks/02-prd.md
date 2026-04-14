@@ -108,16 +108,16 @@ When `mode=auto` is combined with `preset=<name>`:
 
 ### R6: Query Parameter Interactions
 
-| Condition | Behavior |
-|---|---|
-| **Preset name not found** | Show inline error with version context and case-sensitivity hint; fall back to no preset; `mode=auto` falls back to `form` |
-| **Preset name is empty (`preset=`)** | Ignored; treated as if `preset` param is absent |
-| **Multiple `preset` params** | Use the first value |
-| **`preset` + `param.*`** | `preset` takes precedence; all `param.*` values are ignored; show inline notice explaining mutual exclusivity |
-| **`preset` + `disable_params`** | Preset parameters are applied first; `disable_params` disables the named parameters (locking them to the preset's values) |
-| **`preset` + `match`** | If `match` finds an existing workspace, the user is navigated to it and `preset` is ignored. If no match is found, `preset` applies to the create-new fallback path |
-| **`preset` + `mode=duplicate`** | `preset` is ignored; `mode=duplicate` copies parameters from the source workspace. The preset dropdown shows no selection |
-| **`preset` + `name`** | Both apply independently; `preset` sets parameters, `name` sets the workspace name |
+| Condition                            | Behavior                                                                                                                                                            |
+|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Preset name not found**            | Show inline error with version context and case-sensitivity hint; fall back to no preset; `mode=auto` falls back to `form`                                          |
+| **Preset name is empty (`preset=`)** | Ignored; treated as if `preset` param is absent                                                                                                                     |
+| **Multiple `preset` params**         | Use the first value                                                                                                                                                 |
+| **`preset` + `param.*`**             | `preset` takes precedence; all `param.*` values are ignored; show inline notice explaining mutual exclusivity                                                       |
+| **`preset` + `disable_params`**      | Preset parameters are applied first; `disable_params` disables the named parameters (locking them to the preset's values)                                           |
+| **`preset` + `match`**               | If `match` finds an existing workspace, the user is navigated to it and `preset` is ignored. If no match is found, `preset` applies to the create-new fallback path |
+| **`preset` + `mode=duplicate`**      | `preset` is ignored; `mode=duplicate` copies parameters from the source workspace. The preset dropdown shows no selection                                           |
+| **`preset` + `name`**                | Both apply independently; `preset` sets parameters, `name` sets the workspace name                                                                                  |
 
 ### R7: Embed Page Update (Deferred — Fast-Follow)
 
@@ -146,12 +146,12 @@ Preset names with spaces or special characters are handled via standard URL perc
 
 ## Success Metrics
 
-| Metric | How to Measure |
-|---|---|
-| **Adoption** | % of deeplink workspace creations using `preset=` vs. `param.*` after 30 days (requires telemetry on `CreateWorkspaceRequest.template_version_preset_id` presence + referrer/source) |
-| **Prebuild match improvement** | Reduction in prebuild match failures for deeplink-originated workspace creations (instrument the create path) |
-| **URL compactness** | Single `preset=` param replaces N `param.*` params (design validation, not runtime metric) |
-| **Zero regressions** | Existing `param.*`, `mode=auto`, and `disable_params` behavior unchanged (test coverage) |
+| Metric                         | How to Measure                                                                                                                                                                       |
+|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Adoption**                   | % of deeplink workspace creations using `preset=` vs. `param.*` after 30 days (requires telemetry on `CreateWorkspaceRequest.template_version_preset_id` presence + referrer/source) |
+| **Prebuild match improvement** | Reduction in prebuild match failures for deeplink-originated workspace creations (instrument the create path)                                                                        |
+| **URL compactness**            | Single `preset=` param replaces N `param.*` params (design validation, not runtime metric)                                                                                           |
+| **Zero regressions**           | Existing `param.*`, `mode=auto`, and `disable_params` behavior unchanged (test coverage)                                                                                             |
 
 ## Known Risks
 
