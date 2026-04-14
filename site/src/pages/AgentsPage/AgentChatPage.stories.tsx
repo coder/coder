@@ -123,6 +123,9 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 const baseChatFields = {
 	organization_id: "test-org-id",
 	owner_id: "owner-id",
+	owner_username: "owner",
+	owner_avatar_url: "",
+	owner_name: "",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],

@@ -880,6 +880,14 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatRoleActions returns the RBAC actions granted by a chat role.
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
 	switch typ {
 	case agentproto.Connection_SSH:
@@ -1575,7 +1583,14 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 // When diffStatus is non-nil the response includes diff metadata.
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
-func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+// ChatOwnerInfo holds resolved owner display info for a chat.
+type ChatOwnerInfo struct {
+	Username  string
+	Name      string
+	AvatarURL string
+}
+
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow, owner ChatOwnerInfo) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1588,6 +1603,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
+		OwnerUsername:     owner.Username,
+		OwnerAvatarURL:    owner.AvatarURL,
+		OwnerName:         owner.Name,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
@@ -1756,14 +1774,15 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 // Chat plus HasUnread) to codersdk.Chat, looking up diff statuses
 // from the provided map. When diffStatusesByChatID is non-nil,
 // chats without an entry receive an empty DiffStatus.
-func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
+func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus, ownerInfoByID map[uuid.UUID]ChatOwnerInfo) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(rows))
 	for i, row := range rows {
+		ownerInfo := ownerInfoByID[row.Chat.OwnerID]
 		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = Chat(row.Chat, &diffStatus, nil, ownerInfo)
 		} else {
-			result[i] = Chat(row.Chat, nil, nil)
+			result[i] = Chat(row.Chat, nil, nil, ownerInfo)
 			if diffStatusesByChatID != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus

@@ -850,7 +850,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 	}
 
-	got := db2sdk.Chat(input, diffStatus, fileRows)
+	got := db2sdk.Chat(input, diffStatus, fileRows, db2sdk.ChatOwnerInfo{})
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
@@ -900,7 +900,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 		},
 	}
 
-	result := db2sdk.Chat(chat, nil, rows)
+	result := db2sdk.Chat(chat, nil, rows, db2sdk.ChatOwnerInfo{})
 
 	require.Len(t, result.Files, 1)
 	f := result.Files[0]
@@ -931,7 +931,7 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 		UpdatedAt:         dbtime.Now(),
 	}
 
-	result := db2sdk.Chat(chat, nil, nil)
+	result := db2sdk.Chat(chat, nil, nil, db2sdk.ChatOwnerInfo{})
 	require.Empty(t, result.Files)
 }
 
@@ -971,7 +971,7 @@ func TestChat_MultipleFiles(t *testing.T) {
 		},
 	}
 
-	result := db2sdk.Chat(chat, nil, rows)
+	result := db2sdk.Chat(chat, nil, rows, db2sdk.ChatOwnerInfo{})
 	require.Len(t, result.Files, 2)
 	require.Equal(t, "a.png", result.Files[0].Name)
 	require.Equal(t, "b.txt", result.Files[1].Name)

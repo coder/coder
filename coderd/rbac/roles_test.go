@@ -1104,6 +1104,15 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
+		{
+			Name:     "ChatShare",
+			Actions:  []policy.Action{policy.ActionShare},
+			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
 	}
 	// Build coverage set from test case definitions statically,
 	// so we don't need shared mutable state during execution.

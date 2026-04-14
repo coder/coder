@@ -316,8 +316,15 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// When shared=true, don't filter by owner so the RBAC filter
+	// returns all chats the user can read (own + shared via ACL).
+	ownerID := apiKey.UserID
+	if r.URL.Query().Get("shared") == "true" {
+		ownerID = uuid.Nil
+	}
+
 	params := database.GetChatsParams{
-		OwnerID:     apiKey.UserID,
+		OwnerID:     ownerID,
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
@@ -351,7 +358,36 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRows(chatRows, diffStatusesByChatID))
+	// Batch-resolve owner display info for the chat list.
+	ownerIDSet := make(map[uuid.UUID]struct{})
+	for _, row := range chatRows {
+		ownerIDSet[row.Chat.OwnerID] = struct{}{}
+	}
+	ownerIDs := make([]uuid.UUID, 0, len(ownerIDSet))
+	for id := range ownerIDSet {
+		ownerIDs = append(ownerIDs, id)
+	}
+	//nolint:gocritic // System access to resolve owner display info.
+	ownerUsers, err := api.Database.GetUsersByIDs(
+		dbauthz.AsSystemRestricted(ctx), ownerIDs,
+	)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve chat owners.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	ownerInfoByID := make(map[uuid.UUID]db2sdk.ChatOwnerInfo, len(ownerUsers))
+	for _, u := range ownerUsers {
+		ownerInfoByID[u.ID] = db2sdk.ChatOwnerInfo{
+			Username:  u.Username,
+			Name:      u.Name,
+			AvatarURL: u.AvatarURL,
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRows(chatRows, diffStatusesByChatID, ownerInfoByID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -608,7 +644,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
-	response := db2sdk.Chat(chat, nil, chatFiles)
+	response := db2sdk.Chat(chat, nil, chatFiles, api.resolveOwnerInfo(ctx, chat.OwnerID))
 	if len(unlinked) > 0 {
 		if capExceeded {
 			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
@@ -1401,7 +1437,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles, api.resolveOwnerInfo(ctx, chat.OwnerID)))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2378,7 +2414,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil, api.resolveOwnerInfo(ctx, chat.OwnerID)))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2422,7 +2458,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil, api.resolveOwnerInfo(ctx, updatedChat.OwnerID)))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -4091,10 +4127,14 @@ func fileLinkErrorWarning(count int) string {
 }
 
 // fetchChatFileMetadata returns metadata for all files linked to
-// the given chat. Errors are logged and result in a nil return
-// (callers treat file metadata as best-effort).
+// the given chat. The parent chat must already be authorized;
+// file rows lack ACL columns so a system context is used.
+// Errors are logged and result in a nil return (callers treat
+// file metadata as best-effort).
 func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID) []database.GetChatFileMetadataByChatIDRow {
-	rows, err := api.Database.GetChatFileMetadataByChatID(ctx, chatID)
+	//nolint:gocritic // System access: chat was already authorized
+	// by the middleware; file rows don't carry ACL columns.
+	rows, err := api.Database.GetChatFileMetadataByChatID(dbauthz.AsSystemRestricted(ctx), chatID)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to fetch chat file metadata",
 			slog.F("chat_id", chatID),
@@ -5933,4 +5973,334 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	// Batch-resolve user display info.
+	userIDs := make([]uuid.UUID, 0, len(chat.UserACL))
+	for idStr := range chat.UserACL {
+		userID, err := uuid.Parse(idStr)
+		if err != nil {
+			api.Logger.Warn(ctx, "invalid user uuid in chat ACL",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
+			continue
+		}
+		userIDs = append(userIDs, userID)
+	}
+	//nolint:gocritic // System access to resolve user display info.
+	dbUsers, err := api.Database.GetUsersByIDs(
+		dbauthz.AsSystemRestricted(ctx), userIDs,
+	)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	users := make([]codersdk.ChatACLUser, 0, len(dbUsers))
+	for _, u := range dbUsers {
+		entry, ok := chat.UserACL[u.ID.String()]
+		if !ok {
+			continue
+		}
+		users = append(users, codersdk.ChatACLUser{
+			MinimalUser: db2sdk.MinimalUser(u),
+			Role:        convertToChatRole(entry.Permissions),
+		})
+	}
+
+	// Batch-resolve group display info.
+	groupIDs := make([]uuid.UUID, 0, len(chat.GroupACL))
+	for idStr := range chat.GroupACL {
+		groupID, err := uuid.Parse(idStr)
+		if err != nil {
+			api.Logger.Warn(ctx, "invalid group uuid in chat ACL",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
+			continue
+		}
+		groupIDs = append(groupIDs, groupID)
+	}
+	groups := make([]codersdk.ChatACLGroup, 0, len(groupIDs))
+	if len(groupIDs) > 0 {
+		//nolint:gocritic // System access to resolve group info.
+		dbGroups, err := api.Database.GetGroups(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetGroupsParams{GroupIds: groupIDs},
+		)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		for _, g := range dbGroups {
+			entry, ok := chat.GroupACL[g.Group.ID.String()]
+			if !ok {
+				continue
+			}
+			groups = append(groups, codersdk.ChatACLGroup{
+				Group: codersdk.Group{
+					ID:             g.Group.ID,
+					Name:           g.Group.Name,
+					OrganizationID: g.Group.OrganizationID,
+					AvatarURL:      g.Group.AvatarURL,
+				},
+				Role: convertToChatRole(entry.Permissions),
+			})
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatACL{
+		Users:  users,
+		Groups: groups,
+	})
+}
+
+func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	var req codersdk.UpdateChatACL
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	apiKey := httpmw.APIKey(r)
+
+	// Prevent the owner from modifying their own ACL entry.
+	for idStr := range req.UserRoles {
+		if idStr == apiKey.UserID.String() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot modify your own chat ACL entry.",
+			})
+			return
+		}
+	}
+
+	// Validate UUID format and entity existence.
+	validErrs := api.validateChatACLUpdate(ctx, req)
+	if len(validErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid request to update chat ACL.",
+			Validations: validErrs,
+		})
+		return
+	}
+
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		chat, err = tx.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("get chat by ID: %w", err)
+		}
+
+		// Build ACLs from fresh state inside the transaction.
+		userACL := make(database.WorkspaceACL)
+		for k, v := range chat.UserACL {
+			userACL[k] = v
+		}
+		groupACL := make(database.WorkspaceACL)
+		for k, v := range chat.GroupACL {
+			groupACL[k] = v
+		}
+
+		for idStr, role := range req.UserRoles {
+			if role == codersdk.ChatRoleDeleted {
+				delete(userACL, idStr)
+			} else {
+				userACL[idStr] = database.WorkspaceACLEntry{
+					Permissions: db2sdk.ChatRoleActions(role),
+				}
+			}
+		}
+
+		for idStr, role := range req.GroupRoles {
+			if role == codersdk.ChatRoleDeleted {
+				delete(groupACL, idStr)
+			} else {
+				groupACL[idStr] = database.WorkspaceACLEntry{
+					Permissions: db2sdk.ChatRoleActions(role),
+				}
+			}
+		}
+
+		return tx.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+			ID:       chat.ID,
+			UserACL:  userACL,
+			GroupACL: groupACL,
+		})
+	}, nil)
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	err := api.Database.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       chat.ID,
+		UserACL:  database.WorkspaceACL{},
+		GroupACL: database.WorkspaceACL{},
+	})
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// convertToChatRole maps stored permissions back to a ChatRole.
+func convertToChatRole(perms []policy.Action) codersdk.ChatRole {
+	if len(perms) == 1 && perms[0] == policy.ActionRead {
+		return codersdk.ChatRoleRead
+	}
+	// Default to read for any unrecognized permission set.
+	if len(perms) > 0 {
+		return codersdk.ChatRoleRead
+	}
+	return codersdk.ChatRoleDeleted
+}
+
+// resolveOwnerInfo looks up the display info for a chat owner.
+// Returns empty info on failure (non-critical for display).
+func (api *API) resolveOwnerInfo(ctx context.Context, ownerID uuid.UUID) db2sdk.ChatOwnerInfo {
+	//nolint:gocritic // System access to resolve owner display info.
+	owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+	if err != nil {
+		return db2sdk.ChatOwnerInfo{}
+	}
+	return db2sdk.ChatOwnerInfo{
+		Username:  owner.Username,
+		Name:      owner.Name,
+		AvatarURL: owner.AvatarURL,
+	}
+}
+
+// validateChatACLUpdate checks UUID format, role validity, and
+// entity existence for all entries in a chat ACL update request.
+func (api *API) validateChatACLUpdate(
+	ctx context.Context,
+	req codersdk.UpdateChatACL,
+) []codersdk.ValidationError {
+	//nolint:gocritic // System access to validate user/group existence.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	var validErrs []codersdk.ValidationError
+
+	// Validate user entries.
+	userIDs := make([]uuid.UUID, 0, len(req.UserRoles))
+	for idStr, role := range req.UserRoles {
+		if role != codersdk.ChatRoleDeleted &&
+			role != codersdk.ChatRoleRead {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field: "user_roles",
+				Detail: fmt.Sprintf(
+					"%q is not a valid chat role", role,
+				),
+			})
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field: "user_roles",
+				Detail: fmt.Sprintf(
+					"%v is not a valid UUID.", idStr,
+				),
+			})
+			continue
+		}
+		// Skip existence check for deletions.
+		if role == codersdk.ChatRoleDeleted {
+			continue
+		}
+		userIDs = append(userIDs, id)
+	}
+	if len(userIDs) > 0 {
+		uv, err := api.Database.ValidateUserIDs(ctx, userIDs)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field: "user_roles",
+				Detail: fmt.Sprintf(
+					"failed to validate user IDs: %v",
+					err.Error(),
+				),
+			})
+		} else if !uv.Ok {
+			for _, id := range uv.InvalidUserIds {
+				validErrs = append(validErrs, codersdk.ValidationError{
+					Field: "user_roles",
+					Detail: fmt.Sprintf(
+						"user with ID %v does not exist", id,
+					),
+				})
+			}
+		}
+	}
+
+	// Validate group entries.
+	groupIDs := make([]uuid.UUID, 0, len(req.GroupRoles))
+	for idStr, role := range req.GroupRoles {
+		if role != codersdk.ChatRoleDeleted &&
+			role != codersdk.ChatRoleRead {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field: "group_roles",
+				Detail: fmt.Sprintf(
+					"%q is not a valid chat role", role,
+				),
+			})
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field: "group_roles",
+				Detail: fmt.Sprintf(
+					"%v is not a valid UUID.", idStr,
+				),
+			})
+			continue
+		}
+		if role == codersdk.ChatRoleDeleted {
+			continue
+		}
+		groupIDs = append(groupIDs, id)
+	}
+	if len(groupIDs) > 0 {
+		gv, err := api.Database.ValidateGroupIDs(ctx, groupIDs)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field: "group_roles",
+				Detail: fmt.Sprintf(
+					"failed to validate group IDs: %v",
+					err.Error(),
+				),
+			})
+		} else if !gv.Ok {
+			for _, id := range gv.InvalidGroupIds {
+				validErrs = append(validErrs, codersdk.ValidationError{
+					Field: "group_roles",
+					Detail: fmt.Sprintf(
+						"group with ID %v does not exist", id,
+					),
+				})
+			}
+		}
+	}
+
+	return validErrs
 }

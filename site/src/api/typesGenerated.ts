@@ -370,6 +370,7 @@ export type APIKeyScope =
 	| "chat:create"
 	| "chat:delete"
 	| "chat:read"
+	| "chat:share"
 	| "chat:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
@@ -579,6 +580,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:create",
 	"chat:delete",
 	"chat:read",
+	"chat:share",
 	"chat:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
@@ -1227,6 +1229,9 @@ export interface Chat {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
+	readonly owner_username: string;
+	readonly owner_avatar_url: string;
+	readonly owner_name: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
 	readonly agent_id?: string;
@@ -1258,6 +1263,31 @@ export interface Chat {
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
 	readonly warnings?: readonly string[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatACL is the response body for a chat's ACL.
+ */
+export interface ChatACL {
+	readonly users: readonly ChatACLUser[];
+	readonly groups: readonly ChatACLGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatACLGroup represents a group in a chat's ACL.
+ */
+export interface ChatACLGroup extends Group {
+	readonly role: ChatRole;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatACLUser represents a user in a chat's ACL.
+ */
+export interface ChatACLUser extends MinimalUser {
+	readonly role: ChatRole;
 }
 
 // From codersdk/chats.go
@@ -2074,6 +2104,11 @@ export interface ChatReasoningPart {
 export interface ChatRetentionDaysResponse {
 	readonly retention_days: number;
 }
+
+// From codersdk/chats.go
+export type ChatRole = "" | "read";
+
+export const ChatRoles: ChatRole[] = ["", "read"];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {
@@ -7533,6 +7568,15 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatACL is the request body for updating a chat's ACL.
+ */
+export interface UpdateChatACL {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go

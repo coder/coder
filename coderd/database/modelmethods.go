@@ -175,7 +175,11 @@ func (t Task) RBACObject() rbac.Object {
 }
 
 func (c Chat) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+	return rbac.ResourceChat.WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID).
+		WithGroupACL(c.GroupACL.RBACACL()).
+		WithACLUserList(c.UserACL.RBACACL())
 }
 
 func (r GetChatsRow) RBACObject() rbac.Object {
@@ -183,11 +187,21 @@ func (r GetChatsRow) RBACObject() rbac.Object {
 }
 
 func (c ChatFile) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+	// ChatFile does not carry ACL columns; the parent Chat's
+	// authorization must be checked separately. Callers that
+	// have already authorized the Chat should use a system
+	// context when fetching files.
+	return rbac.ResourceChat.WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID)
 }
 
 func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+	// See ChatFile.RBACObject — ACL data lives on the parent
+	// Chat, not on the file row.
+	return rbac.ResourceChat.WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID)
 }
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {

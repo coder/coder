@@ -30,6 +30,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
+import { ChatSharePopover } from "./ChatSharePopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -48,6 +49,8 @@ interface WorkspaceActions {
 }
 
 type ChatTopBarProps = {
+	chatId?: string;
+	organizationId?: string;
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
@@ -60,12 +63,15 @@ type ChatTopBarProps = {
 	isRegenerateTitleDisabled?: boolean;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
+	isOwner?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
+	chatId,
+	organizationId,
 	chatTitle,
 	parentChat,
 	panel,
@@ -78,6 +84,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isRegenerateTitleDisabled,
 	hasWorkspace,
 	isArchived,
+	isOwner,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
@@ -190,6 +197,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
+				{!isEmbedded && isOwner && chatId && organizationId && (
+					<ChatSharePopover chatId={chatId} organizationId={organizationId} />
+				)}
 				{!isEmbedded && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

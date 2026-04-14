@@ -1,5 +1,6 @@
 import {
 	ArchiveIcon,
+	EyeIcon,
 	MonitorDotIcon,
 	MonitorIcon,
 	MonitorPauseIcon,
@@ -18,6 +19,7 @@ import type { UrlTransform } from "streamdown";
 import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
@@ -91,6 +93,9 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
+	isOwner: boolean;
+	ownerUsername: string | undefined;
+	ownerAvatarURL: string | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
@@ -183,6 +188,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
+	isOwner,
+	ownerUsername,
+	ownerAvatarURL,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
@@ -349,8 +357,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						)}
 					>
 						<div className="relative z-10 shrink-0 overflow-visible">
-							{" "}
 							<ChatTopBar
+								chatId={agentId}
+								organizationId={organizationId}
 								chatTitle={chatTitle}
 								parentChat={parentChat}
 								panel={{
@@ -377,6 +386,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
+								isOwner={isOwner}
 								diffStatusData={diffStatusData}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -385,6 +395,24 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 									<ArchiveIcon className="h-4 w-4 shrink-0" />
 									This agent has been archived and is read-only.
+								</div>
+							)}
+							{!isOwner && !isArchived && (
+								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+									<EyeIcon className="h-4 w-4 shrink-0" />
+									<span>Read only &mdash; shared by</span>
+									{ownerUsername ? (
+										<span className="inline-flex items-center gap-1 font-medium text-content-primary">
+											<Avatar
+												src={ownerAvatarURL ?? undefined}
+												fallback={ownerUsername}
+												size="sm"
+											/>
+											{ownerUsername}
+										</span>
+									) : (
+										<span>another user</span>
+									)}
 								</div>
 							)}
 							<div
@@ -609,7 +637,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 					/>
-				</div>{" "}
+				</div>
 			</div>
 			{showRightPanel && (
 				<RightPanel

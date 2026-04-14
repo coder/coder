@@ -910,6 +910,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				RawMessage: opts.DynamicTools,
 				Valid:      len(opts.DynamicTools) > 0,
 			},
+			UserACL:  pqtype.NullRawMessage{},
+			GroupACL: pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -3649,7 +3651,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 	// omitted from pubsub events to avoid an extra DB query per
 	// publish. Clients must merge pubsub updates, not replace
 	// cached file metadata.
-	sdkChat := db2sdk.Chat(chat, nil, nil)
+	sdkChat := db2sdk.Chat(chat, nil, nil, db2sdk.ChatOwnerInfo{})
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -3671,6 +3673,31 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 			slog.F("kind", kind),
 			slog.Error(err),
 		)
+	}
+
+	// Also publish to each user in the chat's ACL so they receive
+	// realtime updates for shared chats.
+	//
+	// TODO: Group-shared users don't receive realtime
+	// notifications. Resolving group membership on every
+	// pubsub event would require a DB query per publish.
+	// For v1, group-shared users must refresh manually to
+	// see updates.
+	for userIDStr := range chat.UserACL {
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			continue
+		}
+		if userID == chat.OwnerID {
+			continue // Already published above.
+		}
+		if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(userID), payload); err != nil {
+			p.logger.Warn(context.Background(), "failed to publish chat event to shared user",
+				slog.F("chat_id", chat.ID),
+				slog.F("shared_user_id", userID),
+				slog.Error(err),
+			)
+		}
 	}
 }
 
@@ -3696,7 +3723,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 		return
 	}
 	toolCalls := pendingToStreamToolCalls(pending)
-	sdkChat := db2sdk.Chat(chat, nil, nil)
+	sdkChat := db2sdk.Chat(chat, nil, nil, db2sdk.ChatOwnerInfo{})
 
 	event := codersdk.ChatWatchEvent{
 		Kind:      codersdk.ChatWatchEventKindActionRequired,
