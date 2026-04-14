@@ -8249,20 +8249,6 @@ export interface UserSecret {
 	readonly updated_at: string;
 }
 
-// From codersdk/usersecretvalidation.go
-/**
- * UserSecretEnvValidationOptions controls deployment-aware behavior
- * in environment variable name validation.
- */
-export interface UserSecretEnvValidationOptions {
-	/**
-	 * AIGatewayEnabled indicates that the deployment has AI Gateway
-	 * configured. When true, AI Gateway environment variables
-	 * (OPENAI_API_KEY, etc.) are reserved to prevent conflicts.
-	 */
-	readonly AIGatewayEnabled: boolean;
-}
-
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
 
