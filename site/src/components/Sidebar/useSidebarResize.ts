@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 
 const EXPANDED_WIDTH = 240;
 const COLLAPSED_WIDTH = 64;
-const SNAP_THRESHOLD = 148;
 
 function readCollapsed(key: string): boolean {
 	try {
@@ -56,13 +55,15 @@ export function useSidebarResize(
 
 			containerRef.current = container;
 			const startLeft = container.getBoundingClientRect().left;
+			const startWidth = container.getBoundingClientRect().width;
+			let moved = false;
 
 			// Kill the CSS transition so DOM writes are instant.
 			container.style.transition = "none";
 
 			const handlePointerMove = (moveEvent: PointerEvent) => {
+				moved = true;
 				const rawWidth = moveEvent.clientX - startLeft;
-				// Clamp between collapsed and expanded, tracking 1:1.
 				const clamped = Math.max(
 					COLLAPSED_WIDTH,
 					Math.min(rawWidth, EXPANDED_WIDTH),
@@ -76,12 +77,19 @@ export function useSidebarResize(
 				document.body.style.cursor = "";
 				document.body.style.userSelect = "";
 
-				// Read the final width from the DOM and snap.
 				const finalWidth = container.getBoundingClientRect().width;
-				const shouldCollapse = finalWidth < SNAP_THRESHOLD;
+
+				// Any drag movement in the correct direction completes
+				// the transition. No large threshold needed.
+				let shouldCollapse: boolean;
+				if (!moved) {
+					// Click without drag — toggle.
+					shouldCollapse = !collapsed;
+				} else {
+					shouldCollapse = finalWidth < startWidth;
+				}
 				const snapWidth = shouldCollapse ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-				// Re-enable transition for the snap animation.
 				container.style.transition = "";
 				container.style.width = `${snapWidth}px`;
 
@@ -89,7 +97,6 @@ export function useSidebarResize(
 				persistCollapsed(storageKey, shouldCollapse);
 				containerRef.current = null;
 			};
-
 			document.body.style.cursor = "col-resize";
 			document.body.style.userSelect = "none";
 			document.addEventListener("pointermove", handlePointerMove);
@@ -97,7 +104,7 @@ export function useSidebarResize(
 
 			return cleanup;
 		},
-		[storageKey],
+		[collapsed, storageKey],
 	);
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
