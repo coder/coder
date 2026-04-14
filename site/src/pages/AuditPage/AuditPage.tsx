@@ -1,6 +1,8 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedAudits } from "#/api/queries/audits";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
@@ -21,6 +23,10 @@ const AuditPage: FC = () => {
 	const isAuditLogVisible = feats.audit_log || false;
 
 	const { showOrganizations } = useDashboard();
+
+	const configQuery = useQuery(deploymentConfig());
+	const dataProtectionEnabled =
+		configQuery.data?.config?.data_protection?.enabled;
 
 	/**
 	 * There is an implicit link between auditsQuery and filter via the
@@ -44,6 +50,7 @@ const AuditPage: FC = () => {
 				...filter.values,
 				username: option?.value,
 			}),
+		enabled: !dataProtectionEnabled,
 	});
 
 	const actionMenu = useActionFilterMenu({
@@ -88,7 +95,7 @@ const AuditPage: FC = () => {
 					filter,
 					error: auditsQuery.error,
 					menus: {
-						user: userMenu,
+						user: dataProtectionEnabled ? undefined : userMenu,
 						action: actionMenu,
 						resourceType: resourceTypeMenu,
 						organization: showOrganizations ? organizationsMenu : undefined,
