@@ -401,7 +401,7 @@ func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.Clo
 	defer m.mu.Unlock()
 	m.coordination = b
 	for agentID := range m.connectionTimes {
-		err := client.Send(&proto.CoordinateRequest{
+		err := b.SendRequest(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 		})
 		if err != nil {
@@ -426,7 +426,7 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 		m.logger.Debug(context.Background(),
 			"subscribing to agent", slog.F("agent_id", agentID))
 		if m.coordination != nil {
-			err := m.coordination.Client.Send(&proto.CoordinateRequest{
+			err := m.coordination.SendRequest(&proto.CoordinateRequest{
 				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 			})
 			if err != nil {
