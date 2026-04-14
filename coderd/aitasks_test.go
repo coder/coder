@@ -1512,6 +1512,92 @@ func TestTasksCreate(t *testing.T) {
 		require.Len(t, parameters, 0)
 	})
 
+	t.Run("SupportsRequiredTemplateParameters", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			taskPrompt = "Some task prompt"
+		)
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		_, err := db.InsertTemplateVersionParameter(dbauthz.AsSystemRestricted(ctx), database.InsertTemplateVersionParameterParams{
+			TemplateVersionID:   version.ID,
+			Name:                "anthropic_api_key",
+			Description:         "API key",
+			Type:                "string",
+			FormType:            database.ParameterFormTypeInput,
+			Mutable:             false,
+			DefaultValue:        "",
+			Icon:                "",
+			Options:             json.RawMessage("[]"),
+			ValidationRegex:     "",
+			ValidationMin:       sql.NullInt32{},
+			ValidationMax:       sql.NullInt32{},
+			ValidationError:     "",
+			ValidationMonotonic: "",
+			Required:            true,
+			DisplayName:         "Anthropic API Key",
+			DisplayOrder:        1,
+			Ephemeral:           false,
+		})
+		require.NoError(t, err)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		_, err = client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             taskPrompt,
+		})
+		require.Error(t, err)
+		var missingParamErr *codersdk.Error
+		require.ErrorAs(t, err, &missingParamErr)
+		require.Equal(t, http.StatusBadRequest, missingParamErr.StatusCode())
+
+		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             taskPrompt,
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{{
+				Name:  "anthropic_api_key",
+				Value: "test-api-key",
+			}},
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
+
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		parameters, err := client.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, parameters, codersdk.WorkspaceBuildParameter{
+			Name:  "anthropic_api_key",
+			Value: "test-api-key",
+		})
+
+		dbTask, err := db.GetTaskByID(dbauthz.AsSystemRestricted(ctx), task.ID)
+		require.NoError(t, err)
+
+		var gotParams map[string]string
+		err = json.Unmarshal(dbTask.TemplateParameters, &gotParams)
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"anthropic_api_key": "test-api-key"}, gotParams)
+	})
+
 	t.Run("CustomNames", func(t *testing.T) {
 		t.Parallel()
 
