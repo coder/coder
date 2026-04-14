@@ -170,7 +170,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 									</TableRow>
 								);
 							})}
-						</TableBody>{" "}
+						</TableBody>
 					</Table>
 				) : (
 					<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
