@@ -3,6 +3,7 @@ import { type FC, useCallback, useEffect, useState } from "react";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
 import { SettingsSidebarNavItem as BaseSidebarNavItem } from "#/components/Sidebar/Sidebar";
 import { SidebarAccordion } from "#/components/Sidebar/SidebarAccordion";
+import { useSidebarContext } from "#/components/Sidebar/SidebarContext";
 import type { Permissions } from "#/modules/permissions";
 import { isDevBuild } from "#/utils/buildInfo";
 import type { DeploymentSection } from "./useActiveDeploymentSection";
@@ -34,6 +35,8 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	buildInfo,
 	activeSection,
 }) => {
+	const { collapsed } = useSidebarContext();
+
 	// Track which sections are open as a Set so multiple can be
 	// expanded at the same time via the accordion headers.
 	const [openSections, setOpenSections] = useState<Set<DeploymentSection>>(
@@ -60,6 +63,11 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-1">
+			{!collapsed && (
+				<span className="text-xs text-content-disabled uppercase tracking-wider px-3 mb-1">
+					Deployment
+				</span>
+			)}
 			{/* General */}
 			<SidebarAccordion
 				icon={Settings}
