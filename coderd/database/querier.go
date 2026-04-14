@@ -219,6 +219,12 @@ type sqlcQuerier interface {
 	// 2. Copies all non-deleted messages up to the given message ID.
 	// 3. Copies all file links from the source chat.
 	// The new chat is set to 'waiting' status with ancestor lineage recorded.
+	//
+	// Note: forked chats intentionally do not set parent_chat_id or
+	// root_chat_id. Fork ancestry is tracked separately via
+	// ancestor_chat_id/ancestor_message_id, so forks are independent
+	// top-level chats that won't cascade with archive/unarchive
+	// operations on the source.
 	ForkChat(ctx context.Context, arg ForkChatParams) (ForkChatRow, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
 	// Look up the parent interception and the root of the thread by finding

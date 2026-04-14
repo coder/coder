@@ -135,7 +135,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						{parentChat && (
+						{parentChat && parentChat.id !== ancestorChat?.id && (
 							<>
 								<Button
 									asChild

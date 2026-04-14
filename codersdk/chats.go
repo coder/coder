@@ -433,7 +433,7 @@ type UpdateChatRequest struct {
 
 // ForkChatRequest is the request to fork a chat at a specific message.
 type ForkChatRequest struct {
-	MessageID int64 `json:"message_id"`
+	MessageID int64 `json:"message_id" validate:"required,gt=0"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message

@@ -875,6 +875,30 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	}
 }
 
+func TestChat_AncestorMessageIDOmittedWithoutChatID(t *testing.T) {
+	t.Parallel()
+
+	// When ancestor_chat_id is NULL but ancestor_message_id has a value,
+	// the SDK should omit ancestor_message_id (it's only meaningful
+	// with a valid ancestor_chat_id).
+	dbChat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		OrganizationID:    uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "null-ancestor-test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+		AncestorChatID:    uuid.NullUUID{Valid: false},
+		AncestorMessageID: sql.NullInt64{Int64: 42, Valid: true},
+	}
+
+	sdkChat := db2sdk.Chat(dbChat, nil, nil)
+	require.Nil(t, sdkChat.AncestorChatID, "AncestorChatID should be nil")
+	require.Nil(t, sdkChat.AncestorMessageID, "AncestorMessageID should be nil when AncestorChatID is nil")
+}
+
 func TestChat_FileMetadataConversion(t *testing.T) {
 	t.Parallel()
 

@@ -2516,16 +2516,17 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req codersdk.ForkChatRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	// Also check that the user can create chats in this org. This
+	// mirrors the defense-in-depth check in dbauthz.ForkChat but
+	// surfaces a clean 404 instead of an opaque 500 on permission
+	// failure.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(chat.OwnerID.String()).InOrg(chat.OrganizationID)) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	if req.MessageID <= 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid message ID.",
-			Detail:  "message_id must be a positive integer.",
-		})
+	var req codersdk.ForkChatRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 

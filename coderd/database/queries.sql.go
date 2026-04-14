@@ -5357,6 +5357,12 @@ type ForkChatRow struct {
 //  3. Copies all file links from the source chat.
 //
 // The new chat is set to 'waiting' status with ancestor lineage recorded.
+//
+// Note: forked chats intentionally do not set parent_chat_id or
+// root_chat_id. Fork ancestry is tracked separately via
+// ancestor_chat_id/ancestor_message_id, so forks are independent
+// top-level chats that won't cascade with archive/unarchive
+// operations on the source.
 func (q *sqlQuerier) ForkChat(ctx context.Context, arg ForkChatParams) (ForkChatRow, error) {
 	row := q.db.QueryRowContext(ctx, forkChat, arg.Title, arg.SourceChatID, arg.UpToMessageID)
 	var i ForkChatRow
