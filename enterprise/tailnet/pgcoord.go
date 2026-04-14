@@ -332,11 +332,15 @@ func (t *tunneler) worker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, t.ctx)
 	for {
+		waitStart := time.Now()
 		tk, err := t.workQ.acquire()
 		if err != nil {
 			// context expired
 			return
 		}
+		t.logger.Debug(t.ctx, "tunneler worker acquired item",
+			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
+		)
 		err = backoff.Retry(func() error {
 			tun := t.retrieve(tk)
 			return t.writeOne(tun)
