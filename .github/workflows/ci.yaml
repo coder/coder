@@ -105,7 +105,7 @@ jobs:
               - "scripts/helm.sh"
             ci:
               - ".github/actions/**"
-              - ".github/workflows/ci.yaml"
+              - ".github/workflows/**"
             offlinedocs:
               - "offlinedocs/**"
             tailnet-integration:

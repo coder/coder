@@ -48,6 +48,7 @@ jobs:
         with:
           # Full history required for cherry-pick and branch discovery.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Cherry-pick and open PR
         env:
