@@ -214,6 +214,8 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 				items[i].Initiator.Name = ""
 				items[i].Initiator.AvatarURL = ""
 			}
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
 		}
 	}
 
@@ -365,6 +367,8 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 				sessions[i].Initiator.Name = ""
 				sessions[i].Initiator.AvatarURL = ""
 			}
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
 		}
 	}
 
@@ -575,6 +579,8 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 			resp.Initiator.Username = dataprotection.PseudoUsername(pid)
 			resp.Initiator.Name = ""
 			resp.Initiator.AvatarURL = ""
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
 		}
 	}
 

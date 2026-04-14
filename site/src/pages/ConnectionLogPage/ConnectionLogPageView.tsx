@@ -41,6 +41,7 @@ interface ConnectionLogPageViewProps {
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
 	dataProtectionEnabled?: boolean;
+	isAuditor?: boolean;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
@@ -51,6 +52,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	filterProps,
 	connectionLogsQuery: paginationResult,
 	dataProtectionEnabled,
+	isAuditor,
 }) => {
 	const isLoading =
 		(connectionLogs === undefined ||
@@ -71,7 +73,10 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
 			</PageHeader>
 
-			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
 
 			<ChooseOne>
 				<Cond condition={isConnectionLogVisible}>

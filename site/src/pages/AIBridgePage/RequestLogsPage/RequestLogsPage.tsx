@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedInterceptions } from "#/api/queries/aiBridge";
-import { deploymentConfig } from "#/api/queries/deployment";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
@@ -31,9 +31,9 @@ const RequestLogsPage: FC = () => {
 	const hasPermission = permissions.viewAnyAIBridgeInterception;
 	const canViewRequestLogs = isEntitled && hasPermission;
 
-	const configQuery = useQuery(deploymentConfig());
-	const dataProtectionEnabled =
-		configQuery.data?.config?.data_protection?.enabled;
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const interceptionsQuery = usePaginatedQuery({
@@ -87,7 +87,10 @@ const RequestLogsPage: FC = () => {
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
 
-			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}

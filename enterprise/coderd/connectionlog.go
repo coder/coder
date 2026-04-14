@@ -121,6 +121,8 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 				logs[i].WorkspaceOwnerID = pid
 				logs[i].WorkspaceOwnerUsername = fmt.Sprintf("Protected User %s", pid.String()[:8])
 			}
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
 		}
 	}
 

@@ -839,7 +839,8 @@ func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, 
 // receive obfuscated user data under Data Protection Mode. It looks
 // up the requesting user's email and checks it against the configured
 // auditor list. Returns false when DPM is disabled or the user is an
-// auditor.
+// auditor. When an auditor accesses unobfuscated data, the access is
+// recorded in the audit log.
 func (api *API) shouldObfuscateInsights(r *http.Request) bool {
 	if api.DataProtection == nil || !api.DataProtection.Enabled {
 		return false
@@ -852,5 +853,58 @@ func (api *API) shouldObfuscateInsights(r *http.Request) bool {
 		// safety.
 		return true
 	}
-	return api.DataProtection.ShouldObfuscate(user.Email)
+	if api.DataProtection.ShouldObfuscate(user.Email) {
+		return true
+	}
+	// The user is a designated DPM auditor — log their access to
+	// unobfuscated data.
+	api.LogDataProtectionAccess(r, user.ID, r.URL.Path)
+	return false
+}
+
+// LogDataProtectionAccess records an audit event when a designated
+// auditor views unobfuscated user data under Data Protection Mode.
+func (api *API) LogDataProtectionAccess(r *http.Request, userID uuid.UUID, resource string) {
+	ip := database.ParseIP(r.RemoteAddr)
+	auditLog := database.AuditLog{
+		ID:               uuid.New(),
+		Time:             dbtime.Now(),
+		UserID:           userID,
+		Ip:               ip,
+		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
+		ResourceType:     database.ResourceTypeUser,
+		ResourceID:       userID,
+		ResourceTarget:   resource,
+		Action:           database.AuditActionDataProtectionAccess,
+		Diff:             []byte("{}"),
+		StatusCode:       http.StatusOK,
+		AdditionalFields: []byte(`{"data_protection_mode": true}`),
+		RequestID:        httpmw.RequestID(r),
+		ResourceIcon:     "",
+	}
+	err := (*api.Auditor.Load()).Export(r.Context(), auditLog)
+	if err != nil {
+		api.Logger.Warn(r.Context(), "failed to export DPM audit log")
+	}
+}
+
+// dataProtectionStatus returns the Data Protection Mode status for
+// the current user: whether DPM is enabled and whether the user is
+// a designated auditor.
+func (api *API) dataProtectionStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	enabled := api.DataProtection != nil && api.DataProtection.Enabled
+	auditor := false
+	if enabled {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if err == nil {
+			auditor = api.DataProtection.IsAuditor(user.Email)
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.DataProtectionStatus{
+		Enabled: enabled,
+		Auditor: auditor,
+	})
 }

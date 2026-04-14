@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedAudits } from "#/api/queries/audits";
-import { deploymentConfig } from "#/api/queries/deployment";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
@@ -24,9 +24,9 @@ const AuditPage: FC = () => {
 
 	const { showOrganizations } = useDashboard();
 
-	const configQuery = useQuery(deploymentConfig());
-	const dataProtectionEnabled =
-		configQuery.data?.config?.data_protection?.enabled;
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
 
 	/**
 	 * There is an implicit link between auditsQuery and filter via the
@@ -102,6 +102,7 @@ const AuditPage: FC = () => {
 					},
 				}}
 				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
 			/>
 		</>
 	);

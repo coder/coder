@@ -42,6 +42,7 @@ interface AuditPageViewProps {
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
 	dataProtectionEnabled?: boolean;
+	isAuditor?: boolean;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -53,6 +54,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	auditsQuery: paginationResult,
 	showOrgDetails,
 	dataProtectionEnabled,
+	isAuditor,
 }) => {
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -72,7 +74,10 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
 			</PageHeader>
 
-			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
 
 			<ChooseOne>
 				<Cond condition={isAuditLogVisible}>

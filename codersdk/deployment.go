@@ -756,6 +756,13 @@ type DataProtectionConfig struct {
 	MinGroupSize serpent.Int64       `json:"min_group_size,omitempty" typescript:",notnull"`
 }
 
+// DataProtectionStatus is the per-request DPM status returned by
+// GET /deployment/data-protection-status.
+type DataProtectionStatus struct {
+	Enabled bool `json:"enabled"`
+	Auditor bool `json:"auditor"`
+}
+
 type PrometheusConfig struct {
 	Enable                serpent.Bool        `json:"enable" typescript:",notnull"`
 	Address               serpent.HostPort    `json:"address" typescript:",notnull"`

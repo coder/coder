@@ -15,7 +15,7 @@ import {
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { deploymentConfig } from "#/api/queries/deployment";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import {
 	insightsTemplate,
 	insightsUserActivity,
@@ -115,9 +115,9 @@ export default function TemplateInsightsPage() {
 		enabled: canViewInsights,
 	});
 
-	const configQuery = useQuery(deploymentConfig());
-	const dataProtectionEnabled =
-		configQuery.data?.config?.data_protection?.enabled;
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
 
 	return (
 		<RequirePermission isFeatureVisible={canViewInsights}>
@@ -138,6 +138,7 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
 			/>
 		</RequirePermission>
 	);
@@ -239,6 +240,7 @@ interface TemplateInsightsPageViewProps {
 	controls: ReactNode;
 	interval: InsightsInterval;
 	dataProtectionEnabled: boolean | undefined;
+	isAuditor: boolean | undefined;
 }
 
 export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
@@ -248,10 +250,14 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	controls,
 	interval,
 	dataProtectionEnabled,
+	isAuditor,
 }) => {
 	return (
 		<>
-			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>
 			<div className="grid gap-6 grid-cols-3 grid-rows-[440px_440px_auto]">
 				<ActiveUsersPanel

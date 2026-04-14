@@ -2,7 +2,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { prInsights } from "#/api/queries/chats";
-import { deploymentConfig } from "#/api/queries/deployment";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -26,9 +26,9 @@ function timeRangeToDates(range: PRInsightsTimeRange, anchor: Dayjs) {
 const AgentSettingsInsightsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 
-	const configQuery = useQuery(deploymentConfig());
-	const dataProtectionEnabled =
-		configQuery.data?.config?.data_protection?.enabled;
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
 
 	const [selection, setSelection] = useState<TimeRangeSelection>(() => ({
 		timeRange: "30d",
@@ -49,7 +49,10 @@ const AgentSettingsInsightsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<DataProtectionBanner dataProtectionEnabled={dataProtectionEnabled} />
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
 			<InsightsContent
 				data={data}
 				isLoading={isLoading}

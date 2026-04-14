@@ -1501,9 +1501,9 @@
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                        |
-|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `close`, `connect`, `create`, `delete`, `disconnect`, `login`, `logout`, `open`, `register`, `request_password_reset`, `start`, `stop`, `write` |
+| Value(s)                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `close`, `connect`, `create`, `data_protection_access`, `delete`, `disconnect`, `login`, `logout`, `open`, `register`, `request_password_reset`, `start`, `stop`, `write` |
 
 ## codersdk.AuditDiff
 

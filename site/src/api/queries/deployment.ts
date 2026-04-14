@@ -25,6 +25,13 @@ export const deploymentStats = () => {
 	};
 };
 
+export const dataProtectionStatus = () => {
+	return {
+		queryKey: ["deployment", "dataProtectionStatus"],
+		queryFn: API.getDataProtectionStatus,
+	};
+};
+
 export const deploymentSSHConfig = () => {
 	return {
 		...disabledRefetchOptions,

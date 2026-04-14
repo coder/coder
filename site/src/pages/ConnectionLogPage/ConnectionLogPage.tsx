@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedConnectionLogs } from "#/api/queries/connectionlog";
-import { deploymentConfig } from "#/api/queries/deployment";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
@@ -25,9 +25,9 @@ const ConnectionLogPage: FC = () => {
 
 	const { showOrganizations } = useDashboard();
 
-	const configQuery = useQuery(deploymentConfig());
-	const dataProtectionEnabled =
-		configQuery.data?.config?.data_protection?.enabled;
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const connectionlogsQuery = usePaginatedQuery(
@@ -97,6 +97,7 @@ const ConnectionLogPage: FC = () => {
 					},
 				}}
 				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
 			/>
 		</>
 	);

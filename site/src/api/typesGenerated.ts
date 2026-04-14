@@ -835,6 +835,7 @@ export type AuditAction =
 	| "close"
 	| "connect"
 	| "create"
+	| "data_protection_access"
 	| "delete"
 	| "disconnect"
 	| "login"
@@ -850,6 +851,7 @@ export const AuditActions: AuditAction[] = [
 	"close",
 	"connect",
 	"create",
+	"data_protection_access",
 	"delete",
 	"disconnect",
 	"login",
@@ -2932,6 +2934,16 @@ export interface DataProtectionConfig {
 	readonly enabled?: boolean;
 	readonly auditors?: string;
 	readonly min_group_size?: number;
+}
+
+// From codersdk/deployment.go
+/**
+ * DataProtectionStatus is the per-request DPM status returned by
+ * GET /deployment/data-protection-status.
+ */
+export interface DataProtectionStatus {
+	readonly enabled: boolean;
+	readonly auditor: boolean;
 }
 
 // From codersdk/database.go

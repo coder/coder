@@ -1,0 +1,2 @@
+-- The 'data_protection_access' audit action value cannot be removed from
+-- the enum once added. This is a no-op down migration.
