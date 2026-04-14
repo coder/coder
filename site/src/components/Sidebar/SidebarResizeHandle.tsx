@@ -54,8 +54,8 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
 			className={cn(
-				// Centered on the 1px border at the nav's right edge.
-				"absolute top-0 -right-1 h-full w-2 cursor-col-resize z-10",
+				// 8px buffer on each side of the 1px border line.
+				"absolute top-0 -right-2 h-full w-4 cursor-col-resize z-10",
 				"flex items-center justify-center",
 			)}
 		>

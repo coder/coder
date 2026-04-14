@@ -24,8 +24,8 @@ interface SidebarAccordionProps {
 
 /**
  * A single accordion section in the sidebar. Both collapsed and
- * expanded states use identical left padding (0) so icons always
- * sit at the nav's pl-6 boundary, aligned with the Coder logo.
+ * expanded states use identical px-3 py-2 padding so icons stay
+ * at the same vertical position regardless of state.
  */
 export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	icon: Icon,
@@ -44,10 +44,10 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 						<button
 							type="button"
 							onClick={onToggle}
-							className="flex items-center py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
+							className="flex items-center px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 						>
-							<Icon className="size-4 flex-shrink-0 text-content-secondary -ml-px" />
-						</button>{" "}
+							<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+						</button>
 					</TooltipTrigger>
 					<TooltipContent side="right">{label}</TooltipContent>
 				</Tooltip>
@@ -60,9 +60,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 			<CollapsibleTrigger asChild>
 				<button
 					type="button"
-					className="flex w-full items-center gap-2 py-2 pr-3 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
+					className="flex w-full items-center gap-2 px-3 py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
-					<Icon className="size-4 flex-shrink-0 text-content-secondary -ml-px" />
+					<Icon className="size-4 flex-shrink-0 text-content-secondary" />
 					<span
 						className={cn(
 							"text-sm font-medium text-content-secondary whitespace-nowrap",
