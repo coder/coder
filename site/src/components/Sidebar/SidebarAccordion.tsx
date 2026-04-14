@@ -46,8 +46,8 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 							onClick={onToggle}
 							className="flex items-center py-2 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
 						>
-							<Icon className="size-4 flex-shrink-0 text-content-secondary" />
-						</button>
+							<Icon className="size-4 flex-shrink-0 text-content-secondary -ml-px" />
+						</button>{" "}
 					</TooltipTrigger>
 					<TooltipContent side="right">{label}</TooltipContent>
 				</Tooltip>
@@ -62,7 +62,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 					type="button"
 					className="flex w-full items-center gap-2 py-2 pr-3 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
-					<Icon className="size-4 flex-shrink-0 text-content-secondary" />
+					<Icon className="size-4 flex-shrink-0 text-content-secondary -ml-px" />
 					<span
 						className={cn(
 							"text-sm font-medium text-content-secondary whitespace-nowrap",

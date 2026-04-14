@@ -15,6 +15,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 }) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [mouseY, setMouseY] = useState<number | null>(null);
+	const [hovered, setHovered] = useState(false);
 
 	const handleMouseMove = useCallback((e: React.MouseEvent) => {
 		const rect = containerRef.current?.getBoundingClientRect();
@@ -23,22 +24,23 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		}
 	}, []);
 
+	const handleMouseEnter = useCallback(() => {
+		setHovered(true);
+	}, []);
+
 	const handleMouseLeave = useCallback(() => {
+		setHovered(false);
 		setMouseY(null);
 	}, []);
 
-	// Build a radial gradient mask centered on the cursor so the
-	// glow fades to transparent 150px above and below.
-	const glowStyle =
+	// Build a gradient mask centered on the cursor. When the mouse
+	// isn't hovering, use a fully transparent mask so there's no
+	// flash when leaving (avoids the brief full-line flicker that
+	// occurs if we switch to mask:none while opacity transitions).
+	const maskGradient =
 		mouseY !== null
-			? {
-					maskImage: `linear-gradient(to bottom, transparent ${mouseY - 150}px, white ${mouseY - 80}px, white ${mouseY + 80}px, transparent ${mouseY + 150}px)`,
-					WebkitMaskImage: `linear-gradient(to bottom, transparent ${mouseY - 150}px, white ${mouseY - 80}px, white ${mouseY + 80}px, transparent ${mouseY + 150}px)`,
-				}
-			: {
-					maskImage: "none",
-					WebkitMaskImage: "none",
-				};
+			? `linear-gradient(to bottom, transparent ${mouseY - 150}px, white ${mouseY - 80}px, white ${mouseY + 80}px, transparent ${mouseY + 150}px)`
+			: "linear-gradient(transparent, transparent)";
 
 	return (
 		<div
@@ -49,22 +51,22 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			tabIndex={0}
 			onPointerDown={onDragStart}
 			onMouseMove={handleMouseMove}
+			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
 			className={cn(
 				// Centered on the 1px border at the nav's right edge.
 				"absolute top-0 -right-1 h-full w-2 cursor-col-resize z-10",
 				"flex items-center justify-center",
-				"group",
 			)}
 		>
 			<div
-				className={cn(
-					"h-full w-[2px] rounded-full",
-					"bg-content-secondary opacity-0",
-					"transition-opacity duration-150",
-					"group-hover:opacity-40 group-active:opacity-70",
-				)}
-				style={glowStyle}
+				className="h-full w-[2px] rounded-full bg-content-secondary"
+				style={{
+					opacity: hovered ? 0.4 : 0,
+					transition: "opacity 150ms",
+					maskImage: maskGradient,
+					WebkitMaskImage: maskGradient,
+				}}
 			/>
 		</div>
 	);
