@@ -37,6 +37,17 @@ function restorePersistedAttachments(currentOrgId: string): {
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
+	// When the org ID is not yet known (e.g. still loading), skip
+	// restoration entirely so we don't accidentally prune valid
+	// entries. The initializer only runs once, so the caller must
+	// ensure the org ID is available before mounting the hook.
+	if (!currentOrgId) {
+		return {
+			attachments: [],
+			uploadStates: new Map(),
+			previewUrls: new Map(),
+		};
+	}
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
 	if (!stored) {
 		return {
