@@ -546,10 +546,11 @@ func TestAdvanceChatRunGenerationAndUpdateStatus(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
 		Title:              "generation-advance",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
