@@ -39,8 +39,7 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
-import { getDisplayWorkspaceStatus } from "#/utils/workspace";
-import { StatusIcon } from "./StatusIcon";
+import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 
 interface WorkspacePillProps {
 	workspace: Workspace;
@@ -62,31 +61,11 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
-	let { type, text } = getDisplayWorkspaceStatus(
-		workspace.latest_build.status,
-		workspace.latest_build.job,
-	);
+	const { effectiveType, statusLabel } = getWorkspaceStatus(workspace, agent);
 
-	const agentPreparing =
-		workspace.latest_build.status === "running" &&
-		(agent?.lifecycle_state === "created" ||
-			agent?.lifecycle_state === "starting");
-	const agentStartupFailed =
-		workspace.latest_build.status === "running" &&
-		(agent?.lifecycle_state === "start_error" ||
-			agent?.lifecycle_state === "start_timeout");
-	if (agentPreparing) {
-		type = "active";
-		text = "Preparing";
-	} else if (agentStartupFailed) {
-		type = "warning";
-		text = "Startup failed";
-	}
-
-	const effectiveType = workspace.health.healthy ? type : "warning";
-	const statusLabel = workspace.health.healthy
-		? `Workspace ${text.toLowerCase()}`
-		: `Workspace ${text.toLowerCase()} (unhealthy)`;
+	const { mutate: generateKey, isPending: isGeneratingKey } = useMutation({
+		mutationFn: () => API.getApiKey(),
+	});
 
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
@@ -120,8 +99,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						>
 							<StatusIcon type={effectiveType} /> {workspace.name}
 							{/* The menu opens upward (side="top"), so the chevron
-							   points toward the menu when closed (default) and
-							   away when open (rotate-180). */}
+							   points away from the menu when closed (default) and
+							   toward it when open (rotate-180). */}
 							<ChevronDownIcon
 								className={cn(
 									"size-3 opacity-60 transition-transform",
@@ -141,23 +120,27 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				{hasVSCode && (
 					<VSCodeMenuItem
 						variant="vscode"
-						label="Open in VS Code"
+						label="VS Code"
 						workspace={workspace}
 						agent={agent}
 						chatId={chatId}
 						folder={folder}
 						isRunning={isRunning}
+						generateKey={generateKey}
+						isGeneratingKey={isGeneratingKey}
 					/>
 				)}
 				{hasVSCodeInsiders && (
 					<VSCodeMenuItem
 						variant="vscode-insiders"
-						label="Open in VS Code Insiders"
+						label="VS Code Insiders"
 						workspace={workspace}
 						agent={agent}
 						chatId={chatId}
 						folder={folder}
 						isRunning={isRunning}
+						generateKey={generateKey}
+						isGeneratingKey={isGeneratingKey}
 					/>
 				)}
 				{userApps.map((app) => (
@@ -197,32 +180,50 @@ const VSCodeMenuItem: FC<{
 	chatId: string;
 	folder?: string;
 	isRunning: boolean;
-}> = ({ variant, label, workspace, agent, chatId, folder, isRunning }) => {
-	const { mutate: generateKey, isPending } = useMutation({
-		mutationFn: () => API.getApiKey(),
-		onSuccess: ({ key }) => {
-			location.href = getVSCodeHref(variant, {
-				owner: workspace.owner_name,
-				workspace: workspace.name,
-				token: key,
-				agent: agent.name,
-				folder: folder ?? agent.expanded_directory,
-				chatId,
-			});
+	generateKey: (
+		variables: undefined,
+		options: {
+			onSuccess: (data: { key: string }) => void;
+			onError: () => void;
 		},
-		onError: () => {
-			toast.error(`Failed to open ${label}.`);
-		},
-	});
-
+	) => void;
+	isGeneratingKey: boolean;
+}> = ({
+	variant,
+	label,
+	workspace,
+	agent,
+	chatId,
+	folder,
+	isRunning,
+	generateKey,
+	isGeneratingKey,
+}) => {
 	const handleClick = () => {
-		generateKey();
+		generateKey(undefined, {
+			onSuccess: ({ key }) => {
+				location.href = getVSCodeHref(variant, {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					token: key,
+					agent: agent.name,
+					folder: folder ?? agent.expanded_directory,
+					chatId,
+				});
+			},
+			onError: () => {
+				toast.error(`Failed to open ${label}.`);
+			},
+		});
 	};
 
 	return (
-		<DropdownMenuItem onSelect={handleClick} disabled={isPending || !isRunning}>
+		<DropdownMenuItem
+			onSelect={handleClick}
+			disabled={isGeneratingKey || !isRunning}
+		>
 			<ExternalLinkIcon className="size-3.5" />
-			{label}
+			Open in {label}
 		</DropdownMenuItem>
 	);
 };

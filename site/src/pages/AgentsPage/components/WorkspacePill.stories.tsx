@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockStoppedWorkspace,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { withProxyProvider } from "#/testHelpers/storybook";
 import { WorkspacePill } from "./WorkspacePill";
 
@@ -229,6 +233,44 @@ export const WithHiddenApp: Story = {
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			// Hidden app should NOT appear.
 			expect(body.queryByText("Hidden Internal Tool")).not.toBeInTheDocument();
+		});
+	},
+};
+
+/** Stopped workspace — VS Code and terminal items should be disabled. */
+export const WithStoppedWorkspace: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockStoppedWorkspace,
+		agent: agentWithApps,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = canvas.getByText(MockStoppedWorkspace.name);
+		await userEvent.click(pill);
+
+		await waitFor(() => {
+			const body = within(document.body);
+
+			// VS Code items should be present but disabled.
+			const vscodeItem = body
+				.getByText("Open in VS Code")
+				.closest("[role=menuitem]");
+			expect(vscodeItem).toHaveAttribute("aria-disabled", "true");
+
+			const vscodeInsidersItem = body
+				.getByText("Open in VS Code Insiders")
+				.closest("[role=menuitem]");
+			expect(vscodeInsidersItem).toHaveAttribute("aria-disabled", "true");
+
+			// Terminal item should be disabled.
+			const terminalItem = body
+				.getByText("Open Terminal")
+				.closest("[role=menuitem]");
+			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
+
+			// View Workspace link should still be accessible.
+			expect(body.getByText("View Workspace")).toBeInTheDocument();
 		});
 	},
 };

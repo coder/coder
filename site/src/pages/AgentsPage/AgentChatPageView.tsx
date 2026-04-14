@@ -14,7 +14,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -33,7 +32,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
-import { StatusIcon } from "./components/StatusIcon";
+import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -270,31 +269,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
 
-		let { type, text } = getDisplayWorkspaceStatus(
-			workspace.latest_build.status,
-			workspace.latest_build.job,
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
 		);
-
-		const agentPreparing =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "created" ||
-				workspaceAgent?.lifecycle_state === "starting");
-		const agentStartupFailed =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "start_error" ||
-				workspaceAgent?.lifecycle_state === "start_timeout");
-		if (agentPreparing) {
-			type = "active";
-			text = "Preparing";
-		} else if (agentStartupFailed) {
-			type = "warning";
-			text = "Startup failed";
-		}
-
-		const effectiveType = workspace.health.healthy ? type : "warning";
-		const statusLabel = workspace.health.healthy
-			? `Workspace ${text.toLowerCase()}`
-			: `Workspace ${text.toLowerCase()} (unhealthy)`;
 		const statusIcon = <StatusIcon type={effectiveType} />;
 		return {
 			name: workspace.name,
