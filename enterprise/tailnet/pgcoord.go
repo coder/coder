@@ -1650,9 +1650,10 @@ type heartbeats struct {
 	firstHeartbeat   chan<- struct{}
 	failedHeartbeats int
 
-	lock         sync.RWMutex
-	coordinators map[uuid.UUID]time.Time
-	timer        *quartz.Timer
+	lock            sync.RWMutex
+	coordinators    map[uuid.UUID]time.Time
+	lastDBHeartbeat map[uuid.UUID]time.Time
+	timer           *quartz.Timer
 
 	wg sync.WaitGroup
 
@@ -1675,8 +1676,9 @@ func newHeartbeats(
 		self:           self,
 		update:         update,
 		firstHeartbeat: firstHeartbeat,
-		coordinators:   make(map[uuid.UUID]time.Time),
-		clock:          clk,
+		coordinators:    make(map[uuid.UUID]time.Time),
+		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
+		clock:           clk,
 	}
 	h.wg.Add(3)
 	h.subscribe()
@@ -1809,15 +1811,72 @@ func (h *heartbeats) checkExpiry() {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	now := h.clock.Now()
-	expired := false
+
+	// Collect candidates that appear expired based on pubsub heartbeats.
+	threshold := MissedHeartbeats * HeartbeatPeriod
+	candidates := make(map[uuid.UUID]time.Duration)
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
 		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
-		if lastHB >= MissedHeartbeats*HeartbeatPeriod {
-			expired = true
-			delete(h.coordinators, id)
-			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+		if lastHB >= threshold {
+			candidates[id] = lastHB
 		}
+	}
+
+	// Before expiring, check the database for fresh heartbeats. Pubsub
+	// delivery can be delayed under load, causing false expirations even
+	// though the coordinator is still writing heartbeats to the database.
+	if len(candidates) > 0 {
+		dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
+		if err != nil {
+			h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
+			// Fall through — expire based on pubsub data only.
+		} else {
+			dbMap := make(map[uuid.UUID]time.Time, len(dbCoords))
+			for _, c := range dbCoords {
+				dbMap[c.ID] = c.HeartbeatAt
+			}
+			for id := range candidates {
+				dbTime, inDB := dbMap[id]
+				if !inDB {
+					continue
+				}
+				prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+				// Record the DB heartbeat time for future comparisons.
+				h.lastDBHeartbeat[id] = dbTime
+				if !hasPrev {
+					// First DB check for this coordinator. Record the
+					// baseline but don't recover — we have no previous
+					// value to compare against.
+					continue
+				}
+				if dbTime.After(prevDBTime) {
+					// The database shows a heartbeat newer than our
+					// last known DB value. The coordinator is still
+					// alive; pubsub delivery was delayed.
+					h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
+						slog.F("other_coordinator_id", id),
+						slog.F("db_heartbeat_at", dbTime),
+					)
+					h.coordinators[id] = now
+					delete(candidates, id)
+				}
+			}
+			// Update lastDBHeartbeat for non-candidate coordinators too,
+			// so we have a baseline for future comparisons.
+			for id := range h.coordinators {
+				if dbTime, ok := dbMap[id]; ok {
+					h.lastDBHeartbeat[id] = dbTime
+				}
+			}
+		}
+	}
+
+	expired := false
+	for id, lastHB := range candidates {
+		expired = true
+		delete(h.coordinators, id)
+		h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
 	}
 	if expired {
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
