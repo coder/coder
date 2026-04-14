@@ -324,6 +324,43 @@ export const WithOrganizationPicker: Story = {
 };
 
 /**
+ * Regression test for an infinite render loop caused by an unstable
+ * array reference in the `permittedOrgs` fallback. When
+ * `permittedOrgsQuery.data` is undefined (single-org mode or while
+ * loading), the fallback must be referentially stable — otherwise
+ * the render-time adjustment pattern fires `setState` every render,
+ * hitting React's maximum update depth limit.
+ *
+ * This story reproduces the conditions: multi-org enabled with the
+ * permission query still loading (data = undefined), so the
+ * fallback path is exercised. The `play` function types into the
+ * input to trigger re-renders that surface the loop.
+ */
+export const MultiOrgDoesNotInfiniteRender: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Verify the org picker rendered (component didn't crash).
+		await waitFor(() => {
+			expect(
+				canvas.getByTestId("organization-autocomplete"),
+			).toBeInTheDocument();
+		});
+		// Type into the chat input to trigger re-renders. If the
+		// permittedOrgs fallback is referentially unstable, this
+		// causes a render cascade that hits React's update limit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("hello world");
+		// The org picker should still be present after typing.
+		expect(canvas.getByTestId("organization-autocomplete")).toBeInTheDocument();
+	},
+};
+
+/**
  * Standalone story for the org-change confirmation dialog. Renders
  * the ConfirmDialog directly in its open state, following the same
  * pattern as DeleteConfirmationDialog in AgentsPageView.stories.
