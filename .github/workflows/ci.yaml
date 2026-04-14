@@ -1013,8 +1013,7 @@ jobs:
           egress-policy: audit
 
       - name: Ensure required checks
-        run:
-          | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
+        run: | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
           echo "Checking required checks"
           echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
@@ -1369,8 +1368,7 @@ jobs:
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
         if: github.ref == 'refs/heads/main'
-        run:
-          | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
           if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
             echo "::warning::GitHub attestation for main tag failed"
           fi
