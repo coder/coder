@@ -29,7 +29,7 @@ func (r *RootCmd) secrets() *serpent.Command {
 			},
 			Example{
 				Description: "Update a secret",
-				Command:     "MYCLI_API_KEY=\"$NEW_SECRET_VALUE\" coder secret update api-key --value-env MYCLI_API_KEY --description \"Rotated API key\" --env API_KEY --file \"~/.api-key\"",
+				Command:     "echo -n \"$NEW_SECRET_VALUE\" | coder secret update api-key --description \"Rotated API key\" --env API_KEY --file \"~/.api-key\"",
 			},
 			Example{
 				Description: "List your secrets",
@@ -60,18 +60,16 @@ func (r *RootCmd) secrets() *serpent.Command {
 
 func (r *RootCmd) secretCreate() *serpent.Command {
 	var (
-		value               string
-		valueEnv            string
-		description         string
-		env                 string
-		file                string
-		trimTrailingNewline bool
+		value       string
+		description string
+		env         string
+		file        string
 	)
 
 	cmd := &serpent.Command{
 		Use:   "create <name>",
 		Short: "Create a secret",
-		Long:  "Provide the secret value with --value, --value-env, or non-interactive stdin (pipe or redirect).",
+		Long:  "Provide the secret value with --value or non-interactive stdin (pipe or redirect).",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -79,20 +77,8 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 			{
 				Name:        "value",
 				Flag:        "value",
-				Description: "Set the secret value. For security reasons, prefer --value-env or non-interactive stdin (pipe or redirect).",
+				Description: "Set the secret value. For security reasons, prefer non-interactive stdin (pipe or redirect).",
 				Value:       serpent.StringOf(&value),
-			},
-			{
-				Name:        "value-env",
-				Flag:        "value-env",
-				Description: "Read the secret value from the named environment variable.",
-				Value:       serpent.StringOf(&valueEnv),
-			},
-			{
-				Name:        "trim-trailing-newline",
-				Flag:        "trim-trailing-newline",
-				Description: "Trim a single trailing newline from stdin-provided secret values.",
-				Value:       serpent.BoolOf(&trimTrailingNewline),
 			},
 			{
 				Name:        "description",
@@ -103,13 +89,13 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 			{
 				Name:        "env",
 				Flag:        "env",
-				Description: "Inject the secret into workspaces as an environment variable.",
+				Description: "Name of the workspace environment variable that this secret will set.",
 				Value:       serpent.StringOf(&env),
 			},
 			{
 				Name:        "file",
 				Flag:        "file",
-				Description: "Inject the secret into workspaces as a file.",
+				Description: "Workspace file path where this secret will be written. Must start with ~/ or /.",
 				Value:       serpent.StringOf(&file),
 			},
 		},
@@ -119,15 +105,15 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				return err
 			}
 
-			resolvedValue, ok, err := secretValue(inv, value, valueEnv, trimTrailingNewline)
+			resolvedValue, ok, err := secretValue(inv, value)
 			if err != nil {
 				return err
 			}
 			if !ok {
 				if isTTYIn(inv) {
-					return xerrors.New("secret value must be provided with --value, --value-env, or stdin via pipe or redirect")
+					return xerrors.New("secret value must be provided with --value or stdin via pipe or redirect")
 				}
-				return xerrors.New("secret value must be provided by exactly one of --value, --value-env, or non-interactive stdin (pipe or redirect)")
+				return xerrors.New("secret value must be provided by exactly one of --value or non-interactive stdin (pipe or redirect)")
 			}
 
 			secret, err := client.CreateUserSecret(inv.Context(), codersdk.Me, codersdk.CreateUserSecretRequest{
@@ -151,20 +137,18 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 
 func (r *RootCmd) secretUpdate() *serpent.Command {
 	var (
-		value               string
-		valueEnv            string
-		description         string
-		env                 string
-		file                string
-		trimTrailingNewline bool
+		value       string
+		description string
+		env         string
+		file        string
 	)
 
 	cmd := &serpent.Command{
 		Use:   "update <name>",
 		Short: "Update a secret",
 		Long: strings.Join([]string{
-			"At least one of --value, --value-env, --description, --env, or --file must be specified.",
-			"Provide the secret value by at most one of --value, --value-env, or non-interactive stdin (pipe or redirect).",
+			"At least one of --value, --description, --env, or --file must be specified.",
+			"Provide the secret value by at most one of --value or non-interactive stdin (pipe or redirect).",
 		}, " "),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
@@ -173,20 +157,8 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 			{
 				Name:        "value",
 				Flag:        "value",
-				Description: "Update the secret value. For security reasons, prefer --value-env or non-interactive stdin (pipe or redirect).",
+				Description: "Update the secret value. For security reasons, prefer non-interactive stdin (pipe or redirect).",
 				Value:       serpent.StringOf(&value),
-			},
-			{
-				Name:        "value-env",
-				Flag:        "value-env",
-				Description: "Read the updated secret value from the named environment variable.",
-				Value:       serpent.StringOf(&valueEnv),
-			},
-			{
-				Name:        "trim-trailing-newline",
-				Flag:        "trim-trailing-newline",
-				Description: "Trim a single trailing newline from stdin-provided secret values.",
-				Value:       serpent.BoolOf(&trimTrailingNewline),
 			},
 			{
 				Name:        "description",
@@ -197,13 +169,13 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 			{
 				Name:        "env",
 				Flag:        "env",
-				Description: "Update the environment variable injection target. Pass an empty string to clear it.",
+				Description: "Name of the workspace environment variable that this secret will set. Pass an empty string to clear it.",
 				Value:       serpent.StringOf(&env),
 			},
 			{
 				Name:        "file",
 				Flag:        "file",
-				Description: "Update the file injection target. Pass an empty string to clear it.",
+				Description: "Workspace file path where this secret will be written. Must start with ~/ or /. Pass an empty string to clear it.",
 				Value:       serpent.StringOf(&file),
 			},
 		},
@@ -214,7 +186,7 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 			}
 
 			req := codersdk.UpdateUserSecretRequest{}
-			resolvedValue, ok, err := secretValue(inv, value, valueEnv, trimTrailingNewline)
+			resolvedValue, ok, err := secretValue(inv, value)
 			if err != nil {
 				return err
 			}
@@ -264,21 +236,16 @@ var promptSecretTrimTrailingNewline = func(inv *serpent.Invocation) (bool, bool,
 	return answer == cliui.ConfirmYes, true, nil
 }
 
-//nolint:revive // The bool mirrors the CLI flag; avoiding it would add indirection without improving this flow.
-func secretValue(inv *serpent.Invocation, value string, valueEnv string, trimTrailingNewline bool) (string, bool, error) {
+func secretValue(inv *serpent.Invocation, value string) (string, bool, error) {
 	valueSource := optionValueSource(inv, "value")
-	valueEnvSource := optionValueSource(inv, "value-env")
 	stdinValue, stdinProvided, err := readInvocationStdin(inv)
 	if err != nil {
 		return "", false, err
 	}
 
-	sourceNames := make([]string, 0, 3)
+	sourceNames := make([]string, 0, 2)
 	if valueSource != serpent.ValueSourceNone && valueSource != serpent.ValueSourceDefault {
 		sourceNames = append(sourceNames, "--value")
-	}
-	if valueEnvSource != serpent.ValueSourceNone && valueEnvSource != serpent.ValueSourceDefault {
-		sourceNames = append(sourceNames, "--value-env")
 	}
 	if stdinProvided {
 		sourceNames = append(sourceNames, "stdin")
@@ -291,21 +258,8 @@ func secretValue(inv *serpent.Invocation, value string, valueEnv string, trimTra
 		return value, true, nil
 	}
 
-	if valueEnvSource != serpent.ValueSourceNone && valueEnvSource != serpent.ValueSourceDefault {
-		if valueEnv == "" {
-			return "", false, xerrors.New("environment variable name must be provided with --value-env")
-		}
-
-		envValue, ok := os.LookupEnv(valueEnv)
-		if !ok {
-			return "", false, xerrors.Errorf("environment variable %q is not set", valueEnv)
-		}
-
-		return envValue, true, nil
-	}
-
 	if stdinProvided {
-		resolvedStdinValue, err := resolveInvocationStdinValue(inv, stdinValue, trimTrailingNewline)
+		resolvedStdinValue, err := resolveInvocationStdinValue(inv, stdinValue)
 		if err != nil {
 			return "", false, err
 		}
@@ -331,14 +285,9 @@ func readInvocationStdin(inv *serpent.Invocation) (string, bool, error) {
 	return string(bytes), true, nil
 }
 
-//nolint:revive // The bool directly reflects the CLI flag and keeps the helper simple.
-func resolveInvocationStdinValue(inv *serpent.Invocation, value string, trimTrailingNewline bool) (string, error) {
+func resolveInvocationStdinValue(inv *serpent.Invocation, value string) (string, error) {
 	trimmedValue, suspiciousTrailingNewline := trimSingleTrailingNewline(value)
 	if suspiciousTrailingNewline {
-		if trimTrailingNewline {
-			return trimmedValue, nil
-		}
-
 		trim, prompted, err := promptSecretTrimTrailingNewline(inv)
 		if err != nil {
 			return "", err
@@ -386,7 +335,7 @@ func warnTrailingNewline(w io.Writer) {
 		w,
 		"stdin ends with a trailing newline.",
 		"Using echo often appends an unintended newline to the secret value.",
-		"Use printf %s or rerun with --trim-trailing-newline to remove it.",
+		"Use printf %s or echo -n if you do not want to store the newline.",
 	)
 }
 

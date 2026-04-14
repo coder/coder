@@ -58,10 +58,8 @@ printf %s "$API_KEY" | coder secret create api-key \
   --description "API key for workspace tools" \
   --env API_KEY
 
-# Create a secret from an environment variable and inject it into a file in
-# your workspace.
-MYCLI_TOOL_CONFIG="$TOOL_CONFIG_CONTENTS" coder secret create tool-config \
-  --value-env MYCLI_TOOL_CONFIG \
+# Create a secret from stdin and inject it into a file in your workspace.
+printf %s "$TOOL_CONFIG_CONTENTS" | coder secret create tool-config \
   --description "Tool configuration" \
   --file ~/.config/tool/config.json
 
@@ -77,10 +75,11 @@ coder secret delete api-key
 
 Use `--env` to inject a secret into your workspaces as an environment
 variable. Use `--file` to inject it as a file in the workspace. File
-paths must start with `~/` or `/`. Provide a secret value with `--value`, `--value-env`, or non-interactive stdin (pipe or redirect). Stdin is read verbatim. This means
-`echo "$API_KEY" | ...` usually adds a trailing newline to the stored value.
-Prefer `printf %s "$API_KEY" | ...`, or use `--trim-trailing-newline` if you
-intend to remove a single newline from stdin input.
+paths must start with `~/` or `/`. Provide a secret value with `--value`,
+or non-interactive stdin (pipe or redirect). Stdin is read verbatim. This
+means `echo "$API_KEY" | ...` usually adds a trailing newline to the stored
+value. Prefer `printf %s "$API_KEY" | ...` or `echo -n "$API_KEY" | ...`
+when you do not want that newline.
 
 You can update a secret later with `coder secret update`, including rotating
 the value or clearing an injection target by passing an empty string. Use

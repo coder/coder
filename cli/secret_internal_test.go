@@ -79,7 +79,7 @@ func TestResolveInvocationStdinValue(t *testing.T) {
 		var stderr bytes.Buffer
 		inv := newSecretTestInvocation(t, strings.NewReader("token\n"), &stderr)
 
-		got, err := resolveInvocationStdinValue(inv, "token\n", false)
+		got, err := resolveInvocationStdinValue(inv, "token\n")
 		require.NoError(t, err)
 		require.Equal(t, "token\n", got)
 		require.Contains(t, stderr.String(), "stdin ends with a trailing newline")
@@ -97,27 +97,10 @@ func TestResolveInvocationStdinValue(t *testing.T) {
 		var stderr bytes.Buffer
 		inv := newSecretTestInvocation(t, strings.NewReader("token\n"), &stderr)
 
-		got, err := resolveInvocationStdinValue(inv, "token\n", false)
+		got, err := resolveInvocationStdinValue(inv, "token\n")
 		require.NoError(t, err)
 		require.Equal(t, "token", got)
 		require.Empty(t, stderr.String())
-	})
-
-	t.Run("TrimFlagSkipsPrompt", func(t *testing.T) {
-		t.Parallel()
-
-		origPrompt := promptSecretTrimTrailingNewline
-		t.Cleanup(func() { promptSecretTrimTrailingNewline = origPrompt })
-		promptSecretTrimTrailingNewline = func(inv *serpent.Invocation) (bool, bool, error) {
-			t.Fatal("prompt should not be called when --trim-trailing-newline is set")
-			return false, false, nil
-		}
-
-		inv := newSecretTestInvocation(t, strings.NewReader("token\n"), nil)
-
-		got, err := resolveInvocationStdinValue(inv, "token\n", true)
-		require.NoError(t, err)
-		require.Equal(t, "token", got)
 	})
 }
 

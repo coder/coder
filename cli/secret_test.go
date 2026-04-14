@@ -16,8 +16,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-//nolint:tparallel // These tests mutate process env to verify case sensitivity.
 func TestSecretCreate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("MissingValue", func(t *testing.T) {
 		t.Parallel()
 
@@ -29,7 +30,7 @@ func TestSecretCreate(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "secret value must be provided by exactly one of --value, --value-env, or non-interactive stdin (pipe or redirect)")
+		require.ErrorContains(t, err, "secret value must be provided by exactly one of --value or non-interactive stdin (pipe or redirect)")
 	})
 
 	t.Run("MissingValueOnTTY", func(t *testing.T) {
@@ -43,7 +44,7 @@ func TestSecretCreate(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "secret value must be provided with --value, --value-env, or stdin via pipe or redirect")
+		require.ErrorContains(t, err, "secret value must be provided with --value or stdin via pipe or redirect")
 	})
 
 	t.Run("SuccessWithValueFlag", func(t *testing.T) {
@@ -78,56 +79,6 @@ func TestSecretCreate(t *testing.T) {
 		require.Equal(t, "~/.api-key", secret.FilePath)
 	})
 
-	t.Run("SuccessWithValueEnv", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		inv, root := clitest.New(
-			t,
-			"secret",
-			"create",
-			"api-key",
-			"--value-env", "MYCLI_API_KEY",
-			"--description", "API key for workspace tools",
-			"--env", "API_KEY",
-		)
-		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, client, root)
-		t.Setenv("MYCLI_API_KEY", "super-secret-value")
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err := inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-		require.Contains(t, output.Stdout(), "api-key")
-
-		secret, err := client.UserSecretByName(ctx, codersdk.Me, "api-key")
-		require.NoError(t, err)
-		require.Equal(t, "api-key", secret.Name)
-		require.Equal(t, "API key for workspace tools", secret.Description)
-		require.Equal(t, "API_KEY", secret.EnvName)
-	})
-
-	t.Run("ValueEnvUsesExactCase", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		inv, root := clitest.New(
-			t,
-			"secret",
-			"create",
-			"api-key",
-			"--value-env", "myApiKey",
-		)
-		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, client, root)
-		t.Setenv("myApiKey", "super-secret-value")
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err := inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-		require.Contains(t, output.Stdout(), "api-key")
-	})
-
 	t.Run("ValueFlagConflictsWithStdin", func(t *testing.T) {
 		t.Parallel()
 
@@ -147,26 +98,6 @@ func TestSecretCreate(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "secret value may be provided by only one source, got --value, stdin")
-	})
-
-	t.Run("ValueEnvConflictsWithStdin", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		inv, root := clitest.New(
-			t,
-			"secret",
-			"create",
-			"api-key",
-			"--value-env", "MYCLI_API_KEY",
-		)
-		clitest.SetupConfig(t, client, root)
-		t.Setenv("MYCLI_API_KEY", "super-secret-value")
-		inv.Stdin = strings.NewReader("different-value")
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "secret value may be provided by only one source, got --value-env, stdin")
 	})
 
 	t.Run("SuccessWithStdin", func(t *testing.T) {
@@ -211,32 +142,13 @@ func TestSecretCreate(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "secret value must be provided by exactly one of --value, --value-env, or non-interactive stdin (pipe or redirect)")
-	})
-
-	t.Run("MultipleExplicitValueSources", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		inv, root := clitest.New(
-			t,
-			"secret",
-			"create",
-			"api-key",
-			"--value", "super-secret-value",
-			"--value-env", "MYCLI_API_KEY",
-		)
-		clitest.SetupConfig(t, client, root)
-		t.Setenv("MYCLI_API_KEY", "different-value")
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "secret value may be provided by only one source")
+		require.ErrorContains(t, err, "secret value must be provided by exactly one of --value or non-interactive stdin (pipe or redirect)")
 	})
 }
 
-//nolint:tparallel // These tests mutate process env to verify case sensitivity.
 func TestSecretUpdate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ServerValidationError", func(t *testing.T) {
 		t.Parallel()
 
@@ -299,34 +211,6 @@ func TestSecretUpdate(t *testing.T) {
 		require.Equal(t, "", secret.FilePath)
 	})
 
-	t.Run("UpdatesValueFromEnv", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		setupCtx := testutil.Context(t, testutil.WaitMedium)
-		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "my-secret",
-			Value: "original-value",
-		})
-		require.NoError(t, err)
-
-		inv, root := clitest.New(
-			t,
-			"secret",
-			"update",
-			"my-secret",
-			"--value-env", "MYCLI_API_KEY",
-		)
-		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, client, root)
-		t.Setenv("MYCLI_API_KEY", "rotated-secret")
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err = inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-		require.Contains(t, output.Stdout(), "my-secret")
-	})
-
 	t.Run("UpdatesValueFromEmptyFlag", func(t *testing.T) {
 		t.Parallel()
 
@@ -349,34 +233,6 @@ func TestSecretUpdate(t *testing.T) {
 		)
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, client, root)
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err = inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-		require.Contains(t, output.Stdout(), "my-secret")
-	})
-
-	t.Run("UpdatesValueFromEmptyEnv", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		setupCtx := testutil.Context(t, testutil.WaitMedium)
-		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "my-secret",
-			Value: "original-value",
-		})
-		require.NoError(t, err)
-
-		inv, root := clitest.New(
-			t,
-			"secret",
-			"update",
-			"my-secret",
-			"--value-env", "MYCLI_API_KEY",
-		)
-		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, client, root)
-		t.Setenv("MYCLI_API_KEY", "")
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err = inv.WithContext(ctx).Run()
