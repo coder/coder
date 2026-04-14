@@ -68,6 +68,12 @@ sql:
           - column: "chats.labels"
             go_type:
               type: "StringMap"
+          - column: "chats.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "chats.group_acl"
+            go_type:
+              type: "WorkspaceACL"
           - column: "users.rbac_roles"
             go_type: "github.com/lib/pq.StringArray"
           - column: "templates.user_acl"

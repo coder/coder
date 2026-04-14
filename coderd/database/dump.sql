@@ -220,7 +220,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'chat:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1470,7 +1471,11 @@ CREATE TABLE chats (
     last_read_message_id bigint,
     last_injected_context jsonb,
     dynamic_tools jsonb,
-    organization_id uuid NOT NULL
+    organization_id uuid NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chats_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chats_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 CREATE TABLE connection_logs (

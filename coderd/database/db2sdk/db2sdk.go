@@ -879,6 +879,14 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatRoleActions returns the RBAC actions granted by a chat role.
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return nil
+}
+
 func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
 	switch typ {
 	case agentproto.Connection_SSH:

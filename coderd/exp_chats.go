@@ -5934,3 +5934,164 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 
 	rw.WriteHeader(http.StatusNoContent)
 }
+
+func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	users := make([]codersdk.ChatACLUser, 0)
+	for idStr, entry := range chat.UserACL {
+		userID, err := uuid.Parse(idStr)
+		if err != nil {
+			continue
+		}
+		//nolint:gocritic // System access to resolve user display info.
+		user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
+		if err != nil {
+			continue
+		}
+		role := convertToChatRole(entry.Permissions)
+		users = append(users, codersdk.ChatACLUser{
+			MinimalUser: codersdk.MinimalUser{
+				ID:        user.ID,
+				Username:  user.Username,
+				AvatarURL: user.AvatarURL,
+			},
+			Role: role,
+		})
+	}
+
+	groups := make([]codersdk.ChatACLGroup, 0)
+	for idStr, entry := range chat.GroupACL {
+		groupID, err := uuid.Parse(idStr)
+		if err != nil {
+			continue
+		}
+		//nolint:gocritic // System access to resolve group display info.
+		group, err := api.Database.GetGroupByID(dbauthz.AsSystemRestricted(ctx), groupID)
+		if err != nil {
+			continue
+		}
+		role := convertToChatRole(entry.Permissions)
+		groups = append(groups, codersdk.ChatACLGroup{
+			Group: codersdk.Group{
+				ID:             group.ID,
+				Name:           group.Name,
+				OrganizationID: group.OrganizationID,
+				AvatarURL:      group.AvatarURL,
+			},
+			Role: role,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatACL{
+		Users:  users,
+		Groups: groups,
+	})
+}
+
+func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	var req codersdk.UpdateChatACL
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Build updated ACLs from the current chat state.
+	userACL := make(database.WorkspaceACL)
+	for k, v := range chat.UserACL {
+		userACL[k] = v
+	}
+	groupACL := make(database.WorkspaceACL)
+	for k, v := range chat.GroupACL {
+		groupACL[k] = v
+	}
+
+	apiKey := httpmw.APIKey(r)
+
+	for idStr, role := range req.UserRoles {
+		// Prevent the owner from modifying their own ACL entry.
+		if idStr == apiKey.UserID.String() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot modify your own chat ACL entry.",
+			})
+			return
+		}
+		if role == codersdk.ChatRoleDeleted {
+			delete(userACL, idStr)
+		} else {
+			actions := db2sdk.ChatRoleActions(role)
+			if actions == nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid chat role: %q", role),
+				})
+				return
+			}
+			userACL[idStr] = database.WorkspaceACLEntry{Permissions: actions}
+		}
+	}
+
+	for idStr, role := range req.GroupRoles {
+		if role == codersdk.ChatRoleDeleted {
+			delete(groupACL, idStr)
+		} else {
+			actions := db2sdk.ChatRoleActions(role)
+			if actions == nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid chat role: %q", role),
+				})
+				return
+			}
+			groupACL[idStr] = database.WorkspaceACLEntry{Permissions: actions}
+		}
+	}
+
+	err := api.Database.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       chat.ID,
+		UserACL:  userACL,
+		GroupACL: groupACL,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat ACL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	err := api.Database.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       chat.ID,
+		UserACL:  database.WorkspaceACL{},
+		GroupACL: database.WorkspaceACL{},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to clear chat ACL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// convertToChatRole maps stored permissions back to a ChatRole.
+func convertToChatRole(perms []policy.Action) codersdk.ChatRole {
+	if len(perms) == 1 && perms[0] == policy.ActionRead {
+		return codersdk.ChatRoleRead
+	}
+	// Default to read for any unrecognized permission set.
+	if len(perms) > 0 {
+		return codersdk.ChatRoleRead
+	}
+	return codersdk.ChatRoleDeleted
+}

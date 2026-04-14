@@ -910,6 +910,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				RawMessage: opts.DynamicTools,
 				Valid:      len(opts.DynamicTools) > 0,
 			},
+			UserACL:  pqtype.NullRawMessage{},
+			GroupACL: pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

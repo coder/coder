@@ -1248,6 +1248,11 @@ func New(options *Options) *API {
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.chatACL)
+					r.Patch("/", api.patchChatACL)
+					r.Delete("/", api.deleteChatACL)
+				})
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)

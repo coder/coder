@@ -224,6 +224,7 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeChatShare                           APIKeyScope = "chat:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +468,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeChatShare:
 		return true
 	}
 	return false
@@ -680,6 +682,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeChatShare,
 	}
 }
 
@@ -4247,6 +4250,8 @@ type Chat struct {
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+	UserACL             WorkspaceACL          `db:"user_acl" json:"user_acl"`
+	GroupACL            WorkspaceACL          `db:"group_acl" json:"group_acl"`
 }
 
 type ChatDebugRun struct {

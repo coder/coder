@@ -2636,3 +2636,39 @@ type PRInsightsPullRequest struct {
 	CostMicros       int64     `json:"cost_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
+
+// ChatRole represents the level of access a user or group has
+// to a shared chat.
+type ChatRole string
+
+const (
+	// ChatRoleRead grants read-only access to a chat.
+	ChatRoleRead ChatRole = "read"
+	// ChatRoleDeleted is used to remove a user or group from the
+	// chat ACL.
+	ChatRoleDeleted ChatRole = ""
+)
+
+// UpdateChatACL is the request body for updating a chat's ACL.
+type UpdateChatACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
+}
+
+// ChatACL is the response body for a chat's ACL.
+type ChatACL struct {
+	Users  []ChatACLUser  `json:"users"`
+	Groups []ChatACLGroup `json:"groups"`
+}
+
+// ChatACLUser represents a user in a chat's ACL.
+type ChatACLUser struct {
+	MinimalUser
+	Role ChatRole `json:"role"`
+}
+
+// ChatACLGroup represents a group in a chat's ACL.
+type ChatACLGroup struct {
+	Group
+	Role ChatRole `json:"role"`
+}

@@ -477,6 +477,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 				Valid:      true,
 			},
 			DynamicTools: pqtype.NullRawMessage{},
+			UserACL:      marshalACLToNullRawMessage(parent.UserACL),
+			GroupACL:     marshalACLToNullRawMessage(parent.GroupACL),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert child chat: %w", err)
@@ -996,4 +998,20 @@ func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
 		return fantasy.NewTextResponse("{}")
 	}
 	return fantasy.NewTextResponse(string(data))
+}
+
+// marshalACLToNullRawMessage serializes a WorkspaceACL to a
+// pqtype.NullRawMessage suitable for InsertChat params.
+func marshalACLToNullRawMessage(acl database.WorkspaceACL) pqtype.NullRawMessage {
+	if len(acl) == 0 {
+		return pqtype.NullRawMessage{}
+	}
+	data, err := json.Marshal(acl)
+	if err != nil {
+		return pqtype.NullRawMessage{}
+	}
+	return pqtype.NullRawMessage{
+		RawMessage: data,
+		Valid:      true,
+	}
 }

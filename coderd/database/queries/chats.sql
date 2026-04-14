@@ -405,7 +405,9 @@ INSERT INTO chats (
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    user_acl,
+    group_acl
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -420,7 +422,9 @@ INSERT INTO chats (
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    COALESCE(sqlc.narg('user_acl')::jsonb, '{}'::jsonb),
+    COALESCE(sqlc.narg('group_acl')::jsonb, '{}'::jsonb)
 )
 RETURNING
     *;
@@ -539,6 +543,15 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
+
+-- name: UpdateChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl = @user_acl,
+    group_acl = @group_acl
+WHERE
+    id = @id;
 
 -- name: UpdateChatWorkspaceBinding :one
 UPDATE chats SET

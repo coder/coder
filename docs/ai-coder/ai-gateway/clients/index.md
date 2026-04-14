@@ -20,10 +20,10 @@ Replace `coder.example.com` with your actual Coder deployment URL.
 
 ## Authentication
 
-Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Gateway using their **Coder session token** or **API key**:
+Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Gateway using their **Coder API token**:
 
-- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
-- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
+- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder API token
+- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder API token
 
 > [!NOTE]
 > Only Coder-issued tokens can authenticate users against AI Gateway.
@@ -54,7 +54,7 @@ AI Gateway continues to provide observability and governance.
 
 In BYOK mode, users need two credentials:
 
-- A **Coder session token** to authenticate with AI Gateway.
+- A **Coder API token** to authenticate with AI Gateway.
 - Their **own LLM credential** (personal API key or subscription token) which AI Gateway forwards
   to the upstream provider.
 
