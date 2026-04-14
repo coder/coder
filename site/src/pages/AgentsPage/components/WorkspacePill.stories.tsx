@@ -126,18 +126,16 @@ export const WithAllApps: Story = {
 
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Open in VS Code")).toBeInTheDocument();
-			expect(body.getByText("Open in VS Code Insiders")).toBeInTheDocument();
+			expect(body.getByText("VS Code")).toBeInTheDocument();
+			expect(body.getByText("VS Code Insiders")).toBeInTheDocument();
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
-			expect(body.getByText("Open Terminal")).toBeInTheDocument();
+			expect(body.getByText("Terminal")).toBeInTheDocument();
 			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 
 			// Verify items are enabled on a running workspace.
-			const vscodeItem = body
-				.getByText("Open in VS Code")
-				.closest("[role=menuitem]");
+			const vscodeItem = body.getByText("VS Code").closest("[role=menuitem]");
 			expect(vscodeItem).not.toHaveAttribute("aria-disabled", "true");
 
 			// External apps should be enabled with API key mock.
@@ -165,13 +163,11 @@ export const WithBuiltinAppsOnly: Story = {
 
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Open in VS Code")).toBeInTheDocument();
-			expect(body.getByText("Open Terminal")).toBeInTheDocument();
+			expect(body.getByText("VS Code")).toBeInTheDocument();
+			expect(body.getByText("Terminal")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 			// No external apps or VS Code Insiders.
-			expect(
-				body.queryByText("Open in VS Code Insiders"),
-			).not.toBeInTheDocument();
+			expect(body.queryByText("VS Code Insiders")).not.toBeInTheDocument();
 		});
 	},
 };
@@ -193,8 +189,8 @@ export const WithExternalAppsOnly: Story = {
 			expect(body.getByText("Cursor")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 			// No built-in apps.
-			expect(body.queryByText("Open in VS Code")).not.toBeInTheDocument();
-			expect(body.queryByText("Open Terminal")).not.toBeInTheDocument();
+			expect(body.queryByText("VS Code")).not.toBeInTheDocument();
+			expect(body.queryByText("Terminal")).not.toBeInTheDocument();
 		});
 	},
 };
@@ -231,7 +227,7 @@ export const WithHiddenApp: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			// Visible apps should appear.
-			expect(body.getByText("Open in VS Code")).toBeInTheDocument();
+			expect(body.getByText("VS Code")).toBeInTheDocument();
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			// Hidden app should NOT appear.
 			expect(body.queryByText("Hidden Internal Tool")).not.toBeInTheDocument();
@@ -254,19 +250,17 @@ export const WithStoppedWorkspace: Story = {
 			const body = within(document.body);
 
 			// VS Code items should be present but disabled.
-			const vscodeItem = body
-				.getByText("Open in VS Code")
-				.closest("[role=menuitem]");
+			const vscodeItem = body.getByText("VS Code").closest("[role=menuitem]");
 			expect(vscodeItem).toHaveAttribute("aria-disabled", "true");
 
 			const vscodeInsidersItem = body
-				.getByText("Open in VS Code Insiders")
+				.getByText("VS Code Insiders")
 				.closest("[role=menuitem]");
 			expect(vscodeInsidersItem).toHaveAttribute("aria-disabled", "true");
 
 			// Terminal item should be disabled.
 			const terminalItem = body
-				.getByText("Open Terminal")
+				.getByText("Terminal")
 				.closest("[role=menuitem]");
 			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
 

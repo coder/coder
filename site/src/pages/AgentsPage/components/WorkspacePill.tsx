@@ -221,7 +221,7 @@ const VSCodeMenuItem: FC<{
 			disabled={isGeneratingKey || !isRunning}
 		>
 			<ExternalLinkIcon className="size-3.5" />
-			Open in {label}
+			{label}
 		</DropdownMenuItem>
 	);
 };
@@ -279,7 +279,7 @@ const TerminalMenuItem: FC<{
 			disabled={!isRunning}
 		>
 			<SquareTerminalIcon className="size-3.5" />
-			Open Terminal
+			Terminal
 		</DropdownMenuItem>
 	);
 };
