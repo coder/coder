@@ -31,6 +31,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
@@ -186,6 +187,27 @@ func withDomainAllowlist(domains ...string) testProxyOption {
 func withAIBridgeProviderFromHost(fn func(string) string) testProxyOption {
 	return func(cfg *testProxyConfig) {
 		cfg.aibridgeProviderFromHost = fn
+	}
+}
+
+// testProviderFromHost maps well-known AI provider hostnames to
+// provider names for test use. Unknown hosts return "".
+func testProviderFromHost(host string) string {
+	switch strings.ToLower(host) {
+	case aibridgeproxyd.HostAnthropic:
+		return aibridge.ProviderAnthropic
+	case aibridgeproxyd.HostOpenAI:
+		return aibridge.ProviderOpenAI
+	case aibridgeproxyd.HostCopilot:
+		return aibridge.ProviderCopilot
+	case agplaibridge.HostCopilotBusiness:
+		return agplaibridge.ProviderCopilotBusiness
+	case agplaibridge.HostCopilotEnterprise:
+		return agplaibridge.ProviderCopilotEnterprise
+	case agplaibridge.HostChatGPT:
+		return agplaibridge.ProviderChatGPT
+	default:
+		return ""
 	}
 }
 
@@ -474,13 +496,14 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			TLSCertFile:     "/nonexistent/cert.pem",
-			TLSKeyFile:      "/nonexistent/key.pem",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			ListenAddr:               "127.0.0.1:0",
+			TLSCertFile:              "/nonexistent/cert.pem",
+			TLSKeyFile:               "/nonexistent/key.pem",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "load listener TLS certificate")
@@ -543,11 +566,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
@@ -561,11 +585,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "https://localhost",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "https://localhost",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
@@ -579,11 +604,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
@@ -626,11 +652,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      ":0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    "/nonexistent/cert.pem",
-			MITMKeyFile:     "/nonexistent/key.pem",
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             "/nonexistent/cert.pem",
+			MITMKeyFile:              "/nonexistent/key.pem",
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to load MITM certificate")
@@ -710,11 +737,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{"unknown.example.com"},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{"unknown.example.com"},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `domain "unknown.example.com" is in allowlist but has no provider mapping`)
@@ -727,12 +755,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "://invalid-url",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "://invalid-url",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid upstream proxy URL")
@@ -745,13 +774,14 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "https://proxy.example.com:8080",
-			UpstreamProxyCA: "/nonexistent/ca.pem",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "https://proxy.example.com:8080",
+			UpstreamProxyCA:          "/nonexistent/ca.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to read upstream proxy CA certificate")
@@ -764,12 +794,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "http://:@proxy.example.com:8080",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "http://:@proxy.example.com:8080",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid credentials: both username and password are empty")
@@ -782,12 +813,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:          "127.0.0.1:0",
-			CoderAccessURL:      "http://localhost:3000",
-			MITMCertFile:        mitmCertFile,
-			MITMKeyFile:         mitmKeyFile,
-			DomainAllowlist:     []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			AllowedPrivateCIDRs: []string{"not-a-cidr"},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			AllowedPrivateCIDRs:      []string{"not-a-cidr"},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid allowed private CIDR")
@@ -800,11 +832,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -818,13 +851,14 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			TLSCertFile:     listenerCertFile,
-			TLSKeyFile:      listenerKeyFile,
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			ListenAddr:               "127.0.0.1:0",
+			TLSCertFile:              listenerCertFile,
+			TLSKeyFile:               listenerKeyFile,
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -837,12 +871,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "http://proxy.example.com:8080",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "http://proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -856,13 +891,14 @@ func TestNew(t *testing.T) {
 
 		// Use the shared MITM certificate as the upstream proxy CA (it's a valid PEM cert)
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "https://proxy.example.com:8080",
-			UpstreamProxyCA: mitmCertFile,
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "https://proxy.example.com:8080",
+			UpstreamProxyCA:          mitmCertFile,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -875,12 +911,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "http://proxyuser:proxypass@proxy.example.com:8080",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "http://proxyuser:proxypass@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -893,12 +930,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "http://proxyuser:@proxy.example.com:8080",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "http://proxyuser:@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -912,12 +950,13 @@ func TestNew(t *testing.T) {
 
 		// Username only (no colon) should also succeed (password is optional)
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "http://proxyuser@proxy.example.com:8080",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "http://proxyuser@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -930,12 +969,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			UpstreamProxy:   "http://:proxypass@proxy.example.com:8080",
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			UpstreamProxy:            "http://:proxypass@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -952,12 +992,13 @@ func TestNew(t *testing.T) {
 		metrics := aibridgeproxyd.NewMetrics(reg)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			Metrics:         metrics,
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			Metrics:                  metrics,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -970,12 +1011,13 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:          "127.0.0.1:0",
-			CoderAccessURL:      "http://localhost:3000",
-			MITMCertFile:        mitmCertFile,
-			MITMKeyFile:         mitmKeyFile,
-			DomainAllowlist:     []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			AllowedPrivateCIDRs:      []string{"127.0.0.1/32"},
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -992,11 +1034,12 @@ func TestClose(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
 		require.NoError(t, err)
 
@@ -1019,12 +1062,13 @@ func TestClose(t *testing.T) {
 		metrics := aibridgeproxyd.NewMetrics(reg)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
-			Metrics:         metrics,
+			ListenAddr:               "127.0.0.1:0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AIBridgeProviderFromHost: testProviderFromHost,
+			Metrics:                  metrics,
 		})
 		require.NoError(t, err)
 
@@ -1406,8 +1450,7 @@ func TestProxy_MITM(t *testing.T) {
 				withCoderAccessURL(aibridgedServer.URL),
 				withAllowedPorts(allowedPorts...),
 				withDomainAllowlist(domainAllowlist...),
-				// Use default provider mapping to test real AI provider routing.
-				withAIBridgeProviderFromHost(nil),
+				withAIBridgeProviderFromHost(testProviderFromHost),
 				withMetrics(metrics),
 			)
 
@@ -1546,7 +1589,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			srv := newTestProxy(t,
 				withCoderAccessURL(aibridgedServer.URL),
 				withDomainAllowlist(aibridgeproxyd.HostCopilot),
-				withAIBridgeProviderFromHost(nil),
+				withAIBridgeProviderFromHost(testProviderFromHost),
 			)
 
 			certPool := getProxyCertPool(t)
@@ -2014,8 +2057,7 @@ func TestUpstreamProxy(t *testing.T) {
 				withDomainAllowlist(domainAllowlist...),
 				withUpstreamProxy(upstreamProxyURLStr),
 				withAllowedPorts("80", "443", parsedTargetURL.Port()),
-				// Use default provider mapping to test real AI provider routing.
-				withAIBridgeProviderFromHost(nil),
+				withAIBridgeProviderFromHost(testProviderFromHost),
 			}
 			if upstreamProxyCAFile != "" {
 				proxyOpts = append(proxyOpts, withUpstreamProxyCA(upstreamProxyCAFile))
