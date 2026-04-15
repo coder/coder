@@ -81,6 +81,7 @@ type AgentConn interface {
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
+	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
@@ -869,6 +870,33 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 		return LSResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
+}
+
+// ResolvePathResponse is the response from the agent's path-resolution endpoint.
+type ResolvePathResponse struct {
+	ResolvedPath string `json:"resolved_path"`
+}
+
+// ResolvePath resolves the existing portion of an absolute path through any
+// symlinks and preserves missing trailing components.
+func (c *agentConn) ResolvePath(ctx context.Context, path string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/resolve-path?path=%s", path), nil)
+	if err != nil {
+		return "", xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", codersdk.ReadBodyAsError(res)
+	}
+
+	var m ResolvePathResponse
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return "", xerrors.Errorf("decode response body: %w", err)
+	}
+	return m.ResolvedPath, nil
 }
 
 // ReadFileLines reads a file with line-based offset and limit, returning

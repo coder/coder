@@ -83,6 +83,7 @@ func TestEditFiles(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
 		resolvePlanPathCalls := 0
+		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return(planPath, nil)
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
 			Path: planPath,
 			Edits: []workspacesdk.FileEdit{{
@@ -111,6 +112,32 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
 		assert.Equal(t, 1, resolvePlanPathCalls)
+	})
+
+	t.Run("PlanTurnRejectsSymlinkedPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return("/home/coder/README.md", nil)
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns", resp.Content)
 	})
 
 	t.Run("RejectsPlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {

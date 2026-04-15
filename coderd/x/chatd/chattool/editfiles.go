@@ -25,17 +25,19 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 		"Perform search-and-replace edits on one or more files in the workspace."+
 			" Each file can have multiple edits applied atomically.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			var planPath string
 			if options.IsPlanTurn && len(args.Files) > 0 {
-				planPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
+				resolvedPlanPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 				for i := range args.Files {
 					args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
-					if args.Files[i].Path != planPath {
-						return fantasy.NewTextErrorResponse("during plan turns, edit_files is restricted to " + planPath), nil
+					if args.Files[i].Path != resolvedPlanPath {
+						return fantasy.NewTextErrorResponse("during plan turns, edit_files is restricted to " + resolvedPlanPath), nil
 					}
 				}
+				planPath = resolvedPlanPath
 			}
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -43,6 +45,11 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			if planPath != "" {
+				if err := ensurePlanPathResolvesToItself(ctx, conn, planPath); err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 			}
 			return executeEditFilesTool(ctx, conn, args, options.ResolvePlanPath)
 		},

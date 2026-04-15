@@ -17,19 +17,18 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
-	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	ipnstate "tailscale.com/ipn/ipnstate"
-	speedtest "tailscale.com/net/speedtest"
-
 	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
 	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
+	ssh "golang.org/x/crypto/ssh"
+	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	ipnstate "tailscale.com/ipn/ipnstate"
+	speedtest "tailscale.com/net/speedtest"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -447,6 +446,21 @@ func (m *MockAgentConn) RecreateDevcontainer(ctx context.Context, devcontainerID
 func (mr *MockAgentConnMockRecorder) RecreateDevcontainer(ctx, devcontainerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecreateDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).RecreateDevcontainer), ctx, devcontainerID)
+}
+
+// ResolvePath mocks base method.
+func (m *MockAgentConn) ResolvePath(ctx context.Context, path string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolvePath", ctx, path)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolvePath indicates an expected call of ResolvePath.
+func (mr *MockAgentConnMockRecorder) ResolvePath(ctx, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolvePath", reflect.TypeOf((*MockAgentConn)(nil).ResolvePath), ctx, path)
 }
 
 // SSH mocks base method.
