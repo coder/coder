@@ -334,8 +334,11 @@ validate:
 	return externalAuthLink, nil
 }
 
-// ValidateToken ensures the Git token provided is valid!
+// ValidateToken checks if the Git token provided is valid.
 // The user is optionally returned if the provider supports it.
+// Returns (true, nil, nil) in three cases: the provider confirmed
+// the token, no ValidateURL is configured, or the validation
+// endpoint returned a rate-limited 403 (optimistic assumption).
 func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
 	if link == nil {
 		return false, nil, xerrors.New("validate external auth token: token is nil")
@@ -1316,7 +1319,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 			"invalid_grant",                // Gitlab & Spec
 			"unauthorized_client",          // Gitea & Spec
 			"unsupported_grant_type",       // Spec, refresh not supported
-			"incorrect_client_credentials", // Github, wrong client_id/secret (HTTP 200)
+			"incorrect_client_credentials", // GitHub, wrong client_id/secret (HTTP 200)
 			"invalid_client":               // RFC 6749 Section 5.2, client auth failed
 			return true
 		}

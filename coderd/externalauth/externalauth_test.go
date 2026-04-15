@@ -518,6 +518,70 @@ func TestRefreshToken(t *testing.T) {
 			"DB should have the new refresh token despite context cancellation")
 	})
 
+	// SaveBeforeValidate_RateLimited tests the full path: refresh
+	// succeeds, early save persists the token, validation returns
+	// rate-limited optimistic true, and RefreshToken returns success
+	// with no InvalidTokenError. Uses httptest.NewServer for the
+	// validate endpoint to set rate-limit headers that the FakeIDP's
+	// WithDynamicUserInfo hook cannot control.
+	t.Run("SaveBeforeValidate_RateLimited", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		var refreshCalls atomic.Int64
+		// rateLimitValidate returns 403 with rate-limit headers.
+		rateLimitValidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(rateLimitValidate.Close)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				cfg.ValidateURL = rateLimitValidate.URL
+			},
+			DB: db,
+		})
+
+		// Use a real HTTP transport for non-IDP requests so the
+		// validate request can reach the httptest server.
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(&http.Client{
+			Transport: http.DefaultTransport,
+		}))
+
+		oldAccessToken := link.OAuthAccessToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// RefreshToken should succeed: the IDP refresh works, the
+		// early save persists the token, and ValidateToken returns
+		// (true, nil, nil) because the 403 has rate-limit headers.
+		updated, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err, "RefreshToken should succeed when validation is rate-limited")
+		require.Equal(t, int64(1), refreshCalls.Load(), "IDP refresh should have been called")
+		require.NotEqual(t, oldAccessToken, updated.OAuthAccessToken,
+			"returned token should be the new one from the refresh")
+
+		// Verify the DB has the new token.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the refreshed token")
+	})
+
 	// SaveBeforeValidate_DBError tests that when the early DB save
 	// fails after a successful IDP refresh, the error is surfaced
 	// as a non-InvalidTokenError. This is a degraded state (token
@@ -683,6 +747,28 @@ func TestValidateToken(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// Forbidden_WithNonZeroRateLimit: a 403 with non-zero
+	// X-RateLimit-Remaining is a genuine token revocation, not a
+	// rate limit. GitHub includes X-RateLimit-* headers on all
+	// authenticated responses; the value matters, not the presence.
+	t.Run("Forbidden_WithNonZeroRateLimit", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "5000")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "403 with non-zero rate limit remaining means token is invalid")
 		assert.Nil(t, user)
 	})
 
