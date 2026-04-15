@@ -1601,7 +1601,7 @@ func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
 
 	// Simulate: after the tool executes (step 0), instruction
 	// becomes available. PrepareMessages injects it before step 1.
-	var instructionInjected atomic.Bool
+	instructionInjected := make(chan struct{})
 	var instructionAvailable atomic.Value
 	// The tool sets instruction after execution.
 	tool := fantasy.NewAgentTool(
@@ -1624,14 +1624,16 @@ func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
 			return nil
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
-			if instructionInjected.Load() {
+			select {
+			case <-instructionInjected:
 				return nil
+			default:
 			}
 			instr, ok := instructionAvailable.Load().(string)
 			if !ok || instr == "" {
 				return nil
 			}
-			instructionInjected.Store(true)
+			close(instructionInjected)
 			// Insert a system message after existing system messages.
 			result := make([]fantasy.Message, 0, len(msgs)+1)
 			inserted := false
@@ -1748,7 +1750,7 @@ func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 3, int(streamCalls))
+	require.Equal(t, 3, streamCalls)
 	// PrepareMessages is called before each of the 3 steps.
 	require.Equal(t, 3, int(prepareCalls.Load()))
 }

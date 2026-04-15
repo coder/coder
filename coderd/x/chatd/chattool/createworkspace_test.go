@@ -1159,10 +1159,18 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 			Status: database.UserStatusActive,
 		}, nil)
 
+	// Org check: GetTemplateByID returns a template in the
+	// same org (uuid.Nil matches our organizationID param).
+	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: uuid.Nil,
+		}, nil)
+
 	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
-
 
 	// UpdateChatWorkspaceBinding — triggers first OnChatUpdated.
 	db.EXPECT().
@@ -1206,7 +1214,6 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 	var mu sync.Mutex
 	var callbackChats []database.Chat
 
-
 	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 		return codersdk.Workspace{
 			ID:        workspaceID,
@@ -1218,9 +1225,9 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(CreateWorkspaceOptions{
-		DB:          db,
-		OwnerID:     ownerID,
+	tool := CreateWorkspace(uuid.Nil, db, CreateWorkspaceOptions{
+		OwnerID: ownerID,
+
 		ChatID:      chatID,
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},

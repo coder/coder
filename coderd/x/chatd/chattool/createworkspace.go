@@ -254,8 +254,7 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			// The agent is now online — re-fire so callers can
 			// load instruction files from the running agent.
 			if options.OnChatUpdated != nil {
-					if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
-
+				if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
 					options.OnChatUpdated(latest)
 				}
 			}

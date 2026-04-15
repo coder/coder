@@ -369,18 +369,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// copy copies Message structs by value, so field
 			// reassignments in addAnthropicPromptCaching only
 			// affect the prepared slice.
-				if opts.PrepareMessages != nil {
-					if updated := opts.PrepareMessages(messages); updated != nil {
-						messages = updated
-					}
+			if opts.PrepareMessages != nil {
+				if updated := opts.PrepareMessages(messages); updated != nil {
+					messages = updated
 				}
-				prepared := make([]fantasy.Message, len(messages))
-				copy(prepared, messages)
-				if applyAnthropicCaching {
-					addAnthropicPromptCaching(prepared)
-				}
-				opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
-				opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
+			}
+			prepared := make([]fantasy.Message, len(messages))
+			copy(prepared, messages)
+			if applyAnthropicCaching {
+				addAnthropicPromptCaching(prepared)
+			}
+			opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
+			opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
 
 			call := fantasy.Call{
 				Prompt:           prepared,

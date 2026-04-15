@@ -5106,27 +5106,27 @@ func (p *Server) runChat(
 					}
 				}
 			}
-			}
-			tools = append(tools,
-				chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
-					OwnerID:            chat.OwnerID,
-					AllowedTemplateIDs: p.chatTemplateAllowlist,
-				}),
-				chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
-					OwnerID:            chat.OwnerID,
-					AllowedTemplateIDs: p.chatTemplateAllowlist,
-				}),
-				chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
-					OwnerID:                        chat.OwnerID,
-					ChatID:                         chat.ID,
-					CreateFn:                       p.createWorkspaceFn,
-					AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-					AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-					WorkspaceMu:                    &workspaceMu,
-					OnChatUpdated:                  onChatUpdated,
-					Logger:                         p.logger,
-					AllowedTemplateIDs:             p.chatTemplateAllowlist,
-				}),
+		}
+		tools = append(tools,
+			chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
+				OwnerID:            chat.OwnerID,
+				AllowedTemplateIDs: p.chatTemplateAllowlist,
+			}),
+			chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
+				OwnerID:            chat.OwnerID,
+				AllowedTemplateIDs: p.chatTemplateAllowlist,
+			}),
+			chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
+				OwnerID:                        chat.OwnerID,
+				ChatID:                         chat.ID,
+				CreateFn:                       p.createWorkspaceFn,
+				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+				WorkspaceMu:                    &workspaceMu,
+				OnChatUpdated:                  onChatUpdated,
+				Logger:                         p.logger,
+				AllowedTemplateIDs:             p.chatTemplateAllowlist,
+			}),
 
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:            p.db,
@@ -5352,6 +5352,7 @@ func (p *Server) runChat(
 			}
 			if reloadedInstruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
+				instructionInjected = true
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			reloadedSkills := skillsFromParts(reloadedMsgs)
@@ -5374,20 +5375,20 @@ func (p *Server) runChat(
 			}
 			return reloadedPrompt, nil
 		},
-			DisableChainMode: func() {
-				chainModeActive = false
-			},
-			PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
-				if instructionInjected || instruction == "" {
-					return nil
-				}
-				instructionInjected = true
-				result := chatprompt.InsertSystem(msgs, instruction)
-				if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
-					result = chatprompt.InsertSystem(result, skillIndex)
-				}
-				return result
-			},
+		DisableChainMode: func() {
+			chainModeActive = false
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			if instructionInjected || instruction == "" {
+				return nil
+			}
+			instructionInjected = true
+			result := chatprompt.InsertSystem(msgs, instruction)
+			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+				result = chatprompt.InsertSystem(result, skillIndex)
+			}
+			return result
+		},
 		OnRetry: func(
 			attempt int,
 			retryErr error,

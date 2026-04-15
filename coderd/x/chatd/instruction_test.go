@@ -266,4 +266,24 @@ func TestInstructionFromContextFiles(t *testing.T) {
 		got := instructionFromContextFiles(msgs)
 		require.Empty(t, got)
 	})
+
+	t.Run("ReconstructsFromContextFileParts", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			makeMsg([]codersdk.ChatMessagePart{
+				{
+					Type:                 codersdk.ChatMessagePartTypeContextFile,
+					ContextFileOS:        "linux",
+					ContextFileDirectory: "/home/coder/project",
+					ContextFileContent:   "project rules",
+					ContextFilePath:      "/home/coder/project/AGENTS.md",
+				},
+			}),
+		}
+		got := instructionFromContextFiles(msgs)
+		require.Contains(t, got, "Operating System: linux")
+		require.Contains(t, got, "Working Directory: /home/coder/project")
+		require.Contains(t, got, "Source: /home/coder/project/AGENTS.md")
+		require.Contains(t, got, "project rules")
+	})
 }
