@@ -3105,6 +3105,7 @@ describe("thinking indicator event ordering", () => {
 			expect(result.current.isAwaiting).toBe(false);
 		});
 	});
+
 	it("applies message_part synchronously even when status:running arrives before it in same batch", async () => {
 		immediateAnimationFrame();
 
@@ -3175,6 +3176,7 @@ describe("thinking indicator event ordering", () => {
 			expect(result.current.isAwaiting).toBe(false);
 		});
 	});
+
 	it("discards buffered parts when status transitions to pending", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
