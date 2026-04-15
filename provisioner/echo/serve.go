@@ -656,10 +656,11 @@ func ParameterTerraform(param *proto.RichParameter) (string, error) {
 			}
 			// Only emit an empty-string default for string-like types
 			// where "" is valid Terraform. For number and bool, an
-			// empty string default would be invalid.
+			// empty string default would be invalid. An empty type
+			// defaults to string.
 			if !v.Required {
 				switch v.Type {
-				case "string", "list(string)":
+				case "string", "list(string)", "":
 					return true
 				}
 			}

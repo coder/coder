@@ -965,10 +965,82 @@ func TestCreateWithRichParameters(t *testing.T) {
 			inputParameters: []param{
 				{name: "non_empty_param", ptype: "string", value: "hello", mutable: true},
 				{name: "empty_default_param", ptype: "string", value: "", mutable: true},
+				// Parameter with no type set (defaults to string).
+				// Exercises the "" case in the echo provisioner's hasDefault.
+				{name: "no_type_param", value: "typeless", mutable: true},
 			},
 			expectedParameters: []param{
 				{name: "non_empty_param", value: "hello"},
 				{name: "empty_default_param", value: ""},
+				{name: "no_type_param", value: "typeless"},
+			},
+		},
+		{
+			// Empty string passed via --parameter should be accepted.
+			name: "EmptyStringViaParameterFlag",
+			setup: func() []string {
+				return []string{
+					"--parameter", "string_param=",
+					"--parameter", "number_param=777",
+					"--parameter", "bool_param=false",
+					"--parameter", "immutable_string_param=i am eternal",
+					"-y",
+				}
+			},
+			expectedParameters: []param{
+				{name: "number_param", value: "777"},
+				{name: "string_param", value: ""},
+				{name: "bool_param", value: "false"},
+				{name: "immutable_string_param", value: "i am eternal"},
+			},
+		},
+		{
+			// Empty string passed via --parameter-default should be
+			// accepted without prompting when combined with
+			// --use-parameter-defaults.
+			name: "EmptyStringViaParameterDefaultFlag",
+			setup: func() []string {
+				return []string{
+					"--use-parameter-defaults",
+					"--parameter-default", "string_param=",
+				}
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+			expectedParameters: []param{
+				{name: "number_param", value: "777"},
+				{name: "string_param", value: ""},
+				{name: "bool_param", value: "false"},
+				{name: "immutable_string_param", value: "i am eternal"},
+			},
+		},
+		{
+			// Empty string in a parameter file should be accepted.
+			name: "EmptyStringViaParameterFile",
+			setup: func() []string {
+				tempDir := t.TempDir()
+				removeTmpDirUntilSuccessAfterTest(t, tempDir)
+				parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+				_, err := parameterFile.WriteString("string_param: \"\"\n")
+				require.NoError(t, err)
+				return []string{
+					"--use-parameter-defaults",
+					"--rich-parameter-file", parameterFile.Name(),
+				}
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				pty.ExpectMatch("Confirm create?")
+				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+			expectedParameters: []param{
+				{name: "number_param", value: "777"},
+				{name: "string_param", value: ""},
+				{name: "bool_param", value: "false"},
+				{name: "immutable_string_param", value: "i am eternal"},
 			},
 		},
 		{
@@ -1035,7 +1107,8 @@ cli_param: from file`)
 					value: "from template default",
 				},
 				{
-					name: "input_param", required: true,
+					name:     "input_param",
+					required: true,
 				},
 			},
 			expectedParameters: []param{
