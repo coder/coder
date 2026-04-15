@@ -645,10 +645,10 @@ export const ProviderWithUserKeysOnly: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(await body.findByRole("button", { name: /Google/i }));
 		await expect(
-			body.getByRole("switch", { name: "Central API key" }),
+			await body.findByRole("switch", { name: "Central API key" }),
 		).not.toBeChecked();
 		await expect(
-			body.getByRole("switch", { name: "Allow user API keys" }),
+			await body.findByRole("switch", { name: "Allow user API keys" }),
 		).toBeChecked();
 		expect(body.queryByLabelText(/^API Key$/i)).not.toBeInTheDocument();
 		expect(
